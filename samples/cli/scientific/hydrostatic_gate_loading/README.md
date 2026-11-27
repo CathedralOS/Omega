@@ -56,13 +56,13 @@ From the repository root (replace `OMEGA` with that compiler's executable):
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-APP=samples/cli/independent/hydrostatic_gate_loading
+APP=samples/cli/scientific/hydrostatic_gate_loading
 OMEGA update --project "$APP" --target linux_x86_64
 # Read pending package-policy decisions and accept them in the review file,
 # then OMEGA update --resume --project "$APP" if review is requested.
 OMEGA --check --target linux_x86_64 "$APP/main.omg"
 OMEGA run --keep "$APP/main.omg" < "$APP/data/rectangle.in"
-OMEGA run --both --keep "$APP/main.omg" < "$APP/data/piecewise.in"
+OMEGA run --keep "$APP/main.omg" < "$APP/data/piecewise.in"
 OMEGA --check --target linux_x86_64 "$APP/intended_invalid/main.omg"
 ```
 

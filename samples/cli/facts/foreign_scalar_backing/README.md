@@ -66,7 +66,7 @@ a descriptor sibling does not relocate that field.
 - Omega 07–09: native emission must produce the authored bytes and exit zero,
   agreeing with Terminal's result on the matching host.
 
-Acceptance is `omega run --both <place>/main.omg`, both exits zero and exact
+Acceptance is `mbx xtask sample-gate --filter samples/cli/facts/foreign_scalar_backing/<place>`, both exits zero and exact
 `ABC\n` output (twice for `match_join`), plus each twin's active-loan rejection.
 
 The actual optimized producer is `6fe58fe64b3825ed91fed6a8fc4e146ae3a9d779`.

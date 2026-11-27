@@ -31,7 +31,7 @@ and are not counted as compiler or program failures.
 
 Normal update returned ReviewRequired after 391.922 seconds; 288 individual
 pending decisions were accepted, and strict resume completed in 187.563 seconds.
-`run --both --keep` completed in 156.469 seconds. All 198 tracked project/library
+The native and interpreted comparison with retained artifacts completed in 156.469 seconds. All 198 tracked project/library
 inputs were guarded before and after phases. Only the root journal application
 was executed; its nested projects and completed filesystem witnesses were not
 selected. Optimized compiler preparation took 157.781 seconds on the rerun.

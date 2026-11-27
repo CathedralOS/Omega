@@ -39,7 +39,7 @@ reported build profile `{"opt_level":"1"}`.
 Every positive place and root `main.omg` binds `ProgramEntry` for all four
 hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`)
 in its `build.omg` and declares `Expected exit: 0` in its header. Measured with
-`omega run --both` (`< /dev/null`), root and all nine places report
+the native/Psi comparison (`< /dev/null`), root and all nine places report
 `native exit 0` together with `interp exit: 0` — Terminal Psi and native
 execution agree at exit 0 in ten of ten positives. All nine
 `<place>/invalid/main.omg` twins exit 200 with the pinned diagnostic
@@ -66,10 +66,10 @@ while the others stayed live could not have changed the observed result.
 - **Identity and lifetime:** The fact names three distinct storage versions (`slot_a`, `slot_b`, `slot_c`) that are live across the same call; mutating `slot_b` exclusively through `@mutable slot_b` preserves the static facts and values of provably disjoint sibling locals throughout their lifetimes, as confirmed by discrimination observations.
 - **Composition:** Isolated stack-frame slot facts compose through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming exact subtraction operation (`isolated - 100u64`); `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in the target slot's bound or mutation (producing a 99u64 sum), never in a caller guard.
 - **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed at compile time (`exact arithmetic in machine ... may overflow \`u64\``), strictly preventing unproved subtraction when a write to the consumed slot weakens its bound or causes an underflow.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Distinct local storage roots, exclusive borrows (`@mutable`), and mutations lower into canonical target-neutral `PSITERM\0` while erasing proof-only obligations, executing with identical semantics in the Terminal Psi interpreter (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Distinct local storage roots, exclusive borrows (`@mutable`), and mutations lower into canonical target-neutral `PSITERM\0` while erasing proof-only obligations, executing with identical semantics in the Terminal Psi interpreter.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build bindings (`ProgramEntry`) settle across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), local carrier layout geometry (`SlotPair` size 16, align 8) evaluates and validates, and `CallPlan`/`StatePlan` lower carriers across target registers and stack slots.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering assigns non-overlapping byte intervals (`[offset, offset + size)`) in the activation frame for disjoint locals, composes worst-case stack usage (WCSU), and inserts entry prologues and multi-return epilogues honoring the `StatePlan`.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Distinct symbolic stack-frame displacements resolve into non-aliasing `[rsp + disp]` / `[sp, #imm]` memory operands, basic blocks and branches relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Distinct symbolic stack-frame displacements resolve into non-aliasing `[rsp + disp]` / `[sp, #imm]` memory operands, basic blocks and branches relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.
 
 Open scope: this row establishes disjoint homes for three co-resident records in
 one activation frame on the exercised places. Wider frame geometries (nested

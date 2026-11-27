@@ -3,9 +3,11 @@
 From the repository root, run:
 
 ```text
-mbx run -p omega -- run --engine native samples/cli/arithmetic/prime_sieve/main.omg
-mbx run -p omega -- run --engine psi samples/cli/arithmetic/prime_sieve/main.omg
+mbx run -p omega -- run samples/cli/arithmetic/prime_sieve/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/arithmetic/prime_sieve` from the repository root.
 
 Press Enter at the closing prompt. Native and checked-interpreter execution
 both exit `0` on macOS ARM64. The native program must

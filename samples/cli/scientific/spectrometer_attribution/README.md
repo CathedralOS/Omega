@@ -95,19 +95,19 @@ library content (substitute the absolute binary path):
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=/absolute/path/to/omega
-APP=samples/cli/independent/spectrometer_attribution
+APP=samples/cli/scientific/spectrometer_attribution
 "$OMEGA" update --project "$APP" --target linux_x86_64
 # Inspect the emitted review, accept the expected local system/entry decisions,
 # then resume if the update requests review.
 "$OMEGA" update --resume --project "$APP"
 "$OMEGA" --check --target linux_x86_64 "$APP/main.omg"
-"$OMEGA" run --both --keep "$APP/main.omg" < "$APP/data/isolated.input"
+"$OMEGA" run --keep "$APP/main.omg" < "$APP/data/isolated.input"
 ```
 
 The installed host providers are the ordinary system console. Build metadata binds
 exact hosted program-entry slots. Linux x86-64 is the execution acceptance host;
 other bindings are portability declarations, not unexecuted test claims.
-`omega run --both` compares termination and the exact stdout and stderr bytes from
+The comparison checks termination and the exact stdout and stderr bytes from
 both engines. The optional corpus
 validation route checks each engine's stdout and stderr independently against
 the same frozen files; it never substitutes checked-tree execution for Terminal.

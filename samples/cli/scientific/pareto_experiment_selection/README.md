@@ -69,21 +69,20 @@ its library explicitly. Package review is the ordinary documented update route:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-omega packages update --project samples/cli/independent/pareto_experiment_selection --target linux_x86_64
+omega packages update --project samples/cli/scientific/pareto_experiment_selection --target linux_x86_64
 # Read the pending review, accept the reviewed decisions, then:
-omega packages update --resume --project samples/cli/independent/pareto_experiment_selection
-omega --check samples/cli/independent/pareto_experiment_selection/main.omg
-omega run --keep samples/cli/independent/pareto_experiment_selection/main.omg < samples/cli/independent/pareto_experiment_selection/data/baseline.stdin
-omega run --engine native --keep samples/cli/scientific/pareto_experiment_selection/main.omg < samples/cli/scientific/pareto_experiment_selection/data/reordered.stdin
-omega run --engine psi --keep samples/cli/scientific/pareto_experiment_selection/main.omg < samples/cli/scientific/pareto_experiment_selection/data/reordered.stdin
-omega --check samples/cli/independent/pareto_experiment_selection/invalid_source/main.omg
+omega packages update --resume --project samples/cli/scientific/pareto_experiment_selection
+omega --check samples/cli/scientific/pareto_experiment_selection/main.omg
+omega run --keep samples/cli/scientific/pareto_experiment_selection/main.omg < samples/cli/scientific/pareto_experiment_selection/data/baseline.stdin
+omega run --keep samples/cli/scientific/pareto_experiment_selection/main.omg < samples/cli/scientific/pareto_experiment_selection/data/reordered.stdin
+omega --check samples/cli/scientific/pareto_experiment_selection/invalid_source/main.omg
 ```
 
 The final command must reject the exact unsigned-underflow control. Generated
 compiler artifacts, logs and accepted lock/review files stay in ignored local
 `build/` or local package state. Build binds the ordinary Linux, macOS and Windows
 host entry slots; the validation evidence records the actually executed target.
-`run --both` compares host termination against Terminal execution. The private
+The comparison checks host termination against Terminal execution. The private
 `validation/` harness additionally checks Terminal stdout and stderr directly,
 through the current main compiler's public package and runtime facades. It prepares
 the normal package project, compiles once, retains the produced Terminal artifact

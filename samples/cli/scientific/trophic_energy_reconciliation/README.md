@@ -65,7 +65,7 @@ omega packages update --project samples/cli/independent/trophic_energy_reconcili
 # Accept only reviewed decisions, then use update --project <directory> --resume.
 ```
 
-Validation is serial. The CLI runs the produced Psi artifact and compares termination, stdout
+Validation is serial. The recorded comparison ran the produced Psi artifact and compared termination, stdout
 and stderr
 with the native execution. The validator checks the forwarded native bytes against its
 expected output. `build/validation/` retains

@@ -183,8 +183,11 @@ fn file_difference(expected: Option<&[u8]>, observed: Option<&[u8]>) -> Option<S
     }
 }
 
-fn compare(psi: &Run<PsiTermination>, native: &Run<NativeTermination>) -> Result<(), String> {
-    let (Ok(psi), Ok(native)) = (psi, native) else {
+fn compare(
+    psi: &Run<PsiTermination>,
+    native: Option<&Run<NativeTermination>>,
+) -> Result<(), String> {
+    let (Ok(psi), Some(Ok(native))) = (psi, native) else {
         return Err(
             "native/Psi comparison unavailable because both observations are required".into(),
         );
@@ -223,23 +226,24 @@ fn compare(psi: &Run<PsiTermination>, native: &Run<NativeTermination>) -> Result
 
 pub(super) fn assess(
     psi: Run<PsiTermination>,
-    native: Run<NativeTermination>,
+    native: Option<Run<NativeTermination>>,
     execution: TestExecution,
     expected: &TestExpectations,
 ) -> Result<String, String> {
     let mut passed = Vec::new();
     let mut unavailable = Vec::new();
     let mut failures = Vec::new();
-    for (engine, result) in [
-        (
-            "Psi interpreter",
-            verdict(&psi, PsiTermination::expect_return, expected),
-        ),
+    let psi_verdict = (
+        "Psi interpreter",
+        verdict(&psi, PsiTermination::expect_return, expected),
+    );
+    let native_verdict = native.as_ref().map(|run| {
         (
             "native",
-            verdict(&native, NativeTermination::expect_return, expected),
-        ),
-    ] {
+            verdict(run, NativeTermination::expect_return, expected),
+        )
+    });
+    for (engine, result) in std::iter::once(psi_verdict).chain(native_verdict) {
         match result {
             Ok(()) => passed.push(engine),
             Err(EngineError::Failed(reason)) => {
@@ -269,7 +273,7 @@ pub(super) fn assess(
         }
     }
     if execution == TestExecution::Compare {
-        match compare(&psi, &native) {
+        match compare(&psi, native.as_ref()) {
             Ok(()) => rows.push("native/Psi comparison agrees".into()),
             Err(reason) => {
                 rows.push(reason);
@@ -305,7 +309,13 @@ mod tests {
             &[4, 0, 254],
             &[8],
         );
-        let error = assess(psi, native, TestExecution::Compare, &Default::default()).unwrap_err();
+        let error = assess(
+            psi,
+            Some(native),
+            TestExecution::Compare,
+            &Default::default(),
+        )
+        .unwrap_err();
         assert!(
             error.contains("passed on Psi interpreter, native"),
             "{error}"
@@ -334,7 +344,13 @@ mod tests {
             b"1",
         );
         let psi = observed(PsiTermination::Returned, &[], b"2");
-        let error = assess(psi, native, TestExecution::Compare, &Default::default()).unwrap_err();
+        let error = assess(
+            psi,
+            Some(native),
+            TestExecution::Compare,
+            &Default::default(),
+        )
+        .unwrap_err();
         assert!(error.contains("differs at stderr byte 0"), "{error}");
     }
 
@@ -343,7 +359,7 @@ mod tests {
         let run = |mode| {
             assess(
                 observed(PsiTermination::Returned, &[], &[]),
-                Err(EngineError::Unavailable("cross target".into())),
+                Some(Err(EngineError::Unavailable("cross target".into()))),
                 mode,
                 &Default::default(),
             )

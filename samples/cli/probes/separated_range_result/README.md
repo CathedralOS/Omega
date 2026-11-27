@@ -1,6 +1,6 @@
 # Separated range results
 
-Run `omega run --both main.omg` after ordinary package preparation. Expected
+Run `mbx xtask sample-gate --filter samples/cli/probes/separated_range_result` after ordinary package preparation. Expected
 native and Terminal exit: 0. The validator returns a qualified payload only for
 nonempty, nonoverflowing, disjoint intervals, including either ordering and
 adjacency. Overlap, containment, empty input and both overflow positions reject.

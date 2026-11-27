@@ -12,7 +12,7 @@ fn fixture(tier: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn generic_owned_and_borrowed_forwarding_agrees_in_both_engines() {
+fn generic_owned_and_borrowed_forwarding_agrees_when_interpreted_and_built() {
     program::assert_fixture_silent_return(&fixture("run"));
 }
 

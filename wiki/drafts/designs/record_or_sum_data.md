@@ -118,7 +118,7 @@ not appear.
 - A body with a field and a case rejects with a diagnostic that prints the
   record-holding-a-sum form.
 - Nested and inline declarations at two depths construct, match, move out of
-  their field and pass by value and by reference under `--both`; a nested
+  their field and pass by value and by reference in native and interpreted tests; a nested
   declaration without a field adds no member.
 - A type declared in a case payload resolves under the enclosing data, an
   inline declaration with its own parameter rejects, and a nested name that
@@ -134,9 +134,9 @@ not appear.
   record's predicates again, and replacing the held sum through that
   reference leaves sibling fields and their loans intact.
 - Tuple dispatch over a field and the held sum, with a payload binding in an
-  arm, passes `--both`; a case pattern inside a record pattern rejects.
+  arm, passes native and interpreted tests; a case pattern inside a record pattern rejects.
 - Named and positional record decomposition and `let Pattern = expr;` pass
-  `omega run --both` across the nine placement rows with rejecting twins. This
+  native and interpreted tests across the nine placement rows with rejecting twins. This
   carries the acceptance of the retired `DATA-DECOMPOSITION` item.
 - `case as name`, `Data::case` and flattened case patterns reject.
 - `Token` and the affected samples and tests are migrated.

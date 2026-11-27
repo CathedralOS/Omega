@@ -4,7 +4,7 @@ Fact: 64-bit signed wrapping subtraction lhs -% rhs with bounded interval 40i64 
 
 The original root reproduction is preserved in [main.omg](main.omg) and [build.omg](build.omg).
 
-Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines (`omega run --both`) agree on exit code 0.
+Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines agree on exit code 0.
 
 ## Pinned fixtures
 
@@ -30,7 +30,7 @@ accompanied by `<place>/invalid/` reject twins:
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | wrapping subtraction result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | wrapping subtraction result verified across target-scoped machine bodies |
 
-Run each place with `omega run --both <place>/main.omg`.
+Run each place with `mbx xtask sample-gate --filter samples/cli/facts/signed_64bit_wrapping_subtraction_bound/<place>`.
 
 ### The oracle discriminates
 
@@ -71,10 +71,10 @@ Full 8-layer specification and lowering evidence:
   - `target_body`: wrapping subtraction result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening inputs to `lhs = 125, rhs = 20` (where `diff` reaches `105i64 > 100i64`), proving that downstream contract verification `requires diff >= 40 && diff <= 100` strictly fails closed when the post-wrapping difference exceeds 100.
 - **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: cannot prove ... contract ...: ... <= 100`, confirming that the proof engine soundly detects that when `diff` can be 105, contract satisfaction cannot be established.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations with explicit `WrappingIntegerSubtract` operations without overflow trapping assertions. Both Terminal Psi interpretation and native execution agree (`omega run --both` reports exit 0).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations with explicit `WrappingIntegerSubtract` operations without overflow trapping assertions. Both Terminal Psi interpretation and native execution agree (the native/Psi comparison reports exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`) across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout plans validate 8-byte `i64` scalar storage and alignment, while calling plans assign 64-bit register homes (`rax`/`rdi`/`rsi` on x86_64, `x0`/`x1` on arm64).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA wrapping subtraction instructions: 64-bit `sub r64, r64` on `x86_64` and `sub x, x, x` on `arm64` without overflow trapping certificates. Register allocation assigns register homes and activation frames honoring the `StatePlan` ceiling.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (`omega run --both` reports `native exit 0` and `interp exit: 0`) across all hosted targets.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (the native/Psi comparison reports `native exit 0` and `interp exit: 0`) across all hosted targets.
 
 Remaining open under NUMERIC-VALUES: multi-word 128-bit modular wrapping subtraction borrow propagation, SIMD packed 64-bit signed wrapping subtraction kernels, and modular ring homomorphisms across arithmetic boundaries.
 

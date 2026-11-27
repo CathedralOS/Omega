@@ -109,8 +109,7 @@ Applicable obligations and acceptance:
 7. **Omega 03–06:** the scalar calls, joins, field projection and state edge
    retain the exact subtraction and ordinary activation storage rules. This row
    adds no target instruction or stack policy.
-8. **Omega 07–09 and emission:** the public command is `omega run --both
-   <place>/main.omg`. Actual Linux x86-64 Terminal/native exit 0, immutable native
+8. **Omega 07–09 and emission:** compare the published executable with the interpreted program. Actual Linux x86-64 Terminal/native exit 0, immutable native
    products and rejecting twins are required before row closure; other host
    executions remain unverified until observed there.
 

@@ -1,7 +1,7 @@
 /*
 
 End-to-end CLI check that a generic machine's `[copy]` or `[linear]` binder
-refuses a type argument without that property in both application engines.
+refuses a type argument without that property before execution.
 
 `machine keep<T [copy]>(item: T) -> T` promises its callers that `T` is
 copyable, and ownership.md says every use of `T` receives the property its
@@ -19,7 +19,6 @@ checker does not yet accept linear data with a cleanup machine in a signature,
 an unrelated refusal.
 
 */
-
 
 const COPY_BINDER: &str = "data Coin [copy] { value: u8; }
 machine keep<T [copy]>(item: T) -> T { item }

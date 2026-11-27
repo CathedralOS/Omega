@@ -62,14 +62,13 @@ hashes and never updates them to match a result.
 From the repository root, after the ordinary documented package review:
 
 ```
-OMEGA_LIBRARY_ROOT="$PWD/source/library" omega packages update --project samples/cli/independent/stoichiometric_batch_balance --target linux_x86_64
+OMEGA_LIBRARY_ROOT="$PWD/source/library" omega packages update --project samples/cli/scientific/stoichiometric_batch_balance --target linux_x86_64
 # Read and explicitly accept only the intended pending review decisions.
-omega packages update --resume --project samples/cli/independent/stoichiometric_batch_balance
-omega --check --target linux_x86_64 samples/cli/independent/stoichiometric_batch_balance/main.omg
-omega run --engine native --keep samples/cli/scientific/stoichiometric_batch_balance/main.omg < samples/cli/scientific/stoichiometric_batch_balance/data/water_first.stdin
-omega run --engine psi --keep samples/cli/scientific/stoichiometric_batch_balance/main.omg < samples/cli/scientific/stoichiometric_batch_balance/data/water_first.stdin
-omega --target linux_x86_64 --build-dir samples/cli/independent/stoichiometric_batch_balance/build/native samples/cli/independent/stoichiometric_batch_balance/main.omg
-omega --check --target linux_x86_64 samples/cli/independent/stoichiometric_batch_balance/controls/intended_invalid/main.omg
+omega packages update --resume --project samples/cli/scientific/stoichiometric_batch_balance
+omega --check --target linux_x86_64 samples/cli/scientific/stoichiometric_batch_balance/main.omg
+omega run --keep samples/cli/scientific/stoichiometric_batch_balance/main.omg < samples/cli/scientific/stoichiometric_batch_balance/data/water_first.stdin
+omega --target linux_x86_64 --build-dir samples/cli/scientific/stoichiometric_batch_balance/build/native samples/cli/scientific/stoichiometric_batch_balance/main.omg
+omega --check --target linux_x86_64 samples/cli/scientific/stoichiometric_batch_balance/controls/intended_invalid/main.omg
 ```
 
 The invalid source is a separate complete application. Its required rejection
@@ -100,6 +99,6 @@ checks their exact state scope when admitting requirements, and invalidates thei
 facts on either write. A scalar local copies the live literal bounds and
 exclusions of its evaluated observation before destination invalidation,
 preserving nonzero facts through dynamic-index hoisting. The application retains
-its original preconditions and divisions. The CLI compares exit status and both output
+its original preconditions and divisions. The recorded comparison checked exit status and both output
 streams. The sample validator checks
 native stdout byte for byte against the frozen fixtures.

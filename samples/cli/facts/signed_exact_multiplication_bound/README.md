@@ -6,21 +6,21 @@
 
 | Place | Positive Status | Rejection Twin Diagnostic |
 |---|---|---|
-| root (`main.omg`) | passes `omega run --both` exit 0 | N/A |
-| `local` | passes `omega run --both` exit 0 | `cannot prove requires contract for call verify_product` |
-| `field` | passes `omega run --both` exit 0 | `cannot prove requires contract for call verify_field` |
-| `parameter` | passes `omega run --both` exit 0 | `cannot prove requires contract for call verify_parameter` |
-| `call_result` | passes `omega run --both` exit 0 | `cannot prove ensures contract for exit from multiply` |
-| `match_join` | passes `omega run --both` exit 0 | `cannot prove ensures contract for exit from choose_product` |
-| `const_name` | passes `omega run --both` exit 0 | `cannot prove requires contract for call verify_product` |
-| `other_state` | passes `omega run --both` exit 0 | `cannot prove requires contract for call step` |
-| `other_machine` | passes `omega run --both` exit 0 | `cannot prove requires contract for call forward` |
-| `target_body` | passes `omega run --both` exit 0 | `cannot prove requires contract for call verify_product` |
+| root (`main.omg`) | passes the native/Psi comparison exit 0 | N/A |
+| `local` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call verify_product` |
+| `field` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call verify_field` |
+| `parameter` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call verify_parameter` |
+| `call_result` | passes the native/Psi comparison exit 0 | `cannot prove ensures contract for exit from multiply` |
+| `match_join` | passes the native/Psi comparison exit 0 | `cannot prove ensures contract for exit from choose_product` |
+| `const_name` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call verify_product` |
+| `other_state` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call step` |
+| `other_machine` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call forward` |
+| `target_body` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call verify_product` |
 
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`)
-- **Requirement established:** Exact signed `i64` multiplication of two bounded factors (`factor >= 10i64 && factor <= 15i64`, `scale >= 4i64 && scale <= 6i64`) statically establishes the product interval `[40, 90]`, discharging the downstream `requires product >= 40 && product <= 90` contract across all nine places, with Terminal Psi and native execution agreeing (`omega run --both`: root plus nine places, `native exit 0`, `interp exit: 0`).
+- **Requirement established:** Exact signed `i64` multiplication of two bounded factors (`factor >= 10i64 && factor <= 15i64`, `scale >= 4i64 && scale <= 6i64`) statically establishes the product interval `[40, 90]`, discharging the downstream `requires product >= 40 && product <= 90` contract across all nine places, with Terminal Psi and native execution agreeing (the native/Psi comparison: root plus nine places, `native exit 0`, `interp exit: 0`).
 - **Pinned fixtures:**
 - **Establishment:** Multiplying two bounded signed `i64` factors (`factor >= 10i64 && factor <= 15i64` and `scale >= 4i64 && scale <= 6i64`) statically establishes interval arithmetic bounds `[10 * 4, 15 * 6] = [40, 90]`. An unproven or widened interval (e.g. `factor <= 16i64`, yielding upper bound 96) fails to satisfy downstream contracts requiring `product <= 90i64`.
 - **Identity and lifetime:** The multiplication product scalar value preserves its verified integer interval throughout all place carriers without loss or unexpected aliasing.

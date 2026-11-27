@@ -20,9 +20,8 @@ notation retains 13 significant decimal digits. Negative reconstruction is
 reported, never clipped.
 
 ```sh
-omega packages update --project samples/cli/independent/regularized_deconvolution --target linux_x86_64
-omega run --engine native --keep samples/cli/scientific/regularized_deconvolution/main.omg < samples/cli/scientific/regularized_deconvolution/input.txt
-omega run --engine psi --keep samples/cli/scientific/regularized_deconvolution/main.omg < samples/cli/scientific/regularized_deconvolution/input.txt
+omega packages update --project samples/cli/scientific/regularized_deconvolution --target linux_x86_64
+omega run --keep samples/cli/scientific/regularized_deconvolution/main.omg < samples/cli/scientific/regularized_deconvolution/input.txt
 ```
 
 The optional `--batch-runner` argument retains compatibility with the earlier

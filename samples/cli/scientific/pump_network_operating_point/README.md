@@ -89,11 +89,10 @@ ordinary `omega packages update --resume --project ...` route. Package denial is
 remaining blocker, not permission to retry acceptance or bypass review.
 
 ```
-omega run --engine native --keep samples/cli/scientific/pump_network_operating_point/main.omg < samples/cli/scientific/pump_network_operating_point/data/rational.in
-omega run --engine psi --keep samples/cli/scientific/pump_network_operating_point/main.omg < samples/cli/scientific/pump_network_operating_point/data/rational.in
-omega psi inspect --machine main --target linux_x86_64 samples/cli/independent/pump_network_operating_point/main.omg
-omega --check samples/cli/independent/pump_network_operating_point/controls/intended_invalid/main.omg
-omega --check samples/cli/independent/pump_network_operating_point/controls/valid_extent/main.omg
+omega run --keep samples/cli/scientific/pump_network_operating_point/main.omg < samples/cli/scientific/pump_network_operating_point/data/rational.in
+omega psi inspect --machine main --target linux_x86_64 samples/cli/scientific/pump_network_operating_point/main.omg
+omega --check samples/cli/scientific/pump_network_operating_point/controls/intended_invalid/main.omg
+omega --check samples/cli/scientific/pump_network_operating_point/controls/valid_extent/main.omg
 ```
 
 The intended-invalid command must reject the fixed-array extent rule pinned in the control's

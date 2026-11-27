@@ -12,7 +12,7 @@ fn fixture(tier: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn nominal_extents_survive_generic_headers_in_both_engines() {
+fn nominal_extents_survive_generic_headers_when_interpreted_and_built() {
     program::assert_fixture_silent_return(&fixture("run"));
 }
 

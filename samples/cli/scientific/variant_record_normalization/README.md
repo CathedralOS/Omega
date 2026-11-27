@@ -97,14 +97,14 @@ set `OMEGA_LIBRARY_ROOT` to this checkout's `source/library`, and use one
 compiler execution at a time. `OMEGA` below is the verified binary path:
 
 ```sh
-sample=samples/cli/independent/variant_record_normalization
+sample=samples/cli/scientific/variant_record_normalization
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 "$OMEGA" update --project "$sample"
 # Inspect the generated review and accept only reviewed required decisions;
 # then use the documented update --resume workflow. Do not retry a denial.
 "$OMEGA" --check "$sample/main.omg"
 "$OMEGA" "$sample/main.omg"
-"$OMEGA" run --both --keep "$sample/main.omg" < "$sample/data/repeats.stdin"
+"$OMEGA" run --keep "$sample/main.omg" < "$sample/data/repeats.stdin"
 "$OMEGA" --check "$sample/intended_invalid/main.omg"
 ```
 
@@ -114,7 +114,7 @@ control. The intended-invalid project is a complete entry project with runtime
 input, a helper taking an unconstrained dynamic index and a reachable indexed
 read. Its build must receive its own ordinary package review if required.
 
-`run --both` uses the produced Terminal artifact and finite input replay. The CLI compares
+the native/Psi comparison uses the produced Terminal artifact and finite input replay. The recorded comparison checked
 termination, stdout and stderr. Record the verdict separately from
 the sample’s comparison of native output with its expected bytes.
 Generated output and logs live under local `build/` and are included separately

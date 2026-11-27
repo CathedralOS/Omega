@@ -53,7 +53,7 @@ do not establish the terminator needed by the boundary invocation.
   pointer argument, with no runtime Count argument. The available macOS arm64
   host executes both lengths through the real native binding and Terminal provider.
 - Instructions and image emission: all places must execute the stated oracle
-  with `omega run --both` on the available host. Other hosted targets are bound
+  with the native/Psi comparison on the available host. Other hosted targets are bound
   but have no execution claim here.
 
 The frozen pre-repair producer at `fac4a53` rejects the local generic signature

@@ -16,9 +16,9 @@ omega packages update --project samples/cli/scientific/gravimetric_mixture --tar
 # and its ordinary entry/provider grants, then:
 omega packages update --resume --project samples/cli/scientific/gravimetric_mixture
 omega --check samples/cli/scientific/gravimetric_mixture/main.omg
-omega run --engine native --keep samples/cli/scientific/gravimetric_mixture/main.omg \
+omega run --keep samples/cli/scientific/gravimetric_mixture/main.omg \
   < samples/cli/scientific/gravimetric_mixture/data/nominal.txt
-omega run --engine psi --keep samples/cli/scientific/gravimetric_mixture/main.omg \
+omega run --keep samples/cli/scientific/gravimetric_mixture/main.omg \
   < samples/cli/scientific/gravimetric_mixture/data/nominal.txt
 ```
 

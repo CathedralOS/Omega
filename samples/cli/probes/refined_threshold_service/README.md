@@ -8,7 +8,7 @@ implementation call also exercises its wider input contract.
 The standalone implementation is selected by a named map. An exact `satisfies`
 edge instead inherits the requirement's contract, including its input bound.
 
-Run `omega run --both samples/cli/proofs/refined_threshold_service/main.omg`.
+Run `mbx xtask sample-gate --filter samples/cli/probes/refined_threshold_service`.
 Expected exit: 0; wrong results trap.
 
 The trait fixtures also cover const-applied and inherited contracts, generic

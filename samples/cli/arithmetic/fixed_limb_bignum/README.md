@@ -23,5 +23,5 @@ the fixed `[u32; 8]` record and is rejected at compile time
 After ordinary package review on macOS arm64:
 
 ```sh
-build/dev-target/debug/omega run --both samples/cli/arithmetic/fixed_limb_bignum/main.omg < /dev/null
+build/dev-target/debug/omega run samples/cli/arithmetic/fixed_limb_bignum/main.omg < /dev/null
 ```

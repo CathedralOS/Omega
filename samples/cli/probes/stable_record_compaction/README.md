@@ -10,9 +10,11 @@ with another predicate, including all-retained and none-retained cases.
 Run from the repository root:
 
 ```sh
-omega run --engine native samples/cli/collections/stable_record_compaction/main.omg
-omega run --engine psi samples/cli/collections/stable_record_compaction/main.omg
+omega run samples/cli/collections/stable_record_compaction/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/stable_record_compaction` from the repository root.
 
 Expected exit: 0. Each field and count is checked; a mismatch traps.
 

@@ -59,7 +59,7 @@ descriptor, and `main` traps unless the read observes 73. The match join runs
 both arms (73 and 11). The target-body place selects `X86Transport` or
 `ArmTransport` through Build; each checks its own tag.
 
-Run each positive with `omega run --both <place>/main.omg` and each twin with
+Run each positive with `mbx xtask sample-gate --filter samples/cli/facts/suspension_transported_loan/<place>` and each twin with
 `omega --check <place>/invalid/main.omg`.
 
 ## Requirements
@@ -72,7 +72,7 @@ Run each positive with `omega run --both <place>/main.omg` and each twin with
 - Composition: calls (`pass`, nested and other machines, the selected body)
   keep the supplier's loan; the consuming read uses the transported descriptor.
 - Soundness: the backing's carry floor still applies through the transport.
-- Terminal Psi and native: every positive runs with `omega run --both` and
+- Terminal Psi and native: every positive runs with the native/Psi comparison and
   both engines exit 0.
 
 ## Evidence

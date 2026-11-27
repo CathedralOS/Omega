@@ -64,7 +64,7 @@ sample=samples/cli/independent/clearance_route_planner
 The private observer compiles through the normal prepared native report, runs
 the actual native executable and the retained public Terminal artifact with
 that report's runtime provisions, and checks all 22 stdout/stderr/exits.
-CLI `--both` is an additional check of both engines' termination reports.
+The native/Psi comparison is an additional check of both engines' termination reports.
 
 `../invalid_clearance_route_planner/main.omg` is the original complete control: an unguarded ordinal
 indexes six nodes and must reject with ``cannot prove index `ordinal` ``.

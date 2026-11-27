@@ -62,7 +62,7 @@ application, a nominal carrier, and a generic contract specialized at `u16`.
   41 and 43, and the selected implementations check a per-target tag (17 for
   x86-64, 29 for AArch64), so a wrong lowering or Build row traps.
 - **Lowering and native realization:** every positive binds `ProgramEntry`
-  on the four hosted targets and passes `omega run --both`. A scalar
+  on the four hosted targets and passes the native/Psi comparison. A scalar
   `ensures result in Domain` used to fail Terminal lowering with
   `MissingUnitDomainPlan`; it is now kept as a checked source guarantee, as
   other scalar ensures are.

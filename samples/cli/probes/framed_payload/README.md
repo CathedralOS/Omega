@@ -8,7 +8,7 @@ the banner. Keep that loop and its shared loan when repairing the compiler.
 From the repository root, after completing this checkout's package review:
 
 ```sh
-omega run samples/cli/systems/framed_payload/main.omg
+omega run samples/cli/probes/framed_payload/main.omg
 ```
 
 Press Enter at the prompt. EOF must also complete the program. Both runs
@@ -21,14 +21,11 @@ result: the payload checksum, 60 for this frame (the exit code)
 [press Enter to close]
 ```
 
-The program emits no stderr. The CLI separately reports `native exit 60`
-on stderr. `omega run --both` with finite redirected input additionally
-requires `interp exit: 60`; a declined interpreter is not agreement.
-The CLI also compares stdout and stderr byte for byte.
+The program emits no stderr. The CLI separately reports `Psi exit 60`
+on stderr. The sample gate compares the compiled program’s output and termination with the interpreter.
 
 The sample declares Windows x86-64, Linux x86-64, Linux ARM64 and macOS
-ARM64 entry points. Run on each matching host: an explicit `--target`
-only compiles and cannot establish runtime success.
+ARM64 entry points. Launch the separately compiled image on each matching host to verify native execution.
 
 Windows x86-64 is verified at `b80e3d12bdd` with an optimized dev compiler
 after local package review: EOF and finite Enter each produce the exact

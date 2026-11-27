@@ -66,11 +66,11 @@ From the repository root, using a compiler built from the same source tree:
 mbx build -p omega
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=target/debug/omega
-$OMEGA update --project samples/cli/independent/resource_scheduler --target linux_x86_64
+$OMEGA update --project samples/cli/scientific/resource_scheduler --target linux_x86_64
 # Read the emitted review, accept the existing system entry/console requirements,
 # and use update --resume if the update requests that review.
-$OMEGA --check --target linux_x86_64 samples/cli/independent/resource_scheduler/main.omg
-$OMEGA run --both --keep samples/cli/independent/resource_scheduler/main.omg < samples/cli/independent/resource_scheduler/data/diamond.input
+$OMEGA --check --target linux_x86_64 samples/cli/scientific/resource_scheduler/main.omg
+$OMEGA run --keep samples/cli/scientific/resource_scheduler/main.omg < samples/cli/scientific/resource_scheduler/data/diamond.input
 ```
 
 Use the actual target directory if the build system selects another location.
@@ -97,7 +97,7 @@ sharing, deterministic ties, three-way capacity contention, zero-resource preced
 horizon, zero demands/capacities, zero tasks, cycles, excess demand, 24 deterministic variants and
 invalid inputs.
 
-The CLI compares termination, stdout and stderr between engines. To capture Psi output
+The recorded comparison checked termination, stdout and stderr between engines. To capture Psi output
 separately,
 `validation/observe.rs` consumes the same public package/native-product and
 Terminal runtime APIs as the shipped CLI.

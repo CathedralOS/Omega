@@ -118,7 +118,7 @@ was invented.
 
 ## Scoped checks and integration
 
-The 4096-copy/reference fixture passed direct `omega run --both --keep` after
+The 4096-copy/reference fixture passed direct interpreted and native execution with artifacts retained after
 rooted collection and the normal filtered both-engine corpus gate. Only its new
 rows were retained in the source and Linux both-engine goldens; unrelated rows
 and context were preserved. The source-invalid bounds control still rejects.
@@ -131,7 +131,7 @@ failed 15 tests on both original main and candidate because portable entries
 lacked retained machine/target-family heads. These are recorded baseline failures,
 not passing gates or suppressions. Numerics passed all 63 tests.
 
-The public command `omega run --both --keep` on frozen input
+The retained native and interpreted runs on frozen input
 `robertson_2_5_r1000.stdin` completed with native exit 0 and Terminal exit 0,
 reporting 29 accepted and 15 rejected steps. Its numerical report matched the
 SDK capture. Final independent read-only reviewer `/root/bio03_review` at

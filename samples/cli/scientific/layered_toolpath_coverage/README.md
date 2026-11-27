@@ -66,16 +66,16 @@ From the repository root, with `OMEGA_LIBRARY_ROOT` set to this checkout's
 `source/library`, and a compiler built from the recorded base:
 
 ```sh
-omega packages update --project samples/cli/independent/layered_toolpath_coverage --target linux_x86_64
+omega packages update --project samples/cli/scientific/layered_toolpath_coverage --target linux_x86_64
 # Inspect the generated review, accept only the reviewed decisions, then:
-omega packages update --project samples/cli/independent/layered_toolpath_coverage --resume
-omega --check samples/cli/independent/layered_toolpath_coverage/main.omg
-omega run samples/cli/independent/layered_toolpath_coverage/main.omg < samples/cli/independent/layered_toolpath_coverage/data/hole.in
-omega --check samples/cli/independent/layered_toolpath_coverage/controls/out_of_bounds/main.omg
+omega packages update --project samples/cli/scientific/layered_toolpath_coverage --resume
+omega --check samples/cli/scientific/layered_toolpath_coverage/main.omg
+omega run samples/cli/scientific/layered_toolpath_coverage/main.omg < samples/cli/scientific/layered_toolpath_coverage/data/hole.in
+omega --check samples/cli/scientific/layered_toolpath_coverage/controls/out_of_bounds/main.omg
 ```
 
 The final command is expected to exit 1 with the intended bounds diagnostic.
-Native and `--both` results/logs are retained in ignored `build/`. The CLI compares
+Native and the native/Psi comparison results/logs are retained in ignored `build/`. The recorded comparison checked
 termination, stdout and stderr on this Linux host. Check the
 forwarded stdout against the frozen oracle as well.
 Review and custody denials must be reported without bypass or acceptance retries.

@@ -28,7 +28,7 @@ Claim Ticket: `734f3cb98864422f909a5528490239a2`
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted
 targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg`
-and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter
+and declares `Expected exit: 0`. The native/Psi comparison reports Terminal Psi interpreter
 and native execution agreement:
 
 ```sh
@@ -51,7 +51,7 @@ Each place has an `invalid/` twin that widens `delta` from `delta <= 30i64` to `
 This allows `sum` to reach `71i64`, causing `70i64 - sum` to reach `-1i64` and violating the contract requirements.
 The compiler strictly fails closed at compile time with:
 
-| Place | `omega run --both` | Reject twin diagnostic |
+| Place | the native/Psi comparison | Reject twin diagnostic |
 | --- | --- | --- |
 | `local` | native 0 / interp 0 | `cannot prove requires contract for call consume_margin from probe: margin >= 0 && margin <= 40` |
 | `field` | native 0 / interp 0 | `cannot prove requires contract for call consume_margin from probe: margin >= 0 && margin <= 40` |
@@ -65,7 +65,7 @@ The compiler strictly fails closed at compile time with:
 
 ## Pinned Fixtures
 
-- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and
+- the native/Psi comparison over the root and the nine places: 10/10 report `native exit 0` and
   `interp exit: 0`.
 - `omega --check` over the nine twins: 9/9 refuse with their authored
   `cannot prove requires contract ...` fragment.
@@ -78,7 +78,7 @@ The compiler strictly fails closed at compile time with:
 - **Identity and lifetime**: The computed interval fact `sum in [30, 70]` is preserved across local bindings, carrier record fields, machine parameters, helper call returns, match join arms, named constants, state transitions, helper forwarding machines, and target-scoped bodies without semantic loss.
 - **Composition**: In each place, the synthesized interval `sum in [30, 70]` composes with subtraction `margin = 70i64 - sum` to prove `margin in [0, 40]`, discharging `requires margin >= 0i64 && margin <= 40i64` for `consume_margin` without post-hoc caller equality guards.
 - **Soundness boundaries**: In every reject twin, widening the operand bound to `delta <= 31i64` makes `70i64 - sum` potentially negative (`-1i64`), causing compile-time rejection due to contract violation and proving that out-of-interval values cannot pass unchecked.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: Signed interval synthesis and contract verification lower cleanly into canonical target-neutral Terminal Psi (`PSITERM\0`) and execute with identical semantics in the Terminal Psi interpreter (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: Signed interval synthesis and contract verification lower cleanly into canonical target-neutral Terminal Psi (`PSITERM\0`) and execute with identical semantics in the Terminal Psi interpreter.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent 64-bit signed integers in standard machine words across all four hosted ABI calling conventions (RCX/RDX on `windows_x86_64`, RDI/RSI on `linux_x86_64`, X0/X1 on `macos_arm64` and `linux_arm64`).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering emits target ISA 64-bit integer addition and subtraction (`add`, `sub` / `neg`) with correct signed semantics, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Binary emission produces complete PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.

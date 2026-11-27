@@ -91,19 +91,18 @@ matching library selected:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-omega packages update --project samples/cli/independent/mold_front_vent_analysis --target linux_x86_64
+omega packages update --project samples/cli/scientific/mold_front_vent_analysis --target linux_x86_64
 # Inspect the generated review and explicitly accept only its reviewed decisions,
 # then use omega packages update --resume --project <same-directory> when required.
-omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
-omega --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
-omega run --engine native --keep samples/cli/scientific/mold_front_vent_analysis/main.omg < samples/cli/scientific/mold_front_vent_analysis/data/merging.in
-omega run --engine psi --keep samples/cli/scientific/mold_front_vent_analysis/main.omg < samples/cli/scientific/mold_front_vent_analysis/data/merging.in
-omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/controls/out_of_bounds/main.omg
+omega --check --target linux_x86_64 samples/cli/scientific/mold_front_vent_analysis/main.omg
+omega --target linux_x86_64 samples/cli/scientific/mold_front_vent_analysis/main.omg
+omega run --keep samples/cli/scientific/mold_front_vent_analysis/main.omg < samples/cli/scientific/mold_front_vent_analysis/data/merging.in
+omega --check --target linux_x86_64 samples/cli/scientific/mold_front_vent_analysis/controls/out_of_bounds/main.omg
 ```
 
 Use the corresponding built executable on Windows and `python` if that is the
 Python 3 command. Build metadata binds Linux x86-64/ARM64, macOS x86-64/ARM64 and
-Windows x86-64, while execution evidence covers only the measured host. `omega run --both`
+Windows x86-64, while execution evidence covers only the measured host. The native/Psi comparison
 compares termination and the exact stdout and stderr bytes from
 both engines.
 
