@@ -2,13 +2,7 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::BoundaryMachineId;
 use terminal_psi::TerminalModule;
 
-/// Selected native leaves and the identities used by their retained receipts.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NormalizedNativeSupplies {
-    pub identities: terminal_psi::TerminalIdentityTable,
-    pub rows: Vec<NormalizedNativeSupply>,
-}
-
+/// One completed Build binding for the reached boundary it supplies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedNativeSupply {
     pub boundary: BoundaryMachineId,

@@ -33,6 +33,35 @@ pub(crate) fn plan_inputs_and_review(
     let module = artifact.semantic_module();
     let mut requirements = Vec::with_capacity(reached.len());
     let mut binding_requirements = Vec::new();
+    // Index provider candidates by boundary and collect the requirements that
+    // a non-intrinsic external provider realizes, once for every reached boundary.
+    let mut candidate_order = module
+        .interfaces
+        .provider_candidates
+        .iter()
+        .enumerate()
+        .map(|(position, row)| (row.boundary, position))
+        .collect::<Vec<_>>();
+    candidate_order.sort_unstable();
+    let mut foreign_requirements = module
+        .interfaces
+        .external_providers
+        .iter()
+        .filter(|external| {
+            !matches!(
+                external.binding,
+                semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic
+            )
+        })
+        .flat_map(|external| {
+            [
+                module.identities.text(external.realization.callable),
+                module.identities.text(external.requirement_identity),
+            ]
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+    foreign_requirements.sort_unstable();
     for &identity in reached {
         let boundary = module
             .boundary_machine(identity)
@@ -47,11 +76,12 @@ pub(crate) fn plan_inputs_and_review(
             binding_requirements.push((requirement, identity));
         }
         // Closed applications keep their original public ABI coordinate.
-        for candidate in module
-            .interfaces.provider_candidates
+        let first = candidate_order.partition_point(|(boundary, _)| *boundary < identity);
+        for (_, position) in candidate_order[first..]
             .iter()
-            .filter(|row| row.boundary == identity)
+            .take_while(|(boundary, _)| *boundary == identity)
         {
+            let candidate = &module.interfaces.provider_candidates[*position];
             requirements.push(
                 module
                     .identities
@@ -62,18 +92,10 @@ pub(crate) fn plan_inputs_and_review(
                     })?,
             );
         }
-        for external in module.interfaces.external_providers.iter().filter(|external| {
-            module.identities.text(external.realization.callable) == Some(requirement)
-                || module.identities.text(external.requirement_identity) == Some(requirement)
-        }) {
-            if !matches!(
-                external.binding,
-                semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic
-            ) {
-                return Err(refuse(format!(
-                    "native requirement `{requirement}` needs its canonical evaluated Build binding association before physical calling inputs can be formed",
-                )));
-            }
+        if foreign_requirements.binary_search(&requirement).is_ok() {
+            return Err(refuse(format!(
+                "native requirement `{requirement}` needs its canonical evaluated Build binding association before physical calling inputs can be formed",
+            )));
         }
     }
     requirements.sort_unstable();
@@ -82,6 +104,7 @@ pub(crate) fn plan_inputs_and_review(
     binding_requirements.dedup();
     let mut binding_identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let mut native_bindings = Vec::new();
+    let mut supplied_boundaries = Vec::new();
     for binding in bindings {
         let materialization = binding.map_err(refuse)?;
         if materialization.target != profile.target_name() {
@@ -128,16 +151,12 @@ pub(crate) fn plan_inputs_and_review(
             &mut binding_identities,
         )
         .map_err(refuse)?;
-        if native_bindings
-            .iter()
-            .any(|previous: &crate::target_supply::NormalizedNativeSupply| {
-                previous.boundary == boundary
-            })
-        {
+        let Err(unsupplied) = supplied_boundaries.binary_search(&boundary) else {
             return Err(refuse(
                 "native requirement has competing completed Build supplies".into(),
             ));
-        }
+        };
+        supplied_boundaries.insert(unsupplied, boundary);
         native_bindings.push(crate::target_supply::NormalizedNativeSupply {
             boundary,
             binding: evaluated,

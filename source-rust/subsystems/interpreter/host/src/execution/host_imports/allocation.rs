@@ -53,18 +53,20 @@ pub(super) struct AllocationValues {
 }
 
 impl AllocationValues {
+    // `allocate` is the only writer of `allocations`, and it places each new
+    // allocation at or above the previous one's aligned end. The table is
+    // therefore sorted by address with disjoint spans, so a range can belong
+    // only to the last allocation that starts at or below its base.
     fn backing_for_range(&self, base: u64, length: u64) -> Option<&Allocation> {
         let end = base.checked_add(length)?;
-        self.allocations
-            .iter()
-            .find(|allocation| allocation.address == base && length <= allocation.length)
-            .or_else(|| {
-                self.allocations.iter().find(|allocation| {
-                    base >= allocation.address
-                        && base < allocation.address + allocation.length
-                        && end <= allocation.address + allocation.length
-                })
-            })
+        let following = self
+            .allocations
+            .partition_point(|allocation| allocation.address <= base);
+        let allocation = &self.allocations[following.checked_sub(1)?];
+        let allocation_end = allocation.address + allocation.length;
+        ((allocation.address == base && length <= allocation.length)
+            || (base < allocation_end && end <= allocation_end))
+            .then_some(allocation)
     }
 
     fn allocate(
@@ -139,16 +141,15 @@ impl AllocationValues {
         if address == 0 {
             return Ok(());
         }
-        let allocation = self
+        let position = self
             .allocations
-            .iter_mut()
-            .find(|value| value.address == address)
-            .ok_or_else(|| {
+            .binary_search_by_key(&address, |value| value.address)
+            .map_err(|_| {
                 TerminalEffectRejection::new(
                     "free address belongs to no allocation in this instance",
                 )
             })?;
-        allocation.backing.retire()?;
+        self.allocations[position].backing.retire()?;
         Ok(())
     }
 }
@@ -447,6 +448,26 @@ mod tests {
         assert!(values.backing_for_range(empty, 1).is_none());
         assert!(values.backing_for_range(first + 1, 32).is_none());
         assert!(values.backing_for_range(u64::MAX, 1).is_none());
+    }
+
+    #[test]
+    fn interior_ranges_resolve_to_their_own_allocation_only() {
+        let mut values = AllocationValues::default();
+        let first = values.allocate(4, 8, 7).unwrap();
+        let second = values.allocate(1, 24, 7).unwrap();
+        let third = values.allocate(1, 16, 7).unwrap();
+        let owner = |base, length| {
+            values
+                .backing_for_range(base, length)
+                .map(|allocation| allocation.address)
+        };
+        assert_eq!(owner(first + 8, 24), Some(first));
+        assert_eq!(owner(second + 4, 20), Some(second));
+        assert_eq!(owner(third + 15, 1), Some(third));
+        assert_eq!(owner(second + 4, 21), None);
+        assert_eq!(owner(first + 24, 16), None);
+        assert_eq!(owner(third + 16, 0), None);
+        assert_eq!(owner(8, 0), None);
     }
 
     #[test]

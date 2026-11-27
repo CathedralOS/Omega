@@ -62,37 +62,18 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
             .then_some(machine.machine)
     }
 
-    pub fn declared_callable_for_target(
-        &self,
-        symbol: Declaration,
-        target: &str,
-    ) -> Option<Declaration> {
-        self.target_machine_matching(
-            self.matching_machine(symbol, |_| true)?,
-            Some(target),
-            |_| true,
-        )
-        .map(|row| row.machine)
-    }
-
+    /// The product-selected machine named by `symbol`, or else the one that
+    /// declares `symbol` as one of its states.
     fn called_machine(&self, symbol: Declaration) -> Option<&ProofApplicationMachine<Declaration>> {
-        self.matching_machine(symbol, |row| row.product_selected)
-    }
-
-    fn matching_machine(
-        &self,
-        symbol: Declaration,
-        accepts: fn(&ProofApplicationMachine<Declaration>) -> bool,
-    ) -> Option<&ProofApplicationMachine<Declaration>> {
-        self.machines
-            .iter()
-            .map(|(_, row)| row)
-            .find(|row| accepts(row) && row.machine == symbol)
-            .or_else(|| {
-                self.machines.iter().map(|(_, row)| row).find(|row| {
-                    accepts(row) && self.symbols.span_or_empty(row.states).contains(&symbol)
-                })
-            })
+        let selected = || {
+            self.machines
+                .iter()
+                .map(|(_, row)| row)
+                .filter(|row| row.product_selected)
+        };
+        selected().find(|row| row.machine == symbol).or_else(|| {
+            selected().find(|row| self.symbols.span_or_empty(row.states).contains(&symbol))
+        })
     }
 
     fn target_machine<'a>(
@@ -100,22 +81,13 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
         machine: &'a ProofApplicationMachine<Declaration>,
         target: Option<&str>,
     ) -> Option<&'a ProofApplicationMachine<Declaration>> {
-        self.target_machine_matching(machine, target, |row| row.product_selected)
-    }
-
-    fn target_machine_matching<'a>(
-        &'a self,
-        machine: &'a ProofApplicationMachine<Declaration>,
-        target: Option<&str>,
-        accepts: fn(&ProofApplicationMachine<Declaration>) -> bool,
-    ) -> Option<&'a ProofApplicationMachine<Declaration>> {
         if machine.family_interface {
             let member = self
                 .target_members
                 .span_or_empty(machine.family_members)
                 .iter()
                 .find(|member| Some(member.target.as_str()) == target)?;
-            return self.matching_machine(member.machine, accepts);
+            return self.called_machine(member.machine);
         }
         machine
             .authored_target
@@ -1054,8 +1026,6 @@ mod tests {
             authored_target: Some("macos_arm64".into()),
             ..Default::default()
         });
-        assert_eq!(plan.declared_callable_for_target(1, "macos_arm64"), Some(2));
-        assert_eq!(plan.declared_callable_for_target(1, "linux_arm64"), None);
         assert_eq!(plan.callable_for_target(1, "macos_arm64"), None);
         plan.machines.get_mut(head).product_selected = true;
         assert_eq!(plan.callable_for_target(1, "macos_arm64"), None);

@@ -257,19 +257,31 @@ impl RealizedTargetSupply {
                 .collect::<Vec<_>>()
                 .join("; ")
         })?;
+        let primitive_keys = super::sorted_leaf_keys(&primitive_leaves);
+        // Index checked boundary declarations by the key a leaf must carry, so
+        // each leaf finds its boundary by binary search.
+        let mut boundary_keys = module
+            .interfaces
+            .boundary_machines
+            .iter()
+            .enumerate()
+            .filter_map(|(position, boundary)| {
+                let declaration = boundary.declaration.as_ref()?;
+                let key = super::boundary_leaf_key(&module.identities, boundary.kind, declaration)?;
+                Some((key, position))
+            })
+            .collect::<Vec<_>>();
+        boundary_keys.sort_unstable();
         for leaf in &input.direct_boundary_leaves {
             leaf.validate_calling_custody()?;
             if leaf.plan.target != input.target {
                 return Err("direct boundary leaf belongs to a different target".into());
             }
-            let mut matches = module.interfaces.boundary_machines.iter().filter(|boundary| {
-                boundary.declaration.as_ref().is_some_and(|declaration| {
-                    super::matches_direct_leaf(&module.identities, boundary.kind, declaration, leaf)
-                })
-            });
-            let (Some(boundary), None) = (matches.next(), matches.next()) else {
+            let key = super::direct_leaf_key(leaf);
+            let [(_, position)] = super::entries_with_key(&boundary_keys, key) else {
                 return Err("direct leaf has no unique checked boundary declaration".into());
             };
+            let boundary = &module.interfaces.boundary_machines[*position];
             if boundary.declaration.as_ref().is_some_and(|declaration| {
                 matches!(
                     declaration.execution,
@@ -278,7 +290,10 @@ impl RealizedTargetSupply {
                 )
             }) {
                 leaf.validate_bound_calling_custody(module)?;
-                if !primitive_leaves.contains(leaf) {
+                if !super::entries_with_key(&primitive_keys, key)
+                    .iter()
+                    .any(|(_, position)| primitive_leaves[*position] == *leaf)
+                {
                     return Err(
                         "direct compiler primitive changes its canonical checked meaning".into(),
                     );

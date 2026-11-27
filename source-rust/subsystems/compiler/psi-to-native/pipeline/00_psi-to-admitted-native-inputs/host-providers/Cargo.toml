@@ -12,4 +12,6 @@ psi-authorization = { path = "../../../../psi/artifact/authorization" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }
 terminal-codec = { path = "../../../../psi/artifact/codec" }
+
+[dev-dependencies]
 terminal-psi = { path = "../../../../psi" }

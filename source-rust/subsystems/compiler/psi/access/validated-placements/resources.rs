@@ -77,7 +77,6 @@ pub(crate) mod resource_compatibility {
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn require_stable_region_supply(
         profile: &ValidatedResourceProfile,
         byte_offset: u64,
