@@ -114,3 +114,51 @@ Work waiting on the answer: the two traits in `core/equality.omg`, their
 checking and use in stage 05 and stage 06, synthesized bridges from component
 evidence, and the migration inventory in the design. Which shape should Omega
 adopt?
+
+<a id="boxed-squash-relation-spelling"></a>
+### 2. How does source write the boxed squash of a quotient relation?
+
+Core `Real` (`source/library/core/real.omg`) is still an opaque type whose
+commutativity laws are axioms. Making it the quotient of regular Cauchy
+sequences of `Rat` needs a relation that says the samples agree at every index:
+`R(x,y) = (n: Nat) -> close(x(n), y(n), n)`. A quotient must select a
+`MereEquivalence`, so `R(x,y)` must be shown a mere proposition. For a
+dependent product that takes function extensionality, which the kernel does
+not have and the foundation forbids using silently.
+
+The relations spec already names the way out: an author "may explicitly
+select the squashed version of a proof-relevant relation, using
+`Box(Squash(R(a,b)))` to express it in relevant `Type`", and the kernel's
+`QUOTIENT_BOX_PROP` proves any boxed strict type mere with no assumption.
+[Set-quotient foundation](wiki/spec/proofs/quotients.md#set-quotient-foundation)
+
+That sentence is kernel notation. No source spelling exists for `Box`: the
+foundation import exposes only `Level`, `Type`, `Strict`, `Squash` and
+`Identity`, and `foundation.omg` declares no `Box`.
+[Importing the mathematical foundation](wiki/spec/proofs/mathematical_bindings.md#importing-the-mathematical-foundation)
+The same page mentions "the core's strict/relevant bridge where needed" for
+witness bundles, but does not say whether a source author writes that bridge
+or the checker inserts it.
+[Witnesses, existence and proof construction](wiki/spec/proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction)
+The relations spec also requires the squashed relation to be selected
+explicitly ("This is not implicit witness erasure").
+
+**Recommend a public `Box` declaration in the foundation import**, beside
+`Squash`: `|proof|::Box<S>` for a strict `S` is a relevant type, and a relation
+is written
+`proposition agree(x: Seq, y: Seq) = |proof|::Box<|proof|::Squash<close_all(x, y)>>`.
+The selection stays explicit and visible in the relation, as the relations spec
+requires, and `Box` gets the kernel's existing `BoxIntro`/`BoxElim` rules with
+no new conversion. The other choice is no source `Box`: a quotient whose
+relation is strict-valued (a `Squash`) would be boxed by the checker at
+formation. That is less to write, but the boxing is then implicit, which reads
+against "explicitly select". Which should it be?
+
+**Specification text, if adopted.** In mathematical_bindings.md, "Importing
+the mathematical foundation", change the list to "`Level`, `Type`, `Strict`,
+`Squash`, `Box`, and `Identity`" and add: "`Box<S>` is the relevant type of a
+strict `S`. Its value is introduced from a proof of `S` and eliminated into any
+motive by the core's box rules; a relation written `Box<Squash<R>>` is the
+explicitly squashed relation of
+[the set-quotient foundation](quotients.md#set-quotient-foundation)." In
+modules.md, change "five mathematical declarations" to "six".
