@@ -789,6 +789,9 @@ machine entry<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64 {{
                 &elaboration.module.types.structural_types,
                 &reference_graph,
             );
+        let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &elaboration.module.types.structural_types,
+        );
         let storage = crate::places::Storage::new(
             lowered.id,
             &lowered,
@@ -796,6 +799,7 @@ machine entry<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64 {{
             &graph,
             &tables,
             &types,
+            &type_index,
             &mut references,
         )
         .unwrap();

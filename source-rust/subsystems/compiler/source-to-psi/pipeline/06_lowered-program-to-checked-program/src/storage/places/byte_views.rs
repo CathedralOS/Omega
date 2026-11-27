@@ -215,10 +215,10 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<StructuralTypeShape> {
         let root = self.root_type(root, concerns)?;
-        terminal_semantics::runtime_structural_path_tip(&self.type_index, root, path)
+        terminal_semantics::runtime_structural_path_tip(self.type_index, root, path)
             .map(|declaration| declaration.shape.clone())
             .or_else(|| {
-                terminal_semantics::runtime_structural_field(&self.type_index, root, path)
+                terminal_semantics::runtime_structural_field(self.type_index, root, path)
                     .and_then(|field| field.field_type.byte_sequence_carrier())
                     .map(StructuralTypeShape::ByteSequence)
             })
@@ -238,7 +238,7 @@ impl<'a> Storage<'a> {
     ) -> Checked<bool> {
         let actual_type = self.root_type(argument.place, concerns)?;
         let Some(selected) = terminal_semantics::runtime_structural_path_tip(
-            &self.type_index,
+            self.type_index,
             actual_type,
             &argument.path,
         ) else {
@@ -283,7 +283,7 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<std::borrow::Cow<'_, terminal_psi::StructuralParameterDeclaration>> {
         let selected = terminal_semantics::runtime_structural_path_tip(
-            &self.type_index,
+            self.type_index,
             self.root_type(argument.place, concerns)?,
             &argument.path,
         )
@@ -437,7 +437,7 @@ impl<'a> Storage<'a> {
                 .map(|count| count.source_extent);
         }
         let selected = terminal_semantics::runtime_structural_path_tip(
-            &self.type_index,
+            self.type_index,
             self.root_type(source.place, concerns)?,
             &source.path,
         )
@@ -621,7 +621,7 @@ impl<'a> Storage<'a> {
             ));
         };
         let selected = terminal_semantics::runtime_structural_path_tip(
-            &self.type_index,
+            self.type_index,
             self.root_type(source.place, concerns)?,
             &source.path,
         )
@@ -1139,7 +1139,7 @@ impl<'a> Storage<'a> {
                     })?;
                     let root = self.root_type(source, concerns)?;
                     let backing = terminal_semantics::runtime_structural_path_tip(
-                        &self.type_index,
+                        self.type_index,
                         root,
                         &enclosing.path,
                     );

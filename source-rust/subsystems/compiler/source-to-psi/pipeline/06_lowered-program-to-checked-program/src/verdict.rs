@@ -1016,8 +1016,7 @@ fn examine(
     // contracts and theorem citations, and share it across `candidates_sharing`,
     // `plan_affine_machines`, and `minted::follow_the_lowered_form`.
     let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
-    let (affine_unestablished, verified_borrow_ends) =
-        check_affine(&elaboration, &summaries, further)?;
+    let (affine_unestablished, verified) = check_affine(&elaboration, &summaries, further)?;
     let finished = crate::finish_discharge(
         crate::ElaborationView {
             module: &elaboration.module,
@@ -1030,7 +1029,7 @@ fn examine(
         &mut elaboration.tables,
         prepared,
         carried,
-        Some(&verified_borrow_ends),
+        Some(&verified),
         &summaries,
         activity,
     );
@@ -1055,18 +1054,10 @@ fn check_affine(
     elaboration: &Elaboration,
     summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
     further: &mut Vec<Refusal>,
-) -> Result<
-    (
-        Vec<UnestablishedUse>,
-        Vec<(
-            MachineId,
-            Vec<(semantic_vocabulary::EdgeId, semantic_vocabulary::PlaceId)>,
-        )>,
-    ),
-    Checked<RouteVerdict>,
-> {
+) -> Result<(Vec<UnestablishedUse>, crate::VerifiedAffine), Checked<RouteVerdict>> {
     let mut affine_unestablished = Vec::new();
     let mut verified_borrow_ends = Vec::new();
+    let mut claims = Vec::with_capacity(elaboration.module.machines.len());
     // A machine the affine check cannot judge yet is one refusal; the check
     // goes on with the next machine, and the first such refusal becomes the
     // verdict with the rest beside it.
@@ -1091,7 +1082,10 @@ fn check_affine(
     let plans = plan_affine_machines(&elaboration.module, summaries, &reference_ends);
     for (machine, planned) in plans {
         let plan = match planned {
-            Some(Ok(plan)) => plan,
+            Some(Ok((plan, received))) => {
+                claims.push((machine, received));
+                plan
+            }
             Some(Err(AffineRefusal::Unsupported(refused))) => {
                 unsupported.note(machine, refused);
                 continue;
@@ -1145,7 +1139,14 @@ fn check_affine(
     // Replay adds logical call requirements and guarantees without changing
     // the structural operations, selected edges, or their cleanup schedules.
     verified_borrow_ends.sort_unstable_by_key(|(machine, _)| *machine);
-    Ok((affine_unestablished, verified_borrow_ends))
+    claims.sort_unstable_by_key(|(machine, _)| *machine);
+    Ok((
+        affine_unestablished,
+        crate::VerifiedAffine {
+            borrow_ends: verified_borrow_ends,
+            claims,
+        },
+    ))
 }
 
 /// Why one machine has no affine plan.
@@ -1186,7 +1187,15 @@ fn plan_affine_machines(
     reference_ends: &arena::IdTable<MachineId, terminal_semantics::reference_ends::Candidates>,
 ) -> Vec<(
     MachineId,
-    Option<Result<terminal_semantics::plain_affine::Plan, AffineRefusal>>,
+    Option<
+        Result<
+            (
+                terminal_semantics::plain_affine::Plan,
+                crate::minted::ReceivedClaims,
+            ),
+            AffineRefusal,
+        >,
+    >,
 )> {
     let plan =
         |machine: MachineId| affine_plan(module, summaries, machine, reference_ends.get(machine));
@@ -1225,13 +1234,21 @@ fn plan_affine_machines(
 
 /// The affine plan of `machine`: its dead stored references each have an
 /// explicit last-use disposition, and its owned values are used affinely.
-/// Both walks read one descriptor graph built from `machine`.
+/// Beside it, what the claim receiver (`minted::follow_the_lowered_form`)
+/// reads from `MachineAffine::verify_claims` on this same module. All the
+/// walks read one descriptor graph built from `machine`.
 fn affine_plan(
     module: &terminal_psi::TerminalModule,
     summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
     machine: MachineId,
     candidates: Option<&terminal_semantics::reference_ends::Candidates>,
-) -> Result<terminal_semantics::plain_affine::Plan, AffineRefusal> {
+) -> Result<
+    (
+        terminal_semantics::plain_affine::Plan,
+        crate::minted::ReceivedClaims,
+    ),
+    AffineRefusal,
+> {
     let candidates = candidates.ok_or_else(|| {
         AffineRefusal::Decided(Err(refusal(
             RefusalReason::ForeignIdentity,
@@ -1242,10 +1259,10 @@ fn affine_plan(
     })?;
     let walks =
         terminal_semantics::plain_affine::MachineAffine::new(module, machine, Some(summaries))
-            .map_err(|error| AffineRefusal::of(affine_refusal(machine, error)))?;
+            .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
     let ends = walks
         .plan_reference_ends(candidates)
-        .map_err(|error| AffineRefusal::of(affine_refusal(machine, error)))?;
+        .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
     if !ends.reference_ends.is_empty() {
         return Err(AffineRefusal::Decided(fall_back_or_defect(refusal(
             RefusalReason::ForeignIdentity,
@@ -1254,38 +1271,26 @@ fn affine_plan(
             "a dead stored reference has no explicit last-use disposition",
         ))));
     }
-    walks
+    let mut plan = walks
         .verify()
-        .map_err(|error| AffineRefusal::of(affine_refusal(machine, error)))
-}
-
-/// The refusal of `machine` that an affine-check error states.
-fn affine_refusal(machine: MachineId, error: terminal_semantics::plain_affine::Error) -> Refusal {
-    let concerns = match error.site() {
-        Some(terminal_semantics::plain_affine::Site::Operation(at)) => Construct::Operation(at),
-        Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
-        None => Construct::Machine,
-    };
-    let (reason, detail) = match error {
-        terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
-            (RefusalReason::Unestablished, unavailable.message())
-        }
-        terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
-            RefusalReason::Violation,
-            terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
-        ),
-        terminal_semantics::plain_affine::Error::MissingActiveCase { .. } => (
-            RefusalReason::Unsupported,
-            terminal_semantics::plain_affine::Error::missing_active_case_message(),
-        ),
-        terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-            (RefusalReason::Unsupported, detail)
-        }
-        terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
-            (RefusalReason::ForeignIdentity, detail)
-        }
-    };
-    refusal(reason, machine, concerns, detail)
+        .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
+    // `verify` walks in claim-verifying mode exactly when the machine has an
+    // owned cleanup, and only that mode yields claim rows. That walk is the
+    // one `verify_claims` runs, over the same module and summaries, so its
+    // answer is read here instead of walked again: the first unavailable
+    // place refuses, else the claim rows stand. Any other machine walks
+    // `verify_claims` itself, on the graph the walks above built.
+    let received = match plan.claims.take() {
+        Some(claims) => match plan.unavailable.first() {
+            Some(unavailable) => Err(terminal_semantics::plain_affine::Error::Unavailable(
+                unavailable.clone(),
+            )),
+            None => Ok(claims),
+        },
+        None => walks.verify_claims(),
+    }
+    .map_err(|error| crate::minted::affine_refusal(machine, error));
+    Ok((plan, received))
 }
 
 /// The verdict on an examined closure. A machine with an obligation the

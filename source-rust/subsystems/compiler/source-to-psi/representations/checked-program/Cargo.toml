@@ -12,7 +12,6 @@ path = "checked_program.rs"
 checked-program-issuer = { path = "issuer" }
 terminal-check-tables = { path = "../lowered-program" }
 optimization = { path = "../../../psi/artifact/optimization-selections" }
-psi-publication-records = { path = "../../../psi/artifact/publication" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-psi = { path = "../../../psi" }

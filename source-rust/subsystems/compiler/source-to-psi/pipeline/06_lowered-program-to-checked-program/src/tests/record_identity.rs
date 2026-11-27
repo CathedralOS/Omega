@@ -411,6 +411,9 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
         let prepared_machine = crate::prepare(formed, machine_id, tables).unwrap();
         let mut references =
             prepared_machine.references(&elaboration.module.types.structural_types);
+        let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &elaboration.module.types.structural_types,
+        );
         let storage = crate::places::Storage::new(
             machine_id,
             lowered,
@@ -418,6 +421,7 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
             &prepared_machine.graph,
             tables,
             &prepared_machine.types,
+            &type_index,
             &mut references,
         )
         .unwrap();

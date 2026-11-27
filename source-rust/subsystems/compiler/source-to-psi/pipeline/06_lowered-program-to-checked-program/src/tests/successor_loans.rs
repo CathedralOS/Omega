@@ -396,6 +396,9 @@ machine entry(first: bool) -> bool {
     let prepared = crate::prepare(formed, identity, tables).unwrap();
     let mut references = prepared.references(&module.types.structural_types);
     let machine = module.machine(identity).unwrap();
+    let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+        &module.types.structural_types,
+    );
     let storage = crate::places::Storage::new(
         identity,
         machine,
@@ -403,6 +406,7 @@ machine entry(first: bool) -> bool {
         &prepared.graph,
         tables,
         &prepared.types,
+        &type_index,
         &mut references,
     )
     .unwrap();
@@ -663,6 +667,9 @@ machine main() crashes Trap {
     let tables = checking.machines.get_mut(identity).unwrap();
     let prepared = crate::prepare(formed, identity, tables).unwrap();
     let mut references = prepared.references(&module.types.structural_types);
+    let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+        &module.types.structural_types,
+    );
     let storage = crate::places::Storage::new(
         identity,
         module.machine(identity).unwrap(),
@@ -670,6 +677,7 @@ machine main() crashes Trap {
         &prepared.graph,
         tables,
         &prepared.types,
+        &type_index,
         &mut references,
     )
     .unwrap();
@@ -1268,6 +1276,9 @@ requires index < 2 {
     let tables = checking.machines.get_mut(identity).unwrap();
     let prepared = crate::prepare(formed, identity, tables).unwrap();
     let mut references = prepared.references(&module.types.structural_types);
+    let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+        &module.types.structural_types,
+    );
     let storage = crate::places::Storage::new(
         identity,
         module.machine(identity).unwrap(),
@@ -1275,6 +1286,7 @@ requires index < 2 {
         &prepared.graph,
         tables,
         &prepared.types,
+        &type_index,
         &mut references,
     )
     .unwrap();
