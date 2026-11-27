@@ -65,7 +65,16 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         }
     }
     let rest = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok((store(syntax, false, start.source_span_until(rest), contract, blocks), rest))
+    Ok((
+        store(
+            syntax,
+            false,
+            start.source_span_until(rest),
+            contract,
+            blocks,
+        ),
+        rest,
+    ))
 }
 
 fn store(
@@ -100,11 +109,20 @@ pub(crate) fn parse_machine_body<'tokens, 'source>(
     let (contract, input) = parse_asm_contract(syntax, start)?;
     let mut blocks = Vec::new();
     let rest = parse_machine_block(syntax, input, &mut blocks, None, None, Default::default())?;
-    Ok((syntax_trees::item::MachineBody {
-        assembly_target_requirement: Default::default(),
-        statements: store(syntax, true, start.source_span_until(rest), contract, blocks),
-        nested_machines: HandleSpan::empty(),
-    }, rest))
+    Ok((
+        syntax_trees::item::MachineBody {
+            assembly_target_requirement: Default::default(),
+            statements: store(
+                syntax,
+                true,
+                start.source_span_until(rest),
+                contract,
+                blocks,
+            ),
+            nested_machines: HandleSpan::empty(),
+        },
+        rest,
+    ))
 }
 
 /// The flat block list is in lexical preorder. Local declarations belong to the
@@ -124,17 +142,23 @@ fn parse_machine_block<'tokens, 'source>(
     let mut adjacent = None;
     while !input.at_punctuation(PunctuationKind::RightBrace) && !input.at_contextual("asm") {
         if input.at_contextual("transition") {
-            let rest = input.take_contextual("transition")?.take_punctuation(PunctuationKind::Arrow, "->")?;
+            let rest = input
+                .take_contextual("transition")?
+                .take_punctuation(PunctuationKind::Arrow, "->")?;
             let (target, rest) = rest.take_identifier()?;
             adjacent = Some(target);
             input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
             break;
         }
         if input.at_keyword(KeywordKind::Machine) {
-            return Err(input.error_here("a local assembly block must be declared with `asm machine`"));
+            return Err(
+                input.error_here("a local assembly block must be declared with `asm machine`")
+            );
         }
         if assembly_label_starts(input) {
-            return Err(input.error_here("declare an assembly block with `asm machine` and transfer to it explicitly"));
+            return Err(input.error_here(
+                "declare an assembly block with `asm machine` and transfer to it explicitly",
+            ));
         }
         let (instruction, rest) = parse_instruction(syntax, input)?;
         instructions.push(instruction);
@@ -150,7 +174,9 @@ fn parse_machine_block<'tokens, 'source>(
         instructions: instructions.into(),
     });
     while input.at_contextual("asm") {
-        let rest = input.take_contextual("asm")?.take_keyword(KeywordKind::Machine, "machine")?;
+        let rest = input
+            .take_contextual("asm")?
+            .take_keyword(KeywordKind::Machine, "machine")?;
         let (name, rest) = rest.take_identifier()?;
         let (contract, rest) = parse_asm_contract(syntax, rest)?;
         input = parse_machine_block(syntax, rest, blocks, Some(index), Some(name), contract)?;

@@ -720,9 +720,16 @@ pub(crate) mod construction {
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let assembly_callees = target
+            .function_abis
+            .iter()
+            .filter(|abi| abi.assembly_return.is_some())
+            .map(|abi| abi.machine)
+            .collect();
         crate::instruction_selection::selection_inlining::inline_and_simplify(
             &mut functions,
             environment,
+            &assembly_callees,
         )?;
         crate::instruction_selection::selection_vector_promotion::promote_and_simplify(
             &mut functions,

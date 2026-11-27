@@ -164,16 +164,22 @@ pub(crate) fn bind(
             };
             let initial_value = if machine_body {
                 ExpressionHandle::invalid()
-            } else { trees.expressions.insert(if index == ASM_ZERO_FLAG_SLOT {
-                ExpressionNode::Boolean(false)
             } else {
-                ExpressionNode::Integer(IntegerLiteral::zero())
-            }) };
+                trees.expressions.insert(if index == ASM_ZERO_FLAG_SLOT {
+                    ExpressionNode::Boolean(false)
+                } else {
+                    ExpressionNode::Integer(IntegerLiteral::zero())
+                })
+            };
             bindings.push(
                 trees
                     .statements
                     .insert(StatementNode::LocalData(TableLocalData {
-                        role: if machine_body { language_core::LocalBindingRole::AssemblyRegister } else { Default::default() },
+                        role: if machine_body {
+                            language_core::LocalBindingRole::AssemblyRegister
+                        } else {
+                            Default::default()
+                        },
                         name: Identifier::generated(&hidden),
                         type_reference,
                         initial_value,

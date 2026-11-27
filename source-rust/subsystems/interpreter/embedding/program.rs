@@ -2598,7 +2598,10 @@ pub(crate) mod program {
             }
             installation.memory_ordering = request.memory_ordering;
             installation.x86_flags = request.x86_flags;
-            if request.assembly_returns.is_some_and(|plans| Some(plans.target()) != request.target_machines) {
+            if request
+                .assembly_returns
+                .is_some_and(|plans| Some(plans.target()) != request.target_machines)
+            {
                 return Err(TerminalInterpretError::TargetContextIdentityMismatch);
             }
             installation.assembly_returns = request.assembly_returns.cloned();
@@ -3169,6 +3172,87 @@ pub(crate) mod program {
                     | terminal_psi::CheckedBoundaryExecution::NumericPrimitive
             )
         })
+    }
+
+    #[cfg(test)]
+    mod assembly_return_tests {
+        use super::*;
+        use crate::boundary::effects::TerminalRuntimeSupplyRequest;
+        use crate::engine::calls::frames::tests::empty_program;
+        use semantic_vocabulary::{
+            EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+        };
+        use terminal_psi::{
+            AsmRegisterView, AssemblyExitConstraint, Operation, OperationKind, OperationResult,
+            TerminalMachineResult, Terminator, ValueDeclaration,
+        };
+
+        #[test]
+        fn a_reached_register_return_requires_its_installed_result_placement() {
+            let mut module = (**empty_program().catalogs).clone();
+            let body = &mut module.machines[0];
+            let returned = AsmRegisterView::from_scratch_slot(0).unwrap();
+            let value = ValueDeclaration {
+                id: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                ),
+                qualifications: Default::default(),
+            };
+            body.contract.result = TerminalMachineResult::Scalar(value);
+            body.assembly_target_requirement = returned.target();
+            body.blocks[0].operations = vec![Operation::unsuspended(
+                OperationId::new(1).unwrap(),
+                OperationResult::Scalar(value),
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(42),
+                },
+            )];
+            body.blocks[0].terminator = Terminator::Return {
+                edge: EdgeId::new(1).unwrap(),
+                value: value.id,
+                cleanup_actions: Vec::new(),
+            };
+            body.blocks[0].assembly_exit = Some(AssemblyExitConstraint::ScalarReturn(returned));
+            let machine = body.id;
+            let record =
+                terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
+            let artifact =
+                terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None)
+                    .unwrap();
+            let program = TerminalProgram::borrow(artifact.view()).unwrap();
+            let target =
+                psi_target_layouts::terminal_target_context(artifact.view(), "linux_x86_64");
+            let request = TerminalRuntimeSupplyRequest {
+                entry: None,
+                installation: None,
+                host_imports: &[],
+                external_completions: &[],
+                target_machines: Some(&target),
+                target_layouts: None,
+                native_code_layouts: None,
+                memory_ordering: None,
+                x86_flags: None,
+                assembly_returns: None,
+            };
+            let supplies = program.admit_runtime_supplies(request).unwrap();
+            assert!(matches!(
+                program.execution_requirements(Some(&supplies)),
+                Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "assembly return register has no matching installed calling plan"
+                ))
+            ));
+            let plans =
+                psi_target_layouts::AssemblyReturnPlans::new(&target, vec![(machine, returned)])
+                    .unwrap();
+            let supplies = program
+                .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                    assembly_returns: Some(&plans),
+                    ..request
+                })
+                .unwrap();
+            assert!(program.execution_requirements(Some(&supplies)).is_ok());
+        }
     }
 
     #[cfg(test)]

@@ -171,6 +171,7 @@ fn function_abi_finds_the_described_machine() {
     let plan = scalar_call_unit_plan();
     let function = &plan.scalar_functions[0];
     let abi = crate::LegalizedFunctionAbi {
+        assembly_return: None,
         machine: function.machine,
         call_plan: function.call_plan.clone(),
         entry_scalar_codecs: vec![Some(0); function.call_plan.parameters.len()],

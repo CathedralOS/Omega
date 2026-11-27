@@ -591,6 +591,7 @@ mod tests {
     fn rehashed_abi_and_profile_cannot_replace_the_admitted_contracts() {
         let (selected, original) = fixture();
         let abi = target_vocabulary::function_abi::LegalizedFunctionAbi {
+            assembly_return: None,
             machine: original.entry,
             call_plan: calling_conventions::evaluate_call_plan(
                 calling_conventions::CallingPolicy::MicrosoftX64,

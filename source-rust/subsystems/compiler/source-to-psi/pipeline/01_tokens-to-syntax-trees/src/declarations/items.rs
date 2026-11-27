@@ -384,7 +384,9 @@ fn parse_declared_item<'tokens, 'source>(
     }
 
     if input.at_contextual("asm") && input.at_identifier_then_contextual("machine") {
-        let input = input.take_contextual("asm")?.take_keyword(KeywordKind::Machine, "machine")?;
+        let input = input
+            .take_contextual("asm")?
+            .take_keyword(KeywordKind::Machine, "machine")?;
         let (machine, rest) = parse_machine(syntax_trees, input, BodyLanguage::Assembly)?;
         return Ok((Item::Machine(machine), rest));
     }

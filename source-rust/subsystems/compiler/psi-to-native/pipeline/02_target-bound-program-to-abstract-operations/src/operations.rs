@@ -16,7 +16,11 @@ mod error {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum LoweringError {
         InvalidDescriptorTableOperation(semantic_vocabulary::OperationId),
-        UnsupportedAssemblyAdjacency { machine: MachineId, block: BlockId, reason: &'static str },
+        UnsupportedAssemblyAdjacency {
+            machine: MachineId,
+            block: BlockId,
+            reason: &'static str,
+        },
         UnclosedScalarConditions,
         UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
         ScalarApplicationCarrierMismatch(semantic_vocabulary::OperationId),

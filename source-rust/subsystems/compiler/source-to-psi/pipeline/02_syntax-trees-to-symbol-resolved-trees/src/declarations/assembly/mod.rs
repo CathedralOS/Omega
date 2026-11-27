@@ -134,7 +134,8 @@ fn expand(
                 && matches!(asm_catalog_entry(instruction.mnemonic.as_str(source)),
                     Some(AsmCatalogEntry::Contract(entry)) if entry.shape == AsmInstructionShape::CheckedReturn)
             {
-                if !matches!(&instruction.operands, AssemblyOperands::Expressions(values) if values.is_empty()) {
+                if !matches!(&instruction.operands, AssemblyOperands::Expressions(values) if values.is_empty())
+                {
                     return Err(error(site, "a checked assembly return takes no operands"));
                 }
                 block.exit = AssemblyExit::Return;
@@ -154,6 +155,12 @@ fn expand(
                 } = source.expressions.expression(*operand)
                 && let [label] = source.expressions.identifier_path_members(*members)
             {
+                if contract.is_machine_body {
+                    return Err(error(
+                        site,
+                        "an explicit assembly jump needs a checked branch layout and incoming register states",
+                    ));
+                }
                 let label = label.clone();
                 target_requirement =
                     target_requirement.intersect(entry.target).ok_or_else(|| {
@@ -170,8 +177,13 @@ fn expand(
             let mut instruction = instruction.clone();
             syntax_trees.copy_assembly_operands_from(source, &mut instruction.operands);
             let instruction = prepare_instruction(syntax_trees, &instruction)?;
-            if contract.is_machine_body && instruction.contract.shape != AsmInstructionShape::RegisterMove {
-                return Err(error(site, "the instruction's state changes are not yet represented in a checked assembly machine"));
+            if contract.is_machine_body
+                && instruction.contract.shape != AsmInstructionShape::RegisterMove
+            {
+                return Err(error(
+                    site,
+                    "the instruction's state changes are not yet represented in a checked assembly machine",
+                ));
             }
             place_forms_only &= matches!(
                 instruction.contract.shape,
@@ -226,23 +238,44 @@ fn expand(
         }
         if let Some(target) = &authored.adjacent {
             if !matches!(block.exit, AssemblyExit::Fallthrough) {
-                return Err(error(span, "assembly transition after a terminating instruction is not yet supported"));
+                return Err(error(
+                    span,
+                    "assembly transition after a terminating instruction is not yet supported",
+                ));
             }
             let target_name = target.as_str(source);
             let next = contract.blocks.get(index + 1).filter(|next| {
-                next.label.as_ref().is_some_and(|label| label.as_str(source) == target_name)
+                next.label
+                    .as_ref()
+                    .is_some_and(|label| label.as_str(source) == target_name)
                     && (next.parent == Some(index as u32) || next.parent == authored.parent)
             });
             if next.is_none() {
-                return Err(error(target.source_span(), format!("assembly transition requires an adjacent visible block named `{target_name}`")));
+                return Err(error(
+                    target.source_span(),
+                    format!(
+                        "assembly transition requires an adjacent visible block named `{target_name}`"
+                    ),
+                ));
             }
             block.exit = AssemblyExit::Adjacent;
         }
-        if contract.is_machine_body && matches!(block.exit, AssemblyExit::Fallthrough | AssemblyExit::ZeroFlag(..)) {
-            return Err(error(span, "an assembly machine block needs a complete explicit terminator"));
+        if contract.is_machine_body
+            && matches!(
+                block.exit,
+                AssemblyExit::Fallthrough | AssemblyExit::ZeroFlag(..)
+            )
+        {
+            return Err(error(
+                span,
+                "an assembly machine block needs a complete explicit terminator",
+            ));
         }
         if let Some(clobbers) = &authored.clobbers {
-            let declared = clobbers.iter().map(|name| name.as_str(source).to_owned()).collect();
+            let declared = clobbers
+                .iter()
+                .map(|name| name.as_str(source).to_owned())
+                .collect();
             validate_asm_clobber_contract(&declared, &block_clobbers, span)?;
         }
         realized_clobbers.extend(block_clobbers);
@@ -255,10 +288,11 @@ fn expand(
                 "asm `ensures` requires a falling-through block; this instruction has no local post-state",
             ));
         }
-        if blocks[..index]
-            .iter()
-            .any(|prior| prior.label.as_str(syntax_trees) == block.label.as_str(syntax_trees))
-        {
+        if blocks[..index].iter().enumerate().any(|(previous, prior)| {
+            prior.label.as_str(syntax_trees) == block.label.as_str(syntax_trees)
+                && (!contract.is_machine_body
+                    || contract.blocks[index].parent == contract.blocks[previous].parent)
+        }) {
             return Err(error(
                 span,
                 format!(
@@ -373,7 +407,8 @@ fn expand(
         return Ok((block.instructions.clone(), target_requirement));
     }
     flags.materialize(syntax_trees, &mut blocks, body_requires, &mut primitives);
-    let (scratch, bindings) = generated_statements::bind(syntax_trees, scope, contract.is_machine_body);
+    let (scratch, bindings) =
+        generated_statements::bind(syntax_trees, scope, contract.is_machine_body);
     let blocks: Vec<_> = blocks
         .into_iter()
         .map(|block| syntax_trees::statement::AssemblyBlock {

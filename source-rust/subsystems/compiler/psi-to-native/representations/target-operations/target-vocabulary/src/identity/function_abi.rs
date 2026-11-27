@@ -8,6 +8,9 @@ use crate::ScalarAbiValue;
 
 pub fn encode_function_abi(bytes: &mut Vec<u8>, abi: &LegalizedFunctionAbi) {
     crate::codec_bytes::push_encoded(bytes, abi.machine.get().to_le_bytes());
+    encode_option(bytes, abi.assembly_return, |bytes, view| {
+        bytes.push(view.slot())
+    });
     encode_call_plan(bytes, &abi.call_plan);
     encode_len(bytes, abi.entry_scalar_codecs.len());
     for codec in &abi.entry_scalar_codecs {

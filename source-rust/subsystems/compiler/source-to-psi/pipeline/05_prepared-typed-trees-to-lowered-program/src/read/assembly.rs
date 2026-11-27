@@ -42,11 +42,18 @@ impl Program<'_> {
         }
         let mut initialized = Vec::new();
         let blocks = typed.statement_table.assembly_blocks(graph.blocks);
+        let default_site = self
+            .typed
+            .symbols
+            .symbol_provenance_source_span(owner)
+            .map(SourceOrigin::of)
+            .unwrap_or(SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent));
         let mut body = Vec::new();
         for (index, block) in blocks.iter().enumerate() {
             let start = block.start as usize;
             let local = statements
-                .get(start..start + block.count as usize)
+                .get(start..)
+                .and_then(|tail| tail.get(..block.count as usize))
                 .ok_or_else(|| unsupported("assembly block outside its instruction stream"))?;
             let Some((StatementNode::Assembly(AssemblyControlPoint::Label(label)), local)) =
                 local.split_first()
@@ -56,12 +63,6 @@ impl Program<'_> {
             if *label != graph.blocks.handle_at(index as u32) {
                 return Err(unsupported("assembly block names another entry"));
             }
-            let default_site = self
-                .typed
-                .symbols
-                .symbol_provenance_source_span(owner)
-                .map(SourceOrigin::of)
-                .unwrap_or(SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent));
             let facts = local.iter().take_while(|row| matches!(row, StatementNode::AssemblyFact(fact) if fact.kind == AssemblyFactKind::Requires)).count();
             if index != 0 {
                 // Put the initialized formals first so their ordinals are exactly the
@@ -145,11 +146,18 @@ impl Program<'_> {
                 match value.kind {
                     ExpressionKind::Integer(_) => {}
                     ExpressionKind::Slot(from) if initialized.contains(&from) => {}
-                    ExpressionKind::Slot(_) => {
+                    ExpressionKind::Slot(from)
+                        if registers.iter().any(|(slot, _)| *slot == from) =>
+                    {
                         return Err(reject(
                             id,
                             value.source,
                             "assembly reads a register before an instruction or entry binding initialized it",
+                        ));
+                    }
+                    ExpressionKind::Slot(_) => {
+                        return Err(unsupported(
+                            "moving an input into a working register needs a checked entry placement",
                         ));
                     }
                     _ => {

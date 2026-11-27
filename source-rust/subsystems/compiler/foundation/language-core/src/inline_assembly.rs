@@ -352,7 +352,7 @@ mod register_operations {
 
 /// A complete general-purpose register view the source instruction catalog models.
 /// Scratch temporaries, flags, and unmodeled aliases have no register view.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, record_storage::Record)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AsmRegisterView(u8);
 
 impl AsmRegisterView {
@@ -1617,16 +1617,19 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
         }),
-        "ret" => Contract(AsmInstructionContract::without_side_effects(AsmInstructionShape::CheckedReturn, Any)),
-        "retq" | "retn" | "retw" | "retaa" | "retab" | "retf" | "lret" | "iret"
-        | "iretd" | "iretw" | "call" | "callq" | "callf" | "lcall" | "jmpq" | "jmpf" | "jmpl"
-        | "ljmp" | "ljmpl" | "br" | "blr" | "bl" | "bx" | "blx" | "bc" | "braa" | "brab"
-        | "braaz" | "brabz" | "blraa" | "blrab" | "blraaz" | "blrabz" | "eretaa" | "eretab"
-        | "drps" | "cbz" | "cbnz" | "tbz" | "tbnz" | "loop" | "loope" | "loopne" | "loopz"
-        | "loopnz" | "jcxz" | "jecxz" | "jrcxz" | "int" | "int1" | "int3" | "into" | "je"
-        | "jne" | "ja" | "jae" | "jb" | "jbe" | "jna" | "jnae" | "jnb" | "jnbe" | "jg" | "jge"
-        | "jl" | "jle" | "jng" | "jnge" | "jnl" | "jnle" | "jo" | "jno" | "js" | "jns" | "jp"
-        | "jpe" | "jnp" | "jpo" | "jc" | "jnc" => Refused(HiddenControlExit),
+        "ret" => Contract(AsmInstructionContract::without_side_effects(
+            AsmInstructionShape::CheckedReturn,
+            Any,
+        )),
+        "retq" | "retn" | "retw" | "retaa" | "retab" | "retf" | "lret" | "iret" | "iretd"
+        | "iretw" | "call" | "callq" | "callf" | "lcall" | "jmpq" | "jmpf" | "jmpl" | "ljmp"
+        | "ljmpl" | "br" | "blr" | "bl" | "bx" | "blx" | "bc" | "braa" | "brab" | "braaz"
+        | "brabz" | "blraa" | "blrab" | "blraaz" | "blrabz" | "eretaa" | "eretab" | "drps"
+        | "cbz" | "cbnz" | "tbz" | "tbnz" | "loop" | "loope" | "loopne" | "loopz" | "loopnz"
+        | "jcxz" | "jecxz" | "jrcxz" | "int" | "int1" | "int3" | "into" | "je" | "jne" | "ja"
+        | "jae" | "jb" | "jbe" | "jna" | "jnae" | "jnb" | "jnbe" | "jg" | "jge" | "jl" | "jle"
+        | "jng" | "jnge" | "jnl" | "jnle" | "jo" | "jno" | "js" | "jns" | "jp" | "jpe" | "jnp"
+        | "jpo" | "jc" | "jnc" => Refused(HiddenControlExit),
         "mov" | "movq" => Contract(AsmInstructionContract::without_side_effects(
             RegisterMove,
             Any,
@@ -2099,13 +2102,13 @@ mod tests {
         );
         assert_eq!(branch.flags_data_flow, AsmFlagsDataFlow::ZeroFlagBranch);
         for mnemonic in [
-            "retq", "retn", "retw", "retaa", "retab", "retf", "lret", "iret", "iretd",
-            "iretw", "call", "callq", "callf", "lcall", "jmpq", "jmpf", "jmpl", "ljmp", "ljmpl",
-            "br", "blr", "bl", "bx", "blx", "bc", "braa", "brab", "braaz", "brabz", "blraa",
-            "blrab", "blraaz", "blrabz", "eretaa", "eretab", "drps", "cbz", "cbnz", "tbz", "tbnz",
-            "loop", "loope", "loopne", "loopz", "loopnz", "jcxz", "jecxz", "jrcxz", "int", "int1",
-            "int3", "into", "je", "jne", "ja", "jae", "jb", "jbe", "jna", "jnae", "jnb", "jnbe",
-            "jg", "jge", "jl", "jle", "jng", "jnge", "jnl", "jnle", "jo", "jno", "js", "jns", "jp",
+            "retq", "retn", "retw", "retaa", "retab", "retf", "lret", "iret", "iretd", "iretw",
+            "call", "callq", "callf", "lcall", "jmpq", "jmpf", "jmpl", "ljmp", "ljmpl", "br",
+            "blr", "bl", "bx", "blx", "bc", "braa", "brab", "braaz", "brabz", "blraa", "blrab",
+            "blraaz", "blrabz", "eretaa", "eretab", "drps", "cbz", "cbnz", "tbz", "tbnz", "loop",
+            "loope", "loopne", "loopz", "loopnz", "jcxz", "jecxz", "jrcxz", "int", "int1", "int3",
+            "into", "je", "jne", "ja", "jae", "jb", "jbe", "jna", "jnae", "jnb", "jnbe", "jg",
+            "jge", "jl", "jle", "jng", "jnge", "jnl", "jnle", "jo", "jno", "js", "jns", "jp",
             "jpe", "jnp", "jpo", "jc", "jnc",
         ] {
             assert_eq!(

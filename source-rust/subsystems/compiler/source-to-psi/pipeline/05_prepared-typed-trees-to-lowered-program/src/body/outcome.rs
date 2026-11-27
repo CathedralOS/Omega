@@ -499,7 +499,7 @@ impl<'b> Walk<'b> {
                     }
                 }
                 // These bindings evaluate no value and reach no call.
-                Statement::AssemblyAdjacent {..}
+                Statement::AssemblyAdjacent { .. }
                 | Statement::Declare { .. }
                 | Statement::Witness { .. }
                 | Statement::CaptureReference { .. } => {}
@@ -568,7 +568,9 @@ impl<'b> Walk<'b> {
 
     fn target(&mut self, machine: MachineId, target: &Target) -> Checked<bool> {
         match target {
-            Target::Value(expression) | Target::AssemblyReturn(_, expression) => self.expression(machine, expression),
+            Target::Value(expression) | Target::AssemblyReturn(_, expression) => {
+                self.expression(machine, expression)
+            }
             Target::Unit => Ok(true),
             Target::Crash(cause) => {
                 self.causes.insert(*cause);

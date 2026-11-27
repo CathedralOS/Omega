@@ -303,7 +303,10 @@ fn rejects_asm_availability_and_unmodeled_operation_classes() {
     for (instruction, expected) in [
         ("iretq", "deriver-only"),
         ("lidt main.value", "deriver-only"),
-        ("ret", "an inline assembly region cannot return from its enclosing machine"),
+        (
+            "ret",
+            "an inline assembly region cannot return from its enclosing machine",
+        ),
         (
             "ldrb x0, main.value",
             "no structured operand provenance/permission contract",
@@ -326,6 +329,17 @@ fn rejects_asm_availability_and_unmodeled_operation_classes() {
             "expected `{expected}` for `{instruction}`, got `{rendered}`"
         );
     }
+}
+
+#[test]
+fn a_machine_transition_requires_its_named_block_to_be_adjacent() {
+    let source = "asm machine answer() -> u32 {
+        mov eax, 42; transition -> finish;
+        asm machine between { transition -> finish; }
+        asm machine finish { ret; }
+    }";
+    let error = prepare_source(source).unwrap_err();
+    assert!(format!("{error:?}").contains("adjacent visible block named `finish`"));
 }
 
 #[test]

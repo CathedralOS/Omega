@@ -310,7 +310,9 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
 }
 
 impl<A> TerminalRuntimeHostProvisions<A> {
-    pub fn assembly_returns(&self) -> Option<&psi_target_layouts::AssemblyReturnPlans> { self.assembly_returns.as_ref() }
+    pub fn assembly_returns(&self) -> Option<&psi_target_layouts::AssemblyReturnPlans> {
+        self.assembly_returns.as_ref()
+    }
 
     /// Transform only the owned auxiliary products. Stored refusals stay attached
     /// to their boundary: an unused unsupported adapter is not a root refusal.

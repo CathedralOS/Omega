@@ -244,10 +244,14 @@ pub(crate) mod scalar_abi {
             None => evaluate_call_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature {
-                    parameters: parameter_types_and_shapes.iter().map(|(_, shape)| *shape).collect(),
+                    parameters: parameter_types_and_shapes
+                        .iter()
+                        .map(|(_, shape)| *shape)
+                        .collect(),
                     result: result_shape,
                 },
-            ).map_err(LoweringError::AbiPlan)?,
+            )
+            .map_err(LoweringError::AbiPlan)?,
         };
         let result = match (function.result.scalar(), call_plan.result.as_ref()) {
             (None, None) => None,

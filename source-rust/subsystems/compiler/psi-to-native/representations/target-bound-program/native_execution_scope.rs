@@ -245,14 +245,24 @@ pub struct NativeExecutionScope {
 }
 
 impl NativeExecutionScope {
-    pub fn assembly_call_plan(&self, machine: MachineId) -> Option<&calling_conventions::CallPlan> {
-        self.assembly_returns.binary_search_by_key(&machine, |plan| plan.machine)
-            .ok().map(|index| &self.assembly_returns[index].call)
+    pub fn assembly_call_plan(&self, machine: MachineId) -> Option<&AssemblyCallingPlan> {
+        self.assembly_returns
+            .binary_search_by_key(&machine, |plan| plan.machine)
+            .ok()
+            .map(|index| &self.assembly_returns[index])
     }
 
-    pub fn assembly_return_environment(&self) -> Result<Option<psi_target_layouts::AssemblyReturnPlans>, &'static str> {
-        if self.assembly_returns.is_empty() { return Ok(None); }
-        let results = self.assembly_returns.iter().map(|plan| (plan.machine, plan.result)).collect();
+    pub fn assembly_return_environment(
+        &self,
+    ) -> Result<Option<psi_target_layouts::AssemblyReturnPlans>, &'static str> {
+        if self.assembly_returns.is_empty() {
+            return Ok(None);
+        }
+        let results = self
+            .assembly_returns
+            .iter()
+            .map(|plan| (plan.machine, plan.result))
+            .collect();
         psi_target_layouts::AssemblyReturnPlans::new(self.reach.target_context(), results).map(Some)
     }
 

@@ -531,9 +531,12 @@ pub(crate) mod capabilities {
                     continue;
                 }
                 let block = &machine.blocks[position];
-                if let Some(terminal_psi::AssemblyExitConstraint::ScalarReturn(view)) = block.assembly_exit
-                    && installation.and_then(|supplies| supplies.assembly_returns.as_ref())
-                        .is_none_or(|plans| !plans.admits(machine_id, view)) {
+                if let Some(terminal_psi::AssemblyExitConstraint::ScalarReturn(view)) =
+                    block.assembly_exit
+                    && installation
+                        .and_then(|supplies| supplies.assembly_returns.as_ref())
+                        .is_none_or(|plans| !plans.admits(machine_id, view))
+                {
                     return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                         "assembly return register has no matching installed calling plan",
                     ));

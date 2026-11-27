@@ -137,7 +137,9 @@ fn statements(machine: MachineId, statements: &[Statement]) -> Checked<()> {
                 }
                 target(machine, arm)?;
             }
-            Statement::AssemblyAdjacent {..} | Statement::Declare { .. } | Statement::CaptureReference { .. } => {}
+            Statement::AssemblyAdjacent { .. }
+            | Statement::Declare { .. }
+            | Statement::CaptureReference { .. } => {}
         }
     }
     Ok(())

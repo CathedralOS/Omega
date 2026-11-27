@@ -1146,7 +1146,8 @@ impl<'a> Lowering<'a> {
                 | Statement::Evaluate {
                     expression: value, ..
                 } => Some(value.source),
-                Statement::AssemblyAdjacent {source,..} | Statement::Declare { source, .. }
+                Statement::AssemblyAdjacent { source, .. }
+                | Statement::Declare { source, .. }
                 | Statement::Store { source, .. }
                 | Statement::Dispatch { source, .. }
                 | Statement::Arm { source, .. } => Some(*source),

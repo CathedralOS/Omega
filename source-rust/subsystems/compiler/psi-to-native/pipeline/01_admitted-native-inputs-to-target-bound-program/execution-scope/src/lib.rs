@@ -26,7 +26,11 @@ pub fn derive_native_scope(
     })
     .map_err(|reason| vec![diagnostics::Diagnostic::error(reason.to_string())])?;
     binding
-        .bind_target_reach(reach.emitted, reach.selected_candidate_positions, reach.assembly_returns)
+        .bind_target_reach(
+            reach.emitted,
+            reach.selected_candidate_positions,
+            reach.assembly_returns,
+        )
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])
 }
 
@@ -210,9 +214,11 @@ impl TargetReach {
                     "reachable machine {declared} contains checked assembly that requires {architecture}; the selected target is `{target}`"
                 )));
             }
-            if let Some(plan) = assembly_returns::bind(profile, module, body)
-                .map_err(|reason| NativeExecutionScopeError::TargetContext(format!(
-                    "assembly return in machine {machine:?}: {reason}")))? {
+            if let Some(plan) = assembly_returns::bind(profile, module, body).map_err(|reason| {
+                NativeExecutionScopeError::TargetContext(format!(
+                    "assembly return in machine {machine:?}: {reason}"
+                ))
+            })? {
                 assembly_returns.push(plan);
             }
             for block in &body.blocks {

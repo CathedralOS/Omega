@@ -4,6 +4,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FrameRecipeOrigin(());
 
+mod assembly_returns;
 mod frame_layout;
 pub mod frame_protocol;
 use frame_admission::frame_layout::{

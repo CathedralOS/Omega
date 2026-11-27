@@ -139,6 +139,16 @@ alternatives. Machine-effect facts must still
 reach final call placement, frame and return-address preservation,
 relocations, bytes and independently validated publication.
 
+## Adjacent assembly blocks
+
+A Psi block may require that its jump to the next local block emit no
+instruction. [Assembly edge lowering](src/operations/assembly_adjacency.rs)
+joins the blocks of a straight-line assembly machine into one physical range.
+The source SSA value and its destination block parameter name the same value,
+so binding that parameter emits no register copy. This runs even when the
+build selects no optional optimizations. A second incoming path, edge cleanup
+or structural transfer needs a separate layout and currently rejects.
+
 ## Structural results and residual cleanup
 
 Primitive array construction keeps its complete structural result and ordered

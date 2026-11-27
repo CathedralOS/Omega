@@ -40,7 +40,7 @@ pub(super) fn physical_blocks(
     let mut operations = std::mem::take(&mut physical.operations);
     let mut aliases = BTreeMap::<ValueId, ValueId>::new();
     for (index, source) in machine.blocks.iter().enumerate() {
-        let terminal = operations
+        let mut terminal = operations
             .pop()
             .ok_or_else(|| refuse(source.id, "missing local terminator"))?;
         if operations
@@ -53,7 +53,7 @@ pub(super) fn physical_blocks(
             ));
         }
         physical.operations.append(&mut operations);
-        match (source.assembly_exit, terminal) {
+        match (source.assembly_exit, &mut terminal) {
             (
                 Some(AssemblyExitConstraint::Adjacent(next)),
                 AbstractOperation::Jump {
@@ -63,7 +63,7 @@ pub(super) fn physical_blocks(
                     cleanup_actions,
                     ..
                 },
-            ) if next == target
+            ) if next == *target
                 && machine
                     .blocks
                     .get(index + 1)
@@ -73,7 +73,7 @@ pub(super) fn physical_blocks(
             {
                 // Resolve incoming names simultaneously. No move will be
                 // selected for an assembly label or any of these bindings.
-                let incoming = bindings
+                aliases = bindings
                     .iter()
                     .map(|binding| {
                         (
@@ -85,7 +85,6 @@ pub(super) fn physical_blocks(
                         )
                     })
                     .collect();
-                aliases = incoming;
                 operations = input
                     .next()
                     .expect("one lowered block for each source block")
@@ -93,16 +92,12 @@ pub(super) fn physical_blocks(
             }
             (
                 Some(AssemblyExitConstraint::ScalarReturn(_)),
-                mut completion @ AbstractOperation::Return { .. },
-            ) if index + 1 == machine.blocks.len() => {
-                let AbstractOperation::Return {
+                AbstractOperation::Return {
                     value,
                     cleanup_actions,
                     ..
-                } = &mut completion
-                else {
-                    unreachable!()
-                };
+                },
+            ) if index + 1 == machine.blocks.len() => {
                 if !cleanup_actions.is_empty() {
                     return Err(refuse(
                         source.id,
@@ -110,7 +105,7 @@ pub(super) fn physical_blocks(
                     ));
                 }
                 *value = aliases.get(value).copied().unwrap_or(*value);
-                physical.operations.push(completion);
+                physical.operations.push(terminal);
             }
             _ => {
                 return Err(refuse(

@@ -3448,6 +3448,7 @@ pub(crate) fn lower(
         provenance.edges.extend(block.edges);
     }
     Ok(TargetFunction {
+        assembly_return: None,
         machine: function.machine,
         attachment: function.attachment,
         scalar_abi: None,

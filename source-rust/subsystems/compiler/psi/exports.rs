@@ -70,15 +70,16 @@ pub use crate::machines::direct_calls::{
 };
 pub use crate::machines::generic_calls;
 pub use crate::machines::{
-    AssemblyExitConstraint, AtomicAccessEvent, AtomicReadModifyWrite, Block, CallableInvocation, CallableInvocationInputs,
-    CrashCause, ElementViewRegion, ExternalReach, FenceOrdering, FloatResultPolicy, MemoryOrdering,
-    ModuleInvocation, ModuleInvocationInputs, Operation, OperationKind, OperationResult,
-    RecordFieldInitializer, RecordFieldValue, ReferenceStorageView, RegisterAccessEvent,
-    ScalarCaseField, StorageLocationQuery, StructuralCaseSuccessorEdge, StructuralOperationResult,
-    StructuralResultClaimBinding, StructuralStoreDisposition, SuccessorEdge, TargetMachineCallable,
-    TerminalBlockNaturalRank, TerminalIntegerRankValue, TerminalMachine, TerminalNaturalCycle,
-    TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalRankedScc, Terminator,
-    TrappingIntegerOperation, TrappingIntegerPrimitive, structural_parameter_position,
+    AssemblyExitConstraint, AtomicAccessEvent, AtomicReadModifyWrite, Block, CallableInvocation,
+    CallableInvocationInputs, CrashCause, ElementViewRegion, ExternalReach, FenceOrdering,
+    FloatResultPolicy, MemoryOrdering, ModuleInvocation, ModuleInvocationInputs, Operation,
+    OperationKind, OperationResult, RecordFieldInitializer, RecordFieldValue, ReferenceStorageView,
+    RegisterAccessEvent, ScalarCaseField, StorageLocationQuery, StructuralCaseSuccessorEdge,
+    StructuralOperationResult, StructuralResultClaimBinding, StructuralStoreDisposition,
+    SuccessorEdge, TargetMachineCallable, TerminalBlockNaturalRank, TerminalIntegerRankValue,
+    TerminalMachine, TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
+    TerminalRankedScc, Terminator, TrappingIntegerOperation, TrappingIntegerPrimitive,
+    structural_parameter_position,
 };
 pub use crate::proofs::ProgramProofs;
 pub use crate::proofs::certificates::{
@@ -137,8 +138,8 @@ pub use language_core::inline_assembly::{
     AsmControlRegister as ControlRegister, AsmFenceKind as MemoryFenceKind,
     AsmGlobalDescriptorTableOperation as GlobalDescriptorTableOperation,
     AsmInterruptControlKind as InterruptControlKind, AsmRegisterCarrier as RegisterCarrier,
-    AsmRegisterView, AsmRegisterOperation as RegisterOperation, AsmSystemRegister as SystemRegister,
-    AsmTargetApplicability as RegisterTargetApplicability,
+    AsmRegisterOperation as RegisterOperation, AsmRegisterView,
+    AsmSystemRegister as SystemRegister, AsmTargetApplicability as RegisterTargetApplicability,
 };
 pub use psi_effect_contracts::{
     ContractDependency, template_contract_commitment, validate_published_dependency,
