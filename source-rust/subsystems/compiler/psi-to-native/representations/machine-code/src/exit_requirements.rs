@@ -61,7 +61,7 @@ pub struct ExitEncoding {
     pub selected: selected_instructions::SelectedInstructionPlanIdentity,
     pub machine: post_allocation_machine::PostAllocationMachineIdentity,
     pub identity: crate::SelectedFormEncodingIdentity,
-    pub frame: Option<crate::TargetFrameLayoutIdentity>,
+    pub frame: Option<std::sync::Arc<crate::TargetFrameLayoutPlan>>,
     pub has_machine_optimization: bool,
     pub decoded: std::sync::Arc<crate::SelectedFormEncodedRowStore>,
 }

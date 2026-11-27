@@ -399,9 +399,7 @@ fn build_fixture() -> Fixture {
     }
 }
 
-fn check_layout_fixup_identity(program: &machine_code::ResolvedMachineProgram) {
-    let original = program.layout.identity();
-    assert_eq!(original, program.layout.recomputed_identity());
+fn check_layout_fixups(program: &machine_code::ResolvedMachineProgram) {
     encoding_admission::layout::validate_baseline_resolved_layout(program).unwrap();
 
     let check_edit = |edit: fn(&mut machine_code::SelectedFormNormalizedForeignCallFixup)| {
@@ -416,8 +414,7 @@ fn check_layout_fixup_identity(program: &machine_code::ResolvedMachineProgram) {
             .find(|fixup| !fixup.callbacks.is_empty())
             .expect("the registrar calls an import and materializes the callback");
         edit(registrar);
-        layout.identity = layout.recomputed_identity();
-        assert_ne!(original, layout.identity);
+        assert_ne!(changed.layout, program.layout);
         assert_eq!(
             encoding_admission::layout::validate_baseline_resolved_layout(&changed),
             Err(encoding_admission::layout::OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch),
@@ -820,7 +817,7 @@ fn check_callback_publication(retain_body_source: bool) {
             )],
         )
         .unwrap();
-        check_layout_fixup_identity(&archive.root().unwrap().baseline_layout);
+        check_layout_fixups(&archive.root().unwrap().baseline_layout);
         published_object_verification::verify_retained_selected_optimization(
             published.object(),
             &archive,

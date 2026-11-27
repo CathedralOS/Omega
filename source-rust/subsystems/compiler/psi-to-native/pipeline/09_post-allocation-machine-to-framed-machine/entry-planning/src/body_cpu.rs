@@ -15,7 +15,7 @@ use semantic_vocabulary::MachineId;
 pub struct PlannedBodyCpuState {
     effects: BodyCpuEffects,
     physical: [u8; 32],
-    frame: machine_code::TargetFrameLayoutIdentity,
+    frame: std::sync::Arc<machine_code::TargetFrameLayoutPlan>,
     entry: MachineId,
     preemption: Preemption,
 }
@@ -33,7 +33,7 @@ impl PlannedBodyCpuState {
         preemption: Preemption,
     ) -> Result<(), Error> {
         if self.physical != frame.instructions.identity
-            || self.frame != frame.frame.receipt().identity()
+            || !frame.frame.has_plan(&self.frame)
             || self.entry != entry
             || self.preemption != preemption
         {
@@ -333,7 +333,7 @@ pub fn plan(
     Ok(PlannedBodyCpuState {
         effects,
         physical: source.identity,
-        frame: frame_program.frame.receipt().identity(),
+        frame: frame_program.frame.shared_plan(),
         entry,
         preemption,
     })

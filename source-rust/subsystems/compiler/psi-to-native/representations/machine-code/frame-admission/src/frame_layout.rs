@@ -13,11 +13,9 @@ pub use machine_code::{
     NonAuthoritativeCalleeSaveSlot, NonAuthoritativeCalleeSaveSlotId,
     NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePlan,
     NonAuthoritativeCalleeSaveStoragePolicy, ReturnAddressFrameCustody, StackProbePlan,
-    TargetFrameLayoutIdentity, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
-    target_frame_layout_identity,
+    TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
 };
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use post_allocation_machine::PostAllocationMachineIdentity;
 use post_allocation_machine::PostAllocationMachinePlan;
 pub use register_environment::FrameAbiPreservationConvention;
 use register_environment::{
@@ -112,30 +110,10 @@ impl ValidatedNonAuthoritativeCalleeSaveStorage {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TargetFrameLayoutReceipt {
-    identity: TargetFrameLayoutIdentity,
-    post_allocation_machine: PostAllocationMachineIdentity,
-    target: NativeTarget,
-}
-
-impl TargetFrameLayoutReceipt {
-    pub const fn identity(self) -> TargetFrameLayoutIdentity {
-        self.identity
-    }
-    pub const fn post_allocation_machine(self) -> PostAllocationMachineIdentity {
-        self.post_allocation_machine
-    }
-    pub const fn target(self) -> NativeTarget {
-        self.target
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedTargetFrameLayout {
     demands: Arc<machine_code::frame_demands::MachineFrameDemands>,
     plan: Arc<TargetFrameLayoutPlan>,
-    receipt: TargetFrameLayoutReceipt,
 }
 
 impl ValidatedTargetFrameLayout {
@@ -149,8 +127,10 @@ impl ValidatedTargetFrameLayout {
     pub fn shared_plan(&self) -> Arc<TargetFrameLayoutPlan> {
         Arc::clone(&self.plan)
     }
-    pub const fn receipt(&self) -> TargetFrameLayoutReceipt {
-        self.receipt
+    /// Whether `plan` is this checked plan. Shared plans compare by pointer
+    /// first; a separately built copy must match field for field.
+    pub fn has_plan(&self, plan: &Arc<TargetFrameLayoutPlan>) -> bool {
+        self.plan == *plan
     }
 }
 
@@ -773,19 +753,9 @@ fn seal_validated_frame_layout(
     machine: Arc<machine_code::frame_demands::MachineFrameDemands>,
     candidate: TargetFrameLayoutPlan,
 ) -> ValidatedTargetFrameLayout {
-    let receipt = seal_frame_layout(&candidate);
     ValidatedTargetFrameLayout {
         demands: machine,
         plan: Arc::new(candidate),
-        receipt,
-    }
-}
-
-fn seal_frame_layout(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutReceipt {
-    TargetFrameLayoutReceipt {
-        identity: target_frame_layout_identity(plan),
-        post_allocation_machine: plan.post_allocation_machine,
-        target: plan.target,
     }
 }
 

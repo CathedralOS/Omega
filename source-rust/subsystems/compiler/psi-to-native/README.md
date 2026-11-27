@@ -111,7 +111,7 @@ artifact or a foreign-package boundary reads it.
 | Identity | Readers that matter | Decision |
 | --- | --- | --- |
 | `RelocationFreeObjectPlanIdentity`, the `OMGTRO` container and `OMGTOM` manifest (stage 14) | own receipts; container decoded only to re-check its own codec under a validator | delete; structural object checks stay |
-| `ResolvedSelectedFormLayoutIdentity`, `TargetFrameLayoutIdentity` (machine-code, 12–13) | receipts; validator compares baseline layout | delete; validators compare the retained values |
+| `ResolvedSelectedFormLayoutIdentity`, `TargetFrameLayoutIdentity` (machine-code, 09–13) | receipts; validator compares baseline layout | deleted; carriers share the frame and layout plans and checks compare those plans and the baseline roots |
 | Fragment, frame-application and text-section identities, their manifests and the realization manifest identity (machine-code, 13–14) | own receipts; object custody compared between publications | deleted; validators compare the retained text section and selections |
 | `PostAllocationMachineIdentity` (08, 11) | `FixedFrameCorrespondence` compares retained program | delete; validator compares structurally |
 | `FixedPrecolored*PlanIdentity`, register-homes receipts (06–07) | sibling receipts only | deleted |

@@ -25,7 +25,7 @@ machine code progresses through three distinct resolution levels owned by this c
 /*
 Why this crate separates representation data from stage admission:
 Every struct and canonical SHA-256 identity digest (`SelectedFormEncodingIdentity`,
-`ResolvedSelectedFormLayoutIdentity`, `WholeFunctionExitContractIdentity`) describes
+`WholeFunctionExitContractIdentity`) describes
 the current machine-code artifact and its retained roots so downstream stages and independent
 object/artifact verifiers can audit exact byte, fixup, and provenance correspondence without
 importing producer transformation passes. Constructing or decoding a record checks wire and
@@ -359,9 +359,8 @@ pub use layout::{
     EncodedMachineProgram, FramedMachineProgram, OptimizedMachineLayout, ResolvedBranchEvidence,
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
     ResolvedLayoutRoots, ResolvedMachineLayout, ResolvedMachineProgram,
-    ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
-    ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy, X86BranchRelaxationIdentity,
-    X86BranchRelaxationRoots, resolved_machine_layout_identity,
+    ResolvedSelectedBlockLayout, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
+    SelectedFunctionLayoutPolicy, X86BranchRelaxationIdentity,
 };
 pub use provenance::*;
 pub use storage::*;

@@ -4,7 +4,8 @@
 use std::sync::Arc;
 
 use machine_code::OptimizedMachineLayout;
-use machine_code::ResolvedSelectedFormLayoutIdentity;
+use machine_code::ResolvedMachineLayout;
+use machine_code::layout::X86BranchRelaxationRecord;
 use optimization_core::{
     OptimizationExecutionPhase, OptimizationSelectionIdentity, OptimizationSelections,
 };
@@ -27,7 +28,7 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
     pub selections: OptimizationSelectionIdentity,
     pub allocation_recovery_selections: OptimizationSelectionIdentity,
     pub selected: SelectedInstructionPlanIdentity,
-    pub resolved_layout: ResolvedSelectedFormLayoutIdentity,
+    pub resolved_layout: Arc<ResolvedMachineLayout>,
 }
 
 /// Only assembly builds this manifest, after checking that every root of the
@@ -103,11 +104,11 @@ fn validate_frame_geometry(
         (*program.frame).clone(),
     )
     .map_err(FunctionRelativeOptimizationRealizationError::FrameLayout)?;
-    // Audit encoding checked each byte against this frame. Rejoin that digest
+    // Audit encoding checked each byte against this frame. Rejoin that plan
     // to the protocol placed here and the independently reconstructed layout.
     let protocol = &program.protocol;
-    if frame.receipt().identity() != program.frame_identity
-        || protocol.frame_layout != program.frame_identity
+    if !frame.has_plan(&program.frame)
+        || protocol.frame_layout != program.frame
         || protocol.target != environment.target()
         || protocol.register_environment != environment.identity()
         || protocol.physical_register_model != environment.physical().identity()
@@ -129,7 +130,11 @@ pub fn assemble_fixed_frame_realization(
     let exit_contract =
         stage_whole_function_exit_contract_for_layout(layout_optimization.function_exits())
             .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
-    let manifest = fixed_frame_manifest(layout_optimization.current(), &exit_contract)?;
+    let manifest = fixed_frame_manifest(
+        layout_optimization.current(),
+        layout_optimization.trace(),
+        &exit_contract,
+    )?;
     Ok(StagedFixedFrameFunctionRelativeRealization {
         layout_optimization,
         exit_contract,
@@ -163,6 +168,7 @@ pub(crate) fn check_published_realization(
 
 fn fixed_frame_manifest(
     layout_optimization: &OptimizedMachineLayout,
+    relaxation_trace: Option<&X86BranchRelaxationRecord>,
     exit_contract: &StagedWholeFunctionExitContract,
 ) -> Result<
     ValidatedFunctionRelativeOptimizationRealizationManifest,
@@ -171,18 +177,14 @@ fn fixed_frame_manifest(
     let program = &layout_optimization.program;
     let machine = &program.context.machine;
     let encoding = &program.exit_requirements.encoding;
-    let baseline_layout = layout_optimization.baseline.identity;
     let baseline_roots = layout_optimization.baseline;
     let frame = &program.frame;
     let protocol = &program.protocol;
     let facts = &program.context.publication;
     let selections = facts.selections();
-    validate_layout_optimization_manifest_roots(baseline_layout, layout_optimization, selections)?;
+    validate_layout_optimization_manifest_roots(layout_optimization, relaxation_trace, selections)?;
     let layout = layout_optimization.layout();
-    let relaxation = layout_optimization
-        .relaxation
-        .map(|relaxation| relaxation.identity);
-    let layout_custody = match relaxation {
+    let layout_custody = match layout_optimization.relaxation {
         Some(relaxation) => {
             machine_code::WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
                 relaxation,
@@ -209,16 +211,16 @@ fn fixed_frame_manifest(
         || layout.machine() != machine.identity
         || layout.pre_layout() != encoding.identity
         || frame.post_allocation_machine != machine.identity
-        || protocol.frame_layout != program.frame_identity
+        || protocol.frame_layout != *frame
         || exit_contract.contract().selected != selected
         || exit_contract.contract().post_allocation_manifest != post.identity
         || exit_contract.contract().post_allocation_machine != machine.identity
         || exit_contract.contract().pre_layout != encoding.identity
-        || exit_contract.contract().resolved_layout != layout.identity()
+        || exit_contract.contract().resolved_layout != program.layout
         || exit_contract.contract().layout_custody != layout_custody
         || exit_contract.contract().frame
             != (machine_code::WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
-                layout: program.frame_identity,
+                layout: Arc::clone(frame),
                 protocol: program.protocol_identity,
             })
     {
@@ -231,25 +233,32 @@ fn fixed_frame_manifest(
             .for_phase(OptimizationExecutionPhase::AllocationRecovery)
             .identity(),
         selected,
-        resolved_layout: layout.identity(),
+        resolved_layout: Arc::clone(&program.layout),
     };
     Ok(ValidatedFunctionRelativeOptimizationRealizationManifest { record })
 }
 
+/// Without relaxation the current layout is the baseline and keeps its roots.
+/// With relaxation, the retained trace must be the one named, start from the
+/// baseline roots and have produced the current layout.
 fn validate_layout_optimization_manifest_roots(
-    baseline_layout: ResolvedSelectedFormLayoutIdentity,
     layout: &OptimizedMachineLayout,
+    relaxation_trace: Option<&X86BranchRelaxationRecord>,
     selections: &OptimizationSelections,
 ) -> Result<(), FunctionRelativeOptimizationRealizationError> {
     let phase = selections.project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
     if layout.selections != phase {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
-    match layout.relaxation {
-        None if layout.layout().identity() == baseline_layout => Ok(()),
-        Some(relaxation)
-            if relaxation.source == baseline_layout
-                && relaxation.output == layout.layout().identity() =>
+    let baseline = layout.baseline;
+    match (layout.relaxation, relaxation_trace) {
+        (None, None) if layout.layout().roots() == baseline => Ok(()),
+        (Some(relaxation), Some(trace))
+            if trace.identity() == relaxation
+                && trace.selected() == baseline.selected
+                && trace.machine() == baseline.machine
+                && trace.pre_layout() == baseline.pre_layout
+                && trace.layout == layout.program.layout =>
         {
             Ok(())
         }

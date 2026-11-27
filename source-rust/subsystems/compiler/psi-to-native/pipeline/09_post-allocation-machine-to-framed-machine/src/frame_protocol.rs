@@ -106,7 +106,7 @@ pub(crate) fn plan_target_frame_protocols(
     Ok(PlannedTargetFrameProtocols::from_planner(
         crate::FrameRecipeOrigin(()),
         FrameProtocolInstructions {
-            frame_layout: frame.receipt().identity(),
+            frame_layout: frame.shared_plan(),
             register_environment: environment.identity(),
             physical_register_model: environment.physical().identity(),
             target: environment.target(),

@@ -1308,14 +1308,11 @@ mod tests {
             slot: FrameStorageSlotId::Local(slot),
             byte_offset: 0,
         });
-        let original_identity = machine_code::target_frame_layout_identity(&frame);
+        let original = frame.clone();
         frame.functions[0].local_storage_slots[0].id = LocalStorageSlotId::Spill {
             register: selected_instructions::VirtualRegisterId(8),
         };
-        assert_ne!(
-            machine_code::target_frame_layout_identity(&frame),
-            original_identity
-        );
+        assert_ne!(frame, original);
         assert!(resolve(&function, Some(&frame), &instruction).is_err());
         frame.functions[0].local_storage_slots[0].id = slot;
         frame.functions[0].frame_size_bytes = 7;

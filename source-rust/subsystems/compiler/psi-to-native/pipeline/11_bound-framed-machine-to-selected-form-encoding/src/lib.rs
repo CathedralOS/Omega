@@ -103,12 +103,8 @@ fn encode_program(
     Ok(machine_code::EncodedMachineProgram {
         bindings: input.bindings,
         exit_requirements: Arc::new(
-            exit_requirements::prepare_exit_requirements_for_frame(
-                &input.instructions,
-                &program,
-                Some(input.frame_identity),
-            )
-            .map_err(OptimizedSelectedFormEncodingError::ExitRequirements)?,
+            exit_requirements::prepare_exit_requirements(&input.instructions, &program)
+                .map_err(OptimizedSelectedFormEncodingError::ExitRequirements)?,
         ),
         fragment_origins: input.fragment_origins,
         layout_requirements: Arc::new(layout_requirements::prepare_layout_requirements(
@@ -116,7 +112,6 @@ fn encode_program(
         )),
         frame_demands: input.frame_demands,
         storage: input.storage,
-        frame_identity: input.frame_identity,
         protocol_identity: input.protocol_identity,
         context,
         frame: input.frame,

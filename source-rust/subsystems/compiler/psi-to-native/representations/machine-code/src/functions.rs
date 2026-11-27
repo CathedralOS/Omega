@@ -1,13 +1,15 @@
 /*
 Whole-function exit contracts (`WholeFunctionExitContract`) and their canonical SHA-256 identity
-(`WholeFunctionExitContractIdentity`, schema `omega.terminal.whole-function-exit-contract.v14\0`).
+(`WholeFunctionExitContractIdentity`, schema `omega.terminal.whole-function-exit-contract.v15\0`).
 
 Every emitted machine function must account for how its frame, stack delta, callee-saved register
 units, returns (`WholeFunctionReturnEvidence`), process exits (`WholeFunctionProcessExitEvidence`),
 and traps (`WholeFunctionCrashEvidence`) terminate execution under the target ABI's entry assumption
 and frame disposition (`WholeFunctionFrameDisposition`). Recording this exit contract alongside its
 upstream layout custody (`WholeFunctionExitLayoutCustody`) lets fragment and text-section admission
-verify return/epilogue correspondence without re-running frame layout synthesis.
+verify return/epilogue correspondence without re-running frame layout synthesis. The contract
+holds the resolved layout and frame plan it was built from; checks compare those plans, and the
+identity digest covers only the contract's own evidence and roots.
 */
 
 use optimization_core::Optimization;
@@ -19,8 +21,10 @@ use selected_instructions::{
 use semantic_vocabulary::{EdgeId, MachineId};
 use target::NativeTarget;
 
+use std::sync::Arc;
+
 use crate::{
-    ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, TargetFrameLayoutIdentity,
+    ResolvedMachineLayout, SelectedFormEncodingIdentity, TargetFrameLayoutPlan,
     TargetFrameProtocolEncodingIdentity, X86BranchRelaxationIdentity, encode_units,
 };
 
@@ -50,11 +54,11 @@ pub enum WholeFunctionExitPolicy {
     MicrosoftX64CanonicalFixedFrameV1,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WholeFunctionFrameDisposition {
     FramelessV1,
     CanonicalFixedFrameV1 {
-        layout: TargetFrameLayoutIdentity,
+        layout: Arc<TargetFrameLayoutPlan>,
         protocol: TargetFrameProtocolEncodingIdentity,
     },
 }
@@ -166,7 +170,7 @@ pub struct WholeFunctionExitContract {
     pub register_environment: register_model::TargetRegisterEnvironmentIdentity,
     pub physical_register_model: register_model::PhysicalRegisterModelIdentity,
     pub pre_layout: SelectedFormEncodingIdentity,
-    pub resolved_layout: ResolvedSelectedFormLayoutIdentity,
+    pub resolved_layout: Arc<ResolvedMachineLayout>,
     pub layout_custody: WholeFunctionExitLayoutCustody,
     pub target: NativeTarget,
     pub policy: WholeFunctionExitPolicy,
@@ -193,7 +197,7 @@ impl WholeFunctionExitContract {
     }
 }
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v14\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v15\0";
 
 pub fn whole_function_exit_contract_identity(
     contract: &WholeFunctionExitContract,
@@ -205,7 +209,6 @@ pub fn whole_function_exit_contract_identity(
     hasher.raw(&contract.register_environment.bytes());
     hasher.raw(&contract.physical_register_model.bytes());
     hasher.raw(&contract.pre_layout.bytes());
-    hasher.raw(&contract.resolved_layout.bytes());
     match contract.layout_custody {
         WholeFunctionExitLayoutCustody::BaselineNearLayoutV1 => hasher.byte(1),
         WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { relaxation } => {
@@ -223,11 +226,10 @@ pub fn whole_function_exit_contract_identity(
     }
     hasher.raw(&contract.target.wire_identity_bytes());
     hasher.byte(exit_policy_tag(contract.policy));
-    match contract.frame {
+    match &contract.frame {
         WholeFunctionFrameDisposition::FramelessV1 => hasher.byte(1),
-        WholeFunctionFrameDisposition::CanonicalFixedFrameV1 { layout, protocol } => {
+        WholeFunctionFrameDisposition::CanonicalFixedFrameV1 { protocol, .. } => {
             hasher.byte(2);
-            hasher.raw(&layout.bytes());
             hasher.raw(&protocol.bytes());
         }
     }

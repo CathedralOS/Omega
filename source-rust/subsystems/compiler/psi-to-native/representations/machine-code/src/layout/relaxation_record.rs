@@ -1,21 +1,20 @@
 //! Completed branch-relaxation evidence. This record is not an admission
 //! seal: explicit verification checks its roots, budget, content identity and
 //! layout against the current program or the requested original baseline.
+//! The record names its output by holding that layout; the baseline it started
+//! from is checked against the first sweep's input revision.
 
 use super::evidence::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationIdentity,
     X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
 };
-use crate::{
-    ResolvedMachineLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout,
-};
+use crate::{ResolvedMachineLayout, ResolvedSelectedFunctionLayout};
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use std::sync::Arc;
 use target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86BranchRelaxationRecord {
-    pub source: ResolvedSelectedFormLayoutIdentity, // Baseline resolved-layout identity before relaxation.
     pub selected: selected_instructions::SelectedInstructionPlanIdentity, // Upstream selected-instruction plan identity.
     pub machine: post_allocation_machine::PostAllocationMachineIdentity, // Upstream post-allocation machine identity.
     pub pre_layout: crate::SelectedFormEncodingIdentity, // Upstream pre-layout encoding identity.
@@ -23,7 +22,6 @@ pub struct X86BranchRelaxationRecord {
     pub policy: X86BranchRelaxationPolicy, // Relaxation policy applied during the sweep.
     pub budget: OptimizationWorkBudget, // Work budget governing the relaxation sweep.
     pub usage: OptimizationWorkUsage, // Actual work consumed across all sweeps.
-    pub output: ResolvedSelectedFormLayoutIdentity, // Final resolved-layout identity after relaxation.
     pub output_revision: X86BranchRelaxationRevisionIdentity, // Final revision hash of the relaxed function roster.
     pub identity: X86BranchRelaxationIdentity, // Content identity of the complete relaxation artifact.
     pub attempts: Vec<X86BranchRelaxationAttempt>, // Per-branch inspection attempts recorded in sweep order.
@@ -32,10 +30,6 @@ pub struct X86BranchRelaxationRecord {
 }
 
 impl X86BranchRelaxationRecord {
-    pub const fn source(&self) -> ResolvedSelectedFormLayoutIdentity {
-        self.source
-    }
-
     pub const fn selected(&self) -> selected_instructions::SelectedInstructionPlanIdentity {
         self.selected
     }
@@ -62,10 +56,6 @@ impl X86BranchRelaxationRecord {
 
     pub const fn usage(&self) -> OptimizationWorkUsage {
         self.usage
-    }
-
-    pub const fn output(&self) -> ResolvedSelectedFormLayoutIdentity {
-        self.output
     }
 
     pub const fn output_revision(&self) -> X86BranchRelaxationRevisionIdentity {

@@ -7,10 +7,7 @@ use machine_code::{
     ResolvedSelectedBlockLayout, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
     SelectedFunctionLayoutPolicy,
 };
-use machine_code::{
-    ResolvedMachineLayout, SelectedFormEncoding,
-    resolved_machine_layout_identity as layout_identity,
-};
+use machine_code::{ResolvedMachineLayout, SelectedFormEncoding};
 use std::sync::Arc;
 #[cfg(test)]
 mod order_suite;
@@ -101,7 +98,6 @@ fn baseline(
         layout_requirements: encoding.layout_requirements,
         frame_demands: encoding.frame_demands,
         storage: encoding.storage,
-        frame_identity: encoding.frame_identity,
         protocol_identity: encoding.protocol_identity,
         context: encoding.context,
         encoding: encoding.encoding,
@@ -153,15 +149,6 @@ fn compute(
     let machine_root = input.machine;
     let pre_layout_root = pre_layout.identity();
     let target = input.target;
-    let identity = layout_identity(
-        selected_root,
-        machine_root,
-        pre_layout_root,
-        None,
-        target,
-        policy,
-        &functions,
-    );
     Ok(ResolvedMachineLayout {
         selected: selected_root,
         machine: machine_root,
@@ -169,7 +156,6 @@ fn compute(
         post_allocation_machine_optimization: None,
         target,
         policy,
-        identity,
         functions,
     })
 }

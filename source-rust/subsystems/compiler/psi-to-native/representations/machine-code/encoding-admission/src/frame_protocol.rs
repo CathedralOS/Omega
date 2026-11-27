@@ -23,7 +23,7 @@ pub fn validate_target_frame_protocol_encoding(
     environment: &ValidatedTargetRegisterEnvironment,
     candidate: &TargetFrameProtocolEncodingPlan,
 ) -> Result<TargetFrameProtocolEncodingIdentity, TargetFrameProtocolEncodingError> {
-    if candidate.frame_layout != frame.receipt().identity()
+    if !frame.has_plan(&candidate.frame_layout)
         || candidate.register_environment != environment.identity()
         || candidate.physical_register_model != environment.physical().identity()
         || candidate.target != environment.target()

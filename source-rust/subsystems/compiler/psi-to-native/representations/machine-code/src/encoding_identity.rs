@@ -1,6 +1,6 @@
 /*
 Canonical SHA-256 identity encoding for `SelectedFormEncoding` (`SelectedFormEncodingIdentity`,
-schema `omega.terminal.layout-independent-selected-form-encoding.v31`) and footprint interning
+schema `omega.terminal.layout-independent-selected-form-encoding.v32`) and footprint interning
 buckets (`omega.selected-form-decoded-footprint.storage.v1`).
 
 Each encoded row hashes its own instruction bytes and decoded footprint through its span and handle
@@ -20,7 +20,7 @@ use super::{
     SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v31";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v32";
 
 pub(super) fn encoding_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -52,13 +52,8 @@ pub(super) fn encoding_identity(
     for row in rows {
         encode_encoding_row(&mut hasher, row, encoded);
     }
-    match frame {
-        None => hasher.byte(0),
-        Some(frame) => {
-            hasher.byte(1);
-            hasher.raw(&crate::target_frame_layout_identity(frame).bytes());
-        }
-    }
+    // Checks compare the frame plan itself wherever an encoding meets one.
+    hasher.bool(frame.is_some());
     encode_counts(&mut hasher, counts);
     SelectedFormEncodingIdentity::from_bytes(hasher.finish())
 }
@@ -520,11 +515,11 @@ mod tests {
     }
 
     #[test]
-    fn current_encoding_binds_the_version_31_control_alternative_schema() {
+    fn current_encoding_binds_the_version_32_control_alternative_schema() {
         let mut program = deferred_program();
         use sha2::{Digest, Sha256};
         let mut canonical =
-            b"omega.terminal.layout-independent-selected-form-encoding.v31".to_vec();
+            b"omega.terminal.layout-independent-selected-form-encoding.v32".to_vec();
         canonical.extend_from_slice(&[1; 32]);
         canonical.extend_from_slice(&[2; 32]);
         canonical.push(0);
@@ -550,8 +545,8 @@ mod tests {
         }
         assert_eq!(canonical.len(), 303);
         let expected = [
-            76, 227, 238, 46, 11, 125, 97, 55, 199, 86, 162, 121, 35, 94, 100, 60, 91, 31, 166, 30,
-            141, 133, 1, 214, 20, 229, 152, 174, 153, 145, 62, 248,
+            152, 54, 99, 20, 167, 82, 237, 143, 178, 206, 250, 162, 221, 149, 126, 172, 232, 168,
+            86, 92, 89, 10, 124, 131, 21, 119, 104, 210, 137, 137, 109, 22,
         ];
         assert_eq!(<[u8; 32]>::from(Sha256::digest(&canonical)), expected);
         assert_eq!(program.recomputed_identity().bytes(), expected);

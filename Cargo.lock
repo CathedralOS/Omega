@@ -848,9 +848,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-aarch64",
  "target-vocabulary",
- "target-x86_64",
  "terminal-psi",
 ]
 

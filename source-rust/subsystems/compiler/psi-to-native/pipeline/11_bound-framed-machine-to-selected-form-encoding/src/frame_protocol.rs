@@ -131,7 +131,6 @@ pub(super) fn encode_function_frame<FrameOrigin, ImportOrigin>(
             encoding_admission::fragment_origins::prepare_fragment_origins(&program),
         ),
         frame_demands: layout.shared_demands(),
-        frame_identity: layout.receipt().identity(),
         protocol_identity,
         instructions: program,
         storage,

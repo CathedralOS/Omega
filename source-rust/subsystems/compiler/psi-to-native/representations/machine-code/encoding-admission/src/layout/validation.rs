@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use machine_code::{
     DeferredControlEncodingReason, ResolvedMachineLayout, SelectedFormEncodedRowStore,
     SelectedFormEncoding, SelectedFormEncodingRow, SelectedFormEncodingState,
-    SelectedFormMachineDisposition, resolved_machine_layout_identity as layout_identity,
+    SelectedFormMachineDisposition,
 };
 use post_allocation_machine::PostAllocationMachineOptimizationCustody;
 use register_model::ValidatedPhysicalRegisterModel;
@@ -63,8 +63,7 @@ pub(crate) fn validate(
         expected_policy,
         artifact,
         allow_x86_short,
-    )?;
-    validate_identity(artifact)
+    )
 }
 
 fn validate_roots(
@@ -82,22 +81,6 @@ fn validate_roots(
         || artifact.target() != selected.target
         || artifact.policy() != policy
     {
-        return Err(Error::ArtifactMismatch);
-    }
-    Ok(())
-}
-
-fn validate_identity(artifact: &ResolvedMachineLayout) -> Result<(), Error> {
-    let identity = layout_identity(
-        artifact.selected(),
-        artifact.machine(),
-        artifact.pre_layout(),
-        artifact.post_allocation_machine_optimization(),
-        artifact.target(),
-        artifact.policy(),
-        artifact.functions(),
-    );
-    if artifact.identity() != identity {
         return Err(Error::ArtifactMismatch);
     }
     Ok(())

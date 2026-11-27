@@ -36,7 +36,6 @@ impl RetainedPhysicalInputs {
             && program.bindings == self.baseline_layout.bindings
             && program.protocol_identity == self.encoding.protocol_identity
             && program.protocol == self.encoding.protocol
-            && program.frame_identity == self.encoding.frame_identity
             && program.frame == self.encoding.frame
             && program.context == self.encoding.context
             && program.layout_requirements == self.encoding.layout_requirements
@@ -44,7 +43,7 @@ impl RetainedPhysicalInputs {
             && program.fragment_origins == self.encoding.fragment_origins
             && program.frame_demands == self.encoding.frame_demands
             && program.encoding.as_ref() == self.encoding.encoding.as_ref()
-            && layout.baseline.identity == self.baseline_layout.layout.identity()
+            && layout.baseline == self.baseline_layout.layout.roots()
     }
 
     pub fn selected_optimization_evidence(

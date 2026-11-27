@@ -1317,7 +1317,6 @@ mod tests {
     use machine_code::{
         FunctionFragmentBlockSpan, FunctionFragmentConditionalBranchPredicate,
         FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
-        TargetFrameLayoutIdentity,
     };
     use register_model::{
         PhysicalRegisterModelIdentity, TargetRegisterEnvironmentIdentity,
@@ -1528,7 +1527,7 @@ mod tests {
 
     fn protocol(machine: MachineId) -> TargetFrameProtocolEncodingPlan {
         TargetFrameProtocolEncodingPlan {
-            frame_layout: TargetFrameLayoutIdentity::from_bytes([4; 32]),
+            frame_layout: crate::test_plans::frame_plan(),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([5; 32]),
             physical_register_model: PhysicalRegisterModelIdentity::from_bytes([6; 32]),
             target: NativeTarget::linux_x64(),

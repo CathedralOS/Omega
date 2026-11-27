@@ -11,6 +11,7 @@ Each function layout (`ResolvedSelectedFunctionLayout`) owns ordered block spans
 We also define the post-layout x86 branch relaxation evidence and identity
 contracts (`evidence`) used to replay six-byte-near to two-byte-short branch
 rewrites without embedding optimizer heuristics into the baseline layout.
+Layouts carry no content hash: checks compare the retained rows and roots.
 */
 
 mod relaxation_record;
@@ -29,12 +30,10 @@ use selected_instructions::{
 use semantic_vocabulary::{EdgeId, MachineId};
 use target::NativeTarget;
 
-use crate::identity_encoding::{encode_conditional_branch_arm, encode_jump_arm, encode_views};
 use crate::{
     SelectedFormEncoding, SelectedFormEncodingIdentity, SelectedFormImageAddressFixup,
     SelectedFormInternalMachineFixup, SelectedFormNormalizedForeignCallFixup,
-    TargetFrameLayoutIdentity, TargetFrameLayoutPlan, TargetFrameProtocolEncodingIdentity,
-    TargetFrameProtocolEncodingPlan,
+    TargetFrameLayoutPlan, TargetFrameProtocolEncodingIdentity, TargetFrameProtocolEncodingPlan,
 };
 
 /// The unresolved bridge call in its encoded instruction stream. x86 identifies
@@ -58,18 +57,13 @@ pub use text_section::{
     TextSectionPlacementPolicy, TextSectionRelocationRequirements,
 };
 
-register_homes::identity_newtype! { pub struct ResolvedSelectedFormLayoutIdentity(pub(super) [u8; 32]); }
-
 /// Retains the exact input joins for a layout without retaining its earlier rows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedLayoutRoots {
-    pub identity: ResolvedSelectedFormLayoutIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub machine: PostAllocationMachineIdentity,
     pub pre_layout: SelectedFormEncodingIdentity,
 }
-
-const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v18";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedFunctionLayoutPolicy {
@@ -185,14 +179,12 @@ pub struct ResolvedMachineLayout {
     pub post_allocation_machine_optimization: Option<PostAllocationMachineOptimizationCustody>,
     pub target: NativeTarget,
     pub policy: SelectedFunctionLayoutPolicy,
-    pub identity: ResolvedSelectedFormLayoutIdentity,
     pub functions: Vec<ResolvedSelectedFunctionLayout>,
 }
 
 impl ResolvedMachineLayout {
     pub fn roots(&self) -> ResolvedLayoutRoots {
         ResolvedLayoutRoots {
-            identity: self.identity,
             selected: self.selected,
             machine: self.machine,
             pre_layout: self.pre_layout,
@@ -225,10 +217,6 @@ impl ResolvedMachineLayout {
         self.policy
     }
 
-    pub fn identity(&self) -> ResolvedSelectedFormLayoutIdentity {
-        self.identity
-    }
-
     pub fn functions(&self) -> &[ResolvedSelectedFunctionLayout] {
         &self.functions
     }
@@ -248,18 +236,6 @@ impl ResolvedMachineLayout {
     pub fn instructions(&self) -> impl Iterator<Item = &ResolvedSelectedFormRow> + '_ {
         self.blocks().flat_map(|block| &block.instructions)
     }
-
-    pub fn recomputed_identity(&self) -> ResolvedSelectedFormLayoutIdentity {
-        resolved_machine_layout_identity(
-            self.selected,
-            self.machine,
-            self.pre_layout,
-            self.post_allocation_machine_optimization,
-            self.target,
-            self.policy,
-            &self.functions,
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -267,7 +243,6 @@ pub struct FramedMachineProgram {
     pub bindings: crate::import_code::EncodedBodyBindings,
     pub fragment_origins: Arc<crate::fragment_origins::FragmentOrigins>,
     pub frame_demands: Arc<crate::frame_demands::MachineFrameDemands>,
-    pub frame_identity: TargetFrameLayoutIdentity,
     pub protocol_identity: TargetFrameProtocolEncodingIdentity,
     pub instructions: post_allocation_machine::PostAllocationMachineProgram,
     pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
@@ -282,7 +257,6 @@ pub struct EncodedMachineProgram {
     pub fragment_origins: Arc<crate::fragment_origins::FragmentOrigins>,
     pub layout_requirements: Arc<crate::layout_requirements::EncodedLayoutRequirements>,
     pub frame_demands: Arc<crate::frame_demands::MachineFrameDemands>,
-    pub frame_identity: TargetFrameLayoutIdentity,
     pub protocol_identity: TargetFrameProtocolEncodingIdentity,
     pub context: Arc<crate::program_context::EncodedProgramContext>,
     pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
@@ -300,7 +274,6 @@ pub struct ResolvedMachineProgram {
     pub fragment_origins: Arc<crate::fragment_origins::FragmentOrigins>,
     pub layout_requirements: Arc<crate::layout_requirements::EncodedLayoutRequirements>,
     pub frame_demands: Arc<crate::frame_demands::MachineFrameDemands>,
-    pub frame_identity: TargetFrameLayoutIdentity,
     pub protocol_identity: TargetFrameProtocolEncodingIdentity,
     pub context: Arc<crate::program_context::EncodedProgramContext>,
     pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
@@ -312,7 +285,7 @@ pub struct ResolvedMachineProgram {
 
 /// The resolved-layout stage's output: the program with its active
 /// layout, the baseline layout it came from, the layout-phase selections and
-/// budget that governed the run, and the roots of any x86 branch relaxation.
+/// budget that governed the run, and the identity of any x86 branch relaxation.
 /// Native stage 12 retains the relaxation trace for replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizedMachineLayout {
@@ -320,7 +293,7 @@ pub struct OptimizedMachineLayout {
     pub program: ResolvedMachineProgram,
     pub selections: optimization_core::OptimizationPhaseSelections,
     pub budget: optimization_core::OptimizationWorkBudget,
-    pub relaxation: Option<X86BranchRelaxationRoots>,
+    pub relaxation: Option<X86BranchRelaxationIdentity>,
 }
 
 impl OptimizedMachineLayout {
@@ -328,106 +301,6 @@ impl OptimizedMachineLayout {
     pub fn layout(&self) -> &ResolvedMachineLayout {
         &self.program.layout
     }
-}
-
-/// Which layout an x86 branch relaxation started from and produced, and the
-/// identity of its complete trace.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct X86BranchRelaxationRoots {
-    pub identity: X86BranchRelaxationIdentity,
-    pub source: ResolvedSelectedFormLayoutIdentity,
-    pub output: ResolvedSelectedFormLayoutIdentity,
-}
-
-pub fn resolved_machine_layout_identity(
-    selected: SelectedInstructionPlanIdentity,
-    machine: PostAllocationMachineIdentity,
-    pre_layout: SelectedFormEncodingIdentity,
-    post_allocation_machine_optimization: Option<PostAllocationMachineOptimizationCustody>,
-    target: NativeTarget,
-    policy: SelectedFunctionLayoutPolicy,
-    functions: &[ResolvedSelectedFunctionLayout],
-) -> ResolvedSelectedFormLayoutIdentity {
-    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(LAYOUT_SCHEMA);
-    hasher.raw(&selected.bytes());
-    hasher.raw(&machine.bytes());
-    hasher.raw(&pre_layout.bytes());
-    match post_allocation_machine_optimization {
-        None => hasher.byte(0),
-        Some(custody) => {
-            hasher.byte(1);
-            hasher.byte(custody.optimization() as u8);
-            hasher.raw(&custody.artifact_identity());
-            hasher.raw(&custody.selections().bytes());
-            hasher.raw(&custody.post_allocation_machine_selections().bytes());
-            hasher.raw(&custody.source().bytes());
-            hasher.u64(custody.action_count() as u64);
-            hasher.raw(&custody.baseline_bytes().to_le_bytes());
-            hasher.raw(&custody.selected_bytes().to_le_bytes());
-        }
-    }
-    hasher.raw(&target.identity_bytes());
-    hasher.byte(match policy {
-        SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 0,
-        SelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 1,
-        SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1 => 3,
-        SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1 => 4,
-    });
-    hasher.u64(functions.len() as u64);
-    for function in functions {
-        hasher.raw(&function.machine.get().to_le_bytes());
-        hasher.raw(&function.byte_count.to_le_bytes());
-        hasher.u64(function.blocks.len() as u64);
-        for block in &function.blocks {
-            hasher.raw(&block.block.0.to_le_bytes());
-            hasher.raw(&block.offset.to_le_bytes());
-            hasher.raw(&block.byte_count.to_le_bytes());
-            hasher.u64(block.instructions.len() as u64);
-            for instruction in &block.instructions {
-                hasher.raw(&instruction.instruction.0.to_le_bytes());
-                selected_instructions::encode_machine_alternative_key_identity(
-                    &mut hasher,
-                    instruction.alternative,
-                );
-                hasher.raw(&instruction.offset.to_le_bytes());
-                hasher.u64(instruction.bytes.len() as u64);
-                hasher.raw(&instruction.bytes);
-                match instruction.branch.as_deref() {
-                    None => hasher.byte(0),
-                    Some(ResolvedBranchEvidence::Conditional(branch)) => {
-                        encode_conditional_branch_arm(&mut hasher, branch);
-                        encode_views(&mut hasher, &branch.decoded_register_reads);
-                        selected_instructions::encode_machine_encoded_effects_identity(
-                            &mut hasher,
-                            &branch.decoded_effects,
-                        );
-                    }
-                    Some(ResolvedBranchEvidence::Jump(jump)) => {
-                        encode_jump_arm(&mut hasher, jump);
-                        selected_instructions::encode_machine_encoded_effects_identity(
-                            &mut hasher,
-                            &jump.decoded_effects,
-                        );
-                    }
-                }
-                hasher.bool(instruction.internal_machine_fixup.is_some());
-                if let Some(fixup) = instruction.internal_machine_fixup() {
-                    fixup.encode_identity(&mut hasher);
-                }
-                hasher.bool(instruction.normalized_foreign_call_fixup.is_some());
-                if let Some(fixup) = instruction.normalized_foreign_call_fixup() {
-                    fixup.encode_identity(&mut hasher);
-                }
-                if let Some(fixup) = instruction.image_address_fixup() {
-                    let mut identity = b"image-address-v2".to_vec();
-                    fixup.reference.encode_identity(&mut identity);
-                    fixup.fields.encode_identity(&mut identity);
-                    hasher.raw(&identity);
-                }
-            }
-        }
-    }
-    ResolvedSelectedFormLayoutIdentity(hasher.finish())
 }
 
 pub mod evidence {
@@ -480,8 +353,8 @@ pub mod evidence {
         use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
         use target::NativeTarget;
 
+        use crate::ResolvedSelectedFunctionLayout;
         use crate::identity_encoding::{encode_conditional_branch_arm, encode_jump_arm};
-        use crate::{ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout};
 
         use super::{
             X86BranchRelaxationAction, X86BranchRelaxationAttempt,
@@ -489,12 +362,11 @@ pub mod evidence {
             X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
         };
 
-        const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v10";
-        const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v3";
+        const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v11";
+        const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v4";
 
         #[derive(Clone, Copy)]
         pub struct RevisionRoots {
-            pub source: ResolvedSelectedFormLayoutIdentity,
             pub selected: selected_instructions::SelectedInstructionPlanIdentity,
             pub machine: post_allocation_machine::PostAllocationMachineIdentity,
             pub pre_layout: crate::SelectedFormEncodingIdentity,
@@ -517,7 +389,6 @@ pub mod evidence {
             policy: X86BranchRelaxationPolicy,
             budget: OptimizationWorkBudget,
             usage: OptimizationWorkUsage,
-            output: ResolvedSelectedFormLayoutIdentity,
             output_revision: X86BranchRelaxationRevisionIdentity,
             attempts: &[X86BranchRelaxationAttempt],
             actions: &[X86BranchRelaxationAction],
@@ -530,7 +401,6 @@ pub mod evidence {
             });
             hasher.raw(&budget.encode());
             hasher.raw(&usage.encode());
-            hasher.raw(&output.bytes());
             hasher.raw(&output_revision.bytes());
             hasher.u64(attempts.len() as u64);
             for attempt in attempts {
@@ -567,7 +437,6 @@ pub mod evidence {
             hasher: &mut crate::digest_encoder::DomainDigestEncoder,
             roots: RevisionRoots,
         ) {
-            hasher.raw(&roots.source.bytes());
             hasher.raw(&roots.selected.bytes());
             hasher.raw(&roots.machine.bytes());
             hasher.raw(&roots.pre_layout.bytes());
@@ -627,7 +496,6 @@ pub mod evidence {
 
 /// Selection policy and rejection reasons shared by layout and independent replay.
 pub mod relaxation_policy {
-    use super::X86BranchRelaxationRecord;
     use crate::ResolvedMachineLayout;
     use optimization_core::{
         Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
@@ -736,16 +604,6 @@ pub mod relaxation_policy {
 
     impl std::error::Error for ResolvedLayoutOptimizationError {}
 
-    pub fn relaxation_roots(
-        relaxation: &X86BranchRelaxationRecord,
-    ) -> crate::X86BranchRelaxationRoots {
-        crate::X86BranchRelaxationRoots {
-            identity: relaxation.identity(),
-            source: relaxation.source(),
-            output: relaxation.output(),
-        }
-    }
-
     /// Replay the run from the original baseline layout: the current form and its
     /// relaxation trace must be what the selections and budget produce from it.
     pub fn x86_rel8_selected(
@@ -815,7 +673,7 @@ impl<Publication> BoundEncodingRequirements<Publication> {
     ) -> Result<EncodedBodyContracts<EncodedBodyPublication<Publication>>, &'static str> {
         let encoded = crate::program_context::BoundEncodingSubject::from_encoded(
             &program.context,
-            program.frame_identity,
+            Arc::clone(&program.frame),
         )?;
         if self.subject != encoded {
             return Err("bound body contracts differ from the encoded program or its frame");
@@ -842,7 +700,7 @@ impl<Publication> BoundEncodingRequirements<Publication> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedBodyContracts<Contracts> {
     context: std::sync::Arc<crate::program_context::EncodedProgramContext>,
-    frame: crate::TargetFrameLayoutIdentity,
+    frame: Arc<TargetFrameLayoutPlan>,
     placement: FramePlacementContracts<Contracts>,
 }
 
@@ -850,7 +708,7 @@ impl<Contracts> EncodedBodyContracts<Contracts> {
     fn new(program: &EncodedMachineProgram, placement: FramePlacementContracts<Contracts>) -> Self {
         Self {
             context: std::sync::Arc::clone(&program.context),
-            frame: program.frame_identity,
+            frame: Arc::clone(&program.frame),
             placement,
         }
     }
@@ -862,8 +720,7 @@ impl<Contracts> EncodedBodyContracts<Contracts> {
         self,
         program: &ResolvedMachineProgram,
     ) -> Option<FramePlacementContracts<Contracts>> {
-        (self.frame == program.frame_identity && self.context == program.context)
-            .then_some(self.placement)
+        (self.frame == program.frame && self.context == program.context).then_some(self.placement)
     }
 }
 

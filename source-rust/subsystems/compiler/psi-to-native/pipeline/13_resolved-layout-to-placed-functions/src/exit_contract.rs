@@ -82,7 +82,7 @@ struct ValidationInputs<'a> {
     machine: &'a machine_code::frame_demands::MachineFrameDemands,
     exits: &'a EncodedExitRequirements,
     physical: &'a ValidatedPhysicalRegisterModel,
-    layout: &'a ResolvedMachineLayout,
+    layout: &'a Arc<ResolvedMachineLayout>,
     frame: Option<(
         &'a ValidatedTargetFrameLayout,
         &'a TargetFrameProtocolEncodingPlan,
@@ -159,7 +159,7 @@ fn compute_inner(
         return Err(RootMismatch);
     }
 
-    if encoding.frame != frame_inputs.map(|_| program.frame_identity) {
+    if encoding.frame.as_ref() != frame_inputs.map(|(frame, _)| frame) {
         return Err(RootMismatch);
     }
     let target = machine.target;
@@ -172,7 +172,7 @@ fn compute_inner(
                 || frame.register_environment != machine.register_environment
                 || frame.physical_register_model != machine.physical_register_model
                 || frame.target != target
-                || protocol.frame_layout != program.frame_identity
+                || protocol.frame_layout != *frame
                 || protocol.target != target
             {
                 return Err(RootMismatch);
@@ -195,7 +195,7 @@ fn compute_inner(
             (
                 policy,
                 WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
-                    layout: program.frame_identity,
+                    layout: Arc::clone(frame),
                     protocol: program.protocol_identity,
                 },
             )
@@ -535,7 +535,7 @@ fn compute_inner(
         register_environment: machine.register_environment,
         physical_register_model: machine.physical_register_model,
         pre_layout: encoding.identity,
-        resolved_layout: layout.identity(),
+        resolved_layout: Arc::clone(layout),
         layout_custody,
         target,
         policy: ordinary_policy,
@@ -585,7 +585,12 @@ fn check_validation_context(
     {
         return Err(WholeFunctionExitContractError::RootMismatch);
     }
-    if encoding.frame != frame.map(|(frame, _)| frame.receipt().identity()) {
+    let same_frame = match (&encoding.frame, frame) {
+        (None, None) => true,
+        (Some(plan), Some((frame, _))) => frame.has_plan(plan),
+        _ => false,
+    };
+    if !same_frame {
         return Err(WholeFunctionExitContractError::RootMismatch);
     }
     let (mut policy, convention, stack_name, link_name, entry) =
@@ -607,11 +612,11 @@ fn check_validation_context(
         _ => return Err(WholeFunctionExitContractError::InvalidConvention),
     };
     let disposition = if let Some((frame, protocol)) = frame {
-        if frame.receipt().post_allocation_machine() != machine.identity
+        if frame.plan().post_allocation_machine != machine.identity
             || frame.plan().register_environment != machine.register_environment
             || frame.plan().physical_register_model != machine.physical_register_model
-            || frame.receipt().target() != machine.target
-            || protocol.frame_layout != frame.receipt().identity()
+            || frame.plan().target != machine.target
+            || !frame.has_plan(&protocol.frame_layout)
             || protocol.target != machine.target
         {
             return Err(WholeFunctionExitContractError::RootMismatch);
@@ -632,7 +637,7 @@ fn check_validation_context(
             _ => return Err(WholeFunctionExitContractError::UnsupportedTargetPolicy),
         };
         WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
-            layout: frame.receipt().identity(),
+            layout: frame.shared_plan(),
             protocol: protocol_identity,
         }
     } else {
@@ -645,7 +650,7 @@ fn check_validation_context(
             && contract.register_environment == machine.register_environment
             && contract.physical_register_model == machine.physical_register_model
             && contract.pre_layout == encoding.identity
-            && contract.resolved_layout == layout.identity()
+            && contract.resolved_layout == **layout
             && contract.layout_custody == custody
             && contract.target == machine.target
             && contract.policy == policy
@@ -1880,10 +1885,7 @@ fn assert_non_return_refused(message: &str, case: NonReturnCase<'_>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use machine_code::{
-        ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity,
-        X86BranchRelaxationIdentity,
-    };
+    use machine_code::{SelectedFormEncodingIdentity, X86BranchRelaxationIdentity};
     use optimization_core::Optimization;
     use post_allocation_machine::PhysicalAddressOperation;
     use selected_instructions::{
@@ -1912,7 +1914,7 @@ mod tests {
                 [5; 32],
             ),
             pre_layout: SelectedFormEncodingIdentity::from_bytes([6; 32]),
-            resolved_layout: ResolvedSelectedFormLayoutIdentity::from_bytes([7; 32]),
+            resolved_layout: crate::test_plans::resolved_layout(),
             layout_custody,
             target: NativeTarget::linux_x64(),
             policy: WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1,
@@ -1996,7 +1998,7 @@ mod tests {
         );
         let mut framed = baseline.clone();
         framed.frame = WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
-            layout: machine_code::TargetFrameLayoutIdentity::from_bytes([10; 32]),
+            layout: crate::test_plans::frame_plan(),
             protocol: machine_code::TargetFrameProtocolEncodingIdentity::from_bytes([11; 32]),
         };
         framed.policy = WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1;

@@ -141,22 +141,25 @@ fn emit_body_inspecting_physical<'execution>(
         .unwrap();
     let mut other_program = bound.stage.program().frame.instructions.identity;
     other_program[0] ^= 1;
-    let frame_identity = bound.stage.program().frame.frame.receipt().identity();
+    let frame_plan = bound.stage.program().frame.frame.shared_plan();
     assert!(bound.stage.installations().matches_frame(
         bound.stage.program().frame.instructions.identity,
-        frame_identity
+        &frame_plan
     ));
     assert!(
         !bound
             .stage
             .installations()
-            .matches_frame(other_program, frame_identity)
+            .matches_frame(other_program, &frame_plan)
     );
-    let mut other_frame = frame_identity.bytes();
-    other_frame[0] ^= 1;
+    // A separately built copy of the same plan still matches; a changed plan does not.
+    assert!(bound.stage.installations().matches_frame(
+        bound.stage.program().frame.instructions.identity,
+        &Arc::new((*frame_plan).clone())
+    ));
     assert!(!bound.stage.installations().matches_frame(
         bound.stage.program().frame.instructions.identity,
-        machine_code::TargetFrameLayoutIdentity::from_bytes(other_frame),
+        &other_frame_plan(&frame_plan),
     ));
     let audit_frame = retain_native_stage_inputs.then(|| bound.stage.program().frame.frame.clone());
     let (original, projection) = crate::driver::compile_body::encode_physical_body(
@@ -704,6 +707,19 @@ fn checked_value_plan() -> build_providers::plans::ProviderPlan {
     plan
 }
 
+/// The same frame plan with one root changed: a different frame for every
+/// check that compares plans.
+fn other_frame_plan(
+    frame: &machine_code::TargetFrameLayoutPlan,
+) -> Arc<machine_code::TargetFrameLayoutPlan> {
+    let mut other = frame.clone();
+    let mut storage = other.callee_save_storage.bytes();
+    storage[0] ^= 1;
+    other.callee_save_storage =
+        machine_code::NonAuthoritativeCalleeSaveStorageIdentity::from_bytes(storage);
+    Arc::new(other)
+}
+
 #[test]
 fn object_publication_rejects_placed_code_from_a_different_program() {
     let (_, scalar, scalar_archive) = check_publication(false, true);
@@ -716,23 +732,23 @@ fn object_publication_rejects_placed_code_from_a_different_program() {
     let observed = object.source().encoding_subject();
     let identify = machine_code::program_context::BoundEncodingSubject::from_encoded;
     assert_eq!(
-        identify(&encoding.context, encoding.frame_identity),
-        Ok(observed)
+        identify(&encoding.context, Arc::clone(&encoding.frame)),
+        Ok(observed.clone())
     );
     let mut other = (*encoding.context).clone();
     other.identity[0] ^= 1;
-    assert_ne!(identify(&other, encoding.frame_identity).unwrap(), observed);
+    assert_ne!(
+        identify(&other, Arc::clone(&encoding.frame)).unwrap(),
+        observed
+    );
     let mut other = (*encoding.context).clone();
     Arc::make_mut(&mut other.machine).target = target::TargetProfile::LinuxArm64.native_target();
-    assert_ne!(identify(&other, encoding.frame_identity).unwrap(), observed);
-    let mut frame = encoding.frame_identity.bytes();
-    frame[0] ^= 1;
     assert_ne!(
-        identify(
-            &encoding.context,
-            machine_code::TargetFrameLayoutIdentity::from_bytes(frame)
-        )
-        .unwrap(),
+        identify(&other, Arc::clone(&encoding.frame)).unwrap(),
+        observed
+    );
+    assert_ne!(
+        identify(&encoding.context, other_frame_plan(&encoding.frame)).unwrap(),
         observed
     );
     let mut other = (*encoding.context).clone();
@@ -743,7 +759,7 @@ fn object_publication_rejects_placed_code_from_a_different_program() {
             1
         })
         .unwrap();
-    assert!(identify(&other, encoding.frame_identity).is_err());
+    assert!(identify(&other, Arc::clone(&encoding.frame)).is_err());
     assert!(
         function_layout::validate_optimized_fixed_frame_text_section(
             object.source(),

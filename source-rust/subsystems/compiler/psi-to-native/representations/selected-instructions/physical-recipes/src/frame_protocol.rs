@@ -1,6 +1,6 @@
 //! Physical function frames and the selected target-specific prologue and epilogue recipes.
 use frame_admission::frame_layout::ValidatedTargetFrameLayout;
-use machine_code::{TargetFrameLayoutIdentity, TargetFrameProtocolEncodingPolicy};
+use machine_code::{TargetFrameLayoutPlan, TargetFrameProtocolEncodingPolicy};
 use post_allocation_machine::PostAllocationMachineProgram;
 use std::sync::Arc;
 use target::NativeTarget;
@@ -8,7 +8,7 @@ pub type PlannedTargetFrameProtocols<Origin> =
     crate::PhysicalRecipe<Origin, FrameProtocolInstructions>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrameProtocolInstructions {
-    pub frame_layout: TargetFrameLayoutIdentity,
+    pub frame_layout: Arc<TargetFrameLayoutPlan>,
     pub register_environment: register_model::TargetRegisterEnvironmentIdentity,
     pub physical_register_model: register_model::PhysicalRegisterModelIdentity,
     pub target: NativeTarget,
@@ -43,8 +43,8 @@ impl<Origin> PlannedTargetFrameProtocols<Origin> {
 }
 
 impl<Origin> PlannedTargetFrameProtocols<Origin> {
-    pub fn frame_layout(&self) -> TargetFrameLayoutIdentity {
-        self.instructions.frame_layout
+    pub fn frame_layout(&self) -> Arc<TargetFrameLayoutPlan> {
+        Arc::clone(&self.instructions.frame_layout)
     }
     pub fn register_environment(&self) -> register_model::TargetRegisterEnvironmentIdentity {
         self.instructions.register_environment

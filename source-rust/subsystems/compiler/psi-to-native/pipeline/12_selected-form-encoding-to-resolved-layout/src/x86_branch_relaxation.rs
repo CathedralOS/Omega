@@ -99,7 +99,6 @@ fn malformed(instruction: SelectedInstructionId) -> OptimizedX86BranchRelaxation
 
 fn revision_roots(source: &ResolvedMachineLayout) -> RevisionRoots {
     RevisionRoots {
-        source: source.identity(),
         selected: source.selected(),
         machine: source.machine(),
         pre_layout: source.pre_layout(),
@@ -116,16 +115,13 @@ fn finish_artifact(
     let output_revision = revision_identity(roots, &trace.functions);
     let mut program = source.clone();
     program.functions = trace.functions;
-    program.identity = program.recomputed_identity();
     let layout = Arc::new(program);
-    let output = layout.identity();
     let policy = X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1;
     let identity = artifact_identity(
         roots,
         policy,
         budget,
         trace.usage,
-        output,
         output_revision,
         &trace.attempts,
         &trace.actions,
@@ -133,7 +129,6 @@ fn finish_artifact(
     );
     Ok(StagedOptimizedX86BranchRelaxation {
         record: X86BranchRelaxationRecord {
-            source: source.identity(),
             selected: source.selected(),
             machine: source.machine(),
             pre_layout: source.pre_layout(),
@@ -141,7 +136,6 @@ fn finish_artifact(
             policy,
             budget,
             usage: trace.usage,
-            output,
             output_revision,
             identity,
             attempts: trace.attempts,
@@ -566,8 +560,7 @@ mod tests {
     };
     use machine_code::layout::evidence::X86BranchRelaxationIdentity;
     use machine_code::{
-        ResolvedConditionalBranchPredicate, ResolvedSelectedBlockLayout,
-        ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
+        ResolvedConditionalBranchPredicate, ResolvedSelectedBlockLayout, ResolvedSelectedFormRow,
         ResolvedSelectedFunctionLayout,
     };
     use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
@@ -1242,14 +1235,12 @@ mod tests {
         attempts: Vec<X86BranchRelaxationAttempt>,
         budget: OptimizationWorkBudget,
         usage: OptimizationWorkUsage,
-        output: ResolvedSelectedFormLayoutIdentity,
         output_revision: X86BranchRelaxationRevisionIdentity,
     }
 
     impl IdentityFixture {
         fn new() -> Self {
             let roots = RevisionRoots {
-                source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
                 selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
                     [2; 32],
                 ),
@@ -1293,7 +1284,6 @@ mod tests {
                     commits: 1,
                     iterations: 2,
                 },
-                output: ResolvedSelectedFormLayoutIdentity::from_bytes([6; 32]),
                 output_revision: X86BranchRelaxationRevisionIdentity::from_bytes([7; 32]),
             }
         }
@@ -1308,7 +1298,6 @@ mod tests {
                 X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
                 self.budget,
                 self.usage,
-                self.output,
                 self.output_revision,
                 attempts,
                 actions,
@@ -1495,7 +1484,6 @@ mod tests {
 
     fn sweep_roots() -> RevisionRoots {
         RevisionRoots {
-            source: ResolvedSelectedFormLayoutIdentity::from_bytes([11; 32]),
             selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([12; 32]),
             machine: post_allocation_machine::PostAllocationMachineIdentity::from_bytes([13; 32]),
             pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([14; 32]),
@@ -1539,17 +1527,15 @@ mod tests {
     fn retained_relaxation_record_rejects_changed_roots_trace_and_layout() {
         use crate::relaxation::validate_optimized_x86_branch_relaxation;
         let roots = sweep_roots();
-        let mut baseline = machine_code::ResolvedMachineLayout {
+        let baseline = machine_code::ResolvedMachineLayout {
             selected: roots.selected,
             machine: roots.machine,
             pre_layout: roots.pre_layout,
             post_allocation_machine_optimization: None,
             target: roots.target,
             policy: machine_code::SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
-            identity: roots.source,
             functions: vec![function(1)],
         };
-        baseline.identity = baseline.recomputed_identity();
         let physical = physical();
         let trace = compute_trace(
             super::revision_roots(&baseline),
@@ -1574,8 +1560,6 @@ mod tests {
         let reject = |change: fn(&mut machine_code::ResolvedMachineLayout)| {
             let mut output = record.layout().clone();
             change(&mut output);
-            // A fresh digest must not legitimize a changed operation or branch target.
-            output.identity = output.recomputed_identity();
             assert_eq!(
                 check_output(&output),
                 Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
@@ -1600,8 +1584,16 @@ mod tests {
         };
         assert_eq!(verify(&record), Ok(()));
 
+        // A record that started from other rows does not belong to this baseline.
+        let mut other_baseline = baseline.clone();
+        other_baseline.functions[0].blocks[0].instructions[0].bytes[2] ^= 1;
+        assert_eq!(
+            validate_optimized_x86_branch_relaxation(&physical, &other_baseline, &record),
+            Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
+        );
         let mut changed = record.clone();
-        changed.source = ResolvedSelectedFormLayoutIdentity::from_bytes([99; 32]);
+        changed.selected =
+            selected_instructions::SelectedInstructionPlanIdentity::from_bytes([99; 32]);
         assert_eq!(
             verify(&changed),
             Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
