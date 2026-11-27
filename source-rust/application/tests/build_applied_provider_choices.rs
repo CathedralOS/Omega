@@ -20,7 +20,8 @@ at a different tag. The same public result bound applies to every tag.
 
 */
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 const PACKAGE: &str = "public boundary trait Reading<const Tag: u64> {
     machine total() -> u64 reaches none crashes none ensures result >= 1000u64;
@@ -40,11 +41,11 @@ fn check(name: &str, choice: &str) -> (bool, String) {
 fn check_tag(name: &str, choice: &str, package: &str, tag: u64) -> (bool, String) {
     let build = format!(
         "use main.omg as app;
-machine build(builder: @mutable Build) {{
-    Build::package(builder, \"reading\");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Package {{ name: \"reading\" }};
     configure::<(8u64 + 9u64)>(builder);
 }}
-machine configure<const Tag: u64>(builder: @mutable Build) {{
+machine configure<const Tag: u64>(builder: @mutable BuildPlan) {{
     {choice}
 }}
 "
@@ -60,45 +61,29 @@ machine main() reaches |provider|::Reading<{tag}u64> crashes none {{
 }
 
 fn check_package(name: &str, build: &str, files: &[(&str, &str)], main: &str) -> (bool, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-applied-provider-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    let package = root.join("reading");
-    let program = root.join("program");
-    std::fs::create_dir_all(&package).expect("staged package directory");
-    std::fs::create_dir_all(&program).expect("staged program directory");
-    for (file, source) in files {
-        let path = package.join(file);
-        std::fs::create_dir_all(path.parent().unwrap()).expect("staged source directory");
-        std::fs::write(path, source).expect("staged package source");
-    }
-    std::fs::write(package.join("build.omg"), build).expect("staged package Build");
-    std::fs::write(program.join("main.omg"), main).expect("staged program");
-    std::fs::write(
-        program.join("build.omg"),
-        "use main.omg as app;
+    let root = project::stage(
+        name,
+        &[
+            ("reading/build.omg", build),
+            ("program/main.omg", main),
+            (
+                "program/build.omg",
+                "use main.omg as app;
 use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"reader\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"reader\" };
     let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: \"../reading\" }));
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
 ",
-    )
-    .expect("staged program Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--target", "linux_x86_64", "build.omg"])
-        .current_dir(&program)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stderr).into_owned(),
-    )
+            ),
+        ],
+    );
+    project::write(&root.path().join("reading"), files);
+    project::status(&project::omega(
+        &root.path().join("program"),
+        &["--target", "linux_x86_64", "build.omg"],
+    ))
 }
 
 #[test]
@@ -190,8 +175,8 @@ fn a_package_selects_its_slot_and_provider_from_separate_files() {
         r#"use slot.omg;
 use provider.omg;
 use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "reading");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "reading" };
     let kit_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "kit" }));
     Build::select_provider::<|slot|::Reading, |provider|::Selected>(builder, linux_x86_64);
 }"#,
@@ -205,7 +190,10 @@ machine build(builder: @mutable Build) {
                 "provider.omg",
                 "use slot.omg; use {kit}/math.omg as math; Selected satisfies |slot|::Reading { machine total() -> u64 { |math|::answer() } }",
             ),
-            ("kit/build.omg", r#"machine build(builder: @mutable Build) { Build::package(builder, "kit"); }"#),
+            (
+                "kit/build.omg",
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "kit" }; }"#,
+            ),
             ("kit/math.omg", "public machine answer() -> u64 { 42 }"),
         ],
         "machine main() { }\n",
@@ -218,8 +206,8 @@ fn a_dependency_retains_the_domain_used_in_each_provider_choice() {
     let (compiled, report) = check_package(
         "qualified_inputs",
         r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "reading");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "reading" };
     Build::select_provider::<|app|::Reading<|app|::Tag in |app|::Tag::Left>, |app|::First>(builder, linux_x86_64);
     Build::select_provider::<|app|::Reading<|app|::Tag in |app|::Tag::Right>, |app|::Second>(builder, linux_x86_64);
 }"#,

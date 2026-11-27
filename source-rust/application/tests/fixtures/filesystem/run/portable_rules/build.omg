@@ -3,8 +3,8 @@ use {omega}/build/dependency.omg;
 use {omega}/language/core/filesystem_authority.omg as authority;
 use {omega}/language/core/process_exit.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "filesystem_portable_rules");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "filesystem_portable_rules" };
     let system: DependencyDescription = |dependency|::from_source(Source::Path {
         location: "../../../../../../../source/library/system"
     });

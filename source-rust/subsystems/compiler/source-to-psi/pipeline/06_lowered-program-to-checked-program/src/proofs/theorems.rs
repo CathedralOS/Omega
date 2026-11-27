@@ -6,19 +6,23 @@ use semantic_vocabulary::{EdgeId, MachineId, Proposition};
 use terminal_check_tables::values::{Justification, ValueOrigin};
 use terminal_psi::{TerminalMachine, TerminalModule, TheoremApplication};
 
+/// Refuses `module` as a whole, naming its first machine.
+fn module_refusal(module: &TerminalModule, reason: &str) -> crate::Refusal {
+    refusal(
+        RefusalReason::ForeignIdentity,
+        module
+            .machines
+            .first()
+            .map(|machine| machine.id)
+            .unwrap_or_else(|| MachineId::new(1).expect("one is a valid machine ID")),
+        Construct::Machine,
+        reason,
+    )
+}
+
 pub(crate) fn validate_parameters(module: &TerminalModule) -> Checked<()> {
-    terminal_codec::validate_theorem_parameters(module).map_err(|reason| {
-        refusal(
-            RefusalReason::ForeignIdentity,
-            module
-                .machines
-                .first()
-                .map(|machine| machine.id)
-                .unwrap_or_else(|| MachineId::new(1).expect("one is a valid machine ID")),
-            Construct::Machine,
-            reason,
-        )
-    })
+    terminal_codec::validate_theorem_parameters(module)
+        .map_err(|reason| module_refusal(module, reason))
 }
 
 pub(crate) fn validate(
@@ -44,6 +48,23 @@ pub(crate) fn validate(
         terminal_semantics::theorems::application(module, machine, application)
             .map_err(|reason| invalid(application.edge, reason))?;
         for argument in &application.arguments {
+            // A field subject reads a record formal of this machine, whose
+            // root place every point of the body has.
+            if let semantic_vocabulary::ScalarTerm::IntegerField { root, .. }
+            | semantic_vocabulary::ScalarTerm::BooleanField { root, .. }
+            | semantic_vocabulary::ScalarTerm::IeeeFloatField { root, .. } = argument
+                && (tables.roots.get(*root).is_none()
+                    || terminal_psi::StructuralParameterDeclaration::find_by_place(
+                        &machine.contract.structural_parameters,
+                        *root,
+                    )
+                    .is_none())
+            {
+                return Err(invalid(
+                    application.edge,
+                    "logical data subject is not a record formal of its machine",
+                ));
+            }
             let mut failure = None;
             argument.visit_value_ids(|value| {
                 let Some(row) = tables.values.get(value) else {
@@ -81,9 +102,14 @@ pub(crate) fn validate(
     Ok(())
 }
 
-pub(crate) fn goal(
+pub(crate) fn goal<'a>(
     module: &TerminalModule,
     owner: MachineId,
+    context: (
+        &crate::places::Storage<'a>,
+        &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    ),
+    tables: &MachineTables,
     edge: EdgeId,
     clause: u32,
 ) -> Checked<Proposition> {
@@ -102,14 +128,29 @@ pub(crate) fn goal(
         .requires
         .get(clause as usize)
         .ok_or_else(|| invalid("logical application has no such premise"))?;
+    // The stored subjects name the clause's formals; the goal reads each
+    // one where the edge leaves.
     terminal_semantics::theorems::substitute(&contract, &application.arguments, clause)
-        .map_err(invalid)
+        .map_err(invalid)?;
+    let (storage, references) = context;
+    storage.theorem_clause(
+        references,
+        tables,
+        edge,
+        &application.arguments,
+        clause,
+        Construct::Edge(edge),
+    )
 }
 
-pub(crate) fn fill(
+pub(crate) fn fill<'a>(
     module: &TerminalModule,
     owner: MachineId,
     tables: &mut MachineTables,
+    (storage, references): (
+        &crate::places::Storage<'a>,
+        &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    ),
 ) -> Checked<()> {
     for application in module
         .proofs
@@ -128,12 +169,20 @@ pub(crate) fn fill(
         let contract = terminal_semantics::theorems::applied(module, owner, application.source)
             .map_err(invalid)?;
         for (clause, proposition) in contract.ensures.iter().enumerate() {
-            let proposition = terminal_semantics::theorems::substitute(
+            terminal_semantics::theorems::substitute(
                 &contract,
                 &application.arguments,
                 proposition,
             )
             .map_err(invalid)?;
+            let proposition = storage.theorem_clause(
+                references,
+                tables,
+                application.edge,
+                &application.arguments,
+                proposition,
+                Construct::Edge(application.edge),
+            )?;
             crate::push_knowledge(
                 tables,
                 proposition,
@@ -173,7 +222,7 @@ pub(crate) fn finalize_citations(
     module: &mut TerminalModule,
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
-    use semantic_vocabulary::{InvocationSite, ObligationId};
+    use semantic_vocabulary::InvocationSite;
     use terminal_psi::{OperationKind, TheoremSource};
     let mut prepared = Vec::with_capacity(module.proofs.theorem_citations.len());
     for (index, row) in module.proofs.theorem_citations.iter().enumerate() {
@@ -194,31 +243,43 @@ pub(crate) fn finalize_citations(
             let supplied = module
                 .machine(source)
                 .ok_or_else(|| invalid("cited theorem has no source machine"))?;
+            let formals = terminal_semantics::theorems::proof_formal_contracts(module, source)
+                .map_err(invalid)?;
             let goals = terminal_semantics::theorems::citation_goals(
+                module,
                 &context.parameter.contract,
                 &supplied.contract,
+                &formals,
+                citation.instantiation.len(),
             )
             .map_err(invalid)?;
-            let declarations: Vec<_> = context
-                .parameter
-                .contract
-                .parameters
-                .iter()
-                .map(|formal| (formal.id, formal.scalar_type))
-                .collect();
-            let proposition_context = semantic_vocabulary::PropositionContext::from_value_types(
-                declarations.iter().copied(),
-            )
-            .map_err(|_| invalid("theorem subjects have no proposition context"))?;
-            for (position, goal) in goals.iter().enumerate() {
-                let obligation = ObligationId::new(position as u64 + 1)
-                    .ok_or_else(|| invalid("theorem derivation role overflow"))?;
-                citation.derivations.push(crate::derive_contract_obligation(
-                    row.machine.into(), &proposition_context, obligation, goal, &declarations, activity,
-                ).map_err(|mut error| {
-                    error.detail = format!("explicit proof argument does not establish the complete aliased contract: {}", error.detail);
-                    error
-                })?);
+            citation.derivations = derive_citation(
+                row.machine,
+                &context.parameter.contract,
+                &goals,
+                "explicit proof argument does not establish the complete aliased contract",
+                activity,
+            )?;
+            // Each proof the citation gives the cited theorem answers that
+            // theorem's own alias, exactly as at an invocation of it.
+            for (position, supply) in citation.instantiation.iter_mut().enumerate() {
+                let TheoremSource::Named(inner) = supply.source else {
+                    continue;
+                };
+                if !supply.derivations.is_empty() {
+                    continue;
+                }
+                let position = crate::position(position, row.machine)?;
+                let expected = terminal_semantics::theorems::parameter(module, source, position)
+                    .map_err(invalid)?;
+                supply.derivations = derive_supply(
+                    module,
+                    row.machine,
+                    &expected.contract,
+                    inner,
+                    "proof given to the cited theorem does not establish its own aliased contract",
+                    activity,
+                )?;
             }
         }
         let actual = terminal_codec::theorem_citation_actual(
@@ -328,16 +389,136 @@ pub(crate) fn finalize_citations(
     for (index, citation, _) in prepared {
         module.proofs.theorem_citations[index] = citation;
     }
-    terminal_codec::validate_theorem_supply_sites(module).map_err(|reason| {
+    finalize_application_supplies(module, activity)?;
+    terminal_codec::validate_theorem_supply_sites(module)
+        .map_err(|reason| module_refusal(module, reason))
+}
+
+/// Each proof an application gives its contract's own proof parameters, as
+/// `inner` in `Step::<inner>(n)`, answers that parameter's contract exactly
+/// as a proof argument at an invocation would.
+fn finalize_application_supplies(
+    module: &mut TerminalModule,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<()> {
+    use terminal_psi::TheoremSource;
+    for index in 0..module.proofs.theorem_applications.len() {
+        let row = &module.proofs.theorem_applications[index];
+        if row.instantiation.is_empty() {
+            continue;
+        }
+        let owner = row.machine;
+        let invalid = |reason| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                owner,
+                Construct::Edge(row.edge),
+                reason,
+            )
+        };
+        let applied =
+            terminal_semantics::theorems::applied(module, owner, row.source).map_err(invalid)?;
+        if applied.proof_parameters.len() != row.instantiation.len() {
+            return Err(invalid(
+                "logical use needs one proof for each of its contract's own proof parameters",
+            ));
+        }
+        let mut supplies = row.instantiation.clone();
+        for (expected, supply) in applied.proof_parameters.iter().zip(&mut supplies) {
+            let TheoremSource::Named(inner) = supply.source else {
+                continue;
+            };
+            if supply.derivations.is_empty() {
+                supply.derivations = derive_supply(
+                    module,
+                    owner,
+                    expected,
+                    inner,
+                    "proof given to the applied theorem does not establish its own aliased contract",
+                    activity,
+                )?;
+            }
+        }
+        module.proofs.theorem_applications[index].instantiation = supplies;
+    }
+    Ok(())
+}
+
+/// The three derivations by which the named machine `inner` supplies `expected`.
+fn derive_supply(
+    module: &TerminalModule,
+    owner: MachineId,
+    expected: &terminal_psi::TheoremContract,
+    inner: MachineId,
+    failure: &str,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<Vec<terminal_psi::CertificateEnvelope>> {
+    let invalid = |reason| {
         refusal(
             RefusalReason::ForeignIdentity,
-            module
-                .machines
-                .first()
-                .map(|machine| machine.id)
-                .unwrap_or_else(|| MachineId::new(1).expect("one is a valid machine ID")),
+            owner,
             Construct::Machine,
             reason,
         )
-    })
+    };
+    let machine = module
+        .machine(inner)
+        .ok_or_else(|| invalid("instantiating theorem has no source machine"))?;
+    let formals =
+        terminal_semantics::theorems::proof_formal_contracts(module, inner).map_err(invalid)?;
+    let goals = terminal_semantics::theorems::citation_goals(
+        module,
+        expected,
+        &machine.contract,
+        &formals,
+        0,
+    )
+    .map_err(invalid)?;
+    derive_citation(owner, expected, &goals, failure, activity)
+}
+
+/// Prove a citation's three goals over the alias's subjects.
+fn derive_citation(
+    owner: MachineId,
+    expected: &terminal_psi::TheoremContract,
+    goals: &[Proposition; 3],
+    failure: &str,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<Vec<terminal_psi::CertificateEnvelope>> {
+    let invalid = |reason| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            owner,
+            Construct::Machine,
+            reason,
+        )
+    };
+    let declarations: Vec<_> = expected
+        .parameters
+        .iter()
+        .map(|formal| (formal.id, formal.scalar_type))
+        .collect();
+    let proposition_context =
+        semantic_vocabulary::PropositionContext::from_value_types(declarations.iter().copied())
+            .map_err(|_| invalid("theorem subjects have no proposition context"))?;
+    let mut derivations = Vec::with_capacity(goals.len());
+    for (position, goal) in goals.iter().enumerate() {
+        let obligation = semantic_vocabulary::ObligationId::new(position as u64 + 1)
+            .ok_or_else(|| invalid("theorem derivation role overflow"))?;
+        derivations.push(
+            crate::derive_contract_obligation(
+                owner.into(),
+                &proposition_context,
+                obligation,
+                goal,
+                &declarations,
+                activity,
+            )
+            .map_err(|mut error| {
+                error.detail = format!("{failure}: {}", error.detail);
+                error
+            })?,
+        );
+    }
+    Ok(derivations)
 }

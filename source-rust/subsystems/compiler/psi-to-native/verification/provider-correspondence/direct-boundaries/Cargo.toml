@@ -8,14 +8,13 @@ version.workspace = true
 path = "bindings.rs"
 
 [dependencies]
+build-providers = { path = "../../../../build/providers" }
 native-binding-admission = { path = "../../native-bindings" }
 native-execution-reach = { path = "../../../representations/target-bound-program/execution-reach" }
-selected-provider-plans = { path = "../../../../build/providers/selections" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 language-core = { path = "../../../../foundation/language-core" }
 native-intrinsics = { path = "../../../targets/intrinsics" }
-provider-plans = { path = "../../../../build/providers/plans" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 service-surface = { path = "../../../../psi/interfaces/service-surface" }
 symbols = { path = "../../../../foundation/declaration-identity" }

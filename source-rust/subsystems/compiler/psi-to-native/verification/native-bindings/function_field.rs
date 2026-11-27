@@ -1,7 +1,7 @@
 //! Locate one described function pointer in the native layout of the borrowed record.
 
+use build_providers::plans::EvaluatedFunctionField;
 use calling_conventions::FunctionFieldLocation;
-use provider_plans::EvaluatedFunctionField;
 use semantic_vocabulary::ScalarType;
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryParameterKind, StructuralFieldType, StructuralTypeShape,
@@ -47,7 +47,11 @@ pub fn resolve_function_field(
     let target = evaluated.target();
     let mut geometry = terminal_semantics::ReferenceStorageGeometry::new(
         module.types.structural_types.iter(),
-        |extent| Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(extent)),
+        |extent| {
+            Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                extent,
+            ))
+        },
     )
     .with_target_carriers(Some(runtime_abi::target_carrier_layout(
         target.native_target(),
@@ -169,7 +173,7 @@ fn admits_table_issuer(
         return false;
     };
     retained.rows.iter().any(|row| {
-        if !matches!(row.binding, provider_plans::EvaluatedNativeBinding::Import(_) | provider_plans::EvaluatedNativeBinding::Syscall(_)) {
+        if !matches!(row.binding, build_providers::plans::EvaluatedNativeBinding::Import(_) | build_providers::plans::EvaluatedNativeBinding::Syscall(_)) {
             return false;
         }
         let Some(issuer) = module.boundary_machine(row.boundary) else { return false };

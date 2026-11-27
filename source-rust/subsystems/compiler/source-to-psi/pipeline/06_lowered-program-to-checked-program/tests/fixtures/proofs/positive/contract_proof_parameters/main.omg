@@ -1,0 +1,38 @@
+data NonzeroIsPositive = machine(n: u8)
+    requires n != 0u8
+    ensures n > 0u8;
+
+data Lifted = machine<Inner: NonzeroIsPositive>(n: u8)
+    requires n != 0u8
+    ensures n > 0u8;
+
+machine nonzero_is_positive(n: u8)
+requires n != 0u8
+ensures n > 0u8
+{
+}
+
+machine only_seven(n: u8)
+requires n == 7u8
+ensures n > 0u8
+{
+}
+
+machine lifted<Inner: NonzeroIsPositive>(n: u8)
+requires n != 0u8
+ensures n > 0u8
+{
+    Inner(n);
+}
+
+machine use_lifted<Step: Lifted>(n: u8)
+requires n != 0u8
+ensures n > 0u8
+{
+    Step::<nonzero_is_positive>(n);
+}
+
+machine entry() -> u8 {
+    use_lifted::<lifted>(7u8);
+    0u8
+}

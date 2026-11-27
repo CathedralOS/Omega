@@ -691,7 +691,7 @@ pub(crate) mod errors {
         },
         Crash(TerminalCrash),
         Work(WorkMeterError),
-        Storage(evaluation_contracts::EvaluationAccountingError),
+        Storage(build_model::contracts::EvaluationAccountingError),
         StorageAllocationFailed {
             requested_bytes: usize,
             reason: String,
@@ -953,7 +953,7 @@ pub(crate) mod result_custody {
     };
     use crate::storage::structural_storage::{StorageKey, cells};
     use arena::Handle;
-    use evaluation_contracts::{EvaluationAccountingError, EvaluationResource};
+    use build_model::contracts::{EvaluationAccountingError, EvaluationResource};
 
     pub(crate) struct ResultCustody<'storage> {
         cells: u64,
@@ -1269,7 +1269,7 @@ pub(crate) mod results {
     struct ScalarCaseStorage {
         value: TerminalAggregateValue,
         #[record(skip)]
-        _lease: Option<evaluation_accounting::EvaluationStorageLease>,
+        _lease: Option<build_model::accounting::EvaluationStorageLease>,
     }
 
     impl TerminalScalarCaseResult {
@@ -1284,7 +1284,7 @@ pub(crate) mod results {
             fields: impl IntoIterator<
                 Item = Result<(StructuralFieldId, TerminalScalarValue), TerminalInterpretError>,
             >,
-            account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+            account: Option<&build_model::accounting::EvaluationInvocationAccount>,
         ) -> Result<Self, TerminalInterpretError> {
             let cells = u64::try_from(count).map_err(|_| crate::boundary::errors::malformed())?;
             let lease = account

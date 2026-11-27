@@ -14,7 +14,7 @@ use wire::digest_encoder::hex;
 /// selects native export locations and stack provisions.
 pub fn describe_portable_component(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    plans: &selected_provider_plans::SelectedProviderPlanFacts,
+    plans: &build_providers::selections::SelectedProviderPlanFacts,
 ) -> Result<Vec<u8>, DescribeError> {
     publish_component_description(ComponentDescriptionFacts {
         artifact,
@@ -62,7 +62,7 @@ impl StackDemandFacts {
 fn component_references_plan(
     module: &TerminalModule,
     inventory: &DerivedInventory,
-    plan: &provider_plans::ProviderPlan,
+    plan: &build_providers::plans::ProviderPlan,
 ) -> bool {
     plan.rows.iter().any(|row| {
         component_references_requirement(
@@ -77,7 +77,7 @@ fn component_references_plan(
 fn component_references_requirement(
     module: &TerminalModule,
     inventory: &DerivedInventory,
-    plan: &provider_plans::ProviderPlan,
+    plan: &build_providers::plans::ProviderPlan,
     requirement: &str,
 ) -> bool {
     inventory
@@ -97,7 +97,7 @@ fn component_references_requirement(
 #[derive(Debug, Clone, Copy)]
 pub(super) struct ComponentDescriptionFacts<'a> {
     pub artifact: &'a terminal_codec::CanonicalTerminalArtifact,
-    pub selected_provider_plans: &'a selected_provider_plans::SelectedProviderPlanFacts,
+    pub selected_provider_plans: &'a build_providers::selections::SelectedProviderPlanFacts,
     pub stack_demand: Option<StackDemandFacts>,
     pub realization_identity: Option<[u8; 32]>,
 }

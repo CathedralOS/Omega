@@ -4,22 +4,23 @@
     all(target_os = "windows", target_arch = "aarch64"),
 ))]
 
+#[path = "support/project.rs"]
+mod project;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::{fs, path::Path, process::Command};
 
 fn entryless_supplier_sources(root: &Path) -> std::path::PathBuf {
-    let package = root.join("supplier");
-    let consumer = root.join("application");
-    fs::create_dir_all(&package).unwrap();
-    fs::create_dir_all(&consumer).unwrap();
-    fs::write(
-        package.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "numbers"); }"#,
-    )
-    .unwrap();
-    fs::write(
-        package.join("main.omg"),
-        r#"
+    project::write(
+        root,
+        &[
+            (
+                "supplier/build.omg",
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "numbers" }; }"#,
+            ),
+            (
+                "supplier/main.omg",
+                r#"
 public boundary trait Reading {
     machine value(input: u64) -> u64 reaches none crashes none;
     machine unused() -> u64 reaches none crashes none;
@@ -29,24 +30,26 @@ public ConstantReading satisfies Reading {
     machine unused() -> u64 { 11u64 }
 }
 "#,
-    )
-    .unwrap();
-    fs::write(consumer.join("build.omg"), r#"
+            ),
+            (
+                "application/build.omg",
+                r#"
 use {omega}/build/dependency.omg;
 use main.omg as app;
 use {numbers}/main.omg as numbers;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "number_application");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "number_application" };
     let dependency: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../supplier" }));
     Build::select_provider::<|numbers|::Reading, |numbers|::ConstantReading>(builder, independent_mode());
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, windows_arm64::ProgramEntry, |app|::main);
 }
 machine independent_mode() -> CompositionMode { CompositionMode::Independent }
-"#).unwrap();
-    fs::write(
-        consumer.join("main.omg"),
-        r#"
+"#,
+            ),
+            (
+                "application/main.omg",
+                r#"
 use {numbers}/main.omg as numbers;
 machine main() reaches |numbers|::Reading crashes Trap {
     let number: u64 = |numbers|::Reading::value(73u64);
@@ -55,9 +58,10 @@ machine main() reaches |numbers|::Reading crashes Trap {
     machine bad() { crash Trap; }
 }
 "#,
-    )
-    .unwrap();
-    consumer
+            ),
+        ],
+    );
+    root.join("application")
 }
 
 #[cfg(target_os = "linux")]
@@ -190,7 +194,11 @@ fn require_native_suppliers(consumer: &Path, output: &Path, expected: usize) {
     );
     for component in &components {
         let sidecar = component.with_extension("so.component");
-        assert!(!sidecar.try_exists().unwrap(), "unexpected {}", sidecar.display());
+        assert!(
+            !sidecar.try_exists().unwrap(),
+            "unexpected {}",
+            sidecar.display()
+        );
         let missing = component.with_extension("withheld");
         fs::rename(component, &missing).unwrap();
         let refused = run();
@@ -256,15 +264,12 @@ fn independent_packages_can_call_an_independently_compiled_supplier() {
 
 #[cfg(target_os = "linux")]
 fn nested_sources(root: &Path, mode: &str) {
-    for package in ["leaf", "supplier", "application"] {
-        fs::create_dir(root.join(package)).unwrap();
-    }
     let root_build = format!(
         r#"use {{omega}}/build/dependency.omg;
 use main.omg as app;
 use {{numbers}}/main.omg as numbers;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "reader");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "reader" }};
     let number: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "../supplier" }}));
     Build::select_provider::<|numbers|::Reading, |numbers|::Sensor>(builder, linux_x86_64, CompositionMode::{mode});
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
@@ -273,8 +278,8 @@ machine build(builder: @mutable Build) {{
     let sources = [
         (
             "leaf/build.omg",
-            r#"machine build(builder: @mutable Build) {
-    Build::package(builder, "measurements");
+            r#"machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "measurements" };
 }"#,
         ),
         (
@@ -290,8 +295,8 @@ public Device satisfies Measure {
             "supplier/build.omg",
             r#"use {omega}/build/dependency.omg;
 use {measurements}/main.omg as measurements;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "numbers");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "numbers" };
     let leaf: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../leaf" }));
     Build::select_provider::<|measurements|::Measure, |measurements|::Device>(builder, linux_x86_64, CompositionMode::Independent);
 }"#,
@@ -317,7 +322,5 @@ machine main() crashes Trap {
 }"#,
         ),
     ];
-    for (path, source) in sources {
-        fs::write(root.join(path), source).unwrap();
-    }
+    project::write(root, &sources);
 }

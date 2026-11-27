@@ -12,7 +12,7 @@ pub use build_consent::{
     RestrictedBuildOperation, RestrictedBuildRequest, RestrictedBuildSite, RestrictedBuildSubject,
     RestrictedProgramLaunch,
 };
-use evaluation_accounting::BuildEvaluationSponsor;
+use build_model::accounting::BuildEvaluationSponsor;
 use filesystem_authority::FilesystemGrantRoot;
 
 pub trait RestrictedBuildGrants: Send {
@@ -77,10 +77,7 @@ impl BuildMachineFilesystemScope {
             } else if identity == BUILD_OUTPUT_ROOT_IDENTITY {
                 (RestrictedBuildGrantRoot::StagedOutput, None)
             } else {
-                (
-                    RestrictedBuildGrantRoot::Other(identity.get()),
-                    self.named_input_inventory(identity),
-                )
+                (RestrictedBuildGrantRoot::Other(identity.get()), None)
             };
             RestrictedBuildGrant::from_retained(
                 root,
@@ -89,22 +86,12 @@ impl BuildMachineFilesystemScope {
             )
         };
         let mut read_grants: Vec<_> = read_roots.iter().map(&grant).collect();
-        if let BuildMachineFilesystemAccess::CapturedScoped { inputs, .. } = filesystem {
-            read_grants.extend(inputs.iter().map(|input| {
-                RestrictedBuildGrant::from_retained(
-                    if input.identity == BUILD_SOURCE_ROOT_IDENTITY {
-                        RestrictedBuildGrantRoot::SourceInventory
-                    } else {
-                        RestrictedBuildGrantRoot::Other(input.identity.get())
-                    },
-                    true,
-                    if input.identity == BUILD_SOURCE_ROOT_IDENTITY {
-                        captured
-                    } else {
-                        self.named_input_inventory(input.identity)
-                    },
-                )
-            }));
+        if let BuildMachineFilesystemAccess::CapturedScoped { source, .. } = filesystem {
+            read_grants.push(RestrictedBuildGrant::from_retained(
+                RestrictedBuildGrantRoot::SourceInventory,
+                true,
+                Some(source.inventory()),
+            ));
         }
         let bounds = RestrictedBuildBounds::from_retained(
             filesystem_sponsor.and_then(|sponsor| sponsor.limits().ok()),

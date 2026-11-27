@@ -147,7 +147,6 @@ fn describe_calls(
     let mut tables = original.clone();
     with_prepared_machine(
         scope.formed(),
-        &elaboration.domains,
         id,
         &mut tables,
         inhabitation,
@@ -174,7 +173,7 @@ fn describe_calls(
 
 #[allow(clippy::too_many_arguments)]
 fn describe_arrivals<'calls>(
-    prepared: PreparedMachine<'_, '_>,
+    mut prepared: PreparedMachine<'_, '_>,
     tables: &mut MachineTables,
     sources: &IdTable<MachineId, MachineSources>,
     calls: impl Iterator<Item = &'calls Arrival>,
@@ -185,6 +184,7 @@ fn describe_arrivals<'calls>(
     unreached: &mut crate::Unreached,
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
+    let beyond = prepared.replay_joins(tables, unreached, activity)?;
     let PreparedMachine {
         module,
         id,
@@ -193,44 +193,8 @@ fn describe_arrivals<'calls>(
         references,
         graph,
         context,
-        types,
-        ranking_bindings,
+        ..
     } = prepared;
-    let declared = joins::prepare(
-        lowered,
-        id,
-        tables,
-        graph,
-        context,
-        &module.proofs.scalar_block_invariants,
-        storage,
-        references,
-        activity,
-    )?;
-
-    let mut decided = (0..tables.obligations.len())
-        .map(|_| None)
-        .collect::<Vec<_>>();
-    let beyond = unreached.values(lowered, tables);
-    joins::check(
-        &joins::Machine {
-            module,
-            lowered,
-            storage,
-            id,
-            types,
-            graph,
-            context,
-            ranking_bindings,
-            declared: &declared,
-            unreached: &beyond,
-            law_instances: &[],
-        },
-        tables,
-        &mut decided,
-        activity,
-        references,
-    )?;
     // Identify what each member's inputs hold at its physical head, before
     // inspecting the outgoing transfers in this copy of the component.
     let mut heads = Vec::new();
@@ -297,36 +261,23 @@ fn describe_arrivals<'calls>(
             point,
             Construct::Edge(edge),
         )?;
-        let mut observations = fields.observations();
         let crossing = target
             .parameters
             .iter()
             .zip(actuals)
             .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
-            .chain(observations.field_crossings())
-            .collect::<Vec<_>>();
-        let mut bindings = InputBindings {
-            actuals,
-            target,
-            denotation: crate::known::TransportInputs::new(known.equations.len()),
-            known: &known,
-            context,
-            fields: observations,
-            equal: None,
-        };
-        let predicate = describe(&known, context, &crossing, &mut bindings);
+            .collect();
         let arrivals = incoming.get_mut(callee).expect("callee was indexed");
-        if let Some(transfers) = transfers.as_deref_mut() {
-            preserve(
-                transfers,
-                graph,
-                &heads,
-                point,
-                callee,
-                arrivals.len(),
-                &mut bindings,
-            )?;
-        }
+        let preserved = transfers
+            .as_deref_mut()
+            .map(|transfers| (transfers, &heads[..], point, callee, arrivals.len()));
+        let predicate = describe_arrival(
+            (&known, context, graph),
+            (target, actuals),
+            crossing,
+            fields.observations(),
+            preserved,
+        )?;
         arrivals.push(predicate);
     }
     for site in calls {
@@ -354,33 +305,17 @@ fn describe_arrivals<'calls>(
             call.site,
             Construct::Invocation(site.invocation),
         )?;
-        // Record fields cross like scalar formals, so a field the caller
-        // overwrote keeps its name beside the field its value was read from.
-        let mut observations = fields.observations();
-        let mut described = crossing.clone();
-        described.extend(observations.field_crossings());
-        let mut bindings = InputBindings {
-            actuals: &actuals,
-            target,
-            denotation: crate::known::TransportInputs::new(known.equations.len()),
-            known: &known,
-            context,
-            fields: observations,
-            equal: None,
-        };
-        let predicate = describe(&known, context, &described, &mut bindings);
         let arrivals = machine_row_mut(incoming, callee, id)?;
-        if let Some(transfers) = transfers.as_deref_mut() {
-            preserve(
-                transfers,
-                graph,
-                &heads,
-                site.before,
-                callee,
-                arrivals.len(),
-                &mut bindings,
-            )?;
-        }
+        let preserved = transfers
+            .as_deref_mut()
+            .map(|transfers| (transfers, &heads[..], site.before, callee, arrivals.len()));
+        let predicate = describe_arrival(
+            (&known, context, graph),
+            (target, &actuals),
+            crossing.clone(),
+            fields.observations(),
+            preserved,
+        )?;
         // What the caller derives of an integer actual without holding it
         // as a fact: the interval of a sum of bounded values, of a call's
         // result, of a cast. The helper's body may need exactly that
@@ -407,6 +342,53 @@ fn describe_arrivals<'calls>(
         arrivals.push(predicate);
     }
     Ok(())
+}
+
+/// Head names a recursive component's transfers keep for one arrival: the
+/// heads, the arrival's point, its callee and its position among the
+/// callee's arrivals.
+type Preserved<'t, 'h> = (
+    &'t mut recursive::Transfers,
+    &'h [(BlockId, MachineId, Vec<(ScalarTerm, ValueId)>)],
+    ProgramPoint,
+    MachineId,
+    usize,
+);
+
+/// What one arrival's caller knows of the callee's inputs: its scalar
+/// formals (`scalars`) and, like them, the record fields that cross, so a
+/// field the caller overwrote keeps its name beside the field its value was
+/// read from. A recursive component also preserves the arrival's names.
+fn describe_arrival<'s, 'a>(
+    (known, context, graph): (&'s crate::known::Known<'s>, &'s PropositionContext, &Graph),
+    (target, actuals): (&'s TerminalMachine, &'s [ValueId]),
+    mut crossing: Vec<(ScalarTerm, ValueId)>,
+    mut fields: crate::places::CallObservations<'s, 'a>,
+    preserved: Option<Preserved<'_, '_>>,
+) -> Checked<Proposition> {
+    crossing.extend(fields.field_crossings());
+    let mut bindings = InputBindings {
+        actuals,
+        target,
+        denotation: crate::known::TransportInputs::new(known.equations.len()),
+        known,
+        context,
+        fields,
+        equal: None,
+    };
+    let predicate = describe(known, context, &crossing, &mut bindings);
+    if let Some((transfers, heads, point, callee, arrival)) = preserved {
+        preserve(
+            transfers,
+            graph,
+            heads,
+            point,
+            callee,
+            arrival,
+            &mut bindings,
+        )?;
+    }
+    Ok(predicate)
 }
 
 fn preserve(
@@ -753,6 +735,15 @@ fn derived(
     beyond: &[ValueId],
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Derived> {
+    let mut found = Derived {
+        bounds: Vec::new(),
+        unreached: Vec::new(),
+    };
+    // Structural actuals already contributed their field observations to the
+    // caller's description. Only scalar actuals can contribute bounds here.
+    if crossing.is_empty() {
+        return Ok(found);
+    }
     let mut assumptions = Vec::new();
     let mut axioms = Vec::new();
     for (_, row) in tables.knowledge.iter() {
@@ -772,10 +763,6 @@ fn derived(
     }
     let mut prover =
         crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values, activity);
-    let mut found = Derived {
-        bounds: Vec::new(),
-        unreached: Vec::new(),
-    };
     for (name, here) in crossing {
         if let ScalarTerm::Value { id: formal, .. } = name
             && prover.value_beyond_rules(*here, beyond)

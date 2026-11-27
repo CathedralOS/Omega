@@ -1,18 +1,17 @@
 //! Read an authored equality over content projections before the terminal domain catalogue is allocated.
 use super::Program;
 use super::contracts::{ClauseScope, ResultTerm};
-use crate::body::{
-    ContentEquation, ProjectedContent, Qualification, StorageShape, ValueType,
-};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::body::{ContentEquation, ProjectedContent, Qualification, StorageShape, ValueType};
+use crate::read::refuse_at;
 use crate::source_state::domain::ProofFact;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use crate::source_state::types::TypeReferenceNode;
+use crate::{SourceOrigin, Unserved};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Step, ContentAlgebra, ContentPlaceSegment,
     ContentPlaceVersion, MachineId, StructuralTypeId,
 };
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 impl Program<'_> {
     pub(super) fn content_equation(
@@ -117,8 +116,7 @@ impl Program<'_> {
         let [subject] = arguments else {
             return Err(unavailable(id, "an owner projection requires one subject"));
         };
-        let (domain, reference, algebra) =
-            self.contract_projection(id, call.target_symbol, expected)?;
+        let (domain, algebra) = self.contract_projection(id, call.target_symbol, expected)?;
         let (version, borrow) = match table.expression(*subject) {
             ExpressionNode::Call(old)
                 if self.builtin_call(old, symbols::BuiltinFunction::ContentOld) =>
@@ -168,7 +166,6 @@ impl Program<'_> {
             id,
             domain,
             actual,
-            reference,
             SourceOrigin::of(table.source_span(expression)),
         )?;
         let base = match scope.result {
@@ -305,5 +302,5 @@ impl Program<'_> {
 }
 
 fn unavailable(id: MachineId, detail: &'static str) -> terminal_check_tables::Refusal {
-    refuse(id, Construct::Machine, Unserved::Contract(detail))
+    refuse_at(id, Unserved::Contract(detail))
 }

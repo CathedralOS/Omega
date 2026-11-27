@@ -98,6 +98,41 @@ pub(crate) fn read(
             program.keep(read).map_err(alone)?;
         }
     }
+    // The laws stated for a machine on fuel, that its fuel suffices and its
+    // recursive equation, cite core's natural-order lemmas, which no call
+    // names, so they are read with the naturals. A program may hold more
+    // than one copy of core's naturals: the lemmas of a copy the program
+    // reads from are read, and only those.
+    let source = |symbol| {
+        typed
+            .symbols
+            .symbol_source_span(symbol)
+            .map(|span| span.source_id)
+    };
+    let used: Vec<_> = program
+        .symbols
+        .iter()
+        .filter_map(|(_, &symbol)| source(symbol))
+        .collect();
+    let mut lemmas = Vec::new();
+    for machine in typed.machines() {
+        if source(machine.symbol).is_some_and(|source| used.contains(&source))
+            && typed
+                .core_vocabulary(machine.symbol)
+                .is_some_and(language_core::core_vocabulary::CoreVocabulary::is_natural_fuel_lemma)
+            && program.proof_machine(machine)
+            && !program
+                .symbols
+                .iter()
+                .any(|(_, read)| *read == machine.symbol)
+        {
+            lemmas.push(machine.symbol);
+        }
+    }
+    for lemma in lemmas {
+        let read = program.machine(lemma).map(|_| ());
+        program.keep(read).map_err(alone)?;
+    }
     let bodies = crate::read_bodies(&mut program, first).map_err(alone)?;
     let refused = program.collected.take().unwrap_or_default();
     if !refused.is_empty() {

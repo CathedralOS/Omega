@@ -83,7 +83,7 @@ fn a_record_is_identical_when_every_field_is() {
 fn a_record_whose_second_field_is_unproved_is_refused_at_that_field() {
     assert_eq!(
         MISSING_Y,
-        FROM_FIELDS.replace("requires\n    core\\Identity::<i32>(a.y, b.y)\n", ""),
+        FROM_FIELDS.replace("requires\n    |proof|::Identity::<i32>(a.y, b.y)\n", ""),
         "the twins differ only in the `y` requirement"
     );
     let verdict = judged(MISSING_Y);
@@ -103,7 +103,7 @@ fn a_record_whose_second_field_is_unproved_is_refused_at_that_field() {
     assert_eq!(
         refused.statement,
         "cannot prove ensures contract for exit from same_point at statement 0: \
-         core\\Identity::<Point>(a, b)"
+         |proof|::Identity::<Point>(a, b)"
     );
     assert_eq!(
         refused.detail,
@@ -136,8 +136,10 @@ fn a_record_field_of_a_record_is_identical_by_its_own_fields() {
     };
     assert_eq!(judgment.citations.len(), 2);
 
-    let without_x =
-        nested(FROM_FIELDS).replace("requires\n    core\\Identity::<Coordinate>(a.x, b.x)\n", "");
+    let without_x = nested(FROM_FIELDS).replace(
+        "requires\n    |proof|::Identity::<Coordinate>(a.x, b.x)\n",
+        "",
+    );
     let RouteVerdict::Rejected { unproved, .. } = judged(&without_x) else {
         panic!("the nested record identity must be refused without `x`")
     };
@@ -155,6 +157,8 @@ fn a_record_field_of_a_record_is_identical_by_its_own_fields() {
 #[test]
 fn a_citation_supplies_a_missing_scalar_or_record_field_identity() {
     let scalar_citation = "
+use {omega}/language/core/foundation.omg as proof;
+
         data Point {
             x: i32;
             y: i32;
@@ -163,13 +167,13 @@ fn a_citation_supplies_a_missing_scalar_or_record_field_identity() {
             machine same_y(a: @Point, b: @Point)
             reaches none
             crashes none
-            requires core\\Identity::<i32>(a.x, b.x)
-            ensures core\\Identity::<i32>(a.y, b.y);
+            requires |proof|::Identity::<i32>(a.x, b.x)
+            ensures |proof|::Identity::<i32>(a.y, b.y);
         }
         machine same_point(a: @Point, b: @Point)
         invokes YProof
-        requires core\\Identity::<i32>(a.x, b.x)
-        ensures core\\Identity::<Point>($a, $b)
+        requires |proof|::Identity::<i32>(a.x, b.x)
+        ensures |proof|::Identity::<Point>($a, $b)
         {
             YProof::same_y(a, b);
         }
@@ -185,6 +189,8 @@ fn a_citation_supplies_a_missing_scalar_or_record_field_identity() {
     ));
 
     let record_citation = "
+use {omega}/language/core/foundation.omg as proof;
+
         data Coordinate {
             value: i32;
         }
@@ -196,13 +202,13 @@ fn a_citation_supplies_a_missing_scalar_or_record_field_identity() {
             machine same_x(a: @Point, b: @Point)
             reaches none
             crashes none
-            requires core\\Identity::<i32>(a.y, b.y)
-            ensures core\\Identity::<Coordinate>(a.x, b.x);
+            requires |proof|::Identity::<i32>(a.y, b.y)
+            ensures |proof|::Identity::<Coordinate>(a.x, b.x);
         }
         machine same_point(a: @Point, b: @Point)
         invokes XProof
-        requires core\\Identity::<i32>(a.y, b.y)
-        ensures core\\Identity::<Point>($a, $b)
+        requires |proof|::Identity::<i32>(a.y, b.y)
+        ensures |proof|::Identity::<Point>($a, $b)
         {
             XProof::same_x(a, b);
         }
@@ -225,34 +231,40 @@ fn records_with_bounded_sum_and_array_fields_prove_when_all_fields_hold_and_name
     let cases = [
         (
             "bounded",
-            "domain u8::Small requires self < 10;
+            "use {omega}/language/core/foundation.omg as proof;
+
+domain u8::Small requires self < 10;
              data Pair { x: i32; y: u8 in Small; }
              machine same(a: Pair, b: Pair)
-             requires core\\Identity::<i32>(a.x, b.x)
+             requires |proof|::Identity::<i32>(a.x, b.x)
              EXTRA
-             ensures core\\Identity::<Pair>(a, b) {}",
+             ensures |proof|::Identity::<Pair>(a, b) {}",
             "requires (a.y as -Small) == (b.y as -Small)",
             "y",
         ),
         (
             "sum",
-            "data Tag { case Left; case Right; }
+            "use {omega}/language/core/foundation.omg as proof;
+
+data Tag { case Left; case Right; }
              data Tagged { x: i32; tag: Tag; }
              machine same(a: Tagged, b: Tagged)
-             requires core\\Identity::<i32>(a.x, b.x)
+             requires |proof|::Identity::<i32>(a.x, b.x)
              EXTRA
-             ensures core\\Identity::<Tagged>(a, b) {}",
-            "requires core\\Identity::<Tag>(a.tag, b.tag)",
+             ensures |proof|::Identity::<Tagged>(a, b) {}",
+            "requires |proof|::Identity::<Tag>(a.tag, b.tag)",
             "tag",
         ),
         (
             "array",
-            "data Bucket { x: i32; items: [u8; 2]; }
+            "use {omega}/language/core/foundation.omg as proof;
+
+data Bucket { x: i32; items: [u8; 2]; }
              machine same(a: Bucket, b: Bucket)
-             requires core\\Identity::<i32>(a.x, b.x)
+             requires |proof|::Identity::<i32>(a.x, b.x)
              EXTRA
-             ensures core\\Identity::<Bucket>(a, b) {}",
-            "requires core\\Identity::<Bucket>(a, b)",
+             ensures |proof|::Identity::<Bucket>(a, b) {}",
+            "requires |proof|::Identity::<Bucket>(a, b)",
             "items",
         ),
     ];
@@ -393,17 +405,16 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
         let formed = crate::formation::FormedModule::new(
             &elaboration.module,
             &elaboration.nominal_calls,
+            &elaboration.static_schemas,
             &elaboration.domain_sources,
         );
-        let prepared_machine =
-            crate::prepare(formed, &elaboration.domains, machine_id, tables).unwrap();
+        let prepared_machine = crate::prepare(formed, machine_id, tables).unwrap();
         let mut references =
             prepared_machine.references(&elaboration.module.types.structural_types);
         let storage = crate::places::Storage::new(
             machine_id,
             lowered,
             &elaboration.module,
-            &elaboration.domains,
             &prepared_machine.graph,
             tables,
             &prepared_machine.types,
@@ -434,10 +445,12 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
             lowered,
             tables,
             &prepared_machine.graph,
+            &storage,
             row.created_at,
             obligation,
             &goal,
             &[],
+            None,
             &mut storage.at_entry(&mut references, tables),
         ) else {
             panic!("{kind}: missing opaque field identity must be refused");
@@ -457,11 +470,13 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
 fn equal_addresses_stale_observation_and_user_comparison_do_not_prove_record_identity() {
     // 1. Equal addresses do not substitute for a missing field identity.
     let equal_addresses = "
+use {omega}/language/core/foundation.omg as proof;
+
         data Point { x: i32; y: i32; }
         machine same_point(a: Point, b: Point, addr_a: address, addr_b: address)
-        requires core\\Identity::<i32>(a.x, b.x)
+        requires |proof|::Identity::<i32>(a.x, b.x)
         requires addr_a == addr_b
-        ensures core\\Identity::<Point>(a, b)
+        ensures |proof|::Identity::<Point>(a, b)
         {}
     ";
     let RouteVerdict::Rejected { unproved, .. } = judged(equal_addresses) else {
@@ -479,11 +494,13 @@ fn equal_addresses_stale_observation_and_user_comparison_do_not_prove_record_ide
     // 2. A stale observation (mutating `a.y` after entry) does not prove
     //    record identity at exit.
     let stale_observation = "
+use {omega}/language/core/foundation.omg as proof;
+
         data Point { x: i32; y: i32; }
         machine mutate_y(a: @mutable Point, b: @Point)
-        requires core\\Identity::<i32>(a.x, b.x)
-        requires core\\Identity::<i32>(a.y, b.y)
-        ensures core\\Identity::<Point>($a, $b)
+        requires |proof|::Identity::<i32>(a.x, b.x)
+        requires |proof|::Identity::<i32>(a.y, b.y)
+        ensures |proof|::Identity::<Point>($a, $b)
         {
             a.y = a.y +% 1;
         }
@@ -504,6 +521,8 @@ fn equal_addresses_stale_observation_and_user_comparison_do_not_prove_record_ide
     // 3. A true user-defined comparison does not substitute for a missing
     //    field identity without an identity bridge.
     let user_comparison = "
+use {omega}/language/core/foundation.omg as proof;
+
         data Point { x: i32; y: i32; }
         boundary trait UserCompare {
             machine eq(left: i32, right: i32) -> bool
@@ -513,8 +532,8 @@ fn equal_addresses_stale_observation_and_user_comparison_do_not_prove_record_ide
         }
         machine same_point(a: Point, b: Point)
         invokes UserCompare
-        requires core\\Identity::<i32>(a.x, b.x)
-        ensures core\\Identity::<Point>(a, b)
+        requires |proof|::Identity::<i32>(a.x, b.x)
+        ensures |proof|::Identity::<Point>(a, b)
         {
             let _: bool = UserCompare::eq(a.y, b.y);
         }
@@ -529,5 +548,98 @@ fn equal_addresses_stale_observation_and_user_comparison_do_not_prove_record_ide
         refused.detail,
         "no available equality proves the stated Identity: \
          nothing proves the identity of field `y`"
+    );
+}
+
+#[test]
+fn structural_result_identity_postconditions_and_twins() {
+    // Direct return of `outer.inner`, caller restatement through `pick(outer)`,
+    // and passing the unmodified call result to a helper whose `requires`
+    // states `Identity::<Inner>(got, outer.inner)` all prove.
+    let positive = "
+use {omega}/language/core/foundation.omg as proof;
+
+        data Inner [copy] { value: i32; }
+        data Outer [copy] { inner: Inner; other: Inner; }
+
+        machine pick(outer: Outer) -> Inner
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            outer.inner
+        }
+
+        machine check_same(got: Inner, outer: Outer) -> Inner
+        requires |proof|::Identity::<Inner>(got, outer.inner)
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            got
+        }
+
+        machine direct_restatement(outer: Outer) -> Inner
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            let got: Inner = pick(outer);
+            got
+        }
+
+        machine forward(outer: Outer) -> Inner
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            let got: Inner = pick(outer);
+            check_same(got, outer)
+        }
+    ";
+    let verdict = judged(positive);
+    assert!(
+        matches!(verdict, RouteVerdict::Accepted(_)),
+        "expected structural result Identity postconditions to prove: {verdict:?}"
+    );
+
+    // Negative twin 1: mutating the local call result invalidates the imported
+    // Identity guarantee from `pick(outer)`.
+    let mutated_after_call = "
+use {omega}/language/core/foundation.omg as proof;
+
+        data Inner [copy] { value: i32; }
+        data Outer [copy] { inner: Inner; other: Inner; }
+
+        machine pick(outer: Outer) -> Inner
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            outer.inner
+        }
+
+        machine forward(outer: Outer) -> Inner
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            let mutable got: Inner = pick(outer);
+            got.value = got.value +% 1;
+            got
+        }
+    ";
+    let verdict = judged(mutated_after_call);
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { .. }),
+        "mutating a call result must invalidate its Identity guarantee: {verdict:?}"
+    );
+
+    // Negative twin 2: returning a different field does not prove
+    // `Identity::<Inner>(result, outer.inner)`.
+    let wrong_field = "
+use {omega}/language/core/foundation.omg as proof;
+
+        data Inner [copy] { value: i32; }
+        data Outer [copy] { inner: Inner; other: Inner; }
+
+        machine pick(outer: Outer) -> Inner
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            outer.other
+        }
+    ";
+    let verdict = judged(wrong_field);
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { .. }),
+        "returning another field must be refused: {verdict:?}"
     );
 }

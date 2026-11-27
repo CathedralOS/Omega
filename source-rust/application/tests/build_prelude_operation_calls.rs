@@ -1,20 +1,12 @@
 //! Build prelude operations resolve to the compiler-owned machines. The selected
 //! program must satisfy the exclusions its Build actually runs.
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 fn execute(name: &str, build: &str, program: &str, args: &[&str]) -> (bool, String) {
-    let project = platform_custody::temporary_directory::TemporaryDirectory::create(name, false)
-        .expect("staging directory");
-    let root = project.path();
-    std::fs::write(root.join("main.omg"), program).expect("staged program");
-    std::fs::write(root.join("build.omg"), build).expect("staged Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(args)
-        .current_dir(root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
+    let scratch = project::stage(name, &[("main.omg", program), ("build.omg", build)]);
+    let output = project::omega(scratch.path(), args);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -44,12 +36,12 @@ fn an_executed_exclusion_checks_the_selected_callee() {
         return;
     };
     let build = r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "excluding");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "excluding" };
     Build::bind(builder, HOST::ProgramEntry, |app|::main);
     exclude(builder, CrashCause::Trap);
 }
-machine exclude(builder: @mutable Build, cause: CrashCause) {
+machine exclude(builder: @mutable BuildPlan, cause: CrashCause) {
     Build::exclude_crash(builder, cause);
 }
 "#
@@ -59,27 +51,28 @@ machine main() crashes Trap { selected(); }
 machine selected() crashes Trap { BEHAVIOR }
 "#;
     for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-    let (passed, report) = execute(
-        "excluded-clean",
-        &build,
-        &program.replace("BEHAVIOR", ""),
-        &["run", "--engine", engine, "build.omg"],
-    );
+        let (passed, report) = execute(
+            "excluded-clean",
+            &build,
+            &program.replace("BEHAVIOR", ""),
+            &["run", "--engine", engine, "build.omg"],
+        );
         assert!(
-        passed && report.lines().any(|line| line == expected),
-        "{report}"
-    );
+            passed && report.lines().any(|line| line == expected),
+            "{report}"
+        );
 
-    let (passed, report) = execute(
-        "excluded-trap",
-        &build,
-        &program.replace("BEHAVIOR", "crash Trap;"),
-        &["run", "--engine", engine, "build.omg"],
-    );
-    assert!(
-        !passed && report.contains("behavior exclusion violated: crash cause Trap is reachable"),
-        "{report}"
-    );
+        let (passed, report) = execute(
+            "excluded-trap",
+            &build,
+            &program.replace("BEHAVIOR", "crash Trap;"),
+            &["run", "--engine", engine, "build.omg"],
+        );
+        assert!(
+            !passed
+                && report.contains("behavior exclusion violated: crash cause Trap is reachable"),
+            "{report}"
+        );
     }
 }
 
@@ -89,8 +82,8 @@ fn a_direct_build_exclusion_checks_an_evaluated_physical_class() {
         return;
     };
     let build = r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "excluding");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "excluding" };
     Build::bind(builder, HOST::ProgramEntry, |app|::main);
     let authority: PhysicalAuthorityClass = PhysicalAuthorityClass::ProcessOutput;
     Build::exclude_physical_authority(builder, authority);
@@ -98,16 +91,16 @@ machine build(builder: @mutable Build) {
 "#
     .replace("HOST", host.target_name());
     for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-    let (passed, report) = execute(
-        "excluded-output",
-        &build,
-        "machine main() {}",
-        &["run", "--engine", engine, "build.omg"],
-    );
+        let (passed, report) = execute(
+            "excluded-output",
+            &build,
+            "machine main() {}",
+            &["run", "--engine", engine, "build.omg"],
+        );
         assert!(
-        passed && report.lines().any(|line| line == expected),
-        "{report}"
-    );
+            passed && report.lines().any(|line| line == expected),
+            "{report}"
+        );
     }
 }
 
@@ -117,8 +110,8 @@ machine build(builder: @mutable Build) {
 fn darwin_poll_exclusions_check_each_invocation() {
     let build = r#"use {omega}/language/core/external_binding.omg as native;
 use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "poll_counts");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "poll_counts" };
     Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
     Build::bind_native::<|app|::Wait::poll>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::MachODylibSymbol {
@@ -176,8 +169,8 @@ fn a_build_without_exclusions_is_not_refused_for_one() {
     let (_, stderr) = execute(
         "no-exclusion",
         "use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"plain\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"plain\" };
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
 ",
@@ -196,11 +189,11 @@ machine build(builder: @mutable Build) {
 fn a_build_that_queries_a_product_entry_is_not_refused_for_its_selection() {
     let (_, stderr) = execute(
         "query-entry",
-        "machine build(builder: @mutable Build) {
-    Build::application(builder, \"querying\");
+        "machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"querying\" };
     Build::bind(builder, linux_x86_64::ProgramEntry, entry(builder, \"linux_x86_64::ProgramEntry\"));
 }
-machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
+machine entry(builder: @mutable BuildPlan, slot: @[u8]) -> ProductEntryRef {
     BuildDeclarations::entry(@builder.declarations, \"main\", slot)
 }
 ",

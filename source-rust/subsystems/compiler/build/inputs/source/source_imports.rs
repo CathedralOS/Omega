@@ -37,21 +37,15 @@ pub(crate) use generated::GeneratedFiles;
 pub(crate) use import_queue::ImportQueue;
 pub(crate) use logical::{LogicalSourceDiscovery, retained_unit};
 
-pub(crate) use package_selection::{
-    ReconciledPackageImport, ReconciledPackageImportRequest, reconciled_package_import,
-    source_import_scope,
-};
+pub(crate) use package_selection::{ReconciledPackageImportRequest, source_import_scope};
 use paths::bundled_build_root;
 pub use paths::bundled_core_root;
 pub(crate) use paths::bundled_omega_root;
 
 use crate::PackageCompilationInputs;
-use bindings::ImportOccurrence;
 use diagnostics::Diagnostic;
 use files::{FileImport, FileSelection};
-use paths::{identifier_path_text, is_bundled_omega_path};
 use source_compiler::ParsedSourceBatch;
-use source_compiler::SourceImportTarget;
 use source_provenance::DependencyScope;
 use std::path::PathBuf;
 
@@ -71,7 +65,6 @@ pub(crate) fn discover_imports(
     let default_root = storage.default_package_root.as_path();
     let contracts = &storage.installed_roots;
     let filesystem = &storage.filesystem;
-    let discovery = &mut storage.package_roots;
     let retained = &mut storage.resolved_imports;
     let core = bundled_core_root()?;
     let mut imports = Vec::new();
@@ -82,47 +75,17 @@ pub(crate) fn discover_imports(
             default_root
         };
         for import in &unit.imports {
-            if let Some(file) = FileImport::from(unit, import)? {
-                let root = contracts.root_for(&unit.path).unwrap_or(source_root);
-                match file.standalone(Some(root), None, filesystem)? {
-                    FileSelection::Selected(resolved) => {
-                        imports.push((resolved.path.clone(), unit.scope));
-                        retained.push(resolved);
-                    }
-                    FileSelection::Unbound => {}
-                    FileSelection::Package(_) => unreachable!("a standalone input has no mounted graph"),
+            let file = FileImport::from(unit, import);
+            let root = contracts.root_for(&unit.path).unwrap_or(source_root);
+            match file.standalone(Some(root), None, filesystem)? {
+                FileSelection::Selected(resolved) => {
+                    imports.push((resolved.path.clone(), unit.scope));
+                    retained.push(resolved);
                 }
-                continue;
-            }
-            let SourceImportTarget::Namespace(members) = &import.target else { unreachable!() };
-            let (root, prefix) = if paths::is_bundled_core_path(members) {
-                (core.as_path(), 3)
-            } else if is_bundled_omega_path(members) {
-                return Err(vec![Diagnostic::error(
-                    "ordinary library imports require a declared dependency",
-                )]);
-            } else if let Some(root) = contracts.root_for(&unit.path) {
-                (root, paths::contract_package_prefix(root, &members[0])?)
-            } else {
-                (source_root, 0)
-            };
-            let logical = members[prefix..]
-                .iter()
-                .map(|name| name.as_str().to_owned())
-                .collect::<Vec<_>>();
-            let selected = discovery.select(root, &logical, filesystem)?;
-            if selected.is_empty() {
-                return Err(vec![Diagnostic::error(format!(
-                    "import `{}` selects no logical source namespace",
-                    identifier_path_text(members)
-                ))]);
-            }
-            for path in selected {
-                retained.push(ResolvedSourceImport {
-                    occurrence: ImportOccurrence::new(unit.source_id, import, members, prefix),
-                    path: path.clone(),
-                });
-                imports.push((path, unit.scope));
+                FileSelection::Unbound => {}
+                FileSelection::Package(_) => {
+                    unreachable!("a standalone input has no mounted graph")
+                }
             }
         }
     }
@@ -138,7 +101,6 @@ pub(crate) fn discover_package_imports(
     storage.capture_imported_build_library(parsed)?;
     let retained = &mut storage.resolved_imports;
     let contract_custody = &storage.installed_roots;
-    let discovery = &mut storage.package_roots;
     let filesystem = &storage.filesystem;
     let mut imports = Vec::new();
     let mut requests = Vec::new();
@@ -147,63 +109,22 @@ pub(crate) fn discover_package_imports(
         let purpose = source_import_scope(packages, parsed_source.scope, &parsed_source.path);
         let contract_root = contract_custody.root_for(&parsed_source.path);
         for import in &parsed_source.imports {
-            if let Some(file) = FileImport::from(parsed_source, import)? {
-                match file.reconciled(packages, requester, purpose, contract_root, filesystem)? {
-                    FileSelection::Selected(resolved) => {
-                        imports.push((resolved.path.clone(), parsed_source.scope));
-                        retained.push(resolved);
-                    }
-                    FileSelection::Package(pending) => collect_package_import(pending, phase, packages, discovery, &storage.sources, &mut imports, retained, &mut requests)?,
-                    FileSelection::Unbound => {}
+            let file = FileImport::from(parsed_source, import);
+            match file.reconciled(packages, requester, purpose, contract_root, filesystem)? {
+                FileSelection::Selected(resolved) => {
+                    imports.push((resolved.path.clone(), parsed_source.scope));
+                    retained.push(resolved);
                 }
-                continue;
-            }
-            let SourceImportTarget::Namespace(members) = &import.target else { unreachable!() };
-            match reconciled_package_import(
-                &parsed_source.path,
-                members,
-                requester,
-                purpose,
-                contract_root,
-                packages,
-            )? {
-                ReconciledPackageImport::Toolchain { root, logical_path }
-                | ReconciledPackageImport::ToolchainContract { root, logical_path } => {
-                    let prefix = members.len() - logical_path.len();
-                    let selected = discovery.select(&root, &logical_path, filesystem)?;
-                    if selected.is_empty() {
-                        return Err(vec![Diagnostic::error(format!(
-                            "import `{}` selects no logical toolchain namespace",
-                            identifier_path_text(members)
-                        ))]);
-                    }
-                    for path in selected {
-                        retained.push(ResolvedSourceImport {
-                            occurrence: ImportOccurrence::new(
-                                parsed_source.source_id,
-                                import,
-                                members,
-                                prefix,
-                            ),
-                            path: path.clone(),
-                        });
-                        imports.push((path, parsed_source.scope));
-                    }
-                }
-                ReconciledPackageImport::Package(request) => {
-                    let prefix = members.len() - request.relative_path.components().count();
-                    let pending = PendingPackageImport {
-                        occurrence: ImportOccurrence::new(
-                            parsed_source.source_id,
-                            import,
-                            members,
-                            prefix,
-                        ),
-                        scope: parsed_source.scope,
-                        request,
-                    };
-                    collect_package_import(pending, phase, packages, discovery, &storage.sources, &mut imports, retained, &mut requests)?;
-                }
+                FileSelection::Package(pending) => collect_package_import(
+                    pending,
+                    phase,
+                    packages,
+                    &storage.sources,
+                    &mut imports,
+                    retained,
+                    &mut requests,
+                )?,
+                FileSelection::Unbound => {}
             }
         }
     }
@@ -214,7 +135,6 @@ fn collect_package_import(
     pending: PendingPackageImport,
     phase: PackageImportPhase,
     packages: &PackageCompilationInputs,
-    discovery: &mut impl LogicalSourceDiscovery,
     sources: &source_compiler::representations::source_inputs::SourceMap,
     imports: &mut Vec<(PathBuf, DependencyScope)>,
     retained: &mut Vec<ResolvedSourceImport>,
@@ -223,13 +143,13 @@ fn collect_package_import(
     let scope = pending.scope;
     match phase {
         PackageImportPhase::CapturedPrefix => {
-            for physical in pending.physical_sources(packages, discovery)? {
+            for physical in pending.physical_sources(packages)? {
                 imports.push((physical, scope));
             }
             requests.push(pending);
         }
         PackageImportPhase::FrozenView => {
-            for resolved in pending.resolve_for_exact_target(packages, discovery, sources)? {
+            for resolved in pending.resolve_for_exact_target(packages, sources)? {
                 imports.push((resolved.path.clone(), scope));
                 retained.push(resolved);
             }

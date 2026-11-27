@@ -1,30 +1,28 @@
 //! A registered adapter supplies each test's mutable argument and checks the value it hands back.
 
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Output, Stdio};
+#[path = "support/project.rs"]
+mod project;
+
+use std::process::Output;
 
 const BUILD: &str = include_str!("fixtures/build/run/registered_test_adapter/build.omg");
 const PRODUCT: &str = include_str!("fixtures/build/run/registered_test_adapter/main.omg");
 const CALL: &str = "    Test(@mutable fixture);";
 
 fn compare(build: &str, product: &str, target: &str) -> (bool, String) {
-    let package = TemporaryDirectory::create("omega-registered-test-adapter", false).unwrap();
-    std::fs::write(package.path().join("main.omg"), product).unwrap();
-    std::fs::write(
-        package.path().join("build.omg"),
-        build.replace("linux_x86_64", target),
-    )
-    .unwrap();
+    let build = build.replace("linux_x86_64", target);
+    let package = project::stage(
+        "omega-registered-test-adapter",
+        &[("main.omg", product), ("build.omg", &build)],
+    );
     let Output {
         status,
         stdout,
         stderr,
-    } = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["build", "--compare-tests", "--target", target, "build.omg"])
-        .current_dir(package.path())
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
+    } = project::omega(
+        package.path(),
+        &["build", "--compare-tests", "--target", target, "build.omg"],
+    );
     (
         status.success(),
         format!(

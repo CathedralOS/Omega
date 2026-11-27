@@ -1,8 +1,8 @@
 use main.omg as app;
 use {omega}/language/core/external_binding.omg as binding;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "root_grants");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "root_grants" };
     Build::accept_boundary::<|app|::Selected>(builder);
     Build::accept_boundary::<|app|::NativeAllocation::allocate>(builder);
     Build::select_provider::<|app|::Service, |app|::Selected>(builder, windows_x86_64);

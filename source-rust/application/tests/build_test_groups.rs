@@ -16,7 +16,8 @@ group and service match its arguments.
 
 */
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 const TESTS: &str = "trait Tests {
     machine arithmetic()
@@ -78,8 +79,8 @@ fn build_with(
 ) -> (bool, String) {
     let source = format!(
         "use main.omg as app;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, \"{name}\");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: \"{name}\" }};
     Build::bind(builder, {target}::ProgramEntry, |app|::main);
 {registration}
 }}"
@@ -88,26 +89,16 @@ machine build(builder: @mutable Build) {{
 }
 
 fn build_project(source: &str, expected_sum: &str, target: &str, flags: &[&str]) -> (bool, String) {
-    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+    let program = TESTS.replace("EXPECTED", expected_sum);
+    let scratch = project::stage(
         "build-test-group",
-        false,
-    )
-    .expect("private staging directory");
+        &[("main.omg", &program), ("build.omg", source)],
+    );
     let root = scratch.path();
-    std::fs::write(
-        root.join("main.omg"),
-        TESTS.replace("EXPECTED", expected_sum),
-    )
-    .expect("staged program");
-    std::fs::write(root.join("build.omg"), source).expect("staged Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("build")
-        .args(flags)
-        .args(["--target", target, "build.omg"])
-        .current_dir(root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
+    let mut arguments = vec!["build"];
+    arguments.extend(flags);
+    arguments.extend(["--target", target, "build.omg"]);
+    let output = project::omega(root, &arguments);
     if flags.contains(&"--report-file") {
         let report = std::fs::read_to_string(root.join("report.txt")).expect("build report");
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -255,19 +246,15 @@ fn a_build_with_no_groups_has_zero_comparisons() {
 
 #[test]
 fn an_artifact_only_build_runs_its_groups_before_publishing_files() {
-    use platform_custody::temporary_directory::TemporaryDirectory;
     const BUILD: &str = include_str!("fixtures/build/run/artifact_only_group/build.omg");
     for (sum, should_publish) in [("5u32", true), ("6u32", false)] {
-        let scratch = TemporaryDirectory::create("artifact-group", false).unwrap();
+        let program = TESTS.replace("EXPECTED", sum);
+        let scratch = project::stage(
+            "artifact-group",
+            &[("build.omg", BUILD), ("main.omg", &program)],
+        );
         let root = scratch.path();
-        std::fs::write(root.join("build.omg"), BUILD).unwrap();
-        std::fs::write(root.join("main.omg"), TESTS.replace("EXPECTED", sum)).unwrap();
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["build", "--target", "linux_arm64", "build.omg"])
-            .current_dir(root)
-            .stdin(std::process::Stdio::null())
-            .output()
-            .unwrap();
+        let output = project::omega(root, &["build", "--target", "linux_arm64", "build.omg"]);
         let report = String::from_utf8_lossy(&output.stderr);
         assert_eq!(output.status.success(), should_publish, "{report}");
         let completed = root.join("build/completed");
@@ -294,38 +281,30 @@ fn an_artifact_only_build_runs_its_groups_before_publishing_files() {
 }
 
 fn rejected_roster(source: &str, requirement: &str) -> [String; 2] {
-    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "test-entry-location",
-        false,
-    )
-    .unwrap();
-    let root = scratch.path();
-    std::fs::write(root.join("main.omg"), source).unwrap();
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            r#"use main.omg as app;
-machine build(builder: @mutable Build) {{
-        Build::application(builder, "rejected_roster");
+    let build = format!(
+        r#"use main.omg as app;
+machine build(builder: @mutable BuildPlan) {{
+        builder.product = BuildProduct::Application {{ name: "rejected_roster" }};
         Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
         _ = builder.tests.group::<|app|::{requirement}>();
     }}"#
-        ),
-    )
-    .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args([
+    );
+    let scratch = project::stage(
+        "test-entry-location",
+        &[("main.omg", source), ("build.omg", &build)],
+    );
+    let root = scratch.path();
+    let output = project::omega(
+        root,
+        &[
             "build",
             "--target",
             "linux_arm64",
             "--report-file",
             "report.txt",
             "build.omg",
-        ])
-        .current_dir(root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .unwrap();
+        ],
+    );
     assert!(!output.status.success());
     let report = std::fs::read_to_string(root.join("report.txt")).unwrap();
     [String::from_utf8(output.stderr).unwrap(), report]
@@ -558,16 +537,11 @@ fn failing_registered_fixture(name: &str, host: target::TargetProfile, options: 
         .join("tests/fixtures/build/run")
         .join(name)
         .join("build.omg");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("build")
-        .args(options)
-        .args(["--target", host.target_name(), "--build-dir"])
-        .arg(scratch.path())
-        .arg(&fixture)
-        .current_dir(scratch.path())
-        .stdin(std::process::Stdio::null())
-        .output()
-        .unwrap();
+    let mut arguments = vec!["build"];
+    arguments.extend(options);
+    arguments.extend(["--target", host.target_name(), "--build-dir"]);
+    arguments.extend([scratch.path().to_str().unwrap(), fixture.to_str().unwrap()]);
+    let output = project::omega(scratch.path(), &arguments);
     let report = String::from_utf8_lossy(&output.stderr).into_owned();
     assert!(!output.status.success(), "{report}");
     for artifact in ["omega-program", "omega-program.exe"] {
@@ -615,7 +589,7 @@ fn a_package_build_runs_registered_tests_without_an_application_entry() {
     };
     let target = host.target_name();
     let package = format!(
-        "use main.omg as app;\nmachine build(builder: @mutable Build) {{ Build::package(builder, \"library\"); {GROUP} }}"
+        "use main.omg as app;\nmachine build(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Package {{ name: \"library\" }}; {GROUP} }}"
     );
     let (ok, report) = build_project(
         &package,
@@ -633,7 +607,7 @@ fn a_package_build_runs_registered_tests_without_an_application_entry() {
 
     let bound_package = format!(
         "use main.omg as app;
-machine build(builder: @mutable Build) {{ Build::package(builder, \"library\");
+machine build(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Package {{ name: \"library\" }};
          Build::bind(builder, {target}::ProgramEntry, |app|::main); }}"
     );
     let (ok, report) = build_project(&bound_package, "5u32", target, &[]);

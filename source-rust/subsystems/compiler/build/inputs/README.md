@@ -99,7 +99,7 @@ the selected Build identity, validated execution accounting, exact observation,
 and target. It owns their canonical byte order; compiler reports bind the
 result to an artifact under their versioned manifest domain. No artifact
 producer or compiler report type enters this package.
-[Provider acceptance](../providers/acceptance/acceptance.rs) holds accepted nominal
+[Provider acceptance](../providers/acceptance.rs) holds accepted nominal
 identities for receiving-policy services.
 
 [Build execution](build_execution.rs) prepares immutable input roots, records

@@ -13,4 +13,4 @@ This directory holds implementations and samples kept for reference or piecemeal
 
 ## Tests and developer tools
 
-The [test archive](tests/) and [tool archive](tools/) mirror their former repository paths. Restore a fixture with its local Build inputs when an active test needs it. Restore a tool with its entry point and verify the command from its documented working directory. The [development guides](../wiki/development/) cover the current workflow. GitHub Pages serves the archived Atlas HTML and assets at their existing URLs.
+The [test archive](tests/) and [tool archive](tools/) mirror their former repository paths. Restore a fixture with its local Build inputs when an active test needs it. Restore a tool with its entry point and verify the command from its documented working directory. The [development guides](../wiki/development/) cover the current workflow.

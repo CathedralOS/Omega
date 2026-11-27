@@ -7,7 +7,7 @@
 
 use application_identity::callback_declarations::CallbackRegistrationDeclaration;
 use diagnostics::Diagnostic;
-use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use build_providers::plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 
 pub struct SelectedCallbackRow<'plan> {
     pub plan: &'plan ProviderPlan,
@@ -16,13 +16,13 @@ pub struct SelectedCallbackRow<'plan> {
 }
 
 pub struct CallbackProviderDeclarations<'plan> {
-    selected: Option<selected_provider_plans::SelectedProviderPlanFacts>,
+    selected: Option<build_providers::selections::SelectedProviderPlanFacts>,
     checked_adapters: Vec<SelectedCallbackRow<'plan>>,
 }
 
 impl<'plan> CallbackProviderDeclarations<'plan> {
     pub fn prepare(
-        selected: &'plan selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &'plan build_providers::selections::SelectedProviderPlanFacts,
         declarations: &terminal_psi::CallbackDeclarationRoster,
         module: &terminal_psi::TerminalModule,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -59,7 +59,7 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
     }
 
     pub fn prepared(
-        selected: selected_provider_plans::SelectedProviderPlanFacts,
+        selected: build_providers::selections::SelectedProviderPlanFacts,
         checked_adapters: Vec<SelectedCallbackRow<'plan>>,
     ) -> Self {
         Self {

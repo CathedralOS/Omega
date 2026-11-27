@@ -2103,6 +2103,14 @@ pub(crate) fn close_typed_cohort(
             .prepare_applied_callable_signatures()
             .map_err(|message| Diagnostic::error(message.to_owned()))?;
     }
+    // Infer unannotated constants whose initializer type is already known
+    // (calls, chained constants, typed operands, literals) before const
+    // argument carriers, constructors and qualification casts read them.
+    crate::declarations::constant_initializers::infer_unannotated_types_in_cohort(
+        &mut lowerer.typed_trees,
+        cohort,
+        false,
+    )?;
     let mut owners: Option<crate::expressions::operand_owners::CohortOperandOwners> = None;
     crate::types::type_reference::normalize_const_argument_carriers_in_cohort(
         lowerer.source_trees,
@@ -2150,6 +2158,14 @@ pub(crate) fn close_typed_cohort(
         owners_ref,
         &cast_destinations,
     )?;
+    // Finish any remaining unannotated constants whose initializer type was
+    // established by constructor or domain-cast preparation, and refuse any
+    // constant whose initializer still has no determined type.
+    crate::declarations::constant_initializers::infer_unannotated_types_in_cohort(
+        &mut lowerer.typed_trees,
+        cohort,
+        true,
+    )?;
     // A projected assignment can acquire its receiving type only after a
     // domain cast on its reference has settled. Keep the ordinary landing
     // pass here as well; already prepared constructors retain their identity.
@@ -2194,7 +2210,7 @@ pub(crate) fn close_typed_cohort(
         bound_types,
     )?);
     crate::expressions::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)?;
-    crate::declarations::constructor_applications::retain_indexed_operand_types_in_cohort(
+    crate::declarations::constructor_applications::retain_projection_types_in_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         owners_ref,
@@ -2401,10 +2417,13 @@ impl Lowerer<'_> {
         &mut self,
         declaration: &crate::source_resolved::constant::ConstDeclaration,
     ) -> Result<(), Diagnostic> {
-        let declared_type = self.with_type_reference_exposure(
-            declaration_exposure(declaration.is_public),
-            |lowerer| lower_type_reference_into_table(lowerer, &declaration.declared_type),
-        )?;
+        let declared_type = match &declaration.declared_type {
+            Some(declared_type) => self.with_type_reference_exposure(
+                declaration_exposure(declaration.is_public),
+                |lowerer| lower_type_reference_into_table(lowerer, declared_type),
+            )?,
+            None => crate::source_state::types::TypeReferenceHandle::invalid(),
+        };
         self.typed_trees
             .push_const_declaration(crate::source_state::constant::ConstDeclaration {
                 symbol: declaration.symbol,

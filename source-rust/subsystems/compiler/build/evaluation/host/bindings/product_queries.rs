@@ -11,7 +11,7 @@ activation.
 */
 
 use super::{BindingState, TerminalBuildBindingHost, lock_state};
-use evaluation_accounting::EvaluationStorageLease;
+use build_model::accounting::EvaluationStorageLease;
 use source_compiler::representations::declaration_selection::DescribedProductEntry;
 use source_compiler::representations::declaration_selection::DescribedProductProvider;
 use source_compiler::representations::declaration_selection::DescribedProductSchema;

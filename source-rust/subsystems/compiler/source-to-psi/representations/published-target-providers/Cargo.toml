@@ -8,8 +8,8 @@ version.workspace = true
 path = "publication.rs"
 
 [dependencies]
+build-model = { path = "../../../build/model" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-evaluation-receipts = { path = "../../../build/evaluation/receipts" }
 psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-codec = { path = "../../../psi/artifact/codec" }

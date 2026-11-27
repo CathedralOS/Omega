@@ -225,7 +225,7 @@ fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
     assert!(matches!(
         receipt.outcome(),
         PureTerminalEvaluationOutcome::Materialized {
-            value: build_time_values::BuildTimeValue::Int(17),
+            value: build_model::values::BuildTimeValue::Int(17),
             ..
         }
     ));
@@ -505,7 +505,7 @@ fn a_supplied_requirement_only_evaluates_its_provider_member() {
             assert!(matches!(
                 receipt.outcome(),
                 PureTerminalEvaluationOutcome::Materialized {
-                    value: build_time_values::BuildTimeValue::Int(17),
+                    value: build_model::values::BuildTimeValue::Int(17),
                     ..
                 }
             ));
@@ -565,7 +565,7 @@ fn an_externally_declared_provider_member_requests_its_parameter_layout() {
 #[test]
 fn failed_invocations_and_observation_decoding_retain_the_actual_charge() {
     use crate::compile_time_invocations::{InvocationTarget, PreparedBuildMachineProgram};
-    use build_time_values::BuildTimeValue;
+    use build_model::values::BuildTimeValue;
 
     let source = typed_source(
         "machine compute(flag: bool) -> u32 crashes none { 17 }
@@ -655,7 +655,7 @@ fn failed_invocations_and_observation_decoding_retain_the_actual_charge() {
 #[test]
 fn completed_invocations_release_the_generated_caller_and_program() {
     use crate::compile_time_invocations::{InvocationTarget, PreparedBuildMachineProgram};
-    use build_time_values::BuildTimeValue;
+    use build_model::values::BuildTimeValue;
 
     let typed = typed_source("machine compute(value: u32) -> u32 crashes none { value }");
     let symbol = typed.realized_machine_named("compute").unwrap().symbol;
@@ -720,7 +720,7 @@ fn evaluations(typed: &TypedTrees, accounting: &SourceCompletionAccounting) -> V
                 panic!("a source invocation")
             };
             let PureTerminalEvaluationOutcome::Materialized {
-                value: build_time_values::BuildTimeValue::Int(value),
+                value: build_model::values::BuildTimeValue::Int(value),
                 ..
             } = receipt.outcome()
             else {
@@ -964,7 +964,7 @@ fn guarded_crash_route_constant_initializers_admit_only_impossible_routes() {
                     matches!(
                         receipt.outcome(),
                         PureTerminalEvaluationOutcome::Materialized {
-                            value: build_time_values::BuildTimeValue::Int(actual),
+                            value: build_model::values::BuildTimeValue::Int(actual),
                             ..
                         } if *actual == value
                     ),

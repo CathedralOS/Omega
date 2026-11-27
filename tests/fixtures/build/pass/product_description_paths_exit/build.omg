@@ -1,4 +1,5 @@
 use main.omg as app;
+use payload/payload.omg;
 data OrdinaryPath {}
 data Visits { value: u64 in Wrapping; }
 machine path(value: @OrdinaryPath, visits: @mutable Visits) -> u64 {
@@ -6,10 +7,10 @@ machine path(value: @OrdinaryPath, visits: @mutable Visits) -> u64 {
     7
 }
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "product_description_paths_exit");
-    let schema: ProductTypeSchema = BuildDeclarations::schema(@builder.declarations, "payload::Packet");
-    let provider: ProductProviderRef = BuildDeclarations::provider(@builder.declarations, "payload::Provider");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "product_description_paths_exit" };
+    let schema: ProductTypeSchema = BuildDeclarations::schema(@builder.declarations, "|payload|::Packet");
+    let provider: ProductProviderRef = BuildDeclarations::provider(@builder.declarations, "|payload|::Provider");
     let ordinary: OrdinaryPath = OrdinaryPath {};
     let mutable visits: Visits = Visits { value: 0 as +Wrapping };
     let schema_path: @[u8] = ProductTypeSchema::path(@schema);
@@ -21,15 +22,15 @@ machine build(builder: @mutable Build) {
     choose(builder, schema_path == "payload::Packet" && provider_path == "payload::Provider" && ordinary_path == 7 && visits.value == 2);
 }
 
-machine choose(builder: @mutable Build, correct: bool) {
+machine choose(builder: @mutable BuildPlan, correct: bool) {
     transition correct { true -> good(builder), _ -> bad(builder) }
-    machine good(builder: @mutable Build) {
+    machine good(builder: @mutable BuildPlan) {
         Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
         Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
         Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
         Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     }
-    machine bad(builder: @mutable Build) {
+    machine bad(builder: @mutable BuildPlan) {
         // Fail during Build, before root-binding discovery can produce a product.
         _ = BuildDeclarations::entry(@builder.declarations, "incorrect_description_path", "macos_arm64::ProgramEntry");
     }

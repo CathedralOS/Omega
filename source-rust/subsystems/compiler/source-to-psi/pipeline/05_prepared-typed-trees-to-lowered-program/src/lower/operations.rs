@@ -115,11 +115,13 @@ impl Lowering<'_> {
                         *current = match bound {
                             Some(Bound::Scalar(id)) => ScalarTerm::Value { id, scalar_type },
                             Some(Bound::Erased(witness)) => witness.term(&self.erased_applications),
-                            _ => return Err(refuse(
-                                self.id,
-                                self.current.map_or(Construct::Machine, Construct::Block),
-                                Unserved::Expression("erased term that reads storage"),
-                            )),
+                            _ => {
+                                return Err(refuse(
+                                    self.id,
+                                    self.current.map_or(Construct::Machine, Construct::Block),
+                                    Unserved::Expression("erased term that reads storage"),
+                                ));
+                            }
                         };
                     } else {
                         pending.extend(current.operands_mut());
@@ -150,10 +152,52 @@ impl Lowering<'_> {
         }
     }
 
+    /// A scalar field of a record formal, read as its current contents
+    /// where the application's edge leaves. No operation is emitted.
+    fn field_subject(
+        &mut self,
+        argument: &Expression,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        formal: ScalarType,
+    ) -> Checked<semantic_vocabulary::ScalarTerm> {
+        use semantic_vocabulary::{ContentPlaceVersion, ScalarTerm};
+        let ExpressionKind::Slot(slot) = argument.kind else {
+            return Err(self.internal("logical data subject is not a named record formal"));
+        };
+        let (Some(Bound::Record(root)) | Some(Bound::Home(root))) = *self.slot_mut(slot)? else {
+            return Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Expression("logical data subject that is not a record place"),
+            ));
+        };
+        let path = path.to_vec();
+        let version = ContentPlaceVersion::Current;
+        Ok(match formal {
+            ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                version,
+                root,
+                path,
+                scalar_type,
+            },
+            ScalarType::Boolean => ScalarTerm::BooleanField {
+                version,
+                root,
+                path,
+            },
+            ScalarType::IeeeFloat(format) => ScalarTerm::ieee_float_field_path(root, path, format),
+            ScalarType::Callable(_) => {
+                return Err(self.internal("logical data subject is a callable field"));
+            }
+        })
+    }
+
     fn theorem_application(
         &mut self,
         theorem: terminal_psi::TheoremSource,
         arguments: &[Expression],
+        fields: &[Vec<semantic_vocabulary::CanonicalStructuralPathSegment>],
+        instantiation: &[terminal_psi::TheoremSource],
         source: SourceOrigin,
     ) -> Checked<()> {
         let (requires, arguments) = match theorem {
@@ -178,11 +222,19 @@ impl Lowering<'_> {
                     .iter()
                     .map(|formal| formal.scalar_type)
                     .collect();
+                if fields.len() != arguments.len() {
+                    return Err(self.internal("logical application lost its subject paths"));
+                }
                 let arguments = arguments
                     .iter()
                     .zip(formal_types)
-                    .map(|(argument, formal)| {
-                        let subject = self.witness(argument)?.term(&self.erased_applications);
+                    .zip(fields)
+                    .map(|((argument, formal), path)| {
+                        let subject = if path.is_empty() {
+                            self.witness(argument)?.term(&self.erased_applications)
+                        } else {
+                            self.field_subject(argument, path, formal)?
+                        };
                         if subject.scalar_type() != formal {
                             return Err(
                                 self.internal("logical application has another subject carrier")
@@ -264,6 +316,13 @@ impl Lowering<'_> {
                 source: theorem,
                 arguments,
                 requirements,
+                instantiation: instantiation
+                    .iter()
+                    .map(|source| terminal_psi::TheoremInstantiation {
+                        source: *source,
+                        derivations: Vec::new(),
+                    })
+                    .collect(),
             });
         self.enter(successor);
         Ok(())
@@ -333,15 +392,25 @@ impl Lowering<'_> {
             None => None,
         };
         match &expression.kind {
-            ExpressionKind::TestMembership { subject, domain, predicate } => {
+            ExpressionKind::TestMembership {
+                subject,
+                domain,
+                predicate,
+            } => {
                 continuing!(self.observe_membership(subject, *domain, source));
                 self.expression(predicate)
+            }
+            // Only the mathematical signature reads such a body.
+            ExpressionKind::Applied { .. } => {
+                Err(self.internal("a mathematical application has no operation"))
             }
             ExpressionKind::TheoremApplication {
                 source: theorem,
                 arguments,
+                fields,
+                instantiation,
             } => {
-                self.theorem_application(*theorem, arguments, source)?;
+                self.theorem_application(*theorem, arguments, fields, instantiation, source)?;
                 Ok(Reached::Value(Value::Unit))
             }
             ExpressionKind::Atomic(operation) => match operation {
@@ -626,6 +695,28 @@ impl Lowering<'_> {
                 if matches!(left_expression.result, Some(ValueType::Record(..))) {
                     return self.structural_equal(left_expression, right, source);
                 }
+                // A `true ->` arm of a transition on a Boolean reaches here as
+                // `subject == true`, which is the subject itself. Branching on
+                // the subject lets native selection fuse its comparison into
+                // the branch instead of materializing and re-testing it.
+                if let ExpressionKind::Strict {
+                    operation: Strict::Equal,
+                    policy: None,
+                    ..
+                } = &expression.kind
+                    && matches!(right.kind, ExpressionKind::Boolean(true))
+                    && matches!(
+                        left_expression.result,
+                        Some(ValueType::Scalar(ScalarType::Boolean, _))
+                    )
+                    && matches!(
+                        expression.result,
+                        Some(ValueType::Scalar(ScalarType::Boolean, _))
+                    )
+                {
+                    let subject = continuing!(self.scalar(left_expression));
+                    return Ok(Reached::Value(Value::Scalar(subject)));
+                }
                 let left = continuing!(self.scalar(left_expression));
                 let right = continuing!(self.scalar(right));
                 self.strict_expression(expression, left, right)
@@ -717,13 +808,8 @@ impl Lowering<'_> {
                 lowering: self,
                 source,
             };
-            return crate::policy::saturating_shift_left(
-                &mut computation,
-                closed,
-                left,
-                right,
-            )
-            .map(Value::Scalar);
+            return crate::policy::saturating_shift_left(&mut computation, closed, left, right)
+                .map(Value::Scalar);
         }
         let operation = self.operation_identity(source);
         // The total operations are the ones a clause's term names too.

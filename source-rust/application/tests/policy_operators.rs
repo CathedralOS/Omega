@@ -4,11 +4,13 @@
 
 #[path = "support/declared_exit.rs"]
 mod declared_exit;
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::PathBuf;
-use std::process::{Command, Output, Stdio};
+use std::process::Output;
 
 fn fixture(tier: &str) -> PathBuf {
     support::repository_root()
@@ -22,13 +24,7 @@ fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
     for name in ["main.omg", "build.omg"] {
         std::fs::copy(fixture(tier).join(name), scratch.path().join(name)).unwrap();
     }
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .arg("main.omg")
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .expect("run numeric policy program");
+    let output = project::omega(scratch.path(), &[arguments, &["main.omg"]].concat());
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),

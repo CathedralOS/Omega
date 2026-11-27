@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::source_inputs::SourceMap;
 use crate::source_symbols::storage::{SymbolHierarchy, SymbolRows};
-use arena::{HandleSpan, RetainedArena, SpanHandles};
+use arena::{HandleSpan, SpanHandles};
 use source_admission::SourceFile;
 use source_admission::SourceOrigin;
 use source_provenance::PackageKeyIdentity;
@@ -467,7 +467,6 @@ mod indices {
     pub(super) struct PreparedModuleImport {
         pub(super) binding_position: usize,
         pub(super) logical: String,
-        pub(super) package_prefix: String,
         pub(super) module_leaf: Option<String>,
     }
 
@@ -595,15 +594,9 @@ use indices::{
 };
 mod modules {
     /*
-        Logical module ownership without relocating physical declaration slots.
-
-        Local declarations precede imported and root names, including relative
-        attached paths. A narrow import may expose an attached declaration's leaf;
-        retaining that candidate does not expose sibling declarations or make its
-        leaf a bare local name. Every candidate still needs its exact source owner.
-        A loader-certified package alias can qualify other already-loaded sources
-        of that same dependency; that lookup does not change which exact source
-        must satisfy an authored import or expose additional unqualified names.
+        Static declaration owners keep their source identities. The Build prelude
+        supplies its admitted namespaces directly. Authored file aliases select
+        members of their exact source through the file-qualified lookup.
     */
 
     use std::sync::Arc;
@@ -616,97 +609,39 @@ mod modules {
     use super::{SourceScopedTopLevelBinding, SymbolLookup, SymbolTable};
     use crate::source_symbols::{Symbol, SymbolHandle, SymbolKind, SymbolNameRef};
 
-    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-    pub(super) struct ModuleImport {
-        pub(super) path: Arc<str>,
-        package_prefix_members: usize,
-        exact_source: bool,
-        logical_selection: bool,
-    }
-
     impl SourceScopedTopLevelBinding {
-        /*
-            Bind one authored import to the exact source loaded through the
-            requester's reconciled package graph. Only the loader may strip the
-            certified package-prefix members from the logical module path.
-        */
-        pub fn module_import(
+        /// Supply an admitted Build protocol namespace to this stage.
+        pub fn prelude_module(
             reference_source: SourceId,
             declaration_source: SourceId,
-            authored_path: &str,
-            package_prefix_members: usize,
+            namespace: &str,
         ) -> Self {
             Self {
                 reference_source,
                 declaration_source,
-                target: super::BindingTarget::Module(ModuleImport {
-                    path: Arc::from(authored_path),
-                    package_prefix_members,
-                    exact_source: true,
-                    logical_selection: false,
-                }),
+                target: super::BindingTarget::PreludeModule(Arc::from(namespace)),
                 producer: super::BindingProducer::Loader,
                 dependency: None,
             }
         }
     }
 
-    impl SourceScopedTopLevelBinding {
-        /*
-            A logical import selects declarations across the admitted units of
-            one checked package. The loader supplies an anchor for that package;
-            its filename grants neither a namespace nor unqualified exposure.
-        */
-        pub fn logical_module_import(
-            reference_source: SourceId,
-            declaration_source: SourceId,
-            authored_path: &str,
-            package_prefix_members: usize,
-        ) -> Self {
-            let mut binding = Self::module_import(
-                reference_source,
-                declaration_source,
-                authored_path,
-                package_prefix_members,
-            );
-            if let super::BindingTarget::Module(import) = &mut binding.target {
-                import.logical_selection = true;
-            }
-            binding
-        }
-    }
-
     impl SymbolTable {
-        /*
-            Whether this source has a loader-certified package qualifier. Package
-            aliases select namespaces without manufacturing a Module declaration.
-            Type and trait qualifiers retain their separate call semantics.
-        */
-        pub fn is_source_package_qualifier(&self, reference: SourceSpan, qualifier: &str) -> bool {
-            self.source_scoped_bindings_for(reference.source_id)
-                .iter()
-                .filter_map(|binding| binding.module_import_target())
-                .any(|import| {
-                    import.exact_source
-                        && import.package_prefix_members != 0
-                        && import
-                            .path
-                            .split("::")
-                            .take(import.package_prefix_members)
-                            .eq(qualifier.split("::"))
-                })
-        }
-
-        /* Authored import spellings retained for source lookup diagnostics. */
-        pub fn source_module_import_paths(&self, source: SourceId) -> impl Iterator<Item = &str> {
+        /// File aliases available for source lookup diagnostics.
+        pub fn source_file_aliases(&self, source: SourceId) -> impl Iterator<Item = &str> {
             self.source_scoped_bindings_for(source)
                 .iter()
-                .filter_map(move |binding| {
-                    (binding.reference_source == source)
-                        .then_some(binding.module_import_target())
-                        .flatten()
-                        .map(|import| import.path.as_ref())
+                .filter_map(|binding| match &binding.target {
+                    super::BindingTarget::FileAlias(alias) => Some(alias.as_ref()),
+                    _ => None,
                 })
+        }
+
+        /// Compiler-supplied namespace paths visible in a Build source.
+        pub fn prelude_module_paths(&self, source: SourceId) -> impl Iterator<Item = &str> {
+            self.source_scoped_bindings_for(source)
+                .iter()
+                .filter_map(SourceScopedTopLevelBinding::prelude_namespace)
         }
 
         /*
@@ -772,34 +707,6 @@ mod modules {
             }
             Arc::make_mut(&mut self.source_module_index)[source.0] = parent;
             Ok(())
-        }
-
-        /*
-            Retain an import for syntax-only callers. Compiler-loaded imports
-            already carry exact source custody and take precedence over this row.
-        */
-        pub fn register_source_import(&mut self, reference_source: SourceId, path: &str) {
-            if self.source_scoped_top_level_bindings.iter().any(|binding| {
-                self.source_binding_is_selected(binding)
-                    && binding.reference_source == reference_source
-                    && binding
-                        .module_import_target()
-                        .is_some_and(|import| import.path.as_ref() == path)
-            }) {
-                return;
-            }
-            let mut binding = SourceScopedTopLevelBinding::module_import(
-                reference_source,
-                reference_source,
-                path,
-                0,
-            );
-            if let super::BindingTarget::Module(import) = &mut binding.target {
-                import.exact_source = false;
-            }
-            binding.producer = super::BindingProducer::AuthoredImport;
-            Arc::make_mut(&mut self.source_scoped_top_level_bindings).push(binding);
-            self.binding_source_index.clear();
         }
 
         /*
@@ -876,122 +783,30 @@ mod modules {
             };
             let mut binding =
                 SourceScopedTopLevelBinding::file_import(reference_source, target, alias);
-            binding.producer = super::BindingProducer::AuthoredImport;
+            binding.producer = super::BindingProducer::AuthoredFile {
+                root: root.map(Arc::from),
+                path: Arc::from(path),
+            };
             Arc::make_mut(&mut self.source_scoped_top_level_bindings).push(binding);
             self.binding_source_index.clear();
         }
 
-        /*
-            An authored logical import must select a unique declaration or
-            namespace in its certified checked package, including module-less
-            siblings. Exact-file inputs retain their existing file admission.
-        */
-        pub fn validate_source_module_import(
-            &self,
-            reference_source: SourceId,
-            path: &str,
-        ) -> Result<(), String> {
-            let mut inactive_import = false;
-            let mut selected_import = false;
-            for binding in self
-                .source_scoped_top_level_bindings
-                .iter()
-                .filter(|binding| binding.reference_source == reference_source)
-            {
-                let Some(import) = binding.module_import_target() else {
-                    continue;
-                };
-                if import.path.as_ref() != path || !import.exact_source {
-                    continue;
-                }
-                if !self.source_binding_is_selected(binding) {
-                    inactive_import = true;
-                    continue;
-                }
-                selected_import = true;
-                if import.logical_selection {
-                    if !self.binding_imports_package_root(binding)
-                        && self.logical_import_targets(binding).is_empty()
-                    {
-                        return Err(format!(
-                            "import `{path}` does not select one declaration, callable family, or module in its checked package"
-                        ));
-                    }
-                    continue;
-                }
-                let module = self.source_module(binding.declaration_source);
-                if !module.is_valid() {
-                    continue;
-                }
-                let logical = logical_import_path(import);
-                let namespace = self.indexed_display_path(module);
-                if logical == namespace.as_ref() {
-                    continue;
-                }
-                let declarations =
-                    self.child_handles(self.root)
-                        .into_iter()
-                        .flatten()
-                        .filter(|candidate| {
-                            self.import_owner_matches(binding, *candidate)
-                                && self.indexed_display_path(*candidate) == logical.as_str()
-                        });
-                if unique(declarations).is_none() {
-                    return Err(format!(
-                        "import `{path}` does not select one exact declaration or module in declared namespace `{namespace}`"
-                    ));
-                }
-            }
-            if inactive_import && !selected_import {
-                Err(format!(
-                    "import `{path}` refers to an inactive source instance"
-                ))
-            } else {
-                Ok(())
-            }
-        }
-
-        /*
-            Return the declaration selected by a validated import. A package
-            root is a namespace, not a fabricated declaration. Exact-file inputs
-            likewise have no independently selected namespace declaration.
-        */
-        pub fn source_module_import_target(
+        /// Find the declaration named by a supplied Build namespace.
+        pub fn prelude_module_target(
             &self,
             reference_source: SourceId,
             path: &str,
         ) -> Option<SymbolHandle> {
-            unique(
-                self.source_module_import_targets(reference_source, path)
-                    .into_iter(),
-            )
-        }
-
-        /*
-            An imported callable name retains every overload, not an arbitrary
-            representative. Each member receives ordinary declaration custody;
-            call-site typing still selects its complete normalized signature.
-        */
-        pub fn source_module_import_targets(
-            &self,
-            reference_source: SourceId,
-            path: &str,
-        ) -> Vec<SymbolHandle> {
             for binding in self.source_scoped_bindings_for(reference_source) {
-                let Some(import) = binding.module_import_target() else {
+                let Some(import) = binding.prelude_namespace() else {
                     continue;
                 };
-                if import.path.as_ref() != path {
+                if import != path {
                     continue;
                 }
-                if import.logical_selection {
-                    return self.logical_import_targets(binding);
+                if !self.source_module(binding.declaration_source).is_valid() {
+                    return None;
                 }
-                if import.exact_source && !self.source_module(binding.declaration_source).is_valid()
-                {
-                    return Vec::new();
-                }
-                let logical = logical_import_path(import);
                 return unique(
                     self.child_handles(self.root)
                         .into_iter()
@@ -999,65 +814,11 @@ mod modules {
                         .chain(self.module_symbols.iter().map(|(_, symbol)| *symbol))
                         .filter(|candidate| {
                             self.import_owner_matches(binding, *candidate)
-                                && self.indexed_display_path(*candidate) == logical.as_str()
+                                && self.indexed_display_path(*candidate) == import
                         }),
-                )
-                .into_iter()
-                .collect();
+                );
             }
-            Vec::new()
-        }
-
-        fn binding_imports_package_root(&self, binding: &SourceScopedTopLevelBinding) -> bool {
-            binding.module_import_target().is_some_and(|import| {
-                import.logical_selection
-                    && import.package_prefix_members != 0
-                    && logical_import_path(import).is_empty()
-                    && self.source_binding_is_selected(binding)
-                    && self.sources.as_deref().is_some_and(|sources| {
-                        let span = source_text::Span::new(0, 1);
-                        sources.reference_can_see_declaration(
-                            SourceSpan::new(binding.reference_source, span),
-                            SourceSpan::new(binding.declaration_source, span),
-                        )
-                    })
-            })
-        }
-
-        fn logical_import_targets(
-            &self,
-            binding: &SourceScopedTopLevelBinding,
-        ) -> Vec<SymbolHandle> {
-            let Some(import) = binding.module_import_target() else {
-                return Vec::new();
-            };
-            let logical = logical_import_path(import);
-            if logical.is_empty() || !self.source_binding_is_selected(binding) {
-                return Vec::new();
-            }
-            let index = self.module_scope_index();
-            let Some(entries) = index.by_path.get(logical.as_str()) else {
-                return Vec::new();
-            };
-            let mut candidates = entries
-                .iter()
-                .filter_map(|(_, candidate)| {
-                    self.import_owner_matches(binding, *candidate)
-                        .then_some(*candidate)
-                })
-                .collect::<Vec<_>>();
-            candidates.dedup();
-            if candidates.len() > 1
-                && !candidates.iter().all(|candidate| {
-                    matches!(
-                        self.get(*candidate).kind,
-                        SymbolKind::Machine | SymbolKind::Operator
-                    )
-                })
-            {
-                return Vec::new();
-            }
-            candidates
+            None
         }
 
         pub fn source_module(&self, source: SourceId) -> SymbolHandle {
@@ -1076,9 +837,7 @@ mod modules {
                     sources.source_is_selected(binding.reference_source)
                         && sources.source_is_selected(binding.declaration_source)
                 }
-                None => !binding
-                    .module_import_target()
-                    .is_some_and(|import| import.logical_selection),
+                None => true,
             }
         }
 
@@ -1269,15 +1028,8 @@ mod modules {
             self.source_domain_is_exposed(reference, domain)
         }
 
-        /*
-            Whether one authored import edge in `reference` brings `symbol`'s
-            leaf name into that source's resolution scope. Importing an
-            unmoduled source exposes every leaf it declares; a moduled source
-            exposes a leaf only through a narrow import of that exact
-            declaration, so a broad `module::name` edge never collides with a
-            package-local `name`.
-        */
-        pub(super) fn import_exposes_symbol(
+        /// Whether a compiler-supplied prelude binding exposes this declaration.
+        pub(super) fn prelude_exposes_symbol(
             &self,
             reference: SourceId,
             symbol: SymbolHandle,
@@ -1288,14 +1040,12 @@ mod modules {
             self.source_scoped_bindings_for(reference)
                 .iter()
                 .any(|binding| {
-                    let Some(import) = binding.module_import_target() else {
+                    let Some(import) = binding.prelude_namespace() else {
                         return false;
                     };
                     (self.import_owner_matches(binding, symbol)
-                        && self.indexed_display_path(symbol) == logical_import_path(import))
-                        || (import.exact_source
-                            && !import.logical_selection
-                            && !self.source_module(declaration.source_id).is_valid()
+                        && self.indexed_display_path(symbol) == import)
+                        || (!self.source_module(declaration.source_id).is_valid()
                             && (binding.declaration_source == declaration.source_id))
                 })
         }
@@ -1306,7 +1056,7 @@ mod modules {
             its declaring module, or the module-less package root. Visibility
             and the attached carrier's authority remain checked at the use site.
         */
-        pub fn source_import_exposes_domain(
+        pub fn prelude_module_exposes_domain(
             &self,
             reference: SourceSpan,
             path: &str,
@@ -1319,8 +1069,8 @@ mod modules {
                     .iter()
                     .any(|binding| {
                         binding
-                            .module_import_target()
-                            .is_some_and(|import| import.path.as_ref() == path)
+                            .prelude_namespace()
+                            .is_some_and(|import| import == path)
                             && self.binding_exposes_member(binding, domain)
                     })
         }
@@ -1342,8 +1092,8 @@ mod modules {
             local
                 || (!module.is_valid() && self.is_ambient_toolchain_symbol(domain))
                 || self
-                    .source_module_import_paths(reference.source_id)
-                    .any(|path| self.source_import_exposes_domain(reference, path, domain))
+                    .prelude_module_paths(reference.source_id)
+                    .any(|path| self.prelude_module_exposes_domain(reference, path, domain))
         }
 
         pub(super) fn binding_exposes_member(
@@ -1351,33 +1101,19 @@ mod modules {
             binding: &SourceScopedTopLevelBinding,
             symbol: SymbolHandle,
         ) -> bool {
-            let Some(import) = binding.module_import_target() else {
+            let Some(import) = binding.prelude_namespace() else {
                 return false;
             };
             if !self.import_owner_matches(binding, symbol) {
                 return false;
             }
-            if import.logical_selection {
-                if self.binding_imports_package_root(binding) {
-                    return !self.symbol_module(symbol).is_valid();
-                }
-                return self
-                    .logical_import_targets(binding)
-                    .into_iter()
-                    .any(|target| {
-                        target == symbol
-                            || (self.get(target).kind == SymbolKind::Module
-                                && self.symbol_module(symbol) == target)
-                    });
-            }
             let module = self.source_module(binding.declaration_source);
-            if import.exact_source && !module.is_valid() {
+            if !module.is_valid() {
                 return true;
             }
-            let logical = logical_import_path(import);
-            self.indexed_display_path(symbol) == logical.as_str()
+            self.indexed_display_path(symbol) == import
                 || (self.symbol_module(symbol).is_valid()
-                    && self.indexed_display_path(self.symbol_module(symbol)) == logical.as_str())
+                    && self.indexed_display_path(self.symbol_module(symbol)) == import)
         }
 
         pub fn symbol_module(&self, symbol: SymbolHandle) -> SymbolHandle {
@@ -1436,23 +1172,16 @@ mod modules {
                         continue;
                     }
                     let scope = index.by_source.entry(binding.reference_source).or_default();
-                    if let Some(import) = binding.module_import_target() {
-                        let logical = logical_import_path(import);
-                        let package_prefix = import
-                            .path
-                            .split("::")
-                            .take(import.package_prefix_members)
-                            .collect::<Vec<_>>()
-                            .join("::");
+                    if let Some(import) = binding.prelude_namespace() {
+                        let logical = import.to_owned();
                         let module = self.source_module(binding.declaration_source);
                         let module_leaf = (module.is_valid()
                             && self.indexed_display_path(module) == logical.as_str())
                         .then(|| self.name(module).to_string());
-                        scope.has_exact_import |= import.exact_source;
+                        scope.has_exact_import = true;
                         scope.imports.push(PreparedModuleImport {
                             binding_position: scope.bindings.len(),
                             logical,
-                            package_prefix,
                             module_leaf,
                         });
                     }
@@ -1521,16 +1250,11 @@ mod modules {
                     source_scope.imports.iter().any(|scope| {
                         let binding = &source_scope.bindings[scope.binding_position];
                         let logical = &scope.logical;
-                        let import = binding
-                            .module_import_target()
-                            .expect("import bindings carry module imports");
                         if !self.import_owner_matches(binding, *candidate) {
                             return false;
                         }
                         self.indexed_display_path(*candidate) == logical.as_str()
-                            || (import.exact_source
-                                && !import.logical_selection
-                                && self.name(*candidate) == name
+                            || (self.name(*candidate) == name
                                 && !self.source_module(binding.declaration_source).is_valid()
                                 && self.symbol_provenance_source_span(*candidate).is_some_and(
                                     |span| {
@@ -1570,32 +1294,8 @@ mod modules {
             binding: &SourceScopedTopLevelBinding,
             candidate: SymbolHandle,
         ) -> bool {
-            let Some(import) = binding.module_import_target() else {
+            if binding.prelude_namespace().is_none() {
                 return false;
-            };
-            if import.logical_selection {
-                let Some(declaration) = self.symbol_provenance_source_span(candidate) else {
-                    return false;
-                };
-                return self.source_binding_is_selected(binding)
-                    && self.same_source_package(
-                        declaration,
-                        SourceSpan::new(binding.declaration_source, declaration.span),
-                    )
-                    && self.source_reference_can_see_symbol(
-                        SourceSpan::new(binding.reference_source, declaration.span),
-                        candidate,
-                    );
-            }
-            if !import.exact_source {
-                return self
-                    .symbol_provenance_source_span(candidate)
-                    .is_some_and(|span| {
-                        self.same_source_package(
-                            SourceSpan::new(binding.reference_source, span.span),
-                            span,
-                        )
-                    });
             }
             self.symbol_provenance_source_span(candidate)
                 .is_some_and(|span| {
@@ -1653,19 +1353,7 @@ mod modules {
                     candidate_pool.extend_from_slice(entries);
                 }
                 for scope in import_bindings {
-                    let import = source_scope.bindings[scope.binding_position]
-                        .module_import_target()
-                        .expect("import bindings carry module imports");
                     let logical = scope.logical.as_str();
-                    if import.exact_source
-                        && import.package_prefix_members != 0
-                        && let Some(suffix) = name
-                            .strip_prefix(scope.package_prefix.as_str())
-                            .and_then(|rest| rest.strip_prefix("::"))
-                        && let Some(entries) = index.by_path.get(suffix)
-                    {
-                        candidate_pool.extend_from_slice(entries);
-                    }
                     if let Some(short) = logical.rsplit("::").next()
                         && let Some(suffix) = name
                             .strip_prefix(short)
@@ -1726,28 +1414,7 @@ mod modules {
                     && self.is_ambient_toolchain_symbol(candidate);
                 let imported_path = import_bindings.iter().any(|scope| {
                     let binding = &source_scope.bindings[scope.binding_position];
-                    let import = binding
-                        .module_import_target()
-                        .expect("import bindings carry module imports");
                     let logical = scope.logical.as_str();
-                    if qualified
-                        && import.exact_source
-                        && import.package_prefix_members != 0
-                        && self
-                            .symbol_provenance_source_span(candidate)
-                            .is_some_and(|span| {
-                                self.same_source_package(
-                                    span,
-                                    SourceSpan::new(binding.declaration_source, span.span),
-                                )
-                            })
-                        && name
-                            .strip_prefix(scope.package_prefix.as_str())
-                            .and_then(|suffix| suffix.strip_prefix("::"))
-                            == candidate_path.as_deref()
-                    {
-                        return true;
-                    }
                     if !self.import_owner_matches(binding, candidate) {
                         return false;
                     }
@@ -1757,27 +1424,7 @@ mod modules {
                             && self.name(candidate) == name;
                     }
                     if candidate_path.as_deref() == Some(name) {
-                        if !import.logical_selection {
-                            return true;
-                        }
-                        // A carrier spelling or raw module path does not supply
-                        // the dependency qualifier omitted by this occurrence.
-                        if candidate_kind == SymbolKind::Domain
-                            && !self.symbol_module(candidate).is_valid()
-                        {
-                            return self
-                                .carrier_qualified_domain_reaches(candidate, name, reference);
-                        }
-                        return self.binding_exposes_member(binding, candidate)
-                            || self
-                                .logical_import_targets(binding)
-                                .into_iter()
-                                .any(|target| {
-                                    self.get(target).kind == SymbolKind::Module
-                                        && name
-                                            .strip_prefix(logical)
-                                            .is_some_and(|suffix| suffix.starts_with("::"))
-                                });
+                        return true;
                     }
                     if let Some(short) = logical.rsplit("::").next()
                         && name
@@ -1817,7 +1464,8 @@ mod modules {
                     carrier_domain_matches.push(candidate);
                 }
                 if installed_path
-                    || (direct_path && (same_file || (reference.span.start == reference.span.end && same_package)))
+                    || (qualified && same_file && self.name(candidate) == name)
+                    || (direct_path && reference.span.start == reference.span.end && same_package)
                     || imported_path
                     || (!qualified
                         && is_module
@@ -1913,15 +1561,6 @@ mod modules {
             || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
     }
 
-    fn logical_import_path(import: &ModuleImport) -> String {
-        import
-            .path
-            .split("::")
-            .skip(import.package_prefix_members)
-            .collect::<Vec<_>>()
-            .join("::")
-    }
-
     fn unique(candidates: impl Iterator<Item = SymbolHandle>) -> Option<SymbolHandle> {
         SymbolLookup::from_candidates(candidates).unique()
     }
@@ -2002,6 +1641,15 @@ mod source_queries {
             self.sources.as_deref()?.file_at(source_span)
         }
 
+        pub fn bundled_core_file(
+            &self,
+            source_span: SourceSpan,
+        ) -> Option<language_core::bundled_files::BundledFile> {
+            self.sources
+                .as_deref()?
+                .bundled_core_file(source_span.source_id)
+        }
+
         /*
             The retained authored source map, shared without copying. Consumers
             that resolve diagnostic locations on a path where the program moves
@@ -2029,8 +1677,12 @@ mod source_queries {
             if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
-            let file = self.source_file(self.symbol_source_span(symbol)?)?;
-            crate::source_symbols::sealed_intrinsic_at(file, &self.display_path(symbol, "::"))
+            let bundled = self.bundled_core_file(self.symbol_source_span(symbol)?)?;
+            let declaration = self.display_path(symbol, "::");
+            language_core::sealed_intrinsics::SealedIntrinsicCatalog::classify_bundled(
+                bundled,
+                &declaration,
+            )
         }
 
         /*
@@ -2046,9 +1698,8 @@ mod source_queries {
             if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
-            crate::source_symbols::core_source_at(
-                self.source_file(self.symbol_source_span(symbol)?)?,
-            )
+            let bundled = self.bundled_core_file(self.symbol_source_span(symbol)?)?;
+            language_core::core_vocabulary::CoreVocabularyCatalog::source_bundled(bundled)
         }
 
         /*
@@ -2064,8 +1715,12 @@ mod source_queries {
             if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
-            let file = self.source_file(self.symbol_source_span(symbol)?)?;
-            crate::source_symbols::core_vocabulary_at(file, &self.display_path(symbol, "::"))
+            let bundled = self.bundled_core_file(self.symbol_source_span(symbol)?)?;
+            let declaration = self.display_path(symbol, "::");
+            language_core::core_vocabulary::CoreVocabularyCatalog::classify_bundled(
+                bundled,
+                &declaration,
+            )
         }
 
         /*
@@ -2084,8 +1739,11 @@ mod source_queries {
             if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
-            let file = self.source_file(self.symbol_source_span(symbol)?)?;
-            crate::source_symbols::sealed_intrinsic_at(file, declaration)
+            let bundled = self.bundled_core_file(self.symbol_source_span(symbol)?)?;
+            language_core::sealed_intrinsics::SealedIntrinsicCatalog::classify_bundled(
+                bundled,
+                declaration,
+            )
         }
 
         /*
@@ -2102,9 +1760,12 @@ mod source_queries {
             if !owner.is_valid() {
                 return None;
             }
-            let file = self.source_file(self.symbol_source_span(owner)?)?;
+            let bundled = self.bundled_core_file(self.symbol_source_span(owner)?)?;
             let declaration = format!("{}::{member}", self.display_path(owner, "::"));
-            crate::source_symbols::sealed_intrinsic_at(file, &declaration)
+            language_core::sealed_intrinsics::SealedIntrinsicCatalog::classify_bundled(
+                bundled,
+                &declaration,
+            )
         }
 
         pub fn is_build_prelude_symbol(&self, symbol: SymbolHandle) -> bool {
@@ -2736,7 +2397,7 @@ mod tests {
 }
 use super::{
     BuiltinFunction, BuiltinType, BuiltinTypeAtom, BuiltinTypeMember, FixedCoreDeclaration, Symbol,
-    SymbolHandle, SymbolKind, SymbolName, SymbolNameRef, SymbolPath,
+    SymbolHandle, SymbolKind, SymbolName, SymbolNameRef,
 };
 use child_batches::{SupplementalChildHandles, SupplementalChildren};
 
@@ -2744,7 +2405,6 @@ use child_batches::{SupplementalChildHandles, SupplementalChildren};
 pub struct SymbolTable {
     symbols: SymbolHierarchy,
     names: SymbolRows<SymbolName>,
-    path_members: RetainedArena<SymbolHandle>,
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Arc<Vec<SourceScopedTopLevelBinding>>,
     root: SymbolHandle,
@@ -2813,15 +2473,18 @@ pub struct SourceScopedTopLevelBinding {
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 enum BindingTarget {
     Declaration(Arc<str>),
-    Module(modules::ModuleImport),
+    PreludeModule(Arc<str>),
     FileAlias(Arc<str>),
     ProductFileAlias(Arc<str>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 enum BindingProducer {
     Loader,
-    AuthoredImport,
+    AuthoredFile {
+        root: Option<Arc<str>>,
+        path: Arc<str>,
+    },
 }
 
 impl SourceScopedTopLevelBinding {
@@ -2881,9 +2544,9 @@ impl SourceScopedTopLevelBinding {
         self
     }
 
-    fn module_import_target(&self) -> Option<&modules::ModuleImport> {
+    fn prelude_namespace(&self) -> Option<&str> {
         match &self.target {
-            BindingTarget::Module(import) => Some(import),
+            BindingTarget::PreludeModule(import) => Some(import),
             _ => None,
         }
     }
@@ -3055,7 +2718,6 @@ impl SymbolTableBuilder {
         SymbolTable {
             symbols: self.symbols,
             names: self.names,
-            path_members: RetainedArena::new(),
             sources: self.sources,
             source_scoped_top_level_bindings: Arc::new(self.source_scoped_top_level_bindings),
             root: self.root,
@@ -3142,7 +2804,6 @@ impl SymbolTable {
         let Self {
             symbols,
             names,
-            path_members,
             sources,
             source_scoped_top_level_bindings,
             root,
@@ -3163,11 +2824,6 @@ impl SymbolTable {
                 .eq(base.symbols.nodes().iter())
             || names.len() < base.names.len()
             || !names.iter().take(base.names.len()).eq(base.names.iter())
-            || path_members.len() < base.path_members.len()
-            || !path_members
-                .iter()
-                .take(base.path_members.len())
-                .eq(base.path_members.iter())
             || sources != &base.sources
             || source_scoped_top_level_bindings != &base.source_scoped_top_level_bindings
             || root != &base.root
@@ -3233,12 +2889,7 @@ impl SymbolTable {
                 return false;
             }
         }
-        path_members
-            .iter()
-            .skip(base.path_members.len())
-            .all(|(_, symbol)| {
-                symbol.is_valid() && symbols.get(*symbol).kind != SymbolKind::Unknown
-            })
+        true
     }
 
     /*
@@ -3440,7 +3091,7 @@ impl SymbolTable {
             .source_scoped_top_level_bindings
             .iter()
             .filter(|binding| {
-                binding.producer == BindingProducer::AuthoredImport
+                matches!(binding.producer, BindingProducer::AuthoredFile { .. })
                     && sources.source_is_selected(binding.reference_source)
             })
             .cloned()
@@ -3453,8 +3104,15 @@ impl SymbolTable {
         self.module_path_index.clear();
         self.module_scope_index.clear();
         for binding in authored_imports {
-            if let Some(import) = binding.module_import_target() {
-                self.register_source_import(binding.reference_source, &import.path);
+            if let (BindingProducer::AuthoredFile { root, path }, BindingTarget::FileAlias(alias)) =
+                (&binding.producer, &binding.target)
+            {
+                self.register_source_file_import(
+                    binding.reference_source,
+                    root.as_deref(),
+                    path,
+                    alias,
+                );
             }
         }
         Ok(SymbolTableExtension { table: self })
@@ -3713,11 +3371,6 @@ impl SymbolTable {
         presentation spelling into global authority.
     */
     pub fn lookup_source_type(&self, name: &str, reference: SourceSpan) -> SymbolLookup {
-        if let Some(symbol) = FixedCoreDeclaration::from_name(name)
-            .and_then(|fixed| self.fixed_core_declaration_symbol(fixed))
-        {
-            return SymbolLookup::Unique(symbol);
-        }
         let builtin = crate::source_symbols::is_builtin_type_spelling(name);
         let kinds: &[SymbolKind] = if builtin {
             &[SymbolKind::BuiltinType]
@@ -4050,6 +3703,28 @@ impl SymbolTable {
         })
     }
 
+    /// Spell a retained declaration through each exact-file alias visible at the reference.
+    pub fn file_import_names(
+        &self,
+        reference: SourceId,
+        declaration: SourceId,
+        selected: SymbolHandle,
+    ) -> impl Iterator<Item = String> + '_ {
+        let displayed = self.display_path(selected, "::");
+        let member = self.file_member_path(selected, &displayed).to_owned();
+        self.source_scoped_bindings_for(reference)
+            .iter()
+            .filter_map(move |binding| {
+                if let BindingTarget::FileAlias(alias) = &binding.target
+                    && binding.declaration_source == declaration
+                {
+                    Some(format!("|{alias}|::{member}"))
+                } else {
+                    None
+                }
+            })
+    }
+
     /// Return a declaration's path within its owning file.
     pub fn file_member_path<'a>(&self, symbol: SymbolHandle, displayed: &'a str) -> &'a str {
         let module = self.symbol_module(symbol);
@@ -4093,13 +3768,10 @@ impl SymbolTable {
                 && self
                     .sources
                     .as_deref()
-                    .and_then(|sources| sources.get(source))
-                    .and_then(crate::source_symbols::core_source_at)
-                    == Some(language_core::core_vocabulary::CoreSource::Foundation)
+                    .and_then(|sources| sources.bundled_core_file(source))
+                    == Some(language_core::bundled_files::BundledFile::CoreFoundation)
             {
-                return FixedCoreDeclaration::ALL
-                    .into_iter()
-                    .find(|fixed| fixed.name().strip_prefix("core::") == Some(declaration))
+                return FixedCoreDeclaration::from_foundation_member(declaration)
                     .and_then(|fixed| self.fixed_core_declaration_symbol(fixed))
                     .filter(|symbol| matches_candidate(*symbol))
                     .into_iter()
@@ -4122,6 +3794,11 @@ impl SymbolTable {
                 })
                 .collect();
         }
+        // Only the foundation file exports kernel slots. Their internal labels
+        // have no source namespace of their own.
+        let mut matches_candidate = |symbol| {
+            self.fixed_core_declaration_for_symbol(symbol).is_none() && matches_candidate(symbol)
+        };
         if (reference_is_source_backed || selection == TopLevelSelection::Ordinary)
             && let Some(result) = self.find_module_qualified_candidates(
                 name,
@@ -4276,8 +3953,8 @@ impl SymbolTable {
             && sources.file_at(right_span).is_some()
             && !sources.same_package(left_span, right_span)
         {
-            return !(self.import_exposes_symbol(left_span.source_id, right)
-                || self.import_exposes_symbol(right_span.source_id, left));
+            return !(self.prelude_exposes_symbol(left_span.source_id, right)
+                || self.prelude_exposes_symbol(right_span.source_id, left));
         }
         true
     }
@@ -4369,13 +4046,15 @@ impl SymbolTable {
             || self
                 .source_scoped_bindings_for(reference.source_id)
                 .iter()
-                .any(|binding| {
-                    match &binding.target {
-                        BindingTarget::Module(_) => self.binding_exposes_member(binding, symbol),
-                        BindingTarget::Declaration(_) => binding.declaration_source == declaration.source_id,
-                        BindingTarget::FileAlias(_) => binding.declaration_source == declaration.source_id,
-                        BindingTarget::ProductFileAlias(_) => false,
+                .any(|binding| match &binding.target {
+                    BindingTarget::PreludeModule(_) => self.binding_exposes_member(binding, symbol),
+                    BindingTarget::Declaration(_) => {
+                        binding.declaration_source == declaration.source_id
                     }
+                    BindingTarget::FileAlias(_) => {
+                        binding.declaration_source == declaration.source_id
+                    }
+                    BindingTarget::ProductFileAlias(_) => false,
                 })
     }
 
@@ -4707,59 +4386,12 @@ impl SymbolTable {
         path
     }
 
-    pub fn path_from_members(
-        &mut self,
-        root: SymbolHandle,
-        members: impl IntoIterator<Item = SymbolHandle>,
-    ) -> SymbolPath {
-        SymbolPath {
-            root,
-            members: self.path_members.insert_many(members),
-        }
-    }
-
-    pub fn resolve_child_path<'name>(
-        &mut self,
-        root: SymbolHandle,
-        names: impl IntoIterator<Item = &'name str>,
-    ) -> SymbolPath {
-        let mut current = root;
-        let mut members = Vec::new();
-
-        if !root.is_valid() {
-            return SymbolPath::default();
-        }
-
-        for name in names {
-            let Some(child) = self.find_child_by_name(current, name) else {
-                return SymbolPath::default();
-            };
-
-            members.push(child);
-            current = child;
-        }
-
-        if members.is_empty() {
-            SymbolPath::default()
-        } else {
-            self.path_from_members(root, members)
-        }
-    }
-
-    pub fn path_members(&self, path: SymbolPath) -> &[SymbolHandle] {
-        self.path_members.span_or_empty(path.members)
-    }
-
     pub fn symbols(&self) -> &SymbolHierarchy {
         &self.symbols
     }
 
     pub fn names(&self) -> &SymbolRows<SymbolName> {
         &self.names
-    }
-
-    pub fn path_member_arena(&self) -> &RetainedArena<SymbolHandle> {
-        &self.path_members
     }
 }
 

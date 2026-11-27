@@ -542,6 +542,12 @@ pub(crate) mod construction {
                 let mut snapshots = Vec::new();
                 let mut transfers = Vec::new();
                 let mut descriptors = Vec::new();
+                let direct_descriptors = cleanup.is_empty()
+                    && super::descriptors::sources_are_disjoint(
+                        &contracts.virtual_registers,
+                        &contracts.memory_accesses,
+                        &successor.structural_bindings,
+                    );
                 let mut scalar_references = Vec::new();
                 for phase in 0..2 {
                     if phase == 1 {
@@ -556,11 +562,13 @@ pub(crate) mod construction {
                             constraints,
                             catalog,
                         };
-                        descriptors = super::descriptors::snapshot(
-                            &mut emission,
-                            &mut contracts.local_storage_slots,
-                            &successor.structural_bindings,
-                        )?;
+                        if !direct_descriptors {
+                            descriptors = super::descriptors::snapshot(
+                                &mut emission,
+                                &mut contracts.local_storage_slots,
+                                &successor.structural_bindings,
+                            )?;
+                        }
                         scalar_references = super::scalar_references::snapshot(
                             &mut emission,
                             &successor.structural_bindings,
@@ -626,11 +634,18 @@ pub(crate) mod construction {
                         constraints,
                         catalog,
                     };
-                    super::descriptors::store(
-                        &mut emission,
-                        &successor.structural_bindings,
-                        &descriptors,
-                    )?;
+                    if direct_descriptors {
+                        super::descriptors::store_direct(
+                            &mut emission,
+                            &successor.structural_bindings,
+                        )?;
+                    } else {
+                        super::descriptors::store(
+                            &mut emission,
+                            &successor.structural_bindings,
+                            &descriptors,
+                        )?;
+                    }
                     super::scalar_references::store(&mut emission, &scalar_references)?;
                     super::addresses::store(&mut emission, &successor.structural_bindings)?;
                 }
@@ -754,6 +769,120 @@ pub(crate) mod descriptors {
             });
         }
         Ok(snapshots)
+    }
+
+    /// The local slot a stored binding's source pointer addresses, `Some(None)`
+    /// for an incoming structural parameter (never a local slot), or `None`
+    /// when the pointer's origin is not one of those two.
+    fn source_slot(
+        registers: &[selected_instructions::VirtualRegister],
+        memory: &[SelectedMemoryAccess],
+        argument: VirtualRegisterId,
+    ) -> Option<Option<LocalStorageSlotId>> {
+        match registers.get(argument.0 as usize)?.origin {
+            selected_instructions::VirtualRegisterOrigin::StructuralParameter { .. } => Some(None),
+            selected_instructions::VirtualRegisterOrigin::InstructionResult {
+                instruction, ..
+            }
+            | selected_instructions::VirtualRegisterOrigin::AbiTransport { instruction, .. } => {
+                let mut slots = memory.iter().filter_map(|access| match access.role {
+                    SelectedMemoryAccessRole::AddressLocal { slot }
+                        if access.instruction == instruction =>
+                    {
+                        Some(slot)
+                    }
+                    _ => None,
+                });
+                match (slots.next(), slots.next()) {
+                    (Some(slot), None) => Some(Some(slot)),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// A parallel copy of descriptors needs the snapshot pass only when one
+    /// binding reads a slot another binding writes. When every source is a
+    /// known slot or parameter and no source is another binding's destination,
+    /// each descriptor is copied straight into its destination.
+    pub(crate) fn sources_are_disjoint(
+        registers: &[selected_instructions::VirtualRegister],
+        memory: &[SelectedMemoryAccess],
+        bindings: &[SelectedStructuralBinding],
+    ) -> bool {
+        let stored: Vec<_> = bindings
+            .iter()
+            .filter_map(|binding| stored_transport(binding.transport))
+            .collect();
+        if stored.is_empty() {
+            return false;
+        }
+        let mut sources = Vec::with_capacity(stored.len());
+        for (argument, ..) in &stored {
+            let Some(slot) = source_slot(registers, memory, *argument) else {
+                return false;
+            };
+            sources.push(slot);
+        }
+        stored
+            .iter()
+            .enumerate()
+            .all(|(index, (_, _, destination, _, _))| {
+                sources
+                    .iter()
+                    .enumerate()
+                    .all(|(other, source)| other == index || *source != Some(*destination))
+            })
+    }
+
+    pub(crate) fn store_direct(
+        emission: &mut Emission<'_>,
+        bindings: &[SelectedStructuralBinding],
+    ) -> Result<(), SelectedInstructionError> {
+        for binding in bindings {
+            let Some((argument, source_byte_offset, destination, byte_size, _)) =
+                stored_transport(binding.transport)
+            else {
+                continue;
+            };
+            // A descriptor passed back to the parameter it was read from
+            // (a loop passing its view on unchanged) already holds its bytes.
+            if source_byte_offset == 0
+                && source_slot(emission.registers, emission.memory, argument)
+                    == Some(Some(destination))
+            {
+                continue;
+            }
+            let pointer = frame_address(emission, destination, binding.semantic.parameter)?;
+            let address_instruction = emission
+                .instructions
+                .last()
+                .ok_or_else(|| invalid(emission.function))?
+                .id;
+            emission.memory.push(SelectedMemoryAccess {
+                instruction: address_instruction,
+                origin: SelectedMemoryAccessOrigin::Edge(emission.edge),
+                place: binding.semantic.parameter,
+                byte_offset: 0,
+                byte_count: byte_size,
+                role: SelectedMemoryAccessRole::AddressLocal { slot: destination },
+            });
+            copy(
+                emission,
+                CopyExtent {
+                    source: argument,
+                    source_offset: source_byte_offset,
+                    destination: pointer,
+                    byte_size,
+                    lineage_place: binding.semantic.argument.place,
+                    lineage_offset: source_byte_offset,
+                    read_binding: Some(binding),
+                    write_local: Some((binding.semantic.parameter, destination)),
+                },
+            )?;
+        }
+        Ok(())
     }
 
     pub(crate) fn store(

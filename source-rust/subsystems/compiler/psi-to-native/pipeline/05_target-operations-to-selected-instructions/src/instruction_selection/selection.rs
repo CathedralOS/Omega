@@ -753,6 +753,7 @@ pub(crate) mod construction {
     }
 }
 pub(in crate::instruction_selection) use crate::instruction_selection::selection_edge_transfers as edge_transfers;
+pub(in crate::instruction_selection) use crate::instruction_selection::selection_shared_parameters as shared_parameters;
 pub(crate) mod element_view_homes {
     use selected_instructions::VirtualRegisterId;
     use semantic_vocabulary::{PlaceId, ValueId};
@@ -1386,7 +1387,6 @@ pub(crate) mod identity {
             .sum::<usize>();
         SelectedInstructionValidationReceipt {
             identity: selected_instruction_plan_identity(plan),
-            legalized: legalized.receipt().identity(),
             legalization_validator: legalized.receipt().validator(),
             optimization_unit: legalized.receipt().optimization_unit(),
             work_schedule: legalized.receipt().work_schedule(),
@@ -1467,7 +1467,6 @@ pub(crate) mod integer_conversion {
 }
 pub(in crate::instruction_selection) use crate::instruction_selection::selection_inputs::literal_compare_input;
 pub(crate) mod model {
-    use legalized_operations::LegalizedOperationPlanIdentity;
     use optimization_core::OptimizationValidatorIdentity;
     use register_model::RegisterConstraintKey;
     use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
@@ -1495,7 +1494,6 @@ pub(crate) mod model {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct SelectedInstructionValidationReceipt {
         pub(crate) identity: SelectedInstructionPlanIdentity,
-        pub(crate) legalized: LegalizedOperationPlanIdentity,
         pub(crate) legalization_validator: OptimizationValidatorIdentity,
         pub(crate) optimization_unit: optimization_core::OptimizationUnitIdentity,
         pub(crate) work_schedule: semantic_vocabulary::WorkScheduleIdentity,
@@ -1508,11 +1506,6 @@ pub(crate) mod model {
     impl SelectedInstructionValidationReceipt {
         pub const fn identity(self) -> SelectedInstructionPlanIdentity {
             self.identity
-        }
-
-        #[cfg(feature = "test-support")]
-        pub const fn legalized(self) -> LegalizedOperationPlanIdentity {
-            self.legalized
         }
 
         #[cfg(feature = "test-support")]

@@ -1,0 +1,57 @@
+// Modulo by repeated subtraction, as in `repeated_subtraction_mod`, and the
+// law that one recursive step takes a divisor off a dividend at least that
+// divisor. The law holds only with enough fuel, so it needs the machine's
+// recursive equation. Its negative twin drops the premise `b <= a`, where
+// the dispatch keeps the dividend and the law is false.
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/nat.omg;
+
+machine mod(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
+terminates by a
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, b), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: result }, b), |nat|::Nat::Zero)
+{
+    transition (|nat|::saturating_sub(b, a)) {
+        |nat|::Nat::Zero -> mod_rec(a, b),
+        |nat|::Nat::Succ { prev as w } -> mod_done(a, b, w)
+    }
+
+    machine mod_rec(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::sub_lt(a, b);
+        let next: |nat|::Nat = |nat|::saturating_sub(a, b);
+        transition { _ -> (mod(next, b)) }
+    }
+
+    machine mod_done(a: |nat|::Nat, b: |nat|::Nat, w: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::lt_of_sub_pos(a, b, w);
+        transition { _ -> (a) }
+    }
+}
+
+// Citing `mod(a, b)` cites its recursive equation, which the compiler
+// proves from its definition over fuel: `mod(a, b)` is its body with the
+// recursive call `mod(saturating_sub(a, b), b)`, so with `b <= a` the
+// dispatch takes that call.
+machine mod_step(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, b), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(b, a), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(mod(a, b), mod(|nat|::saturating_sub(a, b), b))
+{
+    transition {
+        _ -> ms_body(a, b)
+    }
+
+    machine ms_body(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+        _ = mod(a, b);
+        transition { _ -> |nat|::Nat::Zero }
+    }
+}
+
+data Main { }
+
+// The entry does nothing: the program is here for its proofs.
+machine entry_start() { }

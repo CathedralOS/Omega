@@ -21,14 +21,12 @@ fn deferred(
         .tokenize()
         .unwrap();
     let syntax = crate::test_support::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
-    let frontier = resolution::pre_resolution::resolve_deferred_numeric_probe(
-        resolution::ResolutionRequest {
-            syntax,
-            sources: Some(Arc::clone(&sources)),
-            top_level_bindings: Vec::new(),
-            retained_base: None,
-        },
-    )
+    let frontier = resolution::resolve_deferred(resolution::ResolutionRequest {
+        syntax,
+        sources: Some(Arc::clone(&sources)),
+        top_level_bindings: Vec::new(),
+        retained_base: None,
+    })
     .unwrap();
     let typing =
         typing::lower_symbol_resolved_trees_to_seeded_base(frontier.shared_trees())

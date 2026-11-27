@@ -421,7 +421,7 @@ fn interpreted_build_checks_and_executes_the_provider_chosen_for_its_source() {
             })
             .unwrap();
         let result = instance
-            .invoke(&mut evaluation_work::unsponsored_meter(Some(10_000)))
+            .invoke(&mut build_model::work::unsponsored_meter(Some(10_000)))
             .unwrap();
         let TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Integer {

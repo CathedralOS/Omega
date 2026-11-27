@@ -1,3 +1,7 @@
+use assembly.omg;
+use interrupt.omg;
+use representation.omg;
+
 // Install handlers while keeping their table, stacks and shared context alive.
 // Build selects the registrar and callback slot; the compiler checks their
 // exact contracts before publishing the interrupt table.
@@ -13,7 +17,7 @@ public data StaticInterruptAcknowledgementCarrier {
     debt: u64;
 }
 public StaticInterruptAcknowledgementRepresentation satisfies
-    OpaqueRepresentation<InterruptAcknowledgement, StaticInterruptAcknowledgementCarrier> {}
+    |representation|::OpaqueRepresentation<|interrupt|::InterruptAcknowledgement, StaticInterruptAcknowledgementCarrier> {}
 
 // The caller supplies an ordinary Boolean function for table policy. Its exact
 // invocation must be admitted as a logical denotation; a pure-looking signature
@@ -34,7 +38,7 @@ requires machine Valid(accepted: bool, table: @Table) -> bool reaches none termi
 // Ordinary work runs inside the installation's retained backing loans.
 public boundary trait StaticInterruptWork<Context> {
     machine run(context: @Context)
-    reaches MachineControl + PortIo
+    reaches |assembly|::MachineControl + |assembly|::PortIo
     ensures false
     crashes Trap;
 }
@@ -66,7 +70,7 @@ public data StaticInterruptArrival {
 // requirement supplies no second Calling policy: installation consumes the
 // exact slot's selected plan for its adapter and semantic continuation.
 public boundary trait X86StaticInterruptArrival {
-    machine enter() reaches <= MachineControl + PortIo crashes Trap;
+    machine enter() reaches <= |assembly|::MachineControl + |assembly|::PortIo crashes Trap;
 }
 
 // This namespace names the x86-64 implementation, not an owned context value.
@@ -85,7 +89,7 @@ public boundary machine X86StaticInterruptScope::run<
     Table, Context, machine Valid,
     const Validate: StaticInterruptTableValidation<Table, Valid>::validate,
     const Work: StaticInterruptWork<Context>::run,
-    const Completion: InterruptAcknowledgementCompletion::complete,
+    const Completion: |interrupt|::InterruptAcknowledgementCompletion::complete,
     const GdtEntries: u64
 >(
     table: @mutable Table,
@@ -97,7 +101,7 @@ public boundary machine X86StaticInterruptScope::run<
 ) -> bool
 requires GdtEntries >= 2 && GdtEntries <= 8192
 requires machine Valid(accepted: bool, table: @Table) -> bool reaches none terminates;
-reaches MachineControl + PortIo
+reaches |assembly|::MachineControl + |assembly|::PortIo
 invokes StaticInterruptTableValidation invokes StaticInterruptWork
 crashes Trap
 ensures result == false;
@@ -109,9 +113,9 @@ ensures result == false;
 // occurrence establishes the live invocation; these helpers add no reachable
 // runtime failure to the semantic handler.
 public boundary machine view_static_interrupt_context<'arrival, Context>(
-    acknowledgement: @'arrival InterruptAcknowledgement
+    acknowledgement: @'arrival |interrupt|::InterruptAcknowledgement
 ) -> @'arrival Context
-requires acknowledgement in InterruptAcknowledgement::Pending
+requires acknowledgement in |interrupt|::InterruptAcknowledgement::Pending
 reaches none;
 
 // This private permit keeps completion tied to one active invocation across the
@@ -124,14 +128,14 @@ public data StaticInterruptCompletionPermitCarrier {
     debt: u64;
 }
 public StaticInterruptCompletionPermitRepresentation satisfies
-    OpaqueRepresentation<StaticInterruptCompletionPermit, StaticInterruptCompletionPermitCarrier> {}
+    |representation|::OpaqueRepresentation<StaticInterruptCompletionPermit, StaticInterruptCompletionPermitCarrier> {}
 
 boundary machine begin_static_interrupt_completion<
-    const Completion: InterruptAcknowledgementCompletion::complete
+    const Completion: |interrupt|::InterruptAcknowledgementCompletion::complete
 >(
-    acknowledgement: @InterruptAcknowledgement
+    acknowledgement: @|interrupt|::InterruptAcknowledgement
 ) -> StaticInterruptCompletionPermit
-requires acknowledgement in InterruptAcknowledgement::Pending
+requires acknowledgement in |interrupt|::InterruptAcknowledgement::Pending
 reaches none;
 
 boundary machine finish_static_interrupt_completion(
@@ -141,11 +145,11 @@ boundary machine finish_static_interrupt_completion(
 // Authenticate the selected controller operation, run it, then commit this debt
 // as complete. A failed or nonreturning controller body cannot authorize IRET.
 public machine complete_installed_interrupt<
-    const Completion: InterruptAcknowledgementCompletion::complete
+    const Completion: |interrupt|::InterruptAcknowledgementCompletion::complete
 >(
-    acknowledgement: InterruptAcknowledgement in Pending
+    acknowledgement: |interrupt|::InterruptAcknowledgement in |interrupt|::InterruptAcknowledgement::Pending
 )
-reaches MachineControl + PortIo
+reaches |assembly|::MachineControl + |assembly|::PortIo
 {
     let permit: StaticInterruptCompletionPermit =
         begin_static_interrupt_completion::<Completion>(@acknowledgement);

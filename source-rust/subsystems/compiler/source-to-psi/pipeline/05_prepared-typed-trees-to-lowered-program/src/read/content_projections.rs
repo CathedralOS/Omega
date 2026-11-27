@@ -1,12 +1,13 @@
 //! A qualification's exact core Content application. Its owner and algebra
 //! are source declarations; neither field spelling nor a report fingerprint
 //! identifies which application the machine implements.
+use crate::read::refuse_at;
 
 mod body;
 mod naturals;
 
 use super::Program;
-use crate::{Unserved, refuse};
+use crate::Unserved;
 use crate::source_state::domain::DomainDefinition;
 use crate::source_state::machine::{Machine, SatisfiedDeclaration};
 use crate::source_state::types::TypeReferenceNode;
@@ -14,7 +15,7 @@ use language_core::core_vocabulary::CoreVocabulary;
 use semantic_vocabulary::{
     ContentAlgebra, ContentAlgebraKind, ContentProjectionExpression, MachineId,
 };
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 #[derive(Clone)]
 pub(crate) struct Definition {
@@ -49,9 +50,8 @@ impl Program<'_> {
             .domain_definition(machine.attached_domain_symbol)
             .filter(|domain| domain.content_projections.contains(&machine.symbol))
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Declaration(
                         "core Content projection lost its declaring domain's publication",
                     ),
@@ -66,13 +66,9 @@ impl Program<'_> {
         id: MachineId,
         symbol: symbols::SymbolHandle,
         expected: &str,
-    ) -> Checked<(
-        crate::body::DomainInstance,
-        crate::source_state::types::TypeReferenceHandle,
-        ContentAlgebra,
-    )> {
+    ) -> Checked<(crate::body::DomainInstance, ContentAlgebra)> {
         let typed = self.typed;
-        let missing = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let missing = |what| refuse_at(id, Unserved::Contract(what));
         let symbol = self
             .entered_machine(symbol)
             .ok_or_else(|| missing("content term does not call an owner projection"))?;
@@ -102,7 +98,6 @@ impl Program<'_> {
                 declaration: domain.symbol,
                 identity: domain.semantic_id,
             },
-            domain.target_type,
             selected.algebra,
         ))
     }
@@ -125,7 +120,7 @@ impl Program<'_> {
         symbol: symbols::SymbolHandle,
     ) -> Checked<Header> {
         let typed = self.typed;
-        let missing = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
+        let missing = |what| refuse_at(id, Unserved::Declaration(what));
         let invalid = |rule| {
             crate::reject(
                 id,
@@ -265,7 +260,7 @@ impl Program<'_> {
         domain: &DomainDefinition,
         carrier: crate::body::ValueType,
     ) -> Checked<Option<Definition>> {
-        let missing = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
+        let missing = |what| refuse_at(id, Unserved::Declaration(what));
         let symbol = match domain.content_projections.as_slice() {
             [] => return Ok(None),
             [symbol] => *symbol,

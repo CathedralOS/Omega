@@ -66,6 +66,42 @@ impl TypedTrees {
         Ok(Some(schema))
     }
 
+    /// Instantiate a const-record binder's declared schema at an enclosing
+    /// specialization frame's retained static bindings.
+    pub(crate) fn static_record_schema_in_frame(
+        &self,
+        frame: &crate::callables::machine_instances::EnclosingInvocationFrame<'_>,
+        binder: SymbolHandle,
+    ) -> Result<Option<AppliedTraitScope<'_>>, String> {
+        let Some(root) = self.static_record_parameter_schema(frame.declaration, binder)? else {
+            return Ok(None);
+        };
+        let frame_bindings = frame
+            .bindings
+            .iter()
+            .filter_map(|binding| match binding.value {
+                crate::source_state::static_applications::StaticMachineBindingValue::Type(
+                    reference,
+                )
+                | crate::source_state::static_applications::StaticMachineBindingValue::Const(
+                    reference,
+                ) => reference
+                    .is_valid()
+                    .then_some((binding.parameter, reference)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        root.under_invocation(
+            self,
+            frame.declaration,
+            frame.argument_owner,
+            &frame_bindings,
+            &[],
+        )
+        .map(Some)
+        .ok_or_else(|| "static record receiver lost its instantiated schema".into())
+    }
+
     pub fn static_record_bound_requirement<'program>(
         &'program self,
         owner: SymbolHandle,
@@ -168,7 +204,7 @@ impl TypedTrees {
                 )?
                 .ok_or("static record receiver has no exact declared requirement")?;
             let root = self
-                .static_record_parameter_schema(frame.declaration, binder)?
+                .static_record_schema_in_frame(&frame, binder)?
                 .ok_or("static record receiver has no exact declared schema")?;
             if !self.type_reference_table.contains_type_reference(reference)
                 || !self

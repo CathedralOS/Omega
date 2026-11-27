@@ -34,15 +34,16 @@
 //! Storage owned by this invocation instead retains its exact
 //! machine and storage root: it cannot establish one of that machine's universal
 //! result lifetimes, even when the borrowed window is empty.
+use crate::read::refuse_at;
 
 use crate::source_state::type_identity::LifetimeParameterIdentity;
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 use super::Program;
+use crate::Unserved;
 use crate::body::{Regions, ValueType};
-use crate::{Unserved, refuse};
 
 mod result_lifetimes;
 
@@ -255,6 +256,50 @@ impl Program<'_> {
             .collect()
     }
 
+    /// An invocation-local outer borrow may end at the call. A region which
+    /// also occurs inside a value, in the result, or on another formal keeps
+    /// its ordinary loan. Only the requirement's own family members qualify.
+    pub(crate) fn scoped_input_addresses(
+        &self,
+        declaration: SymbolHandle,
+        signature: &crate::body::Signature,
+    ) -> Vec<usize> {
+        let Some(requirement) = self.typed.retained_static_machine_contract(declaration) else {
+            return Vec::new();
+        };
+        let requirement = requirement.signature();
+        if !requirement.type_parameters.is_empty() {
+            return Vec::new();
+        }
+        let family = self.machine_lifetimes(requirement.symbol);
+        signature
+            .borrowed
+            .iter()
+            .filter_map(|input| {
+                let [region @ Region::Parameter(parameter)] = self.region_tuple(input.regions)
+                else {
+                    return None;
+                };
+                if input.referent != crate::body::BorrowedReferent::Value
+                    || !family.contains(parameter)
+                    || signature
+                        .parameters
+                        .iter()
+                        .copied()
+                        .chain(signature.result)
+                        .any(|value| self.region_tuple(value.regions()).contains(region))
+                    || signature.borrowed.iter().any(|other| {
+                        other.position != input.position
+                            && self.region_tuple(other.regions).contains(region)
+                    })
+                {
+                    return None;
+                }
+                Some(input.position)
+            })
+            .collect()
+    }
+
     /// `value_type` with every parameter `substitution` lists replaced by
     /// its region. A type that names no region is unchanged.
     pub(crate) fn substitute(
@@ -312,9 +357,8 @@ impl Program<'_> {
         let own = self.own_regions(declaration);
         let applied = self.region_tuple(regions);
         if own.len() != applied.len() {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("record applied at another number of regions than it declares"),
             ));
         }
@@ -382,9 +426,8 @@ impl Program<'_> {
                 // Two regions for one parameter agree only if a region
                 // variable can be decided as the other (`agrees`).
                 Some(region) if !self.same_region(region, *actual) => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Typing("call that gives one lifetime two regions"),
                     ));
                 }
@@ -460,18 +503,16 @@ impl Program<'_> {
     pub(crate) fn elided_region(&mut self, id: MachineId) -> Checked<Option<Region>> {
         match self.elision {
             Elision::Declaration => Ok(None),
-            Elision::Members => Err(refuse(
+            Elision::Members => Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("data field that elides a view's lifetime"),
             )),
             Elision::Inputs(owner) => Ok(Some(self.mint_lifetime(owner))),
             Elision::Result(owner) => match self.machine_lifetimes(owner).as_slice() {
                 [only] => Ok(Some(Region::Parameter(*only))),
                 [] => Ok(Some(self.mint_lifetime(owner))),
-                _ => Err(refuse(
+                _ => Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Typing(
                         "result without a lifetime of a signature with several input lifetimes",
                     ),
@@ -514,9 +555,8 @@ impl Program<'_> {
     ) -> Checked<Vec<Region>> {
         let own = self.own_regions(data);
         if self.elision == Elision::Members && !own.is_empty() {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("data field that elides a lifetime argument"),
             ));
         }
@@ -775,9 +815,8 @@ impl Program<'_> {
                             )
                         })
                         .ok_or_else(|| {
-                            refuse(
+                            refuse_at(
                                 machine,
-                                Construct::Machine,
                                 Unserved::Type(
                                     "borrowed view has no complete owned region identity",
                                 ),
@@ -839,9 +878,8 @@ impl Program<'_> {
             return Ok(regions);
         }
         let (_, elements) = self.region_tuple(regions).split_first().ok_or_else(|| {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("borrowed sequence without its outer region"),
             )
         })?;

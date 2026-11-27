@@ -1,8 +1,6 @@
 //! Apply encoded frame fragments, place functions and resolve internal calls before object construction.
 #![forbid(unsafe_code)]
 
-pub(crate) use ::wire::codec_bytes;
-
 pub mod code_layout;
 mod exit_contract;
 mod fragment_emission;
@@ -18,23 +16,18 @@ pub use exit_contract::{
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 pub use fragment_emission::{
-    FunctionFragmentEmissionError, FunctionFragmentEmissionManifest, FunctionFragmentEmissionStage,
-    FunctionFragmentEmissionStatistics, FunctionFragmentEmissionUnavailableData,
-    StagedOptimizedFunctionFragmentEmissionSource,
+    FunctionFragmentEmissionError, StagedOptimizedFunctionFragmentEmissionSource,
 };
 pub use frame_application::{
     CheckedFunctionBranches, FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol,
-    FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationError,
-    FunctionFragmentFrameApplicationIdentity, PlacedBodyEvidence,
-    StagedFunctionFragmentFrameApplication, function_fragment_frame_application_identity,
+    FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationError, PlacedBodyEvidence,
+    StagedFunctionFragmentFrameApplication,
 };
 pub use function_realization::{
     FunctionRelativeOptimizationRealizationError, StagedFixedFrameFunctionRelativeRealization,
 };
 
 pub use text_placement::{
-    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
-    FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
     FunctionPlacement, RelocationFreeTextSectionPlacementError,
     StagedOptimizedFixedFrameTextSection, validate_optimized_fixed_frame_text_section,
 };

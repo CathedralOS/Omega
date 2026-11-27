@@ -8,25 +8,20 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+build-time-evaluation = { path = "../../../build/build-time" }
+build-providers = { path = "../../../build/providers" }
+build-model = { path = "../../../build/model" }
 service-surface = { path = "../../../psi/interfaces/service-surface" }
 component-description = { path = "../../verification/component-description" }
 target-bound-program = { path = "../../representations/target-bound-program" }
-behavior-exclusion-requests = { path = "../../../build/settings/behavior-exclusions" }
 optimization-core = { path = "../../representations/optimization-records" }
 boundary-applications = { path = "../../representations/operation-evidence/boundary-applications" }
-evaluation-work = { path = "../../../build/evaluation/accounting/work" }
 native-execution-scope = { path = "execution-scope" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
-build-value-projection = { path = "../../../build/evaluation/values/projection" }
-provider-acceptance = { path = "../../../build/providers/acceptance" }
 native-binding-admission = { path = "../../verification/native-bindings" }
 direct-boundary-bindings = { path = "../../verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../targets/intrinsics" }
-selected-provider-plans = { path = "../../../build/providers/selections" }
 target-provider-admission = { path = "../../verification/target-providers" }
-provider-plans = { path = "../../../build/providers/plans" }
-evaluation-admission = { path = "../../../build/evaluation/authority/admission" }
-build-scalar-evaluation = { path = "../../../build/evaluation/scalars" }
 psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 psi-target-layouts = { path = "../../../psi/execution-inputs/target-layouts" }
 provider-demand = { path = "../00_psi-to-admitted-native-inputs/provider-demand" }
@@ -35,12 +30,8 @@ native-inputs = { package = "psi-to-admitted-native-inputs", path = "../00_psi-t
 declaration-scope = { path = "../../../foundation/declaration-scope" }
 application-identity = { path = "../../../psi/identities/applications" }
 arena = { path = "../../../../../foundation/arena" }
-build-time-values = { path = "../../../build/evaluation/values" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-evaluation-accounting = { path = "../../../build/evaluation/accounting" }
-evaluation-contracts = { path = "../../../build/evaluation/accounting/contracts" }
-evaluation-receipts = { path = "../../../build/evaluation/receipts" }
 language-core = { path = "../../../foundation/language-core" }
 layout = { path = "../../targets/layout" }
 layout-plans = { path = "../../../psi/layouts/geometry" }

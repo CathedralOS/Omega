@@ -38,8 +38,10 @@ pub mod reference_ends;
 pub mod references;
 pub mod scalar_qualifications;
 mod scalar_target_ranges;
-pub use scalar_target_ranges::{TargetScalarRange, layout_call_conditions, target_scalar_ranges};
-pub mod continuation;
+pub use scalar_target_ranges::{
+    TargetScalarRange, array_extent_literal_conditions, layout_call_conditions,
+    target_scalar_ranges,
+};
 pub mod scalars;
 pub mod static_reach;
 pub mod storage;
@@ -136,7 +138,7 @@ pub use references::reference_storage_geometry::{
     ReferenceStorageRegion, StorageGeometryError, UnselectedRecordStorage,
     authored_field_storage_extent, reference_field_representation_width, reference_scalar_storage,
     reference_storage_dependencies, reference_storage_layout, reference_storage_projection,
-    reference_storage_region, reference_storage_size, schema_field_layout_source,
+    reference_storage_region, reference_storage_size, scalar_field_storage_geometry, schema_field_layout_source,
     validate_storage_destination_intervals,
 };
 pub use references::{
@@ -222,7 +224,8 @@ pub use scalars::proof_bearing_scalar::{
 };
 pub use scalars::scalar_array::{
     PackedArrayRole, packed_integer_array_type, packed_integer_unary_array_type,
-    scalar_array_leaf_declaration, scalar_array_leaf_path, scalar_array_leaf_shape,
+    scalar_array_application_leaf, scalar_array_leaf_declaration, scalar_array_leaf_path,
+    scalar_array_leaf_shape,
 };
 pub use scalars::scalar_field_requirements::{
     atomic_resident_requirement, scalar_field_accepts_literal, scalar_field_accepts_zero,

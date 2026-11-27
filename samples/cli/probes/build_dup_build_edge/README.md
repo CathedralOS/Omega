@@ -1,9 +1,5 @@
 # build_dup_build_edge
 
-Two an aliased `Build::build_dependency` rows name the same `dependency` directory with
-different aliases (`k1`, `k2`). z24 proved two *product* aliases on one
-package coexist; this pins whether the *build* purpose row family accepts
-the same duplication or rejects it as a collision.
+The first Build registers the same package directory under two aliases and selects `configure.omg` for the next Build. The successor imports `main.omg` through each alias and checks that both calls return 3 before it returns the application declaration.
 
-Only `k1::seed()` is called — the `k2` edge stays inert to isolate
-row admission from import-name collisions.
+Run `omega --check build.omg` in this directory. Removing either registration makes the successor's corresponding import unavailable. Changing the package's return value trips the successor's check.

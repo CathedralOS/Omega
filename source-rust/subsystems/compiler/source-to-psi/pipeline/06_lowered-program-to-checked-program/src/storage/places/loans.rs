@@ -266,13 +266,14 @@ pub(crate) fn reference_graph(
     module: &terminal_psi::TerminalModule,
     machine: semantic_vocabulary::MachineId,
 ) -> Checked<Vec<terminal_semantics::descriptor_results::DescriptorMachine>> {
-    reference_graph_with_nominal_calls(module, machine, &[])
+    reference_graph_with_generic_calls(module, machine, &[], &[])
 }
 
-pub(crate) fn reference_graph_with_nominal_calls(
+pub(crate) fn reference_graph_with_generic_calls(
     module: &terminal_psi::TerminalModule,
     machine: semantic_vocabulary::MachineId,
     nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    schemas: &[terminal_check_tables::contracts::StaticSchemaQuestion],
 ) -> Checked<Vec<terminal_semantics::descriptor_results::DescriptorMachine>> {
     let lowered = module.machine(machine).ok_or_else(|| {
         crate::refusal(
@@ -315,11 +316,12 @@ pub(crate) fn reference_graph_with_nominal_calls(
     if !demanded {
         return Ok(Vec::new());
     }
-    terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_with_nominal_calls(
+    terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_with_generic_calls(
         module,
         [machine],
         &[],
         nominal_calls,
+        &terminal_check_tables::contracts::scoped_requirement_addresses(&module.machines, schemas),
     )
     .map_err(|error| graph_refusal(module, error))
 }
@@ -2446,10 +2448,7 @@ impl<'a> Storage<'a> {
             .filter(|parameter| parameter.access != StructuralAccess::Owned)
             .filter(|parameter| {
                 terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage
-                    .owned_inventory(self.types, parameter.place, parameter.structural_type)
-                    .is_some_and(|inventory| {
-                        !inventory.into_observations().any(|slot| slot.path.is_empty())
-                    })
+                    .borrows_inline_storage(self.types, parameter.place, parameter.structural_type)
             })
             .map(|parameter| parameter.place)
             .collect();
@@ -3117,6 +3116,11 @@ impl<'a> Storage<'a> {
                 terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
                     self.foreign(Construct::Machine, detail)
                 }
+                terminal_semantics::plain_affine::Error::MissingActiveCase { .. } => self
+                    .unsupported(
+                        Construct::Machine,
+                        terminal_semantics::plain_affine::Error::missing_active_case_message(),
+                    ),
                 terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                     self.unsupported(Construct::Machine, detail)
                 }

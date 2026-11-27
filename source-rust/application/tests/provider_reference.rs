@@ -425,7 +425,10 @@ machine build<'selection>(builder: @mutable BuildPlan) {
 
     let other = "public data OtherTable { marker: u64; apply: address; }";
     std::fs::write(root.join("main.omg"), format!("{program}\n{other}")).unwrap();
-    let wrong_owner = build.replace("::field(|app|::ProtocolFields::apply)", "::field(|app|::OtherTable::apply)");
+    let wrong_owner = build.replace(
+        "::field(|app|::ProtocolFields::apply)",
+        "::field(|app|::OtherTable::apply)",
+    );
     assert_ne!(build, wrong_owner);
     std::fs::write(root.join("build.omg"), wrong_owner).unwrap();
     let rejected = omega_command(&directory, &root)
@@ -433,7 +436,10 @@ machine build<'selection>(builder: @mutable BuildPlan) {
         .output()
         .unwrap();
     let diagnostic = String::from_utf8_lossy(&rejected.stderr);
-    assert!(!rejected.status.success() && diagnostic.contains("different field"), "{diagnostic}");
+    assert!(
+        !rejected.status.success() && diagnostic.contains("different field"),
+        "{diagnostic}"
+    );
     std::fs::write(root.join("build.omg"), &build).unwrap();
 
     // The custody controls construct and modify ordinary semantic records.

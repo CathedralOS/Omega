@@ -10,34 +10,34 @@ fn generated_files_can_import_the_checked_base_and_one_another() {
     let key = PackageKeyIdentity::from_digest([7; 32]).unwrap();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("generated-local-import");
     let base_text = "public data Base {}";
-    let tree = source_capture::CapturedSourceTree::new([
+    let tree = source_acquisition::capture::CapturedSourceTree::new([
         (
             PathBuf::from("build.omg"),
-            source_capture::CapturedSourceNode::File {
-                bytes: Arc::from(b"machine build(builder: @mutable Build) { Build::package(builder, \"generated\"); }".as_slice()),
+            source_acquisition::capture::CapturedSourceNode::File {
+                bytes: Arc::from(b"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: \"generated\" }; }".as_slice()),
                 executable: false,
             },
         ),
         (
             PathBuf::from("main.omg"),
-            source_capture::CapturedSourceNode::File {
+            source_acquisition::capture::CapturedSourceNode::File {
                 bytes: Arc::from(b"use entry.omg; public machine read() -> u8 { |entry|::make() }".as_slice()),
                 executable: false,
             },
         ),
         (
             PathBuf::from("types"),
-            source_capture::CapturedSourceNode::Directory,
+            source_acquisition::capture::CapturedSourceNode::Directory,
         ),
         (
             PathBuf::from("linked.omg"),
-            source_capture::CapturedSourceNode::Symlink {
+            source_acquisition::capture::CapturedSourceNode::Symlink {
                 target: "types/base.omg".into(),
             },
         ),
         (
             PathBuf::from("types/base.omg"),
-            source_capture::CapturedSourceNode::File {
+            source_acquisition::capture::CapturedSourceNode::File {
                 bytes: Arc::from(base_text.as_bytes()),
                 executable: false,
             },
@@ -99,7 +99,9 @@ fn generated_files_can_import_the_checked_base_and_one_another() {
         generated("math/value.omg", "public machine value() -> u8 { 7 }"),
         generated(
             "entry.omg",
-            "use math/value.omg; use types/base.omg; use linked.omg; public machine make() -> u8 { |value|::value() }",
+            "use math/value.omg; use types/base.omg; use linked.omg;
+             public machine make() -> u8 { |value|::value() }
+             machine accepts(base: |base|::Base, linked: |linked|::Base) {}",
         ),
     ];
     let assemble =

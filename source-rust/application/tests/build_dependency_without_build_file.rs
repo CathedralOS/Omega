@@ -17,59 +17,38 @@ the same directory a `build.omg` that names the package, and compiles.
 
 */
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 fn check(name: &str, dependency_build: Option<&str>) -> (bool, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-dependency-without-build-file-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(root.join("dep")).expect("staging directory");
-    std::fs::write(
-        root.join("main.omg"),
-        "machine entry() -> i32 {\n    0\n}\n",
-    )
-    .expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        "use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"consumer\");
+    let mut files = vec![
+        ("main.omg", "machine entry() -> i32 {\n    0\n}\n"),
+        (
+            "build.omg",
+            "use {omega}/build/dependency.omg;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"consumer\" };
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
     |dependency|::with_alias(@mutable description, \"dep\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
 }
 ",
-    )
-    .expect("staged Build");
-    std::fs::write(
-        root.join("dep").join("main.omg"),
-        "public machine value() -> i32 {\n    7\n}\n",
-    )
-    .expect("staged dependency");
+        ),
+        ("dep/main.omg", "public machine value() -> i32 {\n    7\n}\n"),
+    ];
     if let Some(build) = dependency_build {
-        std::fs::write(root.join("dep").join("build.omg"), build).expect("dependency Build");
+        files.push(("dep/build.omg", build));
     }
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("main.omg")
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stderr).into_owned(),
-    )
+    project::check(name, &files, &["--check", "main.omg"])
 }
 
 #[test]
 fn a_dependency_with_a_build_file_compiles() {
     let (compiled, stderr) = check(
         "declared",
-        Some("machine build(builder: @mutable Build) {\n    Build::package(builder, \"kernel\");\n}\n"),
+        Some(
+            "machine build(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Package { name: \"kernel\" };\n}\n",
+        ),
     );
     assert!(compiled, "{stderr}");
 }

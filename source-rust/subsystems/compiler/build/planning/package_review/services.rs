@@ -171,7 +171,7 @@ impl<'a> PolicySource<'a> {
     pub(super) fn schema_effect_scope(
         &self,
         symbol: symbols::SymbolHandle,
-        schema: &provider_plans::ServiceSchema,
+        schema: &build_providers::plans::ServiceSchema,
     ) -> Result<
         source_compiler::representations::source_state::trait_definition::AppliedTraitScope<'a>,
         Vec<Diagnostic>,

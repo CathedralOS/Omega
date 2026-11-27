@@ -281,7 +281,6 @@ fn returns_normally() -> Outcome {
         operational: [false; 2],
         completes_normally: true,
         service_reach: Vec::new(),
-        fixed_service_reach: None,
         synchronous_entries: Vec::new(),
         crash_routes: Vec::new(),
     }
@@ -518,6 +517,70 @@ fn greater_swaps_operands_without_reordering_evaluation() {
         panic!("a > b is b < a")
     };
     assert_eq!((left, right), (id::<ValueId>(2), id::<ValueId>(1)));
+}
+
+#[test]
+fn equality_with_true_is_the_boolean_itself() {
+    // machine 1(a: u32, b: u32) -> bool { (a < b) == true }, which is how a
+    // transition's `true ->` arm tests its subject.
+    let body = Body {
+        slots: scalars(vec![u32_type(), u32_type()]),
+        statements: vec![returns(strict(
+            Strict::Equal,
+            strict(
+                Strict::Less,
+                slot(0, u32_type()),
+                slot(1, u32_type()),
+                ScalarType::Boolean,
+            ),
+            expression(ExpressionKind::Boolean(true), Some(ScalarType::Boolean)),
+            ScalarType::Boolean,
+        ))],
+    };
+    let (machine, _) = lower(
+        body,
+        vec![signature(
+            vec![u32_type(), u32_type()],
+            Some(ScalarType::Boolean),
+        )],
+    );
+    let operations = &block(&machine, 1).operations;
+    assert!(matches!(
+        operations.as_slice(),
+        [operation] if matches!(operation.kind, OperationKind::IntegerLessThan { .. })
+    ));
+}
+
+#[test]
+fn equality_with_false_still_compares() {
+    // `(a < b) == false` is not rewritten: only `== true` is the subject.
+    let body = Body {
+        slots: scalars(vec![u32_type(), u32_type()]),
+        statements: vec![returns(strict(
+            Strict::Equal,
+            strict(
+                Strict::Less,
+                slot(0, u32_type()),
+                slot(1, u32_type()),
+                ScalarType::Boolean,
+            ),
+            expression(ExpressionKind::Boolean(false), Some(ScalarType::Boolean)),
+            ScalarType::Boolean,
+        ))],
+    };
+    let (machine, _) = lower(
+        body,
+        vec![signature(
+            vec![u32_type(), u32_type()],
+            Some(ScalarType::Boolean),
+        )],
+    );
+    assert!(
+        block(&machine, 1)
+            .operations
+            .iter()
+            .any(|operation| matches!(operation.kind, OperationKind::BooleanEqual { .. }))
+    );
 }
 
 fn short_circuit(conjunction: bool) -> (TerminalMachine, MachineTables) {
@@ -1096,7 +1159,6 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
                 operational: [false; 2],
                 completes_normally: false,
                 service_reach: Vec::new(),
-                fixed_service_reach: None,
                 synchronous_entries: Vec::new(),
                 crash_routes: callee_routes,
             },
@@ -1333,7 +1395,6 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
                 operational: [false; 2],
                 completes_normally: true,
                 service_reach: Vec::new(),
-                fixed_service_reach: None,
                 synchronous_entries: Vec::new(),
                 crash_routes: routes(&[CrashCause::Trap, CrashCause::Abort]),
             },
@@ -1341,7 +1402,6 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
                 operational: [false; 2],
                 completes_normally: true,
                 service_reach: Vec::new(),
-                fixed_service_reach: None,
                 synchronous_entries: Vec::new(),
                 crash_routes: callee_routes,
             },
@@ -2010,7 +2070,6 @@ fn outcomes_follow_the_ceiling_or_the_body() {
             operational: [false; 2],
             completes_normally: false,
             service_reach: Vec::new(),
-            fixed_service_reach: None,
             synchronous_entries: Vec::new(),
             crash_routes: routes(&[CrashCause::Trap]),
         }
@@ -2080,7 +2139,6 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
         operational: [false; 2],
         completes_normally: false,
         service_reach: Vec::new(),
-        fixed_service_reach: None,
         synchronous_entries: Vec::new(),
         crash_routes: Vec::new(),
     };
@@ -2153,7 +2211,6 @@ fn a_skipped_operand_cannot_end_the_machine() {
             operational: [false; 2],
             completes_normally: true,
             service_reach: Vec::new(),
-            fixed_service_reach: None,
             synchronous_entries: Vec::new(),
             crash_routes: routes(&[CrashCause::Trap]),
         }
@@ -4179,9 +4236,8 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(Vec::new(), Some(u32_type().into())));
     let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &constrained()).unwrap();
-    // Each type's declaration in the module states its clauses, and the
-    // checker's table beside the module restates them by the type's
-    // identity.
+    // Each type's declaration in the module states its clauses; the checker
+    // reads them from there.
     let declared = &elaboration.module.types.structural_types;
     assert_eq!(
         declared[0].requires,
@@ -4191,8 +4247,6 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
         declared[1].requires,
         constrained().get(id(2)).unwrap().requires
     );
-    assert_eq!(elaboration.domains.get(id(1)), Some(&declared[0].requires));
-    assert_eq!(elaboration.domains.get(id(2)), Some(&declared[1].requires));
     let machine = &elaboration.module.machines[0];
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let entry_block = block(machine, 1);

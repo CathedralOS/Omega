@@ -1195,6 +1195,34 @@ impl Expression {
         }
         self
     }
+
+    /// Whether every path through this expression leaves the enclosing
+    /// machine via a `crash` or `transition` statement rather than delivering
+    /// a value to its enclosing context.
+    pub(crate) fn diverges(&self) -> bool {
+        match &self.kind {
+            ExpressionKind::Block { statements, value } => {
+                value.as_deref().is_some_and(Self::diverges)
+                    || (value.is_none()
+                        && statements.last().is_some_and(|statement| {
+                            matches!(
+                                statement,
+                                Statement::Dispatch { .. }
+                                    | Statement::Arm {
+                                        guard: ArmGuard::Always | ArmGuard::Final(_),
+                                        ..
+                                    }
+                            )
+                        }))
+            }
+            ExpressionKind::Match { arms, default, .. } => {
+                (!arms.is_empty() || default.is_some())
+                    && arms.iter().all(|(_, arm)| arm.diverges())
+                    && default.as_deref().is_none_or(Self::diverges)
+            }
+            _ => false,
+        }
+    }
 }
 
 /// Convert a checked clause value into the scalar lane, retaining the
@@ -1265,6 +1293,16 @@ pub enum PackedIntegerOperation {
 pub enum ExpressionKind {
     /// Operand indices refer to the event's source evaluation order.
     Atomic(AtomicOperation),
+    /// In the body of a mathematical machine generic over machines, or of
+    /// one that calls such a machine: a machine parameter applied to its
+    /// arguments, or a generic mathematical machine applied to the machines
+    /// passed for its machine parameters and then its arguments. Only the
+    /// mathematical signature reads it; it has no operation.
+    Applied {
+        head: AppliedHead,
+        machines: Vec<PassedMachine>,
+        arguments: Vec<Expression>,
+    },
     /// Apply the supplied implication to fixed subjects without executing a call.
     /// `source` is one of the machine's proof formals, or a named machine
     /// that does no work, a theorem over indexed data, whose citation is a
@@ -1273,6 +1311,13 @@ pub enum ExpressionKind {
     TheoremApplication {
         source: terminal_psi::TheoremSource,
         arguments: Vec<Expression>,
+        /// For a proof formal, the field path each argument reads: empty
+        /// for a scalar subject, and a scalar field's path when the
+        /// argument names a record formal. Empty for a named machine.
+        fields: Vec<Vec<semantic_vocabulary::CanonicalStructuralPathSegment>>,
+        /// One proof for each of the applied contract's own proof
+        /// parameters, such as `inner` in `Step::<inner>(n)`.
+        instantiation: Vec<terminal_psi::TheoremSource>,
     },
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<crate::source_state::expression::CompletedValueCapture>),
@@ -1515,10 +1560,46 @@ pub enum ExpressionKind {
         required_contract: Option<semantic_vocabulary::ContractId>,
         static_reach_binding: Option<u32>,
         static_reach_arguments: Vec<terminal_psi::static_reach::StaticReachArgument>,
-        proof_arguments: Vec<terminal_psi::TheoremSource>,
+        proof_arguments: Vec<ProofSupply>,
         arguments: Vec<Expression>,
         designated: Option<DesignatedOperands>,
     },
+}
+
+/// One proof argument of a call: its source and, when that source is a named
+/// theorem with proof parameters of its own, one supply for each of them.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProofSupply {
+    pub source: terminal_psi::TheoremSource,
+    pub instantiation: Vec<terminal_psi::TheoremSource>,
+}
+
+impl ProofSupply {
+    pub fn plain(source: terminal_psi::TheoremSource) -> Self {
+        Self {
+            source,
+            instantiation: Vec::new(),
+        }
+    }
+}
+
+/// What a mathematical application applies (`ExpressionKind::Applied`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppliedHead {
+    /// A machine parameter of the machine whose body this is.
+    Parameter(symbols::SymbolHandle),
+    /// A generic mathematical machine.
+    Machine(MachineId),
+}
+
+/// A machine passed for a machine parameter of a generic mathematical
+/// machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PassedMachine {
+    /// A machine parameter of the machine whose body this is.
+    Parameter(symbols::SymbolHandle),
+    /// A concrete mathematical machine: its definition.
+    Machine(MachineId),
 }
 
 /// The code operand remains separate from every explicit argument. A selected

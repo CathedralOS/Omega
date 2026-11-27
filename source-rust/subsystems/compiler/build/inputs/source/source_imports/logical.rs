@@ -1,11 +1,9 @@
-//! Discover authored logical modules from immutable captured source units.
+//! Inventory operator families in the package’s captured source units.
 //!
 //! Discovery uses the normal parser, one standalone page per unit. Its
 //! coordinates and declarations never join a checked source cohort: the
 //! selected paths go through the ordinary scope, owner and stratum admission
-//! afterwards. This cache records module membership, operator declaration
-//! units and the names each unit declares at its top level, not visibility or
-//! declaration resolution.
+//! afterwards.
 //!
 //! Each unit's parse is retained beside that record. When admission later
 //! selects the same bytes, it adopts the retained page under the admitted
@@ -14,12 +12,12 @@
 //! bindings are still decided by admission.
 
 use super::frontier::RegisteredPackageRoot;
-use source_provenance::DependencyScope;
 use diagnostics::Diagnostic;
+use source_acquisition::capture::SourceFileSystem;
 use source_admission::LoadedSource;
-use source_capture::SourceFileSystem;
 use source_compiler::RetainedSourceParse;
-use source_compiler::{SourceInput, CompileTimings};
+use source_compiler::{CompileTimings, SourceInput};
+use source_provenance::DependencyScope;
 use source_text::SourceId;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -37,39 +35,12 @@ pub(crate) struct LogicalSourceInventory {
 #[derive(Clone, Debug, PartialEq, Eq, record_storage::Record)]
 struct LogicalSourceUnit {
     path: PathBuf,
-    module: Vec<String>,
     declares_operator_family: bool,
-    /// The first name of every top-level declaration, in authored order.
-    declared: Vec<String>,
     /// The unit's parse under discovery's private coordinates.
     syntax: Arc<RetainedSourceParse>,
 }
 
 pub(crate) trait LogicalSourceDiscovery {
-    fn select(
-        &mut self,
-        root: &Path,
-        logical_path: &[String],
-        filesystem: &SourceFileSystem,
-    ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        self.select_owned(root, logical_path, filesystem, Vec::new())
-    }
-    fn select_owned(
-        &mut self,
-        root: &Path,
-        logical_path: &[String],
-        filesystem: &SourceFileSystem,
-        excluded_paths: Vec<PathBuf>,
-    ) -> Result<Vec<PathBuf>, Vec<Diagnostic>>;
-    /// Files selected by a legacy namespace import in Build. A missing
-    /// declaration remains deferred until the Build prepares its dependency.
-    fn select_declaring(
-        &mut self,
-        root: &Path,
-        logical_path: &[String],
-        filesystem: &SourceFileSystem,
-        excluded_paths: Vec<PathBuf>,
-    ) -> Result<Vec<PathBuf>, Vec<Diagnostic>>;
     fn operator_family_sources(
         &mut self,
         root: &Path,
@@ -80,57 +51,6 @@ pub(crate) trait LogicalSourceDiscovery {
 }
 
 impl LogicalSourceDiscovery for Vec<RegisteredPackageRoot> {
-    fn select_owned(
-        &mut self,
-        root: &Path,
-        logical_path: &[String],
-        filesystem: &SourceFileSystem,
-        excluded_paths: Vec<PathBuf>,
-    ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        let inventory = owner_inventory(self, root, filesystem, excluded_paths)?;
-        // A namespace import also permits qualified descendant references.
-        // Ordinary acquisition observes use declarations, not expression paths;
-        // acquire that namespace here and leave exposure to semantic selection.
-        Ok(inventory
-            .units
-            .iter()
-            .filter(|unit| {
-                logical_path.starts_with(&unit.module) || unit.module.starts_with(logical_path)
-            })
-            .map(|unit| unit.path.clone())
-            .collect())
-    }
-    fn select_declaring(
-        &mut self,
-        root: &Path,
-        logical_path: &[String],
-        filesystem: &SourceFileSystem,
-        excluded_paths: Vec<PathBuf>,
-    ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        let inventory = owner_inventory(self, root, filesystem, excluded_paths)?;
-        let declares = |unit: &LogicalSourceUnit| {
-            logical_path.starts_with(&unit.module)
-                && logical_path
-                    .get(unit.module.len())
-                    .is_some_and(|name| unit.declared.contains(name))
-        };
-        // Every unit of a declaring module is selected: its declarations may
-        // name one another across files.
-        let declaring = inventory
-            .units
-            .iter()
-            .filter(|unit| declares(unit))
-            .map(|unit| unit.module.as_slice())
-            .collect::<Vec<_>>();
-        Ok(inventory
-            .units
-            .iter()
-            .filter(|unit| {
-                unit.module.starts_with(logical_path) || declaring.contains(&unit.module.as_slice())
-            })
-            .map(|unit| unit.path.clone())
-            .collect())
-    }
     fn operator_family_sources(
         &mut self,
         root: &Path,
@@ -206,8 +126,8 @@ impl LogicalSourceInventory {
                     path.extension().and_then(|extension| extension.to_str()),
                     Some("omg")
                 ) && !excluded_paths
-                        .iter()
-                        .any(|package| path.starts_with(package))
+                    .iter()
+                    .any(|package| path.starts_with(package))
             })
             .cloned()
             .collect::<Vec<_>>();
@@ -249,18 +169,10 @@ impl LogicalSourceInventory {
             by_path: Vec::new(),
         };
         for (path, unit) in paths.into_iter().zip(parsed) {
-            let source_compiler::SourceDeclarations {
-                declares_operator_family,
-                declared,
-            } = unit.declarations();
-            let module = source_admission::directory_namespace(&path, root)
-                .map_err(|message| vec![Diagnostic::error(message)])?
-                .into_iter().map(str::to_owned).collect();
+            let declares_operator_family = unit.declares_operator_family();
             result.units.push(LogicalSourceUnit {
                 path,
-                module,
                 declares_operator_family,
-                declared,
                 syntax: Arc::new(unit),
             });
         }
@@ -305,7 +217,7 @@ pub(crate) fn retained_unit<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use source_capture::{CapturedSourceNode, CapturedSourceTree};
+    use source_acquisition::capture::{CapturedSourceNode, CapturedSourceTree};
     use std::collections::BTreeMap;
     use std::sync::Arc;
 
@@ -349,45 +261,6 @@ mod tests {
         owners
     }
 
-    #[test]
-    fn logical_membership_comes_from_directories_not_filenames() {
-        let filesystem = captured(&[
-            ("odd.omg", "public data Record {}"),
-            ("another.omg", "public machine read() -> u8 { 7 }"),
-            ("unrelated/Record.omg", "public data Hidden {}"),
-            ("api/renamed.omg", "public data Export {}"),
-            ("prepare.omg", "not product source syntax"),
-        ]);
-        let mut discovery = owner_with_build_file("prepare.omg");
-        assert_eq!(
-            discovery
-                .select(&capture_root(), &["Record".into()], &filesystem)
-                .unwrap(),
-            ["another.omg", "odd.omg"].map(|path| capture_root().join(path))
-        );
-        assert!(
-            discovery
-                .operator_family_sources(
-                    &capture_root(),
-                    &capture_root().join("odd.omg"),
-                    &filesystem,
-                    vec![],
-                )
-                .unwrap()
-                .is_empty()
-        );
-        assert!(
-            discovery
-                .select(
-                    &capture_root(),
-                    &["api".into(), "Export".into()],
-                    &filesystem
-                )
-                .unwrap()
-                .contains(&capture_root().join("api/renamed.omg"))
-        );
-    }
-
     // Discovery's parse of each eligible unit stays with its owner's
     // inventory, so admission can adopt it by path. Build files and paths
     // outside the inventory have none and are parsed by admission itself.
@@ -395,91 +268,25 @@ mod tests {
     fn discovery_retains_each_unit_parse_for_admission() {
         let filesystem = captured(&[
             ("odd.omg", "public data Record {}"),
-            ("api/renamed.omg", "public data Export {}"),
+            ("api/renamed.omg", "public machine value() -> u8 { 7 }"),
             ("prepare.omg", "not product source syntax"),
         ]);
         let mut discovery = owner_with_build_file("prepare.omg");
         discovery
-            .select(&capture_root(), &["api".into()], &filesystem)
+            .operator_family_sources(
+                &capture_root(),
+                &capture_root().join("api/renamed.omg"),
+                &filesystem,
+                vec![],
+            )
             .unwrap();
         let retained = retained_unit(&discovery, &capture_root().join("api/renamed.omg"))
             .expect("discovery retained the unit it parsed");
-        let declarations = retained.declarations();
-        assert_eq!(declarations.declared, ["Export"]);
-        assert!(!declarations.declares_operator_family);
+        assert_eq!(retained.free_machines("value").count(), 1);
+        assert!(!retained.declares_operator_family());
         assert!(retained_unit(&discovery, &capture_root().join("odd.omg")).is_some());
         assert!(retained_unit(&discovery, &capture_root().join("prepare.omg")).is_none());
         assert!(retained_unit(&discovery, Path::new("/elsewhere/odd.omg")).is_none());
-    }
-
-    /// A Product declaration query selects the unit that declares the consumed
-    /// name. An unknown selection leaves discovery empty for the query to diagnose.
-    #[test]
-    fn a_product_query_selects_only_the_module_that_declares_its_name() {
-        let filesystem = captured(&[
-            ("main.omg", "public machine entry() -> u8 { 7 }"),
-            ("other.omg", "machine helper() -> u8 { 7 }"),
-            (
-                "build_support/support.omg",
-                "public machine generated() -> u8 { 7 }",
-            ),
-            (
-                "build_support/tables/tables.omg",
-                "public data Table {}",
-            ),
-        ]);
-        let root = &capture_root();
-        let mut owners = Vec::<RegisteredPackageRoot>::new();
-        let mut select = |path: &[&str]| {
-            let path = path
-                .iter()
-                .map(|name| (*name).to_owned())
-                .collect::<Vec<_>>();
-            owners
-                .select_declaring(root, &path, &filesystem, Vec::new())
-                .unwrap()
-        };
-        assert!(select(&["kit"]).is_empty());
-        assert!(select(&["kit", "v"]).is_empty());
-        assert_eq!(
-            select(&["helper"]),
-            ["main.omg", "other.omg"].map(|path| root.join(path)),
-            "one module-less unit declares the name, so its whole module is selected"
-        );
-        assert_eq!(
-            select(&["build_support"]),
-            ["build_support/support.omg", "build_support/tables/tables.omg"].map(|path| root.join(path))
-        );
-        assert_eq!(
-            select(&["build_support", "generated"]),
-            [root.join("build_support/support.omg")]
-        );
-        // The twin: the acquisition a Product source gets takes every
-        // enclosing namespace, the module-less units included.
-        assert_eq!(
-            owners.select(root, &["kit".into()], &filesystem).unwrap(),
-            ["main.omg", "other.omg"].map(|path| root.join(path))
-        );
-    }
-
-    #[test]
-    fn root_import_acquires_descendants_for_qualified_namespace_lookup() {
-        let filesystem = captured(&[
-            ("root.omg", "public data Root {}"),
-            ("child/child.omg", "public data Child {}"),
-            ("child/deep/deep.omg", "public data Deep {}"),
-        ]);
-        let mut owners = Vec::<RegisteredPackageRoot>::new();
-        assert_eq!(
-            owners.select(&capture_root(), &[], &filesystem).unwrap(),
-            ["child/child.omg", "child/deep/deep.omg", "root.omg"].map(|path| capture_root().join(path))
-        );
-        assert_eq!(
-            owners
-                .select(&capture_root(), &["child".into()], &filesystem)
-                .unwrap(),
-            ["child/child.omg", "child/deep/deep.omg", "root.omg"].map(|path| capture_root().join(path))
-        );
     }
 
     #[test]
@@ -489,7 +296,7 @@ mod tests {
             ("units/units.omg", "public domain u32::Distance;"),
             (
                 "operations/operators.omg",
-                "use units; public machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { left }",
+                "use units/units.omg; public machine + |units|::Distance::add(left: u32 in |units|::Distance, right: u32 in |units|::Distance) -> u32 in |units|::Distance { left }",
             ),
             ("unrelated/ordinary.omg", "machine helper() {}"),
             (
@@ -518,21 +325,6 @@ mod tests {
     }
 
     #[test]
-    fn named_parent_namespace_can_be_introduced_only_by_a_descendant_unit() {
-        let filesystem = captured(&[("outer/inner/renamed.omg", "public data Item {}")]);
-        let mut owners = Vec::<RegisteredPackageRoot>::new();
-        let root = &capture_root();
-        assert_eq!(
-            owners.select(root, &[], &filesystem).unwrap(),
-            [root.join("outer/inner/renamed.omg")]
-        );
-        assert_eq!(
-            owners.select(root, &["outer".into()], &filesystem).unwrap(),
-            [root.join("outer/inner/renamed.omg")]
-        );
-    }
-
-    #[test]
     fn owner_inventory_refreshes_when_capture_or_exclusions_change() {
         let first = captured(&[("one.omg", "public data One {}")]);
         let second = captured(&[
@@ -542,24 +334,21 @@ mod tests {
         ]);
         let root = &capture_root();
         let mut owners = Vec::<RegisteredPackageRoot>::new();
-        assert_eq!(
-            owners.select(root, &[], &first).unwrap(),
-            [root.join("one.omg")]
-        );
-        assert_eq!(
-            owners.select(root, &["Two".into()], &second).unwrap(),
-            [root.join("two.omg")]
-        );
-        assert_eq!(
-            owners
-                .select_owned(root, &["Two".into()], &second, vec![root.join("child")])
-                .unwrap(),
-            [root.join("two.omg")]
-        );
-        assert_eq!(
-            owners.select(root, &["Two".into()], &second).unwrap(),
-            [root.join("two.omg")]
-        );
+        for (filesystem, excluded, present, absent) in [
+            (&first, vec![], "one.omg", "two.omg"),
+            (&second, vec![], "child/three.omg", "one.omg"),
+            (
+                &second,
+                vec![root.join("child")],
+                "two.omg",
+                "child/three.omg",
+            ),
+            (&second, vec![], "child/three.omg", "one.omg"),
+        ] {
+            let inventory = owner_inventory(&mut owners, root, filesystem, excluded).unwrap();
+            assert!(inventory.retained(&root.join(present)).is_some());
+            assert!(inventory.retained(&root.join(absent)).is_none());
+        }
         assert_eq!(
             owners.len(),
             1,
@@ -573,23 +362,28 @@ mod tests {
             ("unit.omg", "public data Record {}"),
             ("child/not-ours.omg", "deliberately invalid foreign source"),
         ]);
-        let paths = Vec::<RegisteredPackageRoot>::new()
-            .select_owned(
-                &capture_root(),
-                &["Record".into()],
-                &filesystem,
-                vec![capture_root().join("child")],
-            )
-            .unwrap();
-        assert_eq!(paths, [capture_root().join("unit.omg")]);
+        let inventory = LogicalSourceInventory::parse(
+            &capture_root(),
+            &filesystem,
+            &[capture_root().join("child")],
+        )
+        .unwrap();
+        assert!(
+            inventory
+                .retained(&capture_root().join("unit.omg"))
+                .is_some()
+        );
+        assert!(
+            inventory
+                .retained(&capture_root().join("child/not-ours.omg"))
+                .is_none()
+        );
     }
 
     #[test]
     fn discovery_coordinates_do_not_escape_into_checked_source_ids() {
         let filesystem = captured(&[("bad.omg", "machine")]);
-        let errors = Vec::<RegisteredPackageRoot>::new()
-            .select(&capture_root(), &[], &filesystem)
-            .unwrap_err();
+        let errors = LogicalSourceInventory::parse(&capture_root(), &filesystem, &[]).unwrap_err();
         assert!(errors.iter().all(|error| error.source_span.is_none()));
         assert!(errors.iter().any(|error| {
             error

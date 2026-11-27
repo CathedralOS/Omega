@@ -689,7 +689,9 @@ pub(crate) mod recovery {
     }
 
     /// Rematerialize a chosen active-resident immediate before its uses under
-    /// the given policies, then assign homes.
+    /// the given policies, then assign homes. A program with nothing the rule
+    /// applies to is assigned as if no recovery rule were selected, and the
+    /// rule stays recorded as the one that ran.
     pub(crate) fn pressure_rematerialization_allocation(
         legality: StagedOptimizedAllocationLegality,
         choice: SpillChoicePolicy,
@@ -705,6 +707,20 @@ pub(crate) mod recovery {
             budget,
         )
         .map_err(RegisterAllocationError::Rematerialization)?;
+        let pressure = match pressure {
+            crate::allocation::ActiveResidentRematerializationStage::Applied(pressure) => pressure,
+            crate::allocation::ActiveResidentRematerializationStage::NothingToApply(legality) => {
+                // The rule's legality sees only the two views it reasons about.
+                // Plain assignment uses every allocatable view, as it would
+                // with no recovery rule selected.
+                let legality = legality
+                    .for_availability(
+                        selected_instruction_analyses::AllocatorAvailabilityRequirement::AllEnvironmentAllocatableViews,
+                    )
+                    .map_err(RegisterAllocationError::Legality)?;
+                return assign_with_runtime_recovery(legality);
+            }
+        };
         let environment = pressure.source().register_environment();
         match crate::allocation::assign_register_homes(pressure.legality(), pressure.ranges(), environment) {
             Ok(homes) => Ok(StagedAllocation::Rematerialized(

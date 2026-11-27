@@ -13,12 +13,12 @@ use super::{
     TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
     derive_native_artifact_identity,
 };
-use provider_plans::ServiceSurface;
-use provider_plans::{
+use build_providers::plans::ServiceSurface;
+use build_providers::plans::{
     ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow, ServiceMethod,
     ServiceSchema,
 };
-use selected_provider_plans::{SelectedProviderPlanFacts, SelectedRequirementSpecialization};
+use build_providers::selections::{SelectedProviderPlanFacts, SelectedRequirementSpecialization};
 use semantic_vocabulary::OperationId;
 use std::collections::BTreeSet;
 use std::slice::from_ref;
@@ -373,15 +373,15 @@ fn closed_import_reports_rejoin_original_execution_and_reject_plan_substitution(
         closed.into(),
         other.into(),
     ]);
-    let digest = provider_plans::ProviderPlanDigest::from_digest([2; 32]);
+    let digest = build_providers::plans::ProviderPlanDigest::from_digest([2; 32]);
     let mut plan = NativeSelectedProviderPlan::new(
         7,
         NativeSelectedProviderPlanDigest::from_digest(*digest.as_bytes()),
         vec![closed.into()],
     );
     plan.identities = identities.clone();
-    plan.external_requirement_applications
-        .push(selected_provider_plans::SelectedExternalRequirementApplication {
+    plan.external_requirement_applications.push(
+        build_providers::selections::SelectedExternalRequirementApplication {
             provider_plan_report_identity: 7,
             provider_plan_digest: digest,
             selected_requirement_identity: identities.index_of(selected).unwrap(),
@@ -416,7 +416,7 @@ fn closed_import_reports_rejoin_original_execution_and_reject_plan_substitution(
     .unwrap();
     let mut changed = plan.clone();
     changed.external_requirement_applications[0].provider_plan_digest =
-        provider_plans::ProviderPlanDigest::from_digest([3; 32]);
+        build_providers::plans::ProviderPlanDigest::from_digest([3; 32]);
     assert!(
         validate_provider_execution_reports(&[changed], from_ref(&execution), &required).is_err()
     );

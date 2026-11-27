@@ -31,7 +31,8 @@ fn operational(envelope: &StaticCallableEnvelope) -> CallableOperationalView<'_>
         termination: &envelope.termination,
     }
 }
-fn view(header: &CallableHeader) -> CallableContractView<'_> {
+/// The contract view refinement compares, for a required or supplied header.
+pub(crate) fn view(header: &CallableHeader) -> CallableContractView<'_> {
     CallableContractView {
         parameter_order: &header.parameter_order,
         scalar_parameters: &header.scalar_parameters,
@@ -41,6 +42,23 @@ fn view(header: &CallableHeader) -> CallableContractView<'_> {
         evidence_owner: None,
         crash_policy: header.crash_policy,
     }
+}
+
+/// The scalar names a required header's refinement goals are stated over:
+/// its scalar formals, its erased scalar formals and its scalar result.
+pub(crate) fn declarations(
+    required: &CallableHeader,
+) -> Vec<(
+    semantic_vocabulary::ValueId,
+    semantic_vocabulary::ScalarType,
+)> {
+    required
+        .scalar_parameters
+        .iter()
+        .chain(&required.proof.erased_scalar_formals)
+        .chain(required.result.scalar_ref())
+        .map(|formal| (formal.id, formal.scalar_type))
+        .collect()
 }
 
 pub(crate) fn check_envelope(
@@ -608,12 +626,14 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                     ));
                 }
                 members.push(member.requirement);
-                let mut arguments = Vec::new();
+                let mut seen = Vec::new();
                 for instance in &member.instances {
+                    let key = (instance.signature, &instance.arguments);
                     if instances.contains(&instance.machine)
-                        || arguments.contains(&instance.arguments)
+                        || seen.contains(&key)
+                        || !instance.signature.is_valid()
                         || !elaboration.requirements.contains(&instance.machine)
-                        || elaboration.machines.get(instance.machine) != Some(&member.signature)
+                        || elaboration.machines.get(instance.machine) != Some(&instance.signature)
                         || elaboration.value_arguments.get(instance.machine)
                             != Some(&instance.arguments)
                         || elaboration
@@ -627,7 +647,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                         ));
                     }
                     instances.push(instance.machine);
-                    arguments.push(instance.arguments.clone());
+                    seen.push(key);
                 }
             }
         }
@@ -778,14 +798,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
         let required = view(&question.required);
         let context =
             contract_refinement_context(required).map_err(|detail| fault(site, detail))?;
-        let declarations = question
-            .required
-            .scalar_parameters
-            .iter()
-            .chain(&question.required.proof.erased_scalar_formals)
-            .chain(question.required.result.scalar_ref())
-            .map(|formal| (formal.id, formal.scalar_type))
-            .collect::<Vec<_>>();
+        let declarations = declarations(&question.required);
         let goals = contract_refinement_goals(module, required, supplied)
             .map_err(|detail| fault(site, detail))?;
         for (position, goal) in goals.iter().enumerate() {

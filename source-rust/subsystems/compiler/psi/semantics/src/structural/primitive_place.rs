@@ -1068,8 +1068,11 @@ fn walk_primitive_projection_with_policy<'a>(
             (
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
-            ) if !matches!(length, terminal_psi::ArrayExtent::Parameter { .. })
-                && length.literal().is_none_or(|length| *index < length) =>
+            ) if !matches!(
+                length,
+                terminal_psi::ArrayExtent::Parameter { .. }
+                    | terminal_psi::ArrayExtent::Application(_)
+            ) && length.literal().is_none_or(|length| *index < length) =>
             {
                 step(
                     length
@@ -1223,6 +1226,7 @@ pub fn visit_runtime_index_goals<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     values: &impl crate::ValueTypes,
+    application_type: impl Fn(semantic_vocabulary::ScalarApplicationId) -> Option<ScalarType>,
     mut measured_extent: impl FnMut(&[StructuralPathSegment]) -> Option<semantic_vocabulary::ValueId>,
     mut visit: impl FnMut(ObligationId, Proposition),
 ) -> Result<(), RuntimeIndexGoalError> {
@@ -1269,6 +1273,22 @@ pub fn visit_runtime_index_goals<'a>(
                     scalar_index_bound(
                         semantic_vocabulary::ScalarTerm::value(index, carrier),
                         semantic_vocabulary::ScalarTerm::value(length, length_type),
+                    )
+                }
+                StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Application(application),
+                    ..
+                } => {
+                    let Some(length_type) = application_type(application) else {
+                        error = RuntimeIndexGoalError::MissingExtent;
+                        return false;
+                    };
+                    scalar_index_bound(
+                        semantic_vocabulary::ScalarTerm::value(index, carrier),
+                        semantic_vocabulary::ScalarTerm::Application {
+                            application,
+                            scalar_type: length_type,
+                        },
                     )
                 }
                 StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {

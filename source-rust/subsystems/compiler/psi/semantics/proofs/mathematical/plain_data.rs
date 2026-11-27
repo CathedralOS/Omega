@@ -1,18 +1,63 @@
 //! A plain, unindexed `data` declaration as a unified native inductive family.
 //!
-//! Each case contributes one constructor taking its recursive fields in order,
-//! and the kernel derives the dependent recursor (`I.rec`) and its 1-step
-//! constructor computation rules directly from the admitted block.
+//! Each case contributes one constructor taking its fields in order: fields
+//! that hold the data itself, and payload fields of other closed types. The
+//! kernel derives the dependent recursor (`I.rec`) and its 1-step
+//! constructor computation rules directly from the admitted block, and a
+//! branch of an induction takes the case's fields and then one induction
+//! hypothesis per field that holds the data.
+//!
+//! A generic declaration such as `Seq<T>` is one inductive block with one
+//! uniform parameter per type parameter ([`GenericPlainData`]). Each of its
+//! applications, such as `Seq<u64>`, is a [`PlainData`] whose entries are
+//! definitions equal to the block's former, constructors and recursor at the
+//! application's type arguments, laid out as a non-generic declaration's
+//! entries are. Those definitions unfold to the block, so the kernel checks
+//! and reduces only the block's own declarations.
 
-use crate::inductive::declare_inductive_family;
+use crate::inductive::{declare_inductive_family, declare_mutual_inductive_family};
 use crate::signature::Declaration;
-use crate::substitution::shift;
+use crate::substitution::{instantiate, shift};
 use crate::term::{Level, Sort, Term, TermArena, TermHandle};
 
-/// The number of fields holding the data itself, for each case in order.
+/// One field of a case of plain data.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlainField {
+    /// The field holds the data itself.
+    Recursive,
+    /// The field holds another member of the data's mutual block, by its
+    /// position in the block.
+    Member(u32),
+    /// The field holds a value of this closed type.
+    Payload(TermHandle),
+    /// The field holds a function from `argument`, a closed type, to member
+    /// `member` of the block (this one's own position included): a child for
+    /// each argument. Its induction hypothesis is the motive at every child,
+    /// `Π (x: argument). motive (field x)`. The data occurs only as the
+    /// function's result, so the occurrence stays strictly positive.
+    Function { argument: TermHandle, member: u32 },
+}
+
+impl PlainField {
+    /// Whether the field holds the data or another member of its block: a
+    /// field with an induction hypothesis.
+    pub fn is_recursive(self) -> bool {
+        matches!(
+            self,
+            Self::Recursive | Self::Member(_) | Self::Function { .. }
+        )
+    }
+}
+
+/// The fields of each case, in order, of one member of a block of plain
+/// data. A declaration on its own is a block of one member.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlainData {
-    arities: Vec<u32>,
+    member: u32,
+    /// Every member's cases. A field of another member is
+    /// [`PlainField::Member`], and one of the member itself is
+    /// [`PlainField::Recursive`].
+    members: Vec<Vec<Vec<PlainField>>>,
 }
 
 fn apply(arena: &mut TermArena, function: TermHandle, argument: TermHandle) -> TermHandle {
@@ -37,60 +82,218 @@ fn type_zero(arena: &mut TermArena) -> TermHandle {
 
 impl PlainData {
     /// A declaration needs at least one case.
-    pub fn new(arities: Vec<u32>) -> Option<Self> {
-        (!arities.is_empty() && u32::try_from(arities.len()).is_ok()).then_some(Self { arities })
+    pub fn new(cases: Vec<Vec<PlainField>>) -> Option<Self> {
+        let mut block = Self::block(vec![cases])?;
+        block.pop()
+    }
+
+    /// The members of one mutual block, each with at least one case. A field
+    /// of member `m` names it as [`PlainField::Member`]`(m)`, or as
+    /// [`PlainField::Recursive`] in member `m` itself.
+    pub fn block(members: Vec<Vec<Vec<PlainField>>>) -> Option<Vec<Self>> {
+        let count = u32::try_from(members.len()).ok()?;
+        let total: usize = members.iter().map(Vec::len).sum();
+        let valid = count > 0
+            && u32::try_from(total).is_ok()
+            && members.iter().enumerate().all(|(own, cases)| {
+                !cases.is_empty()
+                    && cases.iter().all(|fields| {
+                        u32::try_from(fields.len()).is_ok()
+                            && fields.iter().all(|field| match *field {
+                                PlainField::Member(member) => {
+                                    member < count && member as usize != own
+                                }
+                                PlainField::Function { member, .. } => member < count,
+                                _ => true,
+                            })
+                    })
+            });
+        valid.then(|| {
+            (0..count)
+                .map(|member| Self {
+                    member,
+                    members: members.clone(),
+                })
+                .collect()
+        })
+    }
+
+    /// A declaration each of whose fields holds the data itself, with this
+    /// many fields in each case.
+    pub fn recursive(arities: Vec<u32>) -> Option<Self> {
+        Self::new(
+            arities
+                .into_iter()
+                .map(|arity| vec![PlainField::Recursive; arity as usize])
+                .collect(),
+        )
+    }
+
+    fn own(&self) -> &[Vec<PlainField>] {
+        &self.members[self.member as usize]
     }
 
     pub fn cases(&self) -> usize {
-        self.arities.len()
+        self.own().len()
     }
 
+    /// This member's position in its block.
+    pub fn member(&self) -> u32 {
+        self.member
+    }
+
+    /// How many members the block has.
+    pub fn members(&self) -> u32 {
+        self.members.len() as u32
+    }
+
+    /// Whether the data is one member of a block of several.
+    pub fn is_mutual(&self) -> bool {
+        self.members.len() > 1
+    }
+
+    /// Member `member` of the same block.
+    pub fn at_member(&self, member: u32) -> Option<Self> {
+        ((member as usize) < self.members.len()).then(|| Self {
+            member,
+            members: self.members.clone(),
+        })
+    }
+
+    /// How many fields the case has.
     pub fn arity(&self, case: usize) -> u32 {
-        self.arities[case]
+        self.own()[case].len() as u32
     }
 
-    /// The index of the data's own entry when its declarations start at `first`.
+    /// The fields of the case.
+    pub fn fields(&self, case: usize) -> &[PlainField] {
+        &self.own()[case]
+    }
+
+    /// The member of the block a field of the case holds, if it holds one.
+    pub fn field_member(&self, case: usize, field: u32) -> Option<u32> {
+        match self.own()[case].get(field as usize)? {
+            PlainField::Recursive => Some(self.member),
+            PlainField::Member(member) | PlainField::Function { member, .. } => Some(*member),
+            PlainField::Payload(_) => None,
+        }
+    }
+
+    /// How many fields of the case hold the data or another member of its
+    /// block: the number of induction hypotheses its branch takes.
+    pub fn hypotheses(&self, case: usize) -> u32 {
+        self.own()[case]
+            .iter()
+            .filter(|field| field.is_recursive())
+            .count() as u32
+    }
+
+    /// Whether any field of any case of any member holds a value of another
+    /// type, or a function to the data: anything but a value of the block
+    /// itself.
+    pub fn has_payload(&self) -> bool {
+        self.members
+            .iter()
+            .flatten()
+            .flatten()
+            .any(|field| matches!(field, PlainField::Payload(_) | PlainField::Function { .. }))
+    }
+
+    /// The index of the first member's own entry when the block's
+    /// declarations start at `first`.
     pub fn data_entry(first: u32) -> u32 {
         first
     }
 
+    /// The index of the block's first declaration, given this member's entry.
+    fn first(&self, data: u32) -> u32 {
+        data - self.member
+    }
+
+    /// The index of member `member`'s own entry, given this member's entry.
+    pub fn member_entry(&self, data: u32, member: u32) -> u32 {
+        self.first(data) + member
+    }
+
+    /// The position among all of the block's constructors of this member's
+    /// case `case`: the block numbers them member by member.
+    fn constructor_position(&self, case: usize) -> u32 {
+        let before: usize = self.members[..self.member as usize]
+            .iter()
+            .map(Vec::len)
+            .sum();
+        (before + case) as u32
+    }
+
+    fn constructor_count(&self) -> u32 {
+        self.members.iter().map(Vec::len).sum::<usize>() as u32
+    }
+
     /// The index of a case's constructor, given the data's own entry.
-    pub fn constructor_entry(data: u32, case: usize) -> u32 {
-        data + 1 + case as u32
+    pub fn constructor_entry(&self, data: u32, case: usize) -> u32 {
+        self.first(data) + self.members() + self.constructor_position(case)
     }
 
     /// The index of the induction principle (recursor), given the data's own entry.
     pub fn induction_entry(&self, data: u32) -> u32 {
-        data + 1 + self.arities.len() as u32
+        self.first(data) + self.members() + self.constructor_count() + self.member
     }
 
-    /// Every declaration of the data, in order, for a signature in which the
-    /// first of them has index `first`: the inductive type itself, one
-    /// constructor per case, and the kernel-derived dependent recursor.
+    fn data_type(arena: &mut TermArena, data: u32) -> TermHandle {
+        arena.insert(Term::Constant {
+            declaration: data,
+            levels: Vec::new(),
+        })
+    }
+
+    /// The type of each field of the case, in order. Each is closed.
+    pub fn field_types(&self, arena: &mut TermArena, data: u32, case: usize) -> Vec<TermHandle> {
+        let first = self.first(data);
+        self.own()[case]
+            .iter()
+            .map(|field| match *field {
+                PlainField::Recursive => Self::data_type(arena, data),
+                PlainField::Member(member) => Self::data_type(arena, first + member),
+                PlainField::Payload(payload) => payload,
+                PlainField::Function { argument, member } => {
+                    let child = Self::data_type(arena, first + member);
+                    pi(arena, argument, child)
+                }
+            })
+            .collect()
+    }
+
+    /// Every declaration of the block, in order, for a signature in which the
+    /// first of them has index `first`: each member's inductive type, every
+    /// member's constructors, one per case, and each member's
+    /// kernel-derived dependent recursor.
     pub fn declarations(&self, arena: &mut TermArena, first: u32) -> Vec<Declaration> {
         let universe = type_zero(arena);
-        let data = arena.insert(Term::Constant {
-            declaration: Self::data_entry(first),
-            levels: Vec::new(),
-        });
-        let constructor_types: Vec<TermHandle> = self
-            .arities
-            .iter()
-            .map(|&arity| {
-                let mut ty = data;
-                for _ in 0..arity {
-                    ty = pi(arena, data, ty);
-                }
-                ty
-            })
-            .collect();
-        declare_inductive_family(arena, first, 0, 0, universe, &constructor_types)
+        let mut constructors = Vec::with_capacity(self.constructor_count() as usize);
+        for member in 0..self.members() {
+            let shape = self.at_member(member).expect("a member of the block");
+            let data = first + member;
+            for case in 0..shape.cases() {
+                let fields = shape.field_types(arena, data, case);
+                let result = Self::data_type(arena, data);
+                let ty = fields
+                    .into_iter()
+                    .rev()
+                    .fold(result, |codomain, domain| pi(arena, domain, codomain));
+                constructors.push((member as usize, ty));
+            }
+        }
+        let formers = vec![universe; self.members.len()];
+        declare_mutual_inductive_family(arena, first, 0, 0, &formers, &constructors)
     }
 
     /// The type of branch `case` of an induction over the data at entry
     /// `data` whose motive is `motive`, a function from the data to a type in
     /// the caller's context. The branch takes the case's fields in order,
-    /// then the motive at each field, and lands at the motive of the case.
+    /// then the motive at each field that holds the data, and lands at the
+    /// motive of the case. In a mutual block this is a case analysis of
+    /// this member (see [`Self::analysis_motives`]); an induction there takes
+    /// [`Self::branch_type_in`].
     pub fn branch_type(
         &self,
         arena: &mut TermArena,
@@ -98,9 +301,21 @@ impl PlainData {
         motive: TermHandle,
         case: usize,
     ) -> TermHandle {
-        let binders = self.case_binders(arena, data, motive, case);
-        let depth = 2 * self.arities[case];
-        let motive_under = shift(arena, motive, 0, depth);
+        let motives = self.analysis_motives(arena, data, motive);
+        self.branch_type_in(arena, data, &motives, case)
+    }
+
+    /// The type of branch `case` under one motive per member of the block.
+    pub fn branch_type_in(
+        &self,
+        arena: &mut TermArena,
+        data: u32,
+        motives: &[TermHandle],
+        case: usize,
+    ) -> TermHandle {
+        let binders = self.case_binders_in(arena, data, motives, case);
+        let depth = self.arity(case) + self.hypotheses(case);
+        let motive_under = shift(arena, motives[self.member as usize], 0, depth);
         let value = self.case_value(arena, data, case, 0);
         let conclusion = apply(arena, motive_under, value);
         binders
@@ -110,7 +325,9 @@ impl PlainData {
     }
 
     /// The types of the binders a branch body lives under, each under the
-    /// ones before it: the case's fields, then the motive at each field.
+    /// ones before it: the case's fields, then the motive at each field that
+    /// holds the data. In a mutual block, the binders of a case analysis of
+    /// this member (see [`Self::analysis_motives`]).
     pub fn case_binders(
         &self,
         arena: &mut TermArena,
@@ -118,16 +335,46 @@ impl PlainData {
         motive: TermHandle,
         case: usize,
     ) -> Vec<TermHandle> {
-        let arity = self.arities[case];
-        let ty = arena.insert(Term::Constant {
-            declaration: data,
-            levels: Vec::new(),
-        });
-        let mut binders = vec![ty; arity as usize];
+        let motives = self.analysis_motives(arena, data, motive);
+        self.case_binders_in(arena, data, &motives, case)
+    }
+
+    /// The binders of a branch under one motive per member of the block:
+    /// the hypothesis at a field of member `m` is motive `m` at the field.
+    pub fn case_binders_in(
+        &self,
+        arena: &mut TermArena,
+        data: u32,
+        motives: &[TermHandle],
+        case: usize,
+    ) -> Vec<TermHandle> {
+        let arity = self.arity(case);
+        let mut binders = self.field_types(arena, data, case);
+        let mut hypothesis = 0;
         for field in 0..arity {
-            let motive = shift(arena, motive, 0, arity + field);
-            let value = variable(arena, arity - 1);
-            binders.push(apply(arena, motive, value));
+            let Some(member) = self.field_member(case, field) else {
+                continue;
+            };
+            let depth = arity + hypothesis;
+            let binder = match self.own()[case][field as usize] {
+                // The motive at the child for every argument, under one more
+                // binder: the argument.
+                PlainField::Function { argument, .. } => {
+                    let motive = shift(arena, motives[member as usize], 0, depth + 1);
+                    let function = variable(arena, depth - field);
+                    let argument_value = variable(arena, 0);
+                    let child = apply(arena, function, argument_value);
+                    let body = apply(arena, motive, child);
+                    pi(arena, argument, body)
+                }
+                _ => {
+                    let motive = shift(arena, motives[member as usize], 0, depth);
+                    let value = variable(arena, depth - 1 - field);
+                    apply(arena, motive, value)
+                }
+            };
+            binders.push(binder);
+            hypothesis += 1;
         }
         binders
     }
@@ -135,18 +382,33 @@ impl PlainData {
     /// A field of the case, seen from a branch body past `inner` further
     /// binders.
     pub fn field(&self, arena: &mut TermArena, case: usize, field: u32, inner: u32) -> TermHandle {
-        variable(arena, inner + 2 * self.arities[case] - 1 - field)
+        variable(
+            arena,
+            inner + self.hypotheses(case) + self.arity(case) - 1 - field,
+        )
     }
 
-    /// The induction hypothesis for that field, seen from the same place.
+    /// The induction hypothesis for that field, seen from the same place,
+    /// when the field holds the data or another member of its block.
     pub fn hypothesis(
         &self,
         arena: &mut TermArena,
         case: usize,
         field: u32,
         inner: u32,
-    ) -> TermHandle {
-        variable(arena, inner + self.arities[case] - 1 - field)
+    ) -> Option<TermHandle> {
+        let fields = self.own()[case].as_slice();
+        if !fields.get(field as usize)?.is_recursive() {
+            return None;
+        }
+        let position = fields[..field as usize]
+            .iter()
+            .filter(|kind| kind.is_recursive())
+            .count() as u32;
+        Some(variable(
+            arena,
+            inner + self.hypotheses(case) - 1 - position,
+        ))
     }
 
     /// The value of the case over its fields, seen from the same place.
@@ -158,10 +420,10 @@ impl PlainData {
         inner: u32,
     ) -> TermHandle {
         let constructor = arena.insert(Term::Constant {
-            declaration: Self::constructor_entry(data, case),
+            declaration: self.constructor_entry(data, case),
             levels: Vec::new(),
         });
-        let fields: Vec<_> = (0..self.arities[case])
+        let fields: Vec<_> = (0..self.arity(case))
             .map(|field| self.field(arena, case, field, inner))
             .collect();
         arena.apply_arguments(constructor, &fields)
@@ -177,7 +439,20 @@ impl PlainData {
         case: usize,
         body: TermHandle,
     ) -> TermHandle {
-        let binders = self.case_binders(arena, data, motive, case);
+        let motives = self.analysis_motives(arena, data, motive);
+        self.branch_in(arena, data, &motives, case, body)
+    }
+
+    /// Wraps a branch body in its binders under one motive per member.
+    pub fn branch_in(
+        &self,
+        arena: &mut TermArena,
+        data: u32,
+        motives: &[TermHandle],
+        case: usize,
+        body: TermHandle,
+    ) -> TermHandle {
+        let binders = self.case_binders_in(arena, data, motives, case);
         binders
             .into_iter()
             .rev()
@@ -185,7 +460,8 @@ impl PlainData {
     }
 
     /// The induction over `subject` with one closed-over branch per case,
-    /// each built by `branch`. Its type is `motive(subject)`.
+    /// each built by `branch`. Its type is `motive(subject)`. Only for a
+    /// block of one member.
     pub fn induct(
         &self,
         arena: &mut TermArena,
@@ -198,6 +474,9 @@ impl PlainData {
     }
 
     /// The induction over `subject` into a motive at universe level `level`.
+    /// In a mutual block it is a case analysis of this member: `branches`
+    /// are this member's, and every other member's motive and branches are
+    /// those of [`Self::analysis_motives`], at level zero only.
     pub fn induct_at_level(
         &self,
         arena: &mut TermArena,
@@ -207,12 +486,72 @@ impl PlainData {
         branches: &[TermHandle],
         subject: TermHandle,
     ) -> TermHandle {
-        debug_assert_eq!(branches.len(), self.cases());
+        if !self.is_mutual() {
+            return self.induct_in(arena, data, level, &[motive], branches, subject);
+        }
+        debug_assert_eq!(level, Level::Constant(0));
+        let motives = self.analysis_motives(arena, data, motive);
+        let mut all = Vec::with_capacity(self.constructor_count() as usize);
+        for member in 0..self.members() {
+            if member == self.member {
+                all.extend_from_slice(branches);
+                continue;
+            }
+            let other = self.at_member(member).expect("a member of the block");
+            let entry = self.member_entry(data, member);
+            for case in 0..other.cases() {
+                let ignored = arena.insert(Term::TwoZero);
+                all.push(other.branch_in(arena, entry, &motives, case, ignored));
+            }
+        }
+        self.induct_in(arena, data, level, &motives, &all, subject)
+    }
+
+    /// The motives of a case analysis of this member under `motive`: its own
+    /// at this member and, at every other member of a mutual block, one into
+    /// `Two` whose branches ignore their fields. A hypothesis at a field of
+    /// another member is then a value of `Two` that nothing reads, and one
+    /// at a field of this member is `motive` there.
+    pub fn analysis_motives(
+        &self,
+        arena: &mut TermArena,
+        data: u32,
+        motive: TermHandle,
+    ) -> Vec<TermHandle> {
+        (0..self.members())
+            .map(|member| {
+                if member == self.member {
+                    return motive;
+                }
+                let domain = Self::data_type(arena, self.member_entry(data, member));
+                let two = arena.insert(Term::Two);
+                lambda(arena, domain, two)
+            })
+            .collect()
+    }
+
+    /// The induction over `subject`, a value of this member, under one
+    /// motive per member and one branch per constructor of the block, member
+    /// by member. Its type is this member's motive at `subject`.
+    pub fn induct_in(
+        &self,
+        arena: &mut TermArena,
+        data: u32,
+        level: Level,
+        motives: &[TermHandle],
+        branches: &[TermHandle],
+        subject: TermHandle,
+    ) -> TermHandle {
+        debug_assert_eq!(motives.len(), self.members.len());
+        debug_assert_eq!(branches.len(), self.constructor_count() as usize);
         let induction = arena.insert(Term::Constant {
             declaration: self.induction_entry(data),
             levels: vec![level],
         });
-        let mut term = apply(arena, induction, motive);
+        let mut term = induction;
+        for &motive in motives {
+            term = apply(arena, term, motive);
+        }
         for &branch in branches {
             term = apply(arena, term, branch);
         }
@@ -222,14 +561,19 @@ impl PlainData {
     /// Derived kernel proof that this plain inductive data is a set
     /// (`Π (x y: D) (p q: Id D x y). Id (Id D x y) p q`) via Hedberg's
     /// theorem, using only `D.rec` and `J` with zero assumptions (no UIP).
-    pub fn is_set(&self, arena: &mut TermArena, data: u32) -> TermHandle {
+    /// Only data whose fields all hold the data itself has it: a payload's
+    /// equality would have to be decided too, and nothing here decides it.
+    pub fn is_set(&self, arena: &mut TermArena, data: u32) -> Option<TermHandle> {
+        if self.has_payload() || self.is_mutual() {
+            return None;
+        }
         let ty = arena.insert(Term::Constant {
             declaration: data,
             levels: Vec::new(),
         });
         let f = self.build_all_f(arena, data, ty);
         let constant = self.build_all_const(arena, data, ty, f);
-        hedberg(arena, ty, f, constant)
+        Some(hedberg(arena, ty, f, constant))
     }
 
     /// Derives `f : Π (x y: D). Id D x y -> Id D x y` by structural induction on `x`.
@@ -246,7 +590,7 @@ impl PlainData {
         };
         let mut branches = Vec::with_capacity(self.cases());
         for case in 0..self.cases() {
-            let arity = self.arities[case];
+            let arity = self.arity(case);
             let x_val = self.case_value(arena, data, case, 0);
             let fx = self.build_fx(arena, data, ty, case, arity, x_val);
             branches.push(self.branch(arena, data, motive, case, fx));
@@ -289,7 +633,7 @@ impl PlainData {
         };
         let mut branches = Vec::with_capacity(self.cases());
         for case in 0..self.cases() {
-            let arity = self.arities[case];
+            let arity = self.arity(case);
             let x_val = self.case_value(arena, data, case, 0);
             let cx = self.build_cx(arena, data, ty, f, case, arity, x_val);
             branches.push(self.branch(arena, data, motive, case, cx));
@@ -320,7 +664,7 @@ impl PlainData {
         };
         let mut inner_branches = Vec::with_capacity(self.cases());
         for other in 0..self.cases() {
-            let other_arity = self.arities[other];
+            let other_arity = self.arity(other);
             let inner_depth = 2 * other_arity;
             let x_here = shift(arena, x_val, 0, inner_depth);
             let y_here = self.case_value(arena, data, other, 0);
@@ -345,14 +689,16 @@ impl PlainData {
                     let proj_j = self.projection(arena, data, ty, case, field, x_j);
                     let p_j = ap(arena, ty, ty, proj_j, x_p, y_p, p);
                     // `ih_j` directly has type `(y: D) -> Id D x_j y -> Id D x_j y`.
-                    let ih_j = self.hypothesis(arena, case, field, d);
+                    let ih_j = self
+                        .hypothesis(arena, case, field, d)
+                        .expect("every field holds the data");
                     let r_j = arena.apply_arguments(ih_j, &[y_j, p_j]);
                     xs.push(x_j);
                     ys.push(y_j);
                     rs.push(r_j);
                 }
                 let constructor = arena.insert(Term::Constant {
-                    declaration: Self::constructor_entry(data, case),
+                    declaration: self.constructor_entry(data, case),
                     levels: Vec::new(),
                 });
                 let combined = congr_many(arena, ty, ty, constructor, &xs, &ys, &rs);
@@ -400,7 +746,7 @@ impl PlainData {
         };
         let mut inner_branches = Vec::with_capacity(self.cases());
         for other in 0..self.cases() {
-            let other_arity = self.arities[other];
+            let other_arity = self.arity(other);
             let inner_depth = 2 * other_arity;
             let x_here = shift(arena, x_val, 0, inner_depth);
             let y_here = self.case_value(arena, data, other, 0);
@@ -446,7 +792,9 @@ impl PlainData {
                     let p_j = ap(arena, ty, ty, proj_j, x_pq, y_pq, p);
                     let q_j = ap(arena, ty, ty, proj_j, x_pq, y_pq, q);
                     // `ih_j` directly has type `(y: D) -> (p q: Id D x_j y) -> Id (Id D x_j y) (f x_j y p) (f x_j y q)`.
-                    let ih_j = self.hypothesis(arena, case, field, d);
+                    let ih_j = self
+                        .hypothesis(arena, case, field, d)
+                        .expect("every field holds the data");
                     let r_pj = arena.apply_arguments(f_here, &[x_j, y_j, p_j]);
                     let r_qj = arena.apply_arguments(f_here, &[x_j, y_j, q_j]);
                     let c_pqj = arena.apply_arguments(ih_j, &[y_j, p_j, q_j]);
@@ -458,7 +806,7 @@ impl PlainData {
                     cs.push(c_pqj);
                 }
                 let constructor = arena.insert(Term::Constant {
-                    declaration: Self::constructor_entry(data, case),
+                    declaration: self.constructor_entry(data, case),
                     levels: Vec::new(),
                 });
                 let result_eq_ty = id_term(arena, ty, x_pq, y_pq);
@@ -506,7 +854,7 @@ impl PlainData {
             let body = if c == case {
                 self.field(arena, c, field, 0)
             } else {
-                shift(arena, default, 0, 2 * self.arities[c])
+                shift(arena, default, 0, 2 * self.arity(c))
             };
             branches.push(self.branch(arena, data, motive, c, body));
         }
@@ -579,6 +927,185 @@ impl PlainData {
             endpoint: y,
             proof: p,
         })
+    }
+}
+
+/// One field of a case of a generic plain data declaration.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GenericPlainField {
+    /// The field holds the data itself at the declaration's own parameters.
+    Recursive,
+    /// The field holds a value of the type parameter at this position.
+    Parameter(u32),
+    /// The field holds a value of this closed type, whatever the arguments.
+    Closed(TermHandle),
+}
+
+/// A generic plain data declaration: `parameters` uniform type parameters,
+/// each ranging over `Type 0`, and the fields of each case.
+///
+/// The kernel declares it as one inductive block whose former is
+/// `Π(T_0 .. T_{n-1} : Type 0). Type 0`, with each constructor and the
+/// recursor taking the parameters first. The kernel's own block check
+/// decides that each constructor returns the family at exactly these
+/// parameters and that every recursive occurrence is strictly positive.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GenericPlainData {
+    parameters: u32,
+    cases: Vec<Vec<GenericPlainField>>,
+}
+
+impl GenericPlainData {
+    /// A declaration needs at least one parameter and one case, and each
+    /// parameter a field names must be one of its own.
+    pub fn new(parameters: u32, cases: Vec<Vec<GenericPlainField>>) -> Option<Self> {
+        let named_parameters = cases.iter().flatten().all(|field| match field {
+            GenericPlainField::Parameter(position) => *position < parameters,
+            _ => true,
+        });
+        (parameters > 0
+            && !cases.is_empty()
+            && named_parameters
+            && u32::try_from(cases.len()).is_ok()
+            && cases
+                .iter()
+                .all(|fields| u32::try_from(fields.len()).is_ok()))
+        .then_some(Self { parameters, cases })
+    }
+
+    pub fn parameters(&self) -> u32 {
+        self.parameters
+    }
+
+    pub fn cases(&self) -> usize {
+        self.cases.len()
+    }
+
+    /// How many declarations the block takes: the former, one constructor
+    /// per case and the recursor. An application takes as many.
+    pub fn width(&self) -> u32 {
+        2 + self.cases.len() as u32
+    }
+
+    /// The block's declarations when its former has index `first`.
+    pub fn declarations(&self, arena: &mut TermArena, first: u32) -> Vec<Declaration> {
+        let universe = type_zero(arena);
+        let mut former = universe;
+        for _ in 0..self.parameters {
+            former = pi(arena, universe, former);
+        }
+        let n = self.parameters;
+        // The family at its own parameters, seen past `inner` binders after
+        // them.
+        let at_parameters = |arena: &mut TermArena, inner: u32| {
+            let data = PlainData::data_type(arena, first);
+            let parameters: Vec<_> = (0..n)
+                .map(|position| variable(arena, inner + n - 1 - position))
+                .collect();
+            arena.apply_arguments(data, &parameters)
+        };
+        let constructor_types: Vec<TermHandle> = self
+            .cases
+            .iter()
+            .map(|fields| {
+                let domains: Vec<_> = fields
+                    .iter()
+                    .enumerate()
+                    .map(|(before, field)| {
+                        let before = before as u32;
+                        match *field {
+                            GenericPlainField::Recursive => at_parameters(arena, before),
+                            GenericPlainField::Parameter(position) => {
+                                variable(arena, before + n - 1 - position)
+                            }
+                            GenericPlainField::Closed(ty) => ty,
+                        }
+                    })
+                    .collect();
+                let mut ty = at_parameters(arena, fields.len() as u32);
+                for &domain in domains.iter().rev() {
+                    ty = pi(arena, domain, ty);
+                }
+                for _ in 0..n {
+                    ty = pi(arena, universe, ty);
+                }
+                ty
+            })
+            .collect();
+        declare_inductive_family(arena, first, 0, n, former, &constructor_types)
+    }
+
+    /// The application of the block whose former has index `generic` to the
+    /// closed types `arguments`, as definitions starting at index `first`:
+    /// the family at the arguments, each constructor at them, and the
+    /// recursor at them. `recursor_type` is the type of the block's
+    /// recursor. The returned shape names the payload of each field at the
+    /// arguments, so the application reads as plain data whose entry is
+    /// `first`.
+    pub fn instance(
+        &self,
+        arena: &mut TermArena,
+        generic: u32,
+        recursor_type: TermHandle,
+        first: u32,
+        arguments: &[TermHandle],
+    ) -> Option<(PlainData, Vec<Declaration>)> {
+        if arguments.len() != self.parameters as usize {
+            return None;
+        }
+        let shape = PlainData::new(
+            self.cases
+                .iter()
+                .map(|fields| {
+                    fields
+                        .iter()
+                        .map(|field| match *field {
+                            GenericPlainField::Recursive => PlainField::Recursive,
+                            GenericPlainField::Parameter(position) => {
+                                PlainField::Payload(arguments[position as usize])
+                            }
+                            GenericPlainField::Closed(ty) => PlainField::Payload(ty),
+                        })
+                        .collect()
+                })
+                .collect(),
+        )?;
+        let universe = type_zero(arena);
+        let at = |arena: &mut TermArena, declaration: u32, levels: Vec<Level>| {
+            let head = arena.insert(Term::Constant {
+                declaration,
+                levels,
+            });
+            arena.apply_arguments(head, arguments)
+        };
+        let mut declarations = Vec::with_capacity(self.width() as usize);
+        let family = at(arena, generic, Vec::new());
+        declarations.push(Declaration::definition(0, universe, family));
+        for case in 0..self.cases() {
+            let fields = shape.field_types(arena, first, case);
+            let data = PlainData::data_type(arena, first);
+            let ty = fields
+                .into_iter()
+                .rev()
+                .fold(data, |codomain, domain| pi(arena, domain, codomain));
+            let value = at(arena, generic + 1 + case as u32, Vec::new());
+            declarations.push(Declaration::definition(0, ty, value));
+        }
+        let mut body = recursor_type;
+        for _ in 0..self.parameters {
+            let Term::Pi { codomain, .. } = arena.get(body) else {
+                return None;
+            };
+            body = codomain;
+        }
+        let ty = instantiate(arena, body, arguments);
+        let value = at(
+            arena,
+            generic + 1 + self.cases.len() as u32,
+            vec![Level::Parameter(0)],
+        );
+        declarations.push(Declaration::definition(1, ty, value));
+        Some((shape, declarations))
     }
 }
 
@@ -858,7 +1385,7 @@ mod tests {
     use super::*;
     use crate::conversion::{Budget, convertible};
     use crate::signature::{check_signature, judgment_assumption_closure};
-    use crate::typing::{Context, check_type};
+    use crate::typing::{Context, CoreError, check_type};
 
     fn constant(arena: &mut TermArena, declaration: u32) -> TermHandle {
         arena.insert(Term::Constant {
@@ -880,10 +1407,10 @@ mod tests {
     /// `Peano`'s declarations and `plus`, defined by cases on its first
     /// parameter with the other parameter quantified in the motive.
     fn peano(arena: &mut TermArena) -> (PlainData, Vec<Declaration>) {
-        let data = PlainData::new(vec![0, 1]).unwrap();
+        let data = PlainData::recursive(vec![0, 1]).unwrap();
         let mut declarations = data.declarations(arena, 0);
         assert_eq!(PlainData::data_entry(0), PEANO);
-        assert_eq!(PlainData::constructor_entry(PEANO, 1), SUCC);
+        assert_eq!(data.constructor_entry(PEANO, 1), SUCC);
         assert_eq!(declarations.len() as u32, PLUS);
         let ty = constant(arena, PEANO);
         let plus_type = {
@@ -895,7 +1422,7 @@ mod tests {
             let motive = lambda(arena, ty, rest);
             let other = variable(arena, 0);
             let zero = lambda(arena, ty, other);
-            let hypothesis = data.hypothesis(arena, 1, 0, 1);
+            let hypothesis = data.hypothesis(arena, 1, 0, 1).unwrap();
             let other = variable(arena, 0);
             let smaller = apply(arena, hypothesis, other);
             let next = call(arena, SUCC, &[smaller]);
@@ -943,6 +1470,289 @@ mod tests {
         assert!(!convertible(&mut arena, &context, from_zero, m, ty, &mut budget).unwrap());
         let stuck = call(&mut arena, PLUS, &[m, zero]);
         assert!(!convertible(&mut arena, &context, stuck, m, ty, &mut budget).unwrap());
+    }
+
+    /// `Seq<T> { Empty; Cons(head: T, tail: Seq<T>) }` at 0..4 and its
+    /// application to `Two` at 4..8, then `append` over the application,
+    /// defined by cases on its first formal.
+    fn sequences(arena: &mut TermArena) -> (PlainData, Vec<Declaration>) {
+        let generic = GenericPlainData::new(
+            1,
+            vec![
+                vec![],
+                vec![
+                    GenericPlainField::Parameter(0),
+                    GenericPlainField::Recursive,
+                ],
+            ],
+        )
+        .unwrap();
+        let mut declarations = generic.declarations(arena, 0);
+        assert_eq!(declarations.len() as u32, generic.width());
+        let recursor_type = declarations[3].ty;
+        let two = arena.insert(Term::Two);
+        let (data, instance) = generic
+            .instance(arena, 0, recursor_type, 4, &[two])
+            .unwrap();
+        declarations.extend(instance);
+        assert_eq!(
+            data.fields(1),
+            [PlainField::Payload(two), PlainField::Recursive]
+        );
+        assert_eq!(data.hypotheses(1), 1);
+        // append(s, t): Empty -> t, Cons(h, rest) -> Cons(h, append(rest, t)).
+        let ty = constant(arena, 4);
+        let append_type = {
+            let inner = pi(arena, ty, ty);
+            pi(arena, ty, inner)
+        };
+        let append = {
+            let rest = pi(arena, ty, ty);
+            let motive = lambda(arena, ty, rest);
+            let other = variable(arena, 0);
+            let empty = lambda(arena, ty, other);
+            let head = data.field(arena, 1, 0, 1);
+            let hypothesis = data.hypothesis(arena, 1, 1, 1).unwrap();
+            assert!(data.hypothesis(arena, 1, 0, 1).is_none());
+            let other = variable(arena, 0);
+            let appended = apply(arena, hypothesis, other);
+            let next = call(arena, 6, &[head, appended]);
+            let body = lambda(arena, ty, next);
+            let cons = data.branch(arena, 4, motive, 1, body);
+            let subject = variable(arena, 1);
+            let recursion = data.induct(arena, 4, motive, &[empty, cons], subject);
+            let other = variable(arena, 0);
+            let body = apply(arena, recursion, other);
+            let inner = lambda(arena, ty, body);
+            lambda(arena, ty, inner)
+        };
+        declarations.push(Declaration::definition(0, append_type, append));
+        (data, declarations)
+    }
+
+    #[test]
+    fn an_application_of_generic_data_computes_through_the_generic_block() {
+        let mut arena = TermArena::new();
+        let mut budget = Budget::default();
+        let (_, declarations) = sequences(&mut arena);
+        let ty = constant(&mut arena, 4);
+        let context = checked(&mut arena, &declarations, &mut budget)
+            .extend(ty)
+            .extend(ty);
+        let (s, t) = (variable(&mut arena, 1), variable(&mut arena, 0));
+        let zero = arena.insert(Term::TwoZero);
+        let one = arena.insert(Term::TwoOne);
+        // append(Cons(0, s), t) = Cons(0, append(s, t)): one step of the
+        // recursor at the generic block's constructor.
+        let consed = call(&mut arena, 6, &[zero, s]);
+        let unfolded = call(&mut arena, 8, &[consed, t]);
+        let smaller = call(&mut arena, 8, &[s, t]);
+        let expected = call(&mut arena, 6, &[zero, smaller]);
+        assert!(convertible(&mut arena, &context, unfolded, expected, ty, &mut budget).unwrap());
+        // The payload is kept: the head is not `1`.
+        let wrong = call(&mut arena, 6, &[one, smaller]);
+        assert!(!convertible(&mut arena, &context, unfolded, wrong, ty, &mut budget).unwrap());
+        // The application's constructor is the generic one at `Two`.
+        let generic_cons = {
+            let head = constant(&mut arena, 2);
+            let two = arena.insert(Term::Two);
+            let applied = apply(&mut arena, head, two);
+            arena.apply_arguments(applied, &[zero, s])
+        };
+        assert!(convertible(&mut arena, &context, consed, generic_cons, ty, &mut budget).unwrap());
+        let empty = constant(&mut arena, 5);
+        let from_empty = call(&mut arena, 8, &[empty, t]);
+        assert!(convertible(&mut arena, &context, from_empty, t, ty, &mut budget).unwrap());
+    }
+
+    /// `Peano` at 0..4, then the block `Even { Zero; Next(odd: Odd) }`,
+    /// `Odd { Next(even: Even) }` at 4..11 (`Even`, `Odd`, `Even::Zero`,
+    /// `Even::Next`, `Odd::Next`, `Even.rec`, `Odd.rec`), then
+    /// `half: Even -> Peano` at 11 by mutual recursion: `Zero` to zero,
+    /// `Even::Next(o)` to the successor of `o`'s half, `Odd::Next(e)` to
+    /// `e`'s half.
+    fn parity(arena: &mut TermArena) -> (Vec<PlainData>, Vec<Declaration>) {
+        let peano = PlainData::recursive(vec![0, 1]).unwrap();
+        let mut declarations = peano.declarations(arena, 0);
+        let block = PlainData::block(vec![
+            vec![vec![], vec![PlainField::Member(1)]],
+            vec![vec![PlainField::Member(0)]],
+        ])
+        .unwrap();
+        let (even, odd) = (&block[0], &block[1]);
+        assert!(even.is_mutual());
+        assert_eq!((even.member_entry(4, 1), odd.member_entry(5, 0)), (5, 4));
+        assert_eq!(
+            (
+                even.constructor_entry(4, 0),
+                even.constructor_entry(4, 1),
+                odd.constructor_entry(5, 0)
+            ),
+            (6, 7, 8)
+        );
+        assert_eq!((even.induction_entry(4), odd.induction_entry(5)), (9, 10));
+        assert_eq!(even.field_member(1, 0), Some(1));
+        declarations.extend(even.declarations(arena, 4));
+        assert_eq!(declarations.len(), 11);
+        let nat = constant(arena, 0);
+        let (even_ty, odd_ty) = (constant(arena, 4), constant(arena, 5));
+        let motives = [lambda(arena, even_ty, nat), lambda(arena, odd_ty, nat)];
+        let zero = constant(arena, 1);
+        let at_zero = even.branch_in(arena, 4, &motives, 0, zero);
+        let hypothesis = even.hypothesis(arena, 1, 0, 0).unwrap();
+        let successor = call(arena, 2, &[hypothesis]);
+        let at_even_next = even.branch_in(arena, 4, &motives, 1, successor);
+        let hypothesis = odd.hypothesis(arena, 0, 0, 0).unwrap();
+        let at_odd_next = odd.branch_in(arena, 5, &motives, 0, hypothesis);
+        let subject = variable(arena, 0);
+        let half = even.induct_in(
+            arena,
+            4,
+            Level::Constant(0),
+            &motives,
+            &[at_zero, at_even_next, at_odd_next],
+            subject,
+        );
+        let half = lambda(arena, even_ty, half);
+        let half_type = pi(arena, even_ty, nat);
+        declarations.push(Declaration::definition(0, half_type, half));
+        (block, declarations)
+    }
+
+    #[test]
+    fn a_mutual_block_computes_through_each_members_recursor() {
+        let mut arena = TermArena::new();
+        let mut budget = Budget::default();
+        let (_, declarations) = parity(&mut arena);
+        let context = checked(&mut arena, &declarations, &mut budget);
+        let nat = constant(&mut arena, 0);
+        // half(Even::Next(Odd::Next(Even::Zero))) = Succ(Zero).
+        let even_zero = constant(&mut arena, 6);
+        let odd_next = call(&mut arena, 8, &[even_zero]);
+        let two = call(&mut arena, 7, &[odd_next]);
+        let halved = call(&mut arena, 11, &[two]);
+        let zero = constant(&mut arena, 1);
+        let one = call(&mut arena, 2, &[zero]);
+        assert!(convertible(&mut arena, &context, halved, one, nat, &mut budget).unwrap());
+        assert!(!convertible(&mut arena, &context, halved, zero, nat, &mut budget).unwrap());
+        let at_zero = call(&mut arena, 11, &[even_zero]);
+        assert!(convertible(&mut arena, &context, at_zero, zero, nat, &mut budget).unwrap());
+    }
+
+    /// `Nat` at 0..4, then `Tree { Leaf; Node(children: Nat -> Tree) }` at
+    /// 4..8, and `leftmost : Tree -> Nat` at 8: zero at a leaf, one more than
+    /// the leftmost of the child at zero at a node.
+    fn branching(arena: &mut TermArena) -> (PlainData, Vec<Declaration>) {
+        let peano = PlainData::recursive(vec![0, 1]).unwrap();
+        let mut declarations = peano.declarations(arena, 0);
+        let nat = constant(arena, 0);
+        let tree = PlainData::new(vec![
+            vec![],
+            vec![PlainField::Function {
+                argument: nat,
+                member: 0,
+            }],
+        ])
+        .unwrap();
+        assert!(tree.has_payload() && tree.is_set(arena, 4).is_none());
+        declarations.extend(tree.declarations(arena, 4));
+        let tree_ty = constant(arena, 4);
+        let motive = lambda(arena, tree_ty, nat);
+        let zero = constant(arena, 1);
+        let at_leaf = tree.branch(arena, 4, motive, 0, zero);
+        // The hypothesis is a function: the motive at every child.
+        let hypothesis = tree.hypothesis(arena, 1, 0, 0).unwrap();
+        let at_zero = arena.apply_arguments(hypothesis, &[zero]);
+        let successor = call(arena, 2, &[at_zero]);
+        let at_node = tree.branch(arena, 4, motive, 1, successor);
+        let subject = variable(arena, 0);
+        let leftmost = tree.induct(arena, 4, motive, &[at_leaf, at_node], subject);
+        let leftmost = lambda(arena, tree_ty, leftmost);
+        let leftmost_type = pi(arena, tree_ty, nat);
+        declarations.push(Declaration::definition(0, leftmost_type, leftmost));
+        (tree, declarations)
+    }
+
+    #[test]
+    fn data_with_a_function_to_itself_computes_through_its_recursor() {
+        let mut arena = TermArena::new();
+        let mut budget = Budget::default();
+        let (_, declarations) = branching(&mut arena);
+        let context = checked(&mut arena, &declarations, &mut budget);
+        let nat = constant(&mut arena, 0);
+        let zero = constant(&mut arena, 1);
+        let one = call(&mut arena, 2, &[zero]);
+        // leftmost(Node(λ_. Node(λ_. Leaf))) = 2.
+        let leaf = constant(&mut arena, 5);
+        let only_leaf = lambda(&mut arena, nat, leaf);
+        let inner = call(&mut arena, 6, &[only_leaf]);
+        let only_inner = lambda(&mut arena, nat, inner);
+        let outer = call(&mut arena, 6, &[only_inner]);
+        let depth = call(&mut arena, 8, &[outer]);
+        let two = call(&mut arena, 2, &[one]);
+        assert!(convertible(&mut arena, &context, depth, two, nat, &mut budget).unwrap());
+        assert!(!convertible(&mut arena, &context, depth, one, nat, &mut budget).unwrap());
+    }
+
+    #[test]
+    fn data_with_a_function_from_itself_is_refused() {
+        // `Node(children: Tree -> Nat)`: the data as a function's input is a
+        // negative occurrence.
+        let mut arena = TermArena::new();
+        let peano = PlainData::recursive(vec![0, 1]).unwrap();
+        let mut declarations = peano.declarations(&mut arena, 0);
+        let nat = constant(&mut arena, 0);
+        let tree_ty = constant(&mut arena, 4);
+        let from_tree = pi(&mut arena, tree_ty, nat);
+        let tree = PlainData::new(vec![vec![], vec![PlainField::Payload(from_tree)]]).unwrap();
+        declarations.extend(tree.declarations(&mut arena, 4));
+        let refused = check_signature(&mut arena, &declarations, &mut Budget::default());
+        assert_eq!(
+            refused.unwrap_err(),
+            CoreError::NonStrictlyPositiveOccurrence
+        );
+    }
+
+    #[test]
+    fn a_mutual_block_with_a_member_field_at_its_own_position_or_out_of_range_is_refused() {
+        assert!(PlainData::block(vec![vec![vec![PlainField::Member(0)]]]).is_none());
+        assert!(PlainData::block(vec![vec![vec![]], vec![vec![PlainField::Member(2)]]]).is_none());
+        assert!(PlainData::block(vec![vec![vec![]], vec![]]).is_none());
+    }
+
+    #[test]
+    fn a_mutual_block_whose_odd_recursor_is_forged_is_refused() {
+        let mut arena = TermArena::new();
+        let (_, mut declarations) = parity(&mut arena);
+        // `Odd.rec` stated at `Even.rec`'s type.
+        declarations[10] = Declaration::recursor(1, 5, declarations[9].ty);
+        let refused = check_signature(&mut arena, &declarations, &mut Budget::default());
+        assert_eq!(refused.unwrap_err(), CoreError::InvalidRecursorType);
+    }
+
+    #[test]
+    fn an_application_with_its_constructors_exchanged_is_refused() {
+        let mut arena = TermArena::new();
+        let (_, mut declarations) = sequences(&mut arena);
+        // A forged application: `Empty` is said to be the generic `Cons`.
+        let cons_value = declarations[6].body.unwrap();
+        declarations[5] = Declaration::definition(0, declarations[5].ty, cons_value);
+        assert!(check_signature(&mut arena, &declarations, &mut Budget::default()).is_err());
+    }
+
+    #[test]
+    fn generic_data_with_an_unknown_parameter_or_arguments_is_refused() {
+        assert!(GenericPlainData::new(1, vec![vec![GenericPlainField::Parameter(1)]]).is_none());
+        assert!(GenericPlainData::new(0, vec![vec![]]).is_none());
+        let mut arena = TermArena::new();
+        let generic = GenericPlainData::new(1, vec![vec![]]).unwrap();
+        let declarations = generic.declarations(&mut arena, 0);
+        let two = arena.insert(Term::Two);
+        assert!(
+            generic
+                .instance(&mut arena, 0, declarations[2].ty, 3, &[two, two])
+                .is_none()
+        );
     }
 
     /// `Succ(from) = Succ(to)` from a proof of `from = to`, in the proof's
@@ -1007,7 +1817,7 @@ mod tests {
                 let smaller = data.field(&mut arena, 1, 0, 0);
                 let zero = constant(&mut arena, ZERO);
                 let from = call(&mut arena, PLUS, &[smaller, zero]);
-                let hypothesis = data.hypothesis(&mut arena, 1, 0, 0);
+                let hypothesis = data.hypothesis(&mut arena, 1, 0, 0).unwrap();
                 let body = under_successor(&mut arena, from, smaller, hypothesis);
                 data.branch(&mut arena, PEANO, motive, 1, body)
             };
@@ -1076,7 +1886,7 @@ mod tests {
                 let from = call(&mut arena, PLUS, &[inner, c]);
                 let inner = call(&mut arena, PLUS, &[b, c]);
                 let to = call(&mut arena, PLUS, &[smaller, inner]);
-                let hypothesis = data.hypothesis(&mut arena, 1, 0, 2);
+                let hypothesis = data.hypothesis(&mut arena, 1, 0, 2).unwrap();
                 let equality = arena.apply_arguments(hypothesis, &[b, c]);
                 let step = under_successor(&mut arena, from, to, equality);
                 let c = lambda(&mut arena, ty, step);
@@ -1123,7 +1933,7 @@ mod tests {
     fn wider_declarations_form_and_select_each_field() {
         let mut arena = TermArena::new();
         let mut budget = Budget::default();
-        let data = PlainData::new(vec![0, 2, 3]).unwrap();
+        let data = PlainData::recursive(vec![0, 2, 3]).unwrap();
         let mut declarations = data.declarations(&mut arena, 0);
         let tree = PlainData::data_entry(0);
         let ty = constant(&mut arena, tree);
@@ -1135,7 +1945,7 @@ mod tests {
             let leaf_branch = constant(&mut arena, leaf);
             let first = data.field(&mut arena, 1, 0, 0);
             let first = data.branch(&mut arena, tree, motive, 1, first);
-            let last = data.hypothesis(&mut arena, 2, 2, 0);
+            let last = data.hypothesis(&mut arena, 2, 2, 0).unwrap();
             let last = data.branch(&mut arena, tree, motive, 2, last);
             let subject = variable(&mut arena, 0);
             let recursion = data.induct(
@@ -1175,7 +1985,7 @@ mod tests {
             vec![0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 3],
         ] {
             let mut arena = TermArena::new();
-            let data = PlainData::new(arities.clone()).unwrap();
+            let data = PlainData::recursive(arities.clone()).unwrap();
             let declarations = data.declarations(&mut arena, 0);
             let mut budget = Budget::default();
             let before = budget.remaining();
@@ -1193,7 +2003,7 @@ mod tests {
     fn a_declaration_with_one_case_forms() {
         for arities in [vec![0], vec![1], vec![2]] {
             let mut arena = TermArena::new();
-            let data = PlainData::new(arities.clone()).unwrap();
+            let data = PlainData::recursive(arities.clone()).unwrap();
             let declarations = data.declarations(&mut arena, 0);
             check_signature(&mut arena, &declarations, &mut Budget::default())
                 .unwrap_or_else(|error| panic!("{arities:?}: {error:?}"));
@@ -1204,7 +2014,7 @@ mod tests {
     fn plain_data_is_set_without_uip() {
         for arities in [vec![0], vec![0, 0], vec![0, 1], vec![0, 2]] {
             let mut arena = TermArena::new();
-            let data = PlainData::new(arities.clone()).unwrap();
+            let data = PlainData::recursive(arities.clone()).unwrap();
             let declarations = data.declarations(&mut arena, 0);
             let ty = constant(&mut arena, 0);
             let v1 = variable(&mut arena, 1);
@@ -1220,7 +2030,7 @@ mod tests {
             let pi_y = pi(&mut arena, ty, pi_p);
             let statement = pi(&mut arena, ty, pi_y);
 
-            let proof = data.is_set(&mut arena, 0);
+            let proof = data.is_set(&mut arena, 0).unwrap();
             let mut budget = Budget::new(100_000);
             let signature = check_signature(&mut arena, &declarations, &mut budget).unwrap();
             let context = Context::empty().with_signature(signature.clone());

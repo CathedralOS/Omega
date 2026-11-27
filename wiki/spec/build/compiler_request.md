@@ -1,21 +1,22 @@
 # Standalone Omega compiler request
 
-The Epsilon-written bootstrap compiler D and Omega-written compiler C share this
-logical request and observable wire contract. Their private representations and
-algorithms need not match. Rust compiler objects are not a wire specification.
+The bootstrap compiler and the Omega compiler share this logical request and
+observable wire contract. Each can choose its own representations and algorithms.
+The [construction contract](../../../bootstrap/CONTRACT.md#source-subjects) defines
+which sources the bootstrap compiler must be able to build. The tables below
+define the wire encoding independently of Rust compiler objects.
 
 **Incomplete physical specification:** the outer framing, semantic contents,
 commitment preimage, validation order, publication rules, outcome frame
 layout, coordinate spaces, diagnostic phases, scalar-resource table, the
-subject/invocation field/tag tables except the package-origin encoding below,
+subject/invocation field/tag tables for named packages,
 the assigned `Reject` inventory
 below — including the syntax distinction granularity and the checking codes —
 and the named `Incomplete` coverage provisions are settled. Refusals publish
 frames only once producers record the assigned codes. Neither implementation may
 claim a complete interoperable V1 boundary before it implements the semantic
-phases over the decoded fields; OMEGA-D/OMEGA-C in the
-[bootstrap board](../../../TASKS_BOOTSTRAP.md#p4---epsilon-to-omega-and-self-hosting)
-own that work.
+phases over the decoded fields. The [bootstrap board](../../../TASKS_BOOTSTRAP.md#interpreted-variant-and-omega-self-hosting)
+tracks work on the two compilers.
 
 ## Logical inputs
 
@@ -28,7 +29,7 @@ Bootstrap Alpha tape is an ordinary explicit product, never inferred from a
 filename, host, or first discovered entry. Its product tag does not require the
 Rust reference compiler to implement Alpha compilation; the
 [bootstrap contract](../../../bootstrap/CONTRACT.md#selected-execution-chain)
-places that obligation on D and C. Package instances, locks, and source
+places that obligation on the bootstrap compiler and the Omega compiler for the Alpha route. Package instances, locks, and source
 resolution do not certify compiler artifacts. V1 accepts resolved source, not
 preaccepted compiled dependency instances; adding the latter requires an explicit
 request-format change, not a zero or omitted row interpreted as acceptance.
@@ -43,8 +44,8 @@ authority or executable-entry discovery.
 
 The physical OCREQ v1 package rows below encode only named name/lineage owners;
 they do not encode the anonymous-owner record and default-build provenance.
-Supporting that logical input requires an explicit request extension shared by
-D and C, not fake names, host-path lineages, or reinterpreting existing tags.
+Both compilers require an explicit request extension to support that logical input.
+A fabricated name, host-path lineage or repurposed tag cannot identify an anonymous owner.
 This wire limitation does not revoke anonymous compilation or require an authored
 build file in the language.
 
@@ -88,9 +89,8 @@ collection of live half-compiled checkpoints.
 | 16 | Exact subject section, then exact invocation section, then exact end. |
 
 There is one flat version. Sections have no independent nested versions.
-Before release, this format may change in place: update producers, D, C and
-shared request vectors together, without legacy readers, dual encodings or
-compatibility adapters. The v1 label is not a pre-release stability promise.
+Before release, format changes update request producers, both compilers and
+shared request vectors together. Each revision uses a single encoding. The v1 label is not a pre-release stability promise.
 Once released, incompatible representation changes revise the outer version
 atomically. Variable bytes are length-framed; tables have explicit counts;
 graph indices are zero-based;
@@ -127,14 +127,50 @@ For named packages, only the declared name and canonical lineage determine the
 key. Requester-local aliases remain dependency-edge fields; revision, tree and
 content identify the exact resolution, not a different lineage. Identical
 canonical name/lineage inputs must produce identical keys in package management,
-D and C. Their canonical identity encoding and hashing must be specified once
+the bootstrap compiler and the Omega compiler. Their canonical identity encoding and hashing must be specified once
 and exercised by shared vectors, not independently invented per consumer.
 
-The structured source-lineage encoding must specify its tags, field framing
-and canonical identity preimage. The superseded two-tag `external_local`/`git`
-encoding with opaque lineage text must not be reinterpreted as this structure.
-The encoding must preserve the [package identity rules](declarations.md#names-lineage-and-resolution);
-private implementation fields do not override those rules.
+The row's `lineage` field is one length-framed `bytes` value. Its payload is
+the package acquisition lineage encoding below. All discriminants occupy one
+byte. Each text field uses a little-endian `u32` byte length and canonical
+UTF-8 bytes. A digest occupies exactly 32 bytes. Consume the payload exactly.
+
+| Tag | Family | Payload after the tag, in order |
+| --- | --- | --- |
+| 0 | GitHub | owner, repository |
+| 1 | GitLab | repository path |
+| 2 | Git | transport byte (0 HTTPS, 1 SSH URL, 2 SCP-like), optional user, host, optional port, repository path |
+| 3 | Workspace | workspace identity digest, relative member path |
+| 4 | External local | source-context digest, canonical absolute path |
+| 5 | Bundled | library digest, directory |
+
+An option starts with a one-byte tag. Zero ends an absent option. One precedes
+the user text or the unsigned little-endian two-byte port. Phase 2 rejects an
+unknown discriminant at that byte, a missing inner byte at the lineage end,
+and trailing bytes at the first extra byte. Canonical source spellings are
+checked during semantic validation. The row has no opaque origin-text form.
+
+For a named package, compute SHA-256 over the following sequence. A hash field
+is an eight-byte unsigned big-endian length followed by the value bytes.
+
+1. Append the hash fields `omega-package-key-identity-v1` and the declared package name.
+2. Append the family as a hash field using respectively `github`, `gitlab`, `git`,
+   `workspace`, `external-local`, or `bundled`.
+3. Append the family's fields in table order. Hash each text or raw digest as
+   one field. For Git, hash transport as `https`, `ssh-url`, or `scp-like`.
+   For each option append a single raw byte 0 or 1, followed when present by
+   the hash field. Encode a present port in shortest unsigned decimal ASCII.
+
+Source acquisition defines canonical values for these fields. Both compilers
+must recompute the digest from those values. For the declared name `program`,
+the following locators yield these keys after canonicalization.
+
+| Locator | Package key (SHA-256, hexadecimal) |
+| --- | --- |
+| `https://github.com/example/pkg` | `b920e334cbd47dbd1b5f883a6a80e552c59a182564933336e8b1ffb401fdd14d` |
+| `ssh://git@git.example:2222/org/pkg` | `1611dce5bd070c631c3f213ed3ee32d6b539291c8c3299c05a3f0ec1260dc21e` |
+
+The invocation's subject commitment separately covers the exact wire bytes.
 
 ### Source snapshots
 
@@ -181,7 +217,7 @@ Each package row is, in order:
 | Order | Field | Encoding |
 | --- | --- | --- |
 | 1 | `name` | `bytes`, the declared package name |
-| 2 | `lineage` | Shared tagged structural source-lineage record; physical encoding remains to be completed under the rule above |
+| 2 | `lineage` | `bytes` containing the [structured source lineage](#shared-package-identity) |
 | 3 | `revision` | `bytes`, exact selected revision resolution |
 | 4 | `tree` | `bytes`, exact tree resolution |
 | 5 | `content` | `bytes`, exact content resolution |
@@ -604,8 +640,7 @@ not a disproof of the module: the unproved obligation publishes
 The request-extent provisions bound the declared subject and invocation
 section lengths; both sit inside the fixed request header and are checked at
 phase 1 after complete framing, before either section is interpreted. The
-parser capacities are private D budgets over its fixed tables, not Omega source
-limits. Source depth and length are bounded only by memory and time;
+parser capacities bound the fixed tables of the Epsilon implementation. Source depth and length are bounded only by memory and time;
 exhausting either publishes `Incomplete` naming the exhausted resource, never a
 host stack overflow. The tape capacities bound the emitted artifact's payload and
 relocation records; their coordinates are payload-relative byte offsets.
@@ -643,11 +678,16 @@ both implementations; a private capacity not represented here is added by
 extending the table, never by reusing another resource's code.
 
 Both compilers use the same diagnostic selection under the same profile.
-Differential agreement is an oracle, not a replacement for refinement proofs.
-A future explicitly selected smaller bootstrap coverage profile must report
-unsupported valid Omega as a named `Incomplete` provision, not invalid source.
-A construct count can use limit zero and its actual positive requested count.
-This option does not change the currently required full-Omega scope of D.
+A bootstrap compiler may implement the subset needed to compile the actual
+Omega compiler sources. It must preserve the specified semantics of each
+supported facility. An unsupported valid construct returns the applicable
+named `Incomplete` provision. A construct count can use limit zero and its
+actual positive requested count. A refusal produces no artifact.
+
+A [completed construction](../../../bootstrap/CONTRACT.md#refinement-and-admission)
+runs the resulting Omega compiler on its own sources and reproduces the build
+under the declared profile. Agreement on request outcomes alone cannot
+establish that result.
 
 Closed tables are checked projections of constants embedded independently in
 the offline compilers, never runtime host sidecars. Completion requires matching

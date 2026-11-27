@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 The call family of the reader: which callee a call names, the static
 application and authored selection it must leave unused, and the call itself
@@ -11,6 +12,7 @@ mod resident_storage;
 use crate::body::Qualification;
 use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
 use crate::declaration_selection::ResolvedAuthoredCallBinding;
+use crate::read::theorems::TheoremInput;
 use crate::source_selections::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionOccurrenceId,
 };
@@ -34,7 +36,7 @@ use super::machine::ApplicationTypes;
 use super::storage_path::{names_storage, root_slot};
 use super::{Program, Slot, symbol_kind};
 use crate::body::{CallTarget, Expression, ExpressionKind, Signature, ValueType};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::{SourceOrigin, Unserved};
 use semantic_vocabulary::StructuralFieldId;
 use terminal_psi::ResolvedStructuralPathSegment as Segment;
 
@@ -142,9 +144,8 @@ impl<'t> Program<'t> {
         self.read_boundary_declaration(diagnostic, target)?
             .map(|(id, _)| id)
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     diagnostic,
-                    Construct::Machine,
                     Unserved::Call("target has no exact boundary declaration"),
                 )
             })
@@ -160,7 +161,7 @@ impl<'t> Program<'t> {
         application: crate::source_state::static_applications::StaticMachineApplicationHandle,
         machine_arguments: &[crate::source_state::expression::StaticMachineArgument],
     ) -> Checked<()> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
         if !machine_arguments.is_empty() {
             return unserved("static machine arguments");
         }
@@ -173,7 +174,7 @@ impl<'t> Program<'t> {
         if self.typed.closed_requirement_application(target).is_some() {
             self.typed
                 .require_closed_requirement_call_application(target, application)
-                .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
+                .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?;
             return Ok(());
         }
         if self.boundary_application_is_empty(id, target, application)? {
@@ -203,7 +204,7 @@ impl<'t> Program<'t> {
         let generated = self
             .typed
             .executable_callable_template(target)
-            .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?;
+            .map_err(|what| refuse_at(id, Unserved::Call(what)))?;
         if let Some(generated) = generated
             && self.instantiates_callable(target, application.registration_operation)
             && self.closes_rigid_parameters_only(application.registration_operation)
@@ -243,11 +244,7 @@ impl<'t> Program<'t> {
                 | SymbolKind::MathematicalDefinition
                 | SymbolKind::BuiltinFunction => target,
                 other => {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Call(symbol_kind(other)),
-                    ));
+                    return Err(refuse_at(id, Unserved::Call(symbol_kind(other))));
                 }
             }
         };
@@ -262,7 +259,7 @@ impl<'t> Program<'t> {
                 let enclosing = self
                     .typed
                     .machine_instantiation(owner)
-                    .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?;
+                    .map_err(|what| refuse_at(id, Unserved::Call(what)))?;
                 let caller = self.symbols.get(id).copied();
                 let same_application = enclosing.zip(caller).is_some_and(|(selected, caller)| {
                     let authored = self.typed.lifetime_declaration_owner(caller);
@@ -294,9 +291,8 @@ impl<'t> Program<'t> {
     ) -> Checked<SymbolHandle> {
         let table = &self.typed.expression_table;
         if !table.static_machine_application_is_valid(application) {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("selected ordinary application is absent"),
             ));
         }
@@ -304,9 +300,8 @@ impl<'t> Program<'t> {
             .static_machine_application(application)
             .registration_operation;
         let target = self.entered_machine(registered).ok_or_else(|| {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("selected ordinary application has no machine body"),
             )
         })?;
@@ -456,7 +451,7 @@ impl<'t> Program<'t> {
                 member,
             });
         }
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let unserved = |what| refuse_at(id, Unserved::Call(what));
         if !self
             .typed
             .expression_table
@@ -595,7 +590,7 @@ impl<'t> Program<'t> {
         binding: Option<crate::declaration_selection::ResolvedAuthoredCallBinding>,
     ) -> Checked<()> {
         use crate::declaration_selection::AuthoredDeclarationSelectionTarget;
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
         if !self.typed.symbols.symbols().nodes().is_valid(target) {
             return unserved("callee without a declaration symbol");
         }
@@ -627,7 +622,7 @@ impl<'t> Program<'t> {
             None => self
                 .typed
                 .executable_callable_template(target)
-                .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?,
+                .map_err(|what| refuse_at(id, Unserved::Call(what)))?,
         };
         let names_target = |symbol: SymbolHandle| {
             symbol == target
@@ -663,11 +658,7 @@ impl<'t> Program<'t> {
                     return unserved("intrinsic selection");
                 }
                 AuthoredDeclarationSelectionTarget::LateBound(_) => {
-                    let mut refusal = refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Call("late-bound selection"),
-                    );
+                    let mut refusal = refuse_at(id, Unserved::Call("late-bound selection"));
                     refusal.detail.push_str(&format!(
                         " for `{}`",
                         self.typed.symbols.display_path(target, "::")
@@ -706,11 +697,7 @@ impl<'t> Program<'t> {
         if target.is_valid() && self.typed.symbols.symbols().nodes().is_valid(target) {
             return Ok(());
         }
-        Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Call("without a bound target"),
-        ))
+        Err(refuse_at(id, Unserved::Call("without a bound target")))
     }
 
     pub(super) fn call_statement(
@@ -732,7 +719,7 @@ impl<'t> Program<'t> {
         call: &TableCall,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
         if let Some(runtime) = call.runtime_call {
             if call.target_symbol.is_valid()
                 || call.authored_machine_application.is_valid()
@@ -751,6 +738,20 @@ impl<'t> Program<'t> {
             return self.runtime_call(id, slots, runtime, arguments, source, None);
         }
         self.bound_target(id, call.target_symbol)?;
+        if call.evidence_arguments.is_empty()
+            && let Some(applied) = self.mathematical_application(
+                id,
+                slots,
+                call.target_symbol,
+                &call.machine_arguments,
+                self.typed
+                    .statement_table
+                    .expression_handles(call.arguments),
+                source,
+            )?
+        {
+            return Ok(applied);
+        }
         if let Some(dispatch) = &call.static_requirement_dispatch {
             return self.requirement_call(
                 id,
@@ -866,7 +867,7 @@ impl<'t> Program<'t> {
                 terminal_psi::StorageLocationQuery::Address,
             );
         }
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
         if let Some(runtime) = call.runtime_call {
             if call.target_symbol.is_valid()
                 || call.authored_machine_application.is_valid()
@@ -885,12 +886,26 @@ impl<'t> Program<'t> {
             return self.runtime_call(id, slots, runtime, arguments, source, expected);
         }
         self.bound_target(id, call.target_symbol)?;
+        if !call.receiver.is_valid()
+            && call.evidence_arguments.is_empty()
+            && let Some(applied) = self.mathematical_application(
+                id,
+                slots,
+                call.target_symbol,
+                &call.machine_arguments,
+                self.typed
+                    .expression_table
+                    .expression_handles(call.arguments),
+                source,
+            )?
+        {
+            return Ok(applied);
+        }
         // The integer carrier query is answered only through its fields in a
         // static condition (`carriers`); its own body is no answer to run.
         if self.is_carrier_query(call) {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("integer carrier query read as a runtime value"),
             ));
         }
@@ -945,11 +960,7 @@ impl<'t> Program<'t> {
                         )
                     })
                     .map_err(|reason| {
-                        let mut error = refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Call("private callback placement"),
-                        );
+                        let mut error = refuse_at(id, Unserved::Call("private callback placement"));
                         error.detail.push_str(": ");
                         error.detail.push_str(&reason);
                         error
@@ -991,9 +1002,8 @@ impl<'t> Program<'t> {
                 .typed
                 .applied_requirement_scope(lexical_owner, call.requirement_application)
                 .ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Call("requirement call lost its declaring application"),
                     )
                 })?;
@@ -1201,7 +1211,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         use language_core::data_layout_queries::DataLayoutQueryKind;
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
         let crate::source_state::expression::DataLayoutQueryRequest::Type { kind, operand } = query
         else {
             return unserved("alignment of a live storage location");
@@ -1226,12 +1236,12 @@ impl<'t> Program<'t> {
         };
         let scalar_type = semantic_vocabulary::ScalarType::Integer(
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .map_err(|_| refuse(id, Construct::Machine, Unserved::Call("u64 carrier")))?,
+                .map_err(|_| refuse_at(id, Unserved::Call("u64 carrier")))?,
         );
         let application = self
             .scalar_applications
             .layout(subject, measurement, scalar_type)
-            .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
+            .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?;
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::ScalarApplication { application },
@@ -1258,7 +1268,7 @@ impl<'t> Program<'t> {
         let Some(factory) = typed.access_borrow_factory(call.target_symbol).copied() else {
             return Ok(None);
         };
-        let unavailable = |reason| refuse(id, Construct::Machine, Unserved::Call(reason));
+        let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
         self.visible_to(id, factory.factory)?;
         self.direct_selection(
             id,
@@ -1510,7 +1520,7 @@ impl<'t> Program<'t> {
         selection: arena::Handle<crate::source_state::expression::BuildSelectionCall>,
         read: &mut Expression,
     ) -> Checked<()> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
         let Some(request) = self
             .typed
             .expression_table
@@ -1556,22 +1566,20 @@ impl<'t> Program<'t> {
             Some(requirement) => {
                 let typed = self.typed;
                 let lexical_owner = *self.symbols.get(id).ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Call("Build provider readiness without its selecting machine"),
                     )
                 })?;
                 let scope = typed
                     .build_provider_requirement_scope(requirement, lexical_owner)
-                    .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
+                    .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?;
                 if matches!(request, BuildSelectionRequest::ProviderReadiness(_))
                     && (!typed.trait_type_parameters(scope.declaration).is_empty()
                         || !scope.declaration.lifetime_parameters.is_empty())
                 {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Call(
                             "Build provider readiness for a requirement applied to arguments",
                         ),
@@ -1584,9 +1592,8 @@ impl<'t> Program<'t> {
             None => None,
         };
         let ExpressionKind::Call { designated, .. } = &mut read.kind else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("Build selection on a call that is no boundary operation"),
             ));
         };
@@ -1616,7 +1623,7 @@ impl<'t> Program<'t> {
         dispatch: &crate::source_state::StaticRequirementDispatch,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
         let (unsupported, target, application_handle, raw_arguments, arguments, binding) =
             match call {
                 StaticArgumentCall::Expression(_, call) => (
@@ -1690,11 +1697,8 @@ impl<'t> Program<'t> {
                 .typed
                 .evidence_requirement_declaration(original)
                 .map_err(|reason| {
-                    let mut refusal = refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Call("implementation parameter requirement"),
-                    );
+                    let mut refusal =
+                        refuse_at(id, Unserved::Call("implementation parameter requirement"));
                     refusal.detail.push_str(": ");
                     refusal.detail.push_str(&reason);
                     refusal
@@ -1722,7 +1726,7 @@ impl<'t> Program<'t> {
             && self
                 .typed
                 .executable_callable_template(target)
-                .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?
+                .map_err(|what| refuse_at(id, Unserved::Call(what)))?
                 == Some(dispatch.realization_state)
         {
             target
@@ -1736,17 +1740,13 @@ impl<'t> Program<'t> {
         let (operand, operand_owner) = self
             .typed
             .selected_implementation_operand(caller, dispatch.evidence_parameter)
-            .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
+            .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?;
         let operand = operand.clone();
         let required_source = self
             .typed
             .source_call_requirement_signature(caller, call)
             .map_err(|reason| {
-                let mut refusal = refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Call("applied public requirement"),
-                );
+                let mut refusal = refuse_at(id, Unserved::Call("applied public requirement"));
                 refusal.detail.push_str(": ");
                 refusal.detail.push_str(&reason);
                 refusal
@@ -1788,7 +1788,7 @@ impl<'t> Program<'t> {
         (arguments, source, expected): (&[ExpressionHandle], SourceOrigin, Option<ValueType>),
     ) -> Checked<Expression> {
         let (callee, dispatch, operand, operand_owner, value_arguments, static_record) = selection;
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
         let (required, _) = self.requirement_signature(
             id,
             required_source,
@@ -1799,19 +1799,16 @@ impl<'t> Program<'t> {
             },
         )?;
         let machine = *self.symbols.get(callee).ok_or_else(|| {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("selected body lost its exact source declaration"),
             )
         })?;
-        let supplied = self.signatures.get(callee).cloned().ok_or_else(|| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Call("selected body has no signature"),
-            )
-        })?;
+        let supplied = self
+            .signatures
+            .get(callee)
+            .cloned()
+            .ok_or_else(|| refuse_at(id, Unserved::Call("selected body has no signature")))?;
         if !self.same_signature(id, &required, &supplied, machine)? {
             return unserved("selected body has another runtime signature");
         }
@@ -1832,7 +1829,7 @@ impl<'t> Program<'t> {
                     exact_toolchain_sources: self
                         .shared
                         .exact_toolchain_sources(self.typed)
-                        .map_err(|reason| super::services::unavailable(id, reason))?,
+                        .map_err(|reason| crate::read::unavailable(id, reason))?,
                 },
             )
             .and_then(|identity| self.typed.type_identity_text(identity))
@@ -1919,17 +1916,13 @@ impl<'t> Program<'t> {
                 );
             }
         };
-        let machine = self.typed.machine_by_symbol(body).ok_or_else(|| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Call("named call lost its actual body"),
-            )
-        })?;
+        let machine = self
+            .typed
+            .machine_by_symbol(body)
+            .ok_or_else(|| refuse_at(id, Unserved::Call("named call lost its actual body")))?;
         let Some([entry]) = self.typed.machine_states(machine).as_array() else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("named call lost its actual entry"),
             ));
         };
@@ -1941,9 +1934,8 @@ impl<'t> Program<'t> {
             realization_state: entry.symbol,
         };
         let lexical_owner = *self.symbols.get(id).ok_or_else(|| {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("named member lost its actual source caller"),
             )
         })?;
@@ -1951,9 +1943,8 @@ impl<'t> Program<'t> {
             .typed
             .source_call_selected_operand(lexical_owner, call)
             .map_err(|reason| {
-                let mut error = refuse(
+                let mut error = refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Call("named call lost its retained source operand"),
                 );
                 error.detail.push_str(": ");
@@ -1961,9 +1952,8 @@ impl<'t> Program<'t> {
                 error
             })?;
         if operand.symbol != owner.symbol {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("named call selected another source implementation"),
             ));
         }
@@ -2014,7 +2004,7 @@ impl<'t> Program<'t> {
         rigid: bool,
     ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
         use crate::source_state::static_applications::StaticMachineBindingValue;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let unserved = |what| refuse_at(id, Unserved::Call(what));
         let bindings = self
             .typed
             .expression_table
@@ -2073,7 +2063,7 @@ impl<'t> Program<'t> {
     ) -> Checked<semantic_vocabulary::ScalarTerm> {
         use crate::source_state::types::PrimitiveType;
         use semantic_vocabulary::{ScalarTerm, ScalarType};
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let unserved = |what| refuse_at(id, Unserved::Call(what));
         let (symbol, operand) = match written.into() {
             StaticValue::Reference(reference) => {
                 if !self
@@ -2150,7 +2140,7 @@ impl<'t> Program<'t> {
         authored_arguments: &[crate::source_state::expression::StaticMachineArgument],
         rigid: bool,
     ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
         let table = &self.typed.expression_table;
         if application_handle.is_valid()
             && !table.static_machine_application_is_valid(application_handle)
@@ -2178,6 +2168,17 @@ impl<'t> Program<'t> {
         // The call's own list, when it keeps one, is the application's.
         if !authored_arguments.is_empty() && authored_arguments != arguments {
             return unserved("requirement call whose static arguments differ from its application");
+        }
+        if binders.is_empty()
+            && self
+                .typed
+                .closed_requirement_application(declaration)
+                .is_some()
+        {
+            self.typed
+                .require_closed_requirement_call_application(declaration, application_handle)
+                .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?;
+            return Ok(Vec::new());
         }
         if arguments.len() != binders.len() || bindings.len() != binders.len() {
             return unserved("requirement call with static arguments");
@@ -2268,17 +2269,15 @@ impl<'t> Program<'t> {
             )
         };
         if call.unsupported || has_extra_features {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("generic application with another call feature"),
             ));
         }
         self.direct_selection(id, call.target, call.selection, call.binding)?;
         let caller = self.symbols.get(id).copied().ok_or_else(|| {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("generic application has no source caller"),
             )
         })?;
@@ -2297,9 +2296,8 @@ impl<'t> Program<'t> {
                 self.typed, target,
             ) != semantic_vocabulary::BoundaryCompletion::NormalReturn
             {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Call("generic boundary call with a terminal completion"),
                 ));
             }
@@ -2309,9 +2307,8 @@ impl<'t> Program<'t> {
         } else if matches!(
             self.typed
                 .compiler_primitive_schema(target)
-                .map_err(|_| refuse(
+                .map_err(|_| refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Call("packed operation has no complete authenticated schema")
                 ))?,
             Some((
@@ -2323,9 +2320,8 @@ impl<'t> Program<'t> {
                 || !arguments.callables.is_empty()
                 || !arguments.proofs.is_empty()
             {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Call("packed operation received unexpected generic arguments"),
                 ));
             }
@@ -2367,9 +2363,8 @@ impl<'t> Program<'t> {
             ..
         } = &mut read.kind
         else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("generic callback arguments lost their exact invocation"),
             ));
         };
@@ -2400,30 +2395,21 @@ impl<'t> Program<'t> {
                                 && input.scalar_type == scalar_type
                         })
                         .ok_or_else(|| {
-                            refuse(
-                                id,
-                                Construct::Machine,
-                                Unserved::Call("const actual has no caller input"),
-                            )
+                            refuse_at(id, Unserved::Call("const actual has no caller input"))
                         })?;
                     let slot = slots
                         .iter()
                         .position(|slot| slot.symbol == input.symbol)
                         .ok_or_else(|| {
-                            refuse(
-                                id,
-                                Construct::Machine,
-                                Unserved::Call("const actual has no caller slot"),
-                            )
+                            refuse_at(id, Unserved::Call("const actual has no caller slot"))
                         })?;
                     ExpressionKind::Slot(slot)
                 }
                 ScalarTerm::Integer { value, .. } => ExpressionKind::Integer(*value),
                 ScalarTerm::Boolean(value) => ExpressionKind::Boolean(*value),
                 _ => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Call("const actual is neither a literal nor an owned input"),
                     ));
                 }
@@ -2486,9 +2472,8 @@ impl<'t> Program<'t> {
             .typed
             .compiler_primitive_schema(packed_target)
             .map_err(|_| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Call("packed operation has no complete authenticated schema"),
                 )
             })?
@@ -2497,9 +2482,8 @@ impl<'t> Program<'t> {
                 || invocation.unsupported
                 || invocation.runtime_receiver
             {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Call("packed operation must be called as a pure expression"),
                 ));
             }
@@ -2521,11 +2505,7 @@ impl<'t> Program<'t> {
                 Vec::new()
             } else {
                 let caller = self.symbols.get(id).copied().ok_or_else(|| {
-                    refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Call("packed operation has no source caller"),
-                    )
+                    refuse_at(id, Unserved::Call("packed operation has no source caller"))
                 })?;
                 let application = self.application_arguments(
                     id,
@@ -2539,9 +2519,8 @@ impl<'t> Program<'t> {
                     || !application.proofs.is_empty()
                     || application.values.len() != primitive.immediates()
                 {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Call("packed operation received unexpected generic arguments"),
                     ));
                 }
@@ -2571,7 +2550,7 @@ impl<'t> Program<'t> {
         let member = self
             .typed
             .source_conformance_call_member(caller, call)
-            .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
+            .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?;
         let declaration = member
             .filter(|selected| selected.row.realization_state == authored)
             .map_or(authored, |selected| selected.row.requirement);
@@ -2600,7 +2579,7 @@ impl<'t> Program<'t> {
         {
             return Ok(None);
         }
-        let unavailable = |reason| refuse(id, Construct::Machine, Unserved::Call(reason));
+        let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
         if self.theorem_parameters.len() != self.theorem_parameter_sources.len() {
             return Err(unavailable(
                 "logical application lost its complete header correspondence",
@@ -2613,7 +2592,7 @@ impl<'t> Program<'t> {
             .filter(|(parameter, source)| {
                 parameter.machine == id && source.binder == invocation.target
             });
-        let (parameter, _) = parameters.next().ok_or_else(|| {
+        let (parameter, prepared) = parameters.next().ok_or_else(|| {
             unavailable("logical parameter is outside the current declaration's exact header")
         })?;
         if parameters.next().is_some() {
@@ -2622,26 +2601,31 @@ impl<'t> Program<'t> {
             ));
         }
         let proof_position = parameter.proof_position;
-        let types: Vec<_> = parameter
-            .contract
-            .parameters
-            .iter()
-            .map(|parameter| parameter.scalar_type)
-            .collect();
+        let inputs = prepared.inputs.clone();
         let acknowledgement = match call {
             StaticArgumentCall::Statement(call) => call.operational_acknowledgement,
             StaticArgumentCall::Expression(_, call) => call.operational_acknowledgement,
         };
         if invocation.unsupported
             || invocation.runtime_receiver
-            || !invocation.authored_arguments.is_empty()
             || acknowledgement != Default::default()
-            || invocation.arguments.len() != types.len()
+            || invocation.arguments.len() != inputs.len()
         {
             return Err(unavailable(
                 "logical application carries an executable feature or another argument telescope",
             ));
         }
+        // `Step::<inner>(n)` gives the contract's own proof parameters their
+        // proofs, bound in the retained application below.
+        let given = parameter.contract.proof_parameters.len();
+        if invocation.authored_arguments.len() != given
+            || (given != 0 && !invocation.application.is_valid())
+        {
+            return Err(unavailable(
+                "logical application needs one proof for each of its contract's own proof parameters",
+            ));
+        }
+        let mut instantiation = Vec::with_capacity(given);
         if invocation.selection.is_none() && invocation.binding.is_none() {
             return Err(unavailable(
                 "logical application has no exact authored selection",
@@ -2673,10 +2657,10 @@ impl<'t> Program<'t> {
                     .map(|machine| machine.symbol)
                     != Some(caller))
                 || application.registration_operation != invocation.target
-                || !application.arguments.is_empty()
+                || (given == 0 && !application.arguments.is_empty())
                 || !application.selected_machine_arguments.is_empty()
                 || !application.input_selections.is_empty()
-                || !application.bindings.is_empty()
+                || (given == 0 && !application.bindings.is_empty())
                 || !application.lifetime_bindings.is_empty()
                 || application.conformance_selection.is_some()
                 || application.callable_contract_source.is_valid()
@@ -2685,34 +2669,87 @@ impl<'t> Program<'t> {
                     "logical application retains another owner, selection or static argument",
                 ));
             }
-        }
-        let arguments = invocation
-            .arguments
-            .iter()
-            .zip(types)
-            .map(|(argument, scalar)| {
-                let expression =
-                    self.expression(id, slots, *argument, Some(ValueType::plain(scalar)))?;
-                if expression.result != Some(ValueType::plain(scalar))
-                    || !matches!(
-                        expression.kind,
-                        ExpressionKind::Integer(_)
-                            | ExpressionKind::Boolean(_)
-                            | ExpressionKind::Slot(_)
-                    )
+            if given != 0 {
+                // Each of the contract's own proof binders, in its header
+                // order, has exactly one explicit proof, written in that
+                // order and read as a proof argument is, one level deep.
+                // The application binds none of them as a call would.
+                let contract = self
+                    .typed
+                    .proof_parameter_contract(invocation.target)
+                    .ok_or_else(|| unavailable("logical application has no declared contract"))?;
+                let binders = self
+                    .typed
+                    .data_type_parameters
+                    .span_or_empty(contract.type_parameters);
+                if binders.len() != given
+                    || !table
+                        .static_machine_application_bindings(invocation.application)
+                        .is_empty()
                 {
                     return Err(unavailable(
-                        "logical subject has another fixed scalar carrier",
+                        "logical application needs one proof for each of its contract's own proof parameters",
                     ));
                 }
-                Ok(expression)
-            })
-            .collect::<Checked<Vec<_>>>()?;
+                for inner in invocation.authored_arguments {
+                    instantiation.push(self.theorem_source(id, inner)?);
+                }
+            }
+        }
+        // A record input is one subject for each of its scalar fields: the
+        // record formal it names, read at each field's path.
+        let mut arguments = Vec::new();
+        let mut fields = Vec::new();
+        for (argument, input) in invocation.arguments.iter().zip(inputs) {
+            match input {
+                TheoremInput::Scalar(scalar) => {
+                    let expression =
+                        self.expression(id, slots, *argument, Some(ValueType::plain(scalar)))?;
+                    if expression.result != Some(ValueType::plain(scalar))
+                        || !matches!(
+                            expression.kind,
+                            ExpressionKind::Integer(_)
+                                | ExpressionKind::Boolean(_)
+                                | ExpressionKind::Slot(_)
+                        )
+                    {
+                        return Err(unavailable(
+                            "logical subject has another fixed scalar carrier",
+                        ));
+                    }
+                    arguments.push(expression);
+                    fields.push(Vec::new());
+                }
+                TheoremInput::Record { record, leaves } => {
+                    let expression = self.expression(id, slots, *argument, None)?;
+                    let ExpressionKind::Slot(slot) = expression.kind else {
+                        return Err(unavailable(
+                            "logical data subject is not a named record formal",
+                        ));
+                    };
+                    if !matches!(expression.result, Some(ValueType::Record(own, Qualification::NONE, _)) if own == record)
+                        || slots
+                            .get(slot)
+                            .is_none_or(|held| held.erased || held.borrowed.is_some())
+                    {
+                        return Err(unavailable(
+                            "logical data subject is not a named record formal",
+                        ));
+                    }
+                    for (path, _) in leaves {
+                        arguments.push(expression.clone());
+                        fields.push(path);
+                    }
+                }
+            }
+        }
         Ok(Some(Expression {
             call_context: None,
             kind: ExpressionKind::TheoremApplication {
                 source: terminal_psi::TheoremSource::Formal(proof_position),
                 arguments,
+                fields,
+                instantiation,
             },
             result: None,
             source,
@@ -2865,7 +2902,7 @@ impl<'t> Program<'t> {
             runtime_receiver: _,
             receiver,
         } = invocation;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let unserved = |what| refuse_at(id, Unserved::Call(what));
         let record = if let Some(receiver) = receiver {
             self.record_requirement_signature(id, receiver, target)?
                 .map(|(position, signature)| (receiver, position, signature))
@@ -3056,9 +3093,8 @@ impl<'t> Program<'t> {
         let (checked_primitive, signature) =
             self.packed_integer_signature(id, target, immediates)?;
         if checked_primitive != primitive || arguments.len() != primitive.inputs() {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("packed operation argument count"),
             ));
         }
@@ -3069,9 +3105,8 @@ impl<'t> Program<'t> {
                 ..
             } = term
             else {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Call("packed immediate must be a concrete constant below 16"),
                 ));
             };
@@ -3105,9 +3140,8 @@ impl<'t> Program<'t> {
             | PackedIntegerPrimitive::UnpackLowQuadwords
             | PackedIntegerPrimitive::UnpackHighQuadwords => {
                 let lanes = primitive.interleaved_lanes().ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Call("packed interleave has no lane selection"),
                     )
                 })?;
@@ -3117,9 +3151,8 @@ impl<'t> Program<'t> {
             }
             PackedIntegerPrimitive::ShiftRightI16x8 => {
                 let [count] = indices.as_slice() else {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Call("packed shift requires 1 shift count"),
                     ));
                 };
@@ -3133,6 +3166,14 @@ impl<'t> Program<'t> {
             PackedIntegerPrimitive::NarrowI16x8ToU8x8Saturating => {
                 crate::body::PackedIntegerOperation::Unary(
                     PackedIntegerUnaryOperation::NarrowI16x8ToU8x8Saturating,
+                )
+            }
+            PackedIntegerPrimitive::WidenU8x4ToI16x8 => crate::body::PackedIntegerOperation::Unary(
+                PackedIntegerUnaryOperation::WidenU8x4ToI16x8,
+            ),
+            PackedIntegerPrimitive::NarrowI16x8ToU8x4Saturating => {
+                crate::body::PackedIntegerOperation::Unary(
+                    PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating,
                 )
             }
             PackedIntegerPrimitive::LoadI16x4ZeroExtend => {
@@ -3171,9 +3212,8 @@ impl<'t> Program<'t> {
             let (mut lent, _) = self.lent(id, slots, *argument, borrowed, contextual)?;
             lent.result = self.borrowed_argument_type(id, slots, &lent, contextual, borrowed)?;
             let ExpressionKind::Borrow { place, .. } = &lent.kind else {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Typing("packed operand without a shared loan"),
                 ));
             };
@@ -3218,18 +3258,13 @@ impl<'t> Program<'t> {
         selection: Option<StaticMachineTarget>,
     ) -> Checked<Expression> {
         if selection.is_some_and(|selection| selection.target != target) {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("static call changed its selected target"),
             ));
         }
         if !target.is_valid() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Spelling("callee without a symbol"),
-            ));
+            return Err(refuse_at(id, Unserved::Spelling("callee without a symbol")));
         }
         // Resolve executable entries to their machine owner. Trait requirements
         // also use state symbols, but keep their own signature identity.
@@ -3245,9 +3280,8 @@ impl<'t> Program<'t> {
                     .authored_declaration_selections()
                     .get(selection.occurrence)
                     .ok_or_else(|| {
-                        refuse(
+                        refuse_at(
                             id,
-                            Construct::Machine,
                             Unserved::Call("static call argument lost its authored selection"),
                         )
                     })?;
@@ -3350,27 +3384,23 @@ impl<'t> Program<'t> {
     /// Resolve the same exact entry identity for direct and selected calls.
     /// Selection decides which contract is exposed; it does not change which
     /// source machine owns this entry state.
-    fn call_target_symbol(&self, id: MachineId, target: SymbolHandle) -> Checked<SymbolHandle> {
+    pub(super) fn call_target_symbol(
+        &self,
+        id: MachineId,
+        target: SymbolHandle,
+    ) -> Checked<SymbolHandle> {
         Ok(match self.typed.symbols.get(target).kind {
             SymbolKind::Machine => target,
             SymbolKind::State => {
                 let parent = self.typed.symbols.get(target).parent;
                 let (_, state) = self.declaration(id, parent)?;
                 if state.symbol != target {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Call("state other than the entry"),
-                    ));
+                    return Err(super::rejections::call_inside_a_machine_body(id));
                 }
                 parent
             }
             other => {
-                return Err(refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Call(symbol_kind(other)),
-                ));
+                return Err(refuse_at(id, Unserved::Call(symbol_kind(other))));
             }
         })
     }
@@ -3409,13 +3439,7 @@ impl<'t> Program<'t> {
                     .conformance_by_symbol(callee)
                     .map(|declaration| (declaration.symbol, declaration.is_public))
             })
-            .ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Call("target has no callable declaration"),
-                )
-            })?;
+            .ok_or_else(|| refuse_at(id, Unserved::Call("target has no callable declaration")))?;
         self.visible_declaration_from(id, declaration, is_public, selection)
     }
 
@@ -3474,9 +3498,8 @@ impl<'t> Program<'t> {
         match (caller, package(callee)) {
             (Some(caller), Some(callee)) if caller == callee => Ok(()),
             (Some(_), Some(_)) => violation("cannot call a private machine of another package"),
-            _ => Err(refuse(
+            _ => Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("call between declarations without a source file"),
             )),
         }
@@ -3550,16 +3573,14 @@ impl<'t> Program<'t> {
     ) -> Checked<&Signature> {
         if let Some(required) = required_contract {
             let Some(Some((caller, body, ..))) = self.declaration_selections.get(required) else {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Call("selected call has no exact public declaration association"),
                 ));
             };
             if *caller != id || !matches!(callee, CallTarget::Machine(machine) if machine == body) {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Call("selected call changes its public contract body or caller"),
                 ));
             }
@@ -3576,9 +3597,8 @@ impl<'t> Program<'t> {
             }
             CallTarget::Boundary { boundary } => {
                 self.boundaries.signature(*boundary).ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Call("boundary has no exact retained signature"),
                     )
                 })
@@ -3589,9 +3609,8 @@ impl<'t> Program<'t> {
                 .get(*contract)
                 .map(|row| &row.signature)
                 .ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Call("selected call has no exact retained contract signature"),
                     )
                 }),
@@ -3609,9 +3628,8 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let scalar_type = self.callable_type(id, runtime.contract)?;
         let semantic_vocabulary::ScalarType::Callable(contract) = scalar_type else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("runtime call has no callable contract"),
             ));
         };
@@ -3622,9 +3640,8 @@ impl<'t> Program<'t> {
             Some(ValueType::plain(scalar_type)),
         )?;
         if callable.result != Some(ValueType::plain(scalar_type)) {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("runtime callee contract differs from the call"),
             ));
         }
@@ -3632,13 +3649,7 @@ impl<'t> Program<'t> {
             .callables
             .contracts
             .get(contract)
-            .ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Call("runtime callable contract is missing"),
-                )
-            })?
+            .ok_or_else(|| refuse_at(id, Unserved::Call("runtime callable contract is missing")))?
             .signature
             .clone();
         self.call_with_signature(
@@ -3699,9 +3710,8 @@ impl<'t> Program<'t> {
                 .get(required)
                 .copied()
                 .ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Declaration("selected call lost its public requirement"),
                     )
                 })?;
@@ -3721,11 +3731,7 @@ impl<'t> Program<'t> {
                         .boundaries
                         .row(*boundary)
                         .ok_or_else(|| {
-                            refuse(
-                                id,
-                                Construct::Machine,
-                                Unserved::Call("boundary lifetime owner is absent"),
-                            )
+                            refuse_at(id, Unserved::Call("boundary lifetime owner is absent"))
                         })?
                         .source;
                     self.machine_lifetimes(declaration)
@@ -3735,11 +3741,7 @@ impl<'t> Program<'t> {
                     .contracts
                     .get(*contract)
                     .ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Call("callable lifetime contract is absent"),
-                        )
+                        refuse_at(id, Unserved::Call("callable lifetime contract is absent"))
                     })?
                     .lifetimes
                     .clone(),
@@ -3760,11 +3762,7 @@ impl<'t> Program<'t> {
             .collect();
         let declared_result = signature.result;
         if formals.len() != arguments.len() + const_values.len() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("argument count"),
-            ));
+            return Err(refuse_at(id, Unserved::Typing("argument count")));
         }
         if !free.is_empty()
             && let (Some(result), Some(expected)) = (declared_result, expected)
@@ -3842,11 +3840,7 @@ impl<'t> Program<'t> {
             }
         }
         if formals.len() != read.len() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("argument types"),
-            ));
+            return Err(refuse_at(id, Unserved::Typing("argument types")));
         }
         let mut nominal_arguments = Vec::new();
         let mut structural_ordinal = 0;
@@ -3948,9 +3942,8 @@ impl<'t> Program<'t> {
             .filter(|parameter| !bound.iter().any(|(known, _)| known == parameter))
             .collect();
         if declared_result.is_some_and(|result| self.names_any(result, &unbound)) {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("result lifetime that no argument supplies"),
             ));
         }
@@ -4102,7 +4095,7 @@ impl<'t> Program<'t> {
         formal: &crate::body::Borrowed,
         expected: ValueType,
     ) -> Checked<(Expression, String)> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
         if formal.referent == crate::body::BorrowedReferent::Slice
             && let Some(view) = self.borrowed_array_range(
@@ -4358,11 +4351,7 @@ impl<'t> Program<'t> {
                     && !lender.homed =>
             {
                 let scalar = lender.value_type.scalar().ok_or_else(|| {
-                    refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Typing("scalar lender without its carrier"),
-                    )
+                    refuse_at(id, Unserved::Typing("scalar lender without its carrier"))
                 })?;
                 let storage = self.plain_scalar_storage(id, scalar)?;
                 Some(self.data_type(id, storage)?.identity.clone())
@@ -4401,11 +4390,7 @@ impl<'t> Program<'t> {
                     return unserved("shared view changes its captured referent type or access");
                 }
                 formed.qualified(backing_qualification).ok_or_else(|| {
-                    refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Call("shared view without its backing type"),
-                    )
+                    refuse_at(id, Unserved::Call("shared view without its backing type"))
                 })?
             } else {
                 if reference_access != StructuralAccess::MutableBorrow
@@ -4606,16 +4591,14 @@ fn lent_storage_is_untouched<'a>(
     for argument in arguments {
         if let ExpressionKind::Borrow { place, .. } = &argument.kind {
             if touches.selectors(place, &mut captures)? {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Call("loan selector that names storage another argument lends"),
                 ));
             }
         } else if touches.expression(argument, false, &mut captures)? {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Call("argument that names storage another argument lends"),
             ));
         }
@@ -4775,7 +4758,7 @@ impl Touches<'_> {
         captures: &mut SavedSubjects<'a>,
     ) -> Checked<bool> {
         match &expression.kind {
-            ExpressionKind::TheoremApplication { .. } => Ok(false),
+            ExpressionKind::TheoremApplication { .. } | ExpressionKind::Applied { .. } => Ok(false),
             ExpressionKind::Atomic(operation) => {
                 for operand in operation.inputs() {
                     if self.expression(operand, false, captures)? {

@@ -2,6 +2,7 @@
 //! typed source expressions; the ordinary prover and kernel decide their truth.
 //! Address interpretation follows the ordinary program carrier or the binding's
 //! retained mathematical model, including through nested definitions.
+use crate::read::refuse_at;
 
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use crate::source_state::mathematical::{
@@ -10,7 +11,7 @@ use crate::source_state::mathematical::{
 use crate::source_state::types::TypeReferenceNode;
 use semantic_vocabulary::{MachineId, Proposition};
 use symbols::{BuiltinFunction, BuiltinTypeMember, FixedCoreDeclaration, SymbolHandle};
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 use terminal_psi::MathematicalPredicateBody;
 
 use super::clause_terms::ClauseUse;
@@ -19,7 +20,7 @@ use super::{
     contracts::{ClauseScope, ResultTerm},
     logical::{MathematicalAddressContext, MathematicalInputs},
 };
-use crate::{Unserved, refuse};
+use crate::Unserved;
 
 pub(super) enum DefinitionBinder {
     Level(SymbolHandle),
@@ -169,7 +170,7 @@ impl<'t> Program<'t> {
         scope: &ClauseScope<'_>,
         call: &TableCallExpression,
     ) -> Checked<MathematicalPredicateBody> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
         let (definition_index, definition) = self
             .mathematical_definition(call.target_symbol)
             .ok_or_else(|| {
@@ -204,7 +205,7 @@ impl<'t> Program<'t> {
             )?;
             Vec::new()
         } else {
-            // Leading `core\Level` binders may be elided at the call site
+            // Leading `|proof|::Level` binders may be elided at the call site
             // (e.g. `IsMere(R(a, b))`). Every remaining binder receives an
             // explicit static argument in written order.
             let leading_levels = binders
@@ -388,9 +389,8 @@ impl<'t> Program<'t> {
             return self.dependent_arrow_body(id, scope, binders, body);
         }
         let MathematicalBody::Definition(expression) = body else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("uninterpreted mathematical premise theory"),
             ));
         };
@@ -403,7 +403,7 @@ impl<'t> Program<'t> {
             .type_body(id)
     }
 
-    /// Reads the dependent-arrow body `(p: P) -> (q: P) -> core\Identity::<P>(p, q)`
+    /// Reads the dependent-arrow body `(p: P) -> (q: P) -> |proof|::Identity::<P>(p, q)`
     /// of `IsMere`. When `P` is bound to a concrete proposition, produces
     /// `Proposition::IsMere`; during declaration validation when `P` is a
     /// type parameter slot, retains that slot.
@@ -414,7 +414,7 @@ impl<'t> Program<'t> {
         binders: arena::HandleSpan<crate::source_state::mathematical::MathematicalParameter>,
         body: ExpressionHandle,
     ) -> Checked<MathematicalPredicateBody> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
         let typed = self.typed;
         let arrow_binders = typed.mathematical_parameters(binders);
         let mut arrow_iter = arrow_binders.iter();
@@ -515,7 +515,7 @@ impl<'t> Program<'t> {
         address: MathematicalAddressContext<'_>,
         expanding: &[SymbolHandle],
     ) -> Checked<MathematicalBody> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
         let definition = self
             .typed
             .mathematical_definitions()
@@ -602,7 +602,7 @@ impl<'t> Program<'t> {
         definition: &MathematicalDefinition,
     ) -> Checked<Vec<DefinitionBinder>> {
         use crate::source_state::data::TypeParameterKind;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
         let typed = self.typed;
         let declared = typed.data_type_parameters.span_or_empty(definition.binders);
         let mut binders = Vec::with_capacity(declared.len());

@@ -188,18 +188,16 @@ fn parse_trusted_artifact(
     arguments: &mut Arguments,
     slot: &mut Option<String>,
 ) -> Result<(), String> {
-    if slot.is_some() {
-        return Err("duplicate --trusted-artifact".into());
-    }
-    let digest = take_text(arguments, "--trusted-artifact")?;
-    if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(
-            "--trusted-artifact requires the 64 hexadecimal digits issued by the trusted producer"
-                .into(),
-        );
-    }
-    *slot = Some(digest.to_ascii_lowercase());
-    Ok(())
+    set_once(slot, "--trusted-artifact", || {
+        let digest = take_text(arguments, "--trusted-artifact")?;
+        if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(
+                "--trusted-artifact requires the 64 hexadecimal digits issued by the trusted producer"
+                    .into(),
+            );
+        }
+        Ok(digest.to_ascii_lowercase())
+    })
 }
 
 fn retired_command(spelling: &str) -> String {
@@ -287,6 +285,43 @@ fn parse_psi_subsystem(arguments: &mut Arguments) -> Result<Invocation, String> 
             Err(format!("{error}{}", inspect::USAGE))
         }
     }
+}
+
+/// Stores the value of an option that may appear once. A repeat is refused
+/// before its value is read.
+fn set_once<T>(
+    slot: &mut Option<T>,
+    flag: &str,
+    value: impl FnOnce() -> Result<T, String>,
+) -> Result<(), String> {
+    if slot.is_some() {
+        return Err(format!("duplicate {flag}"));
+    }
+    *slot = Some(value()?);
+    Ok(())
+}
+
+/// Stores a command's one positional argument, refusing an unrecognized
+/// option or a second positional argument.
+fn positional<T>(
+    argument: OsString,
+    slot: &mut Option<T>,
+    value: impl FnOnce(OsString) -> Result<T, String>,
+) -> Result<(), String> {
+    if argument.as_encoded_bytes().starts_with(b"-") {
+        return Err(format!(
+            "unrecognized option `{}`",
+            argument.to_string_lossy()
+        ));
+    }
+    if slot.is_some() {
+        return Err(format!(
+            "unexpected extra argument `{}`",
+            argument.to_string_lossy()
+        ));
+    }
+    *slot = Some(value(argument)?);
+    Ok(())
 }
 
 fn set_flag(value: &mut bool, flag: &str) -> Result<(), String> {

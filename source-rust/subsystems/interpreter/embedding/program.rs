@@ -257,7 +257,7 @@ pub(crate) mod adapters {
 }
 pub(crate) mod instance {
     pub(crate) mod component_binding {
-        use evaluation_accounting::EvaluationInvocationAccount;
+        use build_model::accounting::EvaluationInvocationAccount;
         use std::collections::BTreeMap;
 
         use semantic_vocabulary::{BoundaryMachineId, OperationId};
@@ -432,38 +432,6 @@ pub(crate) mod instance {
                 binding.require_ready()?;
                 self.components.insert(boundary, binding);
                 Ok(())
-            }
-
-            // Nested adapters and resolvers may own state from earlier calls.  They keep
-            // running the same provider program, even when its caller has been republished.
-            fn same_provider_closure(&self, other: &Self) -> bool {
-                self.pending.is_none()
-                    && other.pending.is_none()
-                    && self.supply() == other.supply()
-                    && self.supplies == other.supplies
-                    && self.scalar_admission == other.scalar_admission
-                    && self.bindings.keys().eq(other.bindings.keys())
-                    && self.storage_resolver.is_some() == other.storage_resolver.is_some()
-                    && self.components.len() == other.components.len()
-                    && self.components.iter().all(|(slot, child)| {
-                        other
-                            .components
-                            .get(slot)
-                            .is_some_and(|next| child.same_provider_closure(next))
-                    })
-            }
-
-            pub(crate) fn for_successor_receiver(
-                mut self,
-                replacement: Self,
-            ) -> Result<Self, String> {
-                if !self.same_provider_closure(&replacement) {
-                    return Err(
-                        "successor changed an installed provider's execution supplies".into(),
-                    );
-                }
-                self.selected = replacement.selected;
-                Ok(self)
             }
 
             pub(crate) fn require_ready(&self) -> Result<(), String> {
@@ -645,75 +613,6 @@ pub(crate) mod instance {
                 self.components = std::mem::take(&mut owner.components);
                 effects
             }
-        }
-        pub(super) fn continue_bindings<'host, 'code>(
-            previous: ComponentBindings<'host, 'code>,
-            receiving: &mut ComponentBindings<'host, 'code>,
-            old_module: &terminal_psi::TerminalModule,
-            new_module: &terminal_psi::TerminalModule,
-            prefix: &terminal_semantics::continuation::CheckedPrefix<'_>,
-        ) -> Result<(), String> {
-            if previous.is_empty() && receiving.is_empty() {
-                return Ok(());
-            }
-            let boundary = |module: &terminal_psi::TerminalModule, (machine, op)| match module
-                .machine(machine)?
-                .operation(op)?
-                .kind
-            {
-                terminal_psi::OperationKind::BoundaryCall { boundary, .. } => Some(boundary),
-                _ => None,
-            };
-            let mut slots: Vec<_> = previous.keys().map(|&slot| (slot, None)).collect();
-            for &(a, b) in prefix.boundary_pairs() {
-                let old =
-                    boundary(old_module, a).ok_or("previous provider call lost its boundary")?;
-                let new =
-                    boundary(new_module, b).ok_or("successor provider call lost its boundary")?;
-                match (previous.get(&old), receiving.get(&new)) {
-                    (None, None) => {}
-                    (Some(before), Some(after)) if before.supply() == after.supply() => {
-                        let index = slots
-                            .binary_search_by_key(&old, |&(slot, _)| slot)
-                            .expect("the previous binding supplied this slot");
-                        if slots[index]
-                            .1
-                            .replace(new)
-                            .is_some_and(|prior| prior != new)
-                        {
-                            return Err(
-                                "successor split an installed provider's receiving slot".into()
-                            );
-                        }
-                    }
-                    _ => return Err("successor replaced the component of an earlier call".into()),
-                }
-            }
-            for ((_, binding), (_, result)) in previous.iter().zip(&mut slots) {
-                if result.is_none() {
-                    // Both receivers were independently checked against this exact export.
-                    let mut matches = receiving
-                        .iter()
-                        .filter(|(_, next)| next.supply() == binding.supply());
-                    let (&new, _) = matches
-                        .next()
-                        .ok_or("successor lost an installed component")?;
-                    if matches.next().is_some() {
-                        return Err("an unused provider has two possible successor slots".into());
-                    }
-                    *result = Some(new);
-                }
-            }
-            let mut fresh = std::mem::take(receiving);
-            for (original, (_, new)) in previous.into_values().zip(slots) {
-                let new = new.expect("every original binding has a matched receiver");
-                let replacement = fresh
-                    .remove(&new)
-                    .ok_or("two prior providers share one successor slot")?;
-                receiving.insert(new, original.for_successor_receiver(replacement)?);
-            }
-            receiving.append(&mut fresh);
-            Ok(())
         }
     }
     pub(crate) use component_binding::ComponentBindings;
@@ -984,112 +883,6 @@ pub(crate) mod instance {
 
     pub(crate) struct SimulatedProcessDomain;
 
-    type CallPosition = (
-        semantic_vocabulary::MachineId,
-        semantic_vocabulary::BlockId,
-        usize,
-    );
-    type CheckedCall = terminal_semantics::continuation::PrefixCall;
-    type ProjectedPositions = std::sync::Arc<[CallPosition]>;
-
-    fn after_call(site: CheckedCall) -> CallPosition {
-        (site.machine, site.block, site.index + 1)
-    }
-
-    /// An immutable program has already checked this call and its callers.
-    pub struct TerminalEntryCall {
-        entry: semantic_vocabulary::MachineId,
-        program: terminal_codec::TerminalExecutionIdentity,
-        location: CheckedCall,
-        callers: Vec<CheckedCall>,
-        projected: Option<ProjectedPositions>,
-        covers_pending: bool,
-    }
-
-    impl TerminalEntryCall {
-        fn positions(&self) -> impl Iterator<Item = CallPosition> + '_ {
-            self.callers
-                .iter()
-                .copied()
-                .chain(std::iter::once(self.location))
-                .map(after_call)
-        }
-
-        fn matches_callers(&self, state: &TerminalExecution<'_>) -> bool {
-            state.call_stack.len() == self.callers.len()
-                && state
-                    .call_stack
-                    .iter()
-                    .zip(&self.callers)
-                    .all(|(caller, &site)| {
-                        (
-                            caller.current_machine,
-                            caller.current,
-                            caller.next_operation,
-                        ) == after_call(site)
-                    })
-        }
-
-        pub fn location(&self) -> CheckedCall {
-            self.location
-        }
-    }
-
-    /// Alternative suspensions of the same entry, in the order the caller supplied.
-    pub struct TerminalEntryCalls {
-        paths: Vec<TerminalEntryCall>,
-        by_leaf: Vec<usize>,
-        projected: Option<ProjectedPositions>,
-    }
-
-    pub(crate) struct EntryCallWatch<'a> {
-        paths: &'a [TerminalEntryCall],
-        by_leaf: &'a [usize],
-        projected: Option<&'a ProjectedPositions>,
-        completed: Option<(usize, CheckedCall)>,
-    }
-
-    impl EntryCallWatch<'_> {
-        pub(crate) fn covers_pending(&self) -> bool {
-            match self.paths {
-                [single] => single.covers_pending,
-                _ => true, // Selection checked the complete group together.
-            }
-        }
-
-        pub(crate) fn reached(
-            &mut self,
-            state: &TerminalExecution<'_>,
-        ) -> Result<bool, TerminalInterpretError> {
-            let pc = (state.current_machine, state.current, state.next_operation);
-            let matched = if let [path] = self.paths {
-                (pc == after_call(path.location) && path.matches_callers(state)).then_some(0)
-            } else {
-                let first = self
-                    .by_leaf
-                    .partition_point(|&index| after_call(self.paths[index].location) < pc);
-                self.by_leaf[first..]
-                    .iter()
-                    .copied()
-                    .take_while(|&index| after_call(self.paths[index].location) == pc)
-                    .find(|&index| self.paths[index].matches_callers(state))
-            };
-            if let Some(index) = matched {
-                self.completed = Some((index, self.paths[index].location));
-                return Ok(true);
-            }
-            if self
-                .projected
-                .is_some_and(|positions| positions.binary_search(&pc).is_ok())
-            {
-                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                    "a call reached an omitted continuation before the selected preparation",
-                ));
-            }
-            Ok(false)
-        }
-    }
-
     pub struct TerminalProcessExitAdmission {
         program: terminal_psi::TerminalPsiIdentity,
         domain: std::sync::Arc<SimulatedProcessDomain>,
@@ -1216,8 +1009,6 @@ pub(crate) mod instance {
     pub struct TerminalInstance<'host, 'artifact> {
         program: TerminalProgram<'artifact>,
         entry: semantic_vocabulary::MachineId,
-        completed_entry_call: Option<(usize, CheckedCall)>,
-        active_projection: Option<ProjectedPositions>,
         process_domain: std::sync::Arc<SimulatedProcessDomain>,
         execution: Option<TerminalExecution<'artifact>>,
         required_imports: Vec<BoundaryMachineId>,
@@ -1239,8 +1030,6 @@ pub(crate) mod instance {
             Self {
                 program,
                 entry: execution.current_machine,
-                completed_entry_call: None,
-                active_projection: None,
                 process_domain,
                 execution: Some(execution),
                 required_imports,
@@ -1500,261 +1289,6 @@ pub(crate) mod instance {
             })
         }
 
-        pub fn invoke(
-            &mut self,
-            meter: &mut dyn ExecutionMeter,
-        ) -> Result<TerminalExecutionStatus, TerminalInstanceError> {
-            self.invoke_to(None, meter)?.ok_or_else(|| {
-                TerminalInstanceError::Execution(crate::boundary::errors::malformed())
-            })
-        }
-
-        /// Resolve the checked suspending call once before stepping this entry.
-        pub fn select_entry_call(
-            &self,
-            entry: semantic_vocabulary::MachineId,
-            call: semantic_vocabulary::OperationId,
-        ) -> Result<TerminalEntryCall, TerminalInstanceError> {
-            self.select_call_stack(&[(entry, call)])
-        }
-
-        /// Select one call through its exact callers, in outermost-to-innermost order.
-        /// The same helper can suspend from different callers in one activation.
-        pub fn select_call_stack(
-            &self,
-            chain: &[(
-                semantic_vocabulary::MachineId,
-                semantic_vocabulary::OperationId,
-            )],
-        ) -> Result<TerminalEntryCall, TerminalInstanceError> {
-            if self.closed {
-                return Err(TerminalInstanceError::Closed);
-            }
-            let missing = || {
-                TerminalInstanceError::Execution(
-                    TerminalInterpretError::UnsupportedSemanticVariant(
-                        "continuation names no checked suspension on this entry's call stack",
-                    ),
-                )
-            };
-            if !chain
-                .first()
-                .is_some_and(|(machine, _)| *machine == self.entry)
-            {
-                return Err(missing());
-            }
-            let mut callers = Vec::with_capacity(chain.len() - 1);
-            for (depth, &(owner, operation)) in chain.iter().enumerate() {
-                let next = chain.get(depth + 1).map(|(machine, _)| *machine);
-                let machine = self.program.module().machine(owner).ok_or_else(missing)?;
-                let location = machine
-                    .blocks
-                    .iter()
-                    .find_map(|block| {
-                        let index = block.operations.iter().position(|op| {
-                            op.id == operation
-                                && op.declared_invocation().is_some_and(|call| match next {
-                                    Some(next) => {
-                                        call.callee
-                                            == terminal_psi::TargetMachineCallable::Machine(next)
-                                    }
-                                    None => op.suspension_crossing.is_some(),
-                                })
-                        })?;
-                        Some(terminal_semantics::continuation::PrefixCall {
-                            machine: owner,
-                            block: block.id,
-                            operation,
-                            index,
-                        })
-                    })
-                    .ok_or_else(missing)?;
-                if next.is_none() {
-                    return Ok(TerminalEntryCall {
-                        entry: self.entry,
-                        program: self.program.execution_identity().clone(),
-                        location,
-                        callers,
-                        projected: None,
-                        covers_pending: self
-                            .program
-                            .program
-                            .catalogs
-                            .pending_normal_completions()
-                            .iter()
-                            .all(|site| chain.contains(site)),
-                    });
-                }
-                callers.push(location);
-            }
-            Err(missing())
-        }
-
-        /// A projected caller has no executable suffix in this publication. Only
-        /// the selected stack may park. Any other return to an omitted suffix refuses.
-        pub fn select_projected_call_stack(
-            &self,
-            chain: &[(
-                semantic_vocabulary::MachineId,
-                semantic_vocabulary::OperationId,
-            )],
-            projected: &[bool],
-        ) -> Result<TerminalEntryCall, TerminalInstanceError> {
-            if chain.len() != projected.len() {
-                return Err(TerminalInstanceError::Execution(
-                    TerminalInterpretError::UnsupportedSemanticVariant(
-                        "the projection flags do not cover the selected call stack",
-                    ),
-                ));
-            }
-            let mut selected = self.select_call_stack(chain)?;
-            let mut positions: Vec<_> = selected
-                .positions()
-                .zip(projected)
-                .filter_map(|(pc, &omit)| omit.then_some(pc))
-                .collect();
-            if !positions.is_empty() {
-                positions.sort_unstable();
-                positions.dedup();
-                selected.projected = Some(positions.into());
-            }
-            Ok(selected)
-        }
-
-        /// Arm independently checked alternatives of one entry before advancing its state.
-        pub fn select_entry_calls(
-            &self,
-            paths: Vec<TerminalEntryCall>,
-        ) -> Result<TerminalEntryCalls, TerminalInstanceError> {
-            if self.closed {
-                return Err(TerminalInstanceError::Closed);
-            }
-            let invalid = |reason| {
-                TerminalInstanceError::Execution(
-                    TerminalInterpretError::UnsupportedSemanticVariant(reason),
-                )
-            };
-            if paths.is_empty() {
-                return Err(invalid("no continuation paths selected"));
-            }
-            for path in &paths {
-                self.check_selected_entry(path)?;
-            }
-            let pending = self.program.program.catalogs.pending_normal_completions();
-            if !pending.is_empty() {
-                let mut sites: Vec<_> = paths
-                    .iter()
-                    .flat_map(|path| {
-                        path.callers
-                            .iter()
-                            .chain(std::iter::once(&path.location))
-                            .map(|site| (site.machine, site.operation))
-                    })
-                    .collect();
-                sites.sort_unstable();
-                if !pending.iter().all(|site| sites.binary_search(site).is_ok()) {
-                    return Err(invalid(
-                        "selected paths do not cover every pending normal completion",
-                    ));
-                }
-            }
-            let mut by_leaf = Vec::new();
-            let projected = if paths.len() > 1 {
-                by_leaf.extend(0..paths.len());
-                by_leaf.sort_unstable_by(|&a, &b| paths[a].positions().cmp(paths[b].positions()));
-                for pair in by_leaf.windows(2) {
-                    let a = &paths[pair[0]];
-                    let b = &paths[pair[1]];
-                    if a.positions().eq(b.positions().take(a.callers.len() + 1)) {
-                        return Err(invalid(
-                            "duplicate or nested alternative continuation paths",
-                        ));
-                    }
-                }
-                by_leaf.sort_unstable_by_key(|&index| after_call(paths[index].location));
-                let mut flags = Vec::new();
-                for path in &paths {
-                    flags.extend(path.positions().map(|pc| {
-                        (
-                            pc,
-                            path.projected
-                                .as_ref()
-                                .is_some_and(|locations| locations.binary_search(&pc).is_ok()),
-                        )
-                    }));
-                }
-                flags.sort_unstable();
-                flags.dedup();
-                if flags.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-                    return Err(invalid(
-                        "alternative continuations disagree on a projected suffix",
-                    ));
-                }
-                let positions: Vec<_> = flags
-                    .into_iter()
-                    .filter_map(|(pc, omitted)| omitted.then_some(pc))
-                    .collect();
-                (!positions.is_empty()).then(|| positions.into())
-            } else {
-                paths[0].projected.clone()
-            };
-            Ok(TerminalEntryCalls {
-                paths,
-                by_leaf,
-                projected,
-            })
-        }
-
-        fn check_selected_entry(
-            &self,
-            call: &TerminalEntryCall,
-        ) -> Result<(), TerminalInstanceError> {
-            if self.program.execution_identity() != &call.program || self.entry != call.entry {
-                return Err(TerminalInstanceError::Execution(
-                    TerminalInterpretError::UnsupportedSemanticVariant(
-                        "the selected continuation belongs to another entry or program",
-                    ),
-                ));
-            }
-            Ok(())
-        }
-
-        /// Advance until the selected call completes or execution reports another status.
-        pub fn invoke_until_entry_call(
-            &mut self,
-            call: &TerminalEntryCall,
-            meter: &mut dyn ExecutionMeter,
-        ) -> Result<Option<TerminalExecutionStatus>, TerminalInstanceError> {
-            self.check_selected_entry(call)?;
-            self.invoke_to(
-                Some(EntryCallWatch {
-                    paths: std::slice::from_ref(call),
-                    by_leaf: &[],
-                    projected: call.projected.as_ref(),
-                    completed: None,
-                }),
-                meter,
-            )
-        }
-
-        /// On reaching a selected path, return None and record its original index.
-        pub fn invoke_until_entry_calls(
-            &mut self,
-            calls: &TerminalEntryCalls,
-            meter: &mut dyn ExecutionMeter,
-        ) -> Result<Option<TerminalExecutionStatus>, TerminalInstanceError> {
-            self.check_selected_entry(&calls.paths[0])?;
-            self.invoke_to(
-                Some(EntryCallWatch {
-                    paths: &calls.paths,
-                    by_leaf: &calls.by_leaf,
-                    projected: calls.projected.as_ref(),
-                    completed: None,
-                }),
-                meter,
-            )
-        }
-
         /// Active calls, from the immediate caller out to the entry. A no-return
         /// call keeps its edge; cleanup has no authored call operation.
         pub fn caller_sites(
@@ -1792,194 +1326,18 @@ pub(crate) mod instance {
             })
         }
 
-        pub fn completed_call_path_index(&self) -> Option<usize> {
-            self.completed_entry_call.map(|(index, _)| index)
-        }
-
-        /// Return the completed suspending call and its active callers in entry-to-leaf order.
-        /// Each caller still owns the registers and obligations needed when its callee returns.
-        pub fn completed_call_stack(
-            &self,
-        ) -> Result<Vec<terminal_semantics::continuation::PrefixCall>, String> {
-            let (_, leaf) = self
-                .completed_entry_call
-                .ok_or("instance has no completed suspension call")?;
-            let frame = self
-                .execution
-                .as_ref()
-                .ok_or("closed instance has no call stack")?;
-            let mut stack = Vec::with_capacity(frame.call_stack.len() + 1);
-            for caller in &frame.call_stack {
-                let index = caller
-                    .next_operation
-                    .checked_sub(1)
-                    .ok_or("suspended caller has no return position")?;
-                let operation = self
-                    .program
-                    .module()
-                    .machine(caller.current_machine)
-                    .and_then(|machine| machine.block(&caller.current))
-                    .and_then(|block| block.operations.get(index))
-                    .filter(|op| op.declared_invocation().is_some())
-                    .ok_or("suspended caller does not point past an ordinary call")?;
-                stack.push(terminal_semantics::continuation::PrefixCall {
-                    machine: caller.current_machine,
-                    block: caller.current,
-                    index,
-                    operation: operation.id,
-                });
-            }
-            stack.push(leaf);
-            Ok(stack)
-        }
-
-        /// Resume the admitted extension using the actual registers, owned storage
-        /// and reference descriptors of the parked invocation. The successor owns
-        /// the import adapters and the selection of executable code.
-        pub fn continue_checked_entry(
-            mut previous: Self,
-            mut successor: Self,
-            prefix: &terminal_semantics::continuation::CheckedPrefix<'_>,
-        ) -> Result<Self, String> {
-            let old = prefix.old_call();
-            let next = prefix.new_call();
-            if !prefix.accepts(previous.program.module(), successor.program.module())
-                || !previous
-                    .completed_call_stack()?
-                    .iter()
-                    .copied()
-                    .eq(prefix.stack().iter().map(|&(site, _)| site))
-                || !prefix.stack().first().is_some_and(|(a, b)| {
-                    previous.entry == a.machine && successor.entry == b.machine
-                })
-                || previous.closed
-                || successor.closed
-                || successor.invoked
-            {
-                return Err(
-                    "continuation differs from the paused entry call or receiving program".into(),
-                );
-            }
-            let mut frame = previous
-                .execution
-                .take()
-                .ok_or("previous instance has no entry frame")?;
-            let entry = successor
-                .execution
-                .take()
-                .ok_or("receiving instance has no entry frame")?;
-            if !frame
-                .account
-                .as_ref()
-                .zip(entry.account.as_ref())
-                .is_some_and(|(left, right)| left.same_invocation(right))
-            {
-                return Err("continuation requires both stages of the same invocation".into());
-            }
-            if (frame.current_machine, frame.current, frame.next_operation)
-                != (old.machine, old.block, old.index + 1)
-                || frame.awaiting_effect.is_some()
-                || frame.is_finished()
-                || frame.failure.is_some()
-                || frame.failed_return.is_some()
-                || frame.failed_call_result.is_some()
-                || frame.returned_byte_sequence.is_some()
-                || frame.returned_element_view.is_some()
-                || !frame.returned_claims.is_empty()
-            {
-                return Err(
-                    "continuation requires the completed call in its live entry frame".into(),
-                );
-            }
-            if !frame.external_bindings.is_empty()
-                || !entry.external_bindings.is_empty()
-                || !frame.external_demands.is_empty()
-                || !entry.external_demands.is_empty()
-                || frame.program.target_layouts.is_some()
-                || entry.program.target_layouts.is_some()
-                || frame.program.scalar_geometry.is_some()
-                || entry.program.scalar_geometry.is_some()
-                || frame.native_code_layouts.is_some()
-                || entry.native_code_layouts.is_some()
-                || frame.call_observations.is_some()
-                || entry.call_observations.is_some()
-                || frame.issued_layout_target.is_some()
-                || entry.issued_layout_target.is_some()
-                || frame.scalar_applications.is_some()
-                || entry.scalar_applications.is_some()
-                || frame.scalar_entry_checks.is_some()
-                || entry.scalar_entry_checks.is_some()
-                || frame.entry_results.is_some()
-                || entry.entry_results.is_some()
-                || frame.x86_flags.is_some()
-                || entry.x86_flags.is_some()
-                || frame.memory_ordering.is_some()
-                || entry.memory_ordering.is_some()
-                || previous.storage_resolver.is_some()
-                || successor.storage_resolver.is_some()
-                || !frame.private_entry_ram.is_empty()
-                || !entry.private_entry_ram.is_empty()
-                || [&frame, &entry].iter().any(|execution| {
-                    !execution.provider_storage.allocations.is_empty()
-                        || !execution.provider_storage.residents.is_empty()
-                        || !execution.provider_storage.descriptors.is_empty()
-                        || !execution.provider_storage.completed_profiles.is_empty()
-                        || !execution.activation_storage.can_continue_entry()
-                })
-            {
-                return Err(
-                    "continuation holds execution authority that requires a separate handoff"
-                        .into(),
-                );
-            }
-            component_binding::continue_bindings(
-                std::mem::take(&mut previous.components),
-                &mut successor.components,
-                previous.program.module(),
-                successor.program.module(),
-                prefix,
-            )?;
-            frame.relocate_continuation_storage(
-                prefix,
-                previous.program.module(),
-                successor.program.module(),
-            )?;
-            frame.program = entry.program;
-            frame.boundary_supplies = entry.boundary_supplies;
-            frame.current_machine = next.machine;
-            frame.current = next.block;
-            frame.next_operation = next.index + 1;
-            successor.process_domain = previous.process_domain;
-            successor.execution = Some(frame);
-            successor.invoked = true;
-            Ok(successor)
-        }
-
-        fn invoke_to(
+        pub fn invoke(
             &mut self,
-            mut cut: Option<EntryCallWatch<'_>>,
             meter: &mut dyn ExecutionMeter,
-        ) -> Result<Option<TerminalExecutionStatus>, TerminalInstanceError> {
+        ) -> Result<TerminalExecutionStatus, TerminalInstanceError> {
             if self.closed {
                 return Err(TerminalInstanceError::Closed);
             }
             self.execution
                 .as_ref()
                 .ok_or(TerminalInstanceError::Closed)?
-                .require_pending_completions(cut.as_ref())
+                .require_complete_program()
                 .map_err(TerminalInstanceError::Execution)?;
-            let requested = cut.as_ref().and_then(|watch| watch.projected);
-            if let Some(active) = &self.active_projection
-                && !requested
-                    .is_some_and(|next| std::sync::Arc::ptr_eq(active, next) || active == next)
-            {
-                return Err(TerminalInstanceError::Execution(
-                    TerminalInterpretError::UnsupportedSemanticVariant(
-                        "a projected invocation must keep guarding its omitted suffixes until a checked successor",
-                    ),
-                ));
-            }
-            self.completed_entry_call = None;
             let missing =
                 self.unbound_imports()
                     .filter(|boundary| {
@@ -2000,9 +1358,6 @@ pub(crate) mod instance {
                 .execution
                 .as_mut()
                 .ok_or(TerminalInstanceError::Closed)?;
-            if self.active_projection.is_none() {
-                self.active_projection = requested.cloned();
-            }
             self.invoked = true;
             let status = execution
                 .resume_with_components(
@@ -2012,21 +1367,16 @@ pub(crate) mod instance {
                         storage_resolver: self.storage_resolver.as_deref(),
                     },
                     &mut self.components,
-                    cut.as_mut(),
                 )
                 .map_err(TerminalInstanceError::Execution);
-            self.completed_entry_call = cut.and_then(|watch| watch.completed);
-            if execution.is_finished() {
-                self.active_projection = None;
-            }
             if let Some(observations) = execution.call_observations.as_mut() {
                 match &status {
-                    Ok(Some(TerminalExecutionStatus::Complete(_))) => {
+                    Ok(TerminalExecutionStatus::Complete(_)) => {
                         observations
                             .finish(execution.account.as_ref())
                             .map_err(TerminalInstanceError::Execution)?;
                     }
-                    Ok(None | Some(TerminalExecutionStatus::SponsorExhausted(_))) => {}
+                    Ok(TerminalExecutionStatus::SponsorExhausted(_)) => {}
                     _ => execution.call_observations = None,
                 }
             }
@@ -2269,7 +1619,7 @@ pub(crate) mod program {
     use crate::boundary::errors::{
         TerminalArtifactInterpretError, TerminalInterpretError, malformed,
     };
-    use evaluation_accounting::EvaluationInvocationAccount;
+    use build_model::accounting::EvaluationInvocationAccount;
     pub(crate) mod declarations {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
         use terminal_psi::{
@@ -3132,7 +2482,7 @@ pub(crate) mod program {
         pub fn instantiate_compiler_evaluation<'host>(
             &self,
             mut request: TerminalInstantiation<'_>,
-            admitted: &evaluation_admission::AdmittedCompilerEvaluation,
+            admitted: &build_model::admission::AdmittedCompilerEvaluation,
             issued_layout: Option<(&layout_plans::LayoutTargetFacts, &[usize])>,
             calls: &[crate::TerminalCallObservation],
         ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
@@ -3244,14 +2594,14 @@ pub(crate) mod program {
             installation: Option<&crate::boundary::effects::TerminalRuntimeSupplies>,
             scalars: Option<&psi_scalar_applications::AdmittedScalarApplications>,
         ) -> std::sync::Arc<AdmittedTerminalProgram<'artifact>> {
-            let Some(layouts) = installation.and_then(|supplies| supplies.target_layouts.as_ref())
-            else {
+            let layouts = installation.and_then(|supplies| supplies.target_layouts.as_ref());
+            if layouts.is_none() && scalars.is_none() {
                 return std::sync::Arc::clone(&self.program);
-            };
+            }
             std::sync::Arc::new(AdmittedTerminalProgram {
                 identity: self.program.identity.clone(),
                 catalogs: std::sync::Arc::clone(&self.program.catalogs),
-                target_layouts: Some(std::sync::Arc::clone(layouts)),
+                target_layouts: layouts.map(std::sync::Arc::clone),
                 scalar_geometry: scalars.map(|scalars| std::sync::Arc::clone(scalars.geometry())),
             })
         }
@@ -3313,11 +2663,11 @@ pub(crate) mod program {
             if let Some(account) = account
                 && !matches!(
                     account.measurement(),
-                    evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi { .. }
+                    build_model::contracts::EvaluationMeasurementIdentity::TerminalPsi { .. }
                 )
             {
                 return Err(TerminalArtifactInterpretError::Execution(TerminalInterpretError::Storage(
-                evaluation_contracts::EvaluationAccountingError::UnsupportedMeasurementIdentity,
+                build_model::contracts::EvaluationAccountingError::UnsupportedMeasurementIdentity,
             )));
             }
             self.program

@@ -14,7 +14,7 @@ use wire::digest_encoder::DomainDigestEncoder;
 pub(crate) struct ComponentCall<'input> {
     pub product: Arc<native_artifact::NativeComponentProduct>,
     call: AdmittedNativeComponentCall<'input>,
-    plan: &'input provider_plans::ProviderPlan,
+    plan: &'input build_providers::plans::ProviderPlan,
     same_stack: provider_stack_contribution::AdmittedSameStackContribution,
     commitment: [u8; 32],
 }
@@ -23,7 +23,7 @@ impl<'input> ComponentCall<'input> {
     pub(super) fn join(
         product: Arc<native_artifact::NativeComponentProduct>,
         call: AdmittedNativeComponentCall<'input>,
-        plan: &'input provider_plans::ProviderPlan,
+        plan: &'input build_providers::plans::ProviderPlan,
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> Result<Self, Vec<Diagnostic>> {
         let invalid = |message: &str| vec![Diagnostic::error(message)];

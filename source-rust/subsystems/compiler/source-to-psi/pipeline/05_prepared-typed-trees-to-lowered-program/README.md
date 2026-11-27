@@ -52,7 +52,25 @@ of the parameter is an application of that formal (`read/templates.rs`). Its
 body is not lowered. A body of `let`s, citations and one value is read with
 the machine's contract, through the clause reader, each `let` standing for
 its value; any other body is refused. A clause that calls a machine with a
-`requires` must have that premise among the stating machine's own. A named proposition declared as
+`requires` must have that premise among the stating machine's own. A clause
+may pass such a machine a concrete mathematical machine for a machine
+parameter: one with exactly the parameter's formals and result and no
+premise, which is then the definition the signature gives it
+(`machine_argument`). A generic machine may cite another generic machine,
+passing it its own machine parameters or concrete machines; the cited law's
+premises are then owed at those machines. A generic machine whose body
+dispatches is lowered instead, with every machine declared inside it: a call
+of a machine parameter, or of a generic machine at some machines, is an
+`ExpressionKind::Applied` the signature reader applies to the parameter's
+variable or to the passed definitions (`read/templates.rs`,
+`mathematical_application`). So is a generic machine that states nothing,
+which a law reads in place, and any other generic body the clause reader
+cannot read as terms. A generic machine's machine parameters are arguments
+of every definition the signature makes for it: its definition by cases,
+its definition over fuel and each dispatch on a computed value, so a call
+of itself may pass other machines. A body that is not generic calls or cites
+a generic machine at concrete machines through the same form, and a call
+owes the callee's premises at the machines and arguments it passes. A named proposition declared as
 one formula is read where a clause of such a machine applies it: the formula,
 with each parameter standing for the argument written for it. Its declaration
 adds nothing to the signature. A quotient of mathematical data
@@ -91,6 +109,63 @@ the law that must have proved it (`lifted` in `read/signature.rs`):
 `Quotient::define` passes its formals in order. `Quotient::lift` may reorder
 them. A formal passed twice, a formal left out and an argument that is not a
 formal are refused.
+
+Data that contains itself may hold other values beside itself, and may take
+types (`data Seq<T> { case Empty; case Cons(head: T, tail: Seq<T>); }`). The
+signature declares each such type as a native inductive declaration
+(`read/signature.rs`, `PlainData`): a field of the data itself is a recursive
+child with an induction hypothesis, and any other field is a payload of its own
+kernel type. A fixed-width payload or formal is the integer it holds, read in
+the integer vocabulary; a definition only passes such a value along, so a
+result of that type is still refused. Generic data is declared once, from its
+template, as one block whose former takes a uniform `Type 0` parameter per type
+parameter (`GenericPlainData`). An application such as `Seq<u64>` is that block
+at the argument types: definitions laid out as plain data, so laws over the
+application read and judge as over any plain data. The template is refused when
+a field applies a parameter inside another type (a field `Seq<T>` of
+`Tagged<T>`, a nested inductive), when it holds itself at other arguments than
+its own parameters, or when a parameter is not a type.
+
+Data that reaches itself only through another data type that reaches it back
+(`data Even { case Zero; case Next(odd: Odd); }` with `data Odd { case
+Next(even: Even); }`) is one mutual block: the data types that reach each
+other through their fields (`proof_stratum::mutual_block`), declared together
+as one native inductive declaration with a former, constructors and a
+recursor per member (`PlainData::block`). A machine by cases over one member
+that calls machines over the others is read with every machine of its group
+(`mutual_group`, one per member) as one application of its member's recursor,
+whose motives are the group's results; a call must be at a field of the
+callee's member. Each machine of a group dispatches on a value of its member
+at any position among its formals (`mutual_member`); its motive is a
+function of its other formals, as for one data type, so a call may pass them
+other values, and each branch has the machine's premises at its values,
+which every call there owes. Laws by induction over members are proved the
+same way: a law over one member and the laws it cites at fields of other
+members, which cite it back, are one group (`mutual_laws`), each one equality
+of its own. Its motive binds its other formals and a proof of each premise
+again, so a citation of a law of the group at a field names the other
+formals' values and owes its premises there. A generic machine in a group is
+refused. A member no machine or law of the group is about gets a motive into
+`Two` whose branches ignore their fields. A dispatch inside a value, and a
+law's split of a field, is a case analysis of one member: the block's
+recursor with motives into `Two` at the others (`analysis_motives`). A
+recursive call at a computed value of a block is refused, since only data
+shaped like `Nat` has the natural order its fuel descends in.
+
+A field may hold a callable whose result is the data (`data Branch =
+machine(index: u64) -> Tree ..`, a field `children: Branch` of `Tree`): a
+child for each argument, a strictly positive occurrence. `proof_stratum`
+reaches the data through the callable's parameters and result, and such a
+callable is mathematical like the data, so the ordinary reader skips its
+alias. The field is `PlainField::Function`, the kernel's `Π (index). Tree`,
+and its induction hypothesis is the motive at every child. Calling the field
+(`children(0)`) applies it, a recursive call at that child is the hypothesis
+applied to the argument, and a law cites itself there the same way
+(`Evidence::Hypothesis`'s `at`). A machine named as a value is its
+definition. A field whose callable takes the data as a parameter is a
+negative occurrence and is refused at the declaration, as is a callable of
+other than one plain parameter to the data, or one whose result holds the
+data inside another type.
 
 Data whose parameters are values and that holds itself at other values
 (`data Vector<Length: u64, Total: u64> requires .. { case Nil; case
@@ -254,7 +329,11 @@ The reader also knows each supplied value's type. The shared
 [receiving-type diagnostics](src/read/rejections.rs) reject, at the supplied
 expression, a different scalar carrier, an incompatible declared domain or an
 unrelated declared result lifetime. Match arms use the same code, so a known
-carrier mismatch is not reported as an unsupported construct. A type or
+carrier mismatch is not reported as an unsupported construct. When exactly
+one side of a machine's result is Unit, the rejection names the machine whose
+header lacks the result type: a value arm or final value in a machine that
+declares no result, or a terminal call that forwards such a machine's Unit
+completion into a machine that declares one. A type or
 region relationship the reader cannot decide is still refused by name. There
 is no second typing pass and no classification of diagnostics by their text.
 
@@ -765,7 +844,7 @@ the first slice of the
   clauses name it like any formal, and no runtime lane: Terminal Psi declares
   it in `MachineContract::erased_scalar_formals`, not in `parameters` or
   `parameter_order`
-  ([encoding](../../../../../../wiki/spec/terminal-psi/encoding.md): "Erased
+  ([encoding](../../../psi/artifact/wire/encoding.md): "Erased
   formals occupy no tag."). Its identity comes after the result
   pseudo-value; `Signature::formal_values` is the one numbering the reader
   and lowering share.
@@ -1553,9 +1632,8 @@ case-membership proposition on such a path. Nothing proves or knows a clause
 in that form. Each type's declaration in the module states its clauses
 (`StructuralTypeDeclaration::requires`), so they are encoded with the module
 and part of its identity; the published module proves those clauses outside
-the module text, and its declarations state none. `Elaboration::domains` restates them by the
-type's identity for the checker, which refuses a table that differs from the
-declarations.
+the module text, and its declarations state none. The checker reads them
+from the unsealed module's declarations.
 
 **Domain predicates.** A named domain's `requires`
 ([domains](../../../../../../wiki/spec/language/domains.md#declaration-and-membership))
@@ -1809,9 +1887,9 @@ worked around by adding to `terminal-check-tables`.
 24. **Terminal Psi carries no data `requires`.** For
     `data R requires low <= high`, the published module holds the
     construction and the store with `range_obligation: None` and no clause
-    anywhere: it proves the domain outside the module text. The clauses therefore
-    travel in `Elaboration::domains`, a field of this crate's result, not in
-    the module and not in `terminal-check-tables`.
+    anywhere: it proves the domain outside the module text. The checker
+    reads the clauses from the unsealed module's type declarations, which
+    state them before publication.
 25. **No field in this subset has a `range_obligation`.** The slot is set
     for a field of bounded or refined type (`StructuralFieldType::BoundedInteger`,
     `RefinedScalar`), which a constrained field type or a named domain

@@ -346,7 +346,9 @@ fn callable_header(
         lowering.signature_header(contract, formals, result, routes)?;
     qualify_contract_declarations(qualifications, context, &value_qualifications, &mut proof)?;
     Ok(SignatureHeader {
-        crash_policy: crate::callables::headers::CallableCrashPolicy::Closed,
+        // effects.md: a requirement that omits `crashes` admits any
+        // selection, so its header keeps the caller's open policy.
+        crash_policy,
         scalar_parameters: proof.parameters.clone(),
         parameter_order: proof.parameter_order.clone(),
         structural_parameters: proof.structural_parameters.clone(),
@@ -481,7 +483,6 @@ pub(crate) fn declaration_contract(
                 .map(|outcome| outcome.service_reach.clone())
                 .unwrap_or_default(),
         },
-        fixed_service_reach: None,
         synchronous_entries: match &signature.invokes {
             crate::Ceiling::Authored(row) => row.clone(),
             crate::Ceiling::Inferred => selected
@@ -518,7 +519,10 @@ pub(crate) fn declaration_contract(
         })
         .collect::<Checked<Vec<_>>>()?;
     let mut contract = contract_header(id, signature, formals, result, ensures, &outcome);
-    lowering.qualify_content_equations(&mut contract)?;
+    // A declaration publishes its normal-result memberships with its
+    // content equations, as a machine does, so a conservation law over
+    // `result in D` finds the domain it observes.
+    lowering.qualify_contract(&mut contract)?;
     let value_qualifications = lowering.value_qualifications;
     qualify_contract_declarations(qualifications, caller, &value_qualifications, &mut contract)?;
     Ok(contract)
@@ -792,7 +796,7 @@ impl Lowering<'_> {
         // The erased scalar formals come after the result pseudo-value. Each is
         // an invocation formal with a value identity and no runtime lane:
         // Terminal Psi declares it in the contract, not among the parameters
-        // (`wiki/spec/terminal-psi/encoding.md`: "Erased formals occupy no tag").
+        // (`source-rust/subsystems/compiler/psi/artifact/wire/encoding.md`: "Erased formals occupy no tag").
         for position in &signature.erased {
             let Some(ValueType::Scalar(scalar_type, _)) =
                 signature.parameters.get(*position).copied()
@@ -1423,7 +1427,6 @@ impl<'a> Lowering<'a> {
                 crate::Ceiling::Authored(row) => row.clone(),
                 crate::Ceiling::Inferred => Vec::new(),
             },
-            fixed_service_reach: None,
             synchronous_entries: match &self.signature.invokes {
                 crate::Ceiling::Authored(row) => row.clone(),
                 crate::Ceiling::Inferred => Vec::new(),

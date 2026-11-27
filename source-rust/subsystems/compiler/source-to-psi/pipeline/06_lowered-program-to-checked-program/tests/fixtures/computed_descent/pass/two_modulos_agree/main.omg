@@ -1,0 +1,86 @@
+// Modulo by repeated subtraction, as in `repeated_subtraction_mod`, twice,
+// and the law that the two agree. The law cites itself at the computed
+// `saturating_sub(a, b)`, so it is proved by induction on fuel that reaches
+// its ranked formal. Its negative twin cites itself at `a` itself, which
+// does not descend.
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/nat.omg;
+
+machine mod(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
+terminates by a
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, b), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: result }, b), |nat|::Nat::Zero)
+{
+    transition (|nat|::saturating_sub(b, a)) {
+        |nat|::Nat::Zero -> mod_rec(a, b),
+        |nat|::Nat::Succ { prev as w } -> mod_done(a, b, w)
+    }
+
+    machine mod_rec(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::sub_lt(a, b);
+        let next: |nat|::Nat = |nat|::saturating_sub(a, b);
+        transition { _ -> (mod(next, b)) }
+    }
+
+    machine mod_done(a: |nat|::Nat, b: |nat|::Nat, w: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::lt_of_sub_pos(a, b, w);
+        transition { _ -> (a) }
+    }
+}
+
+// The same modulo with its formals the other way round, ranked by its
+// second formal.
+machine mod2(b: |nat|::Nat, a: |nat|::Nat) -> |nat|::Nat
+terminates by a
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, b), |nat|::Nat::Zero)
+{
+    transition (|nat|::saturating_sub(b, a)) {
+        |nat|::Nat::Zero -> mod2_rec(b, a),
+        |nat|::Nat::Succ { prev as w } -> (a)
+    }
+
+    machine mod2_rec(b: |nat|::Nat, a: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::sub_lt(a, b);
+        let next: |nat|::Nat = |nat|::saturating_sub(a, b);
+        transition { _ -> (mod2(b, next)) }
+    }
+}
+
+// The two agree: by recursion at the computed `saturating_sub(a, b)`,
+// which owes the same descent as the machines' own calls, with each side
+// unfolded by its recursive equation.
+machine modulos_agree(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
+terminates by a
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, b), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(mod(a, b), mod2(b, a))
+{
+    transition (|nat|::saturating_sub(b, a)) {
+        |nat|::Nat::Zero -> ma_rec(a, b),
+        |nat|::Nat::Succ { prev as w } -> ma_done(a, b)
+    }
+
+    machine ma_rec(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+        _ = mod(a, b);
+        _ = mod2(b, a);
+        _ = |nat|::sub_lt(a, b);
+        let next: |nat|::Nat = |nat|::saturating_sub(a, b);
+        _ = modulos_agree(next, b);
+        transition { _ -> |nat|::Nat::Zero }
+    }
+
+    machine ma_done(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+        _ = mod(a, b);
+        _ = mod2(b, a);
+        transition { _ -> |nat|::Nat::Zero }
+    }
+}
+
+data Main { }
+
+// The entry does nothing: the program is here for its proofs.
+machine entry_start() { }

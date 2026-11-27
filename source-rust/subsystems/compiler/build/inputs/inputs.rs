@@ -25,13 +25,13 @@ pub use diagnostic_locations::attribute_diagnostics;
 mod package;
 
 pub use build_declarations::BuildDeclarationKind;
+pub use build_providers::acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 pub use package::{
     IndependentComponentDescription, PackageBuildEntries, PackageBuildHandoff,
     PackageCompilationInputError, PackageCompilationInputs, PackageCompilationSourceInputs,
     PackageCompilationTargetInputs, PackageDependencyAcquisition, PackageDependencyBinding,
     PackageDependencyClosure, PackageSourceBinding,
 };
-pub use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 pub use source::source_consumption::{
     BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind,
     PackageSourceConsumptionCommitment, derive_package_compilation_subject,

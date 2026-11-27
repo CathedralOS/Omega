@@ -1,40 +1,23 @@
 /*
-We define the immutable SHA-256-identified relocation-free object plan
-(`RelocationFreeObjectPlan`), its five-pair 64-bit target admission rules
-(`validate_relocation_free_object`), and its version-6 `OMGTRO` wire codec
-(`encode_relocation_free_object`, `decode_relocation_free_object`). We verify
-dense object-local function symbol intervals, unique semantic entry roles,
-canonical sorted foreign-import symbol sequences, and in-bounds foreign and
-image-address patch fields before admitting or publishing any container.
+We define the relocation-free object plan (`RelocationFreeObjectPlan`) that
+image construction links, and its five-pair 64-bit target admission rules
+(`validate_relocation_free_object`). We verify dense object-local function
+symbol intervals, unique semantic entry roles, canonical sorted foreign-import
+symbol sequences, and in-bounds foreign and image-address patch fields before
+publishing an object.
 */
 
 use std::collections::BTreeSet;
 
-pub mod publication;
 pub mod text_section;
 
-use crate::cursor::Cursor;
 use crate::object_target_policy;
-use calling_conventions::MachineRegister;
-use machine_code::{
-    NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
-    PlacedCallbackAddressEncoding, PlacedCallbackAddressMaterialization,
-    PlacedNormalizedForeignCallResolution,
-};
-use optimization_core::{
-    OptimizationSelectionIdentity, RelocationFreeObjectContainerIdentity,
-    RelocationFreeObjectPlanIdentity, TerminalRelocationFreeTextSectionIdentity,
-};
-use selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
-};
-use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, WorkScheduleIdentity};
-use target::{NativeTarget, TargetWireIdentityError};
-use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-const PLAN_SCHEMA: &[u8] = b"omega.terminal.relocation-free-object-plan.v6\0";
-const CONTAINER_MAGIC: &[u8; 8] = b"OMGTRO\0\0";
-const CONTAINER_VERSION: u32 = 6;
+use machine_code::{NormalizedForeignCallResolutionKind, PlacedNormalizedForeignCallResolution};
+use optimization_core::OptimizationSelectionIdentity;
+use selected_instructions::SelectedInstructionPlanIdentity;
+use semantic_vocabulary::{BoundaryMachineId, MachineId, WorkScheduleIdentity};
+use target::NativeTarget;
+use terminal_psi::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ObjectLocalSymbolId(u64);
@@ -116,8 +99,6 @@ pub struct RelocationFreeObjectUnresolvedForeignCall {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelocationFreeObjectPlan {
-    pub identity: RelocationFreeObjectPlanIdentity,
-    pub source_text_section: TerminalRelocationFreeTextSectionIdentity,
     pub psi: TerminalPsiIdentity,
     pub work_schedule: WorkScheduleIdentity,
     pub selected: SelectedInstructionPlanIdentity,
@@ -135,28 +116,8 @@ pub struct RelocationFreeObjectPlan {
     pub relocation_requirements: RelocationFreeObjectRelocationRequirements,
 }
 
-impl RelocationFreeObjectPlan {
-    pub fn recomputed_identity(
-        &self,
-    ) -> Result<RelocationFreeObjectPlanIdentity, RelocationFreeObjectError> {
-        let mut canonical = PLAN_SCHEMA.to_vec();
-        canonical.extend_from_slice(&encode_plan_content(self)?);
-        Ok(RelocationFreeObjectPlanIdentity::from_canonical_bytes(
-            &canonical,
-        ))
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RelocationFreeObjectContainer {
-    pub identity: RelocationFreeObjectContainerIdentity,
-    pub object: RelocationFreeObjectPlanIdentity,
-    pub bytes: Vec<u8>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RelocationFreeObjectError {
-    StaleObjectIdentity,
     NonCanonicalTarget,
     WrongTextSectionName,
     WrongTextSectionAlignment,
@@ -191,56 +152,6 @@ pub enum RelocationFreeObjectError {
     LengthOverflow,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RelocationFreeObjectDecodeError {
-    WrongMagic,
-    UnsupportedVersion(u32),
-    Truncated,
-    TrailingBytes,
-    InvalidUtf8,
-    InvalidVocabulary(u16),
-    InvalidWorkSchedule,
-    InvalidMachine,
-    InvalidSymbolId,
-    InvalidBoundary,
-    InvalidOperation,
-    InvalidInvocationSite,
-    UnknownInvocationSiteTag(u8),
-    UnknownTargetArchitecture(u8),
-    UnknownObjectFormat(u8),
-    UnknownSymbolPolicy(u8),
-    UnknownLinkage(u8),
-    UnknownSymbolRole(u8),
-    UnknownForeignFieldKind(u8),
-    UnknownForeignFieldState(u8),
-    UnknownRelocationRequirements(u8),
-    UnknownCallbackMaterialization(u8),
-    UnknownCallbackDestination(u8),
-    UnknownCallbackEncoding(u8),
-    UnknownImageFieldEncoding(u8),
-    UnknownImageAddressReference(u8),
-    InvalidPlace,
-    InvalidPrivateFunction,
-    InvalidCallbackDestination,
-    LengthOverflow,
-    InvalidObject(RelocationFreeObjectError),
-}
-
-::wire::take_error_from_adapter!(RelocationFreeObjectDecodeError);
-::wire::truncated_from_adapter!(RelocationFreeObjectDecodeError);
-
-impl From<TargetWireIdentityError> for RelocationFreeObjectDecodeError {
-    fn from(error: TargetWireIdentityError) -> Self {
-        match error {
-            TargetWireIdentityError::UnknownArchitecture(tag) => {
-                Self::UnknownTargetArchitecture(tag)
-            }
-            TargetWireIdentityError::UnknownObjectFormat(tag) => Self::UnknownObjectFormat(tag),
-            TargetWireIdentityError::LayoutOverflow => Self::LengthOverflow,
-        }
-    }
-}
-
 pub fn canonical_private_machine_symbol_name(machine: MachineId) -> String {
     format!("__omega_terminal_machine_{}", machine.get())
 }
@@ -266,9 +177,6 @@ fn foreign_field_byte_width(kind: NormalizedForeignCallResolutionKind) -> u8 {
 pub(crate) fn validate_relocation_free_object(
     object: &RelocationFreeObjectPlan,
 ) -> Result<(), RelocationFreeObjectError> {
-    if object.recomputed_identity()? != object.identity {
-        return Err(RelocationFreeObjectError::StaleObjectIdentity);
-    }
     let Some(policy) = object_target_policy(object.target) else {
         return Err(RelocationFreeObjectError::NonCanonicalTarget);
     };
@@ -472,542 +380,29 @@ pub(crate) fn validate_relocation_free_object(
     Ok(())
 }
 
-pub(crate) fn encode_relocation_free_object(
-    object: &RelocationFreeObjectPlan,
-) -> Result<RelocationFreeObjectContainer, RelocationFreeObjectError> {
-    validate_relocation_free_object(object)?;
-    let content = encode_plan_content(object)?;
-    let mut bytes = Vec::with_capacity(44_usize.saturating_add(content.len()));
-    bytes.extend_from_slice(CONTAINER_MAGIC);
-    crate::codec_bytes::push_encoded(&mut bytes, CONTAINER_VERSION.to_le_bytes());
-    bytes.extend_from_slice(&object.identity.bytes());
-    bytes.extend_from_slice(&content);
-    Ok(RelocationFreeObjectContainer {
-        identity: RelocationFreeObjectContainerIdentity::from_canonical_bytes(&bytes),
-        object: object.identity,
-        bytes,
-    })
-}
-
-pub(crate) fn decode_relocation_free_object(
-    encoded: &[u8],
-) -> Result<RelocationFreeObjectPlan, RelocationFreeObjectDecodeError> {
-    let mut cursor = Cursor::new(encoded);
-    if cursor.take(8)? != CONTAINER_MAGIC {
-        return Err(RelocationFreeObjectDecodeError::WrongMagic);
-    }
-    let version = cursor.u32()?;
-    if version != CONTAINER_VERSION {
-        return Err(RelocationFreeObjectDecodeError::UnsupportedVersion(version));
-    }
-    let identity = RelocationFreeObjectPlanIdentity::from_bytes(cursor.array()?);
-    let object = decode_plan_content(&mut cursor, identity)?;
-    if cursor.remaining() != 0 {
-        return Err(RelocationFreeObjectDecodeError::TrailingBytes);
-    }
-    validate_relocation_free_object(&object)
-        .map_err(RelocationFreeObjectDecodeError::InvalidObject)?;
-    Ok(object)
-}
-
-macro_rules! enc {
-    ($a:expr => $b:expr) => {
-        crate::codec_bytes::push_encoded($a, $b)
-    };
-}
-
-fn encode_plan_content(
-    object: &RelocationFreeObjectPlan,
-) -> Result<Vec<u8>, RelocationFreeObjectError> {
-    let mut output = Vec::new();
-    output.extend_from_slice(&object.source_text_section.bytes());
-    enc!(&mut output => object.psi.vocabulary_marker.get().to_le_bytes());
-    output.extend_from_slice(object.psi.program_fingerprint.as_bytes());
-    crate::codec_bytes::push_encoded(&mut output, object.work_schedule.marker().to_le_bytes());
-    output.extend_from_slice(&object.selected.bytes());
-    output.extend_from_slice(&object.selections.bytes());
-    output.extend_from_slice(&object.target.wire_identity_bytes());
-    encode_string(&mut output, &object.text_section.name)?;
-    crate::codec_bytes::push_encoded(&mut output, object.text_section.alignment.to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut output, object.text_section.byte_count.to_le_bytes());
-    encode_bytes(&mut output, &object.text_section.bytes)?;
-    output.push(1);
-    crate::codec_bytes::push_count_u64(&mut output, object.symbols.len());
-    for symbol in &object.symbols {
-        crate::codec_bytes::push_encoded(&mut output, symbol.symbol.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut output, symbol.source_function_index.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut output, symbol.machine.get().to_le_bytes());
-        encode_string(&mut output, &symbol.name)?;
-        crate::codec_bytes::push_encoded(&mut output, symbol.section_offset.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut output, symbol.byte_count.to_le_bytes());
-        output.push(1);
-        output.push(match symbol.role {
-            RelocationFreeObjectSymbolRole::SemanticEntryV1 => 1,
-            RelocationFreeObjectSymbolRole::PrivateFunctionV1 => 2,
-        });
-    }
-    crate::codec_bytes::push_encoded(&mut output, object.semantic_entry.get().to_le_bytes());
-    enc!(&mut output => object.semantic_entry_symbol.get().to_le_bytes());
-    crate::codec_bytes::push_count_u64(&mut output, object.normalized_imports.len());
-    for import in &object.normalized_imports {
-        crate::codec_bytes::push_encoded(&mut output, import.symbol.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut output, import.boundary.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut output, import.ordinal.to_le_bytes());
-        encode_string(&mut output, &import.name)?;
-    }
-    crate::codec_bytes::push_count_u64(
-        &mut output,
-        object.unresolved_normalized_foreign_calls.len(),
-    );
-    for field in &object.unresolved_normalized_foreign_calls {
-        crate::codec_bytes::push_encoded(&mut output, field.symbol.get().to_le_bytes());
-        field.resolution.encode_identity(&mut output);
-    }
-    crate::codec_bytes::push_encoded(&mut output, object.relocation_record_count.to_le_bytes());
-    output.push(match object.relocation_requirements {
-        RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1 => {
-            1
-        }
-        RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
-        RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => 3,
-    });
-    if object.relocation_requirements
-        == RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
-    {
-        crate::codec_bytes::push_count_u64(&mut output, object.unresolved_image_addresses.len());
-        for address in &object.unresolved_image_addresses {
-            address.encode_identity(&mut output);
-        }
-    }
-    Ok(output)
-}
-
-fn decode_image_address(
-    cursor: &mut Cursor<'_>,
-) -> Result<machine_code::PlacedImageAddress, RelocationFreeObjectDecodeError> {
-    let machine =
-        MachineId::new(cursor.u64()?).ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
-    let block = SelectedBlockId(cursor.u32()?);
-    let instruction = SelectedInstructionId(cursor.u32()?);
-    let reference = match cursor.byte()? {
-        4 => selected_instructions::SelectedImageAddressReference::PrivateFunction {
-            identity: function_identity::MachineFunctionIdentity::from_bytes(cursor.array()?)
-                .ok_or(RelocationFreeObjectDecodeError::InvalidPrivateFunction)?,
-        },
-        3 => selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart,
-        0 => selected_instructions::SelectedImageAddressReference::ByteLiteral {
-            operation: OperationId::new(cursor.u64()?)
-                .ok_or(RelocationFreeObjectDecodeError::InvalidOperation)?,
-            place: semantic_vocabulary::PlaceId::new(cursor.u64()?)
-                .ok_or(RelocationFreeObjectDecodeError::InvalidPlace)?,
-        },
-        1 => selected_instructions::SelectedImageAddressReference::ImplementationTable {
-            table: cursor.u32()?,
-        },
-        2 => selected_instructions::SelectedImageAddressReference::NativeCodeLayout {
-            machine: MachineId::new(cursor.u64()?)
-                .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?,
-        },
-        tag => return Err(RelocationFreeObjectDecodeError::UnknownImageAddressReference(tag)),
-    };
-    let operation =
-        OperationId::new(cursor.u64()?).ok_or(RelocationFreeObjectDecodeError::InvalidOperation)?;
-    let instruction_function_offset = cursor.u64()?;
-    let instruction_section_offset = cursor.u64()?;
-    let instruction_byte_count = cursor.u64()?;
-    let fields = match cursor.byte()? {
-        1 => machine_code::ImageAddressFields::X86_64Relative32 {
-            patch_offset: cursor.u64()?,
-        },
-        2 => machine_code::ImageAddressFields::Aarch64PageAddress {
-            page_patch_offset: cursor.u64()?,
-            page_offset_patch_offset: cursor.u64()?,
-        },
-        tag => {
-            return Err(RelocationFreeObjectDecodeError::UnknownImageFieldEncoding(
-                tag,
-            ));
-        }
-    };
-    Ok(machine_code::PlacedImageAddress {
-        machine,
-        block,
-        instruction,
-        reference,
-        operation,
-        instruction_function_offset,
-        instruction_section_offset,
-        instruction_byte_count,
-        fields,
-    })
-}
-
-fn decode_plan_content(
-    cursor: &mut Cursor<'_>,
-    identity: RelocationFreeObjectPlanIdentity,
-) -> Result<RelocationFreeObjectPlan, RelocationFreeObjectDecodeError> {
-    let source_text_section =
-        TerminalRelocationFreeTextSectionIdentity::from_bytes(cursor.array()?);
-    let marker = cursor.u16()?;
-    let vocabulary_marker = VocabularyMarker::new(marker)
-        .ok_or(RelocationFreeObjectDecodeError::InvalidVocabulary(marker))?;
-    let psi = TerminalPsiIdentity {
-        vocabulary_marker,
-        program_fingerprint: SemanticFingerprint::from_bytes(cursor.array()?),
-    };
-    let work = cursor.u32()?;
-    let work_schedule = WorkScheduleIdentity::new(work)
-        .ok_or(RelocationFreeObjectDecodeError::InvalidWorkSchedule)?;
-    let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
-    let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-    let target = NativeTarget::from_wire_identity_bytes(&cursor.array()?)?;
-    let text_section = RelocationFreeObjectTextSection {
-        name: cursor_string(cursor)?,
-        alignment: cursor.u64()?,
-        byte_count: cursor.u64()?,
-        bytes: cursor.length_prefixed()?.to_vec(),
-    };
-    let symbol_policy_tag = cursor.byte()?;
-    if symbol_policy_tag != 1 {
-        return Err(RelocationFreeObjectDecodeError::UnknownSymbolPolicy(
-            symbol_policy_tag,
-        ));
-    }
-    let symbol_count = cursor.length()?;
-    let mut symbols = Vec::with_capacity(symbol_count);
-    for _ in 0..symbol_count {
-        let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
-            .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
-        let source_function_index = cursor.u64()?;
-        let machine =
-            MachineId::new(cursor.u64()?).ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
-        let name = cursor_string(cursor)?;
-        let section_offset = cursor.u64()?;
-        let byte_count = cursor.u64()?;
-        let linkage_tag = cursor.byte()?;
-        if linkage_tag != 1 {
-            return Err(RelocationFreeObjectDecodeError::UnknownLinkage(linkage_tag));
-        }
-        let role = match cursor.byte()? {
-            1 => RelocationFreeObjectSymbolRole::SemanticEntryV1,
-            2 => RelocationFreeObjectSymbolRole::PrivateFunctionV1,
-            tag => {
-                return Err(RelocationFreeObjectDecodeError::UnknownSymbolRole(tag));
-            }
-        };
-        symbols.push(RelocationFreeFunctionSymbol {
-            symbol,
-            source_function_index,
-            machine,
-            name,
-            section_offset,
-            byte_count,
-            linkage: RelocationFreeObjectSymbolLinkage::ObjectLocalV1,
-            role,
-        });
-    }
-    let semantic_entry =
-        MachineId::new(cursor.u64()?).ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
-    let semantic_entry_symbol = ObjectLocalSymbolId::new(cursor.u64()?)
-        .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
-    let import_count = cursor.length()?;
-    let mut normalized_imports = Vec::with_capacity(import_count);
-    for _ in 0..import_count {
-        let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
-            .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
-        let boundary = BoundaryMachineId::new(cursor.u64()?)
-            .ok_or(RelocationFreeObjectDecodeError::InvalidBoundary)?;
-        let ordinal = cursor.u32()?;
-        let name = cursor_string(cursor)?;
-        normalized_imports.push(RelocationFreeObjectNormalizedImport {
-            symbol,
-            boundary,
-            ordinal,
-            name,
-        });
-    }
-    let field_count = cursor.length()?;
-    let mut unresolved_normalized_foreign_calls = Vec::with_capacity(field_count);
-    for _ in 0..field_count {
-        let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
-            .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
-        let resolution = decode_normalized_foreign_resolution(cursor)?;
-        unresolved_normalized_foreign_calls
-            .push(RelocationFreeObjectUnresolvedForeignCall { symbol, resolution });
-    }
-    let relocation_record_count = cursor.u64()?;
-    let relocation_requirements = match cursor.byte()? {
-        1 => {
-            RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
-        }
-        2 => RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1,
-        3 => RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1,
-        tag => {
-            return Err(RelocationFreeObjectDecodeError::UnknownRelocationRequirements(tag));
-        }
-    };
-    let mut unresolved_image_addresses = Vec::new();
-    if relocation_requirements
-        == RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
-    {
-        let address_count = cursor.length()?;
-        unresolved_image_addresses.reserve(address_count);
-        for _ in 0..address_count {
-            unresolved_image_addresses.push(decode_image_address(cursor)?);
-        }
-    }
-    Ok(RelocationFreeObjectPlan {
-        identity,
-        source_text_section,
-        psi,
-        work_schedule,
-        selected,
-        selections,
-        target,
-        text_section,
-        symbol_policy: RelocationFreeObjectSymbolPolicy::PrivateSemanticMachineSymbolsV1,
-        symbols,
-        semantic_entry,
-        semantic_entry_symbol,
-        normalized_imports,
-        unresolved_normalized_foreign_calls,
-        unresolved_image_addresses,
-        relocation_record_count,
-        relocation_requirements,
-    })
-}
-
-fn decode_boundary_invocation_site(
-    cursor: &mut Cursor<'_>,
-) -> Result<semantic_vocabulary::InvocationSite, RelocationFreeObjectDecodeError> {
-    let tag = cursor.byte()?;
-    let identity = cursor.u64()?;
-    if tag == 3 {
-        let edge = semantic_vocabulary::EdgeId::new(identity)
-            .ok_or(RelocationFreeObjectDecodeError::InvalidInvocationSite)?;
-        return Ok(semantic_vocabulary::InvocationSite::Cleanup {
-            edge,
-            action_ordinal: cursor.u32()?,
-        });
-    }
-    semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity).ok_or(match tag {
-        0..=2 => RelocationFreeObjectDecodeError::InvalidInvocationSite,
-        _ => RelocationFreeObjectDecodeError::UnknownInvocationSiteTag(tag),
-    })
-}
-
-fn decode_normalized_foreign_resolution(
-    cursor: &mut Cursor<'_>,
-) -> Result<PlacedNormalizedForeignCallResolution, RelocationFreeObjectDecodeError> {
-    let kind = match cursor.byte()? {
-        1 => NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1,
-        2 => NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
-        tag => {
-            return Err(RelocationFreeObjectDecodeError::UnknownForeignFieldKind(tag));
-        }
-    };
-    let state = match cursor.byte()? {
-        1 => NormalizedForeignCallResolutionState::UnresolvedImportFieldV1,
-        tag => {
-            return Err(RelocationFreeObjectDecodeError::UnknownForeignFieldState(
-                tag,
-            ));
-        }
-    };
-    Ok(PlacedNormalizedForeignCallResolution {
-        kind,
-        state,
-        caller: MachineId::new(cursor.u64()?)
-            .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?,
-        block: SelectedBlockId(cursor.u32()?),
-        instruction: SelectedInstructionId(cursor.u32()?),
-        invocation_site: decode_boundary_invocation_site(cursor)?,
-        boundary: BoundaryMachineId::new(cursor.u64()?)
-            .ok_or(RelocationFreeObjectDecodeError::InvalidBoundary)?,
-        ordinal: cursor.u32()?,
-        call_function_offset: cursor.u64()?,
-        call_section_offset: cursor.u64()?,
-        call_byte_count: cursor.u64()?,
-        opcode_function_offset: cursor.u64()?,
-        opcode_section_offset: cursor.u64()?,
-        field_function_offset: cursor.u64()?,
-        field_section_offset: cursor.u64()?,
-        next_instruction_function_offset: cursor.u64()?,
-        next_instruction_section_offset: cursor.u64()?,
-        field_byte_width: cursor.byte()?,
-        addend: cursor.i64()?,
-        callback_materializations: decode_placed_callback_materializations(cursor)?,
-    })
-}
-
-fn decode_machine_register(
-    cursor: &mut Cursor<'_>,
-) -> Result<MachineRegister, RelocationFreeObjectDecodeError> {
-    let family = cursor.byte()?;
-    let index = cursor.byte()?;
-    Ok(match (family, index) {
-        (1, 0) => MachineRegister::X86Rax,
-        (1, 1) => MachineRegister::X86Rcx,
-        (1, 2) => MachineRegister::X86Rdx,
-        (1, 3) => MachineRegister::X86Rbx,
-        (1, 4) => MachineRegister::X86Rsp,
-        (1, 5) => MachineRegister::X86Rbp,
-        (1, 6) => MachineRegister::X86Rsi,
-        (1, 7) => MachineRegister::X86Rdi,
-        (1, 8) => MachineRegister::X86R8,
-        (1, 9) => MachineRegister::X86R9,
-        (1, 10) => MachineRegister::X86R10,
-        (1, 11) => MachineRegister::X86R11,
-        (1, 12) => MachineRegister::X86R12,
-        (1, 13) => MachineRegister::X86R13,
-        (1, 14) => MachineRegister::X86R14,
-        (1, 15) => MachineRegister::X86R15,
-        (2, index @ 0..=15) => MachineRegister::X86Xmm(index),
-        (3, index @ 0..=30) => MachineRegister::Aarch64X(index),
-        (4, index @ 0..=31) => MachineRegister::Aarch64V(index),
-        _ => return Err(RelocationFreeObjectDecodeError::InvalidCallbackDestination),
-    })
-}
-
-fn decode_placed_callback_materializations(
-    cursor: &mut Cursor<'_>,
-) -> Result<Vec<PlacedCallbackAddressMaterialization>, RelocationFreeObjectDecodeError> {
-    let count = cursor.length()?;
-    let mut materializations = Vec::with_capacity(count);
-    for _ in 0..count {
-        let destination = match cursor.byte()? {
-            1 => {
-                machine_code::CallbackAddressDestination::Register(decode_machine_register(cursor)?)
-            }
-            2 => machine_code::CallbackAddressDestination::OutgoingStack {
-                byte_offset: cursor.u32()?,
-            },
-            3 => machine_code::CallbackAddressDestination::RecordField {
-                root_register: decode_machine_register(cursor)?,
-                placements: decode_callback_placements(cursor)?,
-            },
-            tag => {
-                return Err(RelocationFreeObjectDecodeError::UnknownCallbackDestination(
-                    tag,
-                ));
-            }
-        };
-        let code_function_offset = cursor.u64()?;
-        let code_section_offset = cursor.u64()?;
-        let code_byte_count = cursor.u64()?;
-        let encoding = match cursor.byte()? {
-            1 => PlacedCallbackAddressEncoding::X86_64Relative32 {
-                relocation_function_offset: cursor.u64()?,
-                relocation_section_offset: cursor.u64()?,
-            },
-            2 => PlacedCallbackAddressEncoding::Aarch64PageAddress {
-                page_relocation_function_offset: cursor.u64()?,
-                page_relocation_section_offset: cursor.u64()?,
-                page_offset_relocation_function_offset: cursor.u64()?,
-                page_offset_relocation_section_offset: cursor.u64()?,
-            },
-            tag => {
-                return Err(RelocationFreeObjectDecodeError::UnknownCallbackEncoding(
-                    tag,
-                ));
-            }
-        };
-        materializations.push(PlacedCallbackAddressMaterialization {
-            destination,
-            code_function_offset,
-            code_section_offset,
-            code_byte_count,
-            encoding,
-        });
-    }
-    Ok(materializations)
-}
-
-fn encode_string(output: &mut Vec<u8>, value: &str) -> Result<(), RelocationFreeObjectError> {
-    encode_bytes(output, value.as_bytes())
-}
-
-fn encode_bytes(output: &mut Vec<u8>, value: &[u8]) -> Result<(), RelocationFreeObjectError> {
-    crate::codec_bytes::push_count_u64(output, value.len());
-    output.extend_from_slice(value);
-    Ok(())
-}
-
-fn cursor_string(cursor: &mut Cursor) -> Result<String, RelocationFreeObjectDecodeError> {
-    String::from_utf8(cursor.length_prefixed()?.to_vec())
-        .map_err(|_| RelocationFreeObjectDecodeError::InvalidUtf8)
-}
-
-fn decode_callback_placements(
-    cursor: &mut Cursor<'_>,
-) -> Result<calling_conventions::PrivateCallbackPlacements, RelocationFreeObjectDecodeError> {
-    use layout_plans::{IntegerInterpretation, LayoutPlacementReport};
-    let count = cursor.length()?;
-    let mut placements = Vec::with_capacity(count);
-    for _ in 0..count {
-        placements.push(match cursor.byte()? {
-            0 => LayoutPlacementReport::At {
-                offset: cursor.u64()?,
-            },
-            1 => LayoutPlacementReport::IntegerAt {
-                offset: cursor.u64()?,
-                stored_width: cursor.u64()?,
-                interpretation: match cursor.byte()? {
-                    0 => IntegerInterpretation::Signed,
-                    1 => IntegerInterpretation::Unsigned,
-                    tag => {
-                        return Err(RelocationFreeObjectDecodeError::UnknownCallbackDestination(
-                            tag,
-                        ));
-                    }
-                },
-            },
-            2 => LayoutPlacementReport::Bits {
-                container: cursor.u64()?,
-                container_width: cursor.u64()?,
-                destination_lsb: cursor.u64()?,
-                source_lsb: cursor.u64()?,
-                width: cursor.u64()?,
-            },
-            tag => {
-                return Err(RelocationFreeObjectDecodeError::UnknownCallbackDestination(
-                    tag,
-                ));
-            }
-        });
-    }
-    Ok(calling_conventions::PrivateCallbackPlacements::new(
-        &placements,
-    ))
-}
-
 #[cfg(test)]
 mod tests {
+    use machine_code::NormalizedForeignCallResolutionState;
+    use selected_instructions::{SelectedBlockId, SelectedInstructionId};
+    use semantic_vocabulary::OperationId;
+    use terminal_psi::{SemanticFingerprint, VocabularyMarker};
+
     use super::{
-        BoundaryMachineId, CONTAINER_VERSION, MachineId, NativeTarget,
-        NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
-        ObjectLocalSymbolId, OperationId, OptimizationSelectionIdentity,
-        PlacedNormalizedForeignCallResolution, RelocationFreeFunctionSymbol,
-        RelocationFreeObjectContainerIdentity, RelocationFreeObjectDecodeError,
-        RelocationFreeObjectError, RelocationFreeObjectNormalizedImport, RelocationFreeObjectPlan,
-        RelocationFreeObjectPlanIdentity, RelocationFreeObjectRelocationRequirements,
-        RelocationFreeObjectSymbolLinkage, RelocationFreeObjectSymbolPolicy,
-        RelocationFreeObjectSymbolRole, RelocationFreeObjectTextSection,
-        RelocationFreeObjectUnresolvedForeignCall, SelectedBlockId, SelectedInstructionId,
-        SelectedInstructionPlanIdentity, SemanticFingerprint, TerminalPsiIdentity,
-        TerminalRelocationFreeTextSectionIdentity, VocabularyMarker, WorkScheduleIdentity,
+        BoundaryMachineId, MachineId, NativeTarget, NormalizedForeignCallResolutionKind,
+        ObjectLocalSymbolId, OptimizationSelectionIdentity, PlacedNormalizedForeignCallResolution,
+        RelocationFreeFunctionSymbol, RelocationFreeObjectError,
+        RelocationFreeObjectNormalizedImport, RelocationFreeObjectPlan,
+        RelocationFreeObjectRelocationRequirements, RelocationFreeObjectSymbolLinkage,
+        RelocationFreeObjectSymbolPolicy, RelocationFreeObjectSymbolRole,
+        RelocationFreeObjectTextSection, RelocationFreeObjectUnresolvedForeignCall,
+        SelectedInstructionPlanIdentity, TerminalPsiIdentity, WorkScheduleIdentity,
         canonical_normalized_foreign_import_symbol_name, canonical_private_machine_symbol_name,
-        decode_relocation_free_object, encode_relocation_free_object,
         validate_relocation_free_object,
     };
 
     fn plan() -> RelocationFreeObjectPlan {
         let machine = MachineId::new(7).unwrap();
-        let mut plan = RelocationFreeObjectPlan {
-            identity: RelocationFreeObjectPlanIdentity::from_canonical_bytes(b"pending"),
-            source_text_section: TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(
-                b"text",
-            ),
+        RelocationFreeObjectPlan {
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([4; 32]),
@@ -1042,24 +437,7 @@ mod tests {
             relocation_record_count: 0,
             relocation_requirements:
                 RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
-        };
-        plan.identity = plan.recomputed_identity().unwrap();
-        plan
-    }
-
-    #[test]
-    fn clean_object_container_round_trips_and_binds_exact_bytes() {
-        let object = plan();
-        let container = encode_relocation_free_object(&object).unwrap();
-        assert_eq!(
-            decode_relocation_free_object(&container.bytes),
-            Ok(object.clone())
-        );
-        assert_eq!(container.object, object.identity);
-        assert_eq!(
-            container.identity,
-            RelocationFreeObjectContainerIdentity::from_canonical_bytes(&container.bytes)
-        );
+        }
     }
 
     fn literal_plan() -> RelocationFreeObjectPlan {
@@ -1090,100 +468,22 @@ mod tests {
         object.relocation_record_count = 1;
         object.relocation_requirements =
             RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1;
-        object.identity = object.recomputed_identity().unwrap();
         object
     }
 
     #[test]
-    fn image_address_roster_preserves_distinct_referents_in_order() {
-        let mut object = literal_plan();
-        let mut table = object.unresolved_image_addresses[0];
-        table.reference =
-            selected_instructions::SelectedImageAddressReference::ImplementationTable { table: 7 };
-        table.operation = OperationId::new(12).unwrap();
-        table.instruction = SelectedInstructionId(1);
-        table.instruction_function_offset = 8;
-        table.instruction_section_offset = 8;
-        table.fields = table.fields.shifted(8).unwrap();
-        object.text_section.bytes.extend_from_within(..);
-        object.text_section.byte_count = 16;
-        object.symbols[0].byte_count = 16;
-        object.unresolved_image_addresses.push(table);
-        let mut residence = table;
-        residence.reference =
-            selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart;
-        residence.operation = OperationId::new(13).unwrap();
-        residence.instruction = SelectedInstructionId(2);
-        residence.instruction_function_offset = 16;
-        residence.instruction_section_offset = 16;
-        residence.fields = residence.fields.shifted(8).unwrap();
-        object.text_section.bytes.extend_from_within(..8);
-        object.text_section.byte_count = 24;
-        object.symbols[0].byte_count = 24;
-        object.unresolved_image_addresses.push(residence);
-        let mut native_layout = residence;
-        native_layout.reference =
-            selected_instructions::SelectedImageAddressReference::NativeCodeLayout {
-                machine: object.semantic_entry,
-            };
-        native_layout.operation = OperationId::new(14).unwrap();
-        native_layout.instruction = SelectedInstructionId(3);
-        native_layout.instruction_function_offset = 24;
-        native_layout.instruction_section_offset = 24;
-        native_layout.fields = native_layout.fields.shifted(8).unwrap();
-        object.text_section.bytes.extend_from_within(..8);
-        object.text_section.byte_count = 32;
-        object.symbols[0].byte_count = 32;
-        object.unresolved_image_addresses.push(native_layout);
-        object.relocation_record_count = 4;
-        object.identity = object.recomputed_identity().unwrap();
-        let container = encode_relocation_free_object(&object).unwrap();
-        assert_eq!(
-            decode_relocation_free_object(&container.bytes),
-            Ok(object.clone())
-        );
-
-        let original_identity = object.identity;
-        object.unresolved_image_addresses.reverse();
-        assert_ne!(object.recomputed_identity().unwrap(), original_identity);
-        object.unresolved_image_addresses.reverse();
-        object.unresolved_image_addresses[1].reference =
-            object.unresolved_image_addresses[0].reference;
-        assert_ne!(object.recomputed_identity().unwrap(), original_identity);
-    }
-
-    #[test]
-    fn native_layout_image_reference_round_trips_exact_machine() {
-        let mut object = literal_plan();
-        object.unresolved_image_addresses[0].reference =
-            selected_instructions::SelectedImageAddressReference::NativeCodeLayout {
-                machine: object.semantic_entry,
-            };
-        object.identity = object.recomputed_identity().unwrap();
-        let container = encode_relocation_free_object(&object).unwrap();
-        assert_eq!(decode_relocation_free_object(&container.bytes), Ok(object));
-    }
-
-    #[test]
-    fn byte_literal_addresses_round_trip_and_bind_their_requirement() {
+    fn byte_literal_addresses_bind_their_requirement() {
         let object = literal_plan();
-        let container = encode_relocation_free_object(&object).unwrap();
-        assert_eq!(
-            decode_relocation_free_object(&container.bytes),
-            Ok(object.clone())
-        );
         let mut unrequired = object.clone();
         unrequired.relocation_requirements =
             RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1;
         unrequired.relocation_record_count = 0;
-        unrequired.identity = unrequired.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&unrequired),
             Err(RelocationFreeObjectError::RelocationsPresent)
         );
         let mut missing = object.clone();
         missing.unresolved_image_addresses.clear();
-        missing.identity = missing.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&missing),
             Err(RelocationFreeObjectError::ImageAddressesMissing)
@@ -1194,7 +494,6 @@ mod tests {
                 page_patch_offset: 4,
                 page_offset_patch_offset: 8,
             };
-        outside.identity = outside.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&outside),
             Err(RelocationFreeObjectError::ImageFieldOutsideTextSection)
@@ -1205,7 +504,6 @@ mod tests {
     fn object_validation_rejects_process_name_relocation_and_interval_corruption() {
         let mut object = plan();
         object.symbols[0].name = "main".to_owned();
-        object.identity = object.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&object),
             Err(RelocationFreeObjectError::NonCanonicalSymbolName)
@@ -1213,7 +511,6 @@ mod tests {
 
         let mut object = plan();
         object.relocation_record_count = 1;
-        object.identity = object.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&object),
             Err(RelocationFreeObjectError::RelocationsPresent)
@@ -1221,7 +518,6 @@ mod tests {
 
         let mut object = plan();
         object.symbols[0].section_offset = 1;
-        object.identity = object.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&object),
             Err(RelocationFreeObjectError::NonDenseSymbolInterval)
@@ -1229,7 +525,6 @@ mod tests {
 
         let mut object = plan();
         object.target.pointer_size = 4;
-        object.identity = object.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&object),
             Err(RelocationFreeObjectError::NonCanonicalTarget)
@@ -1237,7 +532,7 @@ mod tests {
     }
 
     #[test]
-    fn two_function_container_preserves_order_dense_intervals_and_nonzero_entry() {
+    fn two_function_object_keeps_dense_intervals_and_nonzero_entry() {
         let mut object = plan();
         let first_machine = MachineId::new(7).unwrap();
         let entry_machine = MachineId::new(8).unwrap();
@@ -1270,13 +565,7 @@ mod tests {
                 role: RelocationFreeObjectSymbolRole::SemanticEntryV1,
             },
         ];
-        object.identity = object.recomputed_identity().unwrap();
 
-        let container = encode_relocation_free_object(&object).unwrap();
-        assert_eq!(
-            decode_relocation_free_object(&container.bytes),
-            Ok(object.clone())
-        );
         assert_eq!(
             object
                 .symbols
@@ -1291,127 +580,9 @@ mod tests {
         assert_eq!(object.semantic_entry_symbol, object.symbols[1].symbol);
 
         object.symbols.swap(0, 1);
-        object.identity = object.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&object),
             Err(RelocationFreeObjectError::NonCanonicalSymbolId)
-        );
-    }
-
-    #[test]
-    fn image_address_roster_rejects_the_old_split_container_version() {
-        assert_eq!(CONTAINER_VERSION, 6);
-        for version in [3_u32, 4, 5] {
-            let mut container = encode_relocation_free_object(&plan()).unwrap().bytes;
-            container[8..12].copy_from_slice(&version.to_le_bytes());
-            assert_eq!(
-                decode_relocation_free_object(&container),
-                Err(RelocationFreeObjectDecodeError::UnsupportedVersion(version))
-            );
-        }
-    }
-
-    #[test]
-    fn saved_object_preserves_split_callback_placements_and_fixup_coordinates() {
-        use calling_conventions::{MachineRegister, PrivateCallbackPlacements};
-        use layout_plans::LayoutPlacementReport;
-        use machine_code::{
-            CallbackAddressDestination, PlacedCallbackAddressEncoding,
-            PlacedCallbackAddressMaterialization,
-        };
-
-        let placements = [(0, 16, 0, 0, 16), (6, 16, 0, 16, 16), (8, 32, 0, 32, 32)].map(
-            |(container, container_width, destination_lsb, source_lsb, width)| {
-                LayoutPlacementReport::Bits {
-                    container,
-                    container_width,
-                    destination_lsb,
-                    source_lsb,
-                    width,
-                }
-            },
-        );
-        let callback = PlacedCallbackAddressMaterialization {
-            destination: CallbackAddressDestination::RecordField {
-                root_register: MachineRegister::Aarch64X(0),
-                placements: PrivateCallbackPlacements::new(&placements),
-            },
-            code_function_offset: 4,
-            code_section_offset: 4,
-            code_byte_count: 32,
-            encoding: PlacedCallbackAddressEncoding::Aarch64PageAddress {
-                page_relocation_function_offset: 4,
-                page_relocation_section_offset: 4,
-                page_offset_relocation_function_offset: 8,
-                page_offset_relocation_section_offset: 8,
-            },
-        };
-        let mut object = plan();
-        object.text_section.bytes.resize(40, 0);
-        object.text_section.byte_count = 40;
-        object.symbols[0].byte_count = 40;
-        let boundary = BoundaryMachineId::new(3).unwrap();
-        let symbol = ObjectLocalSymbolId::new(2).unwrap();
-        object.normalized_imports = vec![RelocationFreeObjectNormalizedImport {
-            symbol,
-            boundary,
-            ordinal: 0,
-            name: canonical_normalized_foreign_import_symbol_name(boundary, 0),
-        }];
-        object.unresolved_normalized_foreign_calls = vec![RelocationFreeObjectUnresolvedForeignCall {
-            symbol,
-            resolution: PlacedNormalizedForeignCallResolution {
-                kind: NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
-                state: NormalizedForeignCallResolutionState::UnresolvedImportFieldV1,
-                caller: object.semantic_entry,
-                block: SelectedBlockId(0),
-                instruction: SelectedInstructionId(1),
-                invocation_site: OperationId::new(11).unwrap().into(),
-                boundary, ordinal: 0,
-                call_function_offset: 4,
-                call_section_offset: 4,
-                call_byte_count: 36,
-                opcode_function_offset: 36,
-                opcode_section_offset: 36,
-                field_function_offset: 36,
-                field_section_offset: 36,
-                next_instruction_function_offset: 40,
-                next_instruction_section_offset: 40,
-                field_byte_width: 4,
-                addend: 0,
-                callback_materializations: vec![callback],
-            },
-        }];
-        object.relocation_record_count = 1;
-        object.relocation_requirements =
-            RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1;
-        object.identity = object.recomputed_identity().unwrap();
-        let mut container = encode_relocation_free_object(&object).unwrap().bytes;
-        // The v6 object envelope and split callback fields stay readable across
-        // the move to the placed import's shared identity encoder.
-        assert_eq!(
-            wire::digest_encoder::hex(&wire::digest_encoder::content_identity(&container)),
-            "0612dc674a5561ec0538554d82b2c96f1ae3547b49468160e76ee7c9d1dad47e",
-        );
-        assert_eq!(decode_relocation_free_object(&container), Ok(object));
-
-        let mut first_placement = 3_u64.to_le_bytes().to_vec();
-        first_placement.push(2);
-        for value in [0_u64, 16, 0, 0, 16] {
-            first_placement.extend_from_slice(&value.to_le_bytes());
-        }
-        let positions = container
-            .windows(first_placement.len())
-            .enumerate()
-            .filter_map(|(index, bytes)| (bytes == first_placement.as_slice()).then_some(index))
-            .collect::<Vec<_>>();
-        assert_eq!(positions.len(), 1);
-        container[positions[0] + 8] = 255;
-        assert_eq!(
-            decode_relocation_free_object(&container),
-            Err(RelocationFreeObjectDecodeError::UnknownCallbackDestination(
-                255
-            ))
         );
     }
 
@@ -1457,12 +628,10 @@ mod tests {
         object.normalized_imports = vec![import(1, 2), import(2, 3)];
         object.unresolved_normalized_foreign_calls = vec![field(2, 1, 0), field(3, 2, 1)];
         object.relocation_record_count = 2;
-        object.identity = object.recomputed_identity().unwrap();
         assert_eq!(validate_relocation_free_object(&object), Ok(()));
 
         let mut unordered = object.clone();
         unordered.normalized_imports = vec![import(2, 2), import(1, 3)];
-        unordered.identity = unordered.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&unordered),
             Err(RelocationFreeObjectError::NonCanonicalForeignImportOrder)
@@ -1470,7 +639,6 @@ mod tests {
 
         let mut unused = object.clone();
         unused.normalized_imports.push(import(9, 4));
-        unused.identity = unused.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&unused),
             Err(RelocationFreeObjectError::UnusedForeignImport)
@@ -1480,7 +648,6 @@ mod tests {
         mismatched.unresolved_normalized_foreign_calls[1]
             .resolution
             .ordinal = 7;
-        mismatched.identity = mismatched.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&mismatched),
             Err(RelocationFreeObjectError::ForeignImportCoordinateMismatch)
@@ -1489,7 +656,6 @@ mod tests {
         let mut unknown = object.clone();
         unknown.unresolved_normalized_foreign_calls[1].symbol =
             ObjectLocalSymbolId::new(1).unwrap();
-        unknown.identity = unknown.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&unknown),
             Err(RelocationFreeObjectError::UnknownForeignImportSymbol)
@@ -1497,35 +663,9 @@ mod tests {
 
         let mut miscounted = object.clone();
         miscounted.relocation_record_count = 3;
-        miscounted.identity = miscounted.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&miscounted),
             Err(RelocationFreeObjectError::RelocationCountMismatch)
-        );
-    }
-
-    #[test]
-    fn decoder_rejects_corrupt_envelope_and_stale_identity() {
-        let container = encode_relocation_free_object(&plan()).unwrap();
-        let mut wrong_magic = container.bytes.clone();
-        wrong_magic[0] ^= 1;
-        assert_eq!(
-            decode_relocation_free_object(&wrong_magic),
-            Err(RelocationFreeObjectDecodeError::WrongMagic)
-        );
-        let mut trailing = container.bytes.clone();
-        trailing.push(0);
-        assert_eq!(
-            decode_relocation_free_object(&trailing),
-            Err(RelocationFreeObjectDecodeError::TrailingBytes)
-        );
-        let mut stale = container.bytes;
-        stale[12] ^= 1;
-        assert_eq!(
-            decode_relocation_free_object(&stale),
-            Err(RelocationFreeObjectDecodeError::InvalidObject(
-                RelocationFreeObjectError::StaleObjectIdentity
-            ))
         );
     }
 }

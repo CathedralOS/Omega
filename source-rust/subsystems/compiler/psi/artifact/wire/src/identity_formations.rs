@@ -3,7 +3,7 @@
 //! The catalog abstracts checked source subjects into ordinary mathematical
 //! lambdas. Decoding checks only the catalog's canonical shape: like every
 //! other carried mathematical certificate, it does not re-decide the encoded
-//! judgment (`wiki/spec/terminal-psi/encoding.md`, mathematical certificates).
+//! judgment (`source-rust/subsystems/compiler/psi/artifact/wire/encoding.md`, mathematical certificates).
 //! Source-bound receiving rechecks the signature in the kernel and requires
 //! real `Id` bodies; neither an opaque structural-equality row nor a Boolean
 //! comparison can stand in for this kernel type constructor.

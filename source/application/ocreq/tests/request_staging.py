@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "tests/bootstrap"))
-from conformance.vectors import ocreq_request
+from conformance.vectors import ocreq_lineage_cases, ocreq_request
 
 
 def check(program: Path, request: bytes, expected: bytes) -> None:
@@ -29,6 +29,13 @@ def main() -> None:
     # Both frames are Incomplete. The well-formed request reaches the
     # unimplemented semantics phase (25). One byte more exhausts staging (26).
     header = b"\xffOCOUT\x01\x00"
+    for label, request, bad_offset in ocreq_lineage_cases():
+        expected = ((2, 0, 0, 25, 0, 0, 0) if bad_offset is None
+                    else (1, 1, 0, 1, bad_offset, 0, 0))
+        try:
+            check(program, request, header + struct.pack("<BBHIQQQ", *expected))
+        except AssertionError as error:
+            raise AssertionError(label) from error
     check(program, filled, header + struct.pack("<BBHIQQQ", 2, 0, 0, 25, 0, 0, 0))
     check(program, filled + b"\xff",
           header + struct.pack("<BBHIQQQ", 2, 1, 0, 26, capacity, capacity, capacity + 1))

@@ -17,9 +17,11 @@ entry's own check rather than being refused before execution.
 
 */
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
-use std::process::{Command, ExitStatus};
+use std::process::ExitStatus;
 
 const REQUIREMENT: &str = "\
 boundary trait Service {
@@ -37,8 +39,8 @@ machine entry() crashes Trap {
 
 const BUILD: &str = "use main.omg as app;
 \
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"selected_provider\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"selected_provider\" };
     Build::select_provider::<|app|::Service, |app|::Native>(builder, linux_x86_64);
     Build::select_provider::<|app|::Service, |app|::Native>(builder, linux_arm64);
     Build::select_provider::<|app|::Service, |app|::Native>(builder, macos_arm64);
@@ -63,16 +65,10 @@ Native satisfies Service {{
 }
 
 fn run_fixture(engine: &str, name: &str, product: &str, build: &str) -> (ExitStatus, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-selected-provider-{name}-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).expect("staged project");
-    std::fs::write(root.join("main.omg"), product).expect("staged program");
-    std::fs::write(root.join("build.omg"), build).expect("staged Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args([
+    let scratch = project::stage(name, &[("main.omg", product), ("build.omg", build)]);
+    let output = project::omega(
+        scratch.path(),
+        &[
             "run",
             "--engine",
             engine,
@@ -81,12 +77,8 @@ fn run_fixture(engine: &str, name: &str, product: &str, build: &str) -> (ExitSta
             "build.omg",
             "--build-input",
             "main.omg",
-        ])
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
+        ],
+    );
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -130,8 +122,8 @@ machine entry() {}
 "#;
     let build = format!(
         r#"use main.omg as app;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "uncalled_provider");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "uncalled_provider" }};
     Build::select_provider::<|app|::Echo<|app|::Tag, |app|::Word>, |app|::Copy<|app|::Tag, |app|::Word, u32>>(builder, {target});
     Build::bind(builder, {target}::ProgramEntry, |app|::entry);
 }}"#
@@ -225,8 +217,8 @@ machine entry() crashes Trap {
 "#;
     let build = format!(
         r#"use main.omg as app;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "qualified_providers");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "qualified_providers" }};
     Build::select_provider::<|app|::Service<|app|::Tag in |app|::Tag::Left>, |app|::First>(builder, {target});
     Build::select_provider::<|app|::Service<|app|::Tag in |app|::Tag::Right>, |app|::Second>(builder, {target});
     Build::bind(builder, {target}::ProgramEntry, |app|::entry);
@@ -277,8 +269,8 @@ machine entry() crashes Trap {
 "#;
     let build = format!(
         r#"use main.omg as app;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "aliased_providers");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "aliased_providers" }};
     Build::select_provider::<|app|::Reading<|app|::WordPacket>, |app|::Words>(builder, {target});
     Build::select_provider::<|app|::Reading<|app|::Pack<u64>>, |app|::Wide>(builder, {target});
     Build::bind(builder, {target}::ProgramEntry, |app|::entry);
@@ -313,12 +305,12 @@ machine entry() crashes Trap {
         r#"use main.omg as app;
 data Word<T [copy]> = u32;
 data Ticket [linear] {{}}
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "helper_alias");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "helper_alias" }};
     choose::<Word<u64>>(builder);
     Build::bind(builder, {target}::ProgramEntry, |app|::entry);
 }}
-machine choose<T>(builder: @mutable Build) {{
+machine choose<T>(builder: @mutable BuildPlan) {{
     Build::select_provider::<|app|::Reading<T>, |app|::Words>(builder, {target});
 }}"#
     );
@@ -399,8 +391,8 @@ machine storage_probe() {}
             let build = format!(
                 r#"use main.omg as app;
 use {{omega}}/language/core/layout.omg as layout;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "storage_probe");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "storage_probe" }};
     Build::accept_boundary::<|layout|::NativeAccess<|app|::{placement}, |app|::{value}, |app|::{storage}, |app|::TestMemory>>(builder);
     Build::select_provider::<|layout|::AccessLifecycle<|app|::{placement}, |app|::{value}>, |layout|::NativeAccess<|app|::{placement}, |app|::{value}, |app|::{storage}, |app|::TestMemory>>(builder, {target});
     Build::bind(builder, {target}::ProgramEntry, |app|::storage_probe);
@@ -431,8 +423,8 @@ fn a_resident_index_alias_preserves_its_imported_value_type() {
     let build = format!(
         r#"use main.omg as app;
 use {{omega}}/language/core/layout.omg as layout;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "storage_probe");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "storage_probe" }};
     Build::accept_boundary::<|app|::MemorySupply>(builder);
     Build::accept_boundary::<|layout|::NativeAccess<|app|::WordPlacement, |app|::Word, |app|::WordStorage, |app|::TestMemory>>(builder);
     Build::select_provider::<|layout|::ResourceProfileSupply<|app|::TestMemory>, |app|::MemorySupply>(builder, {target});

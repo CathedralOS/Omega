@@ -1,0 +1,101 @@
+// Core's natural division on the cases its one structural helper must get
+// right: a zero dividend, divisor one, a dividend smaller than the divisor,
+// and exact and inexact division. Each machine computes `div` or `mod` of
+// closed numbers and states the expected result, which the kernel checks by
+// computation. `quotient_by` divides by `Succ(k)` and cites
+// `le_one_succ(k)`, so `div`'s premise holds at that call. The negative twin divides by zero
+// there instead.
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/nat.omg;
+
+// zero dividend: div(0, 3) = 0.
+machine div_0_by_3() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Zero)
+{
+    transition { _ -> (|nat|::div(|nat|::Nat::Zero, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } })) }
+}
+
+// zero dividend: mod(0, 3) = 0.
+machine mod_0_by_3() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Zero)
+{
+    transition { _ -> (|nat|::mod(|nat|::Nat::Zero, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } })) }
+}
+
+// divisor one: div(5, 1) = 5.
+machine div_5_by_1() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } })
+{
+    transition { _ -> (|nat|::div(|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } }, |nat|::Nat::Succ { prev: |nat|::Nat::Zero })) }
+}
+
+// divisor one: mod(5, 1) = 0.
+machine mod_5_by_1() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Zero)
+{
+    transition { _ -> (|nat|::mod(|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } }, |nat|::Nat::Succ { prev: |nat|::Nat::Zero })) }
+}
+
+// dividend smaller than divisor: div(2, 5) = 0.
+machine div_2_by_5() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Zero)
+{
+    transition { _ -> (|nat|::div(|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } }, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } })) }
+}
+
+// dividend smaller than divisor: mod(2, 5) = 2.
+machine mod_2_by_5() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } })
+{
+    transition { _ -> (|nat|::mod(|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } }, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } })) }
+}
+
+// exact division: div(6, 3) = 2.
+machine div_6_by_3() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } })
+{
+    transition { _ -> (|nat|::div(|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } } }, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } })) }
+}
+
+// exact division: mod(6, 3) = 0.
+machine mod_6_by_3() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Zero)
+{
+    transition { _ -> (|nat|::mod(|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } } }, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } })) }
+}
+
+// inexact division: div(7, 2) = 3.
+machine div_7_by_2() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } })
+{
+    transition { _ -> (|nat|::div(|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } } } }, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } })) }
+}
+
+// inexact division: mod(7, 2) = 1.
+machine mod_7_by_2() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Succ { prev: |nat|::Nat::Zero })
+{
+    transition { _ -> (|nat|::mod(|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } } } }, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } })) }
+}
+
+// `le_one_succ(k)` shows `Succ(k)` is positive, whatever `k` is.
+machine quotient_by(a: |nat|::Nat, k: |nat|::Nat) -> |nat|::Nat
+{
+    _ = |nat|::le_one_succ(k);
+    transition { _ -> (|nat|::div(a, |nat|::Nat::Succ { prev: k })) }
+}
+
+data Main { }
+
+// The entry does nothing: the program is here for its proofs.
+machine entry_start() { }

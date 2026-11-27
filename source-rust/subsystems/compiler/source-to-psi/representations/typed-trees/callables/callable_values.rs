@@ -39,12 +39,7 @@ pub struct RuntimeCallExpression {
     pub contract: RuntimeCallableContractHandle,
 }
 
-impl crate::source_state::expression::TableCallExpression {
-    pub fn evaluated_callee(&self) -> crate::source_state::expression::ExpressionHandle {
-        self.runtime_call
-            .map_or(self.receiver, |runtime| runtime.callee)
-    }
-}
+impl crate::source_state::expression::TableCallExpression {}
 
 impl crate::source_state::TypedTrees {
     pub fn runtime_callable_contract(

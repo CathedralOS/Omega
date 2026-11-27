@@ -20,22 +20,19 @@ refuses the program.
 
 */
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
+use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 fn repository() -> PathBuf {
     support::repository_root().to_path_buf()
 }
 
 fn omega(arguments: &[&str], directory: &Path) -> String {
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .current_dir(directory)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
+    let output = project::omega(directory, arguments);
     format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -44,12 +41,14 @@ fn omega(arguments: &[&str], directory: &Path) -> String {
 }
 
 fn fixture() -> PathBuf {
-    repository().join("source-rust/application/tests/fixtures/providers/pass/default_provider_layout_demand_exit")
+    repository().join(
+        "source-rust/application/tests/fixtures/providers/pass/default_provider_layout_demand_exit",
+    )
 }
 
 /// A copy of the kept program whose Build keeps every kit default, with `main`
 /// as its entry source.
-fn default_only(name: &str, main: &str) -> PathBuf {
+fn default_only(name: &str, main: &str) -> TemporaryDirectory {
     let kit = repository()
         .join("source-rust/application/tests/fixtures/packages/layout-default-kit")
         .canonicalize()
@@ -68,15 +67,7 @@ fn default_only(name: &str, main: &str) -> PathBuf {
         .collect::<Vec<_>>()
         .join("\n");
     assert_ne!(defaults, build);
-    let root = std::env::temp_dir().join(format!(
-        "omega-default-provider-layout-{name}-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).expect("staged project");
-    std::fs::write(root.join("build.omg"), defaults).expect("staged Build");
-    std::fs::write(root.join("main.omg"), main).expect("staged program");
-    root
+    project::stage(name, &[("build.omg", &defaults), ("main.omg", main)])
 }
 
 fn assert_runs_on_each_engine(root: &std::path::Path) {
@@ -97,21 +88,24 @@ fn an_unchosen_dependency_default_is_never_laid_out() {
         "unreached",
         "use {layout_default_kit}/main/layouts.omg;\n\nmachine main() {\n}\n",
     );
-    assert_runs_on_each_engine(&root);
-    let _ = std::fs::remove_dir_all(&root);
+    assert_runs_on_each_engine(root.path());
 }
 
 #[test]
 fn a_chosen_dependency_default_with_an_invalid_layout_is_refused() {
     let main = std::fs::read_to_string(fixture().join("main.omg")).expect("kept program");
     let root = default_only("reached", &main);
-    let report = omega(&["--check", "main.omg"], &root);
-    let _ = std::fs::remove_dir_all(&root);
+    // The authored Windows row must be valid even when the requested output is Linux.
+    let (accepted, diagnostic) = project::status(&project::omega(
+        root.path(),
+        &["--check", "--target", "linux_x86_64", "build.omg"],
+    ));
+    assert!(!accepted, "the Windows provider has overlapping fields");
     assert!(
-        report.contains(
+        diagnostic.contains(
             "layout policy for `Overlapping` on `windows_x86_64`: layout placements of field keys 1 and 2 overlap"
         ),
-        "{report}"
+        "{diagnostic}"
     );
 }
 
@@ -127,17 +121,17 @@ fn reopen(
 
 #[test]
 fn an_entryless_library_demands_only_the_selected_targets_layouts() {
-    use platform_custody::temporary_directory::TemporaryDirectory;
-    let root = TemporaryDirectory::create("entryless-layout-demand", false).unwrap();
-    std::fs::write(
-        root.path().join("build.omg"),
-        r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-        Build::package(builder, "layout_reach");
+    let root = project::stage(
+        "entryless-layout-demand",
+        &[(
+            "build.omg",
+            r#"use main.omg as app;
+machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "layout_reach" };
         Build::select_provider::<|app|::Reading, |app|::ConstantReading>(builder, alpha_bootstrap);
     }"#,
-    )
-    .unwrap();
+        )],
+    );
 
     // Alpha has no C record geometry. Its selected provider can still return
     // a constant while an unrelated declaration in the same library mentions CLayout.
@@ -153,7 +147,7 @@ machine build(builder: @mutable Build) {
         (
             "",
             "|layout|::LayoutStorage<Packet, |c_layout|::CAbiPolicy<OtherPacket>>",
-            Some("selected layout policy belongs to another semantic type"),
+            Some("does not supply the declared `FixedLayout` application of `LayoutStorage`"),
         ),
     ] {
         let source = format!(
@@ -171,17 +165,16 @@ use {{omega}}/language/core/layout.omg;
             }}"#
         );
         std::fs::write(root.path().join("main.omg"), source).unwrap();
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args([
+        let output = project::omega(
+            root.path(),
+            &[
                 "--emit-psi",
                 "library.psi",
                 "--target",
                 "linux_x86_64",
                 "build.omg",
-            ])
-            .current_dir(root.path())
-            .output()
-            .unwrap();
+            ],
+        );
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert_eq!(output.status.success(), refusal.is_none(), "{stderr}");
         if let Some(reason) = refusal {
@@ -247,27 +240,28 @@ use {{omega}}/language/core/layout.omg;
 
 #[test]
 fn an_unreached_layout_constant_keeps_its_initializer_without_target_geometry() {
-    use platform_custody::temporary_directory::TemporaryDirectory;
     use terminal_psi::{LayoutMeasurement, ScalarApplication};
-    let root = TemporaryDirectory::create("entryless-layout-constant", false).unwrap();
-    std::fs::write(
-        root.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
-        Build::package(builder, "observed_packet");
+    let root = project::stage(
+        "entryless-layout-constant",
+        &[
+            (
+                "build.omg",
+                r#"machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "observed_packet" };
     }"#,
-    )
-    .unwrap();
-    std::fs::write(
-        root.path().join("main.omg"),
-        r#"use {omega}/language/core/c_layout.omg;
+            ),
+            (
+                "main.omg",
+                r#"use {omega}/language/core/c_layout.omg;
         public data Packet [copy] { first: u8; second: u64; last: u16; }
         public const BYTES: u64 = size_of::<|c_layout|::CLayout<Packet>>();
         public machine packet_bytes() -> u64 reaches none crashes none { BYTES }
         machine extent() -> u64 reaches none crashes none { size_of::<|c_layout|::CLayout<Packet>>() }
         public data Envelope [copy] { bytes: [u8; extent()]; }
         public machine read(packet: @Envelope) -> u64 reaches none crashes none { 0u64 }"#,
-    )
-    .unwrap();
+            ),
+        ],
+    );
     let report = omega(
         &[
             "--emit-psi",

@@ -16,7 +16,6 @@ Start at [resolver.rs](src/resolver.rs). A spelling such as `kit::pick` becomes 
 | Where does a syntax node become a resolved node? | [Lowering](src/lowering/mod.rs) dispatches by item, expression, statement, or type reference. |
 | Which call or operator did an expression select? | [Selections](src/selections/mod.rs), including [operator homes](src/selections/domain_operator_homes.rs) and [authored selections](src/selections/authored_selections.rs). |
 | Where does a constant initializer go? | [Constants](src/constants/mod.rs) owns the initializer, dependencies and substitution across phases. |
-| What can build-time evaluation ask before full resolution? | [Pre-resolution queries](src/pre_resolution/mod.rs) return selected declarations and initializer inputs. |
 | A build generated another source file. How does it see existing declarations? | [Generated source](src/generated_source.rs) extends the retained base and joins the new selections to its existing identities. |
 
 ## Porting the pass to Omega

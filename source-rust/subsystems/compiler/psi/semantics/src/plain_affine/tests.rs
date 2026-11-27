@@ -1067,7 +1067,7 @@ fn borrowed_successors_cannot_strengthen_actual_access_even_for_copyable_storage
 }
 
 #[test]
-fn borrowed_address_names_end_at_last_use_but_descriptor_cells_do_not() {
+fn borrowed_address_names_and_their_contained_descriptors_have_independent_liveness() {
     use terminal_psi::{Operation, OperationKind, OperationResult, Terminator};
     let mut types = reconvergence_types();
     let mut machine = borrowed_backedge(StructuralAccess::MutableBorrow);
@@ -1121,7 +1121,12 @@ fn borrowed_address_names_end_at_last_use_but_descriptor_cells_do_not() {
     };
     types[1].multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
     let contained = borrowed_address_liveness(&machine, &types).unwrap();
-    assert!(!contained.is_address_header(id(2)));
+    assert!(contained.is_address_header(id(2)));
+    let inventory = crate::descriptor_results::DescriptorSlotKind::BorrowedStorage
+        .owned_inventory(&types, id(2), types[2].id)
+        .unwrap();
+    assert!(!inventory.slots.is_empty());
+    assert!(inventory.slots.iter().all(|slot| !slot.path.is_empty()));
 }
 
 #[test]
@@ -1451,7 +1456,7 @@ fn owned_analysis(types: &[StructuralTypeDeclaration]) -> Analysis<'_> {
             affine: true,
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             whole_restoration: true,
-            unqualified_owned: true,
+            decomposition: Decomposition::Plain,
             parameter: false,
             exclusive: false,
         })],

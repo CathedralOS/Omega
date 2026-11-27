@@ -12,10 +12,10 @@ without ever admitting equal arity as a replacement.
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
-use terminal_authority_receipts::TerminalMechanismIdentity;
-use selected_provider_plans::SelectedProviderPlanFacts;
-use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use build_providers::plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use build_providers::selections::SelectedProviderPlanFacts;
 use semantic_vocabulary::BoundaryMachineId;
+use terminal_authority_receipts::TerminalMechanismIdentity;
 
 use super::reachability::AuthorityGraph;
 use crate::{
@@ -27,7 +27,7 @@ struct AdmittedMechanismRow<'a> {
     foreign: Option<&'a target_operations::NormalizedForeignCallBinding>,
     native_binding: Option<(
         target_operations::NativeBindingExecution,
-        provider_plans::ServiceSchemaDigest,
+        build_providers::plans::ServiceSchemaDigest,
     )>,
 }
 
@@ -180,7 +180,7 @@ impl<'a> ReviewContext<'a> {
         boundary: BoundaryMachineId,
     ) -> Option<(
         target_operations::NativeBindingExecution,
-        provider_plans::ServiceSchemaDigest,
+        build_providers::plans::ServiceSchemaDigest,
     )> {
         self.mechanisms
             .get(&boundary)
@@ -290,7 +290,7 @@ impl<'a> ReviewContext<'a> {
         (
             &'a ProviderPlan,
             &'a ProviderPlanRow,
-            Option<&'a selected_provider_plans::SelectedRequirementSpecialization>,
+            Option<&'a build_providers::selections::SelectedRequirementSpecialization>,
         ),
         String,
     > {

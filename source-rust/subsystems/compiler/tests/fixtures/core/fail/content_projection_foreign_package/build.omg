@@ -1,8 +1,8 @@
 use main.omg as app;
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "content_projection_foreign_package");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "content_projection_foreign_package" };
     let mutable owner_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "owner" });
     |dependency|::with_alias(@mutable owner_dependency, "owner");
     let owner_registration: DependencyRegistration = Build::dependency(builder, owner_dependency);

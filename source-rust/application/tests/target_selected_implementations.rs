@@ -13,25 +13,19 @@ compiler must refuse the program for that target rather than pick one.
 
 */
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
 fn fixture(relative: &str) -> PathBuf {
-    support::repository_root()
-        .join(relative)
+    support::repository_root().join(relative)
 }
 
 fn omega_run(directory: &Path, extra: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("run")
-        .args(extra)
-        .arg("build.omg")
-        .current_dir(directory)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs")
+    project::omega(directory, &[&["run"][..], extra, &["build.omg"]].concat())
 }
 
 fn printed(output: &Output) -> String {
@@ -73,7 +67,9 @@ fn each_target_runs_the_implementation_its_build_row_selects() {
 
 #[test]
 fn a_target_without_a_build_row_has_no_implementation() {
-    let directory = fixture("source-rust/application/tests/fixtures/build/fail/target_selected_implementation_missing_row");
+    let directory = fixture(
+        "source-rust/application/tests/fixtures/build/fail/target_selected_implementation_missing_row",
+    );
     let output = omega_run(
         &directory,
         // Both requirements share one cause; ask for every diagnostic so the
@@ -93,13 +89,15 @@ fn a_target_without_a_build_row_has_no_implementation() {
 
 #[test]
 fn applied_services_keep_their_separate_selected_implementations() {
-    let directory = fixture("source-rust/application/tests/fixtures/providers/run/applied_boundary_providers");
+    let directory =
+        fixture("source-rust/application/tests/fixtures/providers/run/applied_boundary_providers");
     assert_each_engine_returns(&directory);
 }
 
 #[test]
 fn an_implementation_of_another_service_application_is_refused() {
-    let directory = fixture("source-rust/application/tests/fixtures/providers/fail/applied_boundary_providers");
+    let directory =
+        fixture("source-rust/application/tests/fixtures/providers/fail/applied_boundary_providers");
     let output = omega_run(&directory, &["--engine", "psi"]);
     let text = printed(&output);
     assert!(!output.status.success(), "{text}");

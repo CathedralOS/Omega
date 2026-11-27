@@ -5,13 +5,13 @@
 #[path = "host_cohorts/tests.rs"]
 mod tests;
 
-use provider_acceptance::ServiceTerminalAuthorityPermission;
+use build_providers::acceptance::ServiceTerminalAuthorityPermission;
 use semantic_vocabulary::{
     PortableFilesystemAuthorityFacet,
     TerminalAuthorityDisposition,
 };
 use terminal_authority_receipts::{NormalizedForeignArgumentContract, TerminalMechanismIdentity};
-use provider_plans::{ServiceMethod, ServiceSchema, ServiceSchemaDigest};
+use build_providers::plans::{ServiceMethod, ServiceSchema, ServiceSchemaDigest};
 
 use super::TerminalAuthorityPolicyRow;
 

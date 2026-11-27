@@ -16,41 +16,23 @@ the constant and not to the staging.
 
 */
 
-use std::path::PathBuf;
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 fn check(name: &str, build_body: &str) -> (bool, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-constant-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).expect("staging directory");
-    std::fs::write(root.join("main.omg"), "machine main() { }\n").expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            "use main.omg as app;
+    let build = format!(
+        "use main.omg as app;
 machine observe(target: BuildTarget) {{ }}
-machine build(builder: @mutable Build) {{
-    Build::application(builder, \"settled\");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: \"settled\" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 {build_body}}}
 "
-        ),
-    )
-    .expect("staged Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("main.omg")
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(PathBuf::from(&root));
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stderr).into_owned(),
+    );
+    project::check(
+        name,
+        &[("main.omg", "machine main() { }\n"), ("build.omg", &build)],
+        &["--check", "main.omg"],
     )
 }
 

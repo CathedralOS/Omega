@@ -50,7 +50,9 @@ fn cited_kernel_terms_rewrite_beneath_an_application_and_chain_in_reverse() {
     );
     assert_eq!(
         prove(&mut arena, &context, goal, &[xy, zy], 1, &mut budget),
-        Err(SearchError::Budget)
+        Err(SearchError::Budget(
+            crate::equality::BudgetLimit::SearchSteps
+        ))
     );
 }
 
@@ -58,6 +60,14 @@ const CITED: &str = include_str!("../../tests/fixtures/semiring_identity/pass/ci
 const UNCITED: &str = include_str!("../../tests/fixtures/semiring_identity/fail/uncited/main.omg");
 
 fn generic(source: &str) -> RouteVerdict {
+    generic_with_tables(source, |_| {})
+}
+
+/// `generic`, after `change` has edited the Identity tables stage 05 wrote.
+fn generic_with_tables(
+    source: &str,
+    change: impl FnOnce(&mut Vec<terminal_check_tables::mathematics::IdentityTable>),
+) -> RouteVerdict {
     let typed = super::build_purpose::frontier_with_core(
         source,
         "machine build_entry() {}",
@@ -86,7 +96,13 @@ fn generic(source: &str) -> RouteVerdict {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    let mut parts = crate::judge_compilation(compilation.program).into_iter();
+    let mut program = compilation.program;
+    if let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
+        &mut program
+    {
+        change(&mut prepared.mathematics.identities);
+    }
+    let mut parts = crate::judge_compilation(program).into_iter();
     let closure = parts.next().expect("package judgment").unwrap();
     assert!(matches!(closure, RouteVerdict::Accepted(_)), "{closure:?}");
     let form = parts.next().expect("generic machine judgment").unwrap();
@@ -99,6 +115,108 @@ fn generic(source: &str) -> RouteVerdict {
 #[test]
 fn semiring_identity_uses_the_cited_law() {
     assert_cited_semiring_identity(generic(CITED));
+}
+
+/// The generic machine's carrier `T`, the operation `Ring::add` and the law
+/// `Ring::add_comm` are one table of the mathematical signature, which the
+/// kernel checks once. The judged Identity starts from that table and adds
+/// only the machine's two inputs.
+#[test]
+fn semiring_identity_starts_from_the_forms_identity_table() {
+    let mut table = None;
+    let verdict = generic_with_tables(CITED, |tables| {
+        let [only] = tables.as_slice() else {
+            panic!("one generic check form has one Identity table: {tables:?}");
+        };
+        table = Some(only.clone());
+    });
+    let table = table.unwrap();
+    assert_eq!(table.suppliers.len(), 1, "{table:?}");
+    assert!(
+        table
+            .carriers
+            .contains(&semantic_vocabulary::ClauseCarrier::Parameter(0)),
+        "{table:?}"
+    );
+    let add = table
+        .operations
+        .iter()
+        .find(|operation| operation.domains.len() == 2)
+        .unwrap_or_else(|| panic!("the table declares `Ring::add`: {table:?}"));
+    assert_eq!(
+        add.declaration.supplier,
+        Some((
+            table.suppliers[0].arena_index(),
+            table.suppliers[0].generation()
+        ))
+    );
+    assert!(!table.laws.is_empty(), "{table:?}");
+    let RouteVerdict::Accepted(closure) = verdict else {
+        panic!("{verdict:?}")
+    };
+    let guarantees = verdicts(closure.elaboration(), closure.discharge(), 1, guarantee);
+    let [(_, Ok(Discharged::Identity(judgment)))] = guarantees.as_slice() else {
+        panic!("{guarantees:?}")
+    };
+    let checked = terminal_codec::decode_mathematical_certificate(&judgment.certificate).unwrap();
+    // Every declaration past the table is one of the machine's two inputs.
+    let declared = checked.certificate.signature.len();
+    let table_declarations = declared - 2;
+    assert!(
+        checked.certificate.signature[table_declarations..]
+            .iter()
+            .all(proof_admission::Declaration::is_assumption)
+    );
+    assert!(table_declarations > table.carriers.len() + table.operations.len());
+}
+
+/// The twin: the same program, with the law it cites missing from the
+/// table. The obligation does not declare the law itself; it is refused.
+#[test]
+fn a_cited_law_missing_from_the_identity_table_is_refused() {
+    let verdict = generic_with_tables(CITED, |tables| tables[0].laws.clear());
+    assert_refused_for(
+        verdict,
+        "a cited law that is not in the form's Identity table",
+    );
+}
+
+/// The twin for an operation: with `Ring::add` missing from the table, the
+/// goal that applies it is refused rather than given a declaration of its own.
+#[test]
+fn a_trait_operation_missing_from_the_identity_table_is_refused() {
+    let verdict = generic_with_tables(CITED, |tables| {
+        tables[0].operations.clear();
+        tables[0].laws.clear();
+    });
+    assert_refused_for(
+        verdict,
+        "a trait operation that is not in the form's Identity table",
+    );
+}
+
+/// The twin for a table the kernel does not accept: an operation declared at
+/// a carrier the table never declared is refused for every Identity of the
+/// form, with the reason.
+#[test]
+fn an_identity_table_the_kernel_refuses_refuses_the_forms_identities() {
+    let verdict = generic_with_tables(CITED, |tables| {
+        let table = &mut tables[0];
+        let mut twice = table.operations[0].clone();
+        twice.result =
+            semantic_vocabulary::ClauseCarrier::Scalar(semantic_vocabulary::ScalarType::Boolean);
+        table.operations.push(twice);
+    });
+    assert_refused_for(verdict, "the machine's Identity table cannot be declared");
+}
+
+fn assert_refused_for(verdict: RouteVerdict, reason: &str) {
+    let text = format!("{verdict:?}");
+    assert!(
+        !matches!(verdict, RouteVerdict::Accepted(_)),
+        "the guarantee must not be judged: {text}"
+    );
+    assert!(text.contains(reason), "expected `{reason}`: {text}");
 }
 
 fn assert_cited_semiring_identity(verdict: RouteVerdict) {
@@ -227,15 +345,16 @@ fn unproved_statement_at_ensures(source: &str, verdict: RouteVerdict) -> String 
 }
 
 const ERASED: &str = r#"
-use omega\language\core\CommutativeSemiring;
+use {omega}/language/core/algebra.omg;
+use {omega}/language/core/foundation.omg as proof;
 
-machine entry<const Ring: CommutativeSemiring<bool>>(a: bool, b: bool) {
+machine entry<const Ring: |algebra|::CommutativeSemiring<bool>>(a: bool, b: bool) {
     Ring::add_comm(a, b);
     consume(Ring::add(a, b), Ring::add(b, a));
 }
 
 machine consume(left [erased]: bool, right [erased]: bool)
-requires core\Identity::<bool>(left, right)
+requires |proof|::Identity::<bool>(left, right)
 {}
 "#;
 
@@ -319,8 +438,9 @@ fn an_erased_declaration_application_cannot_supply_its_own_equality() {
 fn a_domain_cast_proves_its_typed_identity_in_the_kernel() {
     let verdict = generic(
         r#"
-use omega\language\core\f;
-domain u64::Reflexive requires core\Identity::<u64>(f(self), f(self));
+use {omega}/language/core/proof_clause_operation.omg;
+use {omega}/language/core/foundation.omg as proof;
+domain u64::Reflexive requires |proof|::Identity::<u64>(|proof_clause_operation|::f(self), |proof_clause_operation|::f(self));
 machine entry<T [copy]>(x: u64, _fallback: T) {
     let held: u64 in Reflexive = x as +Reflexive;
 }
@@ -341,8 +461,9 @@ machine entry<T [copy]>(x: u64, _fallback: T) {
 fn a_definition_body_retains_a_bodyless_application() {
     let verdict = generic(
         r#"
-use omega\language\core\f;
-let same(x: u64): core\Strict<0> = f(x) == f(x);
+use {omega}/language/core/proof_clause_operation.omg;
+use {omega}/language/core/foundation.omg as proof;
+let same(x: u64): |proof|::Strict<0> = |proof_clause_operation|::f(x) == |proof_clause_operation|::f(x);
 machine entry<T [copy]>(x: u64, _fallback: T) ensures same(x) {}
 "#,
     );
@@ -373,8 +494,8 @@ fn an_erased_integer_application_uses_the_typed_kernel_route() {
 fn an_erased_application_keeps_its_selected_semiring() {
     let source = ERASED
         .replace(
-            "const Ring: CommutativeSemiring<bool>",
-            "const Ring: CommutativeSemiring<bool>, const Other: CommutativeSemiring<bool>",
+            "const Ring: |algebra|::CommutativeSemiring<bool>",
+            "const Ring: |algebra|::CommutativeSemiring<bool>, const Other: |algebra|::CommutativeSemiring<bool>",
         )
         .replace(
             "consume(Ring::add(a, b), Ring::add(b, a))",
@@ -387,14 +508,16 @@ fn an_erased_application_keeps_its_selected_semiring() {
         if requirement(&failure.kind) && failure.cause == UnprovedCause::NoDerivation));
 }
 
-
 #[test]
 fn a_type_definition_body_forms_identity_through_the_clause_reader() {
-    let verdict = generic(r#"
-use omega\language\core\f;
-let same(x: u64): core\Type<0> = core\Identity::<u64>(f(x), f(x));
+    let verdict = generic(
+        r#"
+use {omega}/language/core/proof_clause_operation.omg;
+use {omega}/language/core/foundation.omg as proof;
+let same(x: u64): |proof|::Type<0> = |proof|::Identity::<u64>(|proof_clause_operation|::f(x), |proof_clause_operation|::f(x));
 machine entry<T [copy]>(x: u64, _fallback: T) ensures same(x) {}
-"#);
+"#,
+    );
     let RouteVerdict::Accepted(closure) = verdict else {
         panic!("{verdict:?}");
     };
@@ -412,7 +535,7 @@ fn an_erased_type_argument_retains_the_callers_identity() {
         source
             .replace(
                 "machine entry",
-                "let stated(p [erased]: core\\Type<0>): core\\Type<0> = p;\nmachine entry",
+                "let stated(p [erased]: |proof|::Type<0>): |proof|::Type<0> = p;\nmachine entry",
             )
             .replace(
                 &format!("ensures {statement}"),
@@ -453,7 +576,7 @@ fn an_erased_type_argument_retains_the_callers_identity() {
     let uncited = through_formal(UNCITED);
     let statement = unproved_statement_at_ensures(&uncited, generic(&uncited));
     assert!(
-        statement.ends_with("stated(core::Identity::<T>(Ring.add(b, a), Ring.add(a, b)))"),
+        statement.ends_with("stated(|proof|::Identity::<T>(Ring.add(b, a), Ring.add(a, b)))"),
         "{statement}"
     );
 }
@@ -462,9 +585,11 @@ fn an_erased_type_argument_retains_the_callers_identity() {
 fn an_unused_erased_type_argument_does_not_require_an_identity_witness() {
     let verdict = generic(
         r#"
-let ignore(p [erased]: core\Type<0>): core\Strict<0> = 0u64 == 0;
+use {omega}/language/core/foundation.omg as proof;
+
+let ignore(p [erased]: |proof|::Type<0>): |proof|::Strict<0> = 0u64 == 0;
 machine probe<T [copy]>(x: u64, y: u64, _unused: T)
-ensures ignore(core\Identity::<u64>(x, y))
+ensures ignore(|proof|::Identity::<u64>(x, y))
 {}
 "#,
     );

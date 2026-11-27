@@ -1,9 +1,10 @@
 //! Form the selected algebra constructor from the projection's single authored value.
-use super::{Definition, Program, Header};
-use crate::{Unserved, refuse};
+use super::{Definition, Header, Program};
+use crate::Unserved;
+use crate::read::refuse_at;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
 use semantic_vocabulary::{ContentAlgebraKind, ContentProjectionExpression, MachineId};
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 impl Program<'_> {
     pub(super) fn closed_projection_body(
@@ -13,7 +14,7 @@ impl Program<'_> {
         header: Header,
         carrier: crate::body::ValueType,
     ) -> Checked<Definition> {
-        let missing = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
+        let missing = |what| refuse_at(id, Unserved::Declaration(what));
         let typed = self.typed;
         let (machine, state) = self.declaration(id, symbol)?;
         let algebra = header.result;

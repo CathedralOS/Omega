@@ -176,7 +176,7 @@ impl ExcludedRoots {
                 }
                 Ok(ExcludedRoot {
                     path: path.clone(),
-                    canonical: resolver_execution::canonicalize_exclusion_root(path).map_err(
+                    canonical: crate::git::execution::canonicalize_exclusion_root(path).map_err(
                         |error| SourceResolveError::GitExecutableInvalid {
                             path: path.clone(),
                             message: error.to_string(),

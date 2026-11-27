@@ -1,5 +1,5 @@
 //! Issue and resolve this activation’s service and program selections for each dependency registration.
-use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use semantic_vocabulary::{StructuralTypeId, dependency_reach::DependencyReach};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};

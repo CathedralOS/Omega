@@ -10,8 +10,8 @@ fn review_classifies_exposed_core_services_by_identity_and_preserves_root_regist
     fs::write(
         project.path().join("build.omg"),
         r#"use {omega}/language/core/process_authority.omg as process;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "service_audit");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "service_audit" };
     Build::audit_service::<|process|::StandardOutput>(builder);
     Build::audit_service::<|process|::StandardOutput>(builder);
     Build::audit_service::<|process|::StandardInput>(builder);
@@ -79,15 +79,15 @@ fn fresh_audit_reports_each_build_and_a_version_four_lock_refuses_the_chain() {
     for (file, source) in [
         (
             "build.omg",
-            r#"machine build(b: @mutable Build) { Build::build_entry(b, "prepare.omg"); }"#,
+            r#"machine build(b: @mutable BuildPlan) { Build::build_entry(b, "prepare.omg"); }"#,
         ),
         (
             "prepare.omg",
-            r#"machine build(b: @mutable Build) { Build::build_entry(b, "configure.omg"); }"#,
+            r#"machine build(b: @mutable BuildPlan) { Build::build_entry(b, "configure.omg"); }"#,
         ),
         (
             "configure.omg",
-            r#"machine build(b: @mutable Build) { Build::package(b, "meter"); }"#,
+            r#"machine build(b: @mutable BuildPlan) { b.product = BuildProduct::Package { name: "meter" }; }"#,
         ),
         ("main.omg", "public machine value() -> u64 { 17u64 }"),
     ] {

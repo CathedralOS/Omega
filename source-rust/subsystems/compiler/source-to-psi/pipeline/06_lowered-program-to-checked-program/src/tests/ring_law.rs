@@ -37,7 +37,7 @@ const COMMUTES_UNLICENSED: &str = include_str!(
 /// the standard library, which the command-level test supplies.
 fn proofs(source: &str) -> String {
     let end = source.find("data Main").expect("the fixture's entry state");
-    source[..end].replace("use omega\\language\\core\\ProcessExit;\n", "")
+    source[..end].replace("use {omega}/language/core/process_exit.omg;\n", "")
 }
 
 fn judged(source: &str) -> Vec<RouteVerdict> {
@@ -283,11 +283,11 @@ fn every_declaration_the_ordinary_reader_skips_is_read_or_refused() {
         judged(&helper)
     );
     let unused =
-        format!("{conforming}\ndata Tagged {{ case Empty; case More(tag: u64, rest: Tagged); }}\n");
+        format!("{conforming}\ndata Tagged {{ case Empty; case More(tag: f64, rest: Tagged); }}\n");
     assert!(
         unread(
             &unused,
-            "data that contains itself with a field of another type"
+            "mathematical declaration over a type other than data that contains itself"
         ),
         "{:?}",
         judged(&unused)
@@ -299,8 +299,8 @@ fn a_satisfier_that_proves_another_equality_does_not_conform() {
     // The machine proves a true equality, by computation alone, and claims
     // the trait's associativity law with it. Reflexivity is not that law.
     let source = proofs(CONFORMING).replace(
-        "core\\Identity::<Peano>((plus(plus(a, b), c)), (plus(a, plus(b, c))))",
-        "core\\Identity::<Peano>((plus(a, plus(b, c))), (plus(a, plus(b, c))))",
+        "|proof|::Identity::<Peano>((plus(plus(a, b), c)), (plus(a, plus(b, c))))",
+        "|proof|::Identity::<Peano>((plus(a, plus(b, c))), (plus(a, plus(b, c))))",
     );
     assert_ne!(source, proofs(CONFORMING));
     let verdicts = judged(&source);
@@ -338,7 +338,7 @@ fn without_the_recursive_call_the_successor_case_names_its_unproved_equality() {
     let source = proofs(CONFORMING).replace("        plus_assoc(pred, b, c);\n", "");
     assert_ne!(source, proofs(CONFORMING));
     assert!(source.contains(
-        "ensures\n    core\\Identity::<Peano>((plus(plus(a, b), c)), (plus(a, plus(b, c))))"
+        "ensures\n    |proof|::Identity::<Peano>((plus(plus(a, b), c)), (plus(a, plus(b, c))))"
     ));
     let verdicts = judged(&source);
     let law = unproved(&verdicts);

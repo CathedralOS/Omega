@@ -1,6 +1,6 @@
 use main.omg as app;
 
-machine build(builder: @mutable Build) {
-    Build::package(builder, "target_realization_scope");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "target_realization_scope" };
     Build::select_provider::<|app|::Coordinate, |app|::SelectedCoordinate>(builder, uefi_x86_64);
 }

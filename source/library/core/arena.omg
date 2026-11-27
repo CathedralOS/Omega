@@ -1,3 +1,5 @@
+use extent.omg;
+
 // Provisional allocation-provider seam (contract only).
 //
 // This trait does not define an Arena language capability or bless bump, slab,
@@ -18,12 +20,12 @@
 
 
 boundary trait Arena {
-    machine allocate(size: u64, align: u64) -> Extent
+    machine allocate(size: u64, align: u64) -> |extent|::Extent
     reaches
         Arena
     crashes Trap crashes Abort;
 
-    machine deallocate(extent: Extent)
+    machine deallocate(extent: |extent|::Extent)
     reaches
         Arena
     crashes Trap crashes Abort;

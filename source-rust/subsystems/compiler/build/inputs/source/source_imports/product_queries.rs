@@ -11,10 +11,7 @@
 mod declaration;
 use declaration::DeclarationLookup;
 
-use super::LogicalSourceDiscovery as _;
-use super::bindings::{ImportOccurrence, ResolvedSourceImport};
-use super::paths::{is_bundled_core_path, is_bundled_omega_path};
-use super::{ReconciledPackageImport, SourceStorage, reconciled_package_import};
+use super::SourceStorage;
 use crate::PackageCompilationInputs;
 use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
@@ -40,7 +37,7 @@ mod tests {
     use super::*;
     use crate::{BuildDeclarationKind, PackageDependencyBinding, PackageSourceBinding};
     use semantic_vocabulary::PackageKeyIdentity;
-    use source_capture::{CapturedSourceNode, CapturedSourceTree};
+    use source_acquisition::capture::{CapturedSourceNode, CapturedSourceTree};
     use std::sync::Arc;
 
     fn package(number: u8, name: &str, text: &str) -> PackageSourceBinding {
@@ -533,7 +530,11 @@ impl ProductQueryInputs {
                     self.graphs()
                         .find(|inputs| inputs.package_for_source(&authored.path) == Some(owner))
                 });
-            for import in authored.imports.iter().filter(|import| import.used_in(authored.scope)) {
+            for import in authored
+                .imports
+                .iter()
+                .filter(|import| import.used_in(authored.scope))
+            {
                 let contract = storage.installed_roots.root_for(&authored.path);
                 let mounted_owner = owner.is_some_and(|inputs| {
                     !self
@@ -548,150 +549,48 @@ impl ProductQueryInputs {
                         super::source_import_scope(inputs, authored.scope, &authored.path)
                     }
                 };
-                if let Some(file) = super::files::FileImport::from(authored, import)? {
-                    // Installed sources do not inherit the caller’s dependency aliases.
-                    let mount = file
-                        .root
-                        .filter(|_| contract.is_none())
-                        .and_then(|alias| self.mounted_for(authored.scope, alias));
-                    let mounted = mount.map(|dependency| &dependency.inputs);
-                    let selected = if let Some(inputs) = owner {
-                        file.reconciled(
-                            inputs,
-                            inputs.package_for_source(&authored.path),
-                            purpose(inputs),
-                            contract,
-                            &storage.filesystem,
-                        )?
-                    } else {
-                        let core = super::bundled_core_root()?;
-                        let local = contract
-                            .or_else(|| authored.path.starts_with(&core).then_some(core.as_path()))
-                            .or_else(|| {
-                                authored
-                                    .path
-                                    .starts_with(storage.default_package_root())
-                                    .then_some(storage.default_package_root())
-                            });
-                        file.standalone(local, mounted, &storage.filesystem)?
-                    };
-                    let selected = match selected {
-                        super::files::FileSelection::Selected(file) => vec![file],
-                        super::files::FileSelection::Package(pending) => pending
-                            .resolve_with_prepared_build(
-                                owner
-                                    .or(mounted)
-                                    .expect("a package import has an admitted graph"),
-                                &mut storage.package_roots,
-                                &storage.sources,
-                                mount.and_then(|dependency| dependency.generated.as_ref()),
-                            )?,
-                        super::files::FileSelection::Unbound => continue,
-                    };
-                    for resolved in selected {
-                        imports.push((resolved.path.clone(), authored.scope));
-                        storage.resolved_imports.push(resolved);
-                    }
-                    continue;
-                }
-                let source_compiler::SourceImportTarget::Namespace(members) = &import.target else {
-                    unreachable!()
-                };
-                let (root, paths, prefix) = if let Some(inputs) = owner {
-                    let requester = inputs.package_for_source(&authored.path);
-                    let purpose = purpose(inputs);
-                    let selected = reconciled_package_import(
-                        &authored.path,
-                        members,
-                        requester,
-                        purpose,
-                        storage.installed_roots.root_for(&authored.path),
+                let file = super::files::FileImport::from(authored, import);
+                // Installed sources do not inherit the caller’s dependency aliases.
+                let mount = file
+                    .root
+                    .filter(|_| contract.is_none())
+                    .and_then(|alias| self.mounted_for(authored.scope, alias));
+                let mounted = mount.map(|dependency| &dependency.inputs);
+                let selected = if let Some(inputs) = owner {
+                    file.reconciled(
                         inputs,
-                    )?;
-                    match selected {
-                        ReconciledPackageImport::Toolchain { root, logical_path }
-                        | ReconciledPackageImport::ToolchainContract { root, logical_path } => {
-                            let prefix = members.len() - logical_path.len();
-                            let paths = storage.package_roots.select(
-                                &root,
-                                &logical_path,
-                                &storage.filesystem,
-                            )?;
-                            (root, paths, prefix)
-                        }
-                        ReconciledPackageImport::Package(request) => {
-                            let prefix = members.len() - request.relative_path.components().count();
-                            let paths = request.logical_sources(
-                                inputs,
-                                &mut storage.package_roots,
-                            )?;
-                            (request.expected_root, paths, prefix)
-                        }
-                    }
+                        inputs.package_for_source(&authored.path),
+                        purpose(inputs),
+                        contract,
+                        &storage.filesystem,
+                    )?
                 } else {
-                    let first = members
-                        .first()
-                        .ok_or_else(|| vec![Diagnostic::error("empty Product query import")])?;
-                    let (root, prefix) = if is_bundled_core_path(members) {
-                        (super::bundled_core_root()?, 3)
-                    } else if is_bundled_omega_path(members) {
-                        return Err(vec![Diagnostic::error(
-                            "Product query library imports require an issued Product dependency",
-                        )]);
-                    } else if let Some(root) =
-                        storage.installed_roots.root_for(&authored.path)
-                    {
-                        (
-                            root.to_path_buf(),
-                            super::paths::contract_package_prefix(root, first)?,
-                        )
-                    } else if !authored.path.starts_with(storage.default_package_root()) {
-                        let core = super::bundled_core_root()?;
-                        if !authored.path.starts_with(&core) {
-                            return Err(vec![Diagnostic::error(
-                                "Product query source has no admitted package scope",
-                            )]);
-                        }
-                        (core, 0)
-                    } else if let Some(dependency) =
-                        self.mounted_for(authored.scope, first.as_str())
-                    {
-                        let root = dependency
-                            .inputs
-                            .package_root(dependency.inputs.root())
-                            .ok_or_else(|| {
-                                vec![Diagnostic::error(
-                                    "Product query dependency lost its source root",
-                                )]
-                            })?;
-                        (root.to_path_buf(), 1)
-                    } else {
-                        (storage.default_package_root().to_path_buf(), 0)
-                    };
-                    let logical = members[prefix..]
-                        .iter()
-                        .map(|name| name.as_str().to_owned())
-                        .collect::<Vec<_>>();
-                    let paths = storage.package_roots.select(&root, &logical, &storage.filesystem)?;
-                    (root, paths, prefix)
+                    let core = super::bundled_core_root()?;
+                    let local = contract
+                        .or_else(|| authored.path.starts_with(&core).then_some(core.as_path()))
+                        .or_else(|| {
+                            authored
+                                .path
+                                .starts_with(storage.default_package_root())
+                                .then_some(storage.default_package_root())
+                        });
+                    file.standalone(local, mounted, &storage.filesystem)?
                 };
-                if paths.is_empty() {
-                    return Err(vec![Diagnostic::error(
-                        "Product query selects no available logical source namespace",
-                    )]);
-                }
-                let _ = root;
-                for path in paths {
-                    storage.resolved_imports.push(ResolvedSourceImport {
-                        occurrence: ImportOccurrence::new(
-                            authored.source_id,
-                            import,
-                            members,
-                            prefix,
-                        ),
-                        path: path.clone(),
-                    });
-                    imports.push((path, authored.scope));
+                let selected = match selected {
+                    super::files::FileSelection::Selected(file) => vec![file],
+                    super::files::FileSelection::Package(pending) => pending
+                        .resolve_with_prepared_build(
+                            owner
+                                .or(mounted)
+                                .expect("a package import has an admitted graph"),
+                            &storage.sources,
+                            mount.and_then(|dependency| dependency.generated.as_ref()),
+                        )?,
+                    super::files::FileSelection::Unbound => continue,
+                };
+                for resolved in selected {
+                    imports.push((resolved.path.clone(), authored.scope));
+                    storage.resolved_imports.push(resolved);
                 }
             }
         }
@@ -725,13 +624,15 @@ impl ProductQueryInputs {
                     "Product query source escapes its admitted source frontier",
                 )]);
             }
-            if self.graphs().any(|inputs| inputs.package_for_source(&canonical).is_some_and(|owner| {
-                inputs.package_root(owner) != Some(storage.default_package_root())
-                    && inputs.dependency_build_file(owner, &canonical)
-            }))
-            {
+            if self.graphs().any(|inputs| {
+                inputs.package_for_source(&canonical).is_some_and(|owner| {
+                    inputs.package_root(owner) != Some(storage.default_package_root())
+                        && inputs.dependency_build_file(owner, &canonical)
+                })
+            }) {
                 return Err(vec![Diagnostic::error(format!(
-                    "Product query cannot import dependency Build entry {}", canonical.display()
+                    "Product query cannot import dependency Build entry {}",
+                    canonical.display()
                 ))]);
             }
             validated.push((canonical, scope));

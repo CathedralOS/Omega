@@ -20,7 +20,10 @@ pub use native_compiler::{
     SourceNativeTarget, TargetProviderInstallation, stage_validators,
 };
 use source_compiler as source_to_psi;
-pub use source_compiler::{PublishedPsi, StageSource, check, inspect};
+pub use source_compiler::{
+    DeclarationUsageAdvisories, PublishedPsi, StageSource, check, check_with_declaration_usage,
+    inspect,
+};
 
 /// Declaration and deployment findings from the same checked Product.
 pub struct ReviewedPackage {
@@ -163,6 +166,7 @@ pub enum Artifact {
 pub struct CompileOptions<'a> {
     pub validators: Option<&'a stage_validators::StageValidatorRequest>,
     pub advisories: Option<&'a mut Vec<Diagnostic>>,
+    pub declaration_usage: Option<&'a mut source_compiler::DeclarationUsageAdvisories>,
 }
 
 pub struct CompileOutput {
@@ -184,7 +188,11 @@ pub fn compile(
                 source.product.calling_targets,
                 |_| "this product emits Psi before target operations",
             )?;
-            let artifact = source_to_psi::compile(source, options.advisories)?;
+            let artifact = source_to_psi::compile_with_declaration_usage(
+                source,
+                options.advisories,
+                options.declaration_usage,
+            )?;
             Ok(CompileOutput {
                 artifact: Artifact::Psi(artifact),
                 validations,
@@ -199,7 +207,11 @@ pub fn compile(
                 |_| "runtime admission stops before target lowering",
             )?;
             let admitted = program
-                .prepare(options.advisories, &mut Default::default())?
+                .prepare(
+                    options.advisories,
+                    options.declaration_usage,
+                    &mut Default::default(),
+                )?
                 .admit_runtime(entry_memory, &mut Vec::new())?;
             Ok(CompileOutput {
                 artifact: Artifact::Runtime(product_publication::CompletedProduct::from_runtime(
@@ -214,7 +226,11 @@ pub fn compile(
         } => {
             let application = program.application().clone();
             let emitted = program
-                .prepare(options.advisories, &mut Default::default())?
+                .prepare(
+                    options.advisories,
+                    options.declaration_usage,
+                    &mut Default::default(),
+                )?
                 .emit(entry_memory, validators)?;
             Ok(CompileOutput {
                 artifact: Artifact::Native(product_publication::CompletedProduct::from_native(
@@ -234,8 +250,16 @@ impl Program<'_> {
         self,
         timings: &mut source_compiler::CompileTimings,
     ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+        self.check_target_with_declaration_usage(None, timings)
+    }
+
+    pub fn check_target_with_declaration_usage(
+        self,
+        declaration_usage: Option<&mut source_compiler::DeclarationUsageAdvisories>,
+        timings: &mut source_compiler::CompileTimings,
+    ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
         let mut advisories = Vec::new();
-        self.prepare(Some(&mut advisories), timings)?
+        self.prepare(Some(&mut advisories), declaration_usage, timings)?
             .check_target()?;
         Ok(advisories)
     }
@@ -259,6 +283,7 @@ impl Program<'_> {
     fn prepare(
         self,
         advisories: Option<&mut Vec<Diagnostic>>,
+        declaration_usage: Option<&mut source_compiler::DeclarationUsageAdvisories>,
         timings: &mut source_compiler::CompileTimings,
     ) -> Result<native_compiler::NativeProgram, Vec<Diagnostic>> {
         match self {
@@ -271,10 +296,11 @@ impl Program<'_> {
                 runtime_consent,
                 suppliers,
             } => {
-                let publication = source_to_psi::compile_for_target_with_timings(
+                let publication = source_to_psi::compile_for_target_with_advisories(
                     source,
                     target.profile.target_name(),
                     advisories,
+                    declaration_usage,
                     timings,
                 )?;
                 Self::CheckedSource {
@@ -283,7 +309,7 @@ impl Program<'_> {
                     runtime_consent,
                     suppliers,
                 }
-                .prepare(None, timings)
+                .prepare(None, None, timings)
             }
             Self::CheckedSource {
                 publication,

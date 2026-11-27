@@ -1224,7 +1224,7 @@ pub(crate) mod byte_buffers {
     use crate::storage::byte_sequences::storage::ByteSequenceStorage;
     use crate::storage::runtime_rows::RuntimeRows;
     use crate::storage::structural_identities::LocalStructuralIdentities;
-    use evaluation_accounting::EvaluationInvocationAccount;
+    use build_model::accounting::EvaluationInvocationAccount;
     use terminal_psi::ByteSequenceCarrier;
     use terminal_psi::StructuralAccess;
     use terminal_psi::StructuralArgument;
@@ -2872,7 +2872,7 @@ pub(crate) mod results {
     impl TerminalByteSequenceValue {
         pub fn copy(
             bytes: &[u8],
-            account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+            account: Option<&build_model::accounting::EvaluationInvocationAccount>,
         ) -> Result<Self, TerminalInterpretError> {
             let storage =
                 crate::storage::byte_sequences::storage::ByteSequenceStorage::copy(bytes, account)?;
@@ -3380,8 +3380,8 @@ pub(crate) mod results {
     pub(crate) mod tests {
         use super::*;
         use crate::engine::calls::frames::tests::empty_program;
-        use evaluation_accounting::BuildEvaluationSponsor;
-        use evaluation_contracts::{
+        use build_model::accounting::BuildEvaluationSponsor;
+        use build_model::contracts::{
             BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
             TerminalStorageScheduleIdentity,
         };
@@ -4581,7 +4581,7 @@ impl TerminalRuntimeSupplies {
     pub fn require_compiler_evaluation(
         &self,
         code: terminal_codec::TerminalExecutionView<'_>,
-        admission: &evaluation_admission::AdmittedCompilerEvaluation,
+        admission: &build_model::admission::AdmittedCompilerEvaluation,
         scalars: Option<&psi_scalar_applications::AdmittedScalarApplications>,
     ) -> Result<(), String> {
         if self.code_identity != code.custody_identity()

@@ -67,23 +67,23 @@ pub(crate) mod activation_storage {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::values::{StructuralRuntimePlace, TerminalStructuralValue};
     use crate::engine::execution::{OperationFlow, TerminalExecution};
+    use crate::extents::{ActivationClaimId, ActivationClaimRequest};
     use crate::storage::byte_sequences::storage::ByteSequenceStorage;
     use crate::storage::byte_sequences::{
         ByteSequenceView,
         binding::{ByteOwnerHome, ByteSequenceBinding},
     };
     use crate::storage::runtime_rows::RuntimeRows;
-    use evaluation_accounting::EvaluationInvocationAccount;
+    use build_model::accounting::EvaluationInvocationAccount;
     use extent_contracts::ActivationClaimSiteId;
-    use extents::{ActivationClaimId, ActivationClaimRequest};
     use resource_bounds::ActivationClaimBranch;
     use semantic_vocabulary::{MachineId, OperationId};
     use terminal_psi::{Operation, OperationKind, StructuralPathSegment};
 
     pub(crate) mod ledger {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
-        use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-        use extents::{ActivationClaimId, ActivationClaimLedger, ActivationClaimRequest};
+        use crate::extents::{ActivationClaimId, ActivationClaimLedger, ActivationClaimRequest};
+        use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 
         pub(crate) struct RuntimeActivationLedger {
             ledger: ActivationClaimLedger,
@@ -191,16 +191,6 @@ pub(crate) mod activation_storage {
     }
 
     impl RuntimeActivationStorage {
-        /// Activation grants contain issuing-machine and operation coordinates.
-        /// A parked source frame may move only once all such grants are settled.
-        pub(crate) fn can_continue_entry(&self) -> bool {
-            self.ledgers.is_empty()
-                && self.grants.is_empty()
-                && self.owners.is_empty()
-                && self.claim_descriptors.is_empty()
-                && self.split_children.is_empty()
-        }
-
         pub(crate) fn measure_result_custody<'storage>(
             &'storage self,
             root: &StructuralRuntimePlace,
@@ -2068,13 +2058,6 @@ pub(crate) mod primitive_storage {
                 structural_type,
             }
         }
-        pub(crate) fn relocate_checked_entry(
-            &mut self,
-            map: &crate::continuation::Coordinates<'_, '_>,
-        ) -> Result<(), String> {
-            self.machine = map.machine(self.depth, self.machine)?;
-            map.ty(&mut self.structural_type)
-        }
         pub(crate) fn scalar_array_frame(self) -> (usize, PlaceId, StructuralTypeId) {
             (self.depth, self.place, self.structural_type)
         }
@@ -2129,12 +2112,6 @@ pub(crate) mod primitive_storage {
     }
 
     impl PrimitiveStorageFragment {
-        pub(crate) fn has_literal_scalar_types(&self) -> bool {
-            !matches!(self.logical, ScalarType::Callable(_))
-                && !matches!(self.stored, ScalarType::Callable(_))
-                && self.storage.has_literal_scalar_encoding()
-        }
-
         pub(crate) fn contiguous_address_endpoint(
             &self,
             observed: ScalarType,
@@ -2211,13 +2188,6 @@ pub(crate) mod primitive_storage {
     }
 
     impl PrimitiveStorage {
-        pub(crate) fn has_literal_scalar_encoding(&self) -> bool {
-            self.encoding.is_none_or(|encoding| {
-                !matches!(encoding.source, ScalarType::Callable(_))
-                    && !matches!(encoding.view, ScalarType::Callable(_))
-            })
-        }
-
         fn canonical(endpoint: PrimitiveStorageEndpoint) -> Self {
             Self {
                 endpoint,
@@ -4743,6 +4713,7 @@ pub(crate) mod primitive_storage {
             Ok(())
         }
 
+        #[cfg(test)]
         pub(crate) fn retains_entry_array_element(
             &self,
             home: &PrimitiveStorageHome,
@@ -4893,8 +4864,8 @@ pub(crate) mod runtime_indexes {
 
 pub(crate) mod runtime_rows {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
-    use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-    use evaluation_contracts::EvaluationAccountingError;
+    use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+    use build_model::contracts::EvaluationAccountingError;
     use std::collections::{BTreeMap, btree_map};
 
     fn reserve_row(
@@ -4927,40 +4898,6 @@ pub(crate) mod runtime_rows {
                 lease: None,
                 account: account.cloned(),
             }
-        }
-
-        /// Move rows whose keys change between publications without replacing their
-        /// storage leases. The caller owns the frame and drops it on any failure.
-        pub(crate) fn relocate_keys(
-            &mut self,
-            mut successor_key: impl FnMut(&Key) -> Result<Option<Key>, String>,
-        ) -> Result<(), String>
-        where
-            Key: Clone,
-        {
-            let mut changes = Vec::new();
-            for old in self.rows.keys() {
-                if let Some(new) = successor_key(old)? {
-                    changes.push((old.clone(), new));
-                }
-            }
-            // Remove all old keys first: two translated keys may exchange numbers.
-            let moved = changes
-                .into_iter()
-                .map(|(old, new)| {
-                    let value = self
-                        .rows
-                        .remove(&old)
-                        .ok_or("continuation lost a retained storage row")?;
-                    Ok((new, value))
-                })
-                .collect::<Result<Vec<_>, String>>()?;
-            for (key, value) in moved {
-                if self.rows.insert(key, value).is_some() {
-                    return Err("continuation aliases two distinct storage paths".into());
-                }
-            }
-            Ok(())
         }
 
         pub(crate) fn from_rows(
@@ -5120,8 +5057,8 @@ pub(crate) mod runtime_rows {
     #[cfg(test)]
     mod tests {
         use super::RuntimeRows;
-        use evaluation_accounting::BuildEvaluationSponsor;
-        use evaluation_contracts::{
+        use build_model::accounting::BuildEvaluationSponsor;
+        use build_model::contracts::{
             BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
             TerminalStorageScheduleIdentity,
         };
@@ -5289,7 +5226,7 @@ pub(crate) mod scalar_storage {
         boundary::values::TerminalScalarValue,
         storage::runtime_rows::RuntimeRows,
     };
-    use evaluation_accounting::EvaluationInvocationAccount;
+    use build_model::accounting::EvaluationInvocationAccount;
     use semantic_vocabulary::ScalarType;
     use std::{collections::BTreeMap, rc::Rc};
 
@@ -5498,15 +5435,6 @@ pub(crate) mod scalar_storage {
         }
     }
     impl CheckedReferenceScalar {
-        pub(crate) fn is_invocation_literal(&self) -> bool {
-            let backing: &dyn std::any::Any = self.backing.as_ref();
-            backing.is::<crate::TerminalInvocationScalar>()
-                && matches!(
-                    self.restriction,
-                    None | Some(terminal_psi::StructuralFieldType::Scalar(_))
-                )
-        }
-
         fn validate(
             &self,
             value: TerminalScalarValue,
@@ -5614,17 +5542,6 @@ pub(crate) mod scalar_storage {
     impl Eq for ScalarCell {}
 
     impl ScalarCell {
-        pub(crate) fn is_local_literal(&self) -> bool {
-            match self {
-                Self::Local(value) => value.literal().is_some(),
-                Self::Resident { backing, .. } => {
-                    let backing: &dyn std::any::Any = backing.as_ref();
-                    backing
-                        .downcast_ref::<CheckedReferenceScalar>()
-                        .is_some_and(|checked| checked.is_invocation_literal())
-                }
-            }
-        }
         pub(crate) fn resident(
             original: TerminalScalarValue,
             backing: Rc<dyn TerminalScalarBacking>,
@@ -5719,18 +5636,6 @@ pub(crate) mod scalar_storage {
             } else {
                 self.0.insert(key, ScalarCell::Local(value))
             }
-        }
-        pub(crate) fn relocate_keys(
-            &mut self,
-            successor_key: impl FnMut(&Key) -> Result<Option<Key>, String>,
-        ) -> Result<(), String>
-        where
-            Key: Clone,
-        {
-            self.0.relocate_keys(successor_key)
-        }
-        pub(crate) fn has_only_literal_cells(&self) -> bool {
-            self.0.values().all(ScalarCell::is_local_literal)
         }
         pub(crate) fn insert_cell(
             &mut self,
@@ -6055,27 +5960,6 @@ pub(crate) mod storage_addresses {
     }
 
     type Coordinate = (u64, u64);
-
-    /// The integer address still contains these coordinates after a new program is admitted.
-    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-    pub(crate) enum ExposedStorageSelector {
-        FieldName(terminal_psi::TerminalIdentityIndex),
-        Case(semantic_vocabulary::StructuralCaseId),
-        Field(semantic_vocabulary::StructuralFieldId),
-    }
-
-    impl ExposedStorageSelector {
-        pub(crate) fn unchanged(
-            self,
-            prefix: &terminal_semantics::continuation::CheckedPrefix<'_>,
-        ) -> bool {
-            match self {
-                Self::FieldName(name) => prefix.field_identity(name) == Some(name),
-                Self::Case(id) => prefix.unambiguous_case_id(id) == Some(id),
-                Self::Field(id) => prefix.unambiguous_field_id(id) == Some(id),
-            }
-        }
-    }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
     pub(crate) enum ScalarStorageAddressKey {
@@ -6554,25 +6438,6 @@ pub(crate) mod storage_addresses {
                 .or(self.local_structural_identities.exposure_namespace)
                 .ok_or_else(exhausted)?;
             let encoded = encode(namespace, root, &path)?;
-            for &(kind, coordinate) in &path {
-                let selector = match kind {
-                    0 => continue, // fixed element index
-                    1 => ExposedStorageSelector::FieldName(terminal_psi::TerminalIdentityIndex(
-                        u32::try_from(coordinate).map_err(|_| malformed())?,
-                    )),
-                    2 => ExposedStorageSelector::Case(
-                        semantic_vocabulary::StructuralCaseId::new(coordinate).ok_or(malformed())?,
-                    ),
-                    3 | 4 => ExposedStorageSelector::Field(
-                        semantic_vocabulary::StructuralFieldId::new(coordinate)
-                            .ok_or(malformed())?,
-                    ),
-                    _ => return Err(malformed()),
-                };
-                if let Err(index) = self.exposed_address_selectors.binary_search(&selector) {
-                    self.exposed_address_selectors.insert(index, selector);
-                }
-            }
             let value = IntegerValue::Unsigned(u128::from(encoded));
             if !integer.admits(value) {
                 return Err(exhausted());

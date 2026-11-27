@@ -162,12 +162,20 @@ machine main(fatal: bool) crashes Trap {
     // Change only the declared type's empty-domain fact. The same private
     // crash body cannot make an inhabited result compatible with Unit.
     let verdicts = program(&source.replacen("requires false", "requires true", 1));
-    let detail = match &verdicts[0] {
-        Ok(RouteVerdict::FallBack(refusal)) => &refusal.detail,
-        Err(crate::CompilationRefusal::Elaboration(refusal)) => &refusal.detail,
-        other => panic!("an inhabited transition result cannot become Unit: {other:?}"),
+    let [Ok(RouteVerdict::Rejected { violations, .. })] = verdicts.as_slice() else {
+        panic!("an inhabited transition result cannot become Unit: {verdicts:?}");
     };
-    assert!(detail.contains("arm value type"), "{detail}");
+    let [violation] = violations.as_slice() else {
+        panic!("the arm must identify its language rule: {violations:?}");
+    };
+    assert!(
+        violation.statement.starts_with(
+            "machine `main` declares no result type, so it completes with Unit, but this value \
+             has type `Empty`"
+        ),
+        "{}",
+        violation.statement
+    );
 }
 
 #[test]
@@ -205,13 +213,15 @@ fn reachable_value_body_falloff_is_a_language_violation() {
 #[test]
 fn canonical_process_exit_publishes_never_without_a_receiving_value() {
     let typed = super::build_purpose::frontier_with_core(
-        "use omega\\language\\core\\Never; \
-         use omega\\language\\core\\ProcessExit; \
-         public machine finish(status: i32) -> Never \
-         reaches ProcessExit crashes none terminates { \
-             ProcessExit::exit_process(status); \
+        "use {omega}/language/core/never.omg;
+use {omega}/language/core/process_exit.omg;
+\
+\
+         public machine finish(status: i32) -> |never|::Never \
+         reaches |process_exit|::ProcessExit crashes none terminates { \
+             |process_exit|::ProcessExit::exit_process(status); \
          } \
-         machine main() reaches ProcessExit crashes none terminates { \
+         machine main() reaches |process_exit|::ProcessExit crashes none terminates { \
              let unreachable_value: u32 = finish(0); \
          }",
         "machine build_entry() {}",

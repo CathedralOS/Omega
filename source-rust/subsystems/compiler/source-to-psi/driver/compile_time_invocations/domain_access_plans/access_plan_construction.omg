@@ -24,8 +24,8 @@ public trait PlanReader { machine read() -> u32; }
 
 machine describe_rule_cell() -> |reflect|::TypeSchema { |reflect|::schema::<RuleCell>() }
 
-// Naming VecCell does not publish its private value field to this source file.
-machine inaccessible_cell_field() -> |reflect|::FieldInfo { |reflect|::field(|vec|::VecCell::value) }
+// The imported carrier exposes its structural field to reflection.
+machine describe_cell_field() -> |reflect|::FieldInfo { |reflect|::field(|vec|::VecCell::value) }
 
 machine describe_machine() -> |reflect|::CallableInfo { |reflect|::callable(return_plan) }
 machine describe_requirement() -> |reflect|::CallableInfo { |reflect|::callable(PlanReader::read) }

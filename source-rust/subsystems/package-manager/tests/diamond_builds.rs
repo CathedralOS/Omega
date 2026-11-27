@@ -10,7 +10,7 @@ use target::TargetProfile;
 fn package(root: &Path, name: &str, dependencies: &[&str]) {
     let directory = root.join(name);
     fs::create_dir(&directory).unwrap();
-    let mut body = format!("Build::package(builder, \"{name}\");\n");
+    let mut body = format!("builder.product = BuildProduct::Package {{ name: \"{name}\" }};\n");
     for dependency in dependencies {
         body.push_str(&format!(
             r#"let {dependency}_request: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "../{dependency}" }}));
@@ -24,7 +24,7 @@ fn package(root: &Path, name: &str, dependencies: &[&str]) {
     };
     fs::write(
         directory.join("build.omg"),
-        format!("{import}machine build(builder: @mutable Build) {{\n{body}}}"),
+        format!("{import}machine build(builder: @mutable BuildPlan) {{\n{body}}}"),
     )
     .unwrap();
     fs::write(

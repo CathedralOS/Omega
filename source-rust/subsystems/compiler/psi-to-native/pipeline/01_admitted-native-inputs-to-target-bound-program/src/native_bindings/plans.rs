@@ -1,12 +1,12 @@
 // Normalize a completed Build supply into its locator receipt. This does not
 // select a provider or admit a service schema; those require canonical authority.
-use provider_plans::{
+use build_model::receipts::NativeBindingMaterialization;
+use build_providers::plans::{
     BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
     EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
     EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
     EvaluatedForeignSyscall,
 };
-use evaluation_receipts::NativeBindingMaterialization;
 use semantic_vocabulary::NativeBindingLocator;
 
 #[cfg(test)]
@@ -21,7 +21,7 @@ pub fn normalize_native_binding(
     requirement: &str,
     service_declaration: &[u8; 32],
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-) -> Result<provider_plans::EvaluatedNativeBinding, String> {
+) -> Result<build_providers::plans::EvaluatedNativeBinding, String> {
     if requirement.is_empty() || supply.requirement_identity != requirement {
         return Err("completed Build binding belongs to a different requirement".into());
     }
@@ -38,13 +38,16 @@ fn evaluate(
     supply: &NativeBindingMaterialization,
     target: target::TargetProfile,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-) -> Result<provider_plans::EvaluatedNativeBinding, String> {
-    use provider_plans::EvaluatedNativeBinding;
+) -> Result<build_providers::plans::EvaluatedNativeBinding, String> {
+    use build_providers::plans::EvaluatedNativeBinding;
     let selection = supply;
     let author_identity = &selection.producer_identity;
     let source_occurrence_digest = selection.source_occurrence_digest;
     let (locator, binding_digest) = match &selection.locator {
-        NativeBindingLocator::FunctionField(selector) => (None, provider_plans::EvaluatedFunctionField::identity_for(target, selector)),
+        NativeBindingLocator::FunctionField(selector) => (
+            None,
+            build_providers::plans::EvaluatedFunctionField::identity_for(target, selector),
+        ),
         NativeBindingLocator::Import(raw) => {
             let locator = target::normalize_foreign_locator(raw.clone(), target)
                 .map_err(|reason| format!("native Build locator: {reason}"))?;
@@ -62,7 +65,7 @@ fn evaluate(
                 .map_err(|_| "native Build syscall number does not fit u32")?;
             (
                 None,
-                provider_plans::evaluated_syscall_identity_digest(target, number),
+                build_providers::plans::evaluated_syscall_identity_digest(target, number),
             )
         }
     };
@@ -79,7 +82,7 @@ fn evaluate(
     closure.raw(&source_occurrence_digest);
     let closure = EvaluatedBindingProducerClosureDigest::from_bytes(closure.finish())?;
     let usage = supply.evaluation.usage;
-    let evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi {
+    let build_model::contracts::EvaluationMeasurementIdentity::TerminalPsi {
         work_schedule,
         storage_schedule,
     } = usage.measurement;
@@ -138,9 +141,15 @@ fn evaluate(
         (Some(locator), _) => EvaluatedNativeBinding::Import(
             EvaluatedForeignImport::from_retained_evidence(locator, receipt)?,
         ),
-        (None, NativeBindingLocator::FunctionField(selector)) => EvaluatedNativeBinding::FunctionField(
-            provider_plans::EvaluatedFunctionField::from_retained_evidence(target, selector.clone(), receipt)?,
-        ),
+        (None, NativeBindingLocator::FunctionField(selector)) => {
+            EvaluatedNativeBinding::FunctionField(
+                build_providers::plans::EvaluatedFunctionField::from_retained_evidence(
+                    target,
+                    selector.clone(),
+                    receipt,
+                )?,
+            )
+        }
         (None, NativeBindingLocator::Syscall { number }) => EvaluatedNativeBinding::Syscall(
             EvaluatedForeignSyscall::from_retained_evidence(target, *number, receipt)?,
         ),

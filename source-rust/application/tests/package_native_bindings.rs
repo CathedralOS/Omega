@@ -94,3 +94,74 @@ fn check_lock(consumer_name: &str, local_locator: Option<&str>) {
         );
     }
 }
+
+#[test]
+fn review_keeps_each_closed_native_call_with_its_borrowed_array() {
+    let scratch = TemporaryDirectory::create("review-borrowed-native-array", false).unwrap();
+    let project = scratch.path().join("reader");
+    fs::create_dir(&project).unwrap();
+    let library = scratch.path().join("probe");
+    fs::create_dir(&library).unwrap();
+    fs::write(
+        project.join("build.omg"),
+        r#"use {omega}/build/dependency.omg;
+use main.omg as app;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "reader" };
+    _ = Build::dependency(plan, |dependency|::from_source(Source::Path { location: "../probe" }));
+    Build::bind(plan, windows_x86_64::ProgramEntry, |app|::main);
+}"#,
+    )
+    .unwrap();
+    fs::write(project.join("main.omg"), "public machine main() {}").unwrap();
+    fs::write(
+        library.join("main.omg"),
+        r#"boundary trait Probe {
+    machine read<const Size: u64>(bytes: @[u8; Size]) -> u32 reaches none crashes none;
+}"#,
+    )
+    .unwrap();
+    fs::write(
+        library.join("build.omg"),
+        r#"use main.omg as api;
+use {omega}/language/core/external_binding.omg as native;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "probe" };
+    Build::bind_native::<|api|::Probe::read<4>>(plan, windows_x86_64,
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName {
+            library: "probe.dll", export: "ReadFour"
+        } });
+    Build::bind_native::<|api|::Probe::read<8>>(plan, windows_x86_64,
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName {
+            library: "probe.dll", export: "ReadEight"
+        } });
+}"#,
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .current_dir(project)
+        .env(
+            "OMEGA_LIBRARY_ROOT",
+            support::repository_root().join("source/library"),
+        )
+        .args([
+            "packages",
+            "audit",
+            "--offline",
+            "--target",
+            "windows_x86_64",
+            "--details",
+        ])
+        .output()
+        .unwrap();
+    let report = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(output.status.code(), Some(3), "{report}");
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+    for (export, extent) in [("ReadFour", 4), ("ReadEight", 8)] {
+        let (before_export, _) = report.split_once(&format!("bytes \"{export}\"")).unwrap();
+        let (_, binding) = before_export
+            .rsplit_once("\n          field application {")
+            .unwrap();
+        assert!(binding.contains(&format!("literal({extent})")), "{binding}");
+    }
+}

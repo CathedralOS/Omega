@@ -1,0 +1,48 @@
+// A definition that is not generic may call a dispatching generic machine
+// at a concrete machine. `plus(n, a)` is `iterate::<succ>(n, a)`, the
+// generic definition applied to `succ`'s, so adding one is proved by
+// unfolding them.
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/foundation.omg as proof;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+machine iterate<machine Step>(n: Peano, a: Peano) -> Peano
+requires machine Step(a: Peano) -> Peano terminates;
+terminates by n
+{
+    transition n {
+        Peano::Zero -> (a),
+        Peano::Succ { pred } -> (Step(iterate::<Step>(pred, a)))
+    }
+}
+
+machine succ(a: Peano) -> Peano
+{
+    transition { _ -> Peano::Succ { pred: a } }
+}
+
+machine plus(n: Peano, a: Peano) -> Peano
+{
+    transition { _ -> (iterate::<succ>(n, a)) }
+}
+
+machine plus_one(a: Peano)
+ensures
+    |proof|::Identity::<Peano>(plus(Peano::Succ { pred: Peano::Zero }, a), Peano::Succ { pred: a })
+{
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches |process_exit|::ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

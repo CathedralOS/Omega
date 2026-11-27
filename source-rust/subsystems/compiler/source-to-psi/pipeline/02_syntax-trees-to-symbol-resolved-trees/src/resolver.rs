@@ -5,11 +5,11 @@
 mod constants;
 mod declarations;
 mod deferred_bodies;
+#[cfg(any(test, feature = "test-support"))]
+mod fixtures;
 mod generated_source;
 mod lowering;
 mod names;
-#[cfg(any(test, feature = "test-support"))]
-pub mod pre_resolution;
 mod selections;
 mod tables;
 
@@ -23,6 +23,8 @@ use declarations::machine_equations::required;
 use declarations::machine_equations::validate_declarations;
 pub use deferred_bodies::{DeferredBodyScope, DeferredResolvedFrontier, ResolvedBodyCompletion};
 use diagnostics::Diagnostic;
+#[cfg(any(test, feature = "test-support"))]
+pub use fixtures::{fixture_file_bindings, fixture_local_and_core_imports};
 #[cfg(any(test, feature = "test-support"))]
 pub use generated_source::DeferredResolvedExtension;
 pub use generated_source::{ExtensionRequest, resolve_deferred_extension};
@@ -38,86 +40,6 @@ use std::mem::take;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use syntax_trees::SyntaxTrees;
-
-/// Supply the named file edges a package driver would admit for a stage fixture.
-/// Both paths name files in the fixture's source map, independent of insertion order.
-#[cfg(any(test, feature = "test-support"))]
-pub fn fixture_file_bindings(
-    sources: &SourceMap,
-    edges: &[(&str, &str, &str)],
-) -> Vec<crate::source_symbols::SourceScopedTopLevelBinding> {
-    let id = |path: &str| {
-        sources
-            .files()
-            .find(|file| file.path == std::path::Path::new(path))
-            .unwrap_or_else(|| panic!("missing fixture source {path}"))
-            .source_id
-    };
-    edges
-        .iter()
-        .map(|&(requester, target, alias)| {
-            crate::source_symbols::SourceScopedTopLevelBinding::file_import(
-                id(requester),
-                id(target),
-                alias,
-            )
-        })
-        .collect()
-}
-
-/// Bind local and bundled-core imports to the files loaded by a stage fixture.
-/// External package edges are supplied explicitly by their owning tests.
-#[cfg(any(test, feature = "test-support"))]
-pub fn fixture_local_and_core_imports(
-    syntax: &SyntaxTrees,
-    sources: &SourceMap,
-    core_root: &std::path::Path,
-) -> Vec<crate::source_symbols::SourceScopedTopLevelBinding> {
-    syntax
-        .root_items()
-        .filter_map(|item| {
-            let syntax_trees::item::Item::Use(syntax_trees::item::UseItem::File {
-                root,
-                components,
-                alias,
-                span,
-                ..
-            }) = item
-            else {
-                return None;
-            };
-            let requester = sources.get(span.source_id)?;
-            let mut names = syntax
-                .items
-                .identifier_path_members(*components)
-                .iter()
-                .map(|name| name.as_str(syntax));
-            let package = match root.as_ref().map(|name| name.as_str(syntax)) {
-                None => requester.package_root.as_path(),
-                Some("omega")
-                    if names.next() == Some("language") && names.next() == Some("core") =>
-                {
-                    core_root
-                }
-                Some(_) => return None,
-            };
-            let mut path = package.join(names.collect::<std::path::PathBuf>());
-            path.set_extension("omg");
-            let target = sources.files().find(|file| {
-                file.path == path
-                    && file.package_root == package
-                    && file.dependency_scope == requester.dependency_scope
-            })?;
-            Some(
-                crate::source_symbols::SourceScopedTopLevelBinding::file_import(
-                    requester.source_id,
-                    target.source_id,
-                    alias.as_str(syntax),
-                ),
-            )
-        })
-        .collect()
-}
 
 /* Resolve every name in the forest to its exact declaration. */
 #[cfg(any(test, feature = "test-support"))]
@@ -178,7 +100,7 @@ pub fn resolve_deferred(
     let base = request.retained_base.clone();
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    let (mut syntax, mut lowerer) = begin(request)?;
     if required(&syntax, base.as_deref()) {
         loop {
             let mut provisional = Lowerer::new(sources.clone(), bindings.clone());
@@ -260,10 +182,7 @@ fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(),
     Prepare the forest under its constant selector and a lowerer that owns the
     request's custody.
 */
-fn begin(
-    request: ResolutionRequest,
-    constants: ConstResolutionMode,
-) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
+fn begin(request: ResolutionRequest) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
     let ResolutionRequest {
         syntax,
         sources,
@@ -274,13 +193,11 @@ fn begin(
         syntax,
         sources.clone(),
         top_level_bindings.clone(),
-        constants,
         retained_base.clone(),
     )?;
     validate_declarations(&prepared.syntax, Some(&prepared.constant_selection))?;
     let mut lowerer = Lowerer::new(sources, top_level_bindings);
     lowerer.constant_selection = Some(prepared.constant_selection);
-    lowerer.const_resolution_mode = constants;
     if let Some(base) = retained_base {
         lowerer.seed_resolved_base(base)?;
     }

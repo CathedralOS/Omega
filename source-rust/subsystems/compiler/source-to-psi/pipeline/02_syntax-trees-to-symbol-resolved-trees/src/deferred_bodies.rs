@@ -627,6 +627,53 @@ impl DeferredResolvedFrontier {
             }
         }
 
+        // A machine that binds an operator token (`machine <= less_or_equal`)
+        // is selected by its operands at a use of the token, which names no
+        // machine for the call graph to follow. Like an `operator`
+        // declaration above, its body is demanded with any of its operand
+        // types.
+        for machine in self.trees.machines.iter() {
+            if machine.spelling.is_none() || !is_pending(machine.symbol) {
+                continue;
+            }
+            let operand_demanded = self
+                .trees
+                .machine_state_handles(machine.storage.states)
+                .first()
+                .is_some_and(|entry| {
+                    self.trees
+                        .state_parameters(self.trees.machine_state(*entry).parameters)
+                        .iter()
+                        .any(|param| {
+                            type_head_symbol(&param.type_reference)
+                                .is_some_and(|sym| demanded_types.contains(&sym))
+                        })
+                });
+            if operand_demanded {
+                push_pending(machine.symbol);
+            }
+        }
+
+        // The laws the compiler states for a machine recursing at a computed
+        // natural, that its fuel suffices and its recursive equation, cite
+        // core's natural-order lemmas, which no call names. Their bodies are
+        // demanded with the naturals.
+        use language_core::core_vocabulary::CoreVocabulary;
+        let naturals = demanded_types
+            .iter()
+            .any(|&symbol| symbols.core_vocabulary(symbol) == Some(CoreVocabulary::ProofNatural));
+        if naturals {
+            for machine in self.trees.machines.iter() {
+                if is_pending(machine.symbol)
+                    && symbols
+                        .core_vocabulary(machine.symbol)
+                        .is_some_and(CoreVocabulary::is_natural_fuel_lemma)
+                {
+                    push_pending(machine.symbol);
+                }
+            }
+        }
+
         Ok(next)
     }
 
@@ -919,14 +966,12 @@ mod tests {
         let syntax =
             crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
                 .unwrap();
-        let frontier = crate::resolution::pre_resolution::resolve_deferred_numeric_probe(
-            super::super::ResolutionRequest {
-                syntax,
-                sources: Some(std::sync::Arc::new(sources)),
-                top_level_bindings: Vec::new(),
-                retained_base: None,
-            },
-        )
+        let frontier = super::super::resolve_deferred(super::super::ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
         .unwrap();
         let pending: Vec<_> = frontier.pending_machines().collect();
         assert_eq!(pending.len(), 2);

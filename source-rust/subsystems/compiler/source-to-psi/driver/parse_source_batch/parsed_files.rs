@@ -8,7 +8,7 @@ use std::{path::PathBuf, sync::Arc};
 use syntax_trees::{SyntaxTrees, item::Item};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
-#[record(format = b"OmegaSourceSyntax1")]
+#[record(format = b"OmegaSourceSyntax2")]
 pub struct SourceSyntax {
     pub(crate) trees: SyntaxTrees,
     files: Vec<ParsedFile>,
@@ -27,13 +27,18 @@ struct ParsedFile {
 
 impl SourceSyntax {
     #[cfg(feature = "test-support")]
-    pub fn snapshot_json(&self) -> Result<String, serde_json::Error> {
-        self.trees.snapshot_json()
+    pub fn record_bytes(&self) -> Result<Vec<u8>, record_storage::RecordError> {
+        record_storage::encode(&self.trees, record_storage::RecordLimits::default())
     }
 
     #[cfg(feature = "test-support")]
     pub fn root_item_count(&self) -> usize {
         self.trees.root_item_count()
+    }
+
+    #[cfg(feature = "test-support")]
+    pub fn into_trees(self) -> SyntaxTrees {
+        self.trees
     }
     pub fn new(source: SourceId) -> Self {
         Self {
@@ -105,7 +110,7 @@ impl SourceSyntax {
     /// loader met them. Resolution, typing and lowering number declarations,
     /// record types and identities in the order they meet root items, so
     /// without this the same program captured in another order publishes
-    /// other numbers (`wiki/spec/terminal-psi/encoding.md`, "Canonical
+    /// other numbers (`source-rust/subsystems/compiler/psi/artifact/wire/encoding.md`, "Canonical
     /// form": unordered sets are sorted by stable identity). Items keep their
     /// written order within a file.
     fn canonicalize_file_order(
@@ -229,27 +234,22 @@ impl SourceImport {
     /// A symbolic operand of core field/parameter reflection may be a Product
     /// query. Only an ordinary Build reference makes a host binding mandatory.
     pub fn requires_build_binding(&self) -> bool {
-        matches!(&self.target, SourceImportTarget::Namespace(_))
-            || self
-                .qualifiers
-                .iter()
-                .any(|usage| usage.role == syntax_trees::item::FileQualifierRole::Code)
+        self.qualifiers
+            .iter()
+            .any(|usage| usage.role == syntax_trees::item::FileQualifierRole::Code)
     }
 
     pub fn used_in(&self, scope: source_provenance::DependencyScope) -> bool {
         use syntax_trees::item::FileQualifierRole;
-        match (&self.target, scope) {
-            (SourceImportTarget::Namespace(_), _) => true,
-            (SourceImportTarget::File { .. }, source_provenance::DependencyScope::Product) => {
-                !self.qualifiers.is_empty()
-            }
-            (SourceImportTarget::File { root, .. }, source_provenance::DependencyScope::Build) => {
+        match scope {
+            source_provenance::DependencyScope::Product => !self.qualifiers.is_empty(),
+            source_provenance::DependencyScope::Build => {
                 self.qualifiers.iter().any(|usage| match usage.role {
                     FileQualifierRole::Code => true,
                     FileQualifierRole::Product => false,
                     // A supplied Build package can own an ordinarily reflected declaration.
                     // A Product description alone does not import a local file into Build.
-                    FileQualifierRole::Description => root.is_some(),
+                    FileQualifierRole::Description => self.target.root.is_some(),
                 })
             }
         }
@@ -257,27 +257,19 @@ impl SourceImport {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, record_storage::Record)]
-pub enum SourceImportTarget {
-    Namespace(Vec<String>),
-    File {
-        root: Option<String>,
-        /// The admitted logical filename always uses slash separators.
-        path: String,
-        alias: String,
-    },
+pub struct SourceImportTarget {
+    pub root: Option<String>,
+    /// The admitted logical filename always uses slash separators.
+    pub path: String,
+    pub alias: String,
 }
 
 impl std::fmt::Display for SourceImportTarget {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Namespace(members) => f.write_str(&members.join("::")),
-            Self::File { root, path, alias } => {
-                if let Some(root) = root {
-                    write!(f, "{{{root}}}/")?;
-                }
-                write!(f, "{path} as {alias}")
-            }
+        if let Some(root) = &self.root {
+            write!(f, "{{{root}}}/")?;
         }
+        write!(f, "{} as {}", self.path, self.alias)
     }
 }
 
@@ -311,32 +303,27 @@ impl ParsedSourceBatch {
                         .enumerate()
                         .filter_map(|(offset, handle)| match syntax.root_item(*handle) {
                             Item::Use(import) => {
-                                use syntax_trees::item::UseItem;
-                                let (span, target) = match import {
-                                    UseItem::Namespace { path } => {
-                                        let members = syntax.items.identifier_path_members(*path);
-                                        let span = source_text::Span::new(
-                                            members.first().expect("a parsed import has a name").source_span().span.start,
-                                            members.last().unwrap().source_span().span.end,
-                                        );
-                                        (span, SourceImportTarget::Namespace(members.iter().map(|name| name.as_str(syntax).to_owned()).collect()))
-                                    }
-                                    UseItem::File { root, components, alias, span, .. } => {
-                                        let mut path = String::new();
-                                        for name in syntax.items.identifier_path_members(*components) {
-                                            if !path.is_empty() { path.push('/'); }
-                                            path.push_str(name.as_str(syntax));
-                                        }
-                                        path.push_str(".omg");
-                                        (span.span, SourceImportTarget::File {
-                                            root: root.as_ref().map(|name| name.as_str(syntax).to_owned()),
-                                            path,
-                                            alias: alias.as_str(syntax).to_owned(),
-                                        })
-                                    }
-                                };
-                                let qualifiers = match import { UseItem::File { qualifiers, .. } => qualifiers.clone(), UseItem::Namespace { .. } => Vec::new() };
-                                Some(SourceImport { qualifiers, ordinal: unit.import_root_range.start + offset, span, target })
+                                let mut path = syntax
+                                    .items
+                                    .identifier_path_members(import.components)
+                                    .iter()
+                                    .map(|name| name.as_str(syntax))
+                                    .collect::<Vec<_>>()
+                                    .join("/");
+                                path.push_str(".omg");
+                                Some(SourceImport {
+                                    ordinal: unit.import_root_range.start + offset,
+                                    span: import.span.span,
+                                    target: SourceImportTarget {
+                                        root: import
+                                            .root
+                                            .as_ref()
+                                            .map(|name| name.as_str(syntax).to_owned()),
+                                        path,
+                                        alias: import.alias.as_str(syntax).to_owned(),
+                                    },
+                                    qualifiers: import.qualifiers.clone(),
+                                })
                             }
                             _ => None,
                         })
@@ -382,11 +369,6 @@ pub struct RetainedSourceParse {
     pub(super) unit: syntax_trees::ParsedUnit,
 }
 
-pub struct SourceDeclarations {
-    pub declares_operator_family: bool,
-    pub declared: Vec<String>,
-}
-
 impl RetainedSourceParse {
     /// Name spans of free machines in this file, before source coordinates are assigned.
     pub fn free_machines<'a>(
@@ -407,54 +389,10 @@ impl RetainedSourceParse {
             })
     }
 
-    pub fn declarations(&self) -> SourceDeclarations {
+    pub fn declares_operator_family(&self) -> bool {
         let syntax = &self.unit.syntax;
-        let mut declares_operator_family = false;
-        let mut declared = Vec::new();
-        for item in self.unit.root_items() {
-            declared.extend(declared_names(syntax, syntax.root_item(*item)));
-            if matches!(syntax.root_item(*item), Item::Machine(machine) if machine.spelling.is_some())
-            {
-                declares_operator_family = true;
-            }
-
-        }
-        SourceDeclarations {
-            declares_operator_family,
-            declared,
-        }
-    }
-}
-
-/// The names an import path can start with to select `item`: its own name,
-/// and for a machine attached to a data type, that type.
-fn declared_names(syntax: &SyntaxTrees, item: &Item) -> Vec<String> {
-    let first = |name: &syntax_trees::identifier::Identifier| {
-        let text = name.as_str(syntax);
-        text.split("::").next().unwrap_or(text).to_owned()
-    };
-    let path = |members| {
-        syntax
-            .items
-            .identifier_path_members(members)
-            .first()
-            .map(first)
-    };
-    match item {
-        Item::Capability(definition) => vec![first(&definition.name)],
-        Item::Conformance(conformance) => conformance.alias.iter().map(first).collect(),
-        Item::Const(definition) => vec![first(&definition.name)],
-        Item::Data(definition) => vec![first(&definition.name)],
-        Item::Domain(definition) => vec![first(&definition.name)],
-        Item::Measure(definition) => path(definition.name).into_iter().collect(),
-        Item::Operator(definition) => path(definition.name).into_iter().collect(),
-        Item::Proposition(definition) => vec![first(&definition.name)],
-        Item::Machine(machine) => match &machine.attached_data {
-            Some(owner) => vec![first(owner)],
-            None => vec![first(&machine.name)],
-        },
-        Item::Trait(definition) => vec![first(&definition.name)],
-        Item::TypeAlias(definition) => vec![first(&definition.name)],
-        Item::Package(_) | Item::Use(_) => Vec::new(),
+        self.unit.root_items().iter().any(|item| {
+            matches!(syntax.root_item(*item), Item::Machine(machine) if machine.spelling.is_some())
+        })
     }
 }

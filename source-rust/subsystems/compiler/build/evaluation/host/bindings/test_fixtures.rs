@@ -1,7 +1,7 @@
 //! The registering Build lends a group its fixture settings. Capture bytes
 //! while the supplied view is live, then publish the owned selections on return.
 use super::*;
-use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use source_compiler::registered_tests::{
     TestExpectations, TestFileExpectation, TestInvocationInputs,
 };

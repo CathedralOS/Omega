@@ -18,7 +18,7 @@ diagnostics::string_diagnostic!(ProgramStorageEntryDiagnostic);
 pub struct SelectedProgramStorageEntryPlan {
     target_slot: target::ProgramEntrySlotDeclaration,
     requirement_identity: terminal_psi::TerminalIdentityIndex,
-    schema: provider_plans::ServiceSchema,
+    schema: build_providers::plans::ServiceSchema,
     physical_contract: Option<ProgramEntryPhysicalContractPlan>,
     identities: terminal_psi::TerminalIdentityTable,
 }
@@ -26,7 +26,7 @@ pub struct SelectedProgramStorageEntryPlan {
 impl SelectedProgramStorageEntryPlan {
     pub fn from_target_slot(
         slot: target::ProgramEntrySlotDeclaration,
-        schema: provider_plans::ServiceSchema,
+        schema: build_providers::plans::ServiceSchema,
         requirement_identity: String,
     ) -> Result<Self, ProgramStorageEntryDiagnostic> {
         if slot != slot.owner.program_entry_slot()
@@ -120,7 +120,7 @@ impl SelectedProgramStorageEntryPlan {
         self.target_slot
     }
 
-    pub const fn schema(&self) -> &provider_plans::ServiceSchema {
+    pub const fn schema(&self) -> &build_providers::plans::ServiceSchema {
         &self.schema
     }
 
@@ -136,7 +136,7 @@ impl SelectedProgramStorageEntryPlan {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use provider_plans::{ServiceMethod, ServiceSchema};
+    use build_providers::plans::{ServiceMethod, ServiceSchema};
 
     #[test]
     fn storage_entry_interns_the_selected_requirement_and_refuses_a_missing_method() {

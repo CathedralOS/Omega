@@ -18,7 +18,6 @@
 mod program;
 mod support;
 
-
 #[test]
 fn a_machine_of_the_records_package_takes_it_apart_in_native_code_and_psi() {
     let source = std::fs::read_to_string(support::repository_root().join(
@@ -27,4 +26,45 @@ fn a_machine_of_the_records_package_takes_it_apart_in_native_code_and_psi() {
     ))
     .unwrap();
     program::assert_silent_return(&source);
+}
+
+#[test]
+fn unmatched_owned_sum_disposes_only_active_case_in_native_code_and_psi() {
+    let source = r#"
+data Counter { value: u64; }
+data Token { id: u64; }
+data Lease<'view> dropped by release { counter: @'view mutable Counter; value: u64; }
+data Choice<'view> {
+    case A(left: Token, right: Lease<'view>);
+    case B(left: Token, right: Token);
+}
+machine release(lease: Lease) {
+    let { counter, value } = move lease;
+    counter.value = value;
+}
+machine discard(x: Choice) {}
+machine main() crashes Trap {
+    let mutable counter_a: Counter = Counter { value: 10u64 };
+    let choice_a: Choice = Choice::A {
+        left: Token { id: 1u64 },
+        right: Lease { counter: @mutable counter_a, value: 7u64 },
+    };
+    discard(choice_a);
+
+    let mutable counter_b: Counter = Counter { value: 10u64 };
+    let choice_b: Choice = Choice::B {
+        left: Token { id: 1u64 },
+        right: Token { id: 2u64 },
+    };
+    discard(choice_b);
+
+    transition counter_a.value == 7u64 && counter_b.value == 10u64 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+"#;
+    program::assert_silent_return(source);
 }

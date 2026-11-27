@@ -3,8 +3,8 @@ use {api}/main.omg as api;
 use {omega}/build/dependency.omg;
 use {omega}/language/core/reflect/reflect.omg;
 use {omega}/language/core/external_binding.omg as native;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_parameter_description");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_parameter_description" };
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: "library" });
     |dependency|::with_alias(@mutable description, "api");
     let registration: DependencyRegistration = Build::dependency(builder, description);
@@ -19,7 +19,7 @@ machine build(builder: @mutable Build) {
         true -> accept(builder),
         false -> reject()
     }
-    machine accept(builder: @mutable Build) {
+    machine accept(builder: @mutable BuildPlan) {
         Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
         Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
         Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);

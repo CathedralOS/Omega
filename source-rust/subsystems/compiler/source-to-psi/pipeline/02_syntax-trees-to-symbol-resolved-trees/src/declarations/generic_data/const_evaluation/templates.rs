@@ -845,7 +845,10 @@ fn collect_owned_type_reference_positions(
                     }
                 }
             }
-            Item::Const(definition) if !public_only || definition.is_public => {
+            Item::Const(definition)
+                if (!public_only || definition.is_public)
+                    && definition.type_reference.is_valid() =>
+            {
                 visit_type_positions(
                     syntax,
                     definition.type_reference,

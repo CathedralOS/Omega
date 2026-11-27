@@ -13,8 +13,8 @@ use crate::PackageCompilationInputs;
 use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
-use source_capture::SourceFileSystem;
-use source_compiler::{ParsedSourceSummary, SourceImport, SourceImportTarget};
+use source_acquisition::capture::SourceFileSystem;
+use source_compiler::{ParsedSourceSummary, SourceImport};
 use source_provenance::DependencyScope;
 use std::path::{Path, PathBuf};
 
@@ -33,38 +33,14 @@ pub(super) enum FileSelection {
 }
 
 impl<'a> FileImport<'a> {
-    pub fn from(
-        source: &'a ParsedSourceSummary,
-        import: &'a SourceImport,
-    ) -> Result<Option<Self>, Vec<Diagnostic>> {
-        let SourceImportTarget::File { root, path, alias } = &import.target else {
-            // The installed core and target contracts have their own issued source.
-            // A package or installed Build helper must select an exact file before entry.
-            if source.scope == DependencyScope::Build
-                && !matches!(
-                    source.origin,
-                    Some(
-                        source_admission::SourceOrigin::Toolchain
-                            | source_admission::SourceOrigin::ToolchainContract
-                    )
-                )
-            {
-                let error = Diagnostic::error(format!(
-                    "Build import `{}` requires an exact .omg filename",
-                    import.target
-                ))
-                .with_source_span(source_text::SourceSpan::new(source.source_id, import.span));
-                return Err(vec![error]);
-            }
-            return Ok(None);
-        };
-        Ok(Some(Self {
-            root: root.as_deref(),
-            path,
-            alias,
+    pub fn from(source: &'a ParsedSourceSummary, import: &'a SourceImport) -> Self {
+        Self {
+            root: import.target.root.as_deref(),
+            path: &import.target.path,
+            alias: &import.target.alias,
             import,
             source,
-        }))
+        }
     }
 
     fn occurrence(&self) -> ImportOccurrence {
@@ -265,13 +241,22 @@ impl super::SourceStorage {
         &mut self,
         parsed: &source_compiler::ParsedSourceBatch,
     ) -> Result<(), Vec<Diagnostic>> {
-        if parsed.sources.span_or_empty(parsed.batch).iter().any(|unit| {
-            unit.scope == DependencyScope::Build && unit.imports.iter().any(|import| {
-                import.used_in(DependencyScope::Build) && matches!(&import.target,
-                    SourceImportTarget::File { root, path, .. } if is_build_file(root.as_deref(), path))
+        if parsed
+            .sources
+            .span_or_empty(parsed.batch)
+            .iter()
+            .any(|unit| {
+                unit.scope == DependencyScope::Build
+                    && unit.imports.iter().any(|import| {
+                        import.used_in(DependencyScope::Build)
+                            && is_build_file(import.target.root.as_deref(), &import.target.path)
+                    })
             })
-        }) {
-            self.admit_installed_root(&super::bundled_build_root()?, super::frontier::InstalledSourceKind::BuildLibrary)?;
+        {
+            self.admit_installed_root(
+                &super::bundled_build_root()?,
+                super::frontier::InstalledSourceKind::BuildLibrary,
+            )?;
         }
         Ok(())
     }

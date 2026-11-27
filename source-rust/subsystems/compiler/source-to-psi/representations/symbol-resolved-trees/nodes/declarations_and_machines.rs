@@ -12,7 +12,7 @@ pub mod declarations {
         pub struct ConstDeclaration {
             pub symbol: SymbolHandle,
             pub is_public: bool,
-            pub declared_type: crate::source_resolved::types::TypeReference,
+            pub declared_type: Option<crate::source_resolved::types::TypeReference>,
             pub initializer: crate::source_resolved::expression::ExpressionHandle,
             pub authored_initializer: crate::source_resolved::expression::ExpressionHandle,
             pub initializer_source_span: source_text::SourceSpan,
@@ -241,7 +241,7 @@ pub mod declarations {
         pub struct PropositionParameterSignature {
             pub name: DiagnosticName,
             pub parameters: HandleSpan<crate::source_resolved::signature::StateParameter>,
-            /// The family's result sort, which typing requires to be `core\Type`.
+            /// The family's result sort, which typing requires to be `|proof|::Type`.
             pub result: crate::source_resolved::types::TypeReference,
         }
 

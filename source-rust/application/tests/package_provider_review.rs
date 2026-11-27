@@ -1,6 +1,9 @@
 //! Package review retains the checked provider and the public types in its contract.
+#[path = "support/project.rs"]
+mod project;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::{fs, process::Command};
+use std::fs;
 
 #[test]
 fn review_retains_the_provider_already_checked_for_each_target() {
@@ -8,8 +11,8 @@ fn review_retains_the_provider_already_checked_for_each_target() {
     fs::write(
         project.path().join("build.omg"),
         r#"use reading.omg as app;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "reading");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "reading" };
     Build::select_provider::<|app|::Reading, |app|::LinuxReading>(builder, linux_x86_64);
     Build::select_provider::<|app|::Reading, |app|::MacReading>(builder, macos_arm64);
 }"#,
@@ -26,18 +29,17 @@ public MacReading satisfies Reading { machine read() -> u64 { 2 } }",
         ("linux_x86_64", "LinuxReading", "MacReading"),
         ("macos_arm64", "MacReading", "LinuxReading"),
     ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .current_dir(project.path())
-            .args([
+        let output = project::omega(
+            project.path(),
+            &[
                 "packages",
                 "audit",
                 "--offline",
                 "--target",
                 target,
                 "--details",
-            ])
-            .output()
-            .unwrap();
+            ],
+        );
         assert!(
             matches!(output.status.code(), Some(0 | 3)),
             "{}",
@@ -65,8 +67,8 @@ fn review_retains_owned_boundary_results_disclosed_by_public_data() {
     fs::write(
         project.path().join("build.omg"),
         r#"use reader.omg;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "returned_status");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "returned_status" };
     Build::select_provider::<|reader|::Reader, |reader|::LocalReader>(builder, linux_x86_64);
 }"#,
     )
@@ -103,8 +105,8 @@ fn review_retains_checked_domain_casts_at_their_declared_exposure() {
     fs::write(
         project.path().join("build.omg"),
         r#"use reader.omg;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "cast_contract");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "cast_contract" };
     Build::select_provider::<|reader|::Reader, |reader|::LocalReader>(builder, linux_x86_64);
 }"#,
     )
@@ -146,8 +148,8 @@ fn review_retains_core_policy_and_nominal_domain_parameters_together() {
     fs::write(
         project.path().join("build.omg"),
         r#"use reader.omg;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "policy_boundary");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "policy_boundary" };
     Build::select_provider::<|reader|::Reader, |reader|::LocalReader>(builder, linux_x86_64);
 }"#,
     )
@@ -176,7 +178,7 @@ fn review_checks_boundary_predicates_at_each_const_application() {
     let project = TemporaryDirectory::create("review-const-predicates", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "const_boundary"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "const_boundary" }; }"#,
     )
     .unwrap();
     let source = r#"public boundary trait Reader {
@@ -203,7 +205,7 @@ fn review_checks_predicates_of_a_lifetime_bound_requirement() {
     let project = TemporaryDirectory::create("review-lifetime-predicates", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "borrowed_boundary"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "borrowed_boundary" }; }"#,
     )
     .unwrap();
     let source = r#"data Name<'scope> { bytes: @'scope [u8; 4]; }
@@ -229,7 +231,7 @@ fn review_retains_a_domain_on_a_nested_borrowed_field() {
     let project = TemporaryDirectory::create("review-nested-field-domain", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "nested_fields"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "nested_fields" }; }"#,
     )
     .unwrap();
     let source = r#"domain [u8; 4]::ValidPath;
@@ -263,7 +265,7 @@ fn review_numbers_elided_input_lifetimes_and_reuses_the_returned_input() {
     let project = TemporaryDirectory::create("review-elided-callable-signatures", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "elided_inputs"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "elided_inputs" }; }"#,
     )
     .unwrap();
     let source = r#"public machine first_lane(first: @[u8; 4], second: @[u8; 4]) -> u8 { first[0] }
@@ -305,7 +307,7 @@ fn review_keeps_a_caller_chosen_borrow_in_a_requirement_result() {
     let project = TemporaryDirectory::create("review-borrowed-result-payload", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "review_paths"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "review_paths" }; }"#,
     )
     .unwrap();
     let source = r#"public data Rejection<'reason> { reason: @'reason [u8]; }
@@ -341,7 +343,7 @@ fn review_preserves_the_owning_record_of_an_invariant_field() {
     let project = TemporaryDirectory::create("review-invariant-field", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "review_scope"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "review_scope" }; }"#,
     )
     .unwrap();
     let source = "public data OtherCounters { used: u64; }
@@ -372,7 +374,7 @@ fn public_generic_callables_review_their_own_checked_bodies() {
     let project = TemporaryDirectory::create("review-public-generic", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "review_scope"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "review_scope" }; }"#,
     )
     .unwrap();
     let source = r#"boundary trait Reader { machine read() -> u32 reaches Reader crashes none; }
@@ -435,12 +437,8 @@ fn audit_reader_with_options(
     options: &[&str],
 ) -> (Option<i32>, String) {
     fs::write(project.path().join("reader.omg"), source).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .current_dir(project.path())
-        .args(["packages", "audit", "--offline", "--target", "linux_x86_64"])
-        .args(options)
-        .output()
-        .unwrap();
+    let arguments = ["packages", "audit", "--offline", "--target", "linux_x86_64"];
+    let output = project::omega(project.path(), &[&arguments[..], options].concat());
     (
         output.status.code(),
         String::from_utf8(output.stdout).unwrap(),

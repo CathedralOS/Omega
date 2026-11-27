@@ -10,9 +10,9 @@ meaning, while native realization owns physical operation coverage.
 
 */
 
+use build_providers::plans::{ProviderBinding, ProviderPlan, ServiceSchema};
 use diagnostics::Diagnostic;
 use native_intrinsics::CompilerIntrinsicExecutionIdentity;
-use provider_plans::{ProviderBinding, ProviderPlan, ServiceSchema};
 
 pub struct CompilerIntrinsicPlanProvenance<'a> {
     pub plan: &'a ProviderPlan,
@@ -22,7 +22,7 @@ pub struct CompilerIntrinsicPlanProvenance<'a> {
 
 pub fn select_boundary_applications(
     provenance: &[CompilerIntrinsicPlanProvenance<'_>],
-    selected: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &build_providers::selections::SelectedProviderPlanFacts,
     module: &terminal_psi::TerminalModule,
     demands: &terminal_psi::TerminalBoundaryApplicationDemands,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationRealizations, Vec<Diagnostic>> {

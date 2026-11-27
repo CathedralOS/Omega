@@ -25,7 +25,7 @@ pub struct PackageSourceBinding {
     pub(super) source_root: PathBuf,
     pub(super) preparing_source: Option<crate::CapturedLocalSource>,
     pub(super) canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
-    pub(super) captured_source: Option<Arc<source_capture::CapturedSourceTree>>,
+    pub(super) captured_source: Option<Arc<source_acquisition::capture::CapturedSourceTree>>,
     pub(super) captured_build_source: Option<build_output::CapturedBuildSourceInput>,
 }
 
@@ -61,7 +61,7 @@ impl PackageSourceBinding {
         &self,
         requested: &Self,
         entries: &super::PackageBuildEntries,
-        selected: Option<&Arc<source_capture::CapturedSourceTree>>,
+        selected: Option<&Arc<source_acquisition::capture::CapturedSourceTree>>,
     ) -> bool {
         self.identity == requested.identity
             && self.canonical_name == requested.canonical_name
@@ -95,7 +95,7 @@ impl PackageSourceBinding {
 
     pub fn with_captured_source(
         mut self,
-        tree: Arc<source_capture::CapturedSourceTree>,
+        tree: Arc<source_acquisition::capture::CapturedSourceTree>,
     ) -> Result<Self, String> {
         self.build_entries.require_capture(&tree)?;
         let input = source_snapshot::retained_source_input(&tree)?;

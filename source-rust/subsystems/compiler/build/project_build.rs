@@ -176,6 +176,7 @@ pub struct ReturnedPlanningStage {
 #[derive(Default)]
 struct BuildPreparations {
     file_imports: source_compiler::FileImportAdvisories,
+    declaration_usage: source_compiler::DeclarationUsageAdvisories,
     package_capture: Option<package_compilation::BuildSnapshotCapture>,
     first_stage_in_package: usize,
     demanded_programs: Vec<package_compilation::DelegatedProgram>,
@@ -203,7 +204,7 @@ pub struct PreparedSuccessor {
     preparations: BuildPreparations,
 }
 
-pub use source_compiler::FileImportAdvisories;
+pub use source_compiler::{DeclarationUsageAdvisories, FileImportAdvisories};
 
 impl PreparedSuccessor {
     /// Only the acquisition that issued this preparation may adopt its successor's source.
@@ -241,6 +242,7 @@ impl ReturnedPlanningStage {
             .complete_successor(self.returned, &libraries)?;
         let mut source = self.source;
         preparations.file_imports = std::mem::take(&mut source.file_imports);
+        preparations.declaration_usage = std::mem::take(&mut source.declaration_usage);
         let issuer = capture.clone();
         let capture = match directory {
             Some(directory) => {

@@ -68,8 +68,6 @@ pub struct Outcome {
     /// The service reach a caller may rely on, strictly increasing: the
     /// written ceiling, or what the body's calls contribute.
     pub service_reach: Vec<ServiceId>,
-    /// Fixed reach when an invocation supplies part of the published row through a static binder.
-    pub fixed_service_reach: Option<Vec<ServiceId>>,
     /// The synchronous entries a caller is charged, strictly increasing:
     /// the written `invokes` ceiling, or what the body's calls contribute.
     pub synchronous_entries: Vec<ServiceId>,
@@ -182,8 +180,6 @@ struct Contributed {
     /// Every service a call contributes; strictly increasing once the
     /// body's walk ends.
     services: Vec<ServiceId>,
-    /// Selected reach belongs to the callback dependency rather than the fixed part.
-    selected: Option<Vec<ServiceId>>,
     /// Some call in the body is of a requirement that omits the clause and
     /// defers the row to its selected member, or of a machine that
     /// publishes such a call.
@@ -235,6 +231,10 @@ struct Walk<'b> {
     /// the order met; sorted when the body's walk ends.
     contributed: [Contributed; 2],
     operational: [bool; 2],
+    /// Whether a `transition` inside a block-valued arm can return normally
+    /// from the enclosing machine, even though the block itself does not fall
+    /// through to its enclosing expression.
+    returned_normally: bool,
     #[cfg(test)]
     visits: usize,
 }
@@ -273,6 +273,7 @@ impl<'b> Walk<'b> {
             causes: BTreeSet::new(),
             contributed: Default::default(),
             operational: [false; 2],
+            returned_normally: false,
             #[cfg(test)]
             visits: 0,
         })
@@ -346,6 +347,7 @@ impl<'b> Walk<'b> {
         self.causes.clear();
         self.contributed = Default::default();
         self.operational = [false; 2];
+        self.returned_normally = false;
         let declared_empty = crate::body::inhabitation::excludes_result(
             self.inhabitation,
             self.signatures.get(machine.into(), machine)?.result,
@@ -355,7 +357,8 @@ impl<'b> Walk<'b> {
         } else {
             // Always walk the body for its other effects. Only its
             // normal-completion inference is private to the unit.
-            let completes = self.statements(machine, &body.statements)?;
+            let completes =
+                self.statements(machine, &body.statements, false)? || self.returned_normally;
             !declared_empty && (completes || self.local.get(machine) != Some(&true))
         };
         let found = Reached {
@@ -365,10 +368,6 @@ impl<'b> Walk<'b> {
             contributed: std::mem::take(&mut self.contributed).map(|mut row| {
                 row.services.sort_unstable();
                 row.services.dedup();
-                if let Some(selected) = &mut row.selected {
-                    selected.sort_unstable();
-                    selected.dedup();
-                }
                 row
             }),
         };
@@ -400,27 +399,10 @@ impl<'b> Walk<'b> {
                 completes_normally: reached.completes_normally,
                 crash_routes: self.published(machine, &reached.causes)?,
                 service_reach: self.published_row(machine, Axis::Reach, reached, true)?,
-                fixed_service_reach: self.fixed_reach(machine, reached)?,
                 synchronous_entries: self.published_row(machine, Axis::Entries, reached, true)?,
             });
         }
         Ok(table)
-    }
-
-    fn fixed_reach(
-        &self,
-        machine: MachineId,
-        reached: &Reached,
-    ) -> Checked<Option<Vec<ServiceId>>> {
-        let contributed = &reached.contributed[Axis::Reach as usize];
-        if contributed.selected.is_none() {
-            return Ok(None);
-        }
-        let signature = self.signatures.get(machine.into(), machine)?;
-        Ok(Some(match signature.ceiling(Axis::Reach) {
-            Ceiling::Authored(ceiling) => ceiling.clone(),
-            Ceiling::Inferred => contributed.services.clone(),
-        }))
     }
 
     /// The routes `machine` publishes, given the causes its body reaches.
@@ -477,15 +459,7 @@ impl<'b> Walk<'b> {
                 ));
             }
             Ceiling::Authored(ceiling) => ceiling.clone(),
-            Ceiling::Inferred => {
-                let mut services = contributed.services.clone();
-                if let Some(selected) = &contributed.selected {
-                    services.extend(selected);
-                    services.sort_unstable();
-                    services.dedup();
-                }
-                services
-            }
+            Ceiling::Inferred => contributed.services.clone(),
         })
     }
 
@@ -493,7 +467,12 @@ impl<'b> Walk<'b> {
     /// complete normally in an arm. Statements after a no-successor exit are
     /// not reached, so they contribute nothing; lowering leaves them out
     /// (`lower`, `body`).
-    fn statements(&mut self, machine: MachineId, statements: &[Statement]) -> Checked<bool> {
+    fn statements(
+        &mut self,
+        machine: MachineId,
+        statements: &[Statement],
+        in_block: bool,
+    ) -> Checked<bool> {
         let mut normal = false;
         for statement in statements {
             match statement {
@@ -555,16 +534,28 @@ impl<'b> Walk<'b> {
                     if let Some((target, _)) = default {
                         normal |= self.target(machine, target)?;
                     }
+                    if in_block {
+                        self.returned_normally |= normal;
+                        return Ok(false);
+                    }
                     return Ok(normal);
                 }
                 Statement::Arm { guard, target, .. } => {
                     if let Some(guard) = guard.condition()
                         && !self.expression(machine, guard)?
                     {
+                        if in_block {
+                            self.returned_normally |= normal;
+                            return Ok(false);
+                        }
                         return Ok(normal);
                     }
                     normal |= self.target(machine, target)?;
                     if guard.closes_dispatch() {
+                        if in_block {
+                            self.returned_normally |= normal;
+                            return Ok(false);
+                        }
                         return Ok(normal);
                     }
                 }
@@ -589,7 +580,7 @@ impl<'b> Walk<'b> {
     /// call in it has no normal completion, so evaluation never finishes.
     fn expression(&mut self, machine: MachineId, expression: &Expression) -> Checked<bool> {
         match &expression.kind {
-            ExpressionKind::TheoremApplication { .. } => Ok(true),
+            ExpressionKind::TheoremApplication { .. } | ExpressionKind::Applied { .. } => Ok(true),
             ExpressionKind::Atomic(operation) => {
                 for operand in operation.inputs() {
                     if !self.expression(machine, operand)? {
@@ -625,7 +616,7 @@ impl<'b> Walk<'b> {
             ExpressionKind::Block {
                 statements, value, ..
             } => {
-                if !self.statements(machine, statements)? {
+                if !self.statements(machine, statements, true)? {
                     return Ok(false);
                 }
                 match value {
@@ -742,7 +733,6 @@ impl<'b> Walk<'b> {
             ExpressionKind::Call {
                 callee,
                 required_contract,
-                static_reach_binding,
                 arguments,
                 ..
             } => {
@@ -899,14 +889,7 @@ impl<'b> Walk<'b> {
                     .extend(published.iter().map(|bucket| bucket.cause));
                 for (axis, row, open) in joins {
                     let contributed = &mut self.contributed[axis as usize];
-                    if axis == Axis::Reach && static_reach_binding.is_some() {
-                        contributed
-                            .selected
-                            .get_or_insert_with(Vec::new)
-                            .extend(row);
-                    } else {
-                        contributed.services.extend(row);
-                    }
+                    contributed.services.extend(row);
                     contributed.open |= open;
                 }
                 Ok(completes)

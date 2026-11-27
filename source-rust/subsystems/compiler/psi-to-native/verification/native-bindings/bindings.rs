@@ -9,7 +9,7 @@ pub use function_field::{FunctionFieldDispatch, function_field_dispatch, resolve
 
 use std::sync::Arc;
 
-use provider_plans::{EvaluatedBindingReceipt, EvaluatedNativeBinding, ServiceSchema};
+use build_providers::plans::{EvaluatedBindingReceipt, EvaluatedNativeBinding, ServiceSchema};
 use semantic_vocabulary::BoundaryMachineId;
 use terminal_psi::{TerminalIdentityTable, TerminalIdentityTableBuilder};
 
@@ -62,7 +62,7 @@ impl RetainedNativeBindings {
     pub fn retain(inputs: &[NativeBindingInput<'_>]) -> Result<Self, String> {
         let mut identities = TerminalIdentityTableBuilder::default();
         let mut schemas = std::collections::BTreeMap::<
-            provider_plans::ServiceSchemaDigest,
+            build_providers::plans::ServiceSchemaDigest,
             Arc<ServiceSchema>,
         >::new();
         let mut rows = Vec::with_capacity(inputs.len());
@@ -140,20 +140,20 @@ pub fn validate_receipt(
     // Reconstruct the materialized mechanism as well as its receipt.
     match binding {
         EvaluatedNativeBinding::FunctionField(field) => {
-            provider_plans::EvaluatedFunctionField::from_retained_evidence(
+            build_providers::plans::EvaluatedFunctionField::from_retained_evidence(
                 field.target(),
                 Box::new(field.selector().clone()),
                 receipt.clone(),
             )?;
         }
         EvaluatedNativeBinding::Import(import) => {
-            provider_plans::EvaluatedForeignImport::from_retained_evidence(
+            build_providers::plans::EvaluatedForeignImport::from_retained_evidence(
                 import.locator().clone(),
                 receipt.clone(),
             )?;
         }
         EvaluatedNativeBinding::Syscall(syscall) => {
-            provider_plans::EvaluatedForeignSyscall::from_retained_evidence(
+            build_providers::plans::EvaluatedForeignSyscall::from_retained_evidence(
                 syscall.target(),
                 u64::try_from(syscall.number()).map_err(|_| "native syscall number is negative")?,
                 receipt.clone(),
@@ -305,7 +305,7 @@ impl<'input> CheckedNativeBinding<'input> {
 }
 
 fn validate_native_declared_types(
-    method: &provider_plans::ServiceMethod,
+    method: &build_providers::plans::ServiceMethod,
     parameter_types: &[terminal_psi::TerminalIdentityIndex],
     result_type: terminal_psi::TerminalIdentityIndex,
     result: &terminal_psi::BoundaryMachineResult,
@@ -666,7 +666,7 @@ fn validate_owned_aggregate(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use provider_plans::*;
+    use build_providers::plans::*;
 
     #[test]
     fn native_declared_types_accept_i32_and_reject_a_different_type() {

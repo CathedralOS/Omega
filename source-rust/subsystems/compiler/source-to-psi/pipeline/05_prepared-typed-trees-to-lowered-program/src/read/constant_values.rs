@@ -4,17 +4,18 @@
 //! retained initializer as an ordinary machine.
 //! A declared domain on a leaf arrives as the `as +D` entry that
 //! materialization wrote, and is judged as any other such cast.
+use crate::read::refuse_at;
 
 use crate::source_state::constant::ConstDeclaration;
 use application_identity::const_value::DecodedCanonicalConstValue;
 use application_identity::const_value::decode_declaration_value;
 use numeric_literals::FloatFormat;
 use semantic_vocabulary::{IeeeFloatValue, IntegerValue, MachineId, ScalarType};
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 use super::Program;
+use crate::Unserved;
 use crate::body::{Expression, ExpressionKind, ValueType};
-use crate::{Unserved, refuse};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ScalarApplicationSource {
@@ -68,6 +69,17 @@ impl ScalarApplications {
         ))
     }
 
+    pub(super) fn scalar_type(
+        &self,
+        application: semantic_vocabulary::ScalarApplicationId,
+    ) -> Option<ScalarType> {
+        let index = usize::try_from(application.get().checked_sub(1)?).ok()?;
+        match self.sources.get(index)? {
+            ScalarApplicationSource::Layout(declaration) => declaration.scalar_type(),
+            ScalarApplicationSource::Evaluation { scalar_type, .. } => Some(*scalar_type),
+        }
+    }
+
     pub(crate) fn published(&self) -> Result<terminal_psi::ScalarApplications, &'static str> {
         if self.sources.len() != self.declarations.declarations().len() {
             return Err("scalar applications still await their exact evaluation entries");
@@ -81,7 +93,7 @@ impl Program<'_> {
     /// Discover these separate evaluator bodies between complete reads so the
     /// application cannot take the signature's reserved machine coordinate.
     pub(crate) fn resolve_scalar_applications(&mut self, id: MachineId) -> Checked<()> {
-        let unserved = |reason| refuse(id, Construct::Machine, Unserved::Declaration(reason));
+        let unserved = |reason| refuse_at(id, Unserved::Declaration(reason));
         while let Some(source) = self
             .scalar_applications
             .sources
@@ -112,7 +124,7 @@ impl Program<'_> {
         expression: crate::source_state::expression::ExpressionHandle,
         result_type: crate::source_state::types::TypeReferenceHandle,
     ) -> Checked<(semantic_vocabulary::ScalarApplicationId, ScalarType)> {
-        let unserved = |reason| refuse(id, Construct::Machine, Unserved::Declaration(reason));
+        let unserved = |reason| refuse_at(id, Unserved::Declaration(reason));
         let (_, state) = self.declaration(id, entry)?;
         let [crate::source_state::statement::StatementNode::Transition(transition)] =
             self.typed.statement_table.statements(state.statement_nodes)
@@ -150,7 +162,7 @@ impl Program<'_> {
         id: MachineId,
         constant: &ConstDeclaration,
     ) -> Checked<(semantic_vocabulary::ScalarApplicationId, ScalarType)> {
-        let unserved = |reason| refuse(id, Construct::Machine, Unserved::Declaration(reason));
+        let unserved = |reason| refuse_at(id, Unserved::Declaration(reason));
         if !self
             .typed
             .tables
@@ -187,7 +199,7 @@ impl Program<'_> {
         id: MachineId,
         constant: &ConstDeclaration,
     ) -> Checked<()> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
+        let unserved = |what| refuse_at(id, Unserved::Declaration(what));
         let carrier = self.value_type(id, constant.declared_type)?;
         if self.typed.stored_value_multiplicity(constant.declared_type)
             != language_core::Multiplicity::Unrestricted
@@ -316,7 +328,7 @@ impl Program<'_> {
         materialized: &Expression,
         initializer: Option<MachineId>,
     ) -> Checked<bool> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
+        let unserved = |what| refuse_at(id, Unserved::Declaration(what));
         let qualification = match materialized.result {
             Some(ValueType::Scalar(_, qualification) | ValueType::Record(_, qualification, _)) => {
                 qualification
@@ -464,9 +476,8 @@ impl Program<'_> {
             && !declaration.requires_facts.is_empty()
             && initializer.is_none()
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Declaration(
                     "constant of data with requires needs its default-domain proof",
                 ),

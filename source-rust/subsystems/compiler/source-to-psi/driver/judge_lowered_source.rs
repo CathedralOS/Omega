@@ -7,7 +7,8 @@ use checked_program_to_psi as production;
 use checked_program_to_psi::{AcceptedTerminalSource, TerminalSourceCompilation};
 use diagnostics::{Diagnostic, DiagnosticStage};
 use lowered_program_to_checked_program::{
-    AcceptedAdvisories, CheckedPublication, judge_publication,
+    AcceptedAdvisories, CheckedPublication, ProofWorkPolicy, judge_publication,
+    judge_publication_with_policy,
 };
 use optimization::PsiOptimizationSelections;
 use prepared_typed_trees_to_lowered_program::source_roster::{
@@ -221,8 +222,19 @@ impl SourcePublication {
         optimizations: PsiOptimizationSelections,
         timings: &mut CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
+        Self::judge_lowered_with_policy(lowered, optimizations, ProofWorkPolicy::default(), timings)
+    }
+
+    pub fn judge_lowered_with_policy(
+        lowered: LoweredSourcePublication,
+        optimizations: PsiOptimizationSelections,
+        policy: ProofWorkPolicy,
+        timings: &mut CompileTimings,
+    ) -> Result<Self, Vec<Diagnostic>> {
         let (judgment, advisories) = timings
-            .record_result(stages::CHECK, || judge_publication(lowered, optimizations))
+            .record_result(stages::CHECK, || {
+                judge_publication_with_policy(lowered, optimizations, policy)
+            })
             .map_err(|rows| DiagnosticStage::Checking.attribute(rows))?;
         let publication = timings.record_result(stages::ACCEPT, || {
             checked_program_to_psi::SourcePublication::from_judgment(judgment)

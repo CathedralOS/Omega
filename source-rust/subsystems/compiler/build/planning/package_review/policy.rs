@@ -39,7 +39,7 @@ pub(super) fn project(
     let choices = provider_rows::from_review(checked)?;
     let census =
         super::providers::AcceptedDeclarations::new(accepted, services, !choices.is_empty());
-    let native = super::native_bindings::prepare(input, package, target, &census)?;
+    let native = super::native_bindings::prepare(input, checked, package, target, &census)?;
     let providers = input.providers(
         checked,
         package,

@@ -3,11 +3,11 @@
 use super::{declarations::unavailable, input::PolicySource, semantic_bindings::checked_service};
 use diagnostics::Diagnostic;
 use native_intrinsics::CompilerIntrinsicExecutionIdentity as Intrinsic;
-use provider_acceptance::{
+use build_providers::acceptance::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole as Role,
     ServiceTerminalAuthorityPermission,
 };
-use provider_plans::{ProviderBinding, ProviderPlan};
+use build_providers::plans::{ProviderBinding, ProviderPlan};
 use review_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::{
     PackageKeyIdentity, TerminalAuthorityClass, TerminalAuthorityDisposition,

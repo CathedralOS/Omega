@@ -167,7 +167,7 @@ fn an_operation_outside_the_conformance_gets_no_license_from_it() {
     );
     let site = law.site.expect("the law's ensures clause");
     assert!(
-        source[site.span.start..].starts_with("core\\Identity::<|nat|::Nat>("),
+        source[site.span.start..].starts_with("|proof|::Identity::<|nat|::Nat>("),
         "{site:?}"
     );
 }
@@ -175,21 +175,23 @@ fn an_operation_outside_the_conformance_gets_no_license_from_it() {
 /// `nat.omg`'s own declarations as a program. The library is only ever
 /// judged through a program that reaches it, and most of these lemmas are
 /// private, so the file's text is compiled as the program's. Left out are the
-/// three ranking primitives only the toolchain may declare. `mod`, `div` and
-/// `gcd` are left out here too: `fuel_recursion` judges the file with them,
-/// and the tests that build on this text measure what they add without them.
+/// three ranking primitives only the toolchain may declare. `mod`, `div`,
+/// `gcd`, Euclid's step and the law relating `div` and `mod` are left out
+/// here too: `fuel_recursion` judges the file with them, and the tests that
+/// build on this text measure what they add without them.
 /// Every other declaration is the file's, unchanged, the `<=` and `-`
 /// operator machines among them.
 pub(super) fn library_declarations() -> String {
     let start = NAT.find("public data Nat {").expect("the data declaration");
     let mut program = String::from(
-        "use {omega}/language/core/algebra.omg;\nuse omega\\language\\core\\CommutativeSemiring;\n",
+        "use {omega}/language/core/algebra.omg;\nuse {omega}/language/core/foundation.omg as proof;\n",
     );
     let mut skipping = false;
     for line in NAT[start..].lines() {
-        skipping |= ["mod", "div", "gcd"]
+        let declared = line.strip_prefix("public ").unwrap_or(line);
+        skipping |= ["mod", "div", "gcd", "gcd_step", "div_mod_reconstruction"]
             .iter()
-            .any(|name| line.starts_with(&format!("machine {name}(")));
+            .any(|name| declared.starts_with(&format!("machine {name}(")));
         if !skipping {
             program.push_str(line);
             program.push('\n');
@@ -201,7 +203,7 @@ pub(super) fn library_declarations() -> String {
 }
 
 #[test]
-fn every_law_of_nat_but_three_recursions_is_judged() {
+fn every_law_of_nat_but_division_and_gcd_is_judged() {
     let typed = super::build_purpose::frontier_with_core(
         &library_declarations(),
         "machine build_entry() {}",
@@ -251,6 +253,13 @@ fn every_law_of_nat_but_three_recursions_is_judged() {
         "sub_eq_add",
         "le_add",
         "lt_of_sub_pos",
+        "le_antisymm",
+        "succ_of_sub_between",
+        "not_succ_le_self",
+        "not_succ_le_zero",
+        "le_of_succ_le_succ",
+        "not_lt_of_le_zero",
+        "le_of_lt_of_sub_between",
     ] {
         assert!(
             judgment.laws.iter().any(|law| law.machine == machine),

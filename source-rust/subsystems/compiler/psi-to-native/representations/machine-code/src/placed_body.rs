@@ -1,8 +1,8 @@
 //! Current, framed native code and the records needed to interpret its bytes.
 
 use crate::{
-    FunctionFragmentEmissionStatistics, FunctionFragmentFrameApplication, ResolvedMachineLayout,
-    TargetFrameLayoutPlan, TargetFrameProtocolEncodingPlan,
+    FunctionFragmentFrameApplication, ResolvedMachineLayout, TargetFrameLayoutPlan,
+    TargetFrameProtocolEncodingPlan,
 };
 use register_homes::AllocationPublicationFacts;
 use register_model::ValidatedPhysicalRegisterModel;
@@ -24,7 +24,6 @@ pub struct NativeBodyReadback {
     pub protocol: Arc<TargetFrameProtocolEncodingPlan>,
     pub frame_application: Arc<FunctionFragmentFrameApplication>,
     pub allocation: Arc<AllocationPublicationFacts>,
-    pub fragment_statistics: FunctionFragmentEmissionStatistics,
 }
 
 /// Object and image checks need each instruction's decoded effects and owning

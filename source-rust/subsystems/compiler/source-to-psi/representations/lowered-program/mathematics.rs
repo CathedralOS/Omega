@@ -3,7 +3,7 @@
 //! it once with the kernel and judges each law against the entries before it.
 //!
 //! Data that contains itself has no storage, so it and the machines over it
-//! exist only here: the data as the canonical trees of a W type with its
+//! exist only here: the data as a native inductive declaration with its
 //! constructors and induction principle, each machine defined by cases as a
 //! definition, and each law as a statement whose proof stage 06 produces. A law's own statement is not among the entries its
 //! proof is checked against, so a law cannot supply its own evidence.
@@ -31,6 +31,55 @@ pub struct MathematicalSignature {
     /// Each data declaration indexed by values, as the kernel's builder
     /// declared it. A law over one names it by its position here.
     pub families: Vec<mathematical_kernel::DeclaredIndexedData>,
+    /// What the Identity goals of each generic check form with const
+    /// record parameters name that is the same in every one of its
+    /// obligations: the carriers its trait operations take and give, those
+    /// operations and the laws its machines may cite. Stage 06 declares and
+    /// checks each table once, and every Identity obligation of the form
+    /// starts from it.
+    pub identities: Vec<IdentityTable>,
+}
+
+/// The Identity table of one generic check form. Its carriers and law
+/// instances are identities of that form's module.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IdentityTable {
+    /// The check form: its generic declaration's position in
+    /// `PreparedCompilation::forms`, then its own among that declaration's
+    /// forms.
+    pub form: (u32, u32),
+    /// The form's const record parameters, the suppliers of its trait
+    /// operations. An Identity obligation that applies an operation of one of
+    /// them must find it here.
+    pub suppliers: Vec<symbols::SymbolHandle>,
+    /// Every carrier the operations and laws name: the form's type
+    /// parameters and whatever data or scalars the operations take and give.
+    pub carriers: Vec<semantic_vocabulary::ClauseCarrier>,
+    pub operations: Vec<IdentityOperation>,
+    pub laws: Vec<IdentityLaw>,
+}
+
+/// A trait operation, as a function from its domains to its result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IdentityOperation {
+    pub declaration: semantic_vocabulary::ClauseDeclaration,
+    pub domains: Vec<semantic_vocabulary::ClauseCarrier>,
+    pub result: semantic_vocabulary::ClauseCarrier,
+}
+
+/// One `ensures` equality of a law requirement of one of the form's const
+/// record parameters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IdentityLaw {
+    /// The machine that stands for the requirement in the form's module.
+    pub instance: semantic_vocabulary::MachineId,
+    /// Its position among that machine's `ensures` clauses.
+    pub clause: u32,
+    /// The carrier of each formal, structural formals first and then scalar
+    /// ones, as a citation supplies them.
+    pub formals: Vec<semantic_vocabulary::ClauseCarrier>,
+    /// The equality, with formal `k` written `ClauseOperand::Formal(k)`.
+    pub statement: semantic_vocabulary::ClauseIdentity,
 }
 
 /// The declarations of the integer vocabulary, by position.
@@ -215,7 +264,9 @@ pub struct SignatureEntry {
 
 #[derive(Debug, Clone)]
 pub enum SignatureEntryKind {
-    /// A plain data declaration: the canonical trees of its cases.
+    /// A plain data declaration, or one application of generic data: its
+    /// type, whose cases and fields `shape` describes. The constructors and
+    /// the induction principle follow it.
     Data {
         declaration: SymbolHandle,
         shape: PlainData,
@@ -239,12 +290,17 @@ pub enum SignatureEntryKind {
     /// (kernel_metatheory.md, "Boolean values denote `Two`"). A signature
     /// declares it once, the first time a machine needs it.
     Boolean,
+    /// The inductive former of a generic data declaration (`Seq<T>`), a
+    /// function from its type parameters to a type. Its constructors and
+    /// recursor follow it as `Encoding` entries; each application the
+    /// program uses is declared after them as a `Data` entry equal to the
+    /// former at the application's type arguments.
+    GenericData { declaration: SymbolHandle },
     /// A case of the data declared at index `data`, as a function of its fields.
     Constructor { data: u32, case: u32 },
-    /// A declaration the encoding of the data at index `data` needs besides
-    /// the data and its constructors: its case labels, their child
-    /// positions, its raw trees, the canonical-tree condition or its
-    /// induction principle.
+    /// A declaration of the data at index `data` besides the data and its
+    /// constructors: its induction principle, or a constructor or the
+    /// recursor of a generic block.
     Encoding { data: u32 },
     /// A machine with a result. `cases` says how it computes when its body
     /// dispatches on one parameter.
@@ -350,16 +406,27 @@ pub enum LawProof {
         formal: u32,
         data: u32,
         cases: Vec<LawCase>,
+        /// For data in a mutual block, the laws proved together with this
+        /// one: for each member of the block, in order, the machine whose
+        /// law is about that member, this law's own at its member. The
+        /// block's induction takes a motive per member, and a hypothesis at
+        /// a field of a member is that member's law there. Empty for data of
+        /// its own.
+        mutual: Vec<Option<SymbolHandle>>,
     },
     /// The machine is defined by recursion on fuel, over the data at entry
     /// `data`, and takes its fuel from formal `formal`. Its law is proved
     /// for every amount of fuel, by induction on it: `goal` is the law's
     /// equality with the machine's result read as that definition, stated
     /// under the fuel and then the formals. `script` is the body's
-    /// argument, the same in every case of the fuel.
+    /// argument, the same in every case of the fuel. A unit of fuel is
+    /// guarded by the ranked formal's truncated subtraction at entry
+    /// `order`: when the rest of the fuel already reaches the ranked
+    /// formal, the unit does nothing.
     Fuel {
         data: u32,
         formal: u32,
+        order: u32,
         goal: TermHandle,
         script: LawCase,
     },
@@ -454,8 +521,13 @@ pub enum Evidence {
     /// entry, so citations cannot form a cycle.
     Statement(u32),
     /// The law itself at one field of the case: the induction hypothesis.
-    /// `arguments` then holds the remaining formals' actuals in order.
-    Hypothesis { field: u32 },
+    /// `arguments` then holds the remaining formals' actuals in order. Over
+    /// a mutual block it is the law of the field's member, which may be
+    /// another law of the group.
+    /// At a field that holds a function to the data, `at` is the argument
+    /// the law is cited at the child of, a term like `arguments`: the
+    /// hypothesis is the law at every child, applied there.
+    Hypothesis { field: u32, at: Option<TermHandle> },
     /// The law itself with one unit of fuel less, in a law proved by
     /// induction on fuel. `arguments` holds every formal's actual. With no
     /// fuel left there is no such hypothesis and the citation is nothing.

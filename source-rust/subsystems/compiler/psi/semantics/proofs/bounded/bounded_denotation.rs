@@ -45,6 +45,8 @@ use crate::{
 
 const MAX_ELABORATION_NODES: u64 = 1 << 16;
 
+#[cfg(test)]
+mod law_arithmetic;
 mod theorems;
 pub use theorems::{
     BoundedImplicationType, BoundedTheorem, BoundedTheoremError, denote_bounded_implication_type,
@@ -990,6 +992,12 @@ impl Denotation {
     }
     fn pair(&mut self, first: TermHandle, second: TermHandle) -> TermHandle {
         self.arena.insert(Term::Pair { first, second })
+    }
+    /// `(λ (x : ty). x) term`: the kernel checks `term` against `ty` and infers `ty`.
+    fn ascribe(&mut self, ty: TermHandle, term: TermHandle) -> TermHandle {
+        let bound = self.var(0);
+        let identity = self.lam(ty, bound);
+        self.app(identity, term)
     }
     fn fst(&mut self, pair: TermHandle) -> TermHandle {
         self.arena.insert(Term::Fst { pair })
@@ -7043,7 +7051,13 @@ impl<'a> Elaboration<'a> {
                 }
                 self.rules
                     .insert(AcceptedProofRule::DisjunctionIntroduction);
-                Ok(self.disjunction_intro(ds.len(), *index, ev))
+                let pair = self.disjunction_intro(ds.len(), *index, ev);
+                // The kernel infers an unannotated pair's type as a plain product, which
+                // loses the tag-indexed family of a disjunction. Where the introduction is
+                // inferred, as inside an implication proof applied on the spot, that product
+                // differs from the denoted disjunction, so the pair is ascribed its type.
+                let ty = self.denotation.denote(&proof.conclusion)?;
+                Ok(self.denotation.ascribe(ty, pair))
             }
             ProofRule::ImplicationElimination {
                 implication,

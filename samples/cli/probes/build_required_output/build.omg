@@ -1,0 +1,29 @@
+use main.omg as app;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_required_output" };
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry);
+    Build::bind(builder, windows_arm64::ProgramEntry, |app|::entry);
+    let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "manifest.txt");
+    let path: BuildPath = BuildOutput::resolve(@builder.output, "manifest.txt");
+    let writer: i32 = BuildOutput::create(@mutable builder.output, path, 0);
+    _ = BuildOutput::write(@mutable builder.output, writer, "manifest\n");
+    let _sealed: i32 = BuildOutput::close(@mutable builder.output, writer);
+    let settled: OutputCompletion = BuildOutput::complete(@mutable builder.output, obligation, path);
+    settle(builder, settled);
+}
+
+machine settle(builder: @mutable BuildPlan, completion: OutputCompletion) {
+    transition completion {
+        OutputCompletion::Sealed { receipt } -> sealed(builder),
+        OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
+    }
+    machine sealed(builder: @mutable BuildPlan) {
+    }
+    machine failed(builder: @mutable BuildPlan, obligation: RequiredOutput) {
+        BuildOutput::fail(@mutable builder.output, obligation, "require did not settle");
+    }
+}

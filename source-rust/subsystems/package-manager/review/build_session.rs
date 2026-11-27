@@ -25,8 +25,8 @@ pub use bindings::PackageSourceBindings;
 pub(crate) use order::dependency_first_package_order;
 
 use crate::review::CompileResolvedPackageReviewsError;
-use evaluation_accounting::BuildEvaluationSponsor;
-use evaluation_contracts::{
+use build_model::accounting::BuildEvaluationSponsor;
+use build_model::contracts::{
     BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
 };
 use filesystem_authority::FilesystemSponsor;

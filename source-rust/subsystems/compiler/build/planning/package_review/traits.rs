@@ -320,15 +320,16 @@ impl PolicySource<'_> {
                 .iter()
                 .cloned(),
         );
+        let clause_scope = ContractScope {
+            owner: signature.symbol,
+            subject: None,
+            statics: statics.as_slice().into(),
+            parameters: formals,
+            result: None,
+        };
         let contracts = self.signature_contracts(
             typed.state_signature_contracts(signature),
-            ContractScope {
-                owner: signature.symbol,
-                subject: None,
-                statics: statics.as_slice().into(),
-                parameters: formals,
-                result: None,
-            },
+            clause_scope,
             signature.return_type,
         )?;
         let mut service_reach = metadata
@@ -376,7 +377,14 @@ impl PolicySource<'_> {
             published_crash: metadata
                 .published_crash_routes
                 .as_deref()
-                .map(super::callables::published_crash_routes)
+                .map(|checked| {
+                    super::callables::published_source_crash_routes(checked, || {
+                        self.signature_crash_routes(
+                            typed.state_signature_contracts(signature),
+                            clause_scope,
+                        )
+                    })
+                })
                 .transpose()?,
             service_reach,
             service_reach_is_installation_bound: signature.service_reach_is_installation_bound,

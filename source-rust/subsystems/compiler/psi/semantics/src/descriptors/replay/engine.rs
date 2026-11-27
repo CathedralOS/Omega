@@ -848,9 +848,19 @@ impl<'a> Replay<'a> {
     pub(crate) fn checked_storage_family(
         &self,
         machine: &DescriptorMachine,
-        _state: &State,
+        state: &State,
         resolution: StorageResolution,
     ) -> Result<Vec<DescriptorCallOrigin>, &'static str> {
+        self.checked_storage_family_if_active(machine, state, resolution)?
+            .ok_or("captured storage family is empty")
+    }
+
+    pub(crate) fn checked_storage_family_if_active(
+        &self,
+        machine: &DescriptorMachine,
+        _state: &State,
+        resolution: StorageResolution,
+    ) -> Result<Option<Vec<DescriptorCallOrigin>>, &'static str> {
         if let Some(reason) = resolution.unavailable() {
             return Err(reason);
         }
@@ -869,7 +879,7 @@ impl<'a> Replay<'a> {
             }
         };
         if origins.is_empty() {
-            return Err("captured storage family is empty");
+            return Ok(None);
         }
         for origin in &origins {
             let DescriptorCallOrigin::Argument { source, projection } = origin else {
@@ -902,7 +912,7 @@ impl<'a> Replay<'a> {
                 return Err("captured storage window has an unresolved reference crossing");
             }
         }
-        Ok(origins)
+        Ok(Some(origins))
     }
 
     pub(crate) fn flow_location(
@@ -1465,7 +1475,9 @@ impl<'a> Replay<'a> {
                         Origin::Storage(_)
                             | Origin::Incoming(_)
                             | Origin::IncomingContents(_, _)
-                            | Origin::Backing(DescriptorCallOrigin::Argument { .. })
+                            | Origin::Backing(
+                                DescriptorCallOrigin::Argument { .. } | DescriptorCallOrigin::Empty
+                            )
                             | Origin::CapturedStorage(_)
                     )
                 }) {
@@ -1479,6 +1491,7 @@ impl<'a> Replay<'a> {
                 for origin in origins {
                     let mut next_entry = None;
                     let mut target = match origin {
+                        Origin::Backing(DescriptorCallOrigin::Empty) => continue,
                         Origin::Backing(DescriptorCallOrigin::Argument {
                             source,
                             projection,
@@ -1652,7 +1665,9 @@ impl<'a> Replay<'a> {
                         self.storage_alternatives(machine, projected)
                     };
                 }
-                let (target, entry) = targets.pop()?;
+                let Some((target, entry)) = targets.pop() else {
+                    return Some(StorageResolution::Alternatives(Vec::new()));
+                };
                 next = Some(target);
                 if let Some(entry) = entry {
                     captured_entry = Some(entry);

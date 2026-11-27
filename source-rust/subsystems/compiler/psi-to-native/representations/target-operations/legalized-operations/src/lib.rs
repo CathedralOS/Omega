@@ -27,14 +27,12 @@ re-running the legalization solver.
 Start with `LegalizedOperationPlan`, then follow its function graphs through
 `control_flow`, its call contracts through `calls`, and exact integer
 arithmetic through `legality`. Function ABI, structural inputs, native
-geometry and interrupt geometry have their own modules. `identity` computes
-the plan digest, and `validation` checks call and instruction shapes.
+geometry and interrupt geometry have their own modules, and `validation`
+checks call and instruction shapes.
 */
 
-pub(crate) use ::wire::codec_bytes;
 use optimization_core::{OptimizationUnitIdentity, OptimizationValidatorIdentity};
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
-use sha2::{Digest, Sha256};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
 
@@ -53,7 +51,7 @@ pub struct LegalizedOperationPlan {
     pub optimization_unit: OptimizationUnitIdentity,
     pub work_schedule: WorkScheduleIdentity,
     pub target: NativeTarget,
-    /// Retained deployment, included in identity independently of native geometry.
+    /// Retained deployment, kept independently of native geometry.
     pub profile: Option<target::TargetProfile>,
     pub entry: MachineId,
     pub scalar_functions: Vec<LegalizedScalarFunction>, // Ordinary ordered scalar and Unit graphs with explicit ABI transport.
@@ -106,7 +104,7 @@ impl LegalizedOperationPlan {
 pub struct PreparedExecutionPlan {
     plan: LegalizedOperationPlan,
     receipt: PreparationReceipt,
-    // The same immutable owner also lives in `plan` and its canonical identity.
+    // The same immutable owner also lives in `plan`.
     // Keeping this reference makes the sealed input's query result unconditional.
     execution: target_vocabulary::NativeExecutionFacts,
 }
@@ -130,7 +128,6 @@ impl PreparedExecutionPlan {
             return Err("callable facts differ from the execution plan's preparation roots");
         }
         let receipt = PreparationReceipt {
-            identity: legalized_operation_plan_identity(&plan),
             validator,
             optimization_unit: plan.optimization_unit,
             work_schedule: plan.work_schedule,
@@ -190,21 +187,10 @@ impl PreparedExecutionPlan {
         }
         self.execution.callable_invocations_from(entry)
     }
-
-    /// Whether the plan still hashes to the identity it was sealed under.
-    pub fn is_intact(&self) -> bool {
-        legalized_operation_plan_identity(&self.plan) == self.receipt.identity
-            && self.plan.execution.as_ref() == Some(&self.execution)
-            && self.receipt.optimization_unit == self.plan.optimization_unit
-            && self.receipt.work_schedule == self.plan.work_schedule
-            && self.receipt.target == self.plan.target
-            && self.receipt.function_count == self.plan.scalar_functions.len()
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PreparationReceipt {
-    identity: LegalizedOperationPlanIdentity,
     validator: OptimizationValidatorIdentity,
     optimization_unit: OptimizationUnitIdentity,
     work_schedule: WorkScheduleIdentity,
@@ -213,10 +199,6 @@ pub struct PreparationReceipt {
 }
 
 impl PreparationReceipt {
-    pub const fn identity(self) -> LegalizedOperationPlanIdentity {
-        self.identity
-    }
-
     pub const fn validator(self) -> OptimizationValidatorIdentity {
         self.validator
     }
@@ -235,23 +217,6 @@ impl PreparationReceipt {
 
     pub const fn function_count(self) -> usize {
         self.function_count
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct LegalizedOperationPlanIdentity([u8; 32]);
-
-impl LegalizedOperationPlanIdentity {
-    pub fn from_canonical_bytes(bytes: &[u8]) -> Self {
-        Self(Sha256::digest(bytes).into())
-    }
-
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
     }
 }
 
@@ -286,15 +251,7 @@ pub use control_flow::{
     SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
 };
 
-pub mod identity;
 mod validation;
-pub use identity::{
-    encode_access_call_bindings, encode_call_binding, encode_call_plan, encode_external_execution,
-    encode_hosted_read_byte_identity, encode_integer, encode_locator,
-    encode_machine_function_identity, encode_native_callback_argument, encode_placement,
-    encode_provider_execution, encode_register, encode_scalar_type, encode_shape, encode_work,
-    legalized_operation_plan_identity,
-};
 
 #[cfg(test)]
 mod tests;

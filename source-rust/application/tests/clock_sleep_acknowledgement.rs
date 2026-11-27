@@ -8,31 +8,28 @@
 //! separate failure every system `Clock` program shares today, so it pins only
 //! that the acknowledgement check accepts the marked call.
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 const MISSING_BLOCK: &str = "call may block and requires a block acknowledgement";
 
 fn fixture(relative: &str) -> PathBuf {
-    support::repository_root()
-        .join(relative)
+    support::repository_root().join(relative)
 }
 
 fn omega_check(directory: &Path) -> String {
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "--verbose", "main.omg"])
-        .current_dir(directory)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
+    let output = project::omega(directory, &["--check", "--verbose", "main.omg"]);
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
 
 #[test]
 fn an_unmarked_clock_sleep_is_refused() {
-    let stderr = omega_check(&fixture("source-rust/application/tests/fixtures/effects/fail/clock_sleep_unacknowledged"));
+    let stderr = omega_check(&fixture(
+        "source-rust/application/tests/fixtures/effects/fail/clock_sleep_unacknowledged",
+    ));
     assert!(
         stderr.contains(&format!("{MISSING_BLOCK} in machine `entry_start`")),
         "{stderr}"
@@ -41,6 +38,8 @@ fn an_unmarked_clock_sleep_is_refused() {
 
 #[test]
 fn a_marked_clock_sleep_passes_the_acknowledgement_check() {
-    let stderr = omega_check(&fixture("source-rust/application/tests/fixtures/effects/pass/clock_sleep_acknowledged"));
+    let stderr = omega_check(&fixture(
+        "source-rust/application/tests/fixtures/effects/pass/clock_sleep_acknowledged",
+    ));
     assert!(!stderr.contains(MISSING_BLOCK), "{stderr}");
 }

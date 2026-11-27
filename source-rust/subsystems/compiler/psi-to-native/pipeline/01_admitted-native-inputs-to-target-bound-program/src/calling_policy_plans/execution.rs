@@ -84,7 +84,7 @@ pub(super) fn evaluate_terminal_calling_policy(
             demanded.push(application);
         }
     }
-    let mut meter = evaluation_work::sponsored_meter(account.clone(), None)
+    let mut meter = build_model::work::sponsored_meter(account.clone(), None)
         .map_err(|error| format!("calling policy work: {error:?}"))?;
     let declaration = artifact
         .semantic_module()

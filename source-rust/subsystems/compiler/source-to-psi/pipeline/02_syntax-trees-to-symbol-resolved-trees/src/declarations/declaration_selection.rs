@@ -21,7 +21,6 @@ use crate::source_symbols::{
     builtin_type_symbols,
 };
 use diagnostics::Diagnostic;
-use std::path::Path;
 use symbols::{SymbolKind, SymbolNameRef};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -84,16 +83,8 @@ pub(crate) fn is_core_layout_storage_source(
 ) -> bool {
     name == language_core::layout_storage::CONSTRUCTOR_NAME
         && supply_mode == language_core::DataSupplyMode::BoundaryOpaque
-        && symbols.source_file(reference).is_some_and(|file| {
-            file.origin == source_admission::SourceOrigin::Toolchain
-                && file.package_identity.is_none()
-                && file.path.strip_prefix(&file.package_root).ok()
-                    == Some(Path::new(language_core::layout_storage::SOURCE_FILE_NAME))
-                && file.source.as_bytes()
-                    == bundled_declarations::bytes(
-                        language_core::bundled_files::BundledFile::CoreLayout,
-                    )
-        })
+        && symbols.bundled_core_file(reference)
+            == Some(language_core::bundled_files::BundledFile::CoreLayout)
 }
 
 impl<'base> ConstantSelection<'base> {
@@ -383,15 +374,15 @@ impl<'base> ConstantSelection<'base> {
         if selects_family(&address) {
             return Some(address);
         }
-        for path in self.symbols.source_module_import_paths(reference.source_id) {
+        for path in self.symbols.prelude_module_paths(reference.source_id) {
             let target = self
                 .symbols
-                .source_module_import_target(reference.source_id, path);
+                .prelude_module_target(reference.source_id, path);
             let address = if target == Some(first) {
                 path.to_owned()
             } else if self
                 .symbols
-                .source_import_exposes_domain(reference, path, first)
+                .prelude_module_exposes_domain(reference, path, first)
             {
                 format!("{path}::{leaf}")
             } else {
@@ -1221,29 +1212,12 @@ impl<'base> ConstantSelection<'base> {
             ) == Some(selected_header)
         };
         let path = self.declaration_path(selected_header);
-        let mut candidates = vec![path.clone()];
-        for item in syntax.root_items() {
-            let Item::Use(syntax_trees::item::UseItem::Namespace { path: import }) = item else {
-                continue;
-            };
-            let members = syntax.items.identifier_path_members(*import);
-            if !members
-                .first()
-                .is_some_and(|member| member.source_span().source_id == origin.reference.source_id)
-            {
-                continue;
-            }
-            let mut prefix = String::new();
-            for member in members {
-                if !prefix.is_empty() {
-                    prefix.push_str("::");
-                }
-                prefix.push_str(member.as_str(syntax));
-                candidates.push(format!("{prefix}::{path}"));
-            }
-        }
-        candidates.push(self.symbols.name(selected_header).to_owned());
-        for candidate in candidates {
+        let candidates = [path, self.symbols.name(selected_header).to_owned()];
+        for candidate in candidates.into_iter().chain(self.symbols.file_import_names(
+            origin.reference.source_id,
+            origin.declaration.source_id,
+            selected_header,
+        )) {
             if !selects(&candidate) {
                 continue;
             }
@@ -1479,27 +1453,14 @@ impl<'base> ConstantSelection<'base> {
         if name.as_str(syntax).contains("::") && selects(name.as_str(syntax)) {
             return Some(name.as_str(syntax).to_owned());
         }
-        for item in syntax.root_items() {
-            let Item::Use(syntax_trees::item::UseItem::Namespace { path: import }) = item else {
-                continue;
-            };
-            let members = syntax.items.identifier_path_members(*import);
-            if members.first()?.source_span().source_id != name.source_span().source_id {
-                continue;
-            }
-            let mut prefix = String::new();
-            for member in members {
-                if !prefix.is_empty() {
-                    prefix.push_str("::");
-                }
-                prefix.push_str(member.as_str(syntax));
-                let candidate = format!("{prefix}::{path}");
-                if selects(&candidate) {
-                    return Some(candidate);
-                }
-            }
-        }
-        selects(name.as_str(syntax)).then(|| name.as_str(syntax).to_owned())
+        self.symbols
+            .file_import_names(
+                name.source_span().source_id,
+                declaration.source_id,
+                selected,
+            )
+            .find(|candidate| selects(candidate))
+            .or_else(|| selects(name.as_str(syntax)).then(|| name.as_str(syntax).to_owned()))
     }
 
     /*
@@ -1931,10 +1892,6 @@ impl record_storage::Record for SelectionBase<'_> {
 #[cfg(test)]
 mod retained_namespace_tests {
     use super::*;
-    use arena::HandleSpan;
-    use source_text::{SourceSpan, Span};
-    use syntax_trees::item::UseItem;
-
     #[test]
     fn early_declaration_selection_retains_directory_namespace_names() {
         let mut files = SourceMap::default();
@@ -1942,14 +1899,7 @@ mod retained_namespace_tests {
             "package/example/definitions.omg".into(), "imported".into(), "package".into(),
             None, source_admission::SourceOrigin::User,
         ).source_id;
-        let mut syntax = SyntaxTrees::new(source);
-        let page = syntax.text.retain(Arc::from("imported"));
-        let import = syntax.items.append_identifier_path_member(Identifier::source_backed(
-            page, SourceSpan::new(source, Span::new(0, 8)),
-        ));
-        syntax.push_root_item(Item::Use(UseItem::Namespace {
-            path: HandleSpan::from_parts(import, 1),
-        }));
+        let syntax = SyntaxTrees::new(source);
         let selection = ConstantSelection::new(&syntax, Some(Arc::new(files)), Vec::new()).unwrap();
         let symbols = selection.header_symbols();
         assert_eq!(symbols.display_path(symbols.source_module(source), "::"), "example");

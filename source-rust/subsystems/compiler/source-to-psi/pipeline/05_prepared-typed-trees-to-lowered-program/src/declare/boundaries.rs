@@ -55,7 +55,6 @@ impl BoundaryNamespace {
                 crate::Ceiling::Authored(row) => row.clone(),
                 crate::Ceiling::Inferred => return None,
             },
-            fixed_service_reach: None,
             synchronous_entries: match &source.signature.invokes {
                 crate::Ceiling::Authored(row) => row.clone(),
                 crate::Ceiling::Inferred => return None,

@@ -89,12 +89,12 @@ The caller's operand types remain unchanged.
 
 Predicate and routed scalar domains retain their declared theory in the same
 catalog. Establishment additionally names a checked completion under the
-[retained origin rules](encoding.md): a predicate is the exact
+[retained origin rules](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md): a predicate is the exact
 destination invariant proved on every actual arrival, while an issuer route
 must independently match the checked callable or closed conformance. Neither a
 predicate-free tag coercion nor a proved predicate grants issuer authority. A child
 addition accounts for its ancestors on the same incoming argument under the
-[scalar completion rules](encoding.md#scalar-completion-prerequisites). Short and
+[scalar completion rules](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#scalar-completion-prerequisites). Short and
 explicit source spellings carry the same normalized obligations.
 Qualified scalar formals and results retain their predicates in the ordinary
 entry and result contracts; missing predicates reject before those contracts
@@ -117,7 +117,7 @@ the destination's memberships; a matching structural type alone does not.
 
 `value as +D` and `value as -D` on a structural value are the only changes. Each
 is a successor edge into a fresh block parameter, named by one structural
-qualification change row ([encoding](encoding.md)). A change strictly adds or
+qualification change row ([encoding](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md)). A change strictly adds or
 strictly erases whole-value domains and keeps every projected membership. An
 added domain with issuer routes names the route the enclosing callable issues it
 by, matched against that callable's checked declaration exactly as a scalar

@@ -1148,13 +1148,21 @@ pub(crate) mod selected_lowering {
             ),
         ];
 
-        pub(crate) fn enabled_pair_rules(
+        /// The enabled pair rules, each with the optimization whose catalog row enables it.
+        pub(crate) fn enabled_pair_rules_by_optimization(
             policy: LiteralFoldPolicy,
-        ) -> impl Iterator<Item = SelectedInstructionPairRule> {
+        ) -> impl Iterator<Item = (Optimization, SelectedInstructionPairRule)> {
             SELECTED_LOWERING_RULE_CATALOG
                 .into_iter()
                 .filter(move |entry| policy.contains(entry.payload().policy()))
-                .flat_map(|entry| entry.payload().pairs().iter().copied())
+                .flat_map(|entry| {
+                    let optimization = entry.optimization();
+                    entry
+                        .payload()
+                        .pairs()
+                        .iter()
+                        .map(move |rule| (optimization, *rule))
+                })
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1559,7 +1567,7 @@ pub(crate) mod selected_lowering {
                     MachineEffectDeclaration, PreparedMachineEffectCatalog, SelectedInstructionKind,
                 };
 
-                use crate::selected_rewrites::rewrites::enabled_pair_rules;
+                use crate::selected_rewrites::rewrites::enabled_pair_rules_by_optimization;
                 use crate::selected_rewrites::rewrites::operand_probes::effect_declaration;
                 use crate::selected_rewrites::{
                     LiteralFoldError, LiteralFoldPolicy, PairResultDisposition,
@@ -1624,24 +1632,26 @@ pub(crate) mod selected_lowering {
                     policy: LiteralFoldPolicy,
                     catalog: &'a PreparedMachineEffectCatalog,
                 ) -> Result<AdmittedPairs<'a>, LiteralFoldError> {
-                    let find = |key| {
-                        register_model::find_register_constraint(
+                    let mut pairs = Vec::new();
+                    for (optimization, rule) in enabled_pair_rules_by_optimization(policy) {
+                        // A target whose constraint rows or effect declarations lack the
+                        // rewritten form, or give it effects the rule cannot carry (x86
+                        // materializations that clobber flags), has no implementation of
+                        // this optimization.
+                        let unsupported = || LiteralFoldError::UnsupportedTarget { optimization };
+                        let key = rule
+                            .immediate_constraint_key(keys)
+                            .ok_or_else(unsupported)?;
+                        let row = register_model::find_register_constraint(
                             &constraints.catalog().constraints,
                             key,
                         )
-                        .ok_or(LiteralFoldError::ImmediateConstraintMismatch)
-                    };
-                    let mut pairs = Vec::new();
-                    for rule in enabled_pair_rules(policy) {
-                        let key = rule
-                            .immediate_constraint_key(keys)
-                            .ok_or(LiteralFoldError::ImmediateConstraintMismatch)?;
-                        let row = find(key)?;
+                        .ok_or_else(unsupported)?;
                         validate_immediate_row(rule, row)?;
                         let declaration = effect_declaration(catalog, rule.rewritten(), row.key)
-                            .ok_or(LiteralFoldError::EffectCatalogMismatch)?;
+                            .ok_or_else(unsupported)?;
                         if !rule.machine_effects().admits_rewritten(declaration) {
-                            return Err(LiteralFoldError::EffectCatalogMismatch);
+                            return Err(unsupported());
                         }
                         pairs.push(AdmittedPair {
                             rule,
@@ -4012,7 +4022,7 @@ pub(crate) mod selected_lowering {
         }
 
         use optimization_core::{
-            OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
+            Optimization, OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
         };
         pub(crate) use pair_rule::{
             PairResultDisposition, PairUnitDefRelation, SelectedInstructionPairRule,
@@ -4147,8 +4157,12 @@ pub(crate) mod selected_lowering {
             ConsumerMismatch {
                 function: usize,
             },
-            EffectCatalogMismatch,
             ImmediateConstraintMismatch,
+            /// The target has no form, with the effects this optimization needs, for a rewrite
+            /// it makes.
+            UnsupportedTarget {
+                optimization: Optimization,
+            },
             IdentifierUnderflow {
                 function: usize,
             },
@@ -4166,7 +4180,7 @@ pub(crate) mod selected_lowering {
 
     pub(crate) use catalog::{
         SELECTED_LOWERING_RULE_CATALOG, SelectedLoweringRuleCatalogEntry,
-        SelectedLoweringRuleCatalogError, enabled_pair_rules,
+        SelectedLoweringRuleCatalogError, enabled_pair_rules_by_optimization,
     };
     pub(crate) use literal_fold::{
         FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan,

@@ -122,7 +122,7 @@ impl<'program, 'artifact> SelectedPolicies<'program, 'artifact> {
         let analysis = self
             .analysis
             .get_or_insert_with(|| self.terminal.callable_analysis(Some(&providers)));
-        let admission = evaluation_admission::admit_compiler_evaluation(
+        let admission = build_model::admission::admit_compiler_evaluation(
             artifact.view(),
             self.profile.target_name(),
             *instance

@@ -10,14 +10,15 @@ artifact identities (`NativeArtifactIdentity`).
 */
 
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
+use build_providers::selections::{
+    SelectedExternalRequirementApplication, SelectedProviderPlanFacts,
+};
 use diagnostics::Diagnostic;
 use image_emission::{ExecutableImageEmissionRequest, RequestedExecutableImage};
 use provider_admission::AdmittedNativeProviders;
 use provider_admission::ProviderExecutionEvidence;
-use selected_provider_plans::{SelectedExternalRequirementApplication, SelectedProviderPlanFacts};
 use terminal_authority_receipts::{
-    TerminalAuthorityClosureReviewReceipt,
-    TerminalAuthorityPermissionPolicyIdentity,
+    TerminalAuthorityClosureReviewReceipt, TerminalAuthorityPermissionPolicyIdentity,
     TerminalAuthorityPolicyIdentity,
 };
 use terminal_psi::{TerminalIdentityTable, TerminalModule};

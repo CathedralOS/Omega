@@ -27,10 +27,10 @@ fn git_entry_paths_use_native_separators_without_changing_identity_bytes() {
         assert_eq!(entry.relative_path.as_os_str(), native.as_os_str());
         assert_eq!(entry.relative_bytes, spelling.as_bytes());
     }
-    let tree = source_capture::CapturedSourceTree::new(entries.into_iter().map(|entry| {
+    let tree = crate::capture::CapturedSourceTree::new(entries.into_iter().map(|entry| {
         (
             entry.relative_path,
-            source_capture::CapturedSourceNode::Directory,
+            crate::capture::CapturedSourceNode::Directory,
         )
     }))
     .unwrap();

@@ -13,14 +13,14 @@ pub enum NormalizedForeignArgumentContract {
 pub struct NormalizedForeignTerminalMechanismIdentity {
     target: target::TargetProfile,
     locator_identity: target::ForeignLocatorIdentityDigest,
-    implementation_contract: provider_plans::BoundaryCallingPlanCommitment,
+    implementation_contract: build_providers::plans::BoundaryCallingPlanCommitment,
     argument_contract: NormalizedForeignArgumentContract,
 }
 
 impl NormalizedForeignTerminalMechanismIdentity {
     pub fn from_normalized_locator(
         locator: &target::NormalizedForeignLocator,
-        implementation_contract: provider_plans::BoundaryCallingPlanCommitment,
+        implementation_contract: build_providers::plans::BoundaryCallingPlanCommitment,
     ) -> Self {
         Self {
             target: locator.target(),
@@ -52,7 +52,9 @@ impl NormalizedForeignTerminalMechanismIdentity {
         self.locator_identity
     }
 
-    pub const fn implementation_contract(self) -> provider_plans::BoundaryCallingPlanCommitment {
+    pub const fn implementation_contract(
+        self,
+    ) -> build_providers::plans::BoundaryCallingPlanCommitment {
         self.implementation_contract
     }
 }
@@ -137,7 +139,7 @@ impl CheckedPhysicalTerminalMechanismIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TableBindingAuthority {
-    Provider(provider_plans::ProviderPlanDigest),
+    Provider(build_providers::plans::ProviderPlanDigest),
     Build([u8; 32]),
 }
 
@@ -159,7 +161,7 @@ pub enum TerminalMechanismIdentity {
     Table {
         target: target::TargetProfile,
         authority: TableBindingAuthority,
-        calling: provider_plans::BoundaryCallingPlanCommitment,
+        calling: build_providers::plans::BoundaryCallingPlanCommitment,
         byte_offset: u32,
         table_operand: u32,
         dispatch_only: bool,

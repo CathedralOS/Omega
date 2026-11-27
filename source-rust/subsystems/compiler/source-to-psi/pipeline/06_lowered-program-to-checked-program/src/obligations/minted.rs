@@ -38,9 +38,8 @@ by the lowered form's own call operations and terminators.
 
 `DataDomain` rows are counted by `Storage::owed_are_minted`, which needs the
 place walk to know which clauses a write owes; their point is checked here.
-The clauses they are goals of come from a table beside the module
-(`Elaboration::domains`); `domains_are_declared` refuses that table unless it
-is the `requires` each type declaration of the module states.
+The clauses they are goals of are the `requires` of the module's own type
+declarations (`StructuralTypeDeclaration::requires`).
 
 A disagreement is a defect of the route, not of the program, so it is a
 `ForeignIdentity` refusal: `judge` returns it as `Err` and nothing is
@@ -50,7 +49,7 @@ accepted on it.
 use arena::IdTable;
 use semantic_vocabulary::{
     BlockId, CrashCause, CycleComponentId, EdgeId, InvocationSite, MachineId, ObligationId,
-    Proposition, ScalarType, StructuralTypeId, ValueId,
+    ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::edges::{Actual, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
@@ -59,8 +58,8 @@ use terminal_check_tables::{
     Checked, Construct, InvocationId, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
-    BoundaryParameterKind, CrashRouteBucket, OperationKind, StructuralTypeDeclaration,
-    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
+    BoundaryParameterKind, CrashRouteBucket, OperationKind, TerminalMachine, TerminalMachineResult,
+    Terminator, ValueDeclaration,
 };
 
 use crate::{call_contracts, refusal, semantics_refusal};
@@ -547,6 +546,26 @@ impl Minted<'_> {
         Ok(())
     }
 
+    /// A call that can crash owes, at `before`, `CrashCoverage` at `crash`
+    /// for each cause among its callee's crash routes.
+    fn call_owing_crashes(
+        &mut self,
+        site: InvocationSite,
+        inputs: call_contracts::Inputs<'_>,
+        before: ProgramPoint,
+        concerns: Construct,
+        crash: CrashSite,
+    ) -> Checked<()> {
+        for bucket in self.call(site, inputs, before, concerns)? {
+            let kind = ObligationKind::CrashCoverage {
+                site: crash,
+                cause: bucket.cause,
+            };
+            self.owed(kind, before, concerns)?;
+        }
+        Ok(())
+    }
+
     /// One call of the lowered form: its invocation row restates the callee
     /// and the actuals, and it owes one `CallRequirement` per `requires`
     /// clause of the callee, in clause order, at `before`.
@@ -835,6 +854,10 @@ pub(crate) fn follow_the_lowered_form(
                     Error::Unconsumed { at_join, .. } => {
                         (RefusalReason::Violation, Error::unconsumed_message(at_join))
                     }
+                    Error::MissingActiveCase { .. } => (
+                        RefusalReason::Unsupported,
+                        Error::missing_active_case_message(),
+                    ),
                     Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, detail),
                     Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
                 };
@@ -978,19 +1001,15 @@ pub(crate) fn follow_the_lowered_form(
                     ));
                 }
             }
+            // Each proof-bearing part of the operation owes its safety before it.
+            let safety = ObligationKind::OperationSafety {
+                site: terminal_check_tables::obligations::ExecutionSite::Operation(operation.id),
+            };
             if let Some(semantics) =
                 terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, types)
                     .map_err(semantics_refusal(id, operation.id))?
             {
-                minted.claim(
-                    semantics.obligation(),
-                    ObligationKind::OperationSafety {
-                        site: terminal_check_tables::obligations::ExecutionSite::Operation(
-                            operation.id,
-                        ),
-                    },
-                    before,
-                )?;
+                minted.claim(semantics.obligation(), safety, before)?;
             }
             for projection in operation.kind.structural_projections() {
                 for segment in projection.path {
@@ -998,15 +1017,7 @@ pub(crate) fn follow_the_lowered_form(
                         obligation, ..
                     } = segment
                     {
-                        minted.claim(
-                            *obligation,
-                            ObligationKind::OperationSafety {
-                                site: terminal_check_tables::obligations::ExecutionSite::Operation(
-                                    operation.id,
-                                ),
-                            },
-                            before,
-                        )?;
+                        minted.claim(*obligation, safety, before)?;
                     }
                 }
             }
@@ -1025,15 +1036,7 @@ pub(crate) fn follow_the_lowered_form(
                 ..
             } = &operation.kind
             {
-                minted.claim(
-                    *obligation,
-                    ObligationKind::OperationSafety {
-                        site: terminal_check_tables::obligations::ExecutionSite::Operation(
-                            operation.id,
-                        ),
-                    },
-                    before,
-                )?;
+                minted.claim(*obligation, safety, before)?;
             }
             // A trapping primitive owes its own Trap coverage independently
             // of the same operation's call-contract processing.
@@ -1049,18 +1052,13 @@ pub(crate) fn follow_the_lowered_form(
             }
             let site = InvocationSite::Operation(operation.id);
             if let Some(inputs) = call_contracts::inputs_at(lowered, site)? {
-                let routes =
-                    minted.call(site, inputs, before, Construct::Operation(operation.id))?;
-                for bucket in routes {
-                    minted.owed(
-                        ObligationKind::CrashCoverage {
-                            site: CrashSite::Operation(operation.id),
-                            cause: bucket.cause,
-                        },
-                        before,
-                        Construct::Operation(operation.id),
-                    )?;
-                }
+                minted.call_owing_crashes(
+                    site,
+                    inputs,
+                    before,
+                    Construct::Operation(operation.id),
+                    CrashSite::Operation(operation.id),
+                )?;
             }
             before = ProgramPoint::AfterOperation(operation.id);
         }
@@ -1084,17 +1082,13 @@ pub(crate) fn follow_the_lowered_form(
         if let Some(site) = call_contracts::terminator_site(&block.terminator)
             && let Some(inputs) = call_contracts::inputs_at(lowered, site)?
         {
-            let routes = minted.call(site, inputs, before, Construct::Block(block.id))?;
-            for bucket in routes {
-                minted.owed(
-                    ObligationKind::CrashCoverage {
-                        site: CrashSite::Block(block.id),
-                        cause: bucket.cause,
-                    },
-                    before,
-                    Construct::Block(block.id),
-                )?;
-            }
+            minted.call_owing_crashes(
+                site,
+                inputs,
+                before,
+                Construct::Block(block.id),
+                CrashSite::Block(block.id),
+            )?;
         }
         for (edge, actions) in block.terminator.cleanup_rosters() {
             for (ordinal, action) in actions.iter().enumerate() {
@@ -1457,50 +1451,6 @@ impl Minted<'_> {
         }
         Ok(())
     }
-}
-
-/// Refuses a table of data `requires` clauses that is not the one the
-/// module's type declarations state. The clauses are the goals of every
-/// `DataDomain` obligation and the premises a read of established storage
-/// learns from its type, so a clause weakened, strengthened, dropped, added
-/// or moved to another type in the table would change what is proved for
-/// every construction, store and read of that type without touching the
-/// lowered form. The declaration is what the module carries into its
-/// encoding and identity; the table must restate it exactly, in authored
-/// order, since a `DataDomain` obligation names its clause by position.
-///
-/// A type the table has no row for is one whose declaration states none: a
-/// scalar local's primitive home, declared after the data types.
-pub(crate) fn domains_are_declared(
-    id: MachineId,
-    declarations: &[StructuralTypeDeclaration],
-    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
-) -> Checked<()> {
-    let foreign = |detail: &str| {
-        refusal(
-            RefusalReason::ForeignIdentity,
-            id,
-            Construct::Machine,
-            detail,
-        )
-    };
-    for (structural_type, _) in domains.iter() {
-        if !declarations
-            .iter()
-            .any(|declaration| declaration.id == structural_type)
-        {
-            return Err(foreign("a row of requires clauses names no declared type"));
-        }
-    }
-    for declaration in declarations {
-        let restated = domains.get(declaration.id).map_or(&[][..], Vec::as_slice);
-        if restated != declaration.requires.as_slice() {
-            return Err(foreign(
-                "a data type's requires clauses are not the ones its declaration states",
-            ));
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

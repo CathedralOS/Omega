@@ -7,22 +7,19 @@
 
 #[path = "support/declared_exit.rs"]
 mod declared_exit;
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::Output;
 
 fn fixture(path: &str) -> PathBuf {
     support::repository_root().join(path)
 }
 
-fn check(project: &Path) -> (Output, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "main.omg"])
-        .current_dir(project)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs on the hosted target");
+fn check(directory: &Path) -> (Output, String) {
+    let output = project::omega(directory, &["--check", "main.omg"]);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -36,6 +33,19 @@ fn layout_queries_observe_the_selected_c_layout_in_native_and_psi() {
     let project =
         fixture("source-rust/application/tests/fixtures/layouts/run/c_layout_size_alignment_query");
     declared_exit::assert_declared_exit(&project, "main.omg");
+
+    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "saved-c-layout-query", false,
+    ).unwrap();
+    let saved = scratch.path().join("query.psi");
+    let output = project::omega(
+        &project,
+        &["--emit-psi", saved.to_str().unwrap(), "--target", "linux_x86_64", "build.omg"],
+    );
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let artifact = std::fs::read(saved).unwrap();
+    let _reconstructed = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact)
+        .expect("the saved schema reconstructs the target's address field geometry");
 }
 
 #[test]

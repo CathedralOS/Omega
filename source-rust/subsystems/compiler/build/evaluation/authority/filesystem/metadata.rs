@@ -1,6 +1,6 @@
 //! The validated source metadata against which Build filesystem grants can be narrowed.
 
-use source_selection::{
+use source_acquisition::selection::{
     FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, canonical_filesystem_metadata_path_is_canonical,
 };
 

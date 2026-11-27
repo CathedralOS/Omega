@@ -44,48 +44,23 @@ pub(super) fn parse(arguments: &mut super::Arguments) -> Result<Option<ParsedAud
             Some(flag @ ("--build-input" | "--optional-build-input")) => {
                 build_inputs.push(parse_build_input(arguments, flag)?);
             }
-            Some("--kind") => {
-                if source_kind.is_some() {
-                    return Err("duplicate --kind".into());
-                }
+            Some("--kind") => super::set_once(&mut source_kind, "--kind", || {
                 let kind = take_text(arguments, "--kind")?;
                 if kind != "local" && kind != "git" {
                     return Err(format!("--kind requires `local` or `git`, not `{kind}`"));
                 }
-                source_kind = Some(kind);
-            }
-            Some("--rev") => {
-                if rev.is_some() {
-                    return Err("duplicate --rev".into());
-                }
-                rev = Some(take_text(arguments, "--rev")?);
-            }
-            Some("--project") => {
-                if project_root.is_some() {
-                    return Err("duplicate --project".to_owned());
-                }
-                project_root = Some(PathBuf::from(take_value(arguments, "--project")?));
-            }
+                Ok(kind)
+            })?,
+            Some("--rev") => super::set_once(&mut rev, "--rev", || take_text(arguments, "--rev"))?,
+            Some("--project") => super::set_once(&mut project_root, "--project", || {
+                take_value(arguments, "--project").map(PathBuf::from)
+            })?,
             Some("--target") => target_names.push(take_text(arguments, "--target")?),
-            _ => {
-                if argument.as_encoded_bytes().starts_with(b"-") {
-                    return Err(format!(
-                        "unrecognized option `{}`",
-                        argument.to_string_lossy()
-                    ));
-                }
-                if locator.is_some() {
-                    return Err(format!(
-                        "unexpected extra argument `{}`",
-                        argument.to_string_lossy()
-                    ));
-                }
-                locator = Some(
-                    argument
-                        .into_string()
-                        .map_err(|_| "source locator must be UTF-8".to_owned())?,
-                );
-            }
+            _ => super::positional(argument, &mut locator, |locator| {
+                locator
+                    .into_string()
+                    .map_err(|_| "source locator must be UTF-8".to_owned())
+            })?,
         }
     }
     if help {

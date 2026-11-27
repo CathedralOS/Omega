@@ -166,7 +166,9 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
             operation.contract_identity(),
         )
         .map_err(|error| error.description())?;
-        return Ok(vec![Proposition::FloatIntegerConversion(relation)]);
+        return Ok(vec![Proposition::FloatIntegerConversion(Box::new(
+            relation,
+        ))]);
     }
     use numerics::intrinsics::NumericType;
     use numerics::float_semantics::{

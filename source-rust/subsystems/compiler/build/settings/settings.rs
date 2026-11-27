@@ -6,11 +6,11 @@
 //! active sum cases and array elements come from the completed invocation.
 //! Product selection and host facets have separate admission rules.
 
-use optimization_requests::OptimizationReportRequest;
+use build_model::values::BuildTimeValue;
 use normalized_build_settings::EvaluatedBuildSettings;
+use optimization_requests::OptimizationReportRequest;
 use package_compilation::build_execution::SelectedBuildMachine;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue, StructuralTypeId};
-use build_time_values::BuildTimeValue;
 use terminal_interpreter::{
     TerminalInstance, TerminalScalarValue, TerminalStorageContents, TerminalStorageObservationValue,
 };
@@ -45,6 +45,7 @@ pub fn extract(
                 | "x86_deployment_features"
                 | "elf_interpreter"
                 | "tests"
+                | "proof"
         ) {
             continue;
         }
@@ -193,7 +194,10 @@ fn read_fields(
 
 fn read_leaf(instance: &TerminalInstance<'_, '_>, path: &[Path]) -> Result<BuildTimeValue, String> {
     let observed = instance
-        .observe_storage(terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0), path)
+        .observe_storage(
+            terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0),
+            path,
+        )
         .map_err(|error| format!("Build field readback: {error:?}"))?;
     match observed {
         TerminalStorageObservationValue::Bytes(bytes) => {

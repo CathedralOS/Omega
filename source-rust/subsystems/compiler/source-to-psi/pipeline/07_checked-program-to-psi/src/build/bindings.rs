@@ -236,15 +236,12 @@ pub(crate) mod build_filesystem {
     pub enum TerminalBuildFilesystemOperation {
         ResolveSource,
         ResolveOutput,
-        NamedInput,
         Open,
         Read,
         CloseSource,
         Create,
         Write,
         CloseOutput,
-        // Record stores operation tags by position. Tag 9 was the old filesystem handoff.
-        RetiredSourcePublication,
         Require,
         CanComplete,
         Complete,

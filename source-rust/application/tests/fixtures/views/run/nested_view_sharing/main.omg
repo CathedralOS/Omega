@@ -1,0 +1,37 @@
+// Two nested states pass mutable views back and forth unchanged; native code
+// keeps both states' view parameters in one slot, and writes through them
+// still land in the caller's buffers.
+data Span [copy] { s: u64; d: u64; n: u64; }
+
+machine add_row(raw: @mutable [u8], out: @mutable [u8], r: Span) -> bool {
+    transition { _ -> step(raw, out, r, 0u64) }
+
+    machine step(raw: @mutable [u8], out: @mutable [u8], r: Span, i: u64) -> bool requires true {
+        let si: u64 in Wrapping = (r.s as +Wrapping) + (i as +Wrapping);
+        let di: u64 in Wrapping = (r.d as +Wrapping) + (i as +Wrapping);
+        transition i < r.n && (si as -Wrapping) < raw.length && (di as -Wrapping) < out.length {
+            true -> put(raw, out, r, i, si as -Wrapping, di as -Wrapping),
+            false -> (i >= r.n),
+        }
+    }
+
+    machine put(raw: @mutable [u8], out: @mutable [u8], r: Span, i: u64, si: u64, di: u64) -> bool
+    requires i < r.n && si < raw.length && di < out.length {
+        let v: u8 in Wrapping = (raw[si] as +Wrapping) + (out[di] as +Wrapping);
+        out[di] = v as -Wrapping;
+        raw[si] = 0u8;
+        transition { _ -> step(raw, out, r, i + 1u64) }
+    }
+}
+
+machine main() crashes Trap {
+    let mutable raw: [u8; 4] = [1, 2, 3, 4];
+    let mutable out: [u8; 6] = [0, 10, 20, 30, 40, 0];
+    let ok: bool = add_row(@mutable raw[..], @mutable out[..], Span { s: 0, d: 1, n: 4 });
+    transition ok && out[1] == 11u8 && out[4] == 44u8 && out[5] == 0u8 && raw[0] == 0u8 && raw[3] == 0u8 {
+        true -> done(),
+        _ -> fail()
+    }
+}
+machine done() {}
+machine fail() crashes Trap { crash Trap; }

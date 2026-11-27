@@ -78,26 +78,10 @@ framework or a list of unimplemented features.
 <a id="flattened-asm-regions-drop-their-target"></a>
 ### Straight-line asm regions of place instructions lose their x86-64 requirement
 - Category: 6. A verdict with nothing behind it
-- Where: [`desugar` flattening](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/declarations/assembly/mod.rs#L315) and the interpreter's [`assembly_target_requirement: Any`](source-rust/subsystems/interpreter/instructions/calls.rs#L869)
-- Saw: an `asm` region holding only `mov`/`ldr`/`str` or packed instructions over typed places becomes ordinary statements in stage 02, so stage 05 accepts it. The catalog marks packed instructions `X86_64`, but nothing carries that target past stage 02; arm64 native fails later with a source custody mismatch instead of a target refusal. Every other `asm` statement is still refused in stage 05.
-- Cost: a library machine using `vpaddw` reads as target-checked when only x86-64 realization and Psi enforce it.
+- Where: [`desugar` flattening](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/declarations/assembly/mod.rs#L315) and the [native reachability review](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_review/reachability.rs)
+- Saw: an `asm` region holding only `mov`/`ldr`/`str` or packed instructions over typed places becomes ordinary statements in stage 02, so the machine's `assembly_target_requirement` stays `Any`. The native reachability review now refuses packed integer operations on non-x86-64 targets by operation kind, but `--check --target linux_arm64` still accepts them and a flattened `mov` region keeps no target at all.
+- Cost: the catalog's target is enforced for packed instructions only at native admission, by a second rule beside the catalog.
 - Reported: 2026-11-26, Claude Code, while moving the SIMD library onto checked asm instructions.
-
-<a id="packed-four-lane-widen-narrow-unreachable"></a>
-### Four-lane packed widen and narrow operations have no source spelling
-- Category: 8. Zombie machinery
-- Where: [`PackedIntegerUnaryOperation`](source-rust/subsystems/compiler/foundation/semantic-records/src/lib.rs#L48) `WidenU8x4ToI16x8` and `NarrowI16x8ToU8x4Saturating`, their interpreter arms and the selected-instruction catalog entries `PackedWidenU8x4ToI16x8`
-- Saw: the SIMD library composes `widen_u8x4` and `narrow_u8x4` from the eight-lane `vpmovzxbw` and `vpackuswb` instructions, so no source reaches these Psi operations. Only unit tests call them.
-- Cost: readers assume source can select a four-byte load form; removing them touches Psi, the interpreter and native selection together.
-- Reported: 2026-11-26, Claude Code, while moving the SIMD library onto checked asm instructions.
-
-<a id="every-bundled-custody-query-compares-the-whole-file"></a>
-### Every bundled-declaration custody query compares the whole source file
-- Category: 4. Re-deriving
-- Where: [`CoreVocabularyCatalog::classify` and `source`](source-rust/subsystems/compiler/source-to-psi/representations/source-files/bundled-declarations/src/core_vocabulary.rs#L10) and `SealedIntrinsicCatalog::classify`, reached through [`toolchain_site`](source-rust/subsystems/compiler/source-to-psi/representations/symbol-resolved-trees/symbol-table/source_symbols.rs#L63) from `SymbolTable::sealed_intrinsic`, `core_source` and `core_vocabulary`
-- Saw: each query strips the file's package root and then tests `crate::bytes(file) == site.source`, a byte comparison of the whole bundled file, every time. Stage 03 asks per operator candidate and per call site: `is_sealed_toolchain_float_operator` makes three such queries for one candidate (two catalog lookups and a second `display_path`), and `retain_static_argument_contexts` asks `core_vocabulary` per argument. A release profile of popcount `--check` on omega-linux (2026-11-25) put about 0.06 s in `__memcmp` and path parsing under `normalize_qualification_casts` and `retain_static_argument_contexts`.
-- Cost: whether a file is the exact bundled one is fixed when the source is admitted, but every query recomputes it. Source admission could record it once on the `SourceFile`.
-- Reported: 2026-11-25, Claude Code, while profiling Psi 02/03 on popcount.
 
 <a id="resuming-a-typing-from-retained-source-costs-more-than-typing-afresh"></a>
 ### Resuming a typing from retained source costs more than typing afresh

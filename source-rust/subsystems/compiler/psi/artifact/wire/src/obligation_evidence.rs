@@ -384,6 +384,7 @@ impl<'module> MachineEvidenceGoals<'module> {
     fn new(
         machine: &'module terminal_psi::TerminalMachine,
         structural_types: &'module [terminal_psi::StructuralTypeDeclaration],
+        scalar_applications: &'module terminal_psi::ScalarApplications,
         indexed_types: &mut Option<Vec<&'module terminal_psi::StructuralTypeDeclaration>>,
     ) -> Self {
         let types = terminal_semantics::SortedValueTypes::new(
@@ -528,6 +529,11 @@ impl<'module> MachineEvidenceGoals<'module> {
                     root,
                     projection.path,
                     types,
+                    |application| {
+                        scalar_applications
+                            .declaration(application)
+                            .and_then(|declaration| declaration.scalar_type())
+                    },
                     |prefix| {
                         terminal_semantics::preceding_collection_length(
                             preceding,
@@ -614,7 +620,12 @@ impl<'module, 'seals> EvidenceSealValidator<'module, 'seals> {
             .iter()
             .filter(|machine| selected.binary_search(&machine.id).is_ok())
             .map(|machine| {
-                MachineEvidenceGoals::new(machine, &module.types.structural_types, &mut indexed_types)
+                MachineEvidenceGoals::new(
+                    machine,
+                    &module.types.structural_types,
+                    &module.scalars.scalar_applications,
+                    &mut indexed_types,
+                )
             })
             .collect::<Vec<_>>();
         machines.sort_unstable_by_key(|row| row.machine.id);
@@ -1309,7 +1320,8 @@ mod projection_tests {
                     },
                 ),
             ];
-            let goals = MachineEvidenceGoals::new(&body, &[], &mut None);
+            let empty_applications = terminal_psi::ScalarApplications::default();
+            let goals = MachineEvidenceGoals::new(&body, &[], &empty_applications, &mut None);
             let obligation = ObligationId::new(number).unwrap();
             let goal = goals
                 .obligation(obligation)
@@ -1578,7 +1590,8 @@ mod projection_tests {
         ];
         // This API checks goal correspondence. Descriptor formation and
         // backing custody are the independent checker's separate obligations.
-        let goals = MachineEvidenceGoals::new(&body, &[], &mut None);
+        let empty_applications = terminal_psi::ScalarApplications::default();
+        let goals = MachineEvidenceGoals::new(&body, &[], &empty_applications, &mut None);
         let seals = (1..=2)
             .map(|raw| {
                 let obligation = ObligationId::new(raw).unwrap();

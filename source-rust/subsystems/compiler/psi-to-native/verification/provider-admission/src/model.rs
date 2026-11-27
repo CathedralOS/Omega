@@ -54,7 +54,7 @@ builtin_native_realization_conversion!(target_operations::ClaimCompletionOnlyRea
 #[derive(Debug, Clone, Copy)]
 pub struct NativeProviderSettlement<'execution> {
     pub provider_execution: &'execution dyn ProviderExecutionEvidence,
-    pub provider_plan: &'execution provider_plans::ProviderPlan, // Complete selected-plan evidence; report identity alone cannot authorize a plan.
+    pub provider_plan: &'execution build_providers::plans::ProviderPlan, // Complete selected-plan evidence; report identity alone cannot authorize a plan.
     pub realization: NativeBoundaryRealization<'execution>,
 }
 
@@ -66,7 +66,7 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
         Option<&'request std::sync::Arc<super::AdmittedProgramProviderContext>>,
     pub installation_assumptions:
         &'request [installation_conditions::InstallationEnvironmentAssumption],
-    pub selected_provider_plans: &'request selected_provider_plans::SelectedProviderPlanFacts,
+    pub selected_provider_plans: &'request build_providers::selections::SelectedProviderPlanFacts,
     pub checked_adapters: &'request [crate::SelectedProviderAdapter],
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'execution>],
@@ -258,6 +258,6 @@ pub enum AdmittedBoundaryExecution<'execution> {
     CompilerBuiltin(super::SettledCompilerBuiltin),
     NativeBinding {
         execution: target_operations::NativeBindingExecution,
-        schema: provider_plans::ServiceSchemaDigest,
+        schema: build_providers::plans::ServiceSchemaDigest,
     },
 }

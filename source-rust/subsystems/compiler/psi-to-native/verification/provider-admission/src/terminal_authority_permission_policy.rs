@@ -20,8 +20,8 @@ resolved bindings even when no receiving policy was supplied.
 use std::collections::BTreeSet;
 
 use diagnostics::Diagnostic;
-pub use provider_acceptance::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissionPolicyRow;
-use provider_acceptance::ServiceTerminalAuthorityPermission;
+pub use build_providers::acceptance::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissionPolicyRow;
+use build_providers::acceptance::ServiceTerminalAuthorityPermission;
 use semantic_vocabulary::TerminalAuthorityDisposition;
 use terminal_authority_receipts::TerminalAuthorityPermissionPolicyIdentity;
 use semantic_vocabulary::provider_identity::ServiceSchemaDigest;

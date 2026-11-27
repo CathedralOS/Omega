@@ -142,6 +142,32 @@ machine main() {}"#;
     );
 }
 
+#[test]
+fn installed_core_can_rejoin_every_admitted_cut() {
+    let source = r#"use {omega}/language/core/extent.omg as ranges;
+machine rejoin(
+    whole: |ranges|::Extent in |ranges|::Extent::Granted & |ranges|::Extent::Vacant,
+    requested: u64
+) -> |ranges|::Extent in |ranges|::Extent::Granted & |ranges|::Extent::Vacant
+requires requested <= whole.length
+{
+    let parts: |ranges|::VacantExtentParts = |ranges|::split_vacant_extent(whole, requested);
+    |ranges|::merge_vacant_extents(parts.taken, parts.rest)
+}
+machine main() {}"#;
+    let inspect = &["psi", "inspect", "--machine", "rejoin"];
+    let (output, report) = program::invoke(source, inspect);
+    assert!(output.status.success(), "{report}");
+
+    let unchecked = source.replace("requires requested <= whole.length", "");
+    let (output, report) = program::invoke(&unchecked, inspect);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("cannot prove requires") && report.contains("split_vacant_extent"),
+        "{report}"
+    );
+}
+
 fn with_transfer_contract() -> String {
     let transfer = r#"use {omega}/language/core/foundation.omg as proof;
 public boundary trait Transfer {
@@ -361,4 +387,51 @@ fn a_boundary_call_composes_the_declared_interval_law_at_its_normal_result() {
         .content_partition_compositions
         .clear();
     assert!(boundary_calls::verify_machine(&forged, &forged.machines[ordinal]).is_err());
+}
+
+/// A machine that forwards an `Extent` through a boundary call restates the
+/// boundary's interval law as its own: `extent.omg` declares
+/// `Identity(Granted::content(old(@storage)), Granted::content(@result))` on
+/// `VacantContentTransfer::transfer`, and the forwarder promises the same
+/// equation over its own input and result. The twin calls a boundary that
+/// keeps `Granted` but declares no content law; the forwarder's promise then
+/// has nothing to stand on and is refused.
+#[test]
+fn a_forwarder_restates_the_interval_law_its_boundary_call_declares() {
+    const FORWARDER: &str = r#"use {omega}/language/core/extent.omg as extent;
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/content.omg;
+use {omega}/language/core/nat.omg;
+public boundary trait Move {
+    machine pass(storage: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
+    reaches none
+    ensures result in |extent|::Extent::Granted,
+        |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(|extent|::Granted::content(old(@storage)), |extent|::Granted::content(@result))
+    crashes Trap crashes Abort;
+}
+machine forward(input: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
+ensures
+    result in |extent|::Extent::Granted,
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(|extent|::Granted::content(old(@input)), |extent|::Granted::content(@result))
+crashes Trap crashes Abort
+{ CALL(input) }
+machine main() {}"#;
+    let core = FORWARDER.replace("CALL", "|extent|::VacantContentTransfer::transfer");
+    let (output, report) = program::invoke(&core, &["--check"]);
+    assert!(output.status.success(), "{report}");
+    let declared = FORWARDER.replace("CALL", "Move::pass");
+    let (output, report) = program::invoke(&declared, &["--check"]);
+    assert!(output.status.success(), "{report}");
+
+    let lawless = declared.replace(
+        ",\n        |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(|extent|::Granted::content(old(@storage)), |extent|::Granted::content(@result))",
+        "",
+    );
+    assert_ne!(lawless, declared);
+    let (output, report) = program::invoke(&lawless, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("declares no unchanged projection for its result"),
+        "{report}"
+    );
 }

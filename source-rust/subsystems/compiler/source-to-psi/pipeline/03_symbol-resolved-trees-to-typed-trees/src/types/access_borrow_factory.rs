@@ -217,27 +217,30 @@ fn resident_backing(
     if constraints.len() != 2 {
         return None;
     }
-    let names = |name: &str, definition: &resolved::domain::DomainDefinition| {
-        let declared = definition.name.as_str();
-        name.strip_prefix("Extent::").unwrap_or(name)
-            == declared.strip_prefix("Extent::").unwrap_or(declared)
-    };
+    let names =
+        |name: &resolved::name::DiagnosticName, definition: &resolved::domain::DomainDefinition| {
+            program.symbols.domain_name_reaches(
+                definition.symbol,
+                name.as_str(),
+                name.source_span(),
+            )
+        };
     let mut has_granted = false;
     let mut has_resident = false;
     for constraint in constraints {
         match constraint {
-            TypeConstraint::Named(name) if names(name.as_str(), granted) && !has_granted => {
+            TypeConstraint::Named(name) if names(name, granted) && !has_granted => {
                 has_granted = true;
             }
             TypeConstraint::Domain(application)
-                if names(application.name.as_str(), granted)
+                if names(&application.name, granted)
                     && application.arguments.is_empty()
                     && !has_granted =>
             {
                 has_granted = true;
             }
             TypeConstraint::Domain(application)
-                if names(application.name.as_str(), resident) && !has_resident =>
+                if names(&application.name, resident) && !has_resident =>
             {
                 let [actual_placement, actual_schema] =
                     program.child_type_references(application.arguments)

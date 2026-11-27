@@ -3,8 +3,8 @@ use std::sync::Arc;
 use crate::expressions::operand_owners::CohortOperandOwners;
 use crate::lowerer::TypingCohort;
 use crate::resolution::{
-    DeferredResolvedFrontier, ExtensionRequest, ResolutionRequest,
-    pre_resolution::resolve_deferred_numeric_probe, resolve, resolve_deferred_extension,
+    DeferredResolvedFrontier, ExtensionRequest, ResolutionRequest, resolve, resolve_deferred,
+    resolve_deferred_extension,
 };
 use crate::source_inputs::SourceMap;
 use crate::source_resolved::SymbolResolvedTrees;
@@ -42,7 +42,7 @@ fn resolve_fresh(text: &str) -> SymbolResolvedTrees {
 
 fn begin_deferred(text: &str) -> (SeededTypingBase, DeferredResolvedFrontier, Arc<SourceMap>) {
     let (sources, syntax) = parse_single_source("cohort_equiv/main.omg", text);
-    let frontier = resolve_deferred_numeric_probe(ResolutionRequest {
+    let frontier = resolve_deferred(ResolutionRequest {
         syntax,
         sources: Some(Arc::clone(&sources)),
         top_level_bindings: Vec::new(),
@@ -564,7 +564,7 @@ fn activate_sources_handles_matching_and_narrowed_source_maps() {
         crate::frontend_fixture::parse_syntax_trees_with_id(keep_id, &keep_tokens).unwrap();
 
     // Case 1: equal SourceMap (`sources == current_sources` across distinct Arcs) uses the fast path.
-    let frontier = resolve_deferred_numeric_probe(ResolutionRequest {
+    let frontier = resolve_deferred(ResolutionRequest {
         syntax: keep_syntax,
         sources: Some(Arc::clone(&both_sources)),
         top_level_bindings: Vec::new(),

@@ -8,48 +8,47 @@
 //! missing, registered under another alias, renamed or retyped is refused in
 //! the consumer, at the use that names what is missing.
 
+#[path = "support/project.rs"]
+mod project;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::Path;
-use std::process::{Command, Stdio};
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::{OperationKind, TerminalModule, Terminator};
 
-const CONSUMER: &str = "use {kit}/main.omg as kit;\n\nmachine entry() -> i32 {\n    |kit|::value()\n}\n";
+const CONSUMER: &str =
+    "use {kit}/main.omg as kit;\n\nmachine entry() -> i32 {\n    |kit|::value()\n}\n";
 
 const CONSUMER_BUILD: &str = "use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"consumer\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"consumer\" };
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
     |dependency|::with_alias(@mutable description, \"kit\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
 }
 ";
 
-const PROVIDER_BUILD: &str =
-    "machine build(builder: @mutable Build) {\n    Build::package(builder, \"kernel\");\n}\n";
+const PROVIDER_BUILD: &str = "machine build(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Package { name: \"kernel\" };\n}\n";
 
 /// Compile the consumer against a provider whose `value` returns `literal`,
 /// and read back the Psi file the compiler saved.
 fn saved_module(scratch: &Path, literal: i32) -> TerminalModule {
     let root = scratch.join(format!("returns-{literal}"));
-    std::fs::create_dir_all(root.join("dep")).unwrap();
-    std::fs::write(root.join("main.omg"), CONSUMER).unwrap();
-    std::fs::write(root.join("build.omg"), CONSUMER_BUILD).unwrap();
-    std::fs::write(
-        root.join("dep").join("main.omg"),
-        format!("public machine value() -> i32 {{\n    {literal}\n}}\n"),
-    )
-    .unwrap();
-    std::fs::write(root.join("dep").join("build.omg"), PROVIDER_BUILD).unwrap();
+    let provider = format!("public machine value() -> i32 {{\n    {literal}\n}}\n");
+    project::write(
+        &root,
+        &[
+            ("main.omg", CONSUMER),
+            ("build.omg", CONSUMER_BUILD),
+            ("dep/main.omg", &provider),
+            ("dep/build.omg", PROVIDER_BUILD),
+        ],
+    );
     let artifact = root.join("consumer.psi");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--emit-psi")
-        .arg(&artifact)
-        .arg("build.omg")
-        .current_dir(&root)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs");
+    let output = project::omega(
+        &root,
+        &["--emit-psi", artifact.to_str().unwrap(), "build.omg"],
+    );
     assert!(
         output.status.success(),
         "{}{}",
@@ -122,17 +121,16 @@ fn a_dependency_call_runs_the_body_its_provider_supplies() {
 /// `provider` as the dependency's `main.omg`: the exit status and report.
 fn checked(scratch: &Path, name: &str, build: &str, provider: &str) -> (bool, String) {
     let root = scratch.join(name);
-    std::fs::create_dir_all(root.join("dep")).unwrap();
-    std::fs::write(root.join("main.omg"), CONSUMER).unwrap();
-    std::fs::write(root.join("build.omg"), build).unwrap();
-    std::fs::write(root.join("dep").join("main.omg"), provider).unwrap();
-    std::fs::write(root.join("dep").join("build.omg"), PROVIDER_BUILD).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "build.omg"])
-        .current_dir(&root)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs");
+    project::write(
+        &root,
+        &[
+            ("main.omg", CONSUMER),
+            ("build.omg", build),
+            ("dep/main.omg", provider),
+            ("dep/build.omg", PROVIDER_BUILD),
+        ],
+    );
+    let output = project::omega(&root, &["--check", "build.omg"]);
     (
         output.status.success(),
         format!(
@@ -156,7 +154,7 @@ fn a_missing_or_changed_dependency_is_refused_in_the_consumer() {
     let (ok, report) = checked(scratch.path(), "unchanged", CONSUMER_BUILD, value);
     assert!(ok, "{report}");
 
-    let unregistered = "machine build(builder: @mutable Build) {\n    Build::application(builder, \"consumer\");\n}\n";
+    let unregistered = "machine build(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Application { name: \"consumer\" };\n}\n";
     let other_alias = CONSUMER_BUILD.replace("\"kit\"", "\"other\"");
     for (name, build) in [
         ("unregistered", unregistered),
@@ -165,9 +163,7 @@ fn a_missing_or_changed_dependency_is_refused_in_the_consumer() {
         let (ok, report) = checked(scratch.path(), name, build, value);
         assert!(!ok, "{name}: {report}");
         assert!(
-            report.contains(
-                "no direct product dependency named `kit` supplies `main.omg`"
-            ),
+            report.contains("no direct product dependency named `kit` supplies `main.omg`"),
             "{name}: {report}"
         );
     }

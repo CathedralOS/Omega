@@ -109,7 +109,7 @@ pub(super) fn from_terminal(
             || checked.parameter_types[ordinal] != granted.declared_type
             || ids.text(carrier.identity) != Some(carrier_identity)
             || claim.domain != terminal_semantics::program_storage_entry::SURFACE_GRANT
-            || claim.authority_flow != provider_plans::ServiceEntryAuthorityFlow::Accepts
+            || claim.authority_flow != build_providers::plans::ServiceEntryAuthorityFlow::Accepts
         {
             return Err(format!(
                 "storage entry parameter {ordinal} must carry the installed whole Extent grant"

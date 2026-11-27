@@ -316,3 +316,82 @@ fn a_named_call_of_a_generic_member_enters_the_instance_for_its_arguments() {
         "{generic:?}"
     );
 }
+
+#[test]
+fn a_static_binder_applied_by_a_type_parameter_selects_its_member() {
+    let positive = "trait Render<T> { machine paint(x: T) -> bool; }
+machine red(x: u8) -> bool { true }
+Red satisfies Render<u8> { Render::paint = red; }
+machine use_map<T, const E: Render<T>>(x: T) -> bool { E::paint(x) }
+machine call(x: u8) -> bool { use_map::<u8, Red>(x) }";
+    accepted(positive);
+
+    let wrong_schema = "trait Render<T> { machine paint(x: T) -> bool; }
+machine red(x: u8) -> bool { true }
+Red satisfies Render<u8> { Render::paint = red; }
+machine use_map<T, const E: Render<T>>(x: T) -> bool { E::paint(x) }
+machine call(x: u16) -> bool { use_map::<u16, Red>(x) }";
+    let refusal = Program::try_of(&[("product/main.omg", wrong_schema)])
+        .err()
+        .expect("Red satisfies Render<u8>, not Render<u16>");
+    assert!(
+        format!("{refusal:?}").contains("a static record operand has another declared schema"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn a_generic_member_called_through_a_static_binder_enters_its_instance() {
+    let source = |requires: &str| {
+        format!(
+            "trait Keep {{
+    machine keep<T>(x: T, n: u8) -> T;
+    machine pick<const N: u8>(x: u8) -> u8;
+}}
+Local satisfies Keep {{
+    machine keep<T>(x: T, n: u8) -> T {requires} {{ x }}
+    machine pick<const N: u8>(x: u8) -> u8 {{ x +% N }}
+}}
+machine use_keep<const E: Keep>(x: u8) -> u8 {{ E::pick::<5>(E::pick::<4>(E::keep::<u8>(x, 0u8))) }}
+machine call(x: u8) -> u8 {{ use_keep::<Local>(x) }}"
+        )
+    };
+    accepted(&source(""));
+
+    let twin = verdict(&source("requires n != 0")).rejected();
+    assert!(
+        twin.unproved
+            .iter()
+            .any(|kind| kind.starts_with("CallRequirement")),
+        "{twin:?}"
+    );
+}
+
+#[test]
+fn a_selection_row_of_a_generic_member_checks_and_enters_its_instance() {
+    let source = |requires: &str| {
+        format!(
+            "trait Keep {{
+    machine keep<T>(x: T, n: u8) -> T;
+    machine pick<const N: u8>(x: u8) -> u8;
+}}
+machine hold<T>(x: T, n: u8) -> T {requires} {{ x }}
+machine step<const N: u8>(x: u8) -> u8 {{ x +% N }}
+Local satisfies Keep {{
+    Keep::keep = hold;
+    Keep::pick = step;
+}}
+machine use_keep<const E: Keep>(x: u8) -> u8 {{ E::pick::<5>(E::pick::<4>(E::keep::<u8>(x, 0u8))) }}
+machine call(x: u8) -> u8 {{ use_keep::<Local>(x) }}"
+        )
+    };
+    accepted(&source(""));
+
+    let twin = verdict(&source("requires n != 0")).rejected();
+    assert!(
+        twin.unproved
+            .iter()
+            .any(|kind| kind.starts_with("CallRequirement")),
+        "{twin:?}"
+    );
+}

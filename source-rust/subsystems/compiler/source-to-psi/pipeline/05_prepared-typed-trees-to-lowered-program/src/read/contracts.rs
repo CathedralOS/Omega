@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 The contract family of the reader: `requires`, `ensures` and `crashes` clauses
 read into propositions over the formals, and the identity of the reserved
@@ -28,7 +29,7 @@ use super::{Program, Slot};
 use crate::StorageShape;
 use crate::body::ValueType;
 use crate::canonical::{self, Repeated};
-use crate::{ClauseText, Piece, SourceOrigin, Unserved, refuse, reject};
+use crate::{ClauseText, Piece, SourceOrigin, Unserved, reject};
 
 /// Names a clause is being read through, each standing for an expression.
 /// For a named proposition: its declaration, which owns what its formula
@@ -134,13 +135,12 @@ impl Program<'_> {
         let declared = self
             .typed
             .executable_callable_template(scope.owner)
-            .map_err(|what| refuse(id, Construct::Machine, Unserved::Contract(what)))?;
+            .map_err(|what| refuse_at(id, Unserved::Contract(what)))?;
         if declared == Some(owner) {
             Ok(())
         } else {
-            Err(refuse(
+            Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("result of another callable"),
             ))
         }
@@ -158,13 +158,8 @@ pub(super) fn formal_place(id: MachineId, slots: &[Slot], slot: usize) -> Checke
             formal.borrowed.is_some() || matches!(formal.value_type, ValueType::Record(_, _, _))
         })
         .count();
-    PlaceId::new(earlier as u64 + 1).ok_or_else(|| {
-        refuse(
-            id,
-            Construct::Machine,
-            Unserved::Contract("formal place identity"),
-        )
-    })
+    PlaceId::new(earlier as u64 + 1)
+        .ok_or_else(|| refuse_at(id, Unserved::Contract("formal place identity")))
 }
 
 impl Program<'_> {
@@ -242,9 +237,8 @@ impl Program<'_> {
                 && subject.bare_fields
             {
                 let ValueType::Record(record, _, _) = subject.value_type else {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Contract("data predicate subject without its record declaration"),
                     ));
                 };
@@ -285,7 +279,7 @@ impl Program<'_> {
         application: &crate::source_state::proposition::PropositionApplication,
     ) -> Checked<(Proposition, ClauseText)> {
         use crate::source_state::proposition::{PropositionBody, PropositionFormula};
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
         let typed = self.typed;
         let mut proposition_symbol = application.proposition;
         if typed
@@ -387,16 +381,10 @@ impl Program<'_> {
     pub(super) fn fact(&self, id: MachineId, fact: &ProofFact) -> Checked<ExpressionHandle> {
         match fact {
             ProofFact::Expression(expression) => Ok(*expression),
-            ProofFact::Membership(_) => Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("domain membership"),
-            )),
-            ProofFact::Proposition(_) => Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("named proposition"),
-            )),
+            ProofFact::Membership(_) => Err(refuse_at(id, Unserved::Contract("domain membership"))),
+            ProofFact::Proposition(_) => {
+                Err(refuse_at(id, Unserved::Contract("named proposition")))
+            }
         }
     }
 
@@ -503,9 +491,8 @@ impl Program<'_> {
         self.clause_arguments.push(Vec::new());
         let read = read(self);
         let arguments = self.clause_arguments.pop().ok_or_else(|| {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("clause lost its argument formation scope"),
             )
         })?;
@@ -528,9 +515,8 @@ impl Program<'_> {
             return Ok(());
         }
         let arguments = self.clause_arguments.last_mut().ok_or_else(|| {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("called machine has no owning clause for argument formation"),
             )
         })?;
@@ -583,7 +569,7 @@ impl Program<'_> {
         operands: &mut [Option<TypeReferenceHandle>; 2],
     ) -> Checked<Proposition> {
         let typed = self.typed;
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Contract(what)));
         if !expression.is_valid() {
             return unserved("missing clause expression");
         }
@@ -682,9 +668,8 @@ impl Program<'_> {
             && let Some(next) = self.open_equation_inputs
             && !matches!(self.clause_truth(expression), Some(TypeTruth::Known(_)))
         {
-            let input = semantic_vocabulary::ValueId::new(next).ok_or_else(|| {
-                refuse(id, Construct::Machine, Unserved::Contract("input identity"))
-            })?;
+            let input = semantic_vocabulary::ValueId::new(next)
+                .ok_or_else(|| refuse_at(id, Unserved::Contract("input identity")))?;
             self.open_equation_inputs = Some(next + 1);
             return canonical::equal(
                 ScalarTerm::value(input, ScalarType::Boolean),
@@ -914,9 +899,8 @@ impl Program<'_> {
         {
             let embedded = |term| {
                 IntegerMathTerm::embed(term).ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Contract("embed of a value that is not an integer"),
                     )
                 })
@@ -924,9 +908,8 @@ impl Program<'_> {
             return mathematical_relation(comparison, embedded(left)?, embedded(right)?, id);
         }
         if left_type != right_type {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("clause operand types differ"),
             ));
         }
@@ -977,7 +960,7 @@ impl Program<'_> {
             Call, StaticArgument,
         };
 
-        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unavailable = |what| refuse_at(id, Unserved::Contract(what));
         if call.receiver.is_valid()
             || call.runtime_call.is_some()
             || call.build_selection.is_valid()
@@ -1262,9 +1245,8 @@ impl Program<'_> {
                 .data_declaration(subject_type)
                 .is_some_and(|data| self.is_mathematical_data(data))
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("Identity over proof-only data in an executable contract"),
             )
             .with_source_span(origin.span()));
@@ -1318,7 +1300,7 @@ impl Program<'_> {
         predicate: crate::source_state::byte_predicates::ByteSequencePredicate,
         argument: ExpressionHandle,
     ) -> Checked<Proposition> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
         let (root, path, value_type) = self.byte_predicate_subject(id, scope, argument)?;
         let ValueType::Record(row, _, _) = value_type else {
             unreachable!("validated byte carrier")
@@ -1349,7 +1331,7 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         argument: ExpressionHandle,
     ) -> Checked<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
         let subject = crate::source_state::byte_predicates::whole_byte_observation_subject(
             self.typed, argument,
         )
@@ -1463,7 +1445,7 @@ impl Program<'_> {
         {
             return Ok(None);
         }
-        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unavailable = |what| refuse_at(id, Unserved::Contract(what));
         self.direct_selection(
             id,
             call.target_symbol,
@@ -1587,7 +1569,7 @@ impl Program<'_> {
                     self.write_clause_text(slots, call.receiver, text);
                     text.push_text("::");
                 }
-                text.push_text(&call.target.as_str().replace("::", "\\"));
+                text.push_text(call.target.as_str());
                 if !call.machine_arguments.is_empty() {
                     text.push_text("::<");
                     for (position, argument) in call.machine_arguments.iter().enumerate() {
@@ -1638,16 +1620,14 @@ impl Program<'_> {
             ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
                 Ok(scalar)
             }
-            ValueType::Scalar(..) => Err(refuse(
+            ValueType::Scalar(..) => Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract(
                     "builtin operator on a value with a declared domain in a clause",
                 ),
             )),
-            _ => Err(refuse(
+            _ => Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("non-scalar clause operand"),
             )),
         }
@@ -1741,9 +1721,8 @@ impl Program<'_> {
             return Ok(None);
         };
         let path = static_read_path(&path).ok_or_else(|| {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("dynamic selection used as a static structural subject"),
             )
         })?;
@@ -1762,7 +1741,7 @@ impl Program<'_> {
         {
             return Ok(None);
         }
-        let spelling = |what| refuse(id, Construct::Machine, Unserved::Spelling(what));
+        let spelling = |what| refuse_at(id, Unserved::Spelling(what));
         if !expression.is_valid() {
             return Ok(None);
         }
@@ -1770,9 +1749,8 @@ impl Program<'_> {
         {
             ExpressionNode::Name(path) => {
                 if path.static_application.is_valid() {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Contract("applied name used as a plain storage subject"),
                     ));
                 }
@@ -1800,9 +1778,8 @@ impl Program<'_> {
                     // formal is place `k + 1` (`Signature::parameters`).
                     let slot = self.slot_of(id, scope.slots, path)?;
                     if scope.slots[slot].erased {
-                        return Err(refuse(
+                        return Err(refuse_at(
                             id,
-                            Construct::Machine,
                             Unserved::Contract("erased input used as structural storage"),
                         ));
                     }
@@ -1842,9 +1819,8 @@ impl Program<'_> {
                     return Err(spelling("clause member without a field symbol"));
                 }
                 let not_data = || {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Contract("member of something that is not data"),
                     )
                 };
@@ -1860,7 +1836,7 @@ impl Program<'_> {
                 (root, base, record, member.selection.field_symbol())
             }
             ExpressionNode::Indexed(indexed) => {
-                let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+                let unavailable = |what| refuse_at(id, Unserved::Contract(what));
                 let Some((root, mut path, receiver)) =
                     self.read_projection(id, scope, indexed.collection)?
                 else {
@@ -1905,6 +1881,7 @@ impl Program<'_> {
                     (
                         terminal_semantics::CollectionExtent::Fixed(_)
                         | terminal_semantics::CollectionExtent::Parameter { .. }
+                        | terminal_semantics::CollectionExtent::Application(_)
                         | terminal_semantics::CollectionExtent::StoredLength,
                         _,
                     ) => {
@@ -1955,17 +1932,13 @@ impl Program<'_> {
         let mut path = base;
         let data = self.data_type(id, record.record())?;
         let value_type = if let Some(position) = self.erased_member(id, record.record(), symbol)? {
-            let erased = data.erased.get(position).ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Typing("erased field position"),
-                )
-            })?;
+            let erased = data
+                .erased
+                .get(position)
+                .ok_or_else(|| refuse_at(id, Unserved::Typing("erased field position")))?;
             if erased.evidence || erased.value_type.scalar().is_none() {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Expression("read of an erased field of data"),
                 ));
             }
@@ -2013,17 +1986,10 @@ impl Program<'_> {
             } => {
                 path.push(ScalarReadProjection::Referent);
                 self.opened(id, Some(ValueType::record(referent)), Access::Read)?
-                    .ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Contract("referent that is not data"),
-                        )
-                    })
+                    .ok_or_else(|| refuse_at(id, Unserved::Contract("referent that is not data")))
             }
-            StorageShape::Reference { .. } => Err(refuse(
+            StorageShape::Reference { .. } => Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("clause through an exclusive stored reference"),
             )),
             _ => Ok(record),
@@ -2122,7 +2088,7 @@ impl Program<'_> {
         id: MachineId,
         symbol: SymbolHandle,
     ) -> Checked<Vec<super::TypeAlternative>> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Machine(what)));
         let (machine, _) = self.declaration(id, symbol)?;
         let parameters = self.typed.machine_type_parameters(machine);
         if parameters.is_empty()
@@ -2380,13 +2346,13 @@ impl Program<'_> {
                         }
                         let arguments = prepared.parameters.iter().map(|parameter| {
                             let binding = prepared.bindings.get(&parameter.symbol).ok_or_else(|| {
-                                refuse(id, Construct::Machine, Unserved::Call("static partition lost a declared binder"))
+                                refuse_at(id, Unserved::Call("static partition lost a declared binder"))
                             })?;
                             let crate::source_state::static_applications::StaticMachineBindingValue::Type(reference) = binding.value else {
-                                return Err(refuse(id, Construct::Machine, Unserved::Call("static partition type has another argument kind")));
+                                return Err(refuse_at(id, Unserved::Call("static partition type has another argument kind")));
                             };
                             if !types.contains_type_reference(reference) {
-                                return Err(refuse(id, Construct::Machine, Unserved::Call("static partition has a stale type argument")));
+                                return Err(refuse_at(id, Unserved::Call("static partition has a stale type argument")));
                             }
                             Ok(reference)
                         }).collect::<Checked<Vec<_>>>()?;
@@ -2505,10 +2471,6 @@ fn mathematical_relation(
             id,
         )
         .map(Proposition::Disjunction),
-        _ => Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Contract("comparison"),
-        )),
+        _ => Err(refuse_at(id, Unserved::Contract("comparison"))),
     }
 }

@@ -67,14 +67,15 @@ use terminal_check_tables::{
 };
 use terminal_psi::{ScalarBlockInvariant, SuccessorEdge, TerminalMachine, Terminator};
 
+use crate::arrivals::{self, block};
 use crate::graph::Graph;
-use crate::{Discharged, arrivals, goal, push_knowledge, refusal};
+use crate::{Discharged, goal, push_knowledge, refusal};
 
 /// The declared and inferred predicates available at block entries. Both
 /// ordinary discharge and private-input inference prepare the same rows;
 /// `check` verifies their arrivals before downstream obligations use them.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn prepare<'a>(
+fn prepare<'a>(
     lowered: &TerminalMachine,
     id: MachineId,
     tables: &mut MachineTables,
@@ -154,13 +155,6 @@ fn arrival(lowered: &TerminalMachine, edge: EdgeId) -> Option<(BlockId, &[ValueI
             } => successor(when_true, edge).or_else(|| successor(when_false, edge)),
             _ => None,
         })
-}
-
-fn block(lowered: &TerminalMachine, id: BlockId) -> Option<&terminal_psi::Block> {
-    usize::try_from(id.get() - 1)
-        .ok()
-        .and_then(|position| lowered.blocks.get(position))
-        .filter(|block| block.id == id)
 }
 
 /// The knowledge row holding `block`'s predicate, if it has one.
@@ -1028,16 +1022,14 @@ pub(crate) struct Machine<'view, 'analysis> {
     pub(crate) graph: &'view Graph,
     pub(crate) context: &'view PropositionContext,
     pub(crate) ranking_bindings: &'view crate::rankings::Bindings,
-    /// Keep the producer's original predicates separate from inferred facts.
-    /// An inference can be discarded; a failed declared claim still rejects.
-    pub(crate) declared: &'view [(BlockId, Proposition)],
     /// The machine's values the integer rules do not reach
     /// (`crate::Unreached`).
     pub(crate) unreached: &'view [ValueId],
-    pub(crate) law_instances: &'view [MachineId],
+    pub(crate) law_instances: crate::equality::LawScope<'view>,
 }
 
-/// Decides every `ArrivalInvariant` obligation into `decided`. An inferred
+/// Admits the declared join predicates and infers the others (`prepare`),
+/// then decides every `ArrivalInvariant` obligation into `decided`. An inferred
 /// join any of whose arrivals is not proved loses its inferred predicate.
 /// Its original declared predicate, when present, remains mandatory. Then
 /// every arrival is decided again, since one join's predicate may be a fact
@@ -1050,6 +1042,19 @@ pub(crate) fn check<'a>(
     activity: &mut crate::ProofSearchActivity,
     references: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
 ) -> Checked<Vec<BlockId>> {
+    // Keep the producer's original predicates separate from inferred facts.
+    // An inference can be discarded; a failed declared claim still rejects.
+    let declared = prepare(
+        machine.lowered,
+        machine.id,
+        tables,
+        machine.graph,
+        machine.context,
+        &machine.module.proofs.scalar_block_invariants,
+        machine.storage,
+        references,
+        activity,
+    )?;
     let arrivals: Vec<(usize, ObligationId, EdgeId, ProgramPoint)> = tables
         .obligations
         .iter()
@@ -1086,10 +1091,12 @@ pub(crate) fn check<'a>(
                         machine.lowered,
                         tables,
                         machine.graph,
+                        machine.storage,
                         point,
                         obligation,
                         clause,
-                        machine.law_instances,
+                        machine.law_instances.instances,
+                        machine.law_instances.identities,
                         &mut machine.storage.at_entry(references, tables),
                     )
                     .map(Discharged::Identity);
@@ -1144,8 +1151,7 @@ pub(crate) fn check<'a>(
                         "a join predicate row has no proposition",
                     )
                 })?;
-            let required = machine
-                .declared
+            let required = declared
                 .iter()
                 .find(|(block, _)| *block == target)
                 .map_or(Proposition::Truth, |(_, predicate)| predicate.clone());

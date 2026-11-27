@@ -5,9 +5,9 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-provider-acceptance = { path = "../../../../build/providers/acceptance" }
+build-providers = { path = "../../../../build/providers" }
+build-model = { path = "../../../../build/model" }
 declaration-scope = { path = "../../../../foundation/declaration-scope" }
-evaluation-receipts = { path = "../../../../build/evaluation/receipts" }
 psi-authorization = { path = "../../../../psi/artifact/authorization" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }

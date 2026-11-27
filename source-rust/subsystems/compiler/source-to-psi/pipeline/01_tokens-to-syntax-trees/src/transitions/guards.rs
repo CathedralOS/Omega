@@ -167,7 +167,10 @@ fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
     let mut patterns = Vec::with_capacity(subjects.len());
     let mut all_bindings = Vec::new();
     for (component, subject) in components.into_iter().zip(subjects.iter().copied()) {
-        if component.at_contextual("_") && component.tokens.len() == 1 {
+        if component
+            .take_contextual("_")
+            .is_ok_and(|rest| rest.tokens.is_empty())
+        {
             patterns.push(DispatchPattern::default());
             continue;
         }

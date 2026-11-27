@@ -96,6 +96,26 @@ use terminal_check_tables::{Checked, Construct};
 use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
 
+/// Refuses a construct of machine `machine` that the reader does not serve.
+/// Nearly every refusal in the reader concerns the whole machine, so this
+/// spares each site the `Construct::Machine` argument.
+pub(crate) fn refuse_at(machine: MachineId, unserved: Unserved) -> terminal_check_tables::Refusal {
+    refuse(machine, Construct::Machine, unserved)
+}
+
+/// Refuses machine `machine` with a detail that no `Unserved` family names.
+pub(crate) fn unavailable(
+    machine: MachineId,
+    detail: impl Into<String>,
+) -> terminal_check_tables::Refusal {
+    terminal_check_tables::Refusal {
+        reason: terminal_check_tables::RefusalReason::Unsupported,
+        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
+        source_span: None,
+        detail: detail.into(),
+    }
+}
+
 /// One member of a complete static type partition. An opaque remainder
 /// excludes exactly the closed types checked by the other members, so an
 /// open classifier's fallback is checked without inventing runtime RTTI.
@@ -209,6 +229,10 @@ pub(crate) struct Program<'t> {
     pub predicate_definitions: Vec<Option<PredicateDefinition>>,
     shared: crate::SharedReading,
     calling_policy_boundaries: Vec<SymbolHandle>,
+    /// Rows whose body a selected calling policy publishes. Publication
+    /// evaluates that body's plan, so a witness never replaces it with a
+    /// callee summary.
+    calling_policy_bodies: Vec<MachineId>,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
@@ -574,6 +598,7 @@ impl<'t> Program<'t> {
             purpose,
             declaration_metadata: Vec::new(),
             calling_policy_boundaries: Vec::new(),
+            calling_policy_bodies: Vec::new(),
             predicate_definitions: std::iter::repeat_with(|| None)
                 .take(typed.mathematical_definitions().len())
                 .collect(),
@@ -727,7 +752,7 @@ impl<'t> Program<'t> {
                             exact_toolchain_sources: self
                                 .shared
                                 .exact_toolchain_sources(self.typed)
-                                .map_err(|reason| services::unavailable(diagnostic, reason))?,
+                                .map_err(|reason| self::unavailable(diagnostic, reason))?,
                         },
                     )
                     .ok_or_else(|| {
@@ -1133,7 +1158,12 @@ mod tests {
                 complete_predicate_theory: false,
             }));
         let bodies = arena::IdTable::default();
-        let components = crate::prepare_call_components(&bodies, &mut program.signatures).unwrap();
+        let components = crate::prepare_call_components(
+            &bodies,
+            &mut program.signatures,
+            &program.theorem_parameters,
+        )
+        .unwrap();
         program.prepare_domain_predicates(machine()).unwrap();
         let elaboration = crate::lower_program(
             None,

@@ -38,7 +38,7 @@ const ALGEBRA: &str = include_str!(concat!(
 /// The fixture's proofs, without the entry that needs the standard library.
 fn proofs(source: &str) -> String {
     let end = source.find("data Main").expect("the fixture's entry state");
-    source[..end].replace("use omega\\language\\core\\ProcessExit;\n", "")
+    source[..end].replace("use {omega}/language/core/process_exit.omg;\n", "")
 }
 
 /// The recovered program without its entry state, its exit machine and its
@@ -55,10 +55,19 @@ fn without_entry(source: &str) -> String {
     let rest = rest
         .find("// The entry owns")
         .map_or(rest, |entry| &rest[..entry]);
-    format!("{}{rest}", &source[..start]).replace("use omega\\language\\core\\ProcessExit;\n", "")
+    format!("{}{rest}", &source[..start])
+        .replace("use {omega}/language/core/process_exit.omg;\n", "")
 }
 
 fn compile(source: &str, core: &[(&str, &str, &str)]) -> Vec<RouteVerdict> {
+    compile_with_policy(source, core, crate::ProofWorkPolicy::default())
+}
+
+fn compile_with_policy(
+    source: &str,
+    core: &[(&str, &str, &str)],
+    policy: crate::ProofWorkPolicy,
+) -> Vec<RouteVerdict> {
     let typed = super::build_purpose::frontier_with_core(
         source,
         "machine build_entry() {}",
@@ -73,7 +82,7 @@ fn compile(source: &str, core: &[(&str, &str, &str)]) -> Vec<RouteVerdict> {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    crate::judge_compilation(compilation.program)
+    crate::judge_compilation_with_policy(compilation.program, policy)
         .into_iter()
         .map(|verdict| verdict.expect("a judged part"))
         .collect()
@@ -210,7 +219,7 @@ fn peano_with(law: &str) -> String {
 }
 
 const EXPANDS: &str = "machine expands(a: Peano, b: Peano, c: Peano, d: Peano)
-ensures core\\Identity::<Peano>(times(a, plus(b, plus(c, d))), plus(plus(times(a, d), times(a, b)), times(a, c)))
+ensures |proof|::Identity::<Peano>(times(a, plus(b, plus(c, d))), plus(plus(times(a, d), times(a, b)), times(a, c)))
 {
 }";
 
@@ -265,25 +274,55 @@ fn a_product_past_the_summand_limit_runs_out_of_proof_budget() {
     let nested = doubling(5);
     let law = format!(
         "machine too_wide(a: Peano, b: Peano, c: Peano, d: Peano)
-ensures core\\Identity::<Peano>(plus(times(a, {nested}), times(a, {nested})), times(a, plus({nested}, {nested})))
+ensures |proof|::Identity::<Peano>(plus(times(a, {nested}), times(a, {nested})), times(a, plus({nested}, {nested})))
 {{
 }}"
     );
     let verdicts = compile(&peano_with(&law), &[]);
-    let law = unproved(&verdicts);
-    assert_eq!(law.machine, "too_wide");
-    assert_eq!(law.cause, UnprovedCause::BudgetExhausted);
-    let message = law.reject_diagnostic().message;
+    let law_failure = unproved(&verdicts);
+    assert_eq!(law_failure.machine, "too_wide");
+    assert_eq!(law_failure.cause, UnprovedCause::BudgetExhausted);
+    let message = law_failure.reject_diagnostic().message;
     assert!(
         message.contains("ran out of proof budget")
-            && message.contains("no claim that it is wrong"),
+            && message.contains("no claim that it is wrong")
+            && message.contains("index_expansion_terms")
+            && message.contains("128")
+            && message.contains("64"),
         "{message}"
     );
-    // One level less is 64 summands, within the limit, and proved.
+    // Raising `index_expansion_terms` to 128 proves a 65-summand product that
+    // the default 64-summand limit refuses.
     let nested = doubling(4);
+    let sixty_five = format!(
+        "machine just_over_default(a: Peano, b: Peano, c: Peano, d: Peano)
+ensures |proof|::Identity::<Peano>(plus(plus(times(a, {nested}), times(a, {nested})), times(a, c)), times(a, plus(plus({nested}, {nested}), c)))
+{{
+}}"
+    );
+    let verdicts = compile(&peano_with(&sixty_five), &[]);
+    let law_failure = unproved(&verdicts);
+    assert_eq!(law_failure.machine, "just_over_default");
+    assert_eq!(law_failure.cause, UnprovedCause::BudgetExhausted);
+    let message = law_failure.reject_diagnostic().message;
+    assert!(
+        message.contains("index_expansion_terms")
+            && message.contains("65")
+            && message.contains("64"),
+        "{message}"
+    );
+    let verdicts = compile_with_policy(
+        &peano_with(&sixty_five),
+        &[],
+        crate::ProofWorkPolicy::with_index_expansion_terms(128),
+    );
+    let judgment = signature(&verdicts);
+    let (_, steps, _) = assumed_laws(judgment, "just_over_default");
+    eprintln!("just_over_default (limit 128): {steps} conversion steps");
+    // One level less is 64 summands, within the default limit, and proved.
     let law = format!(
         "machine wide(a: Peano, b: Peano, c: Peano, d: Peano)
-ensures core\\Identity::<Peano>(plus(times(a, {nested}), times(a, {nested})), times(a, plus({nested}, {nested})))
+ensures |proof|::Identity::<Peano>(plus(times(a, {nested}), times(a, {nested})), times(a, plus({nested}, {nested})))
 {{
 }}"
     );
@@ -296,7 +335,8 @@ ensures core\\Identity::<Peano>(plus(times(a, {nested}), times(a, {nested})), ti
 #[test]
 fn expansion_is_counted_before_it_is_built_and_each_mutual_law_still_applies() {
     use crate::equality::{
-        Definitions, Distribution, License, Licenses, MAX_SUMMANDS, SearchError, prove_licensed,
+        BudgetLimit, Definitions, Distribution, License, Licenses, MAX_SUMMANDS, SearchError,
+        prove_licensed,
     };
     use proof_admission::{
         Budget, Context, Declaration, Level, Sort, Term, TermArena, check_signature, check_type,
@@ -392,6 +432,7 @@ fn expansion_is_counted_before_it_is_built_and_each_mutual_law_still_applies() {
             Licenses {
                 operations: &[] as &[License],
                 distributions: &distributions,
+                index_expansion_terms: MAX_SUMMANDS,
             },
             search_steps,
             &mut budget,
@@ -426,7 +467,10 @@ fn expansion_is_counted_before_it_is_built_and_each_mutual_law_still_applies() {
     // it as out of budget.
     assert_eq!(
         attempt(&mut arena, other, wide, usize::MAX),
-        Err(SearchError::Budget)
+        Err(SearchError::Budget(BudgetLimit::IndexExpansionTerms {
+            limit: MAX_SUMMANDS,
+            summands: Some(128),
+        }))
     );
 }
 

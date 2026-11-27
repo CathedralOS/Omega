@@ -150,9 +150,7 @@ fn typed_requirement_at(
     request.sources = Some(Arc::new(sources));
     request.top_level_bindings = vec![
         crate::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
-        crate::source_symbols::SourceScopedTopLevelBinding::module_import(
-            ids[0], ids[2], "Build", 0,
-        ),
+        crate::source_symbols::SourceScopedTopLevelBinding::prelude_module(ids[0], ids[2], "Build"),
         crate::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[3], "ForeignBinding"),
         crate::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[3], "DllImport"),
     ];

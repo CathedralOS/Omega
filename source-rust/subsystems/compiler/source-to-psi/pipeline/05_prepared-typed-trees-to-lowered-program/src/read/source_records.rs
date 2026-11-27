@@ -1,6 +1,7 @@
 //! A product keeps the source identities that minted its nominal storage.
 //! Retain an actual application from the same typed owner while reading; the
 //! product factory must not reconstruct one from a name after checking.
+use crate::read::refuse_at;
 
 use crate::source_state::data::DataDefinition;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -15,8 +16,8 @@ mod layouts;
 mod opaque;
 
 use super::{Program, places::RecordSource};
+use crate::Unserved;
 use crate::body::RecordType;
-use crate::{Unserved, refuse};
 
 /// A selected layout changes storage, while the record's fields and ownership
 /// still come from its semantic argument. Keep the original storage occurrence
@@ -71,7 +72,7 @@ pub(super) fn source_application_in_scope(
     scope: std::sync::Arc<crate::source_state::SourceTypeScope>,
 ) -> Checked<SourceTypeApplication> {
     use crate::source_state::data::TypeParameterKind;
-    let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+    let unavailable = |detail| refuse_at(machine, Unserved::Type(detail));
     if !typed
         .type_reference_table
         .contains_type_reference(reference)
@@ -528,15 +529,15 @@ impl Program<'_> {
         module: &mut terminal_psi::TerminalModule,
     ) -> Checked<()> {
         let mut identities = std::mem::take(&mut module.identities).into_builder();
-        let mut file_digests = Vec::new();
         let result = (|| {
             for source in records {
                 let position = module
-                    .types.structural_types
+                    .types
+                    .structural_types
                     .binary_search_by_key(&source.record, |row| row.id)
                     .map_err(|_| malformed(machine, "source fields lost their canonical record"))?;
                 let declaration = &mut module.types.structural_types[position];
-                let (identity, has_exact_owner) =
+                let (identity, _) =
                     crate::source_state::reflection::construction::exact_symbol_identity(
                         self.typed,
                         source.declaration,
@@ -551,27 +552,6 @@ impl Program<'_> {
                     ));
                 }
                 declaration.declaration_identity = identities.intern(&identity);
-                let mut origin = if identities.is_invocation_scoped()
-                    && source.layout.is_none()
-                    && !source.policy.is_valid()
-                    && source.schema == source.declaration
-                    && self
-                        .typed
-                        .data_definition_by_symbol(source.declaration)
-                        .is_some_and(|d| {
-                            d.generic_instance.is_none()
-                                && d.type_parameters.is_empty()
-                                && d.lifetime_parameters.is_empty()
-                        }) {
-                    crate::declare::BuildDeclarationOccurrence::new(
-                        self.typed,
-                        source.declaration,
-                        &mut file_digests,
-                        b"omega.authored-build-record.v1",
-                    )
-                } else {
-                    None
-                };
                 let shape = &mut declaration.shape;
                 let original = self.data_type(machine, source.record)?;
                 let source_record = terminal_check_tables::row(
@@ -607,15 +587,6 @@ impl Program<'_> {
                         .map_err(|_| {
                             malformed(machine, "canonical case lost its exact source declaration")
                         })?;
-                    if let Some(row) = &mut origin
-                        && !self
-                            .typed
-                            .symbols
-                            .symbol_source_span(*symbol)
-                            .is_some_and(|span| row.add(span))
-                    {
-                        origin = None;
-                    }
                     case.declaration_identity = identities.intern(&identity);
                 }
                 let mut fields = Vec::with_capacity(source.fields.len());
@@ -628,7 +599,7 @@ impl Program<'_> {
                         .map_err(|_| {
                             malformed(machine, "canonical field lost its exact source declaration")
                         })?;
-                    fields.push((field.field, identities.intern(&identity), field.declaration));
+                    fields.push((field.field, identities.intern(&identity)));
                 }
                 fields.sort_unstable_by_key(|(field, ..)| *field);
                 if fields.windows(2).any(|pair| pair[0].0 == pair[1].0)
@@ -652,30 +623,6 @@ impl Program<'_> {
                         ));
                     }
                     field.declaration_identity = fields[position].1;
-                    if let Some(row) = &mut origin
-                        && !self
-                            .typed
-                            .symbols
-                            .symbol_source_span(fields[position].2)
-                            .is_some_and(|span| row.add(span))
-                    {
-                        origin = None;
-                    }
-                }
-                if let Some(row) = origin {
-                    identities
-                        .retain_invocation_record(
-                            source.record,
-                            row.package,
-                            Some(row.digest.finish()),
-                        )
-                        .map_err(|reason| malformed(machine, reason))?;
-                } else if identities.is_invocation_scoped() && !has_exact_owner {
-                    // Reflection can describe this occurrence by its display path.
-                    // That path cannot identify a local application in another invocation.
-                    identities
-                        .retain_invocation_record(source.record, None, None)
-                        .map_err(|reason| malformed(machine, reason))?;
                 }
             }
             Ok(())
@@ -982,8 +929,7 @@ impl Program<'_> {
                 // neither that type nor a source view mints a nominal schema.
                 continue;
             }
-            if let crate::StorageShape::Reference { referent, access } = declaration.shape
-            {
+            if let crate::StorageShape::Reference { referent, access } = declaration.shape {
                 let application = source.application.as_ref().ok_or_else(|| {
                     malformed(
                         machine,
@@ -1181,9 +1127,8 @@ impl Program<'_> {
                 let crate::source_state::PlanLaidRealizations::TargetInputs(span) =
                     plan.realizations
                 else {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Type("source layout without its target input roster"),
                     ));
                 };
@@ -1258,21 +1203,20 @@ fn correspondence(
         return Err(malformed(machine, "record/source member rosters differ"));
     }
     let mut fields = Vec::new();
-    let mut append = |declared: &[crate::body::RecordField],
-                      symbols: &[SymbolHandle]|
-     -> Checked<()> {
-        for (field, symbol) in declared.iter().zip(symbols) {
-            if !symbol.is_valid() {
-                return Err(malformed(machine, "record field has no declaration"));
+    let mut append =
+        |declared: &[crate::body::RecordField], symbols: &[SymbolHandle]| -> Checked<()> {
+            for (field, symbol) in declared.iter().zip(symbols) {
+                if !symbol.is_valid() {
+                    return Err(malformed(machine, "record field has no declaration"));
+                }
+                fields.push(SourceFieldCorrespondence {
+                    field: field.id,
+                    declaration: *symbol,
+                    schema: *symbol,
+                });
             }
-            fields.push(SourceFieldCorrespondence {
-                field: field.id,
-                declaration: *symbol,
-                schema: *symbol,
-            });
-        }
-        Ok(())
-    };
+            Ok(())
+        };
     append(declaration.fields(), &source.fields)?;
     for (case, (symbol, symbols)) in declaration.cases().iter().zip(&source.cases) {
         if !symbol.is_valid() {

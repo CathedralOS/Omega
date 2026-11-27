@@ -385,15 +385,28 @@ impl Lowering<'_> {
                 arms,
                 default,
                 source,
-            } => self.case_decisions(
-                subject,
-                arms.iter()
-                    .map(|(selector, target, source)| (selector, target, *source)),
-                default.as_ref().map(|(target, source)| (target, *source)),
-                *source,
-                None,
-                |lowering, target, source, _temporary| lowering.complete(target, source),
-            ),
+            } => {
+                let path_len = self.path.len();
+                let result = self.case_decisions(
+                    subject,
+                    arms.iter()
+                        .map(|(selector, target, source)| (selector, target, *source)),
+                    default.as_ref().map(|(target, source)| (target, *source)),
+                    *source,
+                    None,
+                    |lowering, target, source, _temporary| {
+                        let inner_path = lowering.path.len();
+                        let done = lowering.complete(target, source);
+                        lowering.path.truncate(inner_path);
+                        done
+                    },
+                );
+                self.path.truncate(path_len);
+                match result? {
+                    Reached::Ended(origin) => Ok(Reached::Ended(origin)),
+                    Reached::Value(()) => Ok(Reached::Ended(*source)),
+                }
+            }
             Statement::Evaluate {
                 expression,
                 discards_result,
@@ -430,12 +443,13 @@ impl Lowering<'_> {
                 // this arm, and the arm after it when that one takes
                 // whatever this guard turned away.
                 self.authored_arm(arm, decided_in, *source, guard.source);
-                self.fallthrough = self.owns_body.then_some(crate::Branch {
+                let fallthrough = self.owns_body.then_some(crate::Branch {
                     block: rest,
                     decided_in,
                     arm: (*source).into(),
                     condition: guard.source.into(),
                 });
+                self.fallthrough = None;
                 self.branch(
                     condition,
                     (arm, Vec::new()),
@@ -445,13 +459,17 @@ impl Lowering<'_> {
                 let taken = self.decision(condition, true)?;
                 let not_taken = self.decision(condition, false)?;
                 // The arm completes the machine, so what it binds (the home a
-                // loan gives a local) is not the continuation's.
+                // loan gives a local) and any nested dispatch decisions are
+                // not the continuation's.
                 let bound = self.slots.clone();
+                let path_len = self.path.len();
                 self.enter(arm);
                 self.path.push(taken);
-                self.complete(target, *source)?;
-                self.path.pop();
+                let completed = self.complete(target, *source);
+                self.path.truncate(path_len);
                 self.slots = bound;
+                completed?;
+                self.fallthrough = fallthrough;
                 self.enter(rest);
                 self.path.push(not_taken);
                 Ok(Reached::Value(()))
@@ -463,7 +481,13 @@ impl Lowering<'_> {
             } => {
                 let condition = continuing!(self.scalar(guard));
                 self.enter_final_arm(condition, guard, *source)?;
-                self.complete(target, *source).map(Reached::Value)
+                let path_len = self.path.len();
+                let taken = self.decision(condition, true)?;
+                self.path.push(taken);
+                let completed = self.complete(target, *source);
+                self.path.truncate(path_len);
+                completed?;
+                Ok(Reached::Ended(*source))
             }
             Statement::Arm {
                 guard: ArmGuard::Always,
@@ -478,7 +502,11 @@ impl Lowering<'_> {
                         ..fallthrough
                     });
                 }
-                self.complete(target, *source).map(Reached::Value)
+                let path_len = self.path.len();
+                let completed = self.complete(target, *source);
+                self.path.truncate(path_len);
+                completed?;
+                Ok(Reached::Ended(*source))
             }
         }
     }
@@ -948,6 +976,7 @@ impl Lowering<'_> {
         default: Option<&Expression>,
         mut finish: impl FnMut(&mut Self, &Expression, Option<PlaceId>) -> Checked<()>,
     ) -> Evaluation<()> {
+        let initial_path_len = self.path.len();
         let mut decided_in = None;
         let mut remaining = arms.iter().peekable();
         while let Some((selector, value)) = remaining.next() {
@@ -978,7 +1007,13 @@ impl Lowering<'_> {
             };
             if remaining.peek().is_none() && default.is_none() {
                 self.enter_final_arm(condition, pattern, value.source)?;
-                finish(self, value, None)?;
+                let taken = self.decision(condition, true)?;
+                let bound = self.slots.clone();
+                self.path.push(taken);
+                let result = finish(self, value, None);
+                self.path.truncate(initial_path_len);
+                self.slots = bound;
+                result?;
                 return Ok(Reached::Value(()));
             }
             let here = self.current()?;
@@ -993,9 +1028,18 @@ impl Lowering<'_> {
                 (rest, Vec::new()),
                 pattern.source,
             )?;
+            let taken = self.decision(condition, true)?;
+            let not_taken = self.decision(condition, false)?;
+            let bound = self.slots.clone();
+            let path_len = self.path.len();
             self.enter(arm);
-            finish(self, value, None)?;
+            self.path.push(taken);
+            let result = finish(self, value, None);
+            self.path.truncate(path_len);
+            self.slots = bound;
+            result?;
             self.enter(rest);
+            self.path.push(not_taken);
             decided_in = Some(here);
         }
         let default = default.ok_or_else(|| self.internal("an empty scalar match"))?;
@@ -1003,7 +1047,11 @@ impl Lowering<'_> {
             let block = self.current()?;
             self.authored_arm(block, decided_in, default.source, default.source);
         }
-        finish(self, default, None)?;
+        let bound = self.slots.clone();
+        let result = finish(self, default, None);
+        self.path.truncate(initial_path_len);
+        self.slots = bound;
+        result?;
         Ok(Reached::Value(()))
     }
 

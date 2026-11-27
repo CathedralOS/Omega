@@ -24,44 +24,28 @@ machine that reaches a runtime service and so has no compile-time value.
 
 */
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 const PRODUCT: &str = "machine main() { let marker: u8 = 0; }\n";
 
 /// Checks a staged project whose Build declares `declarations` and holds a
 /// local of the type `held`.
 fn check(name: &str, declarations: &str, held: &str) -> (bool, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-const-argument-calls-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).expect("staging directory");
-    std::fs::write(root.join("main.omg"), PRODUCT).expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            "use main.omg as app;
+    let build = format!(
+        "use main.omg as app;
 {declarations}
-machine build(builder: @mutable Build) {{
-    Build::application(builder, \"computed\");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: \"computed\" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     let held: {held};
 }}
 "
-        ),
-    )
-    .expect("staged Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "main.omg", "--target", "linux_x86_64"])
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stderr).into_owned(),
+    );
+    project::check(
+        name,
+        &[("main.omg", PRODUCT), ("build.omg", &build)],
+        &["--check", "main.omg", "--target", "linux_x86_64"],
     )
 }
 

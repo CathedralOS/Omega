@@ -2,13 +2,14 @@
 //! The semantic schema and represented record have separate identities and
 //! field namespaces; the checker and native emission both use this same
 //! layout application, before the module gets a verdict.
+use crate::read::unavailable;
 
 use crate::source_state::{PlanLaidLayout, PlanLaidRealizations, PlanLaidTargetLayout};
 use semantic_vocabulary::{
     AuthoredFieldStorage, AuthoredRecordStorage, MachineId, StructuralFieldId,
 };
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
+use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
     LayoutApplicationId, NativeLayoutCatalog, NativeLayoutFieldIdentity, NativeLayoutRealization,
     StructuralRecordStorage, StructuralTypeShape, TargetLayoutApplication,
@@ -18,15 +19,6 @@ use terminal_psi::{
 };
 
 use super::{Program, malformed};
-
-fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
-    Refusal {
-        reason: RefusalReason::Unsupported,
-        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
-        source_span: None,
-        detail: detail.into(),
-    }
-}
 
 impl Program<'_> {
     pub(crate) fn publish_record_layouts(

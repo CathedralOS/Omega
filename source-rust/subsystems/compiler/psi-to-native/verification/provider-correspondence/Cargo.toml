@@ -5,10 +5,9 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+build-providers = { path = "../../../build/providers" }
 native-intrinsics = { path = "../../targets/intrinsics" }
 target-provider-admission = { path = "../target-providers" }
-selected-provider-plans = { path = "../../../build/providers/selections" }
-provider-plans = { path = "../../../build/providers/plans" }
 numerics = { path = "../../../foundation/numerics" }
 language-core = { path = "../../../foundation/language-core" }
 calling-conventions = { path = "../../targets/calling-conventions" }

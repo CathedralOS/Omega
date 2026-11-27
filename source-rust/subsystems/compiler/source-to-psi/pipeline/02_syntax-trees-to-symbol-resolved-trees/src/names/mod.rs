@@ -11,7 +11,6 @@
 pub(crate) mod runtime_callable_scopes;
 
 use std::sync::Arc;
-use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::source_inputs::SourceMap;
 use crate::source_resolved::SymbolResolvedTrees;
@@ -72,8 +71,6 @@ pub(crate) fn select_machine_entry<T>(
 
 #[derive(Default)]
 pub(crate) struct NamespaceDeclarations {
-    text: syntax_trees::SyntaxTextOwner,
-    imports: Vec<Vec<syntax_trees::identifier::Identifier>>,
     file_imports: Vec<FileImport>,
 }
 
@@ -87,123 +84,68 @@ struct FileImport {
     alias: String,
 }
 
-impl syntax_trees::SyntaxTextContext for NamespaceDeclarations {
-    fn source_text(&self, source: arena::Handle<syntax_trees::RetainedSource>) -> &str {
-        self.text.source_text(source)
-    }
-}
-
 impl NamespaceDeclarations {
     pub(crate) fn record_import(
         &mut self,
         syntax: &syntax_trees::SyntaxTrees,
         import: &syntax_trees::item::UseItem,
     ) {
-        use syntax_trees::item::{FileQualifierRole, UseItem};
-        let (root, components, alias, span, qualifiers) = match import {
-            UseItem::Namespace { path } => {
-                self.text.retain_from(&syntax.text);
-                self.imports
-                    .push(syntax.items.identifier_path_members(*path).to_vec());
-                return;
-            }
-            UseItem::File {
-                root,
-                components,
-                alias,
-                span,
-                qualifiers,
-            } if qualifiers
-                .iter()
-                .any(|usage| usage.role != FileQualifierRole::Product) =>
-            {
-                (root.as_ref(), *components, alias, *span, qualifiers)
-            }
-            UseItem::File { .. } => return,
-        };
+        use syntax_trees::item::FileQualifierRole;
+        if !import
+            .qualifiers
+            .iter()
+            .any(|usage| usage.role != FileQualifierRole::Product)
+        {
+            return;
+        }
         let mut path = syntax
             .items
-            .identifier_path_members(components)
+            .identifier_path_members(import.components)
             .iter()
             .map(|name| name.as_str(syntax))
             .collect::<Vec<_>>()
             .join("/");
         path.push_str(".omg");
         self.file_imports.push(FileImport {
-            span,
-            has_code: qualifiers.iter().any(|usage| usage.role == FileQualifierRole::Code),
-            root: root.map(|name| name.as_str(syntax).to_owned()),
+            span: import.span,
+            has_code: import
+                .qualifiers
+                .iter()
+                .any(|usage| usage.role == FileQualifierRole::Code),
+            root: import
+                .root
+                .as_ref()
+                .map(|name| name.as_str(syntax).to_owned()),
             path,
-            alias: alias.as_str(syntax).to_owned(),
+            alias: import.alias.as_str(syntax).to_owned(),
         });
     }
 
-    fn record_import_selections(
-        &self,
-        program: &mut SymbolResolvedTrees,
-    ) -> Result<(), Vec<Diagnostic>> {
-        use crate::declaration_selection::{
-            AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
-        };
-        for path in &self.imports {
-            let (Some(first), Some(last)) = (path.first(), path.last()) else {
-                continue;
-            };
-            let name = path.joined_path_in(&self.text);
-            let targets = program
-                .symbols
-                .source_module_import_targets(first.source_span().source_id, &name);
-            let span = source_text::SourceSpan::new(
-                first.source_span().source_id,
-                source_text::Span::new(first.source_span().span.start, last.source_span().span.end),
-            );
-            for target in targets {
-                program
-                    .record_resolved_authored_declaration_selection(
-                        span,
-                        AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                        AuthoredDeclarationSelectionKind::StaticPathSegment,
-                        target,
-                    )
-                    .map_err(|error| {
-                        vec![
-                            Diagnostic::error(format!(
-                                "failed to retain module import selection: {error:?}"
-                            ))
-                            .with_source_span(span),
-                        ]
-                    })?;
-            }
-        }
-        Ok(())
-    }
-
-    /*
-        Register namespace custody before all nonconstant headers are available.
-        Import-target validation still runs when the complete table is installed.
-    */
+    /// Register each selected file and its visible aliases before lowering headers.
     pub(crate) fn register(&self, symbols: &mut SymbolTable) -> Result<(), Vec<Diagnostic>> {
         if let Some(sources) = symbols.source_map() {
             for file in sources.selected_files() {
-                let path = file.directory_namespace().map_err(|reason| vec![Diagnostic::error(reason)])?;
+                let path = file
+                    .directory_namespace()
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 if path.is_empty() || symbols.source_module(file.source_id).is_valid() {
                     continue;
                 }
                 let anchor = file.source_span(source_text::Span::default());
-                symbols.register_source_module(file.source_id, path.into_iter().map(|name| (name, anchor)))
+                symbols
+                    .register_source_module(
+                        file.source_id,
+                        path.into_iter().map(|name| (name, anchor)),
+                    )
                     .map_err(|message| vec![Diagnostic::error(message)])?;
             }
         }
-        for path in &self.imports {
-            let Some(first) = path.first() else {
-                continue;
-            };
-            let name = path.joined_path_in(&self.text);
-            symbols.register_source_import(first.source_span().source_id, &name);
-        }
         for import in &self.file_imports {
-            if !import.has_code && symbols.source_file(import.span)
-                .is_some_and(|file| file.dependency_scope == source_provenance::DependencyScope::Build) {
+            if !import.has_code
+                && symbols.source_file(import.span).is_some_and(|file| {
+                    file.dependency_scope == source_provenance::DependencyScope::Build
+                })
+            {
                 // Only an explicitly supplied host file can be used for ordinary reflection.
                 // A similarly named Product file already in the forest is not a host binding.
                 continue;
@@ -214,22 +156,6 @@ impl NamespaceDeclarations {
                 &import.path,
                 &import.alias,
             );
-        }
-        Ok(())
-    }
-
-    fn install(&self, symbols: &mut SymbolTable) -> Result<(), Vec<Diagnostic>> {
-        self.register(symbols)?;
-        for path in &self.imports {
-            let Some(first) = path.first() else {
-                continue;
-            };
-            let name = path.joined_path_in(&self.text);
-            symbols
-                .validate_source_module_import(first.source_span().source_id, &name)
-                .map_err(|message| {
-                    vec![Diagnostic::error(message).with_source_span(first.source_span())]
-                })?;
         }
         Ok(())
     }
@@ -385,7 +311,7 @@ pub(crate) fn assign_symbols(
         const_declarations,
     );
     integers.install(&mut symbols);
-    namespace_declarations.install(&mut symbols)?;
+    namespace_declarations.register(&mut symbols)?;
     let has_sources = sources.is_some();
     let mut symbols =
         insert_selected_machine_children(&mut evidence, program, symbols, sources, 0, has_sources);
@@ -402,7 +328,6 @@ pub(crate) fn assign_symbols(
         runtime_callable_scopes,
         &runtime_callable_contracts,
     );
-    namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
         Ok(())
     } else {
@@ -435,7 +360,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
         const_declarations,
     );
     integers.install(&mut program.symbols);
-    namespace_declarations.install(&mut program.symbols)?;
+    namespace_declarations.register(&mut program.symbols)?;
     let table = std::mem::take(&mut program.symbols);
     let mut symbols = insert_selected_machine_children(
         &mut evidence,
@@ -458,7 +383,6 @@ pub(crate) fn assign_symbols_against_resolved_base(
         runtime_callable_scopes,
         &runtime_callable_contracts,
     );
-    namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
         Ok(())
     } else {
@@ -631,46 +555,6 @@ pub(crate) fn assign_body_symbols(
     private_nested_calls::reject_private_nested_calls(&lowerer.symbol_resolved_trees)?;
     lowerer.symbol_resolved_trees.generic_binding_overlaps =
         repeated_locals::check_bindings(&lowerer.symbol_resolved_trees)?;
-    Ok(())
-}
-
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn assign_lexical_inputs(
-    lowerer: &mut Lowerer,
-    syntax: &syntax_trees::SyntaxTrees,
-) -> Result<(), Vec<Diagnostic>> {
-    let mut inputs =
-        crate::resolution::lowering::machine::lower_pending_lexical_inputs(lowerer, syntax)
-            .map_err(|diagnostic| vec![diagnostic])?;
-    for input in &mut inputs {
-        let state = lowerer
-            .symbol_resolved_trees
-            .machine_state(input.state)
-            .symbol;
-        symbol_table::append_local_symbols(
-            &mut lowerer.symbol_resolved_trees.symbols,
-            state,
-            &mut input.locals,
-        );
-    }
-    let runtime_callable_contracts =
-        symbol_table::append_runtime_callable_symbols(&mut lowerer.symbol_resolved_trees);
-    lowerer
-        .runtime_callable_scopes
-        .bind_program(&mut lowerer.symbol_resolved_trees)
-        .map_err(|error| vec![error])?;
-    let symbols = lowerer.symbol_resolved_trees.symbols.clone();
-    runtime_callable_types::assign_signatures(
-        &mut lowerer.symbol_resolved_trees,
-        &symbols,
-        &runtime_callable_contracts,
-    )?;
-    statements::assign_lexical_input_reference_symbols(
-        &mut lowerer.symbol_resolved_trees,
-        &symbols,
-        &mut inputs,
-    )?;
-    lowerer.resolved_lexical_inputs.extend(inputs);
     Ok(())
 }
 

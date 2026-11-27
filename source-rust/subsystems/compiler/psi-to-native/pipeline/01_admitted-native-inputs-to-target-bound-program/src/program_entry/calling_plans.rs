@@ -7,7 +7,7 @@ use program_entry_contracts::{
     ProgramEntryPhysicalContractPackageSourceDigest, ProgramEntryPhysicalContractPlan,
     SelectedProgramStorageEntryPlan,
 };
-use provider_plans::{
+use build_providers::plans::{
     BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ServiceCallingApplication,
     ServiceCallingPlan, ServiceSchema,
 };
@@ -23,7 +23,7 @@ pub struct ProgramEntryCallingPlanRequest<'source> {
     pub semantic_requirement: &'source str,
     pub physical_requirement: &'source str,
     pub physical_source_digest: [u8; 32],
-    pub providers: &'source [provider_plans::ProviderPlan],
+    pub providers: &'source [build_providers::plans::ProviderPlan],
     pub admission: crate::calling_policy_plans::TerminalCallingPolicyAdmission,
 }
 

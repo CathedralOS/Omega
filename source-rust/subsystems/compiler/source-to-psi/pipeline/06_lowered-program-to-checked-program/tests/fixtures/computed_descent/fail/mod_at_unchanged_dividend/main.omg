@@ -1,0 +1,38 @@
+// The repeated-subtraction modulo of `computed_descent/pass`, with one
+// change: the recursive call is `mod(a, b)` instead of `mod(next, b)`. The
+// body still cites `sub_lt(a, b)`, which shows `saturating_sub(a, b)` is
+// below `a`, but that says nothing about a call at `a` itself, so the call
+// does not descend and the compiler refuses it there. Defined on fuel
+// without that check, `mod` would still satisfy its bound for every amount
+// of fuel and the program would compile.
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/nat.omg;
+
+machine mod(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
+terminates by a
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, b), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: result }, b), |nat|::Nat::Zero)
+{
+    transition (|nat|::saturating_sub(b, a)) {
+        |nat|::Nat::Zero -> mod_rec(a, b),
+        |nat|::Nat::Succ { prev as w } -> mod_done(a, b, w)
+    }
+
+    machine mod_rec(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::sub_lt(a, b);
+        let next: |nat|::Nat = |nat|::saturating_sub(a, b);
+        transition { _ -> (mod(a, b)) }
+    }
+
+    machine mod_done(a: |nat|::Nat, b: |nat|::Nat, w: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::lt_of_sub_pos(a, b, w);
+        transition { _ -> (a) }
+    }
+}
+
+data Main { }
+
+// The entry does nothing: the program is here for its proofs.
+machine entry_start() { }

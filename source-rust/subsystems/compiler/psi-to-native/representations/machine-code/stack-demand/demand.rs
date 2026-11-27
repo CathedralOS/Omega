@@ -32,6 +32,8 @@ type Error = StackDemandError;
 struct Composition {
     active: Vec<bool>,
     peaks: Vec<Option<u64>>,
+    /// The internal callee whose composed demand set each function's peak.
+    peak_callees: Vec<Option<usize>>,
     machines: BTreeSet<MachineId>,
     reports: BTreeSet<provider_stack_contribution::AdmittedStackContributionReportId>,
     commitments: BTreeSet<provider_stack_contribution::SameStackContributionCommitment>,
@@ -58,6 +60,7 @@ pub fn derive_physical_stack_demand(
     let mut composition = Composition {
         active: vec![false; functions.len()],
         peaks: vec![None; functions.len()],
+        peak_callees: vec![None; functions.len()],
         machines: BTreeSet::new(),
         reports: BTreeSet::new(),
         commitments: BTreeSet::new(),
@@ -65,6 +68,15 @@ pub fn derive_physical_stack_demand(
         compiler_imports: BTreeSet::new(),
     };
     let ceiling_bytes = visit(root, &functions, &private_demands, &mut composition)?;
+    let mut peak_path = vec![functions[root].machine];
+    let mut current = root;
+    while let Some(callee) = composition.peak_callees[current] {
+        if peak_path.len() > functions.len() {
+            return Err(Error::TerminalStackCycle(functions[callee].machine));
+        }
+        peak_path.push(functions[callee].machine);
+        current = callee;
+    }
     if composition
         .compiler_imports
         .iter()
@@ -83,6 +95,7 @@ pub fn derive_physical_stack_demand(
         admitted_contribution_commitments: composition.commitments,
         hosted_native_bindings: composition.hosted,
         compiler_imports: composition.compiler_imports,
+        peak_path,
         private_demands,
     })
 }
@@ -123,7 +136,10 @@ fn visit(
                 caller: machine,
                 owner: call.owner,
             })?;
-        peak = peak.max(composed);
+        if composed > peak {
+            peak = composed;
+            composition.peak_callees[index] = Some(callee);
+        }
     }
     for call in &function.foreign_calls {
         let foreign_bytes = match &call.extent {
@@ -145,7 +161,10 @@ fn visit(
                         .hosted
                         .insert(receipt.ok_or(Error::InvalidPrivateFunctionIdentity)?);
                 }
-                peak = peak.max(u64::from(call.caller_live_bytes));
+                if u64::from(call.caller_live_bytes) > peak {
+                    peak = u64::from(call.caller_live_bytes);
+                    composition.peak_callees[index] = None;
+                }
                 continue;
             }
         };
@@ -174,7 +193,10 @@ fn visit(
                 caller: machine,
                 owner: call.owner,
             })?;
-        peak = peak.max(composed);
+        if composed > peak {
+            peak = composed;
+            composition.peak_callees[index] = None;
+        }
     }
     composition.active[index] = false;
     composition.peaks[index] = Some(peak);
@@ -195,6 +217,7 @@ pub struct StackDemand {
         std::collections::BTreeSet<provider_stack_contribution::SameStackContributionCommitment>,
     hosted_native_bindings: std::collections::BTreeSet<[u8; 32]>,
     compiler_imports: BTreeSet<target_vocabulary::CompilerImport>,
+    peak_path: Vec<MachineId>,
     private_demands: Vec<(function_identity::MachineFunctionIdentity, StackDemand)>,
 }
 
@@ -238,6 +261,12 @@ impl StackDemand {
 
     pub const fn stack_alignment(&self) -> u32 {
         self.stack_alignment
+    }
+
+    /// The internal call path, from the entry, whose frames compose the
+    /// known ceiling. A foreign call or the last frame ends it.
+    pub fn peak_path(&self) -> &[MachineId] {
+        &self.peak_path
     }
 
     pub const fn contributing_machines(&self) -> &std::collections::BTreeSet<MachineId> {

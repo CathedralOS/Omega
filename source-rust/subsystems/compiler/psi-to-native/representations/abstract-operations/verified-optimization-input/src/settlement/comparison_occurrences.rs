@@ -40,7 +40,7 @@ impl TerminalIeeeFloatComparisonOccurrenceProposal {
 
     pub fn validate_roster(
         module: &terminal_psi::TerminalModule,
-        plans: &[provider_plans::ProviderPlan],
+        plans: &[build_providers::plans::ProviderPlan],
         occurrences: &[Self],
         execution_machines: &[semantic_vocabulary::MachineId],
     ) -> Result<(), &'static str> {
@@ -165,7 +165,7 @@ impl TerminalIntegerComparisonOccurrenceProposal {
 
     pub fn validate_roster(
         module: &terminal_psi::TerminalModule,
-        plans: &[provider_plans::ProviderPlan],
+        plans: &[build_providers::plans::ProviderPlan],
         occurrences: &[Self],
         execution_machines: &[semantic_vocabulary::MachineId],
     ) -> Result<(), &'static str> {
@@ -308,9 +308,9 @@ mod comparison_tests {
         TerminalIeeeFloatComparisonOccurrenceProposal as FloatOccurrence,
         TerminalIntegerComparisonOccurrenceProposal as IntegerOccurrence,
     };
+    use build_providers::plans::ProviderPlan;
     use native_intrinsics::CompilerPrimitiveIntegerComparisonOperation as Authored;
     use native_intrinsics::{CompilerIntrinsicExecutionIdentity, CompilerNumericType};
-    use provider_plans::ProviderPlan;
     use semantic_vocabulary::{
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
         ValueId,

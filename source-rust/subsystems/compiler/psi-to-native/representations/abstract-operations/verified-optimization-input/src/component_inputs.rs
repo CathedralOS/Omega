@@ -1,9 +1,9 @@
 mod selected_exports;
 
 use crate::RetainedTerminalArtifact;
+use build_providers::plans::ProviderPlan;
 use calling_conventions::BoundaryCallingApplication;
 use component_description::VerifiedComponent;
-use provider_plans::ProviderPlan;
 use std::sync::Arc;
 use terminal_psi::ProviderCandidateConformance;
 
@@ -12,7 +12,7 @@ pub struct AdmittedNativeComponentCall<'input> {
     selected: psi_provider_selections::AdmittedComponentProvider,
     component: &'input VerifiedComponent,
     application: &'input BoundaryCallingApplication,
-    plan_digest: provider_plans::ProviderPlanDigest,
+    plan_digest: build_providers::plans::ProviderPlanDigest,
 }
 
 impl<'input> AdmittedNativeComponentCall<'input> {
@@ -34,10 +34,9 @@ impl<'input> AdmittedNativeComponentCall<'input> {
     pub const fn application(&self) -> &'input BoundaryCallingApplication {
         self.application
     }
-    pub const fn plan_digest(&self) -> &provider_plans::ProviderPlanDigest {
+    pub const fn plan_digest(&self) -> &build_providers::plans::ProviderPlanDigest {
         &self.plan_digest
     }
-
 }
 
 /// Exact cross-artifact calls for a whole selected service. Machine and boundary
@@ -45,7 +44,7 @@ impl<'input> AdmittedNativeComponentCall<'input> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentImport {
     receiver: terminal_psi::TerminalPsiIdentity,
-    plan: provider_plans::ProviderPlanDigest,
+    plan: build_providers::plans::ProviderPlanDigest,
     component: Arc<VerifiedComponent>,
     calls: Vec<psi_provider_selections::AdmittedComponentProvider>,
 }
@@ -76,7 +75,7 @@ impl ComponentImport {
         })
     }
 
-    pub fn plan(&self) -> provider_plans::ProviderPlanDigest {
+    pub fn plan(&self) -> build_providers::plans::ProviderPlanDigest {
         self.plan
     }
     pub fn matches(
@@ -99,7 +98,7 @@ impl ComponentImport {
 pub(super) fn local_adapters(
     artifact: terminal_codec::TerminalArtifactView<'_>,
     profile: target::TargetProfile,
-    selected: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &build_providers::selections::SelectedProviderPlanFacts,
     imports: &[ComponentImport],
 ) -> Result<target_bound_program::SelectedProviderAdapters, String> {
     let module = artifact.module();
@@ -273,7 +272,7 @@ impl ComponentImport {
 fn one_application<'input>(
     applications: &'input [BoundaryCallingApplication],
     abi: &semantic_vocabulary::CallingAbiIdentity,
-    expected: Option<&provider_plans::ServiceCallingPlan>,
+    expected: Option<&build_providers::plans::ServiceCallingPlan>,
     target: target::NativeTarget,
     role: &str,
 ) -> Result<&'input BoundaryCallingApplication, String> {

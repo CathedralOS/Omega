@@ -1,9 +1,8 @@
 //! The private resident initialization and extraction machines operate on an
 //! independent layout selection for the exact semantic value being stored.
+use crate::read::refuse_at;
 
-use super::{
-    Checked, Construct, MachineId, Program, SourceOrigin, StaticInvocation, Unserved, refuse,
-};
+use super::{Checked, MachineId, Program, SourceOrigin, StaticInvocation, Unserved};
 use crate::source_state::{
     AccessContentShape, AccessExecutionDeclaration, AccessLifecycleOperation,
 };
@@ -19,7 +18,7 @@ impl Program<'_> {
             return Ok(());
         }
         let typed = self.typed;
-        let unavailable = |reason| refuse(id, Construct::Machine, Unserved::Call(reason));
+        let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
         let Some(operation) = AccessExecutionDeclaration::authenticate(typed, invocation.target)
             .map_err(|error| crate::reject(id, source, error.message))?
         else {

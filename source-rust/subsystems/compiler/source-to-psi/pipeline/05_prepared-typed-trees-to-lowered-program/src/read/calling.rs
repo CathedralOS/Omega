@@ -16,7 +16,7 @@ use semantic_vocabulary::{CallingSignatureId, MachineId};
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
-use super::{Program, services};
+use super::Program;
 
 pub use lowered_source_publication::{CallingPolicySelections, ProgramEntryContractSelection};
 
@@ -53,7 +53,7 @@ impl SourceCallingPolicies {
                     typed,
                     source_provenance::DependencyScope::Product,
                 ))
-                .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?
+                .map_err(|diagnostic| crate::read::unavailable(context, diagnostic.message))?
                 .signatures()
                 .abi_signatures(),
             None => &[],
@@ -62,7 +62,7 @@ impl SourceCallingPolicies {
             rows.get(signature.row)
                 .filter(|row| row.id == signature.id)
                 .ok_or_else(|| {
-                    services::unavailable(
+                    crate::read::unavailable(
                         context,
                         "selected calling ABI lost its exact prepared catalog row",
                     )
@@ -114,7 +114,7 @@ impl Program<'_> {
             .trait_machine_signature(requirement)
             .filter(|(owner, _)| owner.is_boundary && owner.symbol == scope.declaration.symbol)
             .ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "Calling requirement lost its exact declaring boundary header",
                 )
@@ -123,7 +123,7 @@ impl Program<'_> {
             .applied_callable_signature(scope, requirement)
             .or_else(|| scope.keeps_declared_signatures(typed).then_some(declared))
             .ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "Calling requirement lost its prepared source contract application",
                 )
@@ -170,7 +170,7 @@ impl Program<'_> {
             .trait_machine_signature(requirement)
             .filter(|(owner, _)| owner.is_boundary && owner.symbol == declaring.declaration.symbol)
             .ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "Calling requirement lost its exact declaring boundary header",
                 )
@@ -183,7 +183,7 @@ impl Program<'_> {
                     .then_some(declared)
             })
             .ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "Calling requirement lost its prepared source contract application",
                 )
@@ -208,14 +208,14 @@ impl Program<'_> {
         prepared: &SourceCallingPolicies,
     ) -> Checked<()> {
         if self.type_purpose != super::storage_metadata::TypePurpose::StorageDescription {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "Calling headers before the complete body closure",
             ));
         }
         for header in &prepared.headers {
             let scope = header.declaring.scope(self.typed).ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "Calling header lost its exact declaring application",
                 )
@@ -232,13 +232,13 @@ impl Program<'_> {
     ) -> Checked<()> {
         for environment in &self.boundary_parent_contracts {
             let scope = environment.scope(self.typed).ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "boundary parent contract lost its exact application",
                 )
             })?;
             let identity = application_identity(self.typed, &scope).ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "boundary parent contract has no complete application identity",
                 )
@@ -248,7 +248,7 @@ impl Program<'_> {
                 scope.argument_owner,
                 identity,
             )) {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "boundary parent contract has no admitted contract owner",
                 ));
@@ -267,7 +267,7 @@ impl Program<'_> {
         let (applications, entries) = match selected {
             Some(selected) => {
                 if !std::ptr::eq(typed, selected.source) {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         context,
                         "calling policy selections belong to another source owner",
                     ));
@@ -276,10 +276,8 @@ impl Program<'_> {
             }
             None => (&[][..], &[][..]),
         };
-        let context_source = ProviderPlanningContext::new(
-            typed,
-            source_provenance::DependencyScope::Product,
-        );
+        let context_source =
+            ProviderPlanningContext::new(typed, source_provenance::DependencyScope::Product);
         let environments = applications
             .iter()
             .cloned()
@@ -295,32 +293,29 @@ impl Program<'_> {
             None => {
                 let catalog = self
                     .shared
-                    .calling_catalog(
-                        typed,
-                        source_provenance::DependencyScope::Product,
-                    )
+                    .calling_catalog(typed, source_provenance::DependencyScope::Product)
                     .as_ref()
                     .map(Arc::clone)
-                    .map_err(|reason| services::unavailable(context, reason.clone()))?;
+                    .map_err(|reason| crate::read::unavailable(context, reason.clone()))?;
                 prepared.catalog = Some(Arc::clone(&catalog));
                 catalog
             }
         };
         let bound_catalog = prepared_catalog
             .bind(context_source)
-            .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+            .map_err(|diagnostic| crate::read::unavailable(context, diagnostic.message))?;
         let catalog = bound_catalog.signatures();
         let calling = catalog.calling();
         let mut calling_vocabulary = None;
         for environment in &environments {
             let scope = environment.scope(typed).ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "selected calling schema has no current exact application",
                 )
             })?;
             let owner = application_identity(typed, &scope).ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "selected calling schema has no complete application identity",
                 )
@@ -334,7 +329,7 @@ impl Program<'_> {
                 continue;
             }
             if !scope.declaration.is_boundary {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "selected calling schema is not a boundary declaration",
                 ));
@@ -342,7 +337,7 @@ impl Program<'_> {
             self.served(context, scope.declaration.symbol)?;
             let declaration = typed
                 .normalized_hermetic_symbol_identity(scope.declaration.symbol)
-                .map_err(|reason| services::unavailable(context, reason))?;
+                .map_err(|reason| crate::read::unavailable(context, reason))?;
             let schema =
                 crate::source_state::service_declarations::projection::from_typed_application(
                     crate::source_state::provider_declarations::ProviderPlanningContext::new(
@@ -351,12 +346,12 @@ impl Program<'_> {
                     ),
                     scope.clone(),
                 )
-                .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+                .map_err(|diagnostic| crate::read::unavailable(context, diagnostic.message))?;
             schema
                 .validate_correspondence()
-                .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+                .map_err(|diagnostic| crate::read::unavailable(context, diagnostic.message))?;
             if schema.declaration.root_application_identity() != Some(owner.as_str()) {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "selected schema projection changed its complete root application",
                 ));
@@ -374,7 +369,7 @@ impl Program<'_> {
                     None
                 }
                 _ => {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         context,
                         "selected schema has no unique prepared Calling relationship",
                     ));
@@ -394,7 +389,7 @@ impl Program<'_> {
                 continue;
             };
             let instances = calling.instances(request).map_err(|diagnostics| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     diagnostics
                         .into_iter()
@@ -416,13 +411,13 @@ impl Program<'_> {
                     },
                 )
                 .ok_or_else(|| {
-                    services::unavailable(
+                    crate::read::unavailable(
                         context,
                         "prepared Calling instance lost its complete source application",
                     )
                 })?;
                 let candidate = application_identity(typed, &candidate).ok_or_else(|| {
-                    services::unavailable(
+                    crate::read::unavailable(
                         context,
                         "prepared Calling instance has no portable application identity",
                     )
@@ -431,14 +426,14 @@ impl Program<'_> {
                     && instance.argument_owner == scope.argument_owner
                     && matched.replace(instance).is_some()
                 {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         context,
                         "selected Calling application has competing prepared instances",
                     ));
                 }
             }
             let instance = matched.ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "selected schema application has no exactly corresponding Calling instance",
                 )
@@ -446,20 +441,21 @@ impl Program<'_> {
             let policy = *instance
                 .policy
                 .as_ref()
-                .map_err(|reason| services::unavailable(context, reason.clone()))?;
+                .map_err(|reason| crate::read::unavailable(context, reason.clone()))?;
             let implementation = policy
                 .realization(typed, policy.slot)
-                .map_err(|reason| services::unavailable(context, reason))?
+                .map_err(|reason| crate::read::unavailable(context, reason))?
                 .symbol;
             // Formation/refinement is the ordinary exact selected conformance,
             // never an inferred contract fabricated from the machine body.
             if !self.conformance_declaration(context, policy.provider)? {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "Calling policy has no exact source implementation declaration",
                 ));
             }
             let policy = self.machine(implementation)?;
+            self.retain_calling_policy_body(policy);
             if !self
                 .fixed_contracts
                 .contains(&super::FixedContract::Interface(policy))
@@ -471,10 +467,10 @@ impl Program<'_> {
             let mut signatures = Vec::new();
             for signature in calling.signatures(instance) {
                 if let Some(reason) = &signature.abi_refusal {
-                    return Err(services::unavailable(context, reason.clone()));
+                    return Err(crate::read::unavailable(context, reason.clone()));
                 }
                 let source = catalog.applied_declaration(signature).ok_or_else(|| {
-                    services::unavailable(
+                    crate::read::unavailable(
                         context,
                         "Calling instance lost an exact requirement declaration",
                     )
@@ -484,7 +480,7 @@ impl Program<'_> {
                     .as_ref()
                     .and_then(|scope| scope.scope(typed))
                     .ok_or_else(|| {
-                        services::unavailable(
+                        crate::read::unavailable(
                             context,
                             "Calling signature lost its exact declaring application",
                         )
@@ -504,7 +500,7 @@ impl Program<'_> {
                     let (row_index, row) = match (rows.next(), rows.next()) {
                         (Some(row), None) => row,
                         _ => {
-                            return Err(services::unavailable(
+                            return Err(crate::read::unavailable(
                                 context,
                                 "Calling signature has no unique complete ABI key",
                             ));
@@ -514,7 +510,7 @@ impl Program<'_> {
                         .projections_in_context(typed, self.purpose)
                         .any(|projection| projection.source == source.symbol)
                     {
-                        return Err(services::unavailable(
+                        return Err(crate::read::unavailable(
                             context,
                             "Calling ABI key does not retain its exact requirement source",
                         ));
@@ -529,7 +525,7 @@ impl Program<'_> {
                     }
                 }
                 if signature.abi_signatures.is_empty() {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         context,
                         "Calling requirement has no prepared ABI application",
                     ));
@@ -554,7 +550,7 @@ impl Program<'_> {
                             || existing.signatures != new_instance.signatures
                             || existing.schema != new_instance.schema
                         {
-                            return Err(services::unavailable(
+                            return Err(crate::read::unavailable(
                                 context,
                                 "equal Calling applications select different policies or signatures",
                             ));
@@ -574,33 +570,33 @@ impl Program<'_> {
         let mut entry_targets = Vec::with_capacity(entries.len());
         for entry in entries {
             if entry_targets.contains(&entry.target) {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "selected entry target has competing source contract nominations",
                 ));
             }
             entry_targets.push(entry.target);
             if entry.target.is_empty() {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "selected entry contract has no exact target coordinate",
                 ));
             }
             let scope = entry.application.scope(typed).ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "selected entry contract lost its complete source application",
                 )
             })?;
             let application = application_identity(typed, &scope).ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "selected entry contract has no canonical full application identity",
                 )
             })?;
             let declaration = typed
                 .normalized_hermetic_symbol_identity(scope.declaration.symbol)
-                .map_err(|reason| services::unavailable(context, reason))?;
+                .map_err(|reason| crate::read::unavailable(context, reason))?;
             if !prepared.requests.iter().any(|request| {
                 request.declaration == declaration
                     && request
@@ -608,7 +604,7 @@ impl Program<'_> {
                         .iter()
                         .any(|instance| instance.declaring_application == application)
             }) {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "selected entry contract has no admitted normalized schema application",
                 ));
@@ -624,7 +620,7 @@ impl Program<'_> {
                     || known.physical_source_digest != entry.physical_source_digest
                     || known.entry != implementation
                 {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         context,
                         "selected entry target has competing source contract nominations",
                     ));
@@ -1286,9 +1282,7 @@ mod header_reading_tests {
         let signature = program
             .read_calling_requirement_header(context, &scope, requirement)
             .unwrap();
-        assert!(
-            signature.parameters[0].qualification() != crate::body::Qualification::NONE
-        );
+        assert!(signature.parameters[0].qualification() != crate::body::Qualification::NONE);
         assert!(!signature.requires.is_empty());
         program.completed_operators.finish();
         crate::publication::selection_questions::capture_with_bodies(
@@ -1395,10 +1389,7 @@ mod header_reading_tests {
             // reader must have populated its existing Product slot itself.
             assert_eq!(shared.prepared_calling_catalogs(), 1);
             let product = shared
-                .calling_catalog(
-                    &typed,
-                    source_provenance::DependencyScope::Product,
-                )
+                .calling_catalog(&typed, source_provenance::DependencyScope::Product)
                 .as_ref()
                 .unwrap();
             assert!(Arc::ptr_eq(policies.catalog.as_ref().unwrap(), product));
@@ -1411,10 +1402,7 @@ mod header_reading_tests {
         // The other consumer still owns its actual dependency purpose. A Build
         // request cannot reuse a Product binding even though its source is equal.
         let product = shared
-            .calling_catalog(
-                &typed,
-                source_provenance::DependencyScope::Product,
-            )
+            .calling_catalog(&typed, source_provenance::DependencyScope::Product)
             .as_ref()
             .unwrap();
         assert!(

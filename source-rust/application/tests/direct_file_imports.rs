@@ -1,8 +1,7 @@
 //! Exercise file-qualified declarations in calls and conformance member selections.
+#[path = "support/project.rs"]
+mod project;
 mod support;
-
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Stdio};
 
 #[test]
 fn invoke_a_returned_machine_in_a_transition_arm() {
@@ -47,23 +46,16 @@ machine main() crashes Trap {
 
 fn run_example(source: &str) {
     let fixture = support::repository_root().join("samples/cli/probes/direct_file_imports");
-    let scratch = TemporaryDirectory::create("direct-file-imports", false).unwrap();
+    let scratch = project::stage("direct-file-imports", &[("main.omg", source)]);
     std::fs::create_dir(scratch.path().join("m")).unwrap();
     for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-        command.args(["run", "--engine", engine]);
-        std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-        command.args(["--build-input", "main.omg"]);
+        let mut arguments = vec!["run", "--engine", engine, "--build-input", "main.omg"];
         for file in ["build.omg", "m/b.omg", "m/value-cell.omg"] {
             std::fs::copy(fixture.join(file), scratch.path().join(file)).unwrap();
-            command.args(["--build-input", file]);
+            arguments.extend(["--build-input", file]);
         }
-        let output = command
-            .arg("main.omg")
-            .current_dir(scratch.path())
-            .stdin(Stdio::null())
-            .output()
-            .unwrap();
+        arguments.push("main.omg");
+        let output = project::omega(scratch.path(), &arguments);
         let report = format!(
             "{}{}",
             String::from_utf8_lossy(&output.stdout),
@@ -76,23 +68,23 @@ fn run_example(source: &str) {
 
 #[test]
 fn a_selection_row_names_the_exact_file_that_declares_its_requirement() {
-    let scratch = TemporaryDirectory::create("file-selected-requirement", false).unwrap();
-    let root = scratch.path();
     let contract = "public trait Step { machine apply(value: u32) -> u32; }";
-    for (path, source) in [
-        (
-            "build.omg",
-            "machine build(builder: @mutable Build) { Build::package(builder, \"rows\"); }",
-        ),
-        ("selected.omg", contract),
-        ("other.omg", contract),
-        (
-            "action.omg",
-            "public machine keep(value: u32) -> u32 { value }",
-        ),
-    ] {
-        std::fs::write(root.join(path), source).unwrap();
-    }
+    let scratch = project::stage(
+        "file-selected-requirement",
+        &[
+            (
+                "build.omg",
+                "machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: \"rows\" }; }",
+            ),
+            ("selected.omg", contract),
+            ("other.omg", contract),
+            (
+                "action.omg",
+                "public machine keep(value: u32) -> u32 { value }",
+            ),
+        ],
+    );
+    let root = scratch.path();
     for (owner, accepted) in [
         ("|renamed|::Step", true),
         ("|other|::Step", false),
@@ -102,13 +94,8 @@ fn a_selection_row_names_the_exact_file_that_declares_its_requirement() {
             "use selected.omg; use selected.omg as renamed; use other.omg; use action.omg;\n\
              Whole satisfies |selected|::Step {{ {owner}::apply = |action|::keep; }}"
         );
-        std::fs::write(root.join("main.omg"), source).unwrap();
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["--check", "--offline", "main.omg"])
-            .current_dir(root)
-            .stdin(Stdio::null())
-            .output()
-            .unwrap();
+        project::write(root, &[("main.omg", &source)]);
+        let output = project::omega(root, &["--check", "--offline", "main.omg"]);
         let report = String::from_utf8_lossy(&output.stderr);
         assert_eq!(output.status.success(), accepted, "{report}");
         if !accepted {
@@ -122,14 +109,15 @@ fn a_selection_row_names_the_exact_file_that_declares_its_requirement() {
 
 #[test]
 fn imported_domains_with_the_same_name_select_the_subjects_carrier() {
-    let scratch = TemporaryDirectory::create("file-domain-carriers", false).unwrap();
+    let scratch = project::stage(
+        "file-domain-carriers",
+        &[(
+            "limits.omg",
+            "public domain u16::Small requires self < 10u16;\n\
+             public domain u32::Small requires self >= 10u32;",
+        )],
+    );
     let root = scratch.path();
-    std::fs::write(
-        root.join("limits.omg"),
-        "public domain u16::Small requires self < 10u16;\n\
-         public domain u32::Small requires self >= 10u32;",
-    )
-    .unwrap();
     for (carrier, value, error) in [
         ("u16", 3, None),
         ("u32", 30, None),
@@ -141,13 +129,8 @@ fn imported_domains_with_the_same_name_select_the_subjects_carrier() {
              machine small(value: {carrier} in |limits|::Small) -> bool {{ value in |limits|::Small }}\n\
              public machine main() {{ _ = small({value}{carrier} as + |limits|::Small); }}"
         );
-        std::fs::write(root.join("main.omg"), source).unwrap();
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["--check", "--offline", "main.omg"])
-            .current_dir(root)
-            .stdin(Stdio::null())
-            .output()
-            .unwrap();
+        project::write(root, &[("main.omg", &source)]);
+        let output = project::omega(root, &["--check", "--offline", "main.omg"]);
         let diagnostics = String::from_utf8_lossy(&output.stderr);
         assert_eq!(output.status.success(), error.is_none(), "{diagnostics}");
         if let Some(error) = error {

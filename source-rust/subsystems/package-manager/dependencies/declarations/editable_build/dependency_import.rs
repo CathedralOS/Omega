@@ -4,7 +4,7 @@ use syntax_trees::item::{Item, UseItem};
 
 fn file_aliases(trees: &SyntaxTrees) -> impl Iterator<Item = (&str, bool)> {
     trees.root_items().filter_map(|item| {
-        let Item::Use(UseItem::File {
+        let Item::Use(UseItem {
             root,
             components,
             alias,

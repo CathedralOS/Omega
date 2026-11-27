@@ -1,9 +1,7 @@
 //! Immutable source and output grants for one Build activation.
 
 use crate::BuildSourceCaptureRequest;
-use build_output::CapturedBuildSourceInput;
 use diagnostics::Diagnostic;
-use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildSnapshotRequest {
@@ -11,7 +9,6 @@ pub struct BuildSnapshotRequest {
     required_outputs: Vec<Vec<u8>>,
     product_source_directory: Option<Vec<u8>>,
     capture: BuildSnapshotCapture,
-    inputs: BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,7 +33,6 @@ impl BuildSnapshotRequest {
         Self {
             required_outputs: Vec::new(),
             capture,
-            inputs: BTreeMap::new(),
             directories: Default::default(),
             product_source_directory: None,
         }
@@ -49,7 +45,6 @@ impl BuildSnapshotRequest {
         Self {
             required_outputs: required_outputs.into_iter().collect(),
             capture: BuildSnapshotCapture::Scoped(capture),
-            inputs: BTreeMap::new(),
             directories: Default::default(),
             product_source_directory: None,
         }
@@ -76,16 +71,6 @@ impl BuildSnapshotRequest {
         &self.directories
     }
 
-    pub fn with_inputs(
-        mut self,
-        inputs: impl IntoIterator<Item = (Vec<u8>, CapturedBuildSourceInput)>,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        for (name, input) in inputs {
-            insert_named_input(&mut self.inputs, name, input)?;
-        }
-        Ok(self)
-    }
-
     /// The caller selects a directory of this activation's private staging as
     /// a source overlay for its immediate Product. An empty path selects the
     /// staging root. Other staged files remain outside the source view.
@@ -107,9 +92,6 @@ impl BuildSnapshotRequest {
         self.product_source_directory.as_deref()
     }
 
-    pub fn inputs(&self) -> &BTreeMap<Vec<u8>, CapturedBuildSourceInput> {
-        &self.inputs
-    }
 
     pub fn required_outputs(&self) -> &[Vec<u8>] {
         &self.required_outputs
@@ -118,50 +100,4 @@ impl BuildSnapshotRequest {
     pub const fn capture(&self) -> &BuildSnapshotCapture {
         &self.capture
     }
-}
-
-fn insert_named_input(
-    slots: &mut BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
-    name: Vec<u8>,
-    input: CapturedBuildSourceInput,
-) -> Result<(), Vec<Diagnostic>> {
-    if std::str::from_utf8(&name).is_err()
-        || !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(&name, false)
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "named build input slot is not a canonical UTF-8 relative name: {name:?}"
-        ))]);
-    }
-    if slots.contains_key(&name) {
-        return Err(vec![Diagnostic::error(format!(
-            "named build input slot {name:?} is declared twice for one dependency occurrence"
-        ))]);
-    }
-    let entries = slots
-        .values()
-        .try_fold(input.entry_count(), |total, input| {
-            total.checked_add(input.entry_count())
-        });
-    let bytes = slots.values().try_fold(input.file_bytes(), |total, input| {
-        total.checked_add(input.file_bytes())
-    });
-    let names = slots
-        .keys()
-        .try_fold(name.len(), |total, name| total.checked_add(name.len()));
-    if slots.len() >= 4096
-        || entries.is_none_or(|entries| {
-            entries > filesystem_authority::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT as u64
-        })
-        || bytes.is_none_or(|bytes| bytes > 512 * 1024 * 1024)
-        || names.is_none_or(|names| {
-            names > filesystem_authority::FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT
-        })
-    {
-        return Err(vec![Diagnostic::error(
-            "named build inputs exceed the activation's captured-inventory limits",
-        )]);
-    }
-    input.validate_snapshot_paths()?;
-    slots.insert(name, input);
-    Ok(())
 }
