@@ -56,7 +56,7 @@ impl Storage {
     }
 
     pub(super) fn input(&mut self) -> Location {
-        self.allocate_with(Stored::Unknown, Allocation::ExclusiveInput)
+        self.allocate_with(Stored::Incoming, Allocation::ExclusiveInput)
     }
 
     fn allocate_with(&mut self, contents: Stored, home: fn(usize) -> Allocation) -> Location {
@@ -146,7 +146,7 @@ impl Storage {
                 .project(path);
             match home {
                 Allocation::SharedInput(_) => caller = true,
-                Allocation::ExclusiveInput(_) if matches!(value, Stored::Unknown) => caller = true,
+                Allocation::ExclusiveInput(_) if matches!(value, Stored::Incoming) => caller = true,
                 _ => local |= can_block(value),
             }
         });

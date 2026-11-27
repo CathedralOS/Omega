@@ -11,6 +11,8 @@ use terminal_psi::StructuralPathSegment as Segment;
 
 #[derive(Clone, Default)]
 pub(in super::super) enum Stored {
+    /// Initial bytes supplied by the caller, still untouched on every arrival.
+    Incoming,
     Zero,
     Scalar(ScalarFact),
     Alternatives {
@@ -26,15 +28,41 @@ pub(in super::super) enum Stored {
 #[derive(Clone)]
 pub(in super::super) struct Aggregate {
     tags: Vec<StructuralCaseId>,
-    zeroed: bool,
+    fill: FieldDefault,
     fields: Vec<(Segment, Stored)>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FieldDefault {
+    Zero,
+    Incoming,
+    Unknown,
+}
+
+impl FieldDefault {
+    fn contents(self) -> &'static Stored {
+        match self {
+            Self::Zero => &Stored::Zero,
+            Self::Incoming => &Stored::Incoming,
+            Self::Unknown => &Stored::Unknown,
+        }
+    }
+}
+
 impl Stored {
+    fn fill(&self) -> FieldDefault {
+        match self {
+            Self::Zero => FieldDefault::Zero,
+            Self::Incoming => FieldDefault::Incoming,
+            Self::Aggregate(record) => record.fill,
+            _ => FieldDefault::Unknown,
+        }
+    }
+
     pub(in super::super) fn variant(case: StructuralCaseId) -> Self {
         Self::Aggregate(Arc::new(Aggregate {
             tags: vec![case],
-            zeroed: false,
+            fill: FieldDefault::Unknown,
             fields: Vec::new(),
         }))
     }
@@ -58,7 +86,7 @@ impl Stored {
             Self::Aggregate(aggregate) => aggregate.clone(),
             _ => Arc::new(Aggregate {
                 tags: Vec::new(),
-                zeroed: matches!(self, Self::Zero),
+                fill: self.fill(),
                 fields: Vec::new(),
             }),
         };
@@ -79,17 +107,13 @@ impl Stored {
 
     pub(super) fn field(&self, key: &Segment) -> &Self {
         match self {
-            Self::Zero => &Self::Zero,
+            Self::Zero | Self::Incoming => self,
             Self::Aggregate(record) => record
                 .fields
                 .iter()
                 .find(|(field, _)| field == key)
                 .map(|(_, value)| value)
-                .unwrap_or(if record.zeroed {
-                    &Self::Zero
-                } else {
-                    &Self::Unknown
-                }),
+                .unwrap_or(record.fill.contents()),
             _ => &Self::Unknown,
         }
     }
@@ -100,7 +124,7 @@ impl Stored {
         if !matches!(self, Self::Aggregate(_)) {
             *self = Self::Aggregate(Arc::new(Aggregate {
                 tags: Vec::new(),
-                zeroed: matches!(self, Self::Zero),
+                fill: self.fill(),
                 fields: Vec::new(),
             }));
         }
@@ -112,14 +136,9 @@ impl Stored {
             Some(index) => index,
             None => {
                 let index = record.fields.len();
-                record.fields.push((
-                    key.clone(),
-                    if record.zeroed {
-                        Self::Zero
-                    } else {
-                        Self::Unknown
-                    },
-                ));
+                record
+                    .fields
+                    .push((key.clone(), record.fill.contents().clone()));
                 index
             }
         };
@@ -138,7 +157,9 @@ impl Stored {
         borrow: &mut impl FnMut(&mut Location, &Location),
     ) {
         match (&*self, other) {
-            (Self::Unknown, _) | (Self::Zero, Self::Zero) => return,
+            (Self::Unknown, _) | (Self::Zero, Self::Zero) | (Self::Incoming, Self::Incoming) => {
+                return;
+            }
             (Self::Scalar(a), Self::Scalar(b)) if a == b => return,
             (Self::Reference(a), Self::Reference(b)) => {
                 let mut home = a.clone();
@@ -146,7 +167,8 @@ impl Stored {
                 *self = Self::Reference(home);
             }
             (Self::Aggregate(a), Self::Aggregate(b)) if Arc::ptr_eq(a, b) => return,
-            (Self::Aggregate(_) | Self::Zero, Self::Aggregate(_) | Self::Zero) => {
+            (Self::Aggregate(_), Self::Aggregate(_) | Self::Zero | Self::Incoming)
+            | (Self::Zero | Self::Incoming, Self::Aggregate(_)) => {
                 let fields = |value: &Self| match value {
                     Self::Aggregate(a) => a
                         .fields
@@ -154,9 +176,6 @@ impl Stored {
                         .map(|(key, _)| key.clone())
                         .collect::<Vec<_>>(),
                     _ => Vec::new(),
-                };
-                let zeroed = |value: &Self| {
-                    matches!(value, Self::Zero) || matches!(value, Self::Aggregate(a) if a.zeroed)
                 };
                 let mut tags = Vec::new();
                 if !self.tags().is_empty() && !other.tags().is_empty() {
@@ -167,7 +186,11 @@ impl Stored {
                 }
                 let mut result = Self::Aggregate(Arc::new(Aggregate {
                     tags,
-                    zeroed: zeroed(self) && zeroed(other),
+                    fill: if self.fill() == other.fill() {
+                        self.fill()
+                    } else {
+                        FieldDefault::Unknown
+                    },
                     fields: Vec::new(),
                 }));
                 let mut keys = fields(self);

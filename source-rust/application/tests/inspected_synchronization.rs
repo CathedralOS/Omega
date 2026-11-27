@@ -73,3 +73,26 @@ fn an_open_supplier_must_still_discharge_its_private_alternative() {
     assert!(!blocked.status.success(), "{report}");
     assert!(report.contains("synchronization"), "{report}");
 }
+
+#[test]
+fn an_exclusive_input_can_defer_only_bytes_its_supplier_has_preserved() {
+    let untouched = SOURCE
+        .replace("word: AtomicU32;", "word: AtomicU32; sibling: AtomicU32;")
+        .replace(
+            "supplied(flag: @Flag) { await_release(flag); }",
+            "supplied(flag: @mutable Flag, input: u32) {
+                flag.sibling.store(input +% 1u32, Publish); await_release(flag);
+            }",
+        )
+        .replace("supplied(@flag);", "supplied(@mutable flag, 1);");
+    let inspect = |source| program::invoke(source, &["psi", "inspect", "--machine", "supplied"]);
+    let (accepted, report) = inspect(&untouched);
+    assert!(accepted.status.success(), "{report}");
+    let replaced = untouched.replace("flag.sibling.store", "flag.word.store");
+    let (rejected, report) = inspect(&replaced);
+    assert!(!rejected.status.success(), "{report}");
+    assert!(
+        report.contains("cannot prove synchronization progress"),
+        "{report}"
+    );
+}
