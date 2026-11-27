@@ -1011,6 +1011,7 @@ pub(crate) mod source_occurrences {
                 .insert(ExpressionNode::Cast(TableCastExpression {
                     value: leaf,
                     target_type: authored_cast,
+                    recast_storage_type: Default::default(),
                     result_type: computed,
                     target_label: Default::default(),
                     domain: numerics::arithmetic::ArithmeticDomain::Exact,
@@ -1747,6 +1748,47 @@ pub fn collect_selected_program_type_occurrences(
     program: &TypedTrees,
     selection: &DeclarationSelection,
 ) -> Vec<TypeOccurrence> {
+    type_occurrences_in(program, selection).types
+}
+
+/// The ordinary storage occurrences and the source and target types of
+/// checked storage recasts. Both use the same lexical-owner walk.
+pub fn collect_layout_type_occurrences(
+    program: &TypedTrees,
+) -> (Vec<TypeOccurrence>, Vec<TypeOccurrence>) {
+    let occurrences = type_occurrences_in(program, &DeclarationSelection::default());
+    let mut recasts = Vec::new();
+    for occurrence in &occurrences.seen_expressions.rows {
+        let ExpressionNode::Cast(cast) = program.expression_table.expression(occurrence.reference)
+        else {
+            continue;
+        };
+        if !cast.form.is_recast() {
+            continue;
+        }
+        let root = cast.recast_storage_type;
+        let source = program.contains_type_reference(root).then(|| {
+            let reference = program
+                .type_reference_table
+                .unconstrained_type_reference(root);
+            match program.type_reference_node(reference) {
+                TypeReferenceNode::Reference { referee, .. } => *referee,
+                _ => reference,
+            }
+        });
+        for reference in source.into_iter().chain(std::iter::once(cast.target_type)) {
+            if program.contains_type_reference(reference) {
+                recasts.push(TypeOccurrence {
+                    lexical_owner: occurrence.owner,
+                    reference,
+                });
+            }
+        }
+    }
+    (occurrences.types, recasts)
+}
+
+fn type_occurrences_in(program: &TypedTrees, selection: &DeclarationSelection) -> TypeOccurrences {
     let mut occurrences = TypeOccurrences {
         selection: selection.clone(),
         ..TypeOccurrences::default()
@@ -1762,7 +1804,7 @@ pub fn collect_selected_program_type_occurrences(
             occurrences.owner = previous;
         }
     }
-    occurrences.types
+    occurrences
 }
 
 pub struct ProgramOperandOwners {
@@ -3938,6 +3980,7 @@ pub fn visit_expression(
             visit_type_reference(program, retained, cast.target_type);
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
+                visit_type_reference(program, retained, cast.recast_storage_type);
             }
             // Intrinsic conversions, recasts and builtin policy entries may
             // omit a named domain. Every nonempty coordinate still reaches
@@ -5543,6 +5586,7 @@ mod cast_dependency_tests {
         let mut cast = TableCastExpression {
             value,
             target_type: carrier,
+            recast_storage_type: Default::default(),
             result_type: carrier,
             target_label: Default::default(),
             domain: numerics::arithmetic::ArithmeticDomain::Wrapping,

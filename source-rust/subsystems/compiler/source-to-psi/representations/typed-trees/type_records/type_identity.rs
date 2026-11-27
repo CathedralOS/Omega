@@ -5693,6 +5693,7 @@ pub(crate) mod package_policy_reading_tests {
                     crate::source_state::expression::TableCastExpression {
                         value,
                         target_type: target,
+                        recast_storage_type: Default::default(),
                         result_type: crate::source_state::types::TypeReferenceHandle::invalid(),
                         target_label: arena::HandleSpan::empty(),
                         domain: ArithmeticDomain::Wrapping,

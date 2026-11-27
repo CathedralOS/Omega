@@ -1620,6 +1620,7 @@ pub(crate) mod expression {
                                     typed::expression::TableCastExpression {
                                         value,
                                         target_type,
+                                        recast_storage_type: Default::default(),
                                         result_type: typed::types::TypeReferenceHandle::invalid(),
                                         target_label,
                                         domain: cast.domain,
