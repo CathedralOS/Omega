@@ -6,38 +6,27 @@ operations alongside the view/byte (`selection_views_and_bytes`), access-lifecyc
 (`selection_access_lifecycles`), and interrupt (`selection_interrupts`) modules.
 */
 
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::SelectedInstructionError;
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::byte_view_homes::ByteViewHomes;
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::construction::scalar_graph::call_arguments::{
     invocation_memory_origin, invocation_provenance,
 };
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::construction::scalar_graph::{
     Builder, IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedBlockId,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance, ValueLocation,
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::element_view_homes::ElementViewHomes;
-#[allow(unused_imports)]
 pub(crate) use calling_conventions::IndirectPointerLocation;
-#[allow(unused_imports)]
 pub(crate) use legalized_operations::LegalizedScalarInstruction;
-#[allow(unused_imports)]
 pub(crate) use optimization_core::AcceptedObligationFactIdentity;
-#[allow(unused_imports)]
 pub(crate) use selected_instructions::{
     SelectedBoundarySettlement, SelectedCallContract, SelectedMemoryAccess,
     SelectedMemoryAccessRole, SelectedOutgoingArgumentSlot,
 };
-#[allow(unused_imports)]
 pub(crate) use semantic_vocabulary::{
     IntegerType, IntegerValue, ObligationId, OperationId, PlaceId, ValueId,
 };
-#[allow(unused_imports)]
 pub(crate) use terminal_psi::StructuralAccess;
 
 pub(crate) mod block_views {

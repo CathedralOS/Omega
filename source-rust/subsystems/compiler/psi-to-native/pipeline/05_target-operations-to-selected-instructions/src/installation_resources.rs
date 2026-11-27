@@ -6,7 +6,7 @@ use provider_admission::{
     AdmittedInstalledEntryExecution, AdmittedInstalledInterruptCohort, AdmittedNativeCallbackCohort,
 };
 
-pub use installation_admission::PlannedInstallationResources;
+use installation_admission::PlannedInstallationResources;
 
 /// The authorized handlers and measured stacks available to one target body.
 pub struct InstallationRequirements<'a> {

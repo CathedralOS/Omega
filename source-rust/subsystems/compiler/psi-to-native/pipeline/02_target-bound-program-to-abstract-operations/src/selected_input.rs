@@ -5,7 +5,7 @@ mod error {
 
     #[derive(Debug)]
     pub enum ArtifactLoweringError {
-        #[cfg(any(test, feature = "test-support"))]
+        #[cfg(test)]
         TargetSelectionRequired,
         TargetContext(String),
         AccessViewInputsRequireCustodyLowering,
@@ -24,10 +24,6 @@ mod error {
         AccessViewEstablishmentQualificationCarrier(semantic_vocabulary::StructuralDomainId),
         AccessViewEstablishmentAliasing(u64),
         Lowering(LoweringError),
-        /// Evidence seals name a different module than the one being lowered,
-        /// for example seals from an earlier build.
-        #[cfg(any(test, feature = "test-support"))]
-        EvidenceForAnotherModule,
     }
 
     impl std::fmt::Display for ArtifactLoweringError {
@@ -65,12 +61,8 @@ mod error {
                 Self::AccessViewEstablishmentRangeUnresolved => {
                     f.write_str("access view range is unresolved")
                 }
-                #[cfg(any(test, feature = "test-support"))]
+                #[cfg(test)]
                 Self::TargetSelectionRequired => f.write_str("a default machine entry is required"),
-                #[cfg(any(test, feature = "test-support"))]
-                Self::EvidenceForAnotherModule => {
-                    f.write_str("evidence seals name a different module")
-                }
             }
         }
     }
@@ -1117,7 +1109,7 @@ mod native {
                 terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
             let artifact = CanonicalTerminalArtifact::from_parts(module, record, None).unwrap();
             let input =
-                crate::test_support::lower_artifact(&authorize_test_artifact(&artifact), None)
+                crate::test_support::lower_default_entry(&authorize_test_artifact(&artifact))
                     .unwrap();
             let plan = input.plan().clone();
             let facts = input.into_lowering_facts();
