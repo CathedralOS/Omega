@@ -1101,7 +1101,10 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
     };
     assert_eq!(errors.len(), missing.len());
     for (error, (name, span)) in errors.iter().zip(missing) {
-        assert_eq!(error.message, format!("no admitted logical file `{name}.omg`"));
+        assert_eq!(
+            error.message,
+            format!("no admitted logical file `{name}.omg`")
+        );
         assert_eq!(error.source_span, Some(SourceSpan::new(root, span)));
     }
 }
