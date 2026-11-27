@@ -1218,6 +1218,7 @@ dependencies = [
  "application-identity",
  "arena",
  "bignum",
+ "build-model",
  "bundled-declarations",
  "checked-program",
  "checked-program-issuer",

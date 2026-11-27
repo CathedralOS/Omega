@@ -2831,6 +2831,13 @@ pub(crate) struct PendingBoundaryCall {
     effect: TerminalEffect,
 }
 
+impl PendingBoundaryCall {
+    /// The request the provider was polled with while the guest waited.
+    pub(crate) const fn effect(&self) -> &TerminalEffect {
+        &self.effect
+    }
+}
+
 fn select_positions<T: Clone>(
     rows: &[T],
     positions: &[usize],

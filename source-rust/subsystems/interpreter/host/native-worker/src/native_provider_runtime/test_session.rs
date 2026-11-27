@@ -53,6 +53,9 @@ impl DerefMut for TestProviderProcess {
     }
 }
 impl TestProviderProcess {
+    pub(crate) fn session_home_directory(&self) -> std::path::PathBuf {
+        self.worker.borrow().home_directory().to_owned()
+    }
     pub(crate) fn launch(command: Command, timeout: Duration) -> Result<Self, NativeProviderError> {
         let (child, worker) = native_provider_sponsor::test_support::spawn(command, timeout)?;
         let directory = worker.home_directory().to_owned();

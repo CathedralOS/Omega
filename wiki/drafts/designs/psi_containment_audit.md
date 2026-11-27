@@ -7,13 +7,13 @@ rules in [Ownership and lifetime](../../spec/build/embedding.md#ownership-and-li
 and [Closing and failure](../../spec/build/embedding.md#closing-and-failure). It
 was made on `main` after #6468.
 
-**Verdict: do not open untrusted execution yet.** Every route that runs Psi
-still requires the host's trust in the exact artifact and producer, so the gaps
-below are not reachable by an untrusted producer today. Execution of a trusted
-artifact is contained for denied host access, forged handles, stale access,
-work exhaustion and faults. The discard sequence for a faulted, stopped or
-waiting guest does not exist yet. Until it does, an instance that has not
-settled can only be kept or dropped. It cannot be safely abandoned.
+**Verdict: containment now covers discard; untrusted execution still needs its
+route.** Every route that runs Psi still requires the host's trust in the exact
+artifact and producer. Execution of a trusted artifact is contained for denied
+host access, forged handles, stale access, work exhaustion and faults, and a
+faulted, stopped or waiting guest can now be discarded under the four-step
+sequence (see [Discard](#discard)). What remains before untrusted execution
+opens is listed under [Before an untrusted route](#before-an-untrusted-route).
 
 ## Routes into execution
 
@@ -44,36 +44,34 @@ received module that the checker would refuse never executes (#6460, #6462).
 | Closing a settled instance | `close` ends entry, observation, provider-storage return and binding. Closing a paused or waiting instance is `Busy` and keeps custody. | `a_paused_instance_keeps_its_activation_until_it_settles` |
 | Loading | One host budget covers parsing, validation and execution preparation, and exhaustion has its own reason. | #6462 |
 
-## Gaps before untrusted execution
+## Discard
 
-These are the parts of [Closing and failure](../../spec/build/embedding.md#closing-and-failure)
-that have no implementation. Each needs one before untrusted execution opens.
+The sequence in [Closing and failure](../../spec/build/embedding.md#closing-and-failure)
+is `TerminalInstance::discard`.
 
-1. **No discard operation.** `TerminalInstance::close` treats any invoked,
-   unfinished execution as `Busy`, and a faulted execution counts as
-   unfinished. The only other way out is dropping the instance, and a
-   host-language destructor does not establish safe cancellation. A discard
-   entry must take a faulted, stopped or waiting instance through the
-   four-step sequence: prevent resumption, request cancellation, reclaim only
-   disposable interpreter storage, retain provider-held storage.
-2. **No cancellation request.** Neither `TerminalImportAdapter` nor component
-   bindings have a cancellation operation, so outstanding provider operations
-   (`AwaitingEffect`, `HostComputationPending`, pending component invocations)
-   cannot be asked to stop under their contracts.
-3. **Late completions have no settlement path.** A completion that arrives
-   after discard must be consumed for settlement and cleanup without resuming
-   the guest. Today the only consumer of a completion is resumption.
-4. **Provider-held storage is not retained and charged after abandonment.**
-   `NativeProviderProcess::drop` releases its home directory only after it reaps
-   the provider, but the rest of the process state is still dropped, and nothing
-   charges a still-pinned provider buffer to the responsible host context. The
-   spec requires an uncooperative provider's storage to stay retained and
-   accounted.
-5. **No test of late completion after discard or of an uncooperative
-   provider.** The acceptance list names both. They depend on gaps 1 to 4.
+| Step | How it holds | Evidence |
+| --- | --- | --- |
+| Prevent resumption and new guest-originated host calls | A discarded instance refuses every `invoke` with `TerminalInstanceError::Discarded` and refuses new bindings. Adapters are reached only to cancel and settle. | `a_late_completion_after_discard_settles_without_resuming_the_guest`, `a_discarded_paused_instance_never_resumes` |
+| Request cancellation | The waiting call's adapter gets `TerminalEffectHandler::request_effect_cancellation`. A request releases nothing unless the provider confirms it. A pending component invocation discards its provider instance the same way. | `a_confirmed_cancellation_settles_the_discard_at_once` |
+| Reclaim only disposable interpreter storage | The execution is dropped except for the waiting call, which keeps its argument buffers and any provider homes they name. | `an_uncooperative_provider_keeps_its_storage_retained_and_charged` (the rest of the guest's charge is released) |
+| Retain provider-held storage; consume late completions | Each later `discard` calls `settle_abandoned_effect`. Settlement never handles the effect or resumes the guest. Storage the provider reports retained is charged to the invocation account until it settles, and `close` is `Busy` until then. A provider refusal settles nothing. | `a_late_completion_after_discard_settles_without_resuming_the_guest`, `an_uncooperative_provider_keeps_its_storage_retained_and_charged`, `a_faulted_guest_keeps_its_provider_operation_until_it_settles` |
+| Unreaped native provider | Dropping a `NativeProviderProcess` that cannot be reaped moves its process, session and homes to its thread's quarantine instead of releasing them. `native_provider_quarantine` reports the retained bytes, and `settle_native_provider_quarantine` releases an incarnation only after reaping it. The runtime host settles it before starting a new provider. | `an_unreaped_provider_keeps_its_homes_retained_until_it_is_reaped` |
 
-Gaps 1 to 4 are one protocol: a discard state on `TerminalInstance`, a
-cancellation operation on adapters and component bindings, and a custody
-ledger that outlives the guest until each outstanding obligation settles. No
-spec change is needed. The spec already states the sequence; it does not yet
-name the embedding API that carries it.
+The settlement defaults suit a polling adapter: with no contract of its own, an
+adapter has settled when it reports the readiness and completion that
+resumption would have consumed.
+
+## Before an untrusted route
+
+1. **An admission route without producer trust.** The spec allows untrusted
+   interpretation only through a containment-audited interpreter and host
+   bindings. No API admits a received artifact for interpretation without
+   `AuthorizedTerminalArtifact`, and such a route must still refuse native
+   lowering and fact-driven optimization.
+2. **Per-binding review.** Each host binding offered to untrusted execution must
+   enforce its permissions, limits and custody dynamically or be unavailable,
+   and should give an accurate cancellation and settlement answer when its
+   operations can outlive a poll.
+3. **A waiting component.** Discarding a pending component invocation reuses the
+   instance discard, but no test parks a component provider on a host
+   operation yet.

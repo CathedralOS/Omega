@@ -4,14 +4,16 @@ Psi consumers reuse a trusted producer's checked judgments. Interpretation keeps
 concrete operation checks, while native lowering requires trusted input. The
 [product decision](../../spec/terminal-psi/product.md#publication-and-separate-consumption)
 replaces receiver proof rediscovery with explicit host trust and a separately
-audited route for untrusted interpretation. Its five steps have landed; guest
-discard remains as **PSI-GUEST-DISCARD** in [TASKS.md](../../../TASKS.md).
+audited route for untrusted interpretation. Its five steps and guest discard
+have landed; that route remains as **PSI-UNTRUSTED-INTERPRETATION** in
+[TASKS.md](../../../TASKS.md).
 
 ## Existing implementation and scope
 
-Steps 1 to 5 below have landed. Step 5's
-[containment audit](psi_containment_audit.md) keeps untrusted execution closed
-until the guest discard sequence exists. Decoding marks a closed module as
+Steps 1 to 5 below have landed, and a faulted, stopped or waiting guest can be
+discarded under the embedding's four-step sequence. The
+[containment audit](psi_containment_audit.md) lists what an untrusted
+interpretation route still needs. Decoding marks a closed module as
 received, and the
 interpreter's `TerminalProgram::borrow` and `retain` refuse received code. Received
 Psi executes only through `TerminalProgram::admit`, `retain_authorized` or

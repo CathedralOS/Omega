@@ -49,6 +49,8 @@ impl Sponsor {
             return Err(rejection(reason.clone()));
         }
         if self.process.is_none() {
+            // Release earlier incarnations that have since been reaped.
+            native_provider_runtime::settle_native_provider_quarantine();
             let command = self
                 .command
                 .take()

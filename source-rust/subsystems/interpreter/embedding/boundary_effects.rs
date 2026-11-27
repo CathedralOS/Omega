@@ -4402,7 +4402,47 @@ pub struct TerminalCallStorageRequirements<'handler> {
     pub original: bool,
 }
 
+/// Where a provider operation stands after its guest was discarded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalAbandonedEffect {
+    /// The operation completed or its cancellation was confirmed. The provider
+    /// holds nothing more for it.
+    Settled,
+    /// The provider still holds the operation. `retained_bytes` is the storage
+    /// it keeps pinned for it, which stays charged until it settles.
+    Outstanding { retained_bytes: u64 },
+}
+
 pub trait TerminalEffectHandler {
+    /// Ask the provider to cancel an operation whose guest was discarded.
+    /// A request releases nothing by itself: the answer is `Settled` only when
+    /// the provider confirms the operation can no longer touch what it was
+    /// given. Without a cancellation contract this only checks for settlement.
+    fn request_effect_cancellation(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<TerminalAbandonedEffect, TerminalEffectRejection> {
+        self.settle_abandoned_effect(effect)
+    }
+
+    /// Consume a late completion of an operation whose guest was discarded,
+    /// for settlement and cleanup only. The guest is never resumed and the
+    /// effect is never handled. Without its own settlement contract a provider
+    /// settles when it reports the same readiness and completion that
+    /// resumption would have consumed.
+    fn settle_abandoned_effect(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<TerminalAbandonedEffect, TerminalEffectRejection> {
+        Ok(
+            if self.poll_effect_readiness(effect)? && self.poll_host_computation(effect)? {
+                TerminalAbandonedEffect::Settled
+            } else {
+                TerminalAbandonedEffect::Outstanding { retained_bytes: 0 }
+            },
+        )
+    }
+
     fn resolve_provider_storage(
         &mut self,
         _request: &crate::TerminalProviderStorageRequest,

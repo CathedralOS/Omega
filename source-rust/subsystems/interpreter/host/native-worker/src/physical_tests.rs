@@ -296,3 +296,40 @@ fn pointer_links_use_worker_homes_and_reject_foreign_incarnations() {
     process.close().unwrap();
     fresh.close().unwrap();
 }
+
+// embedding.md, "Closing and failure": an uncooperative provider may keep
+// storage pinned, and that cannot justify freeing it. An incarnation that is
+// not reaped when dropped keeps its homes and home directory in the
+// quarantine, which reports them until a later attempt reaps it.
+#[test]
+fn an_unreaped_provider_keeps_its_homes_retained_until_it_is_reaped() {
+    use crate::native_provider_runtime::REFUSE_REAPING;
+    use crate::{native_provider_quarantine, settle_native_provider_quarantine};
+    let timeout = Duration::from_millis(200);
+    let mut command = Command::new(std::env::current_exe().unwrap());
+    command.args([
+        "--exact",
+        "physical_tests::internal_native_provider_worker",
+        "--nocapture",
+    ]);
+    let mut process = TestProviderProcess::launch(command, timeout).unwrap();
+    let directory = process.session_home_directory();
+    let home = process.create_home(4096, 8).unwrap();
+    process.write_home(home, 0, &[7; 8]).unwrap();
+    assert_eq!(native_provider_quarantine().incarnations, 0);
+
+    REFUSE_REAPING.with(|refuse| refuse.set(true));
+    drop(process);
+    let quarantine = native_provider_quarantine();
+    assert_eq!(quarantine.incarnations, 1);
+    assert_eq!(quarantine.retained_bytes, 4096);
+    assert!(directory.exists(), "an unreaped provider's homes stay in place");
+    assert_eq!(settle_native_provider_quarantine(), quarantine);
+
+    REFUSE_REAPING.with(|refuse| refuse.set(false));
+    assert_eq!(
+        settle_native_provider_quarantine(),
+        crate::NativeProviderQuarantine::default()
+    );
+    assert!(!directory.exists(), "a reaped provider releases its homes");
+}
