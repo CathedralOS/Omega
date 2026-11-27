@@ -337,7 +337,9 @@ fn judge_laws(
                 cases,
             } => prove_family(
                 &mut arena,
+                &checked_signature,
                 &declarations,
+                &entries,
                 &extras,
                 law,
                 *family,
@@ -1679,9 +1681,12 @@ impl Proving<'_> {
 /// The search states a goal about named unknowns, so each case declares its
 /// indices and payload values as unknown integers, proves the goal about
 /// them, and then turns them into the binders of the case's lemma.
+#[allow(clippy::too_many_arguments)]
 fn prove_family(
     arena: &mut TermArena,
+    checked_signature: &Signature,
     declarations: &[Declaration],
+    entries: &[SignatureEntry],
     extras: &Extras<'_>,
     law: &Law,
     family: u32,
@@ -1694,21 +1699,31 @@ fn prove_family(
         detail,
         call: None,
     };
-    let (Some(positions), Some(declared)) = (extras.integers, extras.families.get(family as usize))
-    else {
+    let Some(declared) = extras.families.get(family as usize) else {
         return Err(refused(
             None,
             "theorem over indexed data without its declarations".to_owned(),
         ));
     };
-    let positions = source_positions(positions);
+    let positions = extras.integers.map(source_positions);
     let mut local = declarations[..law.statement as usize].to_vec();
     let statement = declarations[law.statement as usize].ty;
     let indices = law.formals.len();
     let instance = declared
         .at(arena, &[])
         .map_err(|error| refused(None, format!("indexed data: {error}")))?;
-    let integer = constant(arena, positions.vocabulary.carrier);
+    // A family whose values are all integers is proved with the integer
+    // search. One with a value of data (a derivation indexed by a context)
+    // is proved by rewriting: its clauses are Identities over data.
+    let integer = positions.map(|positions| constant(arena, positions.vocabulary.carrier));
+    let integral = integer.is_some_and(|integer| {
+        law.formals
+            .iter()
+            .chain(cases.iter().flat_map(|case| &case.payload_domains))
+            .all(|&domain| arena.structurally_equal(domain, integer))
+    });
+    let checked = checked_signature.prefix(law.statement as usize);
+    let definitions = Definitions::of_signature(&entries[..law.statement as usize]);
     let mut lemmas = Vec::with_capacity(cases.len());
     for (position, case) in cases.iter().enumerate() {
         let here = Some(position);
@@ -1717,15 +1732,41 @@ fn prove_family(
         };
         // The laws a search appends belong to one case: the unknowns below
         // are removed again, which renumbers what follows them.
-        let mut theory = proof_admission::SourceIntegerTheory::resume(arena, &mut local, positions)
-            .map_err(searched)?;
+        let mut theory = match positions {
+            Some(positions) if integral => Some(
+                proof_admission::SourceIntegerTheory::resume(arena, &mut local, positions)
+                    .map_err(searched)?,
+            ),
+            _ => None,
+        };
         let first = local.len() as u32;
         let total = indices + case.payload as usize;
+        if case.payload_domains.len() != case.payload as usize {
+            return Err(refused(
+                here,
+                "case of indexed data without the type of each payload value".to_owned(),
+            ));
+        }
         let mut unknowns = Vec::with_capacity(total);
-        for unknown in 0..total {
-            local.push(Declaration::assumption(0, integer));
+        for (unknown, &domain) in law.formals.iter().chain(&case.payload_domains).enumerate() {
+            local.push(Declaration::assumption(0, domain));
             unknowns.push(constant(arena, first + unknown as u32));
         }
+        // One case's proof of `goal` from `hypotheses`, as a function of
+        // them.
+        let mut derive = |arena: &mut TermArena,
+                          local: &mut Vec<Declaration>,
+                          goal: TermHandle,
+                          hypotheses: &[TermHandle]|
+         -> Result<Option<TermHandle>, Failure> {
+            match theory.as_mut() {
+                Some(theory) => theory
+                    .predicate_from_assumptions(arena, local, goal, hypotheses, 0)
+                    .map_err(searched),
+                None => rewritten(arena, &checked, &definitions, local, goal, hypotheses)
+                    .map_err(|detail| refused(here, detail)),
+            }
+        };
         let constraints: Vec<_> = case
             .constraints
             .iter()
@@ -1733,11 +1774,7 @@ fn prove_family(
             .collect();
         for &owed in &case.owed {
             let goal = instantiate(arena, owed, &unknowns);
-            if theory
-                .predicate_from_assumptions(arena, &mut local, goal, &constraints, 0)
-                .map_err(searched)?
-                .is_none()
-            {
+            if derive(arena, &mut local, goal, &constraints)?.is_none() {
                 return Err(Failure {
                     case: here,
                     cause: UnprovedCause::NoDerivation,
@@ -1759,11 +1796,7 @@ fn prove_family(
         );
         for &descent in &case.descent {
             let goal = instantiate(arena, descent, &unknowns);
-            if theory
-                .predicate_from_assumptions(arena, &mut local, goal, &counted, 0)
-                .map_err(searched)?
-                .is_none()
-            {
+            if derive(arena, &mut local, goal, &counted)?.is_none() {
                 return Err(Failure {
                     case: here,
                     cause: UnprovedCause::NoDerivation,
@@ -1789,10 +1822,7 @@ fn prove_family(
             }
         }
         let goal = instantiate(arena, law.goal, &unknowns[..indices]);
-        let Some(proof) = theory
-            .predicate_from_assumptions(arena, &mut local, goal, &hypotheses, 0)
-            .map_err(searched)?
-        else {
+        let Some(proof) = derive(arena, &mut local, goal, &hypotheses)? else {
             return Err(Failure {
                 case: here,
                 cause: UnprovedCause::NoDerivation,
@@ -1870,6 +1900,65 @@ fn prove_family(
     let receipt =
         MathematicalJudgmentReceipt::verify(arena, &certificate, &mut check).map_err(kernel)?;
     judged(arena, law, &certificate, receipt, &check, Some(law.machine))
+}
+
+/// A proof of `goal` from `hypotheses` by rewriting with them, as a function
+/// of them: each is assumed after `local`, cited, and abstracted again.
+/// `None` when the search finds none.
+fn rewritten(
+    arena: &mut TermArena,
+    checked: &Signature,
+    definitions: &Definitions,
+    local: &[Declaration],
+    goal: TermHandle,
+    hypotheses: &[TermHandle],
+) -> Result<Option<TermHandle>, String> {
+    let mut added = local[checked.len()..].to_vec();
+    let first = local.len() as u32;
+    added.extend(
+        hypotheses
+            .iter()
+            .map(|&hypothesis| Declaration::assumption(0, hypothesis)),
+    );
+    let signature = proof_admission::extend_signature(
+        arena,
+        checked,
+        &added,
+        &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+    )
+    .map_err(|refused| format!("case hypotheses: {:?}", refused.error))?;
+    let context = Context::empty().with_signature(signature);
+    let held: Vec<_> = (0..hypotheses.len() as u32)
+        .map(|hypothesis| constant(arena, first + hypothesis))
+        .collect();
+    let proof = match prove_licensed(
+        arena,
+        &context,
+        definitions,
+        goal,
+        &held,
+        Licenses {
+            operations: &[],
+            distributions: &[],
+            index_expansion_terms: 0,
+        },
+        SEARCH_STEPS,
+        &mut Budget::new(SEARCH_COMPUTING),
+    ) {
+        Ok(proof) => proof,
+        Err(SearchError::NoProof | SearchError::Budget(_)) => return Ok(None),
+        Err(error) => return Err(format!("rewriting: {error:?}")),
+    };
+    // Innermost the last hypothesis, as the caller applies them in order.
+    let mut proof = proof;
+    for (&hypothesis, &named) in hypotheses.iter().zip(&held).rev() {
+        let body = abstracted(arena, proof, named);
+        proof = arena.insert(Term::Lambda {
+            domain: hypothesis,
+            body,
+        });
+    }
+    Ok(Some(proof))
 }
 
 /// The judgment for `law` once the kernel accepted `certificate`: its

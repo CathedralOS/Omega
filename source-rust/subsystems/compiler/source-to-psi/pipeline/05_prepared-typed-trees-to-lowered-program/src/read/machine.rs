@@ -1957,6 +1957,11 @@ impl<'t> Program<'t> {
                 _ => None,
             })
             .collect::<Vec<_>>();
+        // A value of mathematical data (`C: Ctx` of a theorem over a family
+        // indexed by data) is no input of the machine: only the family's
+        // clauses name it (`families::index_place`).
+        let mut binders = binders;
+        binders.retain(|(_, type_reference)| !self.names_mathematical_data(id, *type_reference));
         let mut symbols = binders
             .iter()
             .map(|(symbol, _)| *symbol)
@@ -2127,7 +2132,7 @@ impl<'t> Program<'t> {
     /// so the unspecialized body knows only its carrier and what the
     /// `requires` say of it. An integer carrier and `bool` are served: each
     /// is an ordinary scalar formal of that type with no definition.
-    fn value_binders(&self, id: MachineId, machine: &Machine) -> Checked<Vec<ValueBinder>> {
+    fn value_binders(&mut self, id: MachineId, machine: &Machine) -> Checked<Vec<ValueBinder>> {
         let mut binders = Vec::new();
         for parameter in self.generic_parameters(id, machine)? {
             let (crate::source_state::data::TypeParameterKind::Const { type_reference }
@@ -2144,6 +2149,10 @@ impl<'t> Program<'t> {
             }
             if self.record_parameter(parameter.symbol).is_some() {
                 // The complete source-only schema account owns this value and its members.
+                continue;
+            }
+            if self.names_mathematical_data(id, type_reference) {
+                // As `prepare_const_scope` leaves it out.
                 continue;
             }
             let scalar_type = self.scalar_type(id, type_reference)?;
@@ -2393,12 +2402,24 @@ impl<'t> Program<'t> {
         self.reading_template = (self.mathematical_template(machine)
             && !self.is_family_theorem(machine))
         .then_some(machine.symbol);
+        // A theorem over a family indexed by data states its contract over
+        // values that are no formals of it: the mathematical signature
+        // reads that contract from the theorem (`families`), and the
+        // machine's own signature states nothing.
+        let contracts = if self.mathematical
+            && self.is_family_theorem(machine)
+            && self.has_data_values(id, machine)
+        {
+            arena::HandleSpan::empty()
+        } else {
+            machine.contracts
+        };
         let read = self.contract(
             id,
             state.symbol,
             state.parameters,
             state.return_type,
-            machine.contracts,
+            contracts,
             Declarer::Machine {
                 declares_no_crash_route: machine.declares_no_crash_route,
                 is_public: machine.is_public,

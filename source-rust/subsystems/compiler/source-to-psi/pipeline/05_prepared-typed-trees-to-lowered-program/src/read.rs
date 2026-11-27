@@ -446,6 +446,14 @@ pub(crate) struct Program<'t> {
     /// The records of data that contains itself, in identity order. Such a
     /// record names a mathematical type and has no storage.
     pub(crate) self_containing: Vec<StructuralTypeId>,
+    /// While a clause over a family indexed by data values is read: each
+    /// name that stands for such an index or payload value, with its type
+    /// and the input a clause names it as (`families::index_place`).
+    pub(crate) data_indices: Vec<(
+        SymbolHandle,
+        ValueType,
+        semantic_vocabulary::StructuralCaseSubject,
+    )>,
     /// The declaration being read, which is the lexical owner of the
     /// lifetimes its types name when the typed trees retained none for an
     /// occurrence: the data declaration whose members are read, or the
@@ -693,6 +701,7 @@ impl<'t> Program<'t> {
             resolving: Vec::new(),
             mathematical: false,
             self_containing: Vec::new(),
+            data_indices: Vec::new(),
             lifetime_owner: SymbolHandle::invalid(),
             region_tuples: vec![Vec::new()],
             fixed_regions: Vec::new(),

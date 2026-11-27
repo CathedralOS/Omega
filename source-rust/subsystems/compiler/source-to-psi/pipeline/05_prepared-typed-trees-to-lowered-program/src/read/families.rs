@@ -50,7 +50,8 @@ use crate::source_state::statement::{StatementNode, TransitionExit, TransitionTa
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ContentPlaceVersion, IntegerType, MachineId, Proposition,
-    ScalarTerm, ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId, ValueId,
+    ScalarTerm, ScalarType, StructuralCaseId, StructuralCaseSubject, StructuralFieldId,
+    StructuralTypeId, ValueId,
 };
 use source_text::SourceSpan;
 use symbols::SymbolHandle;
@@ -105,9 +106,56 @@ impl FamilyRecord {
 pub(crate) struct FamilyValue {
     pub(crate) symbol: SymbolHandle,
     pub(crate) name: String,
-    pub(crate) integer: IntegerType,
+    pub(crate) domain: FamilyDomain,
     /// The field of the case this value is, for a payload value.
     pub(crate) field: Option<StructuralFieldId>,
+}
+
+/// What an index or a payload value of a family ranges over: an integer,
+/// or mathematical data (`data Lookup<C: Ctx, T: Ty>`, a derivation indexed
+/// by a context and a type).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FamilyDomain {
+    Integer(IntegerType),
+    Data(StructuralTypeId),
+}
+
+impl FamilyValue {
+    /// The integer type the value holds, when it is an integer.
+    pub(crate) fn integer(&self) -> Option<IntegerType> {
+        match self.domain {
+            FamilyDomain::Integer(integer) => Some(integer),
+            FamilyDomain::Data(_) => None,
+        }
+    }
+
+    /// The value as a clause names it: an integer is the scalar `scalar`
+    /// says it is, and data is the input at `subject`.
+    fn binding(
+        &self,
+        scalar: impl FnOnce(IntegerType) -> ScalarTerm,
+        subject: impl FnOnce() -> StructuralCaseSubject,
+    ) -> IndexBinding {
+        match self.domain {
+            FamilyDomain::Integer(integer) => IndexBinding::Scalar(self.symbol, scalar(integer)),
+            FamilyDomain::Data(record) => {
+                IndexBinding::Data(self.symbol, ValueType::record(record), subject())
+            }
+        }
+    }
+}
+
+/// How a clause over a family names one of its values.
+enum IndexBinding {
+    Scalar(SymbolHandle, ScalarTerm),
+    Data(SymbolHandle, ValueType, StructuralCaseSubject),
+}
+
+/// The place that stands for index `position` of a family when it is
+/// data, in a clause over the family: after `self`, which is place 1
+/// (`body::self_place`).
+pub(crate) fn index_place(position: usize) -> Option<semantic_vocabulary::PlaceId> {
+    semantic_vocabulary::PlaceId::new(position as u64 + 2)
 }
 
 #[derive(Debug, Clone)]
@@ -194,6 +242,10 @@ pub(crate) struct FamilyTheorem {
     /// What the theorem guarantees of the indices: index `i` is the scalar
     /// value numbered `i + 1`, as in the family's `requires`.
     pub(crate) ensures: Vec<Proposition>,
+    /// Each `ensures` clause as authored. A theorem over a family indexed
+    /// by data states no contract of its own signature, so the signature's
+    /// names do not hold these.
+    pub(crate) ensures_text: Vec<crate::ClauseText>,
     /// One per case of the family, in declared order.
     pub(crate) cases: Vec<FamilyTheoremCase>,
     /// What the theorem is ranked on. A theorem that cites itself has a rank.
@@ -292,17 +344,73 @@ impl Program<'_> {
                 "theorem over indexed data at other than its own value parameters in order",
             ));
         }
-        let mut indices = Vec::with_capacity(values.len());
+        // Each index as its clauses name it: an integer index is the
+        // scalar value numbered from one, a data index the input at its
+        // index place.
+        let mut bindings = Vec::with_capacity(values.len());
         for (position, (symbol, index)) in values.iter().zip(&family.indices).enumerate() {
-            indices.push((
-                *symbol,
-                ScalarTerm::Value {
-                    id: Self::index_identity(position)
-                        .ok_or_else(|| unserved("index identity overflow"))?,
-                    scalar_type: ScalarType::Integer(index.integer),
-                },
-            ));
+            let id = Self::index_identity(position)
+                .ok_or_else(|| unserved("index identity overflow"))?;
+            let place = index_place(position).ok_or_else(|| unserved("index place identity"))?;
+            bindings.push(
+                FamilyValue {
+                    symbol: *symbol,
+                    ..index.clone()
+                }
+                .binding(
+                    |integer| ScalarTerm::Value {
+                        id,
+                        scalar_type: ScalarType::Integer(integer),
+                    },
+                    || StructuralCaseSubject::new(place, Vec::new()),
+                ),
+            );
         }
+        let saved = std::mem::take(&mut self.data_indices);
+        let indices = self.bind(bindings);
+        let read = self.family_theorem_body(id, machine, state, &family, &values, &indices);
+        self.data_indices = saved;
+        read
+    }
+
+    /// Splits the bindings of a family's values: the integers, returned
+    /// for a clause scope's `bound`, and the data, which the clause reader
+    /// finds in `data_indices`.
+    fn bind(&mut self, bindings: Vec<IndexBinding>) -> Vec<(SymbolHandle, ScalarTerm)> {
+        let mut bound = Vec::new();
+        for binding in bindings {
+            match binding {
+                IndexBinding::Scalar(symbol, term) => bound.push((symbol, term)),
+                IndexBinding::Data(symbol, ty, subject) => {
+                    self.data_indices.push((symbol, ty, subject));
+                }
+            }
+        }
+        bound
+    }
+
+    /// The body of a theorem over indexed data, read with the family's
+    /// indices bound: `values` are the theorem's own value parameters, in
+    /// order, and `indices` the integer ones as their clauses name them.
+    fn family_theorem_body(
+        &mut self,
+        id: MachineId,
+        machine: &Machine,
+        state: &State,
+        family: &FamilyRecord,
+        values: &[SymbolHandle],
+        indices: &[(SymbolHandle, ScalarTerm)],
+    ) -> Checked<FamilyTheorem> {
+        let typed = self.typed;
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
+        let formals = typed
+            .state_parameters
+            .span(state.parameters)
+            .ok_or_else(|| unserved("theorem over indexed data lost its parameters"))?;
+        let evidence = formals
+            .iter()
+            .next()
+            .ok_or_else(|| unserved("theorem over indexed data without its evidence"))?;
         let clauses = |program: &mut Self,
                        contracts,
                        bound: &[(SymbolHandle, ScalarTerm)],
@@ -350,7 +458,7 @@ impl Program<'_> {
         let ensures = clauses(
             self,
             machine.contracts,
-            &indices,
+            indices,
             SignatureContractKind::Ensures,
             "theorem over indexed data with a clause other than `ensures`",
         )?;
@@ -358,6 +466,24 @@ impl Program<'_> {
             return Err(unserved(
                 "theorem over indexed data that guarantees nothing",
             ));
+        }
+        let mut ensures_text = Vec::with_capacity(ensures.len());
+        for contract in super::span(
+            |span| typed.signature_contracts.span(span),
+            machine.contracts,
+            id,
+            "contract span",
+        )? {
+            for fact in super::span(
+                |span| typed.proof_facts.span(span),
+                contract.facts,
+                id,
+                "contract fact span",
+            )? {
+                if let crate::source_state::domain::ProofFact::Expression(expression) = fact {
+                    ensures_text.push(self.clause_text(&[], *expression));
+                }
+            }
         }
         // The body: the evidence held as the dispatch's subject, then one
         // arm per case.
@@ -434,9 +560,10 @@ impl Program<'_> {
                     self.family_step(
                         id,
                         machine,
-                        &family,
+                        family,
                         position,
-                        &indices,
+                        values,
+                        indices,
                         subject.symbol,
                         path.symbol,
                         arguments,
@@ -484,11 +611,11 @@ impl Program<'_> {
                             "theorem over indexed data ranked on other than its evidence or one of its indices",
                         )
                     })?;
-                if family.indices[position].integer.sign()
-                    != semantic_vocabulary::IntegerSign::Unsigned
-                {
+                if family.indices[position].integer().is_none_or(|integer| {
+                    integer.sign() != semantic_vocabulary::IntegerSign::Unsigned
+                }) {
                     return Err(unserved(
-                        "theorem over indexed data ranked on an index that may be negative",
+                        "theorem over indexed data ranked on an index that is not an unsigned integer",
                     ));
                 }
                 Some(FamilyRank::Index(position as u32))
@@ -507,6 +634,7 @@ impl Program<'_> {
         Ok(FamilyTheorem {
             record: family.record,
             ensures,
+            ensures_text,
             cases,
             rank,
         })
@@ -521,6 +649,7 @@ impl Program<'_> {
         theorem: &Machine,
         family: &FamilyRecord,
         position: usize,
+        values: &[SymbolHandle],
         indices: &[(SymbolHandle, ScalarTerm)],
         subject: SymbolHandle,
         target: SymbolHandle,
@@ -577,11 +706,7 @@ impl Program<'_> {
             let what = if let Some(payload) =
                 case.payload.iter().position(|value| value.symbol == field)
             {
-                let ScalarType::Integer(integer) = self.scalar_type(id, formal.type_reference)?
-                else {
-                    return Err(unserved("step of a theorem with a formal of another type"));
-                };
-                if integer != case.payload[payload].integer {
+                if self.family_domain(id, formal.type_reference)? != case.payload[payload].domain {
                     return Err(unserved("step of a theorem with a formal of another type"));
                 }
                 Received::Payload(payload)
@@ -607,8 +732,7 @@ impl Program<'_> {
                 .into_iter()
                 .map(|term| {
                     term.map_names(&mut |symbol| {
-                        if let Some(index) =
-                            indices.iter().position(|(parameter, _)| *parameter == symbol)
+                        if let Some(index) = values.iter().position(|parameter| *parameter == symbol)
                         {
                             Ok(FamilyTerm::Index(index as u32))
                         } else if let Some((_, Received::Payload(payload))) =
@@ -637,27 +761,38 @@ impl Program<'_> {
         // What the step requires, with each scalar formal standing for the
         // payload value it receives.
         let mut bound = indices.to_vec();
+        let mut bindings = Vec::new();
         for (symbol, what) in &received {
             if let Received::Payload(payload) = what {
                 let value = &case.payload[*payload];
                 let field = value
                     .field
                     .ok_or_else(|| unserved("payload value lost its field"))?;
-                bound.push((
-                    *symbol,
-                    ScalarTerm::IntegerField {
-                        version: ContentPlaceVersion::Current,
-                        root: crate::body::self_place()
-                            .ok_or_else(|| unserved("self place identity"))?,
-                        path: vec![
-                            CanonicalStructuralPathSegment::Case(case.case),
-                            CanonicalStructuralPathSegment::Field(field),
-                        ],
-                        scalar_type: value.integer,
-                    },
-                ));
+                let root =
+                    crate::body::self_place().ok_or_else(|| unserved("self place identity"))?;
+                let path = vec![
+                    CanonicalStructuralPathSegment::Case(case.case),
+                    CanonicalStructuralPathSegment::Field(field),
+                ];
+                bindings.push(
+                    FamilyValue {
+                        symbol: *symbol,
+                        ..value.clone()
+                    }
+                    .binding(
+                        |scalar_type| ScalarTerm::IntegerField {
+                            version: ContentPlaceVersion::Current,
+                            root,
+                            path: path.clone(),
+                            scalar_type,
+                        },
+                        || StructuralCaseSubject::new(root, path.clone()),
+                    ),
+                );
             }
         }
+        let held = self.data_indices.len();
+        bound.extend(self.bind(bindings));
         let scope = ClauseScope {
             slots: &[],
             values: &[],
@@ -693,6 +828,7 @@ impl Program<'_> {
                 read.requires.push(self.clause(id, &scope, fact)?);
             }
         }
+        self.data_indices.truncate(held);
         // The step's body: calls of the theorem at a child, each at the
         // index the case declares for that child.
         for statement in typed.statement_table.statements(entry.statement_nodes) {
@@ -1256,12 +1392,6 @@ impl Program<'_> {
             .and_then(|identity| typed.type_identity_text(identity))
             .filter(|identity| !identity.is_empty())
             .ok_or_else(|| unserved("data without a complete application identity"))?;
-        let integer = |program: &Self, reference: TypeReferenceHandle| match program
-            .scalar_type(id, reference)?
-        {
-            ScalarType::Integer(integer) => Ok(integer),
-            _ => Err(unserved("indexed data over a value that is no integer")),
-        };
         let mut indices = Vec::new();
         let mut types = Vec::new();
         for (position, parameter) in typed.data_type_parameters(data).iter().enumerate() {
@@ -1273,7 +1403,7 @@ impl Program<'_> {
                     indices.push(FamilyValue {
                         symbol: parameter.symbol,
                         name: parameter.name.as_str().to_owned(),
-                        integer: integer(self, type_reference)?,
+                        domain: self.family_domain(id, type_reference)?,
                         field: None,
                     });
                 }
@@ -1379,11 +1509,11 @@ impl Program<'_> {
                     });
                     own
                 } else {
-                    let integer = integer(self, field.type_reference)?;
+                    let domain = self.family_domain(id, field.type_reference)?;
                     payload.push(FamilyValue {
                         symbol: field.symbol,
                         name,
-                        integer,
+                        domain,
                         field: Some(minted),
                     });
                     self.value_type(id, field.type_reference)?
@@ -1426,7 +1556,7 @@ impl Program<'_> {
         // The declaration's `requires`, read as a record's are: the value
         // itself is the data subject, and each parameter stands for a value
         // of its own, numbered in declared order from one.
-        let mut bound = Vec::new();
+        let mut bindings = Vec::new();
         for (position, index) in self
             .families
             .last()
@@ -1435,15 +1565,19 @@ impl Program<'_> {
             .iter()
             .enumerate()
         {
-            bound.push((
-                index.symbol,
-                ScalarTerm::Value {
-                    id: Self::index_identity(position)
-                        .ok_or_else(|| unserved("index identity overflow"))?,
-                    scalar_type: ScalarType::Integer(index.integer),
+            let value = Self::index_identity(position)
+                .ok_or_else(|| unserved("index identity overflow"))?;
+            let place = index_place(position).ok_or_else(|| unserved("index place identity"))?;
+            bindings.push(index.binding(
+                |integer| ScalarTerm::Value {
+                    id: value,
+                    scalar_type: ScalarType::Integer(integer),
                 },
+                || StructuralCaseSubject::new(place, Vec::new()),
             ));
         }
+        let saved = std::mem::take(&mut self.data_indices);
+        let bound = self.bind(bindings);
         let root = crate::body::self_place().ok_or_else(|| unserved("self place identity"))?;
         let scope = ClauseScope {
             slots: &[],
@@ -1473,7 +1607,9 @@ impl Program<'_> {
                 let fact = self.fact(id, fact)?;
                 self.clause(id, &scope, fact)
             })
-            .collect::<Checked<Vec<_>>>()?;
+            .collect::<Checked<Vec<_>>>();
+        self.data_indices = saved;
+        let requires = requires?;
         let family = self
             .families
             .iter_mut()
@@ -1482,6 +1618,56 @@ impl Program<'_> {
         family.cases = cases;
         family.requires = requires;
         Ok(own)
+    }
+
+    /// What an index or payload value of a family written with this type
+    /// ranges over: an integer, or mathematical data that is not itself a
+    /// family.
+    fn family_domain(
+        &mut self,
+        id: MachineId,
+        reference: TypeReferenceHandle,
+    ) -> Checked<FamilyDomain> {
+        match self.value_type(id, reference)? {
+            ValueType::Scalar(ScalarType::Integer(integer), _) => {
+                Ok(FamilyDomain::Integer(integer))
+            }
+            ValueType::Record(record, ..)
+                if self.self_containing.binary_search(&record).is_ok()
+                    && self.families.iter().all(|family| family.record != record) =>
+            {
+                Ok(FamilyDomain::Data(record))
+            }
+            _ => Err(refuse_at(
+                id,
+                Unserved::Type(
+                    "indexed data over a value that is neither an integer nor mathematical data",
+                ),
+            )),
+        }
+    }
+
+    /// Whether a machine has a value parameter of mathematical data.
+    pub(super) fn has_data_values(&mut self, id: MachineId, machine: &Machine) -> bool {
+        self.typed
+            .machine_type_parameters(machine)
+            .iter()
+            .any(|parameter| match parameter.kind {
+                TypeParameterKind::Value { type_reference } => {
+                    self.names_mathematical_data(id, type_reference)
+                }
+                _ => false,
+            })
+    }
+
+    /// Whether the type names mathematical data that is not itself a
+    /// family: a value a family may be indexed by.
+    pub(super) fn names_mathematical_data(
+        &mut self,
+        id: MachineId,
+        reference: TypeReferenceHandle,
+    ) -> bool {
+        matches!(self.family_domain(id, reference), Ok(FamilyDomain::Data(_)))
     }
 
     /// The declaration a type reference applies at arguments, when it is
@@ -1693,7 +1879,7 @@ impl Program<'_> {
                         Ok(ScalarType::Integer(integer)) => parameters.push(FamilyValue {
                             symbol: parameter.symbol,
                             name: parameter.name.as_str().to_owned(),
-                            integer,
+                            domain: FamilyDomain::Integer(integer),
                             field: None,
                         }),
                         _ => plain = false,
@@ -1766,7 +1952,11 @@ impl Program<'_> {
                 ScalarTerm::Value {
                     id: Self::index_identity(position)
                         .ok_or_else(|| unserved("index identity overflow"))?,
-                    scalar_type: ScalarType::Integer(parameter.integer),
+                    scalar_type: ScalarType::Integer(
+                        parameter
+                            .integer()
+                            .ok_or_else(|| unserved("evidence over a data index"))?,
+                    ),
                 },
             ));
         }

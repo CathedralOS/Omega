@@ -451,6 +451,9 @@ pub enum LawProof {
 pub struct FamilyLawCase {
     /// How many payload values the case holds.
     pub payload: u32,
+    /// The type of each payload value, in declared order: the integer
+    /// carrier, or the data it is. The law's formals are the indices'.
+    pub payload_domains: Vec<TermHandle>,
     /// What the data's declaration requires of a value in this case.
     pub constraints: Vec<TermHandle>,
     /// For each child, the index it sits at, one term per index.
