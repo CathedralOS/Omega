@@ -1089,11 +1089,16 @@ impl typed::references::TypedReferences for CallInventory<'_> {
 
 /// The shared declaration walk supplies all current expression owners. Bind only
 /// new or unresolved uses, in operand dependency order, before effect admission.
+///
+/// `retained_unchanged` says that no program-wide pass has rewritten a
+/// retained declaration since the cohort began. Only then may a continuing
+/// cohort walk just its own declarations.
 pub(crate) fn bind_calls_in_cohort(
     program: &mut typed::TypedTrees,
     cohort: &crate::lowerer::TypingCohort<'_>,
     expression_frontier: usize,
     type_frontier: usize,
+    retained_unchanged: bool,
 ) -> Result<RuntimeCallableAdmission, Diagnostic> {
     let has_new_callable_type = program
         .type_reference_table
@@ -1132,30 +1137,17 @@ pub(crate) fn bind_calls_in_cohort(
     if !has_new_callable_type && !has_new_runtime_expr && !has_new_runtime_stmt {
         return Ok(RuntimeCallableAdmission::default());
     }
-    let scope_cohort = is_initial_cohort_bind && !cohort.is_fresh();
-    let cohort_declarations = scope_cohort.then(|| cohort.declaration_keys(program));
-    let indexes = CallIndexes::collect(program, scope_cohort.then_some(cohort))?;
-    let mut inventory = CallInventory {
-        program,
-        indexes,
-        cohort_declarations,
-        owner: CallOwner::default(),
-        scope: 0,
-        outer: Vec::new(),
-        pending_signature: None,
-        active_contracts: Vec::new(),
-        ordered: Vec::new(),
-        statements: Vec::new(),
-        statement: None,
-        admission: RuntimeCallableAdmission::default(),
-        type_frontier,
-        error: None,
-    };
-    typed::references::visit_program(program, &mut inventory);
-    // Retained arena storage is not another declaration root. The shared
-    // walk follows each live Callable type into its complete signature.
-    if let Some(error) = inventory.error {
-        return Err(error);
+    // A continuing cohort walks only its own declarations. Retained
+    // declarations were bound when their cohort closed, so the scoped walk
+    // misses nothing unless a call site or callable type created since
+    // `expression_frontier` / `type_frontier` lives outside the cohort. When
+    // the walk did not reach every such site, the whole program is walked.
+    // A program-wide pass may also have pointed a retained declaration at a
+    // row the cohort reaches too; that row needs binding under both owners.
+    let scoped = retained_unchanged && !cohort.is_fresh();
+    let mut inventory = inventory_calls(program, scoped.then_some(cohort), type_frontier)?;
+    if scoped && !inventory.reached_new_sites(expression_frontier, type_frontier) {
+        inventory = inventory_calls(program, None, type_frontier)?;
     }
     let mut uses = inventory.ordered;
     uses.extend(inventory.statements);
@@ -1278,6 +1270,90 @@ pub(crate) fn bind_calls_in_cohort(
         }
     }
     Ok(admission)
+}
+
+/// Inventory the runtime calls and callable types under every declaration, or
+/// only under `cohort`'s declarations when one is given. The walk only reads
+/// the program; binding happens afterwards.
+fn inventory_calls<'program>(
+    program: &'program typed::TypedTrees,
+    cohort: Option<&crate::lowerer::TypingCohort<'_>>,
+    type_frontier: usize,
+) -> Result<CallInventory<'program>, Diagnostic> {
+    let mut inventory = CallInventory {
+        program,
+        indexes: CallIndexes::collect(program, cohort)?,
+        cohort_declarations: cohort.map(|cohort| cohort.declaration_keys(program)),
+        owner: CallOwner::default(),
+        scope: 0,
+        outer: Vec::new(),
+        pending_signature: None,
+        active_contracts: Vec::new(),
+        ordered: Vec::new(),
+        statements: Vec::new(),
+        statement: None,
+        admission: RuntimeCallableAdmission::default(),
+        type_frontier,
+        error: None,
+    };
+    typed::references::visit_program(program, &mut inventory);
+    // Retained arena storage is not another declaration root. The shared
+    // walk follows each live Callable type into its complete signature.
+    match inventory.error.take() {
+        Some(error) => Err(error),
+        None => Ok(inventory),
+    }
+}
+
+/// Whether walking only `cohort`'s declarations reaches every runtime call and
+/// callable type created since the cohort began, so binding the cohort needs
+/// no whole-program walk.
+#[cfg(test)]
+pub(crate) fn cohort_walk_reaches_new_sites(
+    program: &typed::TypedTrees,
+    cohort: &crate::lowerer::TypingCohort<'_>,
+) -> Result<bool, Diagnostic> {
+    let inventory = inventory_calls(program, Some(cohort), cohort.typed_type_references)?;
+    Ok(inventory.reached_new_sites(cohort.typed_expressions, cohort.typed_type_references))
+}
+
+impl CallInventory<'_> {
+    /// Whether the walk reached every runtime call expression created after
+    /// `expression_frontier` and every callable type created after
+    /// `type_frontier`. Only those rows can need binding or admission outside
+    /// the walked declarations; reading them costs the size of the cohort.
+    fn reached_new_sites(&self, expression_frontier: usize, type_frontier: usize) -> bool {
+        let program = self.program;
+        let reached_calls = program
+            .expression_table
+            .iter_expressions_from(expression_frontier + 1)
+            .filter(|(_, node)| {
+                matches!(
+                    node,
+                    typed::expression::ExpressionNode::Call(call) if call.runtime_call.is_some()
+                )
+            })
+            .all(|(expression, _)| {
+                self.indexes
+                    .expressions
+                    .get(expression)
+                    .is_some_and(|row| !row.visited_scopes.is_empty())
+            });
+        reached_calls
+            && program
+                .type_reference_table
+                .type_reference_rows_from(type_frontier)
+                .filter(|(reference, node)| {
+                    reference.arena_index() as usize > type_frontier
+                        && matches!(node, typed::types::TypeReferenceNode::Callable { .. })
+                })
+                .all(|(reference, _)| {
+                    self.indexes
+                        .references
+                        .get(reference)
+                        .is_some_and(|row| !row.visited_scopes.is_empty())
+                })
+    }
 }
 
 pub(crate) fn admit_types(
