@@ -145,15 +145,31 @@ impl PackagePolicyComponentAssumption {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyNativeBinding {
-    pub application: Option<String>,
+    pub application: PackagePolicyNativeApplication,
     pub method: PackagePolicyServiceMethod,
     pub binding: PackagePolicyProviderBinding,
+}
+/// A concrete native call has an ABI plan, including a monomorphic declaration
+/// with no caller. An unused generic import keeps its binders and authored policy.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackagePolicyNativeApplication {
+    Concrete(Option<String>),
+    UnusedGeneric {
+        declaration: String,
+        unbound_parameters: Vec<String>,
+        custom_calling_policy: Option<crate::record::PackageReviewNominalIdentity>,
+        source_occurrence: [u8; 32],
+        evaluation: [u8; 32],
+    },
 }
 impl PackagePolicyNativeBinding {
     /// The complete closed callable selected by Build, when the binding has
     /// static arguments. Its original method remains in the calling ABI key.
     pub fn application(&self) -> Option<&str> {
-        self.application.as_deref()
+        match &self.application {
+            PackagePolicyNativeApplication::Concrete(application) => application.as_deref(),
+            PackagePolicyNativeApplication::UnusedGeneric { .. } => None,
+        }
     }
 
     pub fn method(&self) -> &PackagePolicyServiceMethod {
@@ -171,12 +187,12 @@ impl PackagePolicyNativeBinding {
         &self,
     ) -> (
         &crate::record::PackageReviewNominalIdentity,
-        Option<&str>,
+        &PackagePolicyNativeApplication,
         &str,
     ) {
         (
             &self.method.requirement,
-            self.application.as_deref(),
+            &self.application,
             self.producer().map_or("", |p| p.callable_identity.as_str()),
         )
     }
@@ -204,10 +220,46 @@ impl PackagePolicyNativeBinding {
         {
             return Err("native inventory substituted its supplying package");
         }
+        crate::record::package::validate_native_service_method(&self.method, target)?;
+        self.binding.validate_native(target)?;
+        let application = match &self.application {
+            PackagePolicyNativeApplication::Concrete(application) => application,
+            PackagePolicyNativeApplication::UnusedGeneric {
+                declaration,
+                unbound_parameters,
+                custom_calling_policy,
+                source_occurrence,
+                evaluation,
+            } => {
+                if !matches!(self.binding, PackagePolicyProviderBinding::Import { .. })
+                    || !self.method.calling.is_empty()
+                    || !self
+                        .method
+                        .requirement
+                        .matches_callable_declaration(declaration)
+                    || unbound_parameters.is_empty()
+                    || unbound_parameters.len() != self.method.signature.static_parameters.len()
+                    || unbound_parameters
+                        .iter()
+                        .enumerate()
+                        .any(|(i, name)| name.is_empty() || unbound_parameters[..i].contains(name))
+                    || *source_occurrence == [0; 32]
+                    || *evaluation == [0; 32]
+                {
+                    return Err(
+                        "unused generic import lacks its open declaration or Build provenance",
+                    );
+                }
+                if let Some(policy) = custom_calling_policy {
+                    policy.validate_resolved()?;
+                }
+                return Ok(());
+            }
+        };
         let [calling] = self.method.calling.as_slice() else {
             return Err("native inventory has no unique pinned calling application");
         };
-        match &self.application {
+        match application {
             Some(application)
                 if !self
                     .method
@@ -227,8 +279,7 @@ impl PackagePolicyNativeBinding {
             return Err("native inventory has no complete declaration ABI key");
         }
         if let PackagePolicyProviderBinding::FunctionField { selector, .. } = &self.binding {
-            let expected = self
-                .application
+            let expected = application
                 .as_deref()
                 .unwrap_or(&calling.abi.requirement_identity);
             if selector.table.requirement_application != expected.as_bytes()
@@ -242,7 +293,6 @@ impl PackagePolicyNativeBinding {
         } else if calling.dispatch_only_formal.is_some() {
             return Err("native argument is only omitted for table dispatch");
         }
-        crate::record::package::validate_native_service_method(&self.method, target)?;
-        self.binding.validate_native(target)
+        Ok(())
     }
 }

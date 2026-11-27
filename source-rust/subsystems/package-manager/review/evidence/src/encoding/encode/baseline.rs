@@ -193,13 +193,44 @@ pub(super) fn native_binding(
     encoder: &mut Encoder,
     value: &crate::record::PackagePolicyNativeBinding,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.option_field(
-        "application",
-        value.application.as_deref(),
-        |encoder, value| encoder.string(value),
-    )?;
+    native_application(encoder, &value.application)?;
     encoder.field_by("requirement", &value.method, encode_service_method)?;
     encoder.field_by("binding", &value.binding, encode_binding)
+}
+
+pub(super) fn native_application(
+    encoder: &mut Encoder,
+    value: &crate::record::PackagePolicyNativeApplication,
+) -> Result<(), PackageReviewEncodingError> {
+    use crate::record::PackagePolicyNativeApplication as Application;
+    match value {
+        Application::Concrete(application) => {
+            encoder.option_field("application", application.as_deref(), |encoder, value| {
+                encoder.string(value)
+            })?;
+        }
+        Application::UnusedGeneric {
+            declaration,
+            unbound_parameters,
+            custom_calling_policy,
+            source_occurrence,
+            evaluation,
+        } => {
+            encoder.tag_field("application", "unused_generic", 2)?;
+            encoder.string_field("declaration", declaration)?;
+            encoder.sequence_field("unbound_parameters", unbound_parameters, |encoder, name| {
+                encoder.string(name)
+            })?;
+            encoder.option_field(
+                "custom_calling_policy",
+                custom_calling_policy.as_ref(),
+                super::values::identity::encode_nominal,
+            )?;
+            encoder.fixed_bytes_field("source_occurrence", source_occurrence)?;
+            encoder.fixed_bytes_field("evaluation", evaluation)?;
+        }
+    }
+    Ok(())
 }
 
 // Canonical baseline verification encoding using preallocated recovery scratch capacity.
