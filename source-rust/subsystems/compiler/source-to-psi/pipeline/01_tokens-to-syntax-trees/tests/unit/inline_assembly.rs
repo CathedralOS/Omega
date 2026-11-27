@@ -99,3 +99,25 @@ fn rejects_malformed_asm_syntax_at_the_parser_boundary() {
         assert!(error.message.contains(expected), "{block}: {error:?}");
     }
 }
+
+
+#[test]
+fn an_assembly_machine_declares_scoped_blocks_and_an_explicit_adjacent_edge() {
+    let tree = parse_source(
+        "asm machine answer() -> u32 { mov eax, 42; transition -> finish; asm machine finish requires eax == 42u32 { ret; } }"
+    );
+    let machine = root_machine_unwrap(&tree);
+    assert!(machine.authored_target.is_none());
+    let state = entry_state(&tree, machine);
+    let [statement] = tree.items.statements(state.statements) else { panic!("one assembly body"); };
+    let StatementNode::AuthoredAssembly(body) = tree.statements.statement(*statement) else { panic!("assembly body"); };
+    let body = tree.statements.authored_assembly(*body);
+    let [entry, finish] = &*body.blocks else { panic!("two local blocks"); };
+    assert!(body.is_machine_body);
+    assert!(entry.parent.is_none());
+    assert_eq!(entry.adjacent.as_ref().unwrap().as_str(&tree), "finish");
+    assert_eq!(finish.parent, Some(0));
+    assert_eq!(finish.requires.len(), 1);
+    assert_eq!(finish.instructions[0].mnemonic.as_str(&tree), "ret");
+    assert!(machine.nested_machines.is_empty());
+}

@@ -5,7 +5,7 @@ use crate::declarations::constants::parse_const_definition;
 use crate::declarations::data::{parse_boundary_data_definition, parse_data_family};
 use crate::declarations::domains::parse_domain_definition;
 use crate::declarations::imports::parse_use_item;
-use crate::declarations::machines::parse_machine;
+use crate::declarations::machines::{BodyLanguage, parse_machine};
 use crate::declarations::mathematical_bindings::parse_let_definition;
 use crate::declarations::measures::parse_measure_definition;
 use crate::declarations::operators::parse_operator_definition;
@@ -228,7 +228,7 @@ fn parse_boundary_item<'tokens, 'source>(
     }
     if input.at_keyword(KeywordKind::Machine) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (mut item, rest) = parse_machine(syntax_trees, input)?;
+        let (mut item, rest) = parse_machine(syntax_trees, input, BodyLanguage::Omega)?;
         item.boundary = true;
         if item.service_reach_is_installation_bound
             && (!item.bodyless || !item.satisfies.is_empty())
@@ -290,7 +290,7 @@ fn parse_declared_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Machine) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (item, rest) = parse_machine(syntax_trees, input)?;
+        let (item, rest) = parse_machine(syntax_trees, input, BodyLanguage::Omega)?;
         if item.service_reach_is_installation_bound {
             return Err(rest.error_here(
                 "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
@@ -383,9 +383,14 @@ fn parse_declared_item<'tokens, 'source>(
         return Ok((Item::Trait(item), rest));
     }
 
+    if input.at_contextual("asm") && input.at_identifier_then_contextual("machine") {
+        let input = input.take_contextual("asm")?.take_keyword(KeywordKind::Machine, "machine")?;
+        let (machine, rest) = parse_machine(syntax_trees, input, BodyLanguage::Assembly)?;
+        return Ok((Item::Machine(machine), rest));
+    }
     if let Some((target, boundary, input)) = target_machine_prefix(input) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (mut machine, rest) = parse_machine(syntax_trees, input)?;
+        let (mut machine, rest) = parse_machine(syntax_trees, input, BodyLanguage::Omega)?;
         machine.boundary = boundary;
         machine.authored_target = Some(target.clone());
         machine.target = Some(target);

@@ -337,6 +337,7 @@ mod comparison_tests {
                 content_partition_compositions: Vec::new(),
                 entry: block,
                 blocks: vec![Block {
+                    assembly_exit: None,
                     id: block,
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),

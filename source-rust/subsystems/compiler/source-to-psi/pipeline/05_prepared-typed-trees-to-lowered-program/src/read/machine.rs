@@ -4872,6 +4872,30 @@ impl<'t> Program<'t> {
             self.join_block_slots(&mut slots, &mut slot_names);
             self.block_slot_base = slots.len();
             let read = match statement {
+                StatementNode::LocalData(local) if local.role == language_core::LocalBindingRole::AssemblyRegister => {
+                    if local.initial_value.is_valid() || !local.is_mutable {
+                        return Err(refuse_at(id, Unserved::Statement("assembly register with an implicit initial value")));
+                    }
+                    let value_type = self.local_type(id, local.type_reference)?;
+                    slots.push(Slot {
+                        symbol: local.symbol, value_type, assignable: true, homed: false, erased: false,
+                        borrowed: None, borrowed_regions: crate::body::Regions::NONE,
+                    });
+                    slot_names.push(local.name.as_str().to_owned());
+                    position += 1;
+                    continue;
+                }
+                StatementNode::Assembly(crate::source_state::statement::AssemblyControlPoint::Entry(graph)) => {
+                    let graph = typed.statement_table.assembly(*graph);
+                    let end = position + 1 + graph.statement_count as usize;
+                    if end != statements.len() {
+                        return Err(refuse_at(id, Unserved::Statement("inline assembly control flow")));
+                    }
+                    body.extend(self.assembly_machine(id, state.symbol, &slots, graph, &statements[position+1..end], signature.result)?);
+                    completed = true;
+                    position = end;
+                    continue;
+                }
                 StatementNode::Assembly(_) => {
                     return Err(refuse_at(id, Unserved::Statement("assembly")));
                 }
@@ -5103,7 +5127,8 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
                 target_spans(target, out);
             }
         }
-        Statement::CaptureReference { .. }
+        Statement::AssemblyAdjacent {..}
+        | Statement::CaptureReference { .. }
         | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
@@ -5123,7 +5148,8 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
             .map(|(_, target, source)| (target, *source))
             .chain(default.iter().map(|(target, source)| (target, *source)))
             .collect(),
-        Statement::CaptureReference { .. }
+        Statement::AssemblyAdjacent {..}
+        | Statement::CaptureReference { .. }
         | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
@@ -5133,7 +5159,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
         | Statement::Evaluate { .. } => Vec::new(),
     };
     for (target, arm) in arms {
-        let (Target::Value(value), Some(arm)) = (target, arm.span()) else {
+        let (Target::Value(value) | Target::AssemblyReturn(_, value), Some(arm)) = (target, arm.span()) else {
             continue;
         };
         let Some(span) = value.source.span() else {
@@ -5150,7 +5176,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
 }
 
 fn target_spans(target: &Target, out: &mut Vec<(SourceSpan, Binder)>) {
-    if let Target::Value(value) = target {
+    if let Target::Value(value) | Target::AssemblyReturn(_, value) = target {
         spans(value, &Binder::ReturnValue, out);
     }
 }

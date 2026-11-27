@@ -132,6 +132,7 @@ fn with_waiting_guest(
     };
     let supplies = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            assembly_returns: None,
             host_imports: &[gate.id],
             installation: None,
             target_machines: None,

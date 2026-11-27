@@ -2547,6 +2547,7 @@ pub(crate) mod program {
                 .installation
                 .map(TerminalRuntimeSupplies::from)
                 .unwrap_or_else(|| TerminalRuntimeSupplies {
+                    assembly_returns: None,
                     provider_selections: None,
                     x86_flags: None,
                     memory_ordering: None,
@@ -2597,6 +2598,10 @@ pub(crate) mod program {
             }
             installation.memory_ordering = request.memory_ordering;
             installation.x86_flags = request.x86_flags;
+            if request.assembly_returns.is_some_and(|plans| Some(plans.target()) != request.target_machines) {
+                return Err(TerminalInterpretError::TargetContextIdentityMismatch);
+            }
+            installation.assembly_returns = request.assembly_returns.cloned();
             installation.target_machines = request.target_machines.cloned();
             installation.entry = request.entry;
             installation.target_layouts = request.target_layouts.cloned().map(std::sync::Arc::new);
@@ -3492,6 +3497,7 @@ pub(crate) mod program {
                 let installation = program
                     .admit_runtime_supplies(
                         crate::boundary::effects::TerminalRuntimeSupplyRequest {
+                            assembly_returns: None,
                             native_code_layouts: None,
                             x86_flags: None,
                             memory_ordering: None,

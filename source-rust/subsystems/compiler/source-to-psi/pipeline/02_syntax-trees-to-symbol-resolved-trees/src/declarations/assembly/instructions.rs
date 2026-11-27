@@ -262,6 +262,10 @@ pub(super) fn prepare_instruction(
     }
 
     let prepared = match contract.shape {
+        AsmInstructionShape::CheckedReturn => Err(error(
+            mnemonic_site,
+            "an inline assembly region cannot return from its enclosing machine; declare an `asm machine` for a checked return",
+        )),
         AsmInstructionShape::JumpZeroFlag { .. } => Err(error(
             mnemonic_site,
             format!(

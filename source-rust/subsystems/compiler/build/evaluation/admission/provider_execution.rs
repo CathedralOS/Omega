@@ -176,6 +176,7 @@ impl BuildProviderScope {
             .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?;
         let mut supplies = program
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                assembly_returns: None,
                 installation: Some(&checked),
                 native_code_layouts: None,
                 host_imports: &host_imports,

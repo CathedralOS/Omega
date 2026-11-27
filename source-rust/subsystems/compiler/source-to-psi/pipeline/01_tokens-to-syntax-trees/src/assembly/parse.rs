@@ -11,7 +11,7 @@ use syntax_trees::statement::{
     AssemblyFactKind, AssemblyInstruction, AssemblyOperands, AuthoredAssembly,
     AuthoredAssemblyBlock, StatementHandle, StatementNode,
 };
-use tokens::PunctuationKind;
+use tokens::{KeywordKind, PunctuationKind};
 
 pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     syntax: &mut SyntaxTrees,
@@ -44,57 +44,17 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         };
         let mut instructions = Vec::new();
         while !input.at_punctuation(PunctuationKind::RightBrace) && !assembly_label_starts(input) {
-            let site = input;
-            let (mnemonic, rest) = parse_asm_mnemonic(syntax, input)?;
+            let (instruction, rest) = parse_instruction(syntax, input)?;
+            instructions.push(instruction);
             input = rest;
-            if let Some(qualifiers) = site.file_qualifiers
-                && language_core::sealed_intrinsics::PackedIntegerPrimitive::from_mnemonic(
-                    mnemonic.as_str(syntax),
-                )
-                .is_some()
-            {
-                qualifiers.record_packed_instruction(mnemonic.source_span());
-            }
-            // A jump to a state accepts the same call/acknowledgement syntax as a transition.
-            // A single bare identifier remains an ordinary operand for local label resolution.
-            let is_transfer = matches!(mnemonic.as_str(syntax), "jmp" | "b");
-            let bare_identifier = input
-                .take_identifier()
-                .is_ok_and(|(_, rest)| instruction_end(rest));
-            let operands = if is_transfer && !bare_identifier && !instruction_end(input) {
-                let (target, rest) = parse_transition_block_target_handle(syntax, input)?;
-                input = rest;
-                AssemblyOperands::Transition(target)
-            } else {
-                let mut operands = Vec::new();
-                if !instruction_end(input) {
-                    loop {
-                        let (operand, rest) = parse_expression_handle(syntax, input)?;
-                        operands.push(operand);
-                        input = rest;
-                        if !input.at_punctuation(PunctuationKind::Comma) {
-                            break;
-                        }
-                        input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-                    }
-                }
-                AssemblyOperands::Expressions(operands.into())
-            };
-            instructions.push(AssemblyInstruction {
-                mnemonic,
-                operands,
-                source_span: site.source_span_until(input),
-            });
-            if input.at_punctuation(PunctuationKind::Semicolon) {
-                input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            } else if !input.at_punctuation(PunctuationKind::RightBrace) {
-                return Err(input.error_here("multiple asm instructions must be separated by `;`"));
-            }
         }
         if instructions.is_empty() {
             return Err(input.error_here("an asm block must contain at least one instruction"));
         }
         blocks.push(AuthoredAssemblyBlock {
+            parent: None,
+            adjacent: None,
+            clobbers: None,
             label,
             requires: requires.into(),
             ensures: ensures.into(),
@@ -105,10 +65,21 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         }
     }
     let rest = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    Ok((store(syntax, false, start.source_span_until(rest), contract, blocks), rest))
+}
+
+fn store(
+    syntax: &mut SyntaxTrees,
+    is_machine_body: bool,
+    source_span: source_text::SourceSpan,
+    contract: ParsedAsmContract,
+    blocks: Vec<AuthoredAssemblyBlock>,
+) -> HandleSpan<StatementHandle> {
     let graph = syntax
         .statements
         .insert_authored_assembly(AuthoredAssembly {
-            source_span: start.source_span_until(rest),
+            is_machine_body,
+            source_span,
             requires: contract.requires.into(),
             ensures: contract.ensures.into(),
             clobbers: contract.clobbers.map(Into::into),
@@ -119,7 +90,125 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         .insert(StatementNode::AuthoredAssembly(graph));
     let mut result = HandleSpan::empty();
     result.push_contiguous(syntax.items.append_statement_handle(statement));
-    Ok((result, rest))
+    result
+}
+
+pub(crate) fn parse_machine_body<'tokens, 'source>(
+    syntax: &mut SyntaxTrees,
+    start: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, syntax_trees::item::MachineBody> {
+    let (contract, input) = parse_asm_contract(syntax, start)?;
+    let mut blocks = Vec::new();
+    let rest = parse_machine_block(syntax, input, &mut blocks, None, None, Default::default())?;
+    Ok((syntax_trees::item::MachineBody {
+        assembly_target_requirement: Default::default(),
+        statements: store(syntax, true, start.source_span_until(rest), contract, blocks),
+        nested_machines: HandleSpan::empty(),
+    }, rest))
+}
+
+/// The flat block list is in lexical preorder. Local declarations belong to the
+/// assembly graph and never enter the enclosing Omega machine declaration table.
+fn parse_machine_block<'tokens, 'source>(
+    syntax: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    blocks: &mut Vec<AuthoredAssemblyBlock>,
+    parent: Option<u32>,
+    label: Option<Identifier>,
+    contract: ParsedAsmContract,
+) -> Result<Input<'tokens, 'source>, crate::errors::parse_error::ParseError> {
+    let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let index = u32::try_from(blocks.len())
+        .map_err(|_| input.error_here("assembly block count exceeds u32"))?;
+    let mut instructions = Vec::new();
+    let mut adjacent = None;
+    while !input.at_punctuation(PunctuationKind::RightBrace) && !input.at_contextual("asm") {
+        if input.at_contextual("transition") {
+            let rest = input.take_contextual("transition")?.take_punctuation(PunctuationKind::Arrow, "->")?;
+            let (target, rest) = rest.take_identifier()?;
+            adjacent = Some(target);
+            input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            break;
+        }
+        if input.at_keyword(KeywordKind::Machine) {
+            return Err(input.error_here("a local assembly block must be declared with `asm machine`"));
+        }
+        if assembly_label_starts(input) {
+            return Err(input.error_here("declare an assembly block with `asm machine` and transfer to it explicitly"));
+        }
+        let (instruction, rest) = parse_instruction(syntax, input)?;
+        instructions.push(instruction);
+        input = rest;
+    }
+    blocks.push(AuthoredAssemblyBlock {
+        parent,
+        label,
+        adjacent,
+        requires: contract.requires.into(),
+        ensures: contract.ensures.into(),
+        clobbers: contract.clobbers.map(Into::into),
+        instructions: instructions.into(),
+    });
+    while input.at_contextual("asm") {
+        let rest = input.take_contextual("asm")?.take_keyword(KeywordKind::Machine, "machine")?;
+        let (name, rest) = rest.take_identifier()?;
+        let (contract, rest) = parse_asm_contract(syntax, rest)?;
+        input = parse_machine_block(syntax, rest, blocks, Some(index), Some(name), contract)?;
+    }
+    input.take_punctuation(PunctuationKind::RightBrace, "}")
+}
+
+fn parse_instruction<'tokens, 'source>(
+    syntax: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, AssemblyInstruction> {
+    let site = input;
+    let (mnemonic, rest) = parse_asm_mnemonic(syntax, input)?;
+    input = rest;
+    if let Some(qualifiers) = site.file_qualifiers
+        && language_core::sealed_intrinsics::PackedIntegerPrimitive::from_mnemonic(
+            mnemonic.as_str(syntax),
+        )
+        .is_some()
+    {
+        qualifiers.record_packed_instruction(mnemonic.source_span());
+    }
+    // A jump to a state accepts the same call/acknowledgement syntax as a transition.
+    // A single bare identifier remains an ordinary operand for local label resolution.
+    let is_transfer = matches!(mnemonic.as_str(syntax), "jmp" | "b");
+    let bare_identifier = input
+        .take_identifier()
+        .is_ok_and(|(_, rest)| instruction_end(rest));
+    let operands = if is_transfer && !bare_identifier && !instruction_end(input) {
+        let (target, rest) = parse_transition_block_target_handle(syntax, input)?;
+        input = rest;
+        AssemblyOperands::Transition(target)
+    } else {
+        let mut operands = Vec::new();
+        if !instruction_end(input) {
+            loop {
+                let (operand, rest) = parse_expression_handle(syntax, input)?;
+                operands.push(operand);
+                input = rest;
+                if !input.at_punctuation(PunctuationKind::Comma) {
+                    break;
+                }
+                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            }
+        }
+        AssemblyOperands::Expressions(operands.into())
+    };
+    let instruction = AssemblyInstruction {
+        mnemonic,
+        operands,
+        source_span: site.source_span_until(input),
+    };
+    if input.at_punctuation(PunctuationKind::Semicolon) {
+        input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    } else if !input.at_punctuation(PunctuationKind::RightBrace) {
+        return Err(input.error_here("multiple asm instructions must be separated by `;`"));
+    }
+    Ok((instruction, input))
 }
 
 fn instruction_end(input: Input<'_, '_>) -> bool {

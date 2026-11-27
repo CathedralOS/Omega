@@ -121,6 +121,7 @@ pub(crate) fn zero_flag(trees: &mut SyntaxTrees, destination: ExpressionHandle) 
 pub(crate) fn bind(
     trees: &mut SyntaxTrees,
     scope: usize,
+    machine_body: bool,
 ) -> (
     [ExpressionHandle; ASM_SCRATCH_SLOT_COUNT],
     Vec<StatementHandle>,
@@ -161,16 +162,18 @@ pub(crate) fn bind(
             } else {
                 unsigned_type(trees)
             };
-            let initial_value = trees.expressions.insert(if index == ASM_ZERO_FLAG_SLOT {
+            let initial_value = if machine_body {
+                ExpressionHandle::invalid()
+            } else { trees.expressions.insert(if index == ASM_ZERO_FLAG_SLOT {
                 ExpressionNode::Boolean(false)
             } else {
                 ExpressionNode::Integer(IntegerLiteral::zero())
-            });
+            }) };
             bindings.push(
                 trees
                     .statements
                     .insert(StatementNode::LocalData(TableLocalData {
-                        role: Default::default(),
+                        role: if machine_body { language_core::LocalBindingRole::AssemblyRegister } else { Default::default() },
                         name: Identifier::generated(&hidden),
                         type_reference,
                         initial_value,

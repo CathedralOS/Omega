@@ -531,6 +531,13 @@ pub(crate) mod capabilities {
                     continue;
                 }
                 let block = &machine.blocks[position];
+                if let Some(terminal_psi::AssemblyExitConstraint::ScalarReturn(view)) = block.assembly_exit
+                    && installation.and_then(|supplies| supplies.assembly_returns.as_ref())
+                        .is_none_or(|plans| !plans.admits(machine_id, view)) {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "assembly return register has no matching installed calling plan",
+                    ));
+                }
                 storage_roots.extend(
                     block
                         .structural_parameters
@@ -937,6 +944,7 @@ pub(crate) mod capabilities {
             };
             let block_id = BlockId::new(1).unwrap();
             let block = Block {
+                assembly_exit: None,
                 id: block_id,
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
@@ -1449,6 +1457,7 @@ pub(crate) mod capabilities {
             // an unresolved installation obligation, never an implicit import.
             assert_eq!(check(&program, None).unwrap().missing_providers, [boundary]);
             let installation = TerminalRuntimeSupplies {
+                assembly_returns: None,
                 provider_selections: None,
                 x86_flags: None,
                 memory_ordering: None,
@@ -1789,6 +1798,7 @@ pub(crate) mod capabilities {
             let provider_import = BoundaryMachineId::new(2).unwrap();
             set!(&mut program => provider => machine(0, vec![boundary_call(provider_import)]));
             let installation = TerminalRuntimeSupplies {
+                assembly_returns: None,
                 provider_selections: None,
                 x86_flags: None,
                 memory_ordering: None,
@@ -1893,6 +1903,7 @@ pub(crate) mod capabilities {
                 ))
             );
             let request = crate::TerminalRuntimeSupplyRequest {
+                assembly_returns: None,
                 entry: None,
                 installation: None,
                 host_imports: &[],
@@ -2141,6 +2152,7 @@ pub(crate) mod capabilities {
             assert_eq!(requirements.missing_providers, vec![boundary]);
             set_machine(&mut program, target, machine(2, Vec::new()));
             let mut installation = TerminalRuntimeSupplies {
+                assembly_returns: None,
                 provider_selections: None,
                 x86_flags: None,
                 memory_ordering: None,
@@ -2198,6 +2210,7 @@ pub(crate) mod capabilities {
             };
             let supplies = |program: &AdmittedTerminalProgram<'_>, provided: BoundaryMachineId| {
                 TerminalRuntimeSupplies {
+                    assembly_returns: None,
                     provider_selections: None,
                     x86_flags: None,
                     memory_ordering: None,

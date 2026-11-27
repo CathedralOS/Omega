@@ -760,6 +760,7 @@ mod native {
                 loan_completions: Vec::new(),
                 entry: BlockId::new(1).unwrap(),
                 blocks: vec![Block {
+                    assembly_exit: None,
                     id: BlockId::new(1).unwrap(),
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),

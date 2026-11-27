@@ -163,6 +163,7 @@ fn expand_edge(
         let pushed = sources.blocks.push(origin);
         debug_assert_eq!(pushed, id);
         machine.blocks.push(Block {
+            assembly_exit: None,
             id,
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),

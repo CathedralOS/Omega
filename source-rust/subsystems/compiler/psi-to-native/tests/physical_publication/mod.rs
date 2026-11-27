@@ -558,6 +558,7 @@ fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
         loan_completions: Vec::new(),
         entry: block,
         blocks: vec![Block {
+            assembly_exit: None,
             id: block,
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),

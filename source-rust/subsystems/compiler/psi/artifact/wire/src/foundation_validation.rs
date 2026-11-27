@@ -3663,6 +3663,25 @@ pub(crate) mod machine_foundations {
         let sources = terminal_semantics::normal_completion::ReturnSources::new(machine)
             .map_err(CodecError::MalformedStructuralFoundation)?;
         for block in &machine.blocks {
+            if let Some(constraint) = block.assembly_exit {
+                let valid = match (constraint, &block.terminator) {
+                    (terminal_psi::AssemblyExitConstraint::Adjacent(next), Terminator::Jump { target, cleanup_actions, .. }) =>
+                        next != block.id && next == *target && cleanup_actions.is_empty(),
+                    (terminal_psi::AssemblyExitConstraint::Adjacent(next), Terminator::Conditional { when_false, .. }) =>
+                        next != block.id && next == when_false.target && when_false.cleanup_actions.is_empty(),
+                    (terminal_psi::AssemblyExitConstraint::ScalarReturn(view), Terminator::Return { cleanup_actions, .. }) =>
+                        cleanup_actions.is_empty() && machine.assembly_target_requirement == view.target()
+                        && matches!(&machine.result, terminal_psi::TerminalMachineResult::Scalar(result)
+                            if matches!(result.scalar_type, semantic_vocabulary::ScalarType::Integer(integer)
+                                if !integer.is_address() && integer.bits() == Some(32))),
+                    _ => false,
+                };
+                if !valid {
+                    return Err(CodecError::MalformedStructuralFoundation(
+                        "assembly exit constraint does not describe this terminator",
+                    ));
+                }
+            }
             sources
                 .validate_return(&machine.result, &block.terminator, inhabitation)
                 .map_err(CodecError::MalformedStructuralFoundation)?;

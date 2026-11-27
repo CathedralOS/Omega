@@ -24,6 +24,7 @@ serve is refused when it is set, never ignored.
 
 mod applications;
 mod arrays;
+mod assembly;
 mod atomics;
 mod authority;
 mod boundaries;

@@ -398,6 +398,7 @@ impl<'program> HostedTerminalProgram<'program> {
     pub fn supplies(&self) -> TerminalRuntimeSupplyRequest<'_> {
         let request = &self.request;
         TerminalRuntimeSupplyRequest {
+            assembly_returns: request.provisions.and_then(|provisions| provisions.host_provisions().assembly_returns()),
             native_code_layouts: None,
             x86_flags: request.x86_flags,
             memory_ordering: request.memory_ordering,

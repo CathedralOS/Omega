@@ -325,6 +325,37 @@ impl Lowering<'_> {
             );
         }
         match statement {
+            Statement::AssemblyAdjacent { slots, requires, source, label } => {
+                let next = self.block(*source);
+                let mut arguments = Vec::with_capacity(slots.len());
+                let mut parameters = Vec::with_capacity(slots.len());
+                for &slot in slots {
+                    let Some(Bound::Scalar(argument)) = *self.slot_mut(slot)? else {
+                        return Err(crate::reject(self.id, *source, "assembly edge carries an uninitialized register"));
+                    };
+                    let value_type = self.slot_type(slot)?;
+                    let scalar = value_type.scalar().ok_or_else(|| self.internal("non-scalar assembly register"))?;
+                    let position = self.position(parameters.len())?;
+                    let value = self.value(scalar, ValueOrigin::BlockParameter { block:next, position });
+                    self.parameter(next, value, scalar)?;
+                    self.qualify(value, value_type.qualification())?;
+                    arguments.push(argument);
+                    parameters.push(value);
+                    *self.slot_mut(slot)? = Some(Bound::Scalar(value));
+                }
+                if !requires.is_empty() {
+                    let predicates = requires.iter().map(|predicate| canonical::substitute(predicate, &parameters, &self.tables.values, self.id)).collect::<Checked<Vec<_>>>()?;
+                    self.invariants.push(terminal_psi::ScalarBlockInvariant {
+                        machine:self.id, header:next, predicate:canonical::conjunction(predicates, self.id)?, arrivals: Vec::new(),
+                    });
+                    self.sources.predicate_establishments.push((next,
+                        terminal_check_tables::program::EstablishedCondition::AssemblyBlockEntry(label.clone())));
+                }
+                self.draft()?.assembly_exit = Some(terminal_psi::AssemblyExitConstraint::Adjacent(next));
+                self.jump(next, arguments, *source)?;
+                self.enter(next);
+                Ok(Reached::Value(()))
+            }
             Statement::Bind { slot, value } => {
                 // A loan or a write inside a branch may require this scalar
                 // to live in storage. Later assignments update the same place.
@@ -516,6 +547,10 @@ impl Lowering<'_> {
         match target {
             Target::Unit => self.return_unit(source),
             Target::Crash(cause) => self.crash(*cause, source),
+            Target::AssemblyReturn(view, value) => {
+                self.draft()?.assembly_exit = Some(terminal_psi::AssemblyExitConstraint::ScalarReturn(*view));
+                self.complete_value(value)
+            }
             Target::Value(value) => self.complete_value(value),
         }
     }

@@ -244,6 +244,12 @@ fn established_predicate_arrival(
         .find(|(block, _)| *block == established)?
         .1
     {
+        EstablishedCondition::AssemblyBlockEntry(label) => {
+            return Some(format!(
+                "cannot prove the entry requirement of assembly block `{label}` from the incoming register state in {}",
+                owner(names, site)
+            ));
+        }
         EstablishedCondition::DispatchCoverage => {
             return Some(format!(
                 "cannot prove the last guard covers every remaining arrival in {}. Add a `_ ->` arm",

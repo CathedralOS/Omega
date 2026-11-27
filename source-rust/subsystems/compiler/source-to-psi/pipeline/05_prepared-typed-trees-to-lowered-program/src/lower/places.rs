@@ -1080,6 +1080,7 @@ fn statement_homes<'b>(
             expression_homes(value, slots, homes);
         }
         // A scalar local declared without an initializer is its own home.
+        Statement::AssemblyAdjacent { .. } => {}
         Statement::Declare { slot, home, .. } => {
             if let Some(value_type @ ValueType::Scalar(..)) = slots.get(*slot).copied() {
                 homes(value_type, home.as_ref(), None);
@@ -1117,7 +1118,7 @@ fn target_homes<'b>(
     slots: &[ValueType],
     homes: &mut impl FnMut(ValueType, Option<&'b String>, Option<usize>),
 ) {
-    if let Target::Value(value) = target {
+    if let Target::Value(value) | Target::AssemblyReturn(_, value) = target {
         expression_homes(value, slots, homes);
     }
 }

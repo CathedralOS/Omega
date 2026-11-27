@@ -48,6 +48,7 @@ pub(super) fn evaluate_terminal_calling_policy(
     let program = analysis.program();
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            assembly_returns: None,
             native_code_layouts: None,
             x86_flags: None,
             memory_ordering: None,
@@ -104,6 +105,7 @@ pub(super) fn evaluate_terminal_calling_policy(
     )?;
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            assembly_returns: None,
             native_code_layouts: None,
             x86_flags: None,
             memory_ordering: None,

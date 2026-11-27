@@ -399,6 +399,9 @@ impl Program<'_> {
         match local.role {
             language_core::LocalBindingRole::Value
             | language_core::LocalBindingRole::DispatchSubject => {}
+            language_core::LocalBindingRole::AssemblyRegister => {
+                return unserved("an assembly register outside its machine body");
+            }
             language_core::LocalBindingRole::AtomicObservedResult => {
                 return unserved("atomic observed result");
             }

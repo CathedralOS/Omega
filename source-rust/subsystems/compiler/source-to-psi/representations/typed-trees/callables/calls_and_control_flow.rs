@@ -1090,6 +1090,8 @@ pub mod control_flow {
             pub enum AssemblyExit {
                 #[default]
                 Fallthrough,
+                Adjacent,
+                Return,
                 Jump(Handle<AssemblyBlock>),
                 ZeroFlag(Handle<AssemblyBlock>, bool),
                 EnclosingTransition,

@@ -448,6 +448,10 @@ impl OptimizedAbstractBody {
 }
 
 impl AdmittedLoweringFacts {
+    pub fn assembly_call_plan(&self, machine: semantic_vocabulary::MachineId) -> Option<&calling_conventions::CallPlan> {
+        self.native_execution_scope.as_ref()?.assembly_call_plan(machine)
+    }
+
     pub fn require_lowering_context(
         &self,
         plan: &AbstractOperationPlan,

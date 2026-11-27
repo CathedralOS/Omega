@@ -133,6 +133,14 @@ impl NativeScopeSource {
     }
 }
 
+/// The internal convention selected for an assembly body and its proved scalar result view.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssemblyCallingPlan {
+    pub machine: MachineId,
+    pub result: terminal_psi::AsmRegisterView,
+    pub call: calling_conventions::CallPlan,
+}
+
 /// A root or private entry, resolved against one target before the traversal starts.
 pub struct NativeScopeBinding<'a> {
     artifact: TerminalArtifactView<'a>,
@@ -194,11 +202,17 @@ impl<'a> NativeScopeBinding<'a> {
         self.source.adapters.rows()
     }
 
+    pub fn profile(&self) -> target::TargetProfile {
+        self.source.root.target()
+    }
+
     pub fn bind_target_reach(
         self,
         emitted: ExecutionReach,
         selected_candidate_positions: Vec<usize>,
+        mut assembly_returns: Vec<AssemblyCallingPlan>,
     ) -> Result<NativeExecutionScope, String> {
+        assembly_returns.sort_unstable_by_key(|plan| plan.machine);
         let reach = TargetBoundReach::bind(
             self.artifact,
             self.targets,
@@ -209,6 +223,7 @@ impl<'a> NativeScopeBinding<'a> {
             self.parent.map(NativeExecutionScope::reach),
         )?;
         Ok(NativeExecutionScope {
+            assembly_returns,
             reach,
             source: Arc::clone(self.source),
             program_entry: self.parent.is_none(),
@@ -222,6 +237,7 @@ impl<'a> NativeScopeBinding<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeExecutionScope {
+    assembly_returns: Vec<AssemblyCallingPlan>,
     reach: TargetBoundReach,
     source: Arc<NativeScopeSource>,
     program_entry: bool,
@@ -229,6 +245,17 @@ pub struct NativeExecutionScope {
 }
 
 impl NativeExecutionScope {
+    pub fn assembly_call_plan(&self, machine: MachineId) -> Option<&calling_conventions::CallPlan> {
+        self.assembly_returns.binary_search_by_key(&machine, |plan| plan.machine)
+            .ok().map(|index| &self.assembly_returns[index].call)
+    }
+
+    pub fn assembly_return_environment(&self) -> Result<Option<psi_target_layouts::AssemblyReturnPlans>, &'static str> {
+        if self.assembly_returns.is_empty() { return Ok(None); }
+        let results = self.assembly_returns.iter().map(|plan| (plan.machine, plan.result)).collect();
+        psi_target_layouts::AssemblyReturnPlans::new(self.reach.target_context(), results).map(Some)
+    }
+
     pub fn artifact_identity(&self) -> TerminalArtifactIdentity {
         self.source.artifact
     }

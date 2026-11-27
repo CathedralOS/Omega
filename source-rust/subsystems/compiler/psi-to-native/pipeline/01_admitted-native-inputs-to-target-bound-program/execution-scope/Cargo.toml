@@ -5,6 +5,9 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+calling-conventions = { path = "../../../targets/calling-conventions" }
+register-environment = { path = "../../../targets/register-environment" }
+target = { path = "../../../targets/target" }
 target-bound-program = { path = "../../../representations/target-bound-program" }
 native-execution-reach = { path = "../../../representations/target-bound-program/execution-reach" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
@@ -16,5 +19,4 @@ terminal-psi = { path = "../../../../psi" }
 [dev-dependencies]
 psi-target-layouts = { path = "../../../../psi/execution-inputs/target-layouts" }
 terminal-semantics = { path = "../../../../psi/semantics" }
-calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../../../representations/function-identity" }

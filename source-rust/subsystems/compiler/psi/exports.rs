@@ -70,7 +70,7 @@ pub use crate::machines::direct_calls::{
 };
 pub use crate::machines::generic_calls;
 pub use crate::machines::{
-    AtomicAccessEvent, AtomicReadModifyWrite, Block, CallableInvocation, CallableInvocationInputs,
+    AssemblyExitConstraint, AtomicAccessEvent, AtomicReadModifyWrite, Block, CallableInvocation, CallableInvocationInputs,
     CrashCause, ElementViewRegion, ExternalReach, FenceOrdering, FloatResultPolicy, MemoryOrdering,
     ModuleInvocation, ModuleInvocationInputs, Operation, OperationKind, OperationResult,
     RecordFieldInitializer, RecordFieldValue, ReferenceStorageView, RegisterAccessEvent,
@@ -137,7 +137,7 @@ pub use language_core::inline_assembly::{
     AsmControlRegister as ControlRegister, AsmFenceKind as MemoryFenceKind,
     AsmGlobalDescriptorTableOperation as GlobalDescriptorTableOperation,
     AsmInterruptControlKind as InterruptControlKind, AsmRegisterCarrier as RegisterCarrier,
-    AsmRegisterOperation as RegisterOperation, AsmSystemRegister as SystemRegister,
+    AsmRegisterView, AsmRegisterOperation as RegisterOperation, AsmSystemRegister as SystemRegister,
     AsmTargetApplicability as RegisterTargetApplicability,
 };
 pub use psi_effect_contracts::{

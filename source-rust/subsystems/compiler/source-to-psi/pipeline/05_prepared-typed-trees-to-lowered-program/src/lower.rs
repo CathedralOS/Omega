@@ -987,6 +987,7 @@ impl<T> Reached<T> {
 
 #[derive(Default)]
 struct Draft {
+    assembly_exit: Option<terminal_psi::AssemblyExitConstraint>,
     parameters: Vec<ValueDeclaration>,
     structural_parameters: Vec<StructuralParameterDeclaration>,
     operations: Vec<Operation>,
@@ -1145,7 +1146,7 @@ impl<'a> Lowering<'a> {
                 | Statement::Evaluate {
                     expression: value, ..
                 } => Some(value.source),
-                Statement::Declare { source, .. }
+                Statement::AssemblyAdjacent {source,..} | Statement::Declare { source, .. }
                 | Statement::Store { source, .. }
                 | Statement::Dispatch { source, .. }
                 | Statement::Arm { source, .. } => Some(*source),
@@ -1489,6 +1490,7 @@ impl<'a> Lowering<'a> {
             };
             let mut block = Block::plain(block, block_parameters, terminator);
             block.structural_parameters = std::mem::take(&mut draft.structural_parameters);
+            block.assembly_exit = draft.assembly_exit.take();
             block.operations = operations;
             blocks.push(block);
         }

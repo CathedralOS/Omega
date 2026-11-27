@@ -303,7 +303,7 @@ fn rejects_asm_availability_and_unmodeled_operation_classes() {
     for (instruction, expected) in [
         ("iretq", "deriver-only"),
         ("lidt main.value", "deriver-only"),
-        ("ret", "creates a hidden control exit"),
+        ("ret", "an inline assembly region cannot return from its enclosing machine"),
         (
             "ldrb x0, main.value",
             "no structured operand provenance/permission contract",

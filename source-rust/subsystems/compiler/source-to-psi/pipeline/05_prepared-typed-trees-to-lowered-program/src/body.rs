@@ -1019,6 +1019,14 @@ pub struct Body {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
+    /// Transfer to the next assembly block. Its predicates refer to the
+    /// incoming slots in order; lowering binds them to the actual edge.
+    AssemblyAdjacent {
+        slots: Vec<usize>,
+        requires: Vec<Proposition>,
+        label: String,
+        source: SourceOrigin,
+    },
     /// Evaluate `value` and bind `slot` to it: a local's initializer, or an
     /// assignment of a whole value, which rebinds the slot. A scalar slot
     /// names the value from then on; a record slot names the fresh root that
@@ -1156,6 +1164,9 @@ impl ArmGuard {
 /// What an arm completes the machine with.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Target {
+    /// Return the value established in an assembly register. Target admission
+    /// checks that the selected calling plan returns its scalar in this view.
+    AssemblyReturn(language_core::inline_assembly::AsmRegisterView, Expression),
     /// A value, or a terminal call whose result completes the machine.
     Value(Expression),
     /// Unit completion (`{}` arm).

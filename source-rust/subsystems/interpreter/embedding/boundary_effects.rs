@@ -4546,6 +4546,7 @@ pub use psi_target_layouts::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalRuntimeSupplies {
+    pub(crate) assembly_returns: Option<psi_target_layouts::AssemblyReturnPlans>,
     pub(crate) native_code_layouts:
         Option<std::sync::Arc<crate::TerminalNativeCodeLayoutEnvironment>>,
     pub(crate) provider_selections: Option<psi_provider_selections::AdmittedProviderSelections>,
@@ -4574,6 +4575,7 @@ pub(crate) enum AdmittedBoundarySupply {
 
 #[derive(Debug, Clone, Copy)]
 pub struct TerminalRuntimeSupplyRequest<'installation> {
+    pub assembly_returns: Option<&'installation psi_target_layouts::AssemblyReturnPlans>,
     pub native_code_layouts: Option<&'installation crate::TerminalNativeCodeLayoutEnvironment>,
     pub x86_flags: Option<TerminalX86FlagsEnvironment>,
     pub memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
@@ -4589,6 +4591,7 @@ pub struct TerminalRuntimeSupplyRequest<'installation> {
 impl From<&psi_provider_selections::AdmittedProviderSelections> for TerminalRuntimeSupplies {
     fn from(selected: &psi_provider_selections::AdmittedProviderSelections) -> Self {
         Self {
+            assembly_returns: None,
             provider_selections: Some(selected.clone()),
             x86_flags: None,
             memory_ordering: None,

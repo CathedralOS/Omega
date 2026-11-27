@@ -30,6 +30,7 @@ fn machine(identity: u64, kind: OperationKind) -> TerminalMachine {
         loan_completions: Vec::new(),
         entry: BlockId::new(1).unwrap(),
         blocks: vec![Block {
+            assembly_exit: None,
             id: BlockId::new(1).unwrap(),
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
@@ -116,7 +117,7 @@ fn scope(module: TerminalModule, target: &str) -> Result<TargetReach, NativeExec
         )
         .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.to_string()))?;
     TargetReach::derive(ScopeInputs {
-        target,
+        profile: target::TargetProfile::from_canonical_target_name(target).unwrap(),
         artifact: reloaded.view(),
         entry,
         entry_call: None,
@@ -189,6 +190,37 @@ fn assembly_target_applies_to_a_body_emitted_for_a_dispatch_table() {
         reason.contains("requires x86_64") && reason.contains("linux_arm64"),
         "{reason}"
     );
+            }
+fn assembly_return_must_initialize_the_selected_plans_exact_result_view() {
+    fn returned(slot: usize) -> TerminalModule {
+        let view = terminal_psi::AsmRegisterView::from_scratch_slot(slot).unwrap();
+        let mut body = machine(1, OperationKind::IntegerConstant { value: IntegerValue::Unsigned(42) });
+        let OperationResult::Scalar(result) = &mut body.blocks[0].operations[0].result else { unreachable!() };
+        result.scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        body.contract.result = TerminalMachineResult::Scalar(*result);
+        body.assembly_target_requirement = view.target();
+        body.blocks[0].assembly_exit = Some(terminal_psi::AssemblyExitConstraint::ScalarReturn(view));
+        let mut module = TerminalModule::for_entry(body.id);
+        module.machines.push(body);
+        module
+    }
+
+    for (target, matching, mismatched, register) in [
+        ("linux_x86_64", 0, 2, "rax"),
+        ("macos_arm64", 22, 23, "x0"),
+    ] {
+        let reach = scope(returned(matching), target).unwrap();
+        let [plan] = reach.assembly_returns.as_slice() else { panic!("one reached assembly return") };
+        assert_eq!(plan.machine, machine_id(1));
+        assert_eq!(usize::from(plan.result.slot()), matching);
+        assert!(matches!(
+            plan.call.result.as_ref().unwrap().locations.as_slice(),
+            [calling_conventions::ValueLocation::Register { value_byte_offset: 0, byte_size: 4, .. }]
+        ));
+        let reason = scope(returned(mismatched), target).err().unwrap().to_string();
+        assert!(reason.contains(&format!("calling plan requires {register}")), "{reason}");
+    }
+    assert!(terminal_psi::AsmRegisterView::from_scratch_slot(14).is_none());
 }
 
 #[test]
@@ -430,7 +462,7 @@ fn emission_records_a_callback_only_when_its_registrar_runs() {
     ];
     for (entry, reached) in [(machine_id(1), false), (machine_id(2), true)] {
         let scope = TargetReach::derive(ScopeInputs {
-            target: "windows_x86_64",
+            profile: target::TargetProfile::from_canonical_target_name("windows_x86_64").unwrap(),
             artifact: artifact.view(),
             entry,
             entry_call: None,

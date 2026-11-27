@@ -8,6 +8,36 @@ pub struct TerminalTargetContext {
     target: String,
 }
 
+/// Scalar result registers supplied by the calling plans of this artifact's assembly machines.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssemblyReturnPlans {
+    target: TerminalTargetContext,
+    results: std::sync::Arc<[(semantic_vocabulary::MachineId, terminal_psi::AsmRegisterView)]>,
+}
+
+impl AssemblyReturnPlans {
+    pub fn new(
+        target: &TerminalTargetContext,
+        mut results: Vec<(semantic_vocabulary::MachineId, terminal_psi::AsmRegisterView)>,
+    ) -> Result<Self, &'static str> {
+        results.sort_unstable_by_key(|(machine, _)| *machine);
+        if results.windows(2).any(|pair| pair[0].0 == pair[1].0)
+            || results.iter().any(|(_, view)| !view.target().accepts_target_name(target.target())) {
+            return Err("assembly return plans repeat a machine or name another architecture");
+        }
+        Ok(Self { target: target.clone(), results: results.into() })
+    }
+
+    pub fn target(&self) -> &TerminalTargetContext {
+        &self.target
+    }
+
+    pub fn admits(&self, machine: semantic_vocabulary::MachineId, view: terminal_psi::AsmRegisterView) -> bool {
+        self.results.binary_search_by_key(&machine, |(machine, _)| *machine)
+            .is_ok_and(|index| self.results[index].1 == view)
+    }
+}
+
 impl TerminalTargetContext {
     pub fn resolve_entry(
         selected: Option<&Self>,

@@ -350,6 +350,35 @@ mod register_operations {
     }
 }
 
+/// A complete general-purpose register view the source instruction catalog models.
+/// Scratch temporaries, flags, and unmodeled aliases have no register view.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, record_storage::Record)]
+pub struct AsmRegisterView(u8);
+
+impl AsmRegisterView {
+    pub fn from_scratch_slot(slot: usize) -> Option<Self> {
+        let name = *ASM_SCRATCH_NAMES.get(slot)?;
+        scratch_register(name)?;
+        Some(Self(u8::try_from(slot).ok()?))
+    }
+
+    pub const fn slot(self) -> u8 {
+        self.0
+    }
+
+    pub fn name(self) -> &'static str {
+        ASM_SCRATCH_NAMES[usize::from(self.0)]
+    }
+
+    pub fn target(self) -> AsmTargetApplicability {
+        if usize::from(self.0) < ASM_ZERO_FLAG_SLOT {
+            AsmTargetApplicability::X86_64
+        } else {
+            AsmTargetApplicability::Aarch64
+        }
+    }
+}
+
 mod scratch_registers {
     pub const ASM_SCRATCH_SLOT_COUNT: usize = 51;
     pub const ASM_ZERO_FLAG_SLOT: usize = 14;
@@ -527,6 +556,7 @@ pub enum AsmInstructionAvailability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AsmInstructionShape {
+    CheckedReturn,
     JumpState,
     Subtract,             // Modular 32-bit x86 subtraction; establishes arithmetic flags.
     SubtractThreeOperand, // AArch64 SUBS over W-registers; establishes NZCV.
@@ -1587,7 +1617,8 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
         }),
-        "ret" | "retq" | "retn" | "retw" | "retaa" | "retab" | "retf" | "lret" | "iret"
+        "ret" => Contract(AsmInstructionContract::without_side_effects(AsmInstructionShape::CheckedReturn, Any)),
+        "retq" | "retn" | "retw" | "retaa" | "retab" | "retf" | "lret" | "iret"
         | "iretd" | "iretw" | "call" | "callq" | "callf" | "lcall" | "jmpq" | "jmpf" | "jmpl"
         | "ljmp" | "ljmpl" | "br" | "blr" | "bl" | "bx" | "blx" | "bc" | "braa" | "brab"
         | "braaz" | "brabz" | "blraa" | "blrab" | "blraaz" | "blrabz" | "eretaa" | "eretab"
@@ -2068,7 +2099,7 @@ mod tests {
         );
         assert_eq!(branch.flags_data_flow, AsmFlagsDataFlow::ZeroFlagBranch);
         for mnemonic in [
-            "ret", "retq", "retn", "retw", "retaa", "retab", "retf", "lret", "iret", "iretd",
+            "retq", "retn", "retw", "retaa", "retab", "retf", "lret", "iret", "iretd",
             "iretw", "call", "callq", "callf", "lcall", "jmpq", "jmpf", "jmpl", "ljmp", "ljmpl",
             "br", "blr", "bl", "bx", "blx", "bc", "braa", "brab", "braaz", "brabz", "blraa",
             "blrab", "blraaz", "blrabz", "eretaa", "eretab", "drps", "cbz", "cbnz", "tbz", "tbnz",

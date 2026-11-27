@@ -16,6 +16,7 @@ mod error {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum LoweringError {
         InvalidDescriptorTableOperation(semantic_vocabulary::OperationId),
+        UnsupportedAssemblyAdjacency { machine: MachineId, block: BlockId, reason: &'static str },
         UnclosedScalarConditions,
         UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
         ScalarApplicationCarrierMismatch(semantic_vocabulary::OperationId),
@@ -139,6 +140,7 @@ fn structural_result(
     result.ok_or(invalid(operation.id))
 }
 
+mod assembly_adjacency;
 mod scalars;
 mod storage;
 
@@ -1860,6 +1862,7 @@ mod machine {
             });
         }
 
+        let lowered_blocks = super::assembly_adjacency::physical_blocks(machine, lowered_blocks)?;
         Ok(AbstractFunction {
             machine: machine.id,
             attachment: machine.attachment,

@@ -15,9 +15,16 @@ use crate::contracts::conformance::parse_satisfies_traits;
 use crate::parameters::requirements::parse_machine_parameter_contracts;
 use crate::parameters::requirements::validate_machine_parameter_contracts;
 
+#[derive(Clone, Copy)]
+pub(crate) enum BodyLanguage {
+    Omega,
+    Assembly,
+}
+
 pub(crate) fn parse_machine<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    language: BodyLanguage,
 ) -> ParseResult<'tokens, 'source, Machine> {
     let declaration_start = input;
     let (spelling, input) = if !input.at_path_head()
@@ -74,7 +81,13 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     } = split_machine_path(syntax_trees, path);
 
     let body_start = input;
-    let (body, input) = parse_body(syntax_trees, input, machine_return_type.is_valid())?;
+    let (body, input) = match language {
+        BodyLanguage::Omega => parse_body(syntax_trees, input, machine_return_type.is_valid())?,
+        BodyLanguage::Assembly => {
+            let (body, rest) = crate::assembly::parse::parse_machine_body(syntax_trees, input)?;
+            (Some(body), rest)
+        }
+    };
     if let Some(uses) = input.file_qualifiers {
         uses.close_declaration(
             declaration_start.source_span_until(input).span,

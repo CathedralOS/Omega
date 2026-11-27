@@ -506,7 +506,8 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         .collect::<BTreeMap<_, _>>();
     let mut scalar_abis = BTreeMap::new();
     for function in &plan.functions {
-        if let Some(abi) = derive_fixed_scalar_function_abi(function, target)? {
+        let selected = verified_input.and_then(|facts| facts.assembly_call_plan(function.machine));
+        if let Some(abi) = derive_fixed_scalar_function_abi(function, target, selected)? {
             scalar_abis.insert(function.machine, abi);
         }
     }

@@ -55,6 +55,13 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 303 appends an optional assembly exit constraint immediately after each
+block terminator. A present constraint uses tag 1 plus a block ID for a required
+adjacent successor, or tag 2 plus a register-view byte for a scalar return.
+The register byte selects a 32-bit catalog view: 0–13 select `eax`, `ebx`,
+`ecx`, `edx`, `esi`, `edi`, then `r8d` through `r15d`; 22–50 select
+`w0` through `w28`. Other values reject. Readers reject earlier format markers.
+
 Marker 302 adds each theorem application's counted sum arguments after its
 fixed scalar subjects: for each of the applied contract's sum subjects, in
 order, the place id of the applying machine's sum formal it reads. Readers

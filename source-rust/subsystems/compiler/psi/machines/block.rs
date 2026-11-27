@@ -3,6 +3,15 @@ use crate::{
 };
 use semantic_vocabulary::BlockId;
 
+/// A physical requirement on this block's ordinary Psi exit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssemblyExitConstraint {
+    /// No instruction or register setup may implement this edge.
+    Adjacent(BlockId),
+    /// At return the named register view holds exactly the returned SSA value.
+    ScalarReturn(crate::AsmRegisterView),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Block {
     pub id: BlockId,
@@ -12,6 +21,7 @@ pub struct Block {
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
     pub operations: Vec<Operation>,
     pub terminator: Terminator,
+    pub assembly_exit: Option<AssemblyExitConstraint>,
 }
 
 impl Block {
@@ -24,6 +34,7 @@ impl Block {
             structural_parameters: Vec::new(),
             operations: Vec::new(),
             terminator,
+            assembly_exit: None,
         }
     }
 }

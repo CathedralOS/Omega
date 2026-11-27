@@ -1,6 +1,8 @@
 //! Follow the machines, callbacks and provider boundaries reachable for a selected target entry.
 #![forbid(unsafe_code)]
 
+mod assembly_returns;
+
 use native_execution_reach::{ExecutionReach, ReachedCallback};
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use target_bound_program::{NativeExecutionScope, NativeScopeBinding, SelectedProviderAdapter};
@@ -13,7 +15,7 @@ pub fn derive_native_scope(
     binding: NativeScopeBinding<'_>,
 ) -> Result<NativeExecutionScope, Vec<diagnostics::Diagnostic>> {
     let reach = TargetReach::derive(ScopeInputs {
-        target: binding.target(),
+        profile: binding.profile(),
         artifact: binding.artifact(),
         entry: binding.entry(),
         entry_call: binding
@@ -24,13 +26,13 @@ pub fn derive_native_scope(
     })
     .map_err(|reason| vec![diagnostics::Diagnostic::error(reason.to_string())])?;
     binding
-        .bind_target_reach(reach.emitted, reach.selected_candidate_positions)
+        .bind_target_reach(reach.emitted, reach.selected_candidate_positions, reach.assembly_returns)
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])
 }
 
 /// Sources of native calls for one checked proposal and entry.
 struct ScopeInputs<'a> {
-    target: &'a str,
+    profile: target::TargetProfile,
     artifact: terminal_codec::TerminalArtifactView<'a>,
     entry: MachineId,
     entry_call: Option<(BoundaryMachineId, MachineId)>,
@@ -39,6 +41,7 @@ struct ScopeInputs<'a> {
 }
 
 struct TargetReach {
+    assembly_returns: Vec<target_bound_program::AssemblyCallingPlan>,
     emitted: ExecutionReach,
     selected_candidate_positions: Vec<usize>,
 }
@@ -103,13 +106,14 @@ struct ScopeBoundaryIndex<'a> {
 impl TargetReach {
     fn derive(input: ScopeInputs<'_>) -> Result<Self, NativeExecutionScopeError> {
         let ScopeInputs {
-            target,
+            profile,
             artifact,
             entry,
             entry_call,
             adapters: selected,
             callbacks,
         } = input;
+        let target = profile.target_name();
         let module = artifact.module();
         let mut function_positions = module
             .machines
@@ -183,6 +187,7 @@ impl TargetReach {
                 .copied(),
         );
         let mut machines = Vec::new();
+        let mut assembly_returns = Vec::new();
         while let Some(machine) = pending.pop() {
             let position = function_positions
                 .binary_search_by_key(&machine, |(identity, _)| *identity)
@@ -204,6 +209,11 @@ impl TargetReach {
                 return Err(NativeExecutionScopeError::TargetContext(format!(
                     "reachable machine {declared} contains checked assembly that requires {architecture}; the selected target is `{target}`"
                 )));
+            }
+            if let Some(plan) = assembly_returns::bind(profile, module, body)
+                .map_err(|reason| NativeExecutionScopeError::TargetContext(format!(
+                    "assembly return in machine {machine:?}: {reason}")))? {
+                assembly_returns.push(plan);
             }
             for block in &body.blocks {
                 for operation in &block.operations {
@@ -312,6 +322,7 @@ impl TargetReach {
                 .collect(),
         );
         Ok(Self {
+            assembly_returns,
             emitted,
             selected_candidate_positions: index.selected_candidate_positions,
         })
