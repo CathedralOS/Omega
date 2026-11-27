@@ -312,6 +312,12 @@ pub enum SignatureEntryKind {
     /// a proof that cites the law depends on it as an assumption, and the
     /// law's own proof is judged separately.
     Statement { law: u32 },
+    /// A proof a definition of machine `machine` cites, with its body: that
+    /// an operation lifted out of two quotients respects the first one's
+    /// relation. The kernel checks it once, with the signature; stage 06
+    /// leaves it folded, as it does a law's statement, so a goal that
+    /// mentions the definition compares it by name.
+    Proof { machine: SymbolHandle },
     /// One declaration of the kernel's quotient scheme
     /// (`mathematical_kernel::quotient_scheme`). The kernel numbers those
     /// declarations from zero, so a signature that has a quotient starts

@@ -1621,8 +1621,9 @@ impl<'p> Converter<'p, '_> {
     ///
     /// `lift` gives a function out of one quotient into a set, from a
     /// function on representatives that takes related values to equal
-    /// results. So the operation must take exactly one class, require
-    /// nothing of its representatives (that needs the dependent
+    /// results. So the operation must take one class, or two (`lift` out of
+    /// the first of a `lift` out of the second, [`Self::lifted_pair`]),
+    /// require nothing of its representatives (that needs the dependent
     /// eliminator), and return a class (the quotient is a set) or plain
     /// data (a set by Hedberg's theorem). Its congruence is then
     /// `respect`, through soundness when the result is a class.
@@ -1669,8 +1670,9 @@ impl<'p> Converter<'p, '_> {
                  representatives requires something of them",
             ));
         }
-        // One class formal, passed to every parameter that takes a class.
-        let mut taken = None;
+        // The class formals, each passed to every parameter that takes its
+        // class: one, or two curried one inside the other.
+        let mut taken: Vec<(u32, (u32, u32))> = Vec::new();
         let mut paired = 0;
         for (parameter, class) in classes.iter().enumerate() {
             let Some(class) = *class else {
@@ -1680,26 +1682,17 @@ impl<'p> Converter<'p, '_> {
             let LiftArgument::Formal(formal) = lifted.arguments[parameter] else {
                 return Err(unserved(id, "quotient operation computes a class"));
             };
-            match taken {
-                None => taken = Some((formal, class)),
-                Some((known, _)) if known == formal => {}
-                Some(_) => {
-                    return Err(unserved(
-                        id,
-                        "term that applies an operation lifted to a quotient that takes other \
-                         than one class",
-                    ));
-                }
+            if !taken.iter().any(|&(known, _)| known == formal) {
+                taken.push((formal, class));
             }
         }
-        let Some((taken, (carrier, relation))) = taken else {
+        if taken.is_empty() || taken.len() > 2 {
             return Err(unserved(
                 id,
                 "term that applies an operation lifted to a quotient that takes other than \
-                 one class",
+                 one or two classes",
             ));
-        };
-        let family = self.family(carrier, relation);
+        }
         // The fibers of `lift` must be a set.
         let sets = match result_class {
             Some((carrier, relation)) => {
@@ -1754,6 +1747,21 @@ impl<'p> Converter<'p, '_> {
             ));
         }
         let statement = stated.statement;
+        if let &[first, second] = taken.as_slice() {
+            let term = self.lifted_pair(
+                id,
+                lifted,
+                &formals,
+                &classes,
+                [first, second],
+                (result, sets, result_class),
+                defined,
+                statement,
+            )?;
+            return self.push_lifted(id, &formals, result, term);
+        }
+        let (taken, (carrier, relation)) = taken[0];
+        let family = self.family(carrier, relation);
 
         // Under the machine's formals and `under` binders more: each
         // formal's value, and the representative `representative` of the
@@ -1827,7 +1835,20 @@ impl<'p> Converter<'p, '_> {
             &[result, sets, f, respect],
         );
         let class = self.variable(count - 1 - taken);
-        let mut term = self.signature.arena.apply_arguments(lift, &[class]);
+        let term = self.signature.arena.apply_arguments(lift, &[class]);
+        self.push_lifted(id, &formals, result, term)
+    }
+
+    /// Declares the definition of a lifted operation: `term`, under the
+    /// machine's formals, closed by a lambda for each.
+    fn push_lifted(
+        &mut self,
+        id: MachineId,
+        formals: &[(TermHandle, u32)],
+        result: TermHandle,
+        mut term: TermHandle,
+    ) -> Checked<u32> {
+        let program = self.program;
         let mut ty = result;
         for &(domain, _) in formals.iter().rev() {
             term = self
@@ -1853,6 +1874,317 @@ impl<'p> Converter<'p, '_> {
             },
             name,
         ))
+    }
+
+    /// An operation that takes two classes, as the kernel's `lift` out of
+    /// the first of an operation that lifts out of the second.
+    ///
+    /// With the first class's representative `a` fixed, the inner operation
+    /// `g a = λ b. F(a, b)` respects the second relation by the congruence
+    /// theorem at `a` and `a` (by the first relation's reflexivity). The
+    /// outer operation `λ a. lift (g a) y` respects the first relation:
+    /// for related `a` and `a'`, `lift (g a)` and `lift (g a')` agree at
+    /// every class of the second quotient (`QUOTIENT_UNIQUE`), since at the
+    /// class of `b` both compute (`QUOTIENT_LIFT_BETA`) to results the
+    /// congruence theorem at `b` and `b` relates.
+    #[allow(clippy::too_many_arguments)]
+    fn lifted_pair(
+        &mut self,
+        id: MachineId,
+        lifted: &LiftedOperation,
+        formals: &[(TermHandle, u32)],
+        classes: &[Option<(u32, u32)>],
+        [
+            (outer, (outer_carrier, outer_relation)),
+            (inner, (inner_carrier, inner_relation)),
+        ]: [(u32, (u32, u32)); 2],
+        (result, sets, result_class): (TermHandle, TermHandle, Option<(u32, u32)>),
+        defined: u32,
+        statement: u32,
+    ) -> Checked<TermHandle> {
+        let count = formals.len() as u32;
+        let reflexive = |converter: &Self, carrier: u32, relation: u32| {
+            converter
+                .signature
+                .entries
+                .iter()
+                .find_map(|entry| match entry.kind {
+                    SignatureEntryKind::Quotient {
+                        carrier: known,
+                        relation: by,
+                        laws,
+                        ..
+                    } if known == carrier && by == relation => Some(laws[1]),
+                    _ => None,
+                })
+                .ok_or_else(|| unserved(id, "quotient operation over a class with no quotient"))
+        };
+        let (outer_reflexive, inner_reflexive) = (
+            reflexive(self, outer_carrier, outer_relation)?,
+            reflexive(self, inner_carrier, inner_relation)?,
+        );
+        let outer_family = self.family(outer_carrier, outer_relation);
+        let inner_family = self.family(inner_carrier, inner_relation);
+        let level = || vec![Level::Constant(0)];
+
+        // The operation's arguments under the formals and `depth` binders
+        // more, with representatives `a` and `b` of the two classes.
+        let actuals = |converter: &mut Self, depth: u32, a: u32, b: u32| {
+            let values: Vec<_> = (0..count)
+                .map(|formal| converter.variable(count - 1 - formal + depth))
+                .collect();
+            let mut representatives = vec![None; formals.len()];
+            representatives[outer as usize] = Some(converter.variable(a));
+            representatives[inner as usize] = Some(converter.variable(b));
+            converter.lift_actuals(id, lifted, classes, &values, &representatives)
+        };
+        let raw = |converter: &mut Self, arguments: &[TermHandle]| {
+            let function = converter.constant(defined);
+            converter
+                .signature
+                .arena
+                .apply_arguments(function, arguments)
+        };
+        let value = |converter: &mut Self, arguments: &[TermHandle]| {
+            let mut value = raw(converter, arguments);
+            if let Some((carrier, relation)) = result_class {
+                let family = converter.family(carrier, relation);
+                value = family.project(&mut converter.signature.arena, value);
+            }
+            value
+        };
+        // The congruence theorem from `left` to `right`, with evidence
+        // `outer_evidence` for the first class and `inner_evidence` for the
+        // second: an identity of the results.
+        let congruence = |converter: &mut Self,
+                          left: &[TermHandle],
+                          right: &[TermHandle],
+                          outer_evidence: TermHandle,
+                          inner_evidence: TermHandle| {
+            let mut cited = Vec::new();
+            for (parameter, class) in classes.iter().enumerate() {
+                cited.push(left[parameter]);
+                if class.is_some() {
+                    cited.push(right[parameter]);
+                }
+            }
+            for (parameter, class) in classes.iter().enumerate() {
+                if class.is_some() {
+                    cited.push(match lifted.arguments[parameter] {
+                        LiftArgument::Formal(formal) if formal == outer => outer_evidence,
+                        _ => inner_evidence,
+                    });
+                }
+            }
+            let theorem = converter.constant(statement);
+            let mut respected = converter.signature.arena.apply_arguments(theorem, &cited);
+            if let Some((carrier, relation)) = result_class {
+                let (left, right) = (raw(converter, left), raw(converter, right));
+                let family = converter.family(carrier, relation);
+                respected = family.sound(&mut converter.signature.arena, left, right, respected);
+            }
+            respected
+        };
+        let lambda = |converter: &mut Self, domain: TermHandle, body: TermHandle| {
+            converter
+                .signature
+                .arena
+                .insert(Term::Lambda { domain, body })
+        };
+        let related = |converter: &mut Self, relation: u32| {
+            let relation = converter.constant(relation);
+            let (left, right) = (converter.variable(1), converter.variable(0));
+            converter
+                .signature
+                .arena
+                .apply_arguments(relation, &[left, right])
+        };
+        // `g a = λ b. F(a, b)` and its congruence `λ b b' r. ..`, under
+        // `depth` binders with the first representative at `a`.
+        let inner_parts = |converter: &mut Self, depth: u32, a: u32| -> Checked<[TermHandle; 2]> {
+            let inner_type = converter.constant(inner_carrier);
+            let at = actuals(converter, depth + 1, a + 1, 0)?;
+            let body = value(converter, &at);
+            let operation = lambda(converter, inner_type, body);
+            let left = actuals(converter, depth + 3, a + 3, 2)?;
+            let right = actuals(converter, depth + 3, a + 3, 1)?;
+            let reflexive = converter.constant(outer_reflexive);
+            let representative = converter.variable(a + 3);
+            let reflexive = converter
+                .signature
+                .arena
+                .apply_arguments(reflexive, &[representative]);
+            let evidence = converter.variable(0);
+            let mut respect = congruence(converter, &left, &right, reflexive, evidence);
+            let related = related(converter, inner_relation);
+            for domain in [related, inner_type, inner_type] {
+                respect = lambda(converter, domain, respect);
+            }
+            Ok([operation, respect])
+        };
+        // `lift (g a)`, a function out of the second quotient.
+        let inner_section = |converter: &mut Self, depth: u32, a: u32| -> Checked<TermHandle> {
+            let [operation, respect] = inner_parts(converter, depth, a)?;
+            Ok(inner_family.law(
+                &mut converter.signature.arena,
+                mathematical_kernel::QUOTIENT_LIFT,
+                level(),
+                &[result, sets, operation, respect],
+            ))
+        };
+        // Its point computation at the class of `b`.
+        let inner_point =
+            |converter: &mut Self, depth: u32, a: u32, b: u32| -> Checked<TermHandle> {
+                let [operation, respect] = inner_parts(converter, depth, a)?;
+                let representative = converter.variable(b);
+                Ok(inner_family.law(
+                    &mut converter.signature.arena,
+                    mathematical_kernel::QUOTIENT_LIFT_BETA,
+                    level(),
+                    &[result, sets, operation, respect, representative],
+                ))
+            };
+        let inner_class =
+            |converter: &mut Self, depth: u32| converter.variable(count - 1 - inner + depth);
+
+        // `λ a. lift (g a) y`.
+        let outer_type = self.constant(outer_carrier);
+        let section = inner_section(self, 1, 0)?;
+        let class = inner_class(self, 1);
+        let body = self.signature.arena.apply_arguments(section, &[class]);
+        let operation = lambda(self, outer_type, body);
+
+        // `λ a a' r. unique (λ_. B) (λ_. setB) (lift (g a)) (lift (g a')) h y`
+        // with `h = λ b. lift_beta(g a, b) · congruence · lift_beta(g a', b)⁻¹`.
+        let (a, a_prime, evidence, b) = (3, 2, 1, 0);
+        let inner_type = self.constant(inner_carrier);
+        let representative = self.variable(b);
+        let projected = inner_family.project(&mut self.signature.arena, representative);
+        let left_section = inner_section(self, 4, a)?;
+        let right_section = inner_section(self, 4, a_prime)?;
+        let left_class = self
+            .signature
+            .arena
+            .apply_arguments(left_section, &[projected]);
+        let right_class = self
+            .signature
+            .arena
+            .apply_arguments(right_section, &[projected]);
+        let left_actuals = actuals(self, 4, a, b)?;
+        let right_actuals = actuals(self, 4, a_prime, b)?;
+        let left_value = value(self, &left_actuals);
+        let right_value = value(self, &right_actuals);
+        let outer_evidence = self.variable(evidence);
+        let reflexive = self.constant(inner_reflexive);
+        let representative = self.variable(b);
+        let inner_evidence = self
+            .signature
+            .arena
+            .apply_arguments(reflexive, &[representative]);
+        let step = congruence(
+            self,
+            &left_actuals,
+            &right_actuals,
+            outer_evidence,
+            inner_evidence,
+        );
+        let right_point = inner_point(self, 4, a_prime, b)?;
+        let back = outer_family.identity_law(
+            &mut self.signature.arena,
+            mathematical_kernel::QUOTIENT_ID_SYM,
+            Level::Constant(0),
+            &[result, right_class, right_value, right_point],
+        );
+        let across = outer_family.identity_law(
+            &mut self.signature.arena,
+            mathematical_kernel::QUOTIENT_ID_TRANS,
+            Level::Constant(0),
+            &[result, left_value, right_value, right_class, step, back],
+        );
+        let left_point = inner_point(self, 4, a, b)?;
+        let agrees = outer_family.identity_law(
+            &mut self.signature.arena,
+            mathematical_kernel::QUOTIENT_ID_TRANS,
+            Level::Constant(0),
+            &[
+                result,
+                left_class,
+                left_value,
+                right_class,
+                left_point,
+                across,
+            ],
+        );
+        let agrees = lambda(self, inner_type, agrees);
+        let inner_quotient = inner_family.quotient(&mut self.signature.arena);
+        let family = lambda(self, inner_quotient, result);
+        let fibers = lambda(self, inner_quotient, sets);
+        let left_section = inner_section(self, 3, 2)?;
+        let right_section = inner_section(self, 3, 1)?;
+        let class = inner_class(self, 3);
+        let mut respect = inner_family.law(
+            &mut self.signature.arena,
+            mathematical_kernel::QUOTIENT_UNIQUE,
+            level(),
+            &[family, fibers, left_section, right_section, agrees, class],
+        );
+        let related = related(self, outer_relation);
+        // The statement it proves: for related `a` and `a'`, the outer
+        // operation agrees at them.
+        let left_section = inner_section(self, 3, 2)?;
+        let right_section = inner_section(self, 3, 1)?;
+        let class = inner_class(self, 3);
+        let left = self.signature.arena.apply_arguments(left_section, &[class]);
+        let right = self
+            .signature
+            .arena
+            .apply_arguments(right_section, &[class]);
+        let mut statement = self.signature.arena.insert(Term::Id {
+            ty: result,
+            left,
+            right,
+        });
+        for domain in [related, outer_type, outer_type] {
+            respect = lambda(self, domain, respect);
+            statement = self.signature.arena.insert(Term::Pi {
+                domain,
+                codomain: statement,
+            });
+        }
+        // Declared on its own, closed over the formals, so that the kernel
+        // checks it once and a goal compares the definition by its name.
+        for &(domain, _) in formals.iter().rev() {
+            respect = lambda(self, domain, respect);
+            statement = self.signature.arena.insert(Term::Pi {
+                domain,
+                codomain: statement,
+            });
+        }
+        let symbol = *self
+            .program
+            .symbols
+            .get(id)
+            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        index(id, self.signature.declarations.len() + 1)?;
+        let name = format!("{}::respects", self.name(symbol));
+        let proof = self.push(
+            Declaration::definition(0, statement, respect),
+            SignatureEntryKind::Proof { machine: symbol },
+            name,
+        );
+        let proof = self.constant(proof);
+        let arguments: Vec<_> = (0..count)
+            .map(|formal| self.variable(count - 1 - formal))
+            .collect();
+        let respect = self.signature.arena.apply_arguments(proof, &arguments);
+        let lift = outer_family.law(
+            &mut self.signature.arena,
+            mathematical_kernel::QUOTIENT_LIFT,
+            level(),
+            &[result, sets, operation, respect],
+        );
+        let class = self.variable(count - 1 - outer);
+        Ok(self.signature.arena.apply_arguments(lift, &[class]))
     }
 
     fn lifted_operation(&self, id: MachineId) -> Option<&'p LiftedOperation> {

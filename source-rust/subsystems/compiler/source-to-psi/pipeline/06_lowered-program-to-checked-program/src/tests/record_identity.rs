@@ -496,7 +496,8 @@ use {omega}/language/core/foundation.omg as proof;
     );
 
     // 2. A stale observation (mutating `a.y` after entry) does not prove
-    //    record identity at exit.
+    //    record identity at exit. A `@mutable` formal's referent at entry is
+    //    not a value a clause can keep, so the clause itself is refused.
     let stale_observation = "
 use {omega}/language/core/foundation.omg as proof;
 
@@ -510,16 +511,14 @@ use {omega}/language/core/foundation.omg as proof;
         }
     ";
     let verdict = judged(stale_observation);
-    let RouteVerdict::Rejected { unproved, .. } = verdict else {
-        panic!("mutating a field must invalidate its entry identity observation: {verdict:?}");
+    let RouteVerdict::FallBack(refused) = verdict else {
+        panic!("a mutable loan's entry referent must not stand in a clause: {verdict:?}");
     };
-    let [refused] = unproved.as_slice() else {
-        panic!("expected one unproved obligation: {unproved:?}");
-    };
-    assert_eq!(
-        refused.detail,
-        "no available equality proves the stated Identity: \
-         nothing proves the identity of field `y`"
+    assert!(
+        refused
+            .detail
+            .contains("contract Identity operand has no exact input observation"),
+        "{refused:?}"
     );
 
     // 3. A true user-defined comparison does not substitute for a missing

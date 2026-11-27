@@ -507,6 +507,15 @@ fn normalize(
         return Ok(denotation);
     }
     match proposition {
+        // Two float literals are identical exactly when their bits are.
+        Proposition::DeclarationIdentity(clause)
+            if clause.raw_float_literal_identity().is_some() =>
+        {
+            Ok(match clause.raw_float_literal_identity() {
+                Some(true) => Proposition::Truth,
+                _ => Proposition::Falsehood,
+            })
+        }
         // An input is identical to itself.
         Proposition::DeclarationIdentity(clause)
             if clause.is_portable()

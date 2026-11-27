@@ -195,3 +195,154 @@ machine stale(a: @mutable P, b: @P) requires |proof|::Identity::<P>($a, $b) { a.
         "Identity operand has no exact input observation",
     );
 }
+
+#[test]
+fn a_precondition_proves_the_same_comparison_the_body_returns() {
+    accepted(&coin(
+        "machine same(a: Coin, b: Coin) -> bool requires a == b ensures result { a == b }\n",
+    ));
+    accepted(&coin(
+        "machine same(a: @Coin, b: @Coin) -> bool requires a == b ensures result { a == b }\n",
+    ));
+    accepted(&coin(
+        "machine differ(a: Coin, b: Coin) -> bool requires a != b ensures !result { a == b }\n",
+    ));
+}
+
+#[test]
+fn the_body_returns_the_operation_without_a_precondition() {
+    accepted(&coin(
+        "machine same(a: Coin, b: Coin) -> bool ensures result == (a == b) { a == b }\n",
+    ));
+}
+
+#[test]
+fn congruence_needs_the_same_values() {
+    call_requirement_or_ensures_unproved(&coin(
+        "machine same(a: Coin, b: Coin, c: Coin) -> bool requires a == b ensures result { a == c }\n",
+    ));
+    call_requirement_or_ensures_unproved(&coin(
+        "machine same(a: Coin, b: Coin) -> bool requires a == b ensures result { b == a }\n",
+    ));
+}
+
+#[test]
+fn congruence_needs_the_same_operation() {
+    let two = "data Coin { value: i32; year: i32; }
+CoinByValue satisfies Equatable<Coin> {
+    machine equals(left: @Coin, right: @Coin) -> bool reaches none crashes none terminates {
+        left.value == right.value
+    }
+}
+CoinByYear satisfies Equatable<Coin> {
+    machine equals(left: @Coin, right: @Coin) -> bool reaches none crashes none terminates {
+        left.year == right.year
+    }
+}
+";
+    call_requirement_or_ensures_unproved(&format!(
+        "{two}machine same(a: Coin, b: Coin) -> bool requires CoinByValue::equals(@a, @b) ensures result {{ CoinByYear::equals(@a, @b) }}\n"
+    ));
+    accepted(&format!(
+        "{two}machine same(a: Coin, b: Coin) -> bool requires CoinByYear::equals(@a, @b) ensures result {{ CoinByYear::equals(@a, @b) }}\n"
+    ));
+}
+
+#[track_caller]
+fn call_requirement_or_ensures_unproved(main: &str) {
+    let verdict = checked(main);
+    let text = format!("{verdict:?}");
+    assert!(
+        text.contains("unproved: [\"CallRequirement")
+            || text.contains("unproved: [\"NormalGuarantee")
+            || text.contains("cannot prove ensures"),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn a_written_input_is_not_the_value_the_precondition_compared() {
+    // `a` is written before the comparison, so its result is about another
+    // value than the one `requires` compared.
+    call_requirement_or_ensures_unproved(&coin(
+        "machine same(mutable a: Coin, b: Coin) -> bool requires a == b ensures result { a.value = 3i32; a == b }\n",
+    ));
+}
+
+#[test]
+fn the_returned_comparison_is_the_operation_on_the_same_values() {
+    call_requirement_or_ensures_unproved(&coin(
+        "machine same(a: Coin, b: Coin) -> bool ensures result == (a == b) { b == a }\n",
+    ));
+}
+
+/// Raw `Identity<f32>` and `Identity<f64>` compare exact same-format bits
+/// (`wiki/spec/terminal-psi/mathematical_values.md`, "Float equality and
+/// source identity"): not IEEE `==`, and not the payload-erased meaning.
+const PROOF: &str = "use {omega}/language/core/foundation.omg as proof;\n";
+
+fn proof(program: &str) -> String {
+    format!("{PROOF}{program}")
+}
+
+#[test]
+fn raw_float_identity_is_reflexive_and_follows_exact_copies() {
+    for program in [
+        "machine same(x: f64) ensures |proof|::Identity::<f64>(x, x) {}",
+        "machine flip(x: f64, y: f64) requires |proof|::Identity::<f64>(x, y) ensures |proof|::Identity::<f64>(y, x) {}",
+        "machine flip(x: f32, y: f32) requires |proof|::Identity::<f32>(x, y) ensures |proof|::Identity::<f32>(y, x) {}",
+        "machine copy(x: f64) -> f64 ensures |proof|::Identity::<f64>(result, x) { x }",
+        "machine pass(x: f64, y: f64) -> f64 requires |proof|::Identity::<f64>(x, y) ensures |proof|::Identity::<f64>(result, y) { x }",
+        "machine zero() -> f64 ensures |proof|::Identity::<f64>(result, 0.0f64) { 0.0f64 }",
+        "machine zero() ensures |proof|::Identity::<f64>(0.0f64, 0.0f64) {}",
+    ] {
+        accepted(&proof(program));
+    }
+}
+
+#[test]
+fn signed_zeros_are_not_identical() {
+    for program in [
+        "machine zeros() ensures |proof|::Identity::<f64>(0.0f64, -0.0f64) {}",
+        "machine zero() -> f64 ensures |proof|::Identity::<f64>(result, -0.0f64) { 0.0f64 }",
+    ] {
+        call_requirement_or_ensures_unproved(&proof(program));
+    }
+}
+
+#[test]
+fn a_record_is_identical_when_its_float_field_is() {
+    accepted(&proof(
+        "data P { x: f64; n: i32; }
+machine same(a: P, b: P)
+requires |proof|::Identity::<f64>(a.x, b.x)
+requires |proof|::Identity::<i32>(a.n, b.n)
+ensures |proof|::Identity::<P>(a, b) {}
+",
+    ));
+    call_requirement_or_ensures_unproved(&proof(
+        "data P { x: f64; n: i32; }
+machine same(a: P, b: P)
+requires |proof|::Identity::<i32>(a.n, b.n)
+ensures |proof|::Identity::<P>(a, b) {}
+",
+    ));
+}
+
+#[test]
+fn ieee_equality_and_raw_identity_do_not_stand_for_each_other() {
+    // IEEE `==` relates signed zeros and never a NaN to itself, so neither
+    // direction holds; a clause cannot state one to prove the other.
+    refused_before_checking(
+        &proof(
+            "machine from_ieee(x: f64, y: f64) requires x == y ensures |proof|::Identity::<f64>(x, y) {}",
+        ),
+        "contract IEEE comparison without its selected declaration",
+    );
+    refused_before_checking(
+        &proof(
+            "machine to_ieee(x: f64, y: f64) requires |proof|::Identity::<f64>(x, y) ensures x == y {}",
+        ),
+        "contract IEEE comparison without its selected declaration",
+    );
+}

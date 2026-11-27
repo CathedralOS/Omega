@@ -1726,9 +1726,26 @@ same_sign> as SameSign;` is read into the mathematical signature when
   `a_repeated_class_needs_a_congruence_for_each_pair`,
   `a_lift_that_computes_an_argument_owes_its_transport_itself`,
   `a_computed_argument_is_never_a_class`.
+- **Two classes (2026-11-27).** An operation that takes two class formals
+  is a definition with no function extensionality: `lift` out of the first
+  class of `λ a. lift (g a) y`, where `g a = λ b. F(a, b)` respects the
+  second relation by the congruence at `a` and `a` (the first relation's
+  selected reflexivity). That the outer operation respects the first
+  relation is `QUOTIENT_UNIQUE` at the constant family: for related `a`
+  and `a'`, `lift (g a)` and `lift (g a')` agree at every class of the
+  second quotient because at the class of `b` both compute
+  (`QUOTIENT_LIFT_BETA`) to results the congruence at `b` and `b`
+  relates. That proof is declared on its own entry (`Proof`), which the
+  kernel checks once with the signature and stage 06 leaves folded, so a
+  law that mentions the operation compares it by name: inlined, the
+  kernel's check of a one-line law cost about 99k conversion steps, past a
+  law's budget; declared, about 9k. A proof finds the inner point because
+  the point search also searches what each point computes to. Tests:
+  `an_operation_lifted_with_two_classes_computes_at_both`,
+  `an_operation_lifted_with_two_classes_needs_a_congruence_for_each`.
 - **Not done:**
   - A lifted operation is a definition only where the kernel's `lift`
-    gives one (2026-11-27): one class in, a class or plain data out (the
+    gives one (2026-11-27): one or two classes in, a class or plain data out (the
     quotient is a set by `setQ`, plain data by Hedberg's theorem), and an
     operation on representatives that requires nothing. The definition is
     `lift` of the operation at that class, with the selected congruence as
@@ -1736,9 +1753,9 @@ same_sign> as SameSign;` is read into the mathematical signature when
     rewrites it with `lift`'s point computation, a theorem the scheme now
     derives from `beta` (`QUOTIENT_LIFT_BETA`), so no conversion rule is
     added. An operation that requires something of its representatives
-    needs the dependent eliminator, and one over two classes needs
-    function extensionality; a term that applies either is refused by
-    name, as is one returning `bool`.
+    needs the dependent eliminator, and one over three or more classes is
+    not built yet; a term that applies either is refused by name, as is
+    one returning `bool`.
   - Anything that needs the kernel's `effective` assumption (equal classes
     give related representatives). The specification allows it only for a
     relation shown to be a mere proposition, and requires the declaration to

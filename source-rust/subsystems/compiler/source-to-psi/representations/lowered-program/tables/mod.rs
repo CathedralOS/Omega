@@ -374,6 +374,23 @@ pub struct QuotientSoundness {
     pub related: semantic_vocabulary::ClauseIdentity,
 }
 
+/// What a call of one machine returns, stated over that machine's own
+/// formals: its result is its selected operation applied to its inputs, as
+/// `Identity<bool>(CoinByValue::equals(left, right), result)` for a selected
+/// comparison row. The machine's clauses name that operation; every call of
+/// `callee` this machine makes returns the operation's value at the call's
+/// unchanged arguments, so a call is congruent with the clause that names
+/// the same operation on the same values (wiki/spec/proofs/contracts.md,
+/// "Equality bridges and comparison facts": "Repeated admitted pure
+/// comparisons with the same selected operation and exact unchanged
+/// arguments have the same Boolean denotation"). The callee's body never
+/// owes it: the statement is what the operation means, not a guarantee.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppliedOperation {
+    pub callee: semantic_vocabulary::MachineId,
+    pub statement: semantic_vocabulary::Proposition,
+}
+
 /// Everything the checker holds for one machine. Value, place, claim and
 /// edge identities are machine-local in the lowered form (ownership.md:
 /// "Claim identities stay machine-local"), so these tables are too.
@@ -396,6 +413,9 @@ pub struct MachineTables {
     /// Each Identity of two classes this machine's contracts state over a
     /// quotient of data that has storage, with what relates them.
     pub quotient_soundness: Vec<QuotientSoundness>,
+    /// The machines whose calls this machine's clauses name by their
+    /// selected operation, with what each call returns.
+    pub applied_operations: Vec<AppliedOperation>,
 }
 
 /// The module: one `MachineTables` per machine.
