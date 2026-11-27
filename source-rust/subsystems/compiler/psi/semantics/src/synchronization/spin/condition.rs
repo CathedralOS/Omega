@@ -24,6 +24,17 @@ impl Operand {
         }
     }
 
+    pub(super) fn intersect(self, prior: Option<Self>) -> Option<Self> {
+        match prior {
+            None => Some(self),
+            Some(old) if old == self => Some(self),
+            Some(old) => Some(Self::Literal(masked(
+                self.literal()?,
+                Some(old.literal()?),
+            )?)),
+        }
+    }
+
     pub(in super::super) fn scalar_type(self) -> ScalarType {
         match self {
             Self::Literal(value) => value.scalar_type(),
@@ -56,7 +67,7 @@ impl Operand {
 pub(in super::super) struct Comparison {
     pub(in super::super) pivot: Operand,
     pub(in super::super) order: Ordering,
-    pub(in super::super) mask: Option<Scalar>,
+    pub(in super::super) mask: Option<Operand>,
 }
 
 /// An observed word can be restricted to the bits selected by one or more
@@ -92,6 +103,17 @@ impl Comparison {
         }
     }
 
+    pub(super) fn substitute(
+        &mut self,
+        resolve: impl Fn(Operand) -> Option<Operand>,
+    ) -> Option<()> {
+        self.pivot = resolve(self.pivot)?;
+        if let Some(mask) = self.mask {
+            self.mask = Some(resolve(mask)?);
+        }
+        Some(())
+    }
+
     pub(super) fn equal(pivot: Scalar) -> Self {
         Self {
             pivot: Operand::Literal(pivot),
@@ -109,7 +131,11 @@ pub(in super::super) struct SpinCondition {
 
 impl SpinCondition {
     pub(in super::super) fn matches(self, observed: Scalar) -> Option<bool> {
-        let actual = ScalarFact::Literal(masked(observed, self.comparison.mask)?).known_integer();
+        let actual = ScalarFact::Literal(match self.comparison.mask {
+            Some(mask) => masked(observed, Some(mask.literal()?))?,
+            None => observed,
+        })
+        .known_integer();
         let pivot = ScalarFact::Literal(self.comparison.pivot.literal()?).known_integer();
         let ((ty, actual), (expected, pivot)) = actual.zip(pivot)?;
         (ty == expected).then(|| self.accepts(actual.cmp(&pivot)))

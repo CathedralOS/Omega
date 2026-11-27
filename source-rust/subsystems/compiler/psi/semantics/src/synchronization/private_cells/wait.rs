@@ -24,18 +24,24 @@ pub(super) fn apply(
         let base = memory.locate(&bindings.places, actual.place, &actual.path)?;
         memory.project(base, path)
     };
-    let pivot = |mut test: SpinCondition| {
-        let mut input = None;
-        if let Operand::Parameter {
+    let resolve = |operand: Operand| match operand {
+        Operand::Literal(value) => Some(ScalarFact::Literal(value)),
+        Operand::Parameter {
             position,
             scalar_type,
-        } = test.comparison.pivot
+        } => scalar(position).filter(|fact| fact.ty() == scalar_type),
+    };
+    let pivot = |mut test: SpinCondition| {
+        let mut input = None;
+        if let Some(mask) = test.comparison.mask
+            && let Some(ScalarFact::Literal(value)) = resolve(mask)
         {
-            match scalar(position).filter(|fact| fact.ty() == scalar_type) {
-                Some(ScalarFact::Literal(value)) => test.comparison.pivot = Operand::Literal(value),
-                Some(ScalarFact::EntryInput(formal)) => input = Some(formal),
-                None => {}
-            }
+            test.comparison.mask = Some(Operand::Literal(value));
+        }
+        match resolve(test.comparison.pivot) {
+            Some(ScalarFact::Literal(value)) => test.comparison.pivot = Operand::Literal(value),
+            Some(ScalarFact::EntryInput(formal)) => input = Some(formal),
+            None => {}
         }
         (test, input)
     };
@@ -45,22 +51,21 @@ pub(super) fn apply(
                 .ok_or(ProgressFailure::Unproved)?;
             let stored = memory.get(&location);
             let (condition, input) = pivot(cell.while_value);
-            let cause = classify(
-                memory,
-                &location,
-                condition,
-                input,
-                cell.update,
-                requirements,
-            );
+            let update = cell.update.try_map(resolve);
+            let cause = classify(memory, &location, condition, input, update, requirements);
             if let Some(cause) = cause
                 && !(cause == ProgressFailure::UnprovedExternal
                     && scope == ProgressScope::OpenInterface)
             {
                 return Err(cause);
             }
-            if cell.update != CellUpdate::Observe {
-                memory.set(&location, stored.after_update(cell.update));
+            if update != Some(CellUpdate::Observe) {
+                memory.set(
+                    &location,
+                    update
+                        .map(|update| stored.after_update(update))
+                        .unwrap_or_default(),
+                );
             }
             Ok(())
         }
@@ -75,7 +80,7 @@ pub(super) fn apply(
                     &location,
                     test,
                     input,
-                    CellUpdate::Observe,
+                    Some(CellUpdate::Observe),
                     requirements,
                 ) {
                     None => Observation::Known(false),
@@ -106,7 +111,7 @@ fn classify(
     location: &super::storage::Location,
     condition: SpinCondition,
     pivot_input: Option<terminal_psi::ValueDeclaration>,
-    update: CellUpdate,
+    update: Option<CellUpdate<ScalarFact>>,
     requirements: &[Proposition],
 ) -> Option<ProgressFailure> {
     let assess = |stored: &Stored| failure(stored, condition, pivot_input, update, requirements);
@@ -124,7 +129,7 @@ fn failure(
     stored: &Stored,
     condition: SpinCondition,
     pivot_input: Option<terminal_psi::ValueDeclaration>,
-    update: CellUpdate,
+    update: Option<CellUpdate<ScalarFact>>,
     requirements: &[Proposition],
 ) -> Option<ProgressFailure> {
     let mut all_block = true;

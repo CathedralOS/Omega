@@ -258,10 +258,10 @@ impl Stored {
 
     /// Apply the instruction's transfer independently to every admitted
     /// resident. A mismatch preserves the actual observed word.
-    pub(in super::super::super) fn after_update(&self, update: CellUpdate) -> Self {
+    pub(in super::super::super) fn after_update(&self, update: CellUpdate<ScalarFact>) -> Self {
         let expected = match update {
             CellUpdate::Observe => return self.clone(),
-            CellUpdate::Replace(value) => return Self::Scalar(ScalarFact::Literal(value)),
+            CellUpdate::Replace(value) => return Self::Scalar(value),
             CellUpdate::CompareExchange {
                 expected,
                 replacement,
@@ -272,10 +272,7 @@ impl Stored {
             | CellUpdate::BitwiseAnd(expected)
             | CellUpdate::BitwiseOr(expected) => expected,
         };
-        self.map_scalars(expected.scalar_type(), |prior| match prior {
-            ScalarFact::Literal(bits) => update.apply(bits).map(ScalarFact::Literal),
-            ScalarFact::EntryInput(_) => None,
-        })
+        self.map_scalars(expected.ty(), |prior| update.next(prior))
     }
 
     pub(in super::super) fn map_scalars(
