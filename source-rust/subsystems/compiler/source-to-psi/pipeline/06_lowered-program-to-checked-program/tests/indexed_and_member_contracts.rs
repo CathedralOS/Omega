@@ -282,6 +282,30 @@ fn a_forwarded_crash_guard_covers_the_call_it_forwards() {
     assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
 }
 
+/// The same forwarder over a `@mutable` formal. While nothing writes the
+/// array, every cell still holds what the forwarder received, so its own
+/// route over `items[index]` covers the call. Writing the guarded element
+/// first (`items[index] = 0`) makes the call's route hold where the
+/// forwarder's entry route need not, and the call is refused.
+#[test]
+fn a_mutable_forwarder_covers_the_call_only_while_the_element_is_unwritten() {
+    let program = |body: &str| {
+        format!(
+            "machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
+             requires index < 2 crashes Trap items[index] == 0 \
+             {{ transition items[index] == 0 {{ true -> bad(), false -> (items[index]) }} \
+                machine bad() -> u64 {{ crash Trap; }} }} \
+             machine forward(items: @mutable [u64; 2], index: u64) -> u64 \
+             requires index < 2 crashes Trap items[index] == 0 {{ {body} maybe_zero(items, index) }} \
+             public machine read_seven(items: @mutable [u64; 2], index: u64) -> u64 \
+             requires index < 2 requires items[index] == 7 {{ forward(items, index) }}"
+        )
+    };
+    accepted(&program(""));
+    let twin = rejected(&program("items[index] = 0;"));
+    assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
+}
+
 /// A crash guard over a borrowed scalar (`$value == 0` over `@u64`) and one
 /// over a slice's extent (`items.length == 0`) read the caller's storage at
 /// the call, as the element guard does: each call is accepted when the

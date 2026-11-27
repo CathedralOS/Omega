@@ -599,6 +599,17 @@ pub(crate) fn content_root<'a>(
         })
 }
 
+/// Whether a `@mutable` input still holds what it held at entry where an
+/// entry read is asked for. A shared input always does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EntryContents {
+    /// Every path to this point reaches the input with no write to it:
+    /// the machine's entry, or a call the whole input reaches unchanged.
+    Unwritten,
+    /// Some path may have written the input, or the point is not traced.
+    MaybeWritten,
+}
+
 /// What one scalar leaf holds on every path to a point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Reached {
@@ -1740,25 +1751,35 @@ impl<'a> Storage<'a> {
         Ok(())
     }
 
-    /// The read of a shared input's cell stated over that input as it
-    /// arrived: `items[i]` for the cell `i` of a formal `items: @[u64; 2]`.
+    /// The read of an input's cell stated over that input as it arrived:
+    /// `items[i]` for the cell `i` of a formal `items: @[u64; 2]`.
     /// The machine cannot write through a shared loan, so the cell holds its
     /// entry contents throughout the body, and a clause may name it even if
-    /// no operation captures its index. `actual` is the input itself or a
-    /// static or selected path below it; `path` continues from there.
-    pub(crate) fn shared_entry_read(
+    /// no operation captures its index. A cell of a `@mutable` input holds
+    /// its entry contents too wherever no write has reached the input
+    /// (`EntryContents::Unwritten`): a forwarder that only passes the loan
+    /// on reads at the call what its own entry clause named. `actual` is
+    /// the input itself or a static or selected path below it; `path`
+    /// continues from there.
+    pub(crate) fn entry_read(
         &self,
         tables: &MachineTables,
         actual: &Lineage,
         path: &[semantic_vocabulary::ScalarReadProjection],
         ty: ScalarType,
+        contents: EntryContents,
     ) -> Option<ScalarTerm> {
         use semantic_vocabulary::ScalarReadProjection as Projection;
         let input = terminal_psi::StructuralParameterDeclaration::find_by_place(
             &self.lowered.structural_parameters,
             actual.root,
         )?;
-        if input.access != StructuralAccess::SharedBorrow
+        let held = match input.access {
+            StructuralAccess::SharedBorrow => true,
+            StructuralAccess::MutableBorrow => contents == EntryContents::Unwritten,
+            StructuralAccess::Owned | StructuralAccess::WriteOnlyBorrow => false,
+        };
+        if !held
             || path
                 .iter()
                 .any(|step| matches!(step, Projection::Referent | Projection::Extent))
@@ -1814,7 +1835,7 @@ impl<'a> Storage<'a> {
     }
 
     /// The same names as `at_entry`, except that a cell of a shared input is
-    /// read over that input (`shared_entry_read`) even when an operation
+    /// read over that input (`entry_read`) even when an operation
     /// captured it. A clause over `items[index]` is then stated in the form a
     /// call gives a cell it selects with another value: the caller's
     /// `requires items[index] == 7` and a call's route `items[selected] == 0`
@@ -7470,7 +7491,7 @@ impl crate::Bindings for AtEntry<'_, '_> {
         // the form a call gives the same cell (`AtCall::structural_read`).
         match self
             .storage
-            .shared_entry_read(self.tables, &input, path, ty)
+            .entry_read(self.tables, &input, path, ty, EntryContents::Unwritten)
         {
             Some(read) => Ok(read),
             None if captured => self.observation(actual, ty),
@@ -7676,16 +7697,41 @@ impl<'a> AtCall<'_, 'a> {
         }
     }
 
-    /// An inline cell of a shared caller input retains its entry contents.
-    /// A clause may name that cell even if no operation captures its index.
-    fn shared_input_read(
-        &self,
+    /// An inline cell of a caller input that still holds its entry
+    /// contents: a shared input always, a `@mutable` one when its whole
+    /// contents reach this call from entry unchanged. A clause may name that
+    /// cell even if no operation captures its index.
+    fn entry_input_read(
+        &mut self,
         actual: &Lineage,
         path: &[semantic_vocabulary::ScalarReadProjection],
         ty: ScalarType,
-    ) -> Option<ScalarTerm> {
-        self.storage
-            .shared_entry_read(self.tables, actual, path, ty)
+    ) -> Result<Option<ScalarTerm>, crate::Unbound> {
+        let whole = Lineage {
+            root: actual.root,
+            segments: Vec::new(),
+        };
+        let mut trace = self.storage.budget();
+        trace.observations = Observations::WholeInput;
+        let reached = self
+            .storage
+            .reaching(
+                self.references,
+                self.tables,
+                Asked::Contents(&whole),
+                (self.block, self.up_to),
+                &mut trace,
+                self.concerns,
+            )
+            .map_err(crate::Unbound::Refused)?;
+        let contents = if reached == Reached::Input(actual.root) {
+            EntryContents::Unwritten
+        } else {
+            EntryContents::MaybeWritten
+        };
+        Ok(self
+            .storage
+            .entry_read(self.tables, actual, path, ty, contents))
     }
 
     /// Find the source named by the operation that established this actual.
@@ -7954,7 +8000,7 @@ impl<'a> CallObservations<'_, 'a> {
                     }
                     // An element's name is the read a call or entry clause
                     // states for that cell, which exists only for a shared
-                    // input (`Storage::shared_entry_read`). Elements of other
+                    // input (`Storage::entry_read`). Elements of other
                     // inputs would only add names nothing can match.
                     Some(StructuralTypeShape::FixedArray { element, length })
                         if declaration.access == StructuralAccess::SharedBorrow =>
@@ -8250,7 +8296,7 @@ fn formal_observation_path(
 /// The callee's name for one scalar leaf of a structural input. A path of
 /// record fields names the field at entry; a path through an array element
 /// names the read of that cell, with each position as a `u64` index, which
-/// is the form `AtCall::structural_read` and `Storage::shared_entry_read`
+/// is the form `AtCall::structural_read` and `Storage::entry_read`
 /// give the same cell at a call.
 fn crossing_name(
     root: PlaceId,
@@ -8380,7 +8426,7 @@ impl crate::Bindings for AtCall<'_, '_> {
             .and_then(|leaf| self.held_at(&leaf).observation(&leaf, ty));
         match observed {
             Err(error @ crate::Unbound::Unproved(_)) => {
-                self.shared_input_read(&actual, path, ty).ok_or(error)
+                self.entry_input_read(&actual, path, ty)?.ok_or(error)
             }
             other => other,
         }
@@ -8674,7 +8720,7 @@ impl crate::Bindings for AtJoin<'_, '_> {
                 // position names keeps its entry contents at every arrival,
                 // so the join states it over that input as entry clauses do.
                 Err(crate::Unbound::Unproved(_) | crate::Unbound::Unsupported(_))
-                    if let Some(read) = self.inputs.storage.shared_entry_read(
+                    if let Some(read) = self.inputs.storage.entry_read(
                         self.inputs.tables,
                         &Lineage {
                             root,
@@ -8682,6 +8728,7 @@ impl crate::Bindings for AtJoin<'_, '_> {
                         },
                         path,
                         ty,
+                        EntryContents::MaybeWritten,
                     ) =>
                 {
                     Ok(read)
