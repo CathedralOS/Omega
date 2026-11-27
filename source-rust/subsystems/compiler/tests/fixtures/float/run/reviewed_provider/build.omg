@@ -1,7 +1,7 @@
 use main.omg as app;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "reviewed_float_provider");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "reviewed_float_provider" };
     Build::select_provider::<|app|::Reading, |app|::SelectedReading>(builder, linux_x86_64);
     Build::select_provider::<|app|::Reading, |app|::SelectedReading>(builder, linux_arm64);
     Build::select_provider::<|app|::Reading, |app|::SelectedReading>(builder, macos_arm64);

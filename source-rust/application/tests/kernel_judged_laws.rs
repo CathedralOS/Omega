@@ -43,9 +43,9 @@ fn the_same_machine_without_the_citation_is_refused_at_its_ensures() {
     let (output, report) = check("semiring_identity/fail/uncited");
     assert_eq!(output.status.code(), Some(1), "{report}");
     assert!(
-        report.contains("core\\\\Identity::<T>(Ring::add(b, a), Ring::add(a, b))")
+        report.contains("|proof|::Identity::<T>(Ring::add(b, a), Ring::add(a, b))")
             && report.contains(UNPROVED)
-            && report.contains("main.omg:4:9"),
+            && report.contains("main.omg:5:9"),
         "{report}"
     );
 }
@@ -113,7 +113,7 @@ fn right_distributivity_without_its_recursive_call_is_refused_at_the_successor_a
              `Peano::Succ`: core\\\\Identity::<Peano>(times(plus(Peano::Succ(pred), b), c), \
              plus(times(Peano::Succ(pred), c), times(b, c)))"
         ) && report.contains(UNPROVED)
-            && report.contains("main.omg:51:30"),
+            && report.contains("main.omg:52:30"),
         "{report}"
     );
 }
@@ -381,7 +381,7 @@ fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
             "cannot prove the law `lawless` inherits from the requirement it satisfies: \
              core\\\\Identity::<Peano>(plus(plus(a, b), c), plus(a, plus(b, c)))"
         ) && report.contains(UNPROVED)
-            && report.contains("main.omg:18:9"),
+            && report.contains("main.omg:19:9"),
         "{report}"
     );
 }

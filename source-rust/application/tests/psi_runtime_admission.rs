@@ -7,8 +7,8 @@ mod project;
 mod support;
 
 const BUILD: &str = r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "structural_domain_issuer");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "structural_domain_issuer" };
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
     Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
@@ -37,8 +37,8 @@ fn both_engines_replay_eof_for_the_darwin_console_descriptor() {
     let build = format!(
         r#"use main.omg as app;
 use {{omega}}/build/dependency.omg;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "console_descriptor_eof");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application { name: "console_descriptor_eof" };
     let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{}" }}));
     Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }}
@@ -92,8 +92,8 @@ fn failed_standard_input_returns_the_written_prefix() {
     let build = format!(
         r#"use main.omg as app;
 use {{omega}}/build/dependency.omg;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "partial_read_error");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "partial_read_error" }};
     let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{}" }}));
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }}

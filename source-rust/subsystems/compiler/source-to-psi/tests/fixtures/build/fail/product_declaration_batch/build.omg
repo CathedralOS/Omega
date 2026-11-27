@@ -1,7 +1,7 @@
 use main.omg as app;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "product_declaration_batch");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "product_declaration_batch" };
     Build::select_provider::<|app|::LookupService, |app|::UnrelatedLookup>(builder, windows_x86_64);
     Build::select_provider::<|app|::LookupService, |app|::UnrelatedLookup>(builder, linux_x86_64);
     Build::select_provider::<|app|::LookupService, |app|::UnrelatedLookup>(builder, macos_arm64);

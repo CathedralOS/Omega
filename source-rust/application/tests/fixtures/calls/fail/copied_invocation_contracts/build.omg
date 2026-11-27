@@ -1,7 +1,7 @@
 use main.omg as app;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "copied_invocation_contracts");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "copied_invocation_contracts" };
     Build::select_provider::<|app|::Registrar, |app|::Runner>(builder, windows_x86_64);
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     Build::select_provider::<|app|::Registrar, |app|::Runner>(builder, linux_x86_64);

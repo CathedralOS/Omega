@@ -13,7 +13,7 @@ fn inherited_conformance_retains_its_applied_parent() {
     let root = temp.path();
     std::fs::write(
         root.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "inherited"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "inherited" }; }"#,
     )
     .unwrap();
     std::fs::write(

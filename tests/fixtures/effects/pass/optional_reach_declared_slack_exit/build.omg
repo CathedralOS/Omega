@@ -1,6 +1,6 @@
 use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "reach_declared_slack");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "reach_declared_slack" };
     Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);

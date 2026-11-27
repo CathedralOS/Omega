@@ -26,8 +26,8 @@ fn check(name: &str, dependency_build: Option<&str>) -> (bool, String) {
         (
             "build.omg",
             "use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"consumer\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"consumer\" };
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
     |dependency|::with_alias(@mutable description, \"dep\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
@@ -46,7 +46,9 @@ machine build(builder: @mutable Build) {
 fn a_dependency_with_a_build_file_compiles() {
     let (compiled, stderr) = check(
         "declared",
-        Some("machine build(builder: @mutable Build) {\n    Build::package(builder, \"kernel\");\n}\n"),
+        Some(
+            "machine build(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Package { name: \"kernel\" };\n}\n",
+        ),
     );
     assert!(compiled, "{stderr}");
 }
