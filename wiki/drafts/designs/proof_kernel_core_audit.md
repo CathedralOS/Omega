@@ -1521,7 +1521,7 @@ same_sign> as SameSign;` is read into the mathematical signature when
 
 - **Formation.** The signature declares the relation as a definition and
   the quotient as the kernel's quotient of the carrier by it. The kernel's
-  nineteen quotient declarations come first in the signature because the
+  twenty quotient declarations come first in the signature because the
   kernel numbers them from zero. `value as Sign` in a clause is the class of
   `value`; nothing else makes a value of the quotient.
 - **The equivalence is checked, not trusted.** Each row of the selected
@@ -1551,16 +1551,18 @@ same_sign> as SameSign;` is read into the mathematical signature when
   `quotient/fail/lift_selects_another_theorem`, whose lift names a proved
   theorem that is not the congruence.
 - **Not done:**
-  - A lifted operation has no definition, so no clause may apply one. The
-    kernel's `lift` would define it when the representative operation
-    requires nothing; an operation that requires something needs the
-    dependent eliminator. The kernel's `lift` also takes a proof that the
-    result type is a set (`lift_declaration` in
-    `psi/semantics/proofs/mathematical/quotient.rs`). The kernel supplies
-    that for a quotient and for a proposition, not for data, so an
-    operation that returns data cannot be defined this way until identity
-    proofs of that data are shown unique. No program in the library or the
-    samples applies a lifted operation in a clause.
+  - A lifted operation is a definition only where the kernel's `lift`
+    gives one (2026-11-27): one class in, a class or plain data out (the
+    quotient is a set by `setQ`, plain data by Hedberg's theorem), and an
+    operation on representatives that requires nothing. The definition is
+    `lift` of the operation at that class, with the selected congruence as
+    `respect` (through soundness when the result is a class). A proof
+    rewrites it with `lift`'s point computation, a theorem the scheme now
+    derives from `beta` (`QUOTIENT_LIFT_BETA`), so no conversion rule is
+    added. An operation that requires something of its representatives
+    needs the dependent eliminator, and one over two classes needs
+    function extensionality; a term that applies either is refused by
+    name, as is one returning `bool`.
   - `Quotient::lift` with a constant, a computed argument, an omitted formal
     or a formal passed twice, which the specification permits.
   - Anything that needs the kernel's `effective` assumption (equal classes
