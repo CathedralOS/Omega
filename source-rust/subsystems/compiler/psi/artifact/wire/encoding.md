@@ -3160,9 +3160,9 @@ id.
 
 ## Canonical artifact
 
-The transport envelope is `PSIART\0\0` + `u16` format marker 3 + the counted
-section framing below; a receiver rejects an unknown magic, a stale marker,
-an unknown debug-presence tag, and trailing bytes.
+The transport envelope starts with `PSIART\0\0` and a `u16` format marker.
+Marker 3 carries an artifact without publication metadata. Marker 4 carries
+a published artifact. Both use the following field order.
 
 <!-- artifact-framing -->
 | # | Framing field | Bytes |
@@ -3170,18 +3170,31 @@ an unknown debug-presence tag, and trailing bytes.
 | 1 | semantic section length | `u64` byte length of the semantic module section |
 | 2 | optimization section length | `u64` byte length of the optimization execution section |
 | 3 | debug presence | `u8`: 0 absent; 1 + `u64` debug section byte length |
-| 4 | section bytes | semantic, optimization, then debug bytes when present, in that order |
+| 4 | publication section length | Marker 4 only, `u64` byte length of the publication section |
+| 5 | section bytes | Semantic, optimization, debug (when present), then publication (marker 4) |
 
-Decoding is reconstruction: the semantic module validates on its own; the
-optimization and debug sections rebind to it. The artifact manifest is rebuilt
-from the section bytes, never transported. Its identity bytes are `u16`
+The publication section starts with a `u64` byte length followed by that many
+bytes of record-storage encoded `PublishedEntryMetadata`. It records machine
+provenance, whether the program has bound applications, and custody for entry
+and calling declarations. Any bytes remaining in the section form one complete
+`PSIOEVD\0` operation-evidence record for the same semantic module. Ending
+the section immediately after the metadata encodes absent evidence. The
+receiver checks the declarations against the module and validates the evidence
+seals when present.
+
+The receiver validates the semantic module, rebinds the optimization and debug
+sections to it, and reconstructs the artifact manifest. It rejects unknown
+markers and debug tags, truncated sections, trailing bytes and sections that
+do not re-encode to the exact transported bytes. The base manifest identity
+bytes are `u16`
 manifest format marker 4 + the `u16` vocabulary marker + the 32-byte program
 fingerprint + the 32-byte optimization execution identity + the installation
 and then the debug section fingerprints, each `u8` 0 absent or 1 + 32 bytes.
-The identity is the artifact-manifest domain digest of their `u64` byte length
-followed by those bytes. Every decoded section must re-encode
-to the exact transported bytes — a producer's non-canonical serialization
-rejects.
+The base identity hashes those bytes under `psi-terminal-artifact-manifest\0`.
+For a published artifact, hash the entire publication section under
+`psi-publication-section\0`, then hash the 32-byte base identity followed by
+the 32-byte publication fingerprint under `psi-published-artifact\0`. Each
+domain digest includes the `u64` byte length followed by the bytes being hashed.
 
 ## Debug map
 
@@ -3228,7 +3241,7 @@ re-encoding.
 
 ## Mathematical certificate
 
-A mathematical certificate is `PSICORE\0` + `u16` format marker 3 + `u32`
+A mathematical certificate is `PSICORE\0` + `u16` format marker 5 + `u32`
 level arity + the counted node table + the counted declaration signature +
 the counted context + two `u32` root handles. It represents a self-contained
 judgment that the local kernel can decide. Canonical receipt does not perform
@@ -3241,11 +3254,21 @@ shared term table.
 | --- | --- | --- |
 | 1 | level arity | `u32` level parameter count of the judgment |
 | 2 | term table | `u32` node count + concatenated node bytes |
-| 3 | declaration signature | counted rows: `u32` level arity + `u32` statement handle + `u8` body presence (1 + `u32` body handle, or 0) |
+| 3 | declaration signature | Counted rows of `u32` level arity, `u32` statement handle, `u8` body presence (1 + `u32` body handle, or 0), then the declaration kind |
 | 4 | context | counted `u32` binding handles |
 | 5 | judgment roots | `u32` term handle + `u32` expected-type handle |
 
-Every `u32` field in a node row is a handle into earlier rows: the table is a
+Each declaration kind starts with a `u8` tag. Its fields follow in table order.
+
+<!-- certificate-declaration-kind-tags -->
+| Tag | Declaration kind | Fields after the tag |
+| --- | --- | --- |
+| 0 | Ordinary | — |
+| 1 | Inductive | `u32` mutually defined type count, `u32` index within the group, `u32` parameter count, `u32` constructor count |
+| 2 | Constructor | `u32` inductive declaration index, `u32` constructor index |
+| 3 | Recursor | `u32` inductive declaration index |
+
+Child handles in a node row reference earlier rows. The term table is a
 postorder DAG whose nodes are keyed by their own wire bytes, so two encoders
 of the same judgment emit the same table and producer-local aliases collapse
 onto one entry. Signature statements and bodies enter the table first, in
@@ -3311,6 +3334,7 @@ written inline with no sharing table.
 | Optimization execution | Selection/output semantic provenance is rejoined at decoding. |
 | Installation | Separate `PSIINST\0` bytes and identity, retaining realization evidence without granting admission. |
 | Debug map | Replaceable presentation metadata bound to the exact semantic subject, never program meaning. |
+| Publication | Commits the published artifact identity to the exact declaration metadata and optional operation evidence. |
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
@@ -3323,9 +3347,10 @@ outside this codec.
 | --- | --- | --- | --- |
 | semantic module | `PSITERM\0` | 300 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
+| published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |
-| mathematical certificate | `PSICORE\0` | 3 | no |
+| mathematical certificate | `PSICORE\0` | 5 | no |
 
 The reconstructed manifest binds each present component under its own hash domain.
 Absent differs from present-but-empty. Replacing valid nonsemantic evidence

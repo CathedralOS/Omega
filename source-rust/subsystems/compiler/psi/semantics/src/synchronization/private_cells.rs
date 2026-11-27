@@ -46,7 +46,7 @@ pub fn private_wait_failure(
     let selected_entry = module.machine(entry)?;
     let mut root_bindings = Bindings {
         values: entry_scalars(selected_entry),
-        ..Default::default()
+        ..Bindings::new(module, selected_entry)
     };
     if crate::inhabitation::predicates_are_false_with(&selected_entry.requires, |value| {
         root_bindings.values.get(&value)?.known_integer()

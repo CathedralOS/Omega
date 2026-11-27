@@ -51,7 +51,7 @@ pub(super) fn normal_return(
             return None;
         }
         if formal.access != terminal_psi::StructuralAccess::Owned {
-            loans.push(memory.locate(&bindings.places, actual.place, &actual.path)?);
+            loans.push(memory.locate(bindings, actual.place, &actual.path)?);
         }
     }
     for loan in loans {

@@ -110,6 +110,20 @@ impl ScalarFact {
         }))
     }
 
+    pub(super) fn index(self) -> Option<u64> {
+        match self.literal()? {
+            Scalar::Integer {
+                value: IntegerValue::Unsigned(raw),
+                ..
+            } => u64::try_from(raw).ok(),
+            Scalar::Integer {
+                value: IntegerValue::Signed(raw),
+                ..
+            } => u64::try_from(raw).ok(),
+            _ => None,
+        }
+    }
+
     pub fn known_integer(self) -> Option<(ScalarType, IntegerValue)> {
         match self {
             Self::Literal(Scalar::Boolean(v)) => {
