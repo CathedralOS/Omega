@@ -2533,18 +2533,9 @@ pub(crate) mod physical_requirement {
     }
 }
 pub(crate) mod receipt {
-    use std::collections::BTreeSet;
-
-    use selected_instructions::VirtualRegisterId;
-
     use crate::allocation::{RegisterHomePlan, RegisterHomeReceipt, register_home_identity};
-    use selected_instruction_analyses::ValidatedLiveRanges;
-    use selected_instructions::DistinctUseDefTie;
 
-    pub(crate) fn build(
-        plan: &RegisterHomePlan,
-        ranges: &ValidatedLiveRanges,
-    ) -> RegisterHomeReceipt {
+    pub(crate) fn build(plan: &RegisterHomePlan) -> RegisterHomeReceipt {
         RegisterHomeReceipt {
             identity: register_home_identity(plan),
             legality: plan.legality,
@@ -2557,60 +2548,7 @@ pub(crate) mod receipt {
                 .iter()
                 .map(|function| function.assignments.len())
                 .sum(),
-            tied_pair_count: ranges
-                .plan()
-                .functions
-                .iter()
-                .map(|function| function.tied_pairs.len())
-                .sum(),
-            tied_component_count: ranges
-                .plan()
-                .functions
-                .iter()
-                .map(|function| tied_component_count(&function.tied_pairs))
-                .sum(),
-            early_clobber_count: ranges
-                .plan()
-                .functions
-                .iter()
-                .map(|function| function.early_clobbers.len())
-                .sum(),
         }
-    }
-
-    fn tied_component_count(ties: &[DistinctUseDefTie]) -> usize {
-        let mut components = Vec::<BTreeSet<VirtualRegisterId>>::new();
-        for tie in ties {
-            let used = components
-                .iter()
-                .position(|component| component.contains(&tie.use_virtual_register));
-            let defined = components
-                .iter()
-                .position(|component| component.contains(&tie.def_virtual_register));
-            match (used, defined) {
-                (None, None) => components.push(BTreeSet::from([
-                    tie.use_virtual_register,
-                    tie.def_virtual_register,
-                ])),
-                (Some(component), None) => {
-                    components[component].insert(tie.def_virtual_register);
-                }
-                (None, Some(component)) => {
-                    components[component].insert(tie.use_virtual_register);
-                }
-                (Some(left), Some(right)) if left != right => {
-                    let (keep, remove) = if left < right {
-                        (left, right)
-                    } else {
-                        (right, left)
-                    };
-                    let removed = components.remove(remove);
-                    components[keep].extend(removed);
-                }
-                (Some(_), Some(_)) => {}
-            }
-        }
-        components.len()
     }
 }
 
@@ -2637,7 +2575,7 @@ pub(crate) fn assign_register_homes_reusing(
     reuse: Option<&mut compute::FunctionHomeReuse>,
 ) -> Result<AssignedRegisterHomes, RegisterHomeError> {
     let plan = compute::compute_terminal_register_homes(legality, ranges, environment, reuse)?;
-    let receipt = receipt::build(&plan, ranges);
+    let receipt = receipt::build(&plan);
     Ok(AssignedRegisterHomes {
         plan: plan.into(),
         receipt,
@@ -2654,9 +2592,6 @@ copy_receipt! {
         pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
         pub(crate) function_count: usize,
         pub(crate) assignment_count: usize,
-        pub(crate) tied_pair_count: usize,
-        pub(crate) tied_component_count: usize,
-        pub(crate) early_clobber_count: usize,
     }
 }
 

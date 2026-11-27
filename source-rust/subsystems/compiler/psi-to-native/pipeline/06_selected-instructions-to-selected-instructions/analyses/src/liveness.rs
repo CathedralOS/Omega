@@ -1617,9 +1617,21 @@ pub(crate) mod edge_values {
             return Ok(());
         }
         let index = FunctionIndex::new(function);
+        // Operation blocks and invoke terminators each look up one function-wide
+        // row; sort those rows once instead of rescanning them per block.
+        // Provenance keeps Terminal Psi order, so sort a copy.
+        let mut provenance_operations: Option<Vec<_>> = None;
+        let mut calls_by_instruction: Option<Vec<_>> = None;
         for block in &function.blocks {
             if let SelectedBlockOrigin::Operation { operation, .. } = block.origin
-                && (!function.provenance.operations.contains(&operation)
+                && (provenance_operations
+                    .get_or_insert_with(|| {
+                        let mut operations = function.provenance.operations.clone();
+                        operations.sort_unstable();
+                        operations
+                    })
+                    .binary_search(&operation)
+                    .is_err()
                     || block.id == function.entry_block)
             {
                 return Err(mismatch());
@@ -1629,13 +1641,22 @@ pub(crate) mod edge_values {
                 operation,
             } = &block.terminator
             {
-                let mut calls = function
-                    .calls
-                    .iter()
-                    .filter(|row| row.instruction == instruction.id);
-                let (Some(call), None) = (calls.next(), calls.next()) else {
+                let calls = calls_by_instruction.get_or_insert_with(|| {
+                    let mut calls = function
+                        .calls
+                        .iter()
+                        .map(|row| (row.instruction, row))
+                        .collect::<Vec<_>>();
+                    calls.sort_unstable_by_key(|(instruction, _)| *instruction);
+                    calls
+                });
+                let start = calls.partition_point(|(other, _)| *other < instruction.id);
+                let (Some(&(first, call)), next) = (calls.get(start), calls.get(start + 1)) else {
                     return Err(mismatch());
                 };
+                if first != instruction.id || next.is_some_and(|(other, _)| *other == first) {
+                    return Err(mismatch());
+                }
                 if !matches!(block.origin, SelectedBlockOrigin::Operation { operation: owner, .. } if owner == *operation)
                     || !matches!(
                         instruction.kind,

@@ -5,9 +5,6 @@ stack-slot spill store/reload insertion (`runtime_spill`), and live-range copy
 splitting around fixed-register pins (`runtime_split`).
 */
 
-#[allow(unused_imports)]
-pub(crate) use crate::allocation::rewrites::*;
-
 #[cfg(test)]
 #[path = "runtime_spill_and_split_tests.rs"]
 mod tests;
@@ -45,6 +42,7 @@ pub(crate) mod runtime_rematerialization {
 
         pub(crate) struct Admission<'source> {
             pub function: &'source SelectedFunction,
+            /// Ascending, one entry per block that uses the victim.
             pub use_blocks: Vec<usize>,
             pub victim: &'source VirtualRegister,
             pub lineage: Lineage,
@@ -506,7 +504,7 @@ pub(crate) mod runtime_rematerialization {
                             Ok(())
                         };
                     for (block_index, block) in admitted.function.blocks.iter().enumerate() {
-                        if !admitted.use_blocks.contains(&block_index) {
+                        if admitted.use_blocks.binary_search(&block_index).is_err() {
                             continue;
                         }
                         let has_settlements = boundary_settlements
@@ -1167,7 +1165,7 @@ pub(crate) mod runtime_spill {
                         let mut next_instruction = admitted.first_instruction;
                         let mut next_register = admitted.first_register;
                         for (block_index, block) in admitted.function.blocks.iter().enumerate() {
-                            if !admitted.use_blocks.contains(&block_index)
+                            if admitted.use_blocks.binary_search(&block_index).is_err()
                                 && !admitted
                                     .definitions
                                     .iter()
@@ -3706,6 +3704,7 @@ pub(crate) mod runtime_spill {
 
     pub(crate) struct RuntimeSpillDerivation<'source> {
         pub function: &'source SelectedFunction,
+        /// Ascending, one entry per block that uses the victim.
         pub use_blocks: Vec<usize>,
         pub shared_reload: Vec<bool>,
         pub dedicated_tie_uses: Vec<BTreeSet<(usize, u16)>>,

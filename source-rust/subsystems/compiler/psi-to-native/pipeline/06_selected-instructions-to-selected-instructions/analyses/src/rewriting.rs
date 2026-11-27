@@ -581,16 +581,6 @@ impl PreAllocationPolicy {
     const EQUIVALENT_COMPARE_V1_BIT: u32 = 1 << 7;
     const COPIED_CALL_OPERAND_V1_BIT: u32 = 1 << 8;
     const STORED_LOAD_FORWARDING_V1_BIT: u32 = 1 << 9;
-    const KNOWN_BITS: u32 = Self::SAME_BLOCK_COPY_I64_V1_BIT
-        | Self::REDUNDANT_EXTENSION_V1_BIT
-        | Self::ADDRESS_FOLD_V1_BIT
-        | Self::CONSTANT_BOOLEAN_V1_BIT
-        | Self::CONSTANT_BRANCH_V1_BIT
-        | Self::DEAD_COMPARE_V1_BIT
-        | Self::REDUNDANT_COMPARE_V1_BIT
-        | Self::EQUIVALENT_COMPARE_V1_BIT
-        | Self::COPIED_CALL_OPERAND_V1_BIT
-        | Self::STORED_LOAD_FORWARDING_V1_BIT;
 
     pub const SAME_BLOCK_COPY_I64_V1: Self = Self {
         enabled: Self::SAME_BLOCK_COPY_I64_V1_BIT,
@@ -648,12 +638,5 @@ impl PreAllocationPolicy {
 
     pub const fn canonical_bits(self) -> u32 {
         self.enabled
-    }
-
-    pub const fn from_canonical_bits(bits: u32) -> Option<Self> {
-        if bits & !Self::KNOWN_BITS != 0 {
-            return None;
-        }
-        Some(Self { enabled: bits })
     }
 }

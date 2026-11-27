@@ -5,7 +5,6 @@ extension elimination (`redundant_extension`) where the producer instruction
 already normalizes the upper bits.
 */
 
-#[allow(unused_imports)]
 pub(crate) use crate::selected_rewrites::rewrites::*;
 
 pub(crate) mod copied_call_operand {

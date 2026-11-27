@@ -5,7 +5,6 @@ forwarding (`load_forwarding`) when reconstructed alias and path facts prove a
 prior store still governs a subsequent read.
 */
 
-#[allow(unused_imports)]
 pub(crate) use crate::selected_rewrites::rewrites::*;
 
 pub(crate) mod address_fold {

@@ -6,7 +6,6 @@ reached compare is compile-time constant (`constant_branch`), and removing dead,
 redundant, or equivalent flag-publishing compares (`dead_compare`).
 */
 
-#[allow(unused_imports)]
 pub(crate) use crate::selected_rewrites::rewrites::*;
 
 pub(crate) mod constant_boolean {
