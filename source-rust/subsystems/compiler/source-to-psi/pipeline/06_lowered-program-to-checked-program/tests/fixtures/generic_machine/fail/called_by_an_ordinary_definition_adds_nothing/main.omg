@@ -1,0 +1,47 @@
+// The twin of `pass/called_by_an_ordinary_definition` that claims adding
+// one leaves `a` as it is. Unfolding the definitions gives a successor, so
+// the law is refused.
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/foundation.omg as proof;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+machine iterate<machine Step>(n: Peano, a: Peano) -> Peano
+requires machine Step(a: Peano) -> Peano terminates;
+terminates by n
+{
+    transition n {
+        Peano::Zero -> (a),
+        Peano::Succ { pred } -> (Step(iterate::<Step>(pred, a)))
+    }
+}
+
+machine succ(a: Peano) -> Peano
+{
+    transition { _ -> Peano::Succ { pred: a } }
+}
+
+machine plus(n: Peano, a: Peano) -> Peano
+{
+    transition { _ -> (iterate::<succ>(n, a)) }
+}
+
+machine plus_one(a: Peano)
+ensures
+    |proof|::Identity::<Peano>(plus(Peano::Succ { pred: Peano::Zero }, a), a)
+{
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches |process_exit|::ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

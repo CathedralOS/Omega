@@ -1107,7 +1107,7 @@ fn expression_homes<'b>(
     homes: &mut impl FnMut(ValueType, Option<&'b String>, Option<usize>),
 ) {
     match &expression.kind {
-        ExpressionKind::TheoremApplication { .. } => {}
+        ExpressionKind::TheoremApplication { .. } | ExpressionKind::Applied { .. } => {}
         ExpressionKind::Atomic(operation) => {
             for operand in operation.inputs() {
                 expression_homes(operand, slots, homes);
@@ -2508,7 +2508,7 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a scalar expression is used as a record"));
         };
         match &expression.kind {
-            ExpressionKind::TheoremApplication { .. } => {
+            ExpressionKind::TheoremApplication { .. } | ExpressionKind::Applied { .. } => {
                 Err(self.internal("a logical application is used as storage"))
             }
             ExpressionKind::Atomic(_) => {

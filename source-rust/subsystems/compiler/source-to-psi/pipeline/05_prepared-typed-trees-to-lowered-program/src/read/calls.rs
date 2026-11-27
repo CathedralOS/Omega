@@ -737,6 +737,20 @@ impl<'t> Program<'t> {
             return self.runtime_call(id, slots, runtime, arguments, source, None);
         }
         self.bound_target(id, call.target_symbol)?;
+        if call.evidence_arguments.is_empty()
+            && let Some(applied) = self.mathematical_application(
+                id,
+                slots,
+                call.target_symbol,
+                &call.machine_arguments,
+                self.typed
+                    .statement_table
+                    .expression_handles(call.arguments),
+                source,
+            )?
+        {
+            return Ok(applied);
+        }
         if let Some(dispatch) = &call.static_requirement_dispatch {
             return self.requirement_call(
                 id,
@@ -871,6 +885,21 @@ impl<'t> Program<'t> {
             return self.runtime_call(id, slots, runtime, arguments, source, expected);
         }
         self.bound_target(id, call.target_symbol)?;
+        if !call.receiver.is_valid()
+            && call.evidence_arguments.is_empty()
+            && let Some(applied) = self.mathematical_application(
+                id,
+                slots,
+                call.target_symbol,
+                &call.machine_arguments,
+                self.typed
+                    .expression_table
+                    .expression_handles(call.arguments),
+                source,
+            )?
+        {
+            return Ok(applied);
+        }
         // The integer carrier query is answered only through its fields in a
         // static condition (`carriers`); its own body is no answer to run.
         if self.is_carrier_query(call) {
@@ -4659,7 +4688,7 @@ impl Touches<'_> {
         captures: &mut SavedSubjects<'a>,
     ) -> Checked<bool> {
         match &expression.kind {
-            ExpressionKind::TheoremApplication { .. } => Ok(false),
+            ExpressionKind::TheoremApplication { .. } | ExpressionKind::Applied { .. } => Ok(false),
             ExpressionKind::Atomic(operation) => {
                 for operand in operation.inputs() {
                     if self.expression(operand, false, captures)? {

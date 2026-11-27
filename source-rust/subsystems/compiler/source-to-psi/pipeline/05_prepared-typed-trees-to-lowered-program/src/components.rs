@@ -748,7 +748,7 @@ fn call<'body>(
 
 fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyWalk<'body, '_>) {
     match &value.kind {
-        ExpressionKind::TheoremApplication { .. } => {}
+        ExpressionKind::TheoremApplication { .. } | ExpressionKind::Applied { .. } => {}
         ExpressionKind::Atomic(operation) => {
             for operand in operation.inputs() {
                 expression(operand, false, sites);

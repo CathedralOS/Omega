@@ -5134,7 +5134,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         out.push((span, binder.clone()));
     }
     match &expression.kind {
-        ExpressionKind::TheoremApplication { arguments, .. } => {
+        ExpressionKind::TheoremApplication { arguments, .. }
+        | ExpressionKind::Applied { arguments, .. } => {
             for argument in arguments {
                 spans(argument, binder, out);
             }
