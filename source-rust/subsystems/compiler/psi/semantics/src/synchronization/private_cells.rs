@@ -6,6 +6,9 @@ mod aggregate;
 mod computed;
 mod continuation;
 mod control;
+mod guard_order;
+pub use guard_order::GuardOrder;
+pub(super) use guard_order::guard_order;
 mod opaque_calls;
 mod storage;
 mod successor;
@@ -29,7 +32,11 @@ pub fn private_wait_failure(
     let imported_obligations = module.interfaces.boundary_machines.iter().any(|row| {
         matches!(
             boundary(row.id),
-            Some(SelectedCall::ImportedWait(_) | SelectedCall::UnresolvedImport)
+            Some(
+                SelectedCall::ImportedWait(_)
+                    | SelectedCall::ImportedGuards(_)
+                    | SelectedCall::UnresolvedImport
+            )
         )
     });
     if !imported_obligations
@@ -187,10 +194,21 @@ fn advance<'m>(
                     frame.position += 1;
                     continue;
                 };
-            let spin = match selected {
+            let apply_wait = |wait: &super::spin::SpinWait, memory: &mut Storage| {
+                wait::apply(
+                    wait,
+                    &frame.bindings,
+                    memory,
+                    structural_arguments,
+                    |index| frame.bindings.values.get(arguments.get(index)?).copied(),
+                    requirements,
+                    scope,
+                )
+            };
+            let progress = match selected {
                 Some(SelectedCall::Local(id)) => {
                     if let Some(summary) = summaries.get(module, id, boundary) {
-                        summary
+                        apply_wait(&summary, memory)
                     } else {
                         let callee = module.machine(id)?;
                         let args = frame.bindings.arguments(
@@ -210,7 +228,14 @@ fn advance<'m>(
                         continue;
                     }
                 }
-                Some(SelectedCall::ImportedWait(wait)) => wait,
+                Some(SelectedCall::ImportedWait(wait)) => apply_wait(&wait, memory),
+                Some(SelectedCall::ImportedGuards(order)) => order.apply(
+                    memory,
+                    &frame.bindings,
+                    structural_arguments,
+                    requirements,
+                    scope,
+                ),
                 None | Some(SelectedCall::PendingProvider) => {
                     let call = op.declared_invocation()?;
                     let terminal_psi::TargetMachineCallable::Boundary(slot) = call.callee else {
@@ -241,23 +266,8 @@ fn advance<'m>(
                     }
                     return Some(Advance::Continue);
                 }
-                Some(SelectedCall::UnresolvedImport) => {
-                    return Some(Advance::Blocked(PrivateWaitFailure {
-                        machine: frame.machine.id,
-                        operation: op.id,
-                        cause: ProgressFailure::UnprovedImport,
-                    }));
-                }
+                Some(SelectedCall::UnresolvedImport) => Err(ProgressFailure::UnprovedImport),
             };
-            let progress = wait::apply(
-                &spin,
-                &frame.bindings,
-                memory,
-                structural_arguments,
-                |index| frame.bindings.values.get(arguments.get(index)?).copied(),
-                requirements,
-                scope,
-            );
             if let Err(mut cause) = progress {
                 if !certain && cause == ProgressFailure::Deadlock {
                     cause = ProgressFailure::Unproved;

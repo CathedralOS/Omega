@@ -7,8 +7,8 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_codec::{TerminalArtifactView, TerminalExecutionIdentity, TerminalExecutionView};
 use terminal_psi::TerminalPsiIdentity;
 use terminal_semantics::synchronization::{
-    PrivateWaitFailure, ProgressScope, SelectedCall, SpinWait, component_spin_wait,
-    private_wait_failure,
+    GuardOrder, PrivateWaitFailure, ProgressScope, SelectedCall, SpinWait, component_guard_order,
+    component_spin_wait, private_wait_failure,
 };
 
 use crate::{
@@ -32,6 +32,7 @@ pub struct AdmittedComponentProvider {
 enum ImportProgress {
     Closed,
     Waiting(SpinWait),
+    Guards(std::sync::Arc<GuardOrder>),
     Unresolved,
 }
 
@@ -59,7 +60,7 @@ impl AdmittedComponentProvider {
     /// judgment checked the exact projected input obligation.
     pub fn invocation_scope(&self) -> ProgressScope {
         match self.progress {
-            ImportProgress::Waiting(_) => ProgressScope::OpenInterface,
+            ImportProgress::Waiting(_) | ImportProgress::Guards(_) => ProgressScope::OpenInterface,
             _ => ProgressScope::Executable,
         }
     }
@@ -173,6 +174,13 @@ pub fn admit_component_provider<'receiver>(
             selected.candidate,
         ) {
             ImportProgress::Waiting(wait)
+        } else if let Some(order) = component_guard_order(
+            receiver.module(),
+            receiving,
+            provider.module(),
+            selected.candidate,
+        ) {
+            ImportProgress::Guards(std::sync::Arc::new(order))
         } else if private_wait_failure(
             provider.module(),
             selected.candidate,
@@ -224,6 +232,7 @@ pub fn invocation_progress_failure<'a, 'receiver>(
         match &supplier.progress {
             ImportProgress::Closed => None,
             ImportProgress::Waiting(wait) => Some(SelectedCall::ImportedWait(wait.clone())),
+            ImportProgress::Guards(order) => Some(SelectedCall::ImportedGuards(order.clone())),
             ImportProgress::Unresolved => Some(SelectedCall::UnresolvedImport),
         }
     })

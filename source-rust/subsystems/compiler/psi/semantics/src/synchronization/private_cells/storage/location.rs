@@ -161,7 +161,7 @@ impl Location {
 
     /// The extra projections below this exact selection, when it contains
     /// the other place. Equal candidate sets alone cannot establish this.
-    pub(super) fn suffix<'a>(&self, other: &'a Self) -> Option<&'a [Segment]> {
+    pub(in super::super) fn suffix<'a>(&self, other: &'a Self) -> Option<&'a [Segment]> {
         if self.root == other.root
             && self.indices == other.indices
             && self.stable()

@@ -394,22 +394,10 @@ fn independent_wait_uses_the_selected_export_and_the_callers_private_cell() {
                 suppliers.contains(".so"),
                 "expected an independent native supplier: {suppliers}"
             );
-            let mut native = Command::new(application.join("out/omega-program"))
-                .spawn()
-                .unwrap();
-            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-            loop {
-                if let Some(status) = native.try_wait().unwrap() {
-                    assert!(status.success(), "{provider}, {value}: {status}");
-                    break;
-                }
-                if std::time::Instant::now() >= deadline {
-                    native.kill().unwrap();
-                    native.wait().unwrap();
-                    panic!("{provider}, {value}: the selected native supplier did not return");
-                }
-                std::thread::sleep(std::time::Duration::from_millis(10));
-            }
+            project::assert_native_returns(
+                &application.join("out/omega-program"),
+                &format!("{provider}, {value}"),
+            );
         }
     }
 }

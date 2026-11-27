@@ -84,7 +84,11 @@ pub(super) fn unproved(
                 continue;
             };
             match SelectedCall::resolve(call.callee, boundary) {
-                Some(SelectedCall::ImportedWait(_) | SelectedCall::UnresolvedImport) => {
+                Some(
+                    SelectedCall::ImportedWait(_)
+                    | SelectedCall::ImportedGuards(_)
+                    | SelectedCall::UnresolvedImport,
+                ) => {
                     return Some(PrivateWaitFailure {
                         machine: machine.id,
                         operation: op.id,

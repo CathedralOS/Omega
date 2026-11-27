@@ -101,7 +101,10 @@ pub(super) fn apply(
     }
 }
 
-fn require_progress(observation: Observation, scope: ProgressScope) -> Result<(), ProgressFailure> {
+pub(super) fn require_progress(
+    observation: Observation,
+    scope: ProgressScope,
+) -> Result<(), ProgressFailure> {
     match observation {
         Observation::Known(false) | Observation::PendingProvider => Ok(()),
         Observation::Known(true) => Err(ProgressFailure::Deadlock),
@@ -111,7 +114,7 @@ fn require_progress(observation: Observation, scope: ProgressScope) -> Result<()
     }
 }
 
-fn classify(
+pub(super) fn classify(
     memory: &Storage,
     location: &super::storage::Location,
     condition: SpinCondition,
