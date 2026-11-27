@@ -14,7 +14,8 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 use crate::compile_time_invocations::{
-    FixedLayoutTargetScope, PureEvaluationRecord, SourceCompletionAccounting, invocation_error,
+    FixedLayoutTargetScope, PlannedCall, PureEvaluationRecord, SourceCompletionAccounting,
+    invocation_error,
 };
 
 use super::super::demanded_values::{DemandedValues, RoundProgram};
@@ -378,6 +379,26 @@ impl DemandedValues for Initializers<'_> {
 
     fn reaches(&mut self, _program: &TypedTrees, value: usize, reached: &[SymbolHandle]) {
         self.jobs[value].reached = reached.to_vec();
+    }
+
+    /// Each initializer calls its constant's evaluation entry directly,
+    /// whatever deployments later run it.
+    fn plan_round(
+        &mut self,
+        values: &[usize],
+        round: &RoundProgram,
+        _program: &TypedTrees,
+    ) -> Vec<PlannedCall> {
+        values
+            .iter()
+            .filter_map(|&value| {
+                let job = &self.jobs[value];
+                round
+                    .calls()
+                    .plan_entry(job.symbol[0], job.entry[0], &[])
+                    .ok()
+            })
+            .collect()
     }
 
     fn description(&self, program: &TypedTrees, value: usize) -> String {

@@ -26,7 +26,7 @@ use typed_trees_to_prepared_typed_trees::ValueInputs;
 
 use super::demand_order::{DemandOrder, Round};
 use super::{
-    FixedLayoutTargetScope, InvocationSourceConsent, PreparedBuildMachineProgram,
+    FixedLayoutTargetScope, InvocationSourceConsent, PlannedCall, PreparedBuildMachineProgram,
     SourceCompletionAccounting,
 };
 use crate::source_state::TypedTrees;
@@ -77,6 +77,22 @@ pub(super) trait DemandedValues {
         false
     }
 
+    /// Names, before any value of `round` is evaluated, the calls `values`
+    /// (this kind's values in the round) will make through `round.calls()`
+    /// or `round.layout_policies()`. The round freezes their callers
+    /// together (`calls::round_callers`). A value whose call cannot be named
+    /// yet is left out and judged alone when it is evaluated; naming a call
+    /// never refuses anything. A kind that judges its calls in a program of
+    /// its own may share that program's callers here instead.
+    fn plan_round(
+        &mut self,
+        _values: &[usize],
+        _round: &RoundProgram,
+        _program: &TypedTrees,
+    ) -> Vec<PlannedCall> {
+        Vec::new()
+    }
+
     /// Evaluates `value` in `round`'s program and stores the result in
     /// `program`. Called once per value, after every value it waits for.
     fn evaluate(
@@ -91,8 +107,10 @@ pub(super) trait DemandedValues {
 /// The program every value of one round is judged in.
 ///
 /// No value of a round waits for another, so storing one result cannot
-/// change what another reads. They share this one immutable copy. The next
-/// round copies the program again, with this round's results in it.
+/// change what another reads. They share this one immutable copy, and the
+/// callers of their calls are frozen together in one more
+/// ([`RoundProgram::share_calls`]). The next round copies the program
+/// again, with this round's results in it.
 pub(super) struct RoundProgram {
     number: usize,
     calls: PreparedBuildMachineProgram,
@@ -134,6 +152,15 @@ impl RoundProgram {
 
     pub(super) fn layout_policies(&self) -> &PreparedBuildMachineProgram {
         &self.layout_policies
+    }
+
+    /// Freezes the callers of `plans` together for every call this round
+    /// judges through `calls()` or `layout_policies()`.
+    fn share_calls(&mut self, plans: Vec<PlannedCall>) {
+        if plans.len() > 1 {
+            self.calls.share_round_calls(plans);
+            self.layout_policies = self.calls.for_layout_policies();
+        }
     }
 }
 
@@ -273,7 +300,23 @@ fn settle_in_demand_order(
             }
             Round::Evaluate(round) => round,
         };
-        let judged = RoundProgram::of(program, demand, number)?;
+        let mut judged = RoundProgram::of(program, demand, number)?;
+        // Each kind names the calls its values in this round will make
+        // before any of them is evaluated.
+        let mut plans = Vec::new();
+        for (kind, values) in kinds.iter_mut().enumerate() {
+            let in_round = round
+                .iter()
+                .filter_map(|&position| {
+                    let (owner, value) = places[position];
+                    (owner == kind).then_some(value)
+                })
+                .collect::<Vec<_>>();
+            if !in_round.is_empty() {
+                plans.extend(values.plan_round(&in_round, &judged, program));
+            }
+        }
+        judged.share_calls(plans);
         let mut served = false;
         for position in round {
             let (kind, value) = places[position];
