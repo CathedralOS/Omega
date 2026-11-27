@@ -54,11 +54,9 @@ pub fn contract_subjects(
             return Err("logical contract has another fixed subject telescope");
         }
         if !matches!(formal.scalar_type, ScalarType::Boolean)
-            && !matches!(formal.scalar_type, ScalarType::Integer(integer)
-                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                    && !integer.is_address() && integer.minimum_value().is_some() && integer.maximum_value().is_some())
+            && !matches!(formal.scalar_type, ScalarType::Integer(integer) if integer.bits().is_some())
         {
-            return Err("logical contract needs a fixed integer or Boolean subject");
+            return Err("logical contract needs a closed-width integer or Boolean subject");
         }
         subjects.push((formal.id, formal.scalar_type));
     }

@@ -221,3 +221,33 @@ nothing to store. Its initializer is checked as a proof argument is, and
 projecting it supplies that checked citation. Alternatively, a distinct type
 former could name the evidence type of an alias.
 Which spelling declares an evidence field?
+
+<a id="address-subject-lower-bound"></a>
+### 6. May an address subject assume the scalar lower bound `0 <= n`?
+
+The scalar carrier-bound judgment accepts "exactly `MIN <= value` or
+`value <= MAX` for a declared fixed-integer SSA value of the matching signed
+width". Its mathematical form bounds `MathValue` "including an address model's
+width"
+([integer certificates](wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules)).
+An address is "interpreted under the selected target's address model", and
+`usize` is not an Omega carrier
+([counts and addresses](wiki/spec/language/counts_and_addresses.md#separate-roles)).
+Neither section says whether a scalar comparison over an address may use its
+lower endpoint, which no address model changes.
+
+The compiler follows the fixed-integer reading. A logical contract over
+`address` now checks when its premise alone gives the conclusion, as in
+`machine(n: address) requires n == 1 ensures n != 0`. But
+`machine(n: address) requires n != 0 ensures n > 0` is refused with "value has
+no bound", although the `u8` version is accepted, because `n != 0` is
+`n < 0 ∨ 0 < n` and the first arm needs `0 <= n`.
+
+**Recommend that the scalar judgment also accept `0 <= value` for an address
+value**, and keep refusing the scalar upper bound, which depends on the
+target's width. The proposed row text: "Exactly `MIN <= value` or
+`value <= MAX` for a declared fixed-integer SSA value of the matching signed
+width, or `0 <= value` for a declared address value." The alternative keeps
+address order out of scalar proofs, so such a contract must be stated over a
+fixed carrier.
+Which reading holds?

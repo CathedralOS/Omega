@@ -294,3 +294,102 @@ fn a_disjunction_introduced_inside_an_applied_implication_still_names_its_disjun
         .is_err()
     );
 }
+
+fn address_fixture() -> (ScalarType, ValueId, ScalarTerm, ScalarTerm) {
+    let address = IntegerType::address(64).unwrap();
+    let id = ValueId::new(1).unwrap();
+    (
+        ScalarType::Integer(address),
+        id,
+        ScalarTerm::value(id, ScalarType::Integer(address)),
+        ScalarTerm::integer(address, IntegerValue::Unsigned(0)).unwrap(),
+    )
+}
+
+#[test]
+fn an_address_subject_binds_no_scalar_carrier_bound() {
+    let (scalar, id, subject, zero) = address_fixture();
+    let expected = denote_bounded_implication_type(
+        &[(id, scalar)],
+        &[],
+        &[],
+        &Proposition::LessOrEqual(zero, subject),
+        &mut Budget::default(),
+    )
+    .expect("an address subject has a logical type");
+    let mut body = expected.ty;
+    let mut binders = 0;
+    while let Term::Pi { codomain, .. } = expected.arena.get(body) {
+        binders += 1;
+        body = codomain;
+    }
+    assert_eq!(
+        binders, 1,
+        "the scalar carrier-bound judgment refuses address bounds, so none is assumed"
+    );
+}
+
+#[test]
+fn an_address_theorem_is_proved_from_its_premise() {
+    let (scalar, id, subject, zero) = address_fixture();
+    let address = scalar.as_integer().unwrap();
+    let one = ScalarTerm::integer(address, IntegerValue::Unsigned(1)).unwrap();
+    let premise = Proposition::Equal(subject.clone(), one.clone());
+    let goal = Proposition::LessThan(zero.clone(), subject.clone());
+    let node = |conclusion, rule| ProofNode { conclusion, rule };
+    let proof = node(
+        goal.clone(),
+        ProofRule::IntegerStrictOrderTransitivity {
+            left_to_middle: Box::new(node(
+                Proposition::LessThan(zero, one.clone()),
+                ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+            )),
+            middle_to_right: Box::new(node(
+                Proposition::LessOrEqual(one.clone(), subject.clone()),
+                ProofRule::IntegerOrderWeakening {
+                    relation: Box::new(node(
+                        Proposition::Equal(one, subject),
+                        ProofRule::EqualitySymmetry {
+                            equality: Box::new(node(
+                                premise.clone(),
+                                ProofRule::Assumption { index: 0 },
+                            )),
+                        },
+                    )),
+                },
+            )),
+        },
+    );
+    verify_bounded_theorem(
+        &[(id, scalar)],
+        &[],
+        &goal,
+        std::slice::from_ref(&premise),
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .expect("the premise alone establishes the conclusion");
+}
+
+#[test]
+fn an_address_theorem_cannot_assume_a_scalar_carrier_bound() {
+    let (scalar, id, subject, zero) = address_fixture();
+    let goal = Proposition::LessOrEqual(zero, subject);
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::Primitive(PrimitiveJudgment::IntegerCarrierBound),
+    };
+    assert!(
+        verify_bounded_theorem(
+            &[(id, scalar)],
+            &[],
+            &goal,
+            &[],
+            &[],
+            &proof,
+            &mut Budget::default(),
+        )
+        .is_err()
+    );
+}
