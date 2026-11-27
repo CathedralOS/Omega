@@ -252,6 +252,9 @@ pub(crate) mod build_filesystem {
         CreateDirectory,
         MapDirectory,
         ForwardDirectory,
+        OpenFile,
+        ReadFile,
+        CloseFile,
     }
 
     #[derive(Debug, PartialEq, Eq, record_storage::Record)]

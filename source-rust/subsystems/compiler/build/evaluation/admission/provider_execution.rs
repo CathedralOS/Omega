@@ -218,9 +218,11 @@ impl BuildProviderScope {
             .filter(|call| demand.imports.contains(&call.site.boundary))
         {
             match call.action {
-                Fs::ReadAll if !filesystem_scope.has_captured_files() => {
+                Fs::ReadAll | Fs::OpenFile | Fs::ReadFile | Fs::CloseFile
+                    if !filesystem_scope.has_captured_files() =>
+                {
                     return Err(failure(
-                        "Build requires Filesystem::read_all before entry, but the caller supplied no captured filesystem",
+                        "Build requires captured filesystem input for the installed reader before entry",
                     ));
                 }
                 Fs::WriteAll | Fs::CreateDirectory

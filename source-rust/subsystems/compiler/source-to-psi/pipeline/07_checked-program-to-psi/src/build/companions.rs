@@ -346,6 +346,9 @@ fn installed_filesystem_operation(
         return None;
     }
     let action = match operation {
+        "open" => TerminalBuildFilesystemOperation::OpenFile,
+        "read" => TerminalBuildFilesystemOperation::ReadFile,
+        "close" => TerminalBuildFilesystemOperation::CloseFile,
         "read_all" => TerminalBuildFilesystemOperation::ReadAll,
         "write_all" => TerminalBuildFilesystemOperation::WriteAll,
         "create_dir" => TerminalBuildFilesystemOperation::CreateDirectory,
