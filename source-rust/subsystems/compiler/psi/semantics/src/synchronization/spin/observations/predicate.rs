@@ -1,7 +1,10 @@
 //! A shared Boolean expression for the edges that retry. Each node refers
 //! only to earlier nodes; repeated joins share their predecessors.
 
+mod stable_words;
+
 use super::{SpinCondition, Subject};
+use stable_words::StableWords;
 use std::ops::Not;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,23 +117,46 @@ impl Predicate {
         })
     }
 
-    pub(in super::super::super) fn evaluate(
+    pub(in super::super::super) fn evaluate<K: Eq + std::hash::Hash>(
         &self,
-        mut observe: impl FnMut(&Subject, SpinCondition) -> Observation,
+        mut observe: impl FnMut(&Subject, SpinCondition) -> (Observation, Option<K>),
     ) -> Observation {
-        let mut answers = vec![Observation::Known(false)];
+        let mut answers = vec![Observation::Known(false); self.nodes.len() + 1];
+        let mut words = StableWords::default();
+        for (index, node) in self.nodes.iter().enumerate() {
+            if let Node::Observation(subject, test) = node {
+                let (answer, stable_word) = observe(subject, *test);
+                answers[index + 1] = answer;
+                if let Some(word) = stable_word
+                    && answer == Observation::Unproved
+                {
+                    words.record(word, index + 1, *test);
+                }
+            }
+        }
+        let result = self.reduce(&mut answers);
+        if result == Observation::Unproved {
+            words
+                .decide(&mut answers, |answers| self.reduce(answers))
+                .unwrap_or(result)
+        } else {
+            result
+        }
+    }
+
+    fn reduce(&self, answers: &mut [Observation]) -> Observation {
         let value = |answers: &[Observation], guard: Guard| {
             let answer = answers[guard.node];
             if guard.inverted { !answer } else { answer }
         };
-        for node in &self.nodes {
+        for (index, node) in self.nodes.iter().enumerate() {
             let answer = match node {
-                Node::Observation(subject, test) => observe(subject, *test),
-                Node::Both(left, right) => value(&answers, *left).and(value(&answers, *right)),
+                Node::Observation(..) => continue,
+                Node::Both(left, right) => value(answers, *left).and(value(answers, *right)),
                 Node::Select(test, yes, no) => {
-                    let yes = value(&answers, *yes);
-                    let no = value(&answers, *no);
-                    match value(&answers, *test) {
+                    let yes = value(answers, *yes);
+                    let no = value(answers, *no);
+                    match value(answers, *test) {
                         Observation::Known(true) => yes,
                         Observation::Known(false) => no,
                         _ if yes == no => yes,
@@ -143,9 +169,9 @@ impl Predicate {
                     }
                 }
             };
-            answers.push(answer);
+            answers[index + 1] = answer;
         }
-        value(&answers, self.retry)
+        value(answers, self.retry)
     }
 }
 

@@ -53,7 +53,7 @@ impl SpinCondition {
         (ty == expected).then(|| self.accepts(actual.cmp(&pivot)))
     }
 
-    fn accepts(self, order: Ordering) -> bool {
+    pub(super) fn accepts(self, order: Ordering) -> bool {
         (self.comparison.order == order) == self.positive
     }
 
