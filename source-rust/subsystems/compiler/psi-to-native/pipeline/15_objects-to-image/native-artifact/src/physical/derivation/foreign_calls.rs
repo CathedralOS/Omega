@@ -49,7 +49,6 @@ use terminal_psi::OperationResult;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_normalized_foreign_child(
-    pass: crate::physical::PhysicalEvidencePass,
     result_geometry: &calling_conventions::terminal_layout::StructuralLayoutResolver<'_>,
     occurrence: &OptimizedBoundaryOccurrence,
     projection: NativeOptimizationProjectionIdentity,
@@ -222,7 +221,6 @@ pub(crate) fn derive_normalized_foreign_child(
     let fragment_rejoin = publication
         .map(|publication| {
             fragment_normalized_foreign_rejoin(
-                pass,
                 publication,
                 occurrence,
                 foreign,
@@ -531,27 +529,22 @@ pub(crate) fn derive_normalized_foreign_child(
     if ordinal_cursor.next().is_some() {
         return Err("normalized foreign D41 child changed its callback target custody");
     }
-    pass.verify(|| {
-        let validated_plan = if let Some(callback) = callbacks.first() {
-            calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
-                foreign.binding.boundary_entry_plan.clone(),
-                &signature,
-                &callback.target.registrar_context,
-            )
-            .map_err(
-                |_| "normalized foreign D41 child contains an invalid callback boundary entry plan",
-            )?
-        } else {
-            validate_boundary_entry_plan(foreign.binding.boundary_entry_plan.clone(), &signature)
-                .map_err(
-                    |_| "normalized foreign D41 child contains an invalid boundary entry plan",
-                )?
-        };
-        if validated_plan.plan() != &foreign.binding.boundary_entry_plan {
-            return Err("normalized external child changed its boundary plan during replay");
-        }
-        Ok(())
-    })?;
+    let validated_plan = if let Some(callback) = callbacks.first() {
+        calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+            foreign.binding.boundary_entry_plan.clone(),
+            &signature,
+            &callback.target.registrar_context,
+        )
+        .map_err(
+            |_| "normalized foreign D41 child contains an invalid callback boundary entry plan",
+        )?
+    } else {
+        validate_boundary_entry_plan(foreign.binding.boundary_entry_plan.clone(), &signature)
+            .map_err(|_| "normalized foreign D41 child contains an invalid boundary entry plan")?
+    };
+    if validated_plan.plan() != &foreign.binding.boundary_entry_plan {
+        return Err("normalized external child changed its boundary plan during replay");
+    }
     let boundary_plan_identity = foreign
         .binding
         .boundary_entry_plan
@@ -642,7 +635,6 @@ pub(crate) fn derive_normalized_foreign_child(
         .collect::<Vec<_>>();
     let intervals = CoveredInvocationIntervals::derive(function, &matching_attributions)?;
     intervals.require_invocation(
-        pass,
         fragment_rejoin.map(|rejoin| rejoin.call_span),
         target.architecture,
         foreign,
@@ -1018,7 +1010,6 @@ pub(crate) fn derive_normalized_foreign_child(
     };
 
     let byte_digests = intervals.byte_digests(
-        pass,
         function.bytes(object),
         object.text_bytes(),
         image,
@@ -1261,7 +1252,6 @@ impl CoveredInvocationIntervals {
 
     fn require_invocation(
         &self,
-        pass: crate::physical::PhysicalEvidencePass,
         placed: Option<&machine_code::PlacedInstructionSpan>,
         architecture: target::Architecture,
         foreign: &ObjectForeignCall,
@@ -1286,9 +1276,7 @@ impl CoveredInvocationIntervals {
                     let end = offset
                         .checked_add(5)
                         .ok_or("foreign x86 call end overflow")?;
-                    if pass.is_receiver()
-                        && object_bytes.get(offset..end) != Some(&[0xe8, 0, 0, 0, 0])
-                    {
+                    if object_bytes.get(offset..end) != Some(&[0xe8, 0, 0, 0, 0]) {
                         return Err(
                             "foreign object call differs from its exact x86 import instruction",
                         );
@@ -1301,9 +1289,8 @@ impl CoveredInvocationIntervals {
                         .checked_add(4)
                         .ok_or("foreign aarch64 call end overflow")?;
                     if !foreign.text_offset.is_multiple_of(4)
-                        || pass.is_receiver()
-                            && object_bytes.get(foreign.text_offset..end)
-                                != Some(&0x9400_0000_u32.to_le_bytes())
+                        || object_bytes.get(foreign.text_offset..end)
+                            != Some(&0x9400_0000_u32.to_le_bytes())
                     {
                         return Err(
                             "foreign object call differs from its exact aarch64 import instruction",
@@ -1321,7 +1308,6 @@ impl CoveredInvocationIntervals {
 
     fn byte_digests(
         &self,
-        pass: crate::physical::PhysicalEvidencePass,
         machine_bytes: &[u8],
         object_bytes: &[u8],
         final_image_bytes: &[u8],
@@ -1344,26 +1330,22 @@ impl CoveredInvocationIntervals {
             let before_machine = span(machine_bytes, *machine_span)?;
             let before_object = span(object_bytes, *object_span)?;
             let after_image = span(final_image_bytes, *image_span)?;
-            if pass.is_receiver() && before_machine != before_object {
+            if before_machine != before_object {
                 return Err("normalized foreign call changed before object custody");
             }
-            if pass.is_receiver() {
-                for (byte_index, (before, after)) in
-                    before_object.iter().zip(after_image).enumerate()
+            for (byte_index, (before, after)) in before_object.iter().zip(after_image).enumerate() {
+                let offset = object_span
+                    .offset()
+                    .checked_add(byte_index)
+                    .ok_or("normalized foreign covered byte offset overflow")?;
+                if before != after
+                    && !mutable_offsets
+                        .iter()
+                        .any(|(start, end)| offset >= *start && offset < *end)
                 {
-                    let offset = object_span
-                        .offset()
-                        .checked_add(byte_index)
-                        .ok_or("normalized foreign covered byte offset overflow")?;
-                    if before != after
-                        && !mutable_offsets
-                            .iter()
-                            .any(|(start, end)| offset >= *start && offset < *end)
-                    {
-                        return Err(
-                            "normalized foreign bytes changed outside their exact relocation set",
-                        );
-                    }
+                    return Err(
+                        "normalized foreign bytes changed outside their exact relocation set",
+                    );
                 }
             }
             machine_digest.update(before_machine);
@@ -1385,16 +1367,14 @@ pub(super) mod floating_control {
     use target::Architecture;
 
     pub(in crate::physical::derivation) fn rejoin(
-        pass: crate::physical::PhysicalEvidencePass,
         publication: &FragmentPublicationBinding,
         record: &SelectedNormalizedForeignCall,
         foreign: &ObjectForeignCall,
     ) -> bool {
-        check(pass, publication, record, foreign) == Some(())
+        check(publication, record, foreign) == Some(())
     }
 
     fn check(
-        pass: crate::physical::PhysicalEvidencePass,
         publication: &FragmentPublicationBinding,
         record: &SelectedNormalizedForeignCall,
         foreign: &ObjectForeignCall,
@@ -1447,9 +1427,6 @@ pub(super) mod floating_control {
         let restored_bytes = section
             .bytes
             .get(restore_offset..restore_offset.checked_add(restore_count)?)?;
-        if !pass.is_receiver() {
-            return Some(());
-        }
         let slots = match target.architecture {
             Architecture::Aarch64 => {
                 target_aarch64::inspection::floating_control_slots(saved_bytes, restored_bytes)

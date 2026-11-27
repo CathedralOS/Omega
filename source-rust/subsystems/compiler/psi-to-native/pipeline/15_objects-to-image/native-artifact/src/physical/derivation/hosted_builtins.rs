@@ -134,7 +134,6 @@ struct ReadByteResult {
 }
 
 fn read_byte_result(
-    pass: crate::physical::PhysicalEvidencePass,
     result: &machine_code::BoundaryStructuralResultRecord,
     occurrence: &OptimizedBoundaryOccurrence,
     target: NativeTarget,
@@ -159,9 +158,6 @@ fn read_byte_result(
         .home_byte_offset
         .checked_add(result.layout.payload_byte_offset)
         .ok_or("hosted read-byte physical child result home overflow")?;
-    if !pass.is_receiver() {
-        return Ok(None);
-    }
     let byte_count = match target.architecture {
         Architecture::X86_64 => usize::from(
             target_x86_64::form_effects::hosted_read_byte::leaf_bytes(target),
@@ -243,7 +239,6 @@ fn bind_scalar_form(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_hosted_builtin_child(
-    pass: crate::physical::PhysicalEvidencePass,
     builtin: &HostedBuiltinSettlement,
     occurrence: &OptimizedBoundaryOccurrence,
     projection: NativeOptimizationProjectionIdentity,
@@ -286,7 +281,7 @@ pub(crate) fn derive_hosted_builtin_child(
             };
             (
                 CompilerBuiltinResult::Structural(result.clone()),
-                read_byte_result(pass, result, occurrence, target)?,
+                read_byte_result(result, occurrence, target)?,
             )
         }
     };
@@ -313,26 +308,23 @@ pub(crate) fn derive_hosted_builtin_child(
     let machine_bytes = span(function.bytes(object), machine_span)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
     let final_image_bytes = span(image, final_image_span)?;
-    if pass.is_receiver()
-        && (machine_bytes != object_bytes
-            || object_bytes != final_image_bytes
-            || expected.is_some_and(|expected| {
-                let home = match target.architecture {
-                    Architecture::X86_64 => {
-                        target_x86_64::inspection::decode_hosted_read_byte_operand(
-                            target,
-                            machine_bytes,
-                        )
-                    }
-                    Architecture::Aarch64 => {
-                        target_aarch64::inspection::decode_aarch64_selected_hosted_read_byte(
-                            target,
-                            machine_bytes,
-                        )
-                    }
-                };
-                home != Some(expected.home)
-            }))
+    if machine_bytes != object_bytes
+        || object_bytes != final_image_bytes
+        || expected.is_some_and(|expected| {
+            let home = match target.architecture {
+                Architecture::X86_64 => target_x86_64::inspection::decode_hosted_read_byte_operand(
+                    target,
+                    machine_bytes,
+                ),
+                Architecture::Aarch64 => {
+                    target_aarch64::inspection::decode_aarch64_selected_hosted_read_byte(
+                        target,
+                        machine_bytes,
+                    )
+                }
+            };
+            home != Some(expected.home)
+        })
     {
         return Err("hosted builtin physical child bytes changed across physical custody");
     }

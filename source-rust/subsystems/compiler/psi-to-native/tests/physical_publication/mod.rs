@@ -1094,14 +1094,13 @@ fn check_canonical_publication(
     let native_artifact::RequestedNativeArtifact::Direct(native) = requested else {
         panic!("Windows image is direct");
     };
-    assert!(
-        native.physical_evidence().is_some(),
-        "retained staged source establishes complete physical scope"
-    );
-    assert_eq!(
-        native.physical_evidence().unwrap().children().len(),
-        usize::from(through_boundary)
-    );
+    let derivation = native
+        .physical_evidence()
+        .expect("an audit derives physical evidence from the emitted bytes");
+    let native_artifact::NativePhysicalEvidenceDerivation::Complete(physical) = &derivation else {
+        panic!("retained staged source establishes complete physical scope: {derivation:?}");
+    };
+    assert_eq!(physical.children().len(), usize::from(through_boundary));
     let receipt = native_artifact::PreparedExecutablePublication::new(&native)
         .expect("fresh emission can be published without replay reports")
         .into_receipt(std::path::PathBuf::from("published-program"))
@@ -1123,11 +1122,14 @@ fn check_canonical_publication(
         "absent replay reports do not exempt changed bytes from receiver replay"
     );
     let identity = native.identity();
-    let mut parts = native.into_parts();
-    parts.physical_evidence = None;
-    assert!(
-        native_artifact::NativeArtifact::from_replayed_parts(parts).is_err(),
-        "receiver must reject stripped complete physical evidence"
+    // Emission published the bytes without deriving evidence. A receiver that
+    // re-derives it from the same parts must reach the same identity.
+    let replayed = native_artifact::NativeArtifact::from_replayed_parts(native.into_parts())
+        .expect("receiver replays the published parts");
+    assert_eq!(
+        replayed.identity(),
+        identity,
+        "artifact identity is independent of the receiver's evidence pass"
     );
     (identity, originals, archive)
 }
