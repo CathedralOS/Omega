@@ -750,10 +750,10 @@ pub(crate) mod runtime_spill {
         };
         use crate::allocation::assignment::home_assignment::compute::FunctionHomeReuse;
         use crate::allocation::{
-            RuntimeSpillError, RuntimeSpillSpanPolicy, StagedOptimizedSelectedReanalysis,
-            materialize_selected_fixed_occurrences, rematerialize_selected_runtime_value,
-            spill_selected_runtime_value, spill_selected_runtime_value_with_crossing_status,
-            split_selected_runtime_value,
+            BlockDominance, RuntimeSpillError, RuntimeSpillSpanPolicy,
+            StagedOptimizedSelectedReanalysis, materialize_selected_fixed_occurrences,
+            rematerialize_selected_runtime_value, spill_selected_runtime_value,
+            spill_selected_runtime_value_with_crossing_status, split_selected_runtime_value,
         };
         use crate::allocation::{
             ValidatedRuntimeSpill, ValidatedRuntimeSplit, ValidatedSelectedAnalysis,
@@ -888,17 +888,40 @@ pub(crate) mod runtime_spill {
                 .collect()
         }
 
+        /// Whether a spill, split or rematerialization might relieve pressure by
+        /// rewriting `register`. Selection scratch qualifies in two shapes: a
+        /// 128-bit packed vector, which spills to a 16-byte slot, and a
+        /// `FrameAddress` result, which rematerializes before each use.
         fn is_recovery_candidate(
             body: &selected_instructions::SelectedFunction,
             register: &selected_instructions::VirtualRegister,
         ) -> bool {
-            matches!(
-                register.origin,
+            match register.origin {
                 VirtualRegisterOrigin::InstructionResult { .. }
-                    | VirtualRegisterOrigin::BlockParameter { .. }
-                    | VirtualRegisterOrigin::StructuralObservation { .. }
-                    | VirtualRegisterOrigin::AbiTransport { .. }
-            ) || body.is_entry_register(register)
+                | VirtualRegisterOrigin::BlockParameter { .. }
+                | VirtualRegisterOrigin::StructuralObservation { .. }
+                | VirtualRegisterOrigin::AbiTransport { .. } => true,
+                VirtualRegisterOrigin::InstructionScratch { instruction, .. } => register
+                    .scalar_type
+                    .as_integer()
+                    .is_some_and(|integer| integer.bits() == Some(128))
+                    || body
+                        .blocks
+                        .instruction_block(instruction)
+                        .and_then(|block| {
+                            let index =
+                                body.blocks.instruction_index_in_block(block, instruction)?;
+                            body.blocks[block].instructions.get(index)
+                        })
+                        .is_some_and(|definition| {
+                            matches!(
+                                definition.kind,
+                                selected_instructions::SelectedInstructionKind::FrameAddress { .. }
+                            )
+                        })
+                    || body.is_entry_register(register),
+                _ => body.is_entry_register(register),
+            }
         }
 
         pub(crate) fn transformations(
@@ -1517,6 +1540,33 @@ pub(crate) mod runtime_spill {
             best.map(|(_, reg)| (roster.function, reg))
         }
 
+        /// The dominance of `function` in `selected`. One recovery step builds it
+        /// on first use and shares it with every split, rematerialization and spill
+        /// it tries on that program.
+        fn step_dominance<'step>(
+            built: &'step mut Option<BlockDominance>,
+            selected: &impl ValidatedSelectedAnalysis,
+            function: usize,
+        ) -> Result<&'step BlockDominance, RuntimeSpillAllocationError> {
+            let mismatch =
+                || RuntimeSpillAllocationError::Rewrite(RuntimeSpillError::SourceMismatch);
+            if built
+                .as_ref()
+                .is_none_or(|dominance| dominance.function() != function)
+            {
+                let body = selected
+                    .selected_plan()
+                    .functions
+                    .get(function)
+                    .ok_or_else(mismatch)?;
+                *built = Some(
+                    BlockDominance::of_function(function, body)
+                        .map_err(RuntimeSpillAllocationError::Rewrite)?,
+                );
+            }
+            built.as_ref().ok_or_else(mismatch)
+        }
+
         #[allow(clippy::too_many_arguments)]
         fn admissible_split_indexed(
             domain: Option<&FailedDomain<'_>>,
@@ -1524,6 +1574,7 @@ pub(crate) mod runtime_spill {
             selected: &impl ValidatedSelectedAnalysis,
             environment: &register_environment::ValidatedTargetRegisterEnvironment,
             budget: OptimizationWorkBudget,
+            dominance: &mut Option<BlockDominance>,
         ) -> Result<
             Option<((usize, VirtualRegisterId), ValidatedRuntimeSplit)>,
             RuntimeSpillAllocationError,
@@ -1575,6 +1626,7 @@ pub(crate) mod runtime_spill {
                     register,
                     environment,
                     budget,
+                    step_dominance(dominance, selected, function)?,
                 ) {
                     Ok(split) => return Ok(Some(((function, register), split))),
                     Err(error) if error.is_inadmissible() => {
@@ -1784,12 +1836,14 @@ pub(crate) mod runtime_spill {
                 let roster: &mut FunctionRoster = rosters.entry(pressured).or_insert_with(|| {
                     FunctionRoster::new(pressured, candidates(selected.plan(), pressured))
                 });
+                let mut dominance = None;
                 let split = admissible_split_indexed(
                     domain.as_ref(),
                     roster,
                     &selected,
                     environment,
                     budget,
+                    &mut dominance,
                 )?;
                 let before_use = if split.is_none() {
                     if let crate::allocation::RegisterHomeError::NoCommonCandidate {
@@ -1891,6 +1945,7 @@ pub(crate) mod runtime_spill {
                     };
                     roster.remove_register(register);
                     rewritten_candidate = (function, register);
+                    let dominance = step_dominance(&mut dominance, &selected, function)?;
 
                     match rematerialize_selected_runtime_value(
                         &selected,
@@ -1898,6 +1953,7 @@ pub(crate) mod runtime_spill {
                         register,
                         environment,
                         budget,
+                        dominance,
                     ) {
                         Ok(rewrite) => RuntimeSpillStepRewrite::Rematerialization(rewrite),
                         Err(_) => {
@@ -1910,6 +1966,7 @@ pub(crate) mod runtime_spill {
                                     environment,
                                     budget,
                                     RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                                    dominance,
                                 ) {
                                     Ok((crossing, false)) => {
                                         bounded_already = Some(crossing);
@@ -1966,6 +2023,7 @@ pub(crate) mod runtime_spill {
                                     register,
                                     environment,
                                     budget,
+                                    dominance,
                                 ) {
                                     Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
                                     Err(error) if inadmissible(&error) => continue,

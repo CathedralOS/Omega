@@ -1808,6 +1808,7 @@ pub use runtime_rematerialization::{
     RuntimeRematerializationError, ValidatedRuntimeRematerialization,
     rematerialize_selected_runtime_value,
 };
+pub(crate) use runtime_spill::BlockDominance;
 pub use runtime_spill::{
     RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, spill_selected_runtime_value,
     spill_selected_runtime_value_with_crossing_status,

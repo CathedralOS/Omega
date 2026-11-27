@@ -48,7 +48,10 @@ pub(crate) fn inline_and_simplify(
     let copy_class = validate_copy_row(copy_row, keys.copy_i64)?;
     validate_jump_row(jump_row, keys.jump)?;
 
-    let (order, in_cycle) = compute_bottom_up_order(functions);
+    // Inlining rewrites caller bodies but never a function's `machine`, so one
+    // index built here answers every call site's callee lookup.
+    let machines = MachineIndex::new(functions);
+    let (order, in_cycle) = compute_bottom_up_order(functions, &machines);
 
     for caller_idx in order {
         let mut next_call_site: u32 = 0;
@@ -62,8 +65,7 @@ pub(crate) fn inline_and_simplify(
                 else {
                     continue;
                 };
-                let Some(callee_idx) = functions.iter().position(|f| f.machine == callee_machine)
-                else {
+                let Some(callee_idx) = machines.function(callee_machine) else {
                     continue;
                 };
                 if callee_idx == caller_idx || in_cycle[callee_idx] {
@@ -143,21 +145,38 @@ fn borrow_caller_and_callee(
     }
 }
 
+/// Finds a function's position by its `MachineId` with a binary search over
+/// `(machine, position)` pairs sorted once. When two functions share a machine,
+/// the lookup returns the first position, as a linear scan would.
+struct MachineIndex(Vec<(MachineId, usize)>);
+
+impl MachineIndex {
+    fn new(functions: &[SelectedFunction]) -> Self {
+        let mut positions: Vec<(MachineId, usize)> = functions
+            .iter()
+            .enumerate()
+            .map(|(idx, function)| (function.machine, idx))
+            .collect();
+        positions.sort_unstable();
+        Self(positions)
+    }
+
+    fn function(&self, machine: MachineId) -> Option<usize> {
+        let first = self.0.partition_point(|&(entry, _)| entry < machine);
+        self.0
+            .get(first)
+            .filter(|&&(entry, _)| entry == machine)
+            .map(|&(_, idx)| idx)
+    }
+}
+
 /// Computes a bottom-up topological order of SCCs (callees before callers) via
 /// Tarjan's algorithm and marks every function belonging to a cycle or self-loop.
-fn compute_bottom_up_order(functions: &[SelectedFunction]) -> (Vec<usize>, Vec<bool>) {
-    let mut index_by_machine: Vec<(MachineId, usize)> = functions
-        .iter()
-        .enumerate()
-        .map(|(idx, function)| (function.machine, idx))
-        .collect();
-    index_by_machine.sort_by_key(|&(machine, _)| machine);
-    let lookup_machine = |machine: MachineId| -> Option<usize> {
-        index_by_machine
-            .binary_search_by_key(&machine, |&(entry, _)| entry)
-            .ok()
-            .map(|pos| index_by_machine[pos].1)
-    };
+fn compute_bottom_up_order(
+    functions: &[SelectedFunction],
+    machines: &MachineIndex,
+) -> (Vec<usize>, Vec<bool>) {
+    let lookup_machine = |machine: MachineId| machines.function(machine);
     let n = functions.len();
     let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
     let mut has_self_loop = vec![false; n];
