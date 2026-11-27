@@ -521,7 +521,7 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             result_placement(
                 signature.result,
                 NativeCallingConvention::MicrosoftX64.integer_result_registers(),
-                |index| MachineRegister::X86Xmm(index),
+                MachineRegister::X86Xmm,
             )?
         },
         callback_materializations: Vec::new(),
