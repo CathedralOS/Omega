@@ -69,6 +69,39 @@ fn data_identity_is_reflexive_but_distinct_subjects_need_a_premise() {
 }
 
 #[test]
+fn raw_float_identity_denotes_equality_of_exact_bits() {
+    use semantic_vocabulary::{
+        ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue, IeeeFloatValue,
+    };
+    let identity = |left: u64, right: u64| {
+        let value = |bits| ClauseValue {
+            carrier: ClauseCarrier::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)),
+            operand: ClauseOperand::Scalar(ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(
+                bits,
+            ))),
+        };
+        Proposition::DeclarationIdentity(ClauseIdentity {
+            values: vec![value(left), value(right)],
+            left: 0,
+            right: 1,
+        })
+    };
+    let nan = 0x7ff8_0000_0000_0001;
+    // One NaN encoding is identical to itself; another payload and the other
+    // zero are different representations.
+    for (left, right, denotation) in [
+        (nan, nan, Proposition::Truth),
+        (nan, 0x7ff8_0000_0000_0002, Proposition::Falsehood),
+        (0, 0x8000_0000_0000_0000, Proposition::Falsehood),
+    ] {
+        let goal = identity(left, right);
+        let checked =
+            check_predicate_denotations(&PropositionContext::default(), &goal, &[], &[]).unwrap();
+        assert_eq!(checked.goal(), &denotation, "{left:#x} {right:#x}");
+    }
+}
+
+#[test]
 fn closed_ieee_order_preserves_nan_signed_zero_and_format() {
     use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatValue};
     // Signed zero, NaN, infinities, and a subnormal stay inside the comparison.

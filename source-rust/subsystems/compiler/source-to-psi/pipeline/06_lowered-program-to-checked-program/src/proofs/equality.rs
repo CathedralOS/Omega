@@ -3323,7 +3323,17 @@ pub(crate) fn discharge(
         {
             // Only the caller owes this hypothesis. Rejoin the row to this
             // machine's published input clause before binding its proof.
-            if machine.requires.get(*clause as usize) != Some(premise) {
+            // A clause over an input's field, such as a raw float Identity
+            // of `a.x`, is known over the value that field held, as these
+            // bindings state it.
+            let declared = machine.requires.get(*clause as usize);
+            let mut stated = || {
+                let declared = declared?;
+                let entry = declarations.entry.as_deref_mut()?;
+                crate::entry_snapshot_conjuncts(declared, entry).ok()
+            };
+            if declared != Some(premise) && !stated().is_some_and(|stated| stated.contains(premise))
+            {
                 return Err(unavailable(
                     "entry equality differs from its declared requirement",
                 ));
@@ -3407,6 +3417,36 @@ pub(crate) fn discharge(
             .contents
             .iter()
             .any(|held| held == left || held == right)
+        {
+            continue;
+        }
+        premises.push(
+            declarations
+                .scalar_identity(left, right)
+                .map_err(unavailable)?,
+        );
+        citations.push(row);
+    }
+    // A float value defined as a literal or as another value holds exactly
+    // those bits, which is its raw identity (wiki/spec/terminal-psi/mathematical_values.md,
+    // "Float equality and source identity"). A float computed by arithmetic
+    // stays opaque: its NaN payload is not fixed by its operands.
+    for (&row, axiom) in known.axiom_rows.iter().zip(&known.axioms) {
+        let Proposition::Equal(left, right) = axiom else {
+            continue;
+        };
+        let exact = |term: &ScalarTerm| {
+            matches!(
+                term,
+                ScalarTerm::Value { .. } | ScalarTerm::IeeeFloatLiteral(_)
+            )
+        };
+        if !matches!(
+            left.scalar_type(),
+            semantic_vocabulary::ScalarType::IeeeFloat(_)
+        ) || left.scalar_type() != right.scalar_type()
+            || !exact(left)
+            || !exact(right)
         {
             continue;
         }

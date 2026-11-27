@@ -275,3 +275,74 @@ fn the_returned_comparison_is_the_operation_on_the_same_values() {
         "machine same(a: Coin, b: Coin) -> bool ensures result == (a == b) { b == a }\n",
     ));
 }
+
+/// Raw `Identity<f32>` and `Identity<f64>` compare exact same-format bits
+/// (`wiki/spec/terminal-psi/mathematical_values.md`, "Float equality and
+/// source identity"): not IEEE `==`, and not the payload-erased meaning.
+const PROOF: &str = "use {omega}/language/core/foundation.omg as proof;\n";
+
+fn proof(program: &str) -> String {
+    format!("{PROOF}{program}")
+}
+
+#[test]
+fn raw_float_identity_is_reflexive_and_follows_exact_copies() {
+    for program in [
+        "machine same(x: f64) ensures |proof|::Identity::<f64>(x, x) {}",
+        "machine flip(x: f64, y: f64) requires |proof|::Identity::<f64>(x, y) ensures |proof|::Identity::<f64>(y, x) {}",
+        "machine flip(x: f32, y: f32) requires |proof|::Identity::<f32>(x, y) ensures |proof|::Identity::<f32>(y, x) {}",
+        "machine copy(x: f64) -> f64 ensures |proof|::Identity::<f64>(result, x) { x }",
+        "machine pass(x: f64, y: f64) -> f64 requires |proof|::Identity::<f64>(x, y) ensures |proof|::Identity::<f64>(result, y) { x }",
+        "machine zero() -> f64 ensures |proof|::Identity::<f64>(result, 0.0f64) { 0.0f64 }",
+        "machine zero() ensures |proof|::Identity::<f64>(0.0f64, 0.0f64) {}",
+    ] {
+        accepted(&proof(program));
+    }
+}
+
+#[test]
+fn signed_zeros_are_not_identical() {
+    for program in [
+        "machine zeros() ensures |proof|::Identity::<f64>(0.0f64, -0.0f64) {}",
+        "machine zero() -> f64 ensures |proof|::Identity::<f64>(result, -0.0f64) { 0.0f64 }",
+    ] {
+        call_requirement_or_ensures_unproved(&proof(program));
+    }
+}
+
+#[test]
+fn a_record_is_identical_when_its_float_field_is() {
+    accepted(&proof(
+        "data P { x: f64; n: i32; }
+machine same(a: P, b: P)
+requires |proof|::Identity::<f64>(a.x, b.x)
+requires |proof|::Identity::<i32>(a.n, b.n)
+ensures |proof|::Identity::<P>(a, b) {}
+",
+    ));
+    call_requirement_or_ensures_unproved(&proof(
+        "data P { x: f64; n: i32; }
+machine same(a: P, b: P)
+requires |proof|::Identity::<i32>(a.n, b.n)
+ensures |proof|::Identity::<P>(a, b) {}
+",
+    ));
+}
+
+#[test]
+fn ieee_equality_and_raw_identity_do_not_stand_for_each_other() {
+    // IEEE `==` relates signed zeros and never a NaN to itself, so neither
+    // direction holds; a clause cannot state one to prove the other.
+    refused_before_checking(
+        &proof(
+            "machine from_ieee(x: f64, y: f64) requires x == y ensures |proof|::Identity::<f64>(x, y) {}",
+        ),
+        "contract IEEE comparison without its selected declaration",
+    );
+    refused_before_checking(
+        &proof(
+            "machine to_ieee(x: f64, y: f64) requires |proof|::Identity::<f64>(x, y) ensures x == y {}",
+        ),
+        "contract IEEE comparison without its selected declaration",
+    );
+}
