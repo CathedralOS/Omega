@@ -263,3 +263,71 @@ fn checked_computation_on_a_constrained_input_can_supply_the_releasing_value() {
     let source = input_wait("requires input == 1", "forward(input +% 1u32)");
     execute_with_input(&source, 1);
 }
+
+// Two outcomes of one conditional write the same private cell. Both callees
+// return to the same caller, where the single wait must account for both values.
+fn wait_after_choice(on_true: u32, on_false: u32, condition: &str) -> String {
+    format!(
+        "{AWAIT_CHANGE}
+        machine choose(signal: @Signal, first: bool) {{
+            transition first {{
+                true -> left(signal),
+                _ -> right(signal)
+            }}
+            machine left(signal: @Signal) {{ signal.word.store({on_true}, Publish); }}
+            machine right(signal: @Signal) {{ signal.word.store({on_false}, Publish); }}
+        }}
+        machine build_entry(input: u32) {{
+            let mutable signal: Signal;
+            choose(@signal, {condition});
+            await_change(@signal);
+        }}"
+    )
+}
+
+#[test]
+fn distinct_releasing_values_after_a_conditional_both_make_progress() {
+    let source = wait_after_choice(0, 2, "input == 0");
+    execute_with_input(&source, 0);
+    execute_with_input(&source, 1);
+}
+
+#[test]
+fn holding_after_both_arms_is_a_deadlock_after_the_join() {
+    reject_deadlock(&wait_after_choice(1, 1, "input == 0"));
+}
+
+#[test]
+fn releasing_on_only_one_arm_leaves_a_located_progress_obligation() {
+    let source = wait_after_choice(0, 1, "input == 0");
+    let RouteVerdict::Rejected {
+        unproved,
+        violations,
+        ..
+    } = judge_build(&source).unwrap()
+    else {
+        panic!("expected a conditional progress obligation");
+    };
+    assert!(violations.is_empty(), "{violations:?}");
+    let [progress] = unproved.as_slice() else {
+        panic!("{unproved:?}");
+    };
+    let span = progress.site.authored_span().unwrap();
+    assert!(source[span.span.start..span.span.end].contains("await_change"));
+    assert!(matches!(
+        progress.source,
+        crate::ObligationSource::SynchronizationProgress(_)
+    ));
+}
+
+#[test]
+fn an_unreachable_holding_arm_cannot_block_the_wait() {
+    execute_with_input(&wait_after_choice(0, 1, "true"), 7);
+}
+
+#[test]
+fn repeated_joins_reach_the_wait_after_the_last_acquisition() {
+    let call = "choose(@signal, input == 0);";
+    let sequence = format!("{}signal.word.store(1, Publish);", call.repeat(32));
+    reject_deadlock(&wait_after_choice(0, 2, "input == 0").replace(call, &sequence));
+}
