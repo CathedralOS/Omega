@@ -144,14 +144,16 @@ pub(super) fn judged_library_files(nat: &str, files: &[(&str, &str)]) -> Vec<Rou
 }
 
 #[test]
-fn core_division_is_structural_and_gcd_descends_by_the_remainder_bound() {
+fn core_division_and_gcd_are_structural() {
     // `div` and `mod` of `core/nat.omg` project one structural helper,
     // `divide_step`, so neither recurses on fuel nor owes a descent. `mod`
     // states its strict bound and `div_mod_reconstruction` the equation
     // `div(a, b) * b + mod(a, b) = a`, each from the helper's invariant.
-    // `gcd` still calls itself at the computed `mod(a, b)`: it owes `mod`'s
-    // premise at that call and the call's descent, which `mod`'s bound
-    // proves.
+    // `gcd` is `gcd_within` at its divisor as the bound on Euclid's steps,
+    // which recurses on that bound alone. `gcd_within_agrees` proves every
+    // sufficient bound gives the same answer, and `gcd_step` states
+    // Euclid's step `gcd(a, b) = gcd(b, mod(a, b))` from it. No machine of
+    // the file is defined on fuel.
     let verdicts = judged_library(&[]);
     let judgment = signature(&verdicts);
     let judged = |machine: &str| {
@@ -172,10 +174,15 @@ fn core_division_is_structural_and_gcd_descends_by_the_remainder_bound() {
     assert_eq!(judged("div_mod_reconstruction"), 1, "reconstruction");
     assert_eq!(judged("divide_reconstructs"), 1, "the helper's invariant");
     assert_eq!(judged("divide_bounds"), 1, "the helper's remainder bound");
-    assert!(
-        judged("gcd") >= 2,
-        "the premise of `mod` at its call and the descent"
+    assert_eq!(judged("gcd"), 0, "no descent: the bound is structural");
+    assert_eq!(judged("gcd_within"), 0, "no premise owed at its call");
+    assert_eq!(judged("le_trans"), 1, "transitivity of the order");
+    assert_eq!(
+        judged("gcd_within_agrees"),
+        1,
+        "every sufficient bound agrees"
     );
+    assert_eq!(judged("gcd_step"), 1, "Euclid's step");
     for law in &judgment.laws {
         assert!(
             matches!(law.decision, MathematicalCoreDecision::Judged(_)),

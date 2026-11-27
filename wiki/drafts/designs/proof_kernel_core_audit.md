@@ -1299,6 +1299,21 @@ starts with records.
   strict bound hold on every admitted input. The prover now reduces a
   projection of a pair, so a law can read a field of a computed record. Only
   `gcd` still recurses at a computed value, on fuel with its descent checked.
+- **Structural gcd (2026-11-27).** `gcd` is no longer defined on fuel
+  either. It is `gcd_within(b, a, b)`: Euclid's algorithm with an explicit
+  bound on its steps, recursing on the bound alone. The divisor bounds the
+  steps because each remainder is strictly below its divisor
+  (`divide_bounds`). `gcd_within_agrees` proves by induction on the bound
+  that every bound at least the divisor gives the same answer, the source
+  form of "the counter suffices" in the computed descent ruling, and
+  `gcd_step` turns it into Euclid's step, `gcd(a, b) = gcd(b, mod(a, b))`
+  for a positive `b`. `le_trans` joins the order lemmas. Core now has no
+  machine defined on fuel. The compiler's fuel definition remains for a
+  program's own machine with computed descent; for those, the order's
+  well-foundedness and the sufficiency of the fuel are still not proved, so
+  their recursive equations are not available to a law. The termination
+  spec's "core proves once that this order is well founded" is not yet
+  true of the implementation.
 - **A choice by a computed value** (`rat_eq`, `mod`) is a definition by
   cases of its own over its subject and the variables in scope, so the
   prover computes with it as with any other. In a law, a split on a computed
