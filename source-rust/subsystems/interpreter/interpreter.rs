@@ -44,8 +44,6 @@ mod call_observations;
 #[path = "embedding/layout_target.rs"]
 mod layout_target;
 pub use call_observations::{ObservedTerminalCall, TerminalCallObservation};
-#[path = "embedding/continuation.rs"]
-mod continuation;
 #[path = "embedding/program.rs"]
 mod embedding;
 #[path = "instructions/calls.rs"]
@@ -152,8 +150,8 @@ pub use embedding::adapters::{
     TerminalImportStructuralParameter, TerminalScalarImport, TerminalUnitImport,
 };
 pub use embedding::instance::{
-    TerminalBindingRejection, TerminalComponentBinding, TerminalEntryCall, TerminalEntryCalls,
-    TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError, TerminalObservationRoot,
+    TerminalBindingRejection, TerminalComponentBinding, TerminalInstance,
+    TerminalInstanceCloseError, TerminalInstanceError, TerminalObservationRoot,
     TerminalProcessExitAdmission, TerminalReturnedLoan, TerminalReturnedLoanError,
     TerminalStorageObservationError, TerminalStorageObservationValue,
 };

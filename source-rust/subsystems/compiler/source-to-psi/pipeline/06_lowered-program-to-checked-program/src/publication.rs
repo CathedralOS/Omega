@@ -409,13 +409,6 @@ mod tests {
             }
             assert!(entry.blocks.iter().any(|next| next.id == *target
                 && matches!(next.terminator, terminal_psi::Terminator::ReturnUnit { .. })));
-            terminal_semantics::continuation::CheckedPrefix::check(
-                view.module(),
-                (entry.id, call.id),
-                view.module(),
-                (entry.id, call.id),
-            )
-            .expect("the ordinary successor agrees with the checked ownership at the call");
         }
     }
 

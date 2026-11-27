@@ -39,7 +39,6 @@ pub mod references;
 pub mod scalar_qualifications;
 mod scalar_target_ranges;
 pub use scalar_target_ranges::{TargetScalarRange, layout_call_conditions, target_scalar_ranges};
-pub mod continuation;
 pub mod scalars;
 pub mod static_reach;
 pub mod storage;

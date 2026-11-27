@@ -366,17 +366,6 @@ pub(crate) mod byte_arrays {
         }
 
         impl StructuralByteArrayStorage {
-            pub(crate) fn relocate_checked_entry(
-                &mut self,
-                map: &crate::continuation::Coordinates<'_, '_>,
-            ) -> Result<(), String> {
-                map.ty(&mut self.structural_type)?;
-                match &mut self.backing {
-                    StructuralByteArrayBacking::Local(bytes) => bytes.relocate_checked_entry(map),
-                    StructuralByteArrayBacking::Cells(cells) => map.packed(cells),
-                }
-            }
-
             pub(crate) fn new(
                 structural_type: StructuralTypeId,
                 bytes: ByteSequenceView,

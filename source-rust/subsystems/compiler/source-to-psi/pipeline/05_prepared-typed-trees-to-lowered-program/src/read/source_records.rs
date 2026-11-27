@@ -529,7 +529,6 @@ impl Program<'_> {
         module: &mut terminal_psi::TerminalModule,
     ) -> Checked<()> {
         let mut identities = std::mem::take(&mut module.identities).into_builder();
-        let mut file_digests = Vec::new();
         let result = (|| {
             for source in records {
                 let position = module
@@ -538,7 +537,7 @@ impl Program<'_> {
                     .binary_search_by_key(&source.record, |row| row.id)
                     .map_err(|_| malformed(machine, "source fields lost their canonical record"))?;
                 let declaration = &mut module.types.structural_types[position];
-                let (identity, has_exact_owner) =
+                let (identity, _) =
                     crate::source_state::reflection::construction::exact_symbol_identity(
                         self.typed,
                         source.declaration,
@@ -553,27 +552,6 @@ impl Program<'_> {
                     ));
                 }
                 declaration.declaration_identity = identities.intern(&identity);
-                let mut origin = if identities.is_invocation_scoped()
-                    && source.layout.is_none()
-                    && !source.policy.is_valid()
-                    && source.schema == source.declaration
-                    && self
-                        .typed
-                        .data_definition_by_symbol(source.declaration)
-                        .is_some_and(|d| {
-                            d.generic_instance.is_none()
-                                && d.type_parameters.is_empty()
-                                && d.lifetime_parameters.is_empty()
-                        }) {
-                    crate::declare::BuildDeclarationOccurrence::new(
-                        self.typed,
-                        source.declaration,
-                        &mut file_digests,
-                        b"omega.authored-build-record.v1",
-                    )
-                } else {
-                    None
-                };
                 let shape = &mut declaration.shape;
                 let original = self.data_type(machine, source.record)?;
                 let source_record = terminal_check_tables::row(
@@ -609,15 +587,6 @@ impl Program<'_> {
                         .map_err(|_| {
                             malformed(machine, "canonical case lost its exact source declaration")
                         })?;
-                    if let Some(row) = &mut origin
-                        && !self
-                            .typed
-                            .symbols
-                            .symbol_source_span(*symbol)
-                            .is_some_and(|span| row.add(span))
-                    {
-                        origin = None;
-                    }
                     case.declaration_identity = identities.intern(&identity);
                 }
                 let mut fields = Vec::with_capacity(source.fields.len());
@@ -630,7 +599,7 @@ impl Program<'_> {
                         .map_err(|_| {
                             malformed(machine, "canonical field lost its exact source declaration")
                         })?;
-                    fields.push((field.field, identities.intern(&identity), field.declaration));
+                    fields.push((field.field, identities.intern(&identity)));
                 }
                 fields.sort_unstable_by_key(|(field, ..)| *field);
                 if fields.windows(2).any(|pair| pair[0].0 == pair[1].0)
@@ -654,30 +623,6 @@ impl Program<'_> {
                         ));
                     }
                     field.declaration_identity = fields[position].1;
-                    if let Some(row) = &mut origin
-                        && !self
-                            .typed
-                            .symbols
-                            .symbol_source_span(fields[position].2)
-                            .is_some_and(|span| row.add(span))
-                    {
-                        origin = None;
-                    }
-                }
-                if let Some(row) = origin {
-                    identities
-                        .retain_invocation_record(
-                            source.record,
-                            row.package,
-                            Some(row.digest.finish()),
-                        )
-                        .map_err(|reason| malformed(machine, reason))?;
-                } else if identities.is_invocation_scoped() && !has_exact_owner {
-                    // Reflection can describe this occurrence by its display path.
-                    // That path cannot identify a local application in another invocation.
-                    identities
-                        .retain_invocation_record(source.record, None, None)
-                        .map_err(|reason| malformed(machine, reason))?;
                 }
             }
             Ok(())

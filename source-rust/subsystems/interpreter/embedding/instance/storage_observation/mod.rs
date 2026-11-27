@@ -49,17 +49,16 @@ impl From<TerminalInterpretError> for TerminalStorageObservationError {
 
 impl TerminalInstance<'_, '_> {
     /// Read the issued value at a borrowed empty record or inline field after
-    /// normal return or a completed entry call. A record constructed by the guest
-    /// has no issued value.
+    /// normal return. A record constructed by the guest has no issued value.
     pub fn borrowed_entry_host_atom(
         &self,
         argument_index: u32,
         path: &[terminal_psi::StructuralPathSegment],
     ) -> Result<Option<TerminalStructuralValue>, TerminalInterpretError> {
         let execution = self.execution.as_ref().ok_or_else(malformed)?;
-        if execution.result.is_none() && self.completed_entry_call.is_none() {
+        if execution.result.is_none() {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                "projected host identity observation requires normal return or a completed entry call",
+                "projected host identity observation requires normal return",
             ));
         }
         let (_, _, root) = execution
