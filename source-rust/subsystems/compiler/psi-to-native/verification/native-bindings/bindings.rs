@@ -570,13 +570,18 @@ fn validate_native_geometry(
         let geometry =
             calling_conventions::terminal_layout::NativeGeometry::new(&module.types.structural_types)
                 .map_err(|error| format!("native type catalog: {error:?}"))?;
-        let expected = geometry
-            .shape(kind)
-            .map_err(|error| format!("native descriptor layout: {error:?}"))?;
-        if actual.class != BoundaryValueClass::Reference
-            || u32::from(actual.byte_size) != expected.byte_size
-            || actual.alignment != expected.alignment
-        {
+        let referent = match shape.shape {
+            terminal_psi::StructuralTypeShape::Reference { referent, .. } => module
+                .structural_type(referent)
+                .map(|referent| &referent.shape),
+            _ => None,
+        };
+        let canonical = || {
+            geometry
+                .shape(kind)
+                .map_err(|error| format!("native descriptor layout: {error:?}"))
+        };
+        if !foreign_reference_matches(actual, referent, canonical)? {
             return Err("native descriptor calling shape differs from its canonical type".into());
         }
         Ok(())
@@ -628,6 +633,35 @@ fn validate_native_geometry(
         }
         _ => Err("native calling result differs from its canonical requirement".into()),
     }
+}
+
+/// Whether a foreign reference value has the calling shape its canonical
+/// type requires. A reference to a scalar is a 16-byte address-and-codec
+/// descriptor inside the program, but the foreign side passes only the
+/// address; the foreign call plan rebuilds the descriptor around it. Every
+/// other reference crosses with its canonical shape.
+fn foreign_reference_matches(
+    actual: &calling_conventions::BoundaryValueShape,
+    referent: Option<&terminal_psi::StructuralTypeShape>,
+    canonical: impl FnOnce() -> Result<calling_conventions::ValueShape, String>,
+) -> Result<bool, String> {
+    let scalar_referent = matches!(
+        referent,
+        Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar))
+            if runtime_abi::ScalarStorageCodec::from_scalar(*scalar).is_some()
+    );
+    let (byte_size, alignment) = if scalar_referent {
+        let descriptor = runtime_abi::ScalarReferenceLayout::NATIVE;
+        (descriptor.address_byte_size, descriptor.alignment)
+    } else {
+        let expected = canonical()?;
+        (expected.byte_size, expected.alignment)
+    };
+    Ok(
+        actual.class == calling_conventions::BoundaryValueClass::Reference
+            && u32::from(actual.byte_size) == byte_size
+            && actual.alignment == alignment,
+    )
 }
 
 fn validate_owned_aggregate(
@@ -805,6 +839,30 @@ mod tests {
                 .unwrap_err()
                 .contains("omitted result must retain exact Unit")
         );
+    }
+
+    #[test]
+    fn a_foreign_scalar_reference_crosses_as_its_address_alone() {
+        use calling_conventions::{BoundaryValueClass, BoundaryValueShape, ValueShape};
+        let reference = |byte_size| BoundaryValueShape {
+            class: BoundaryValueClass::Reference,
+            byte_size,
+            alignment: 8,
+        };
+        let i32_cell = terminal_psi::StructuralTypeShape::PrimitiveScalar(
+            semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+                    .unwrap(),
+            ),
+        );
+        let descriptor = || Ok(ValueShape::integer(16, 8));
+        assert!(foreign_reference_matches(&reference(8), Some(&i32_cell), descriptor).unwrap());
+        // The in-program descriptor itself is not what the foreign side passes.
+        assert!(!foreign_reference_matches(&reference(16), Some(&i32_cell), descriptor).unwrap());
+        // Any other referent keeps its canonical shape.
+        let pointer = || Ok(ValueShape::integer(8, 8));
+        assert!(foreign_reference_matches(&reference(8), None, pointer).unwrap());
+        assert!(!foreign_reference_matches(&reference(8), None, descriptor).unwrap());
     }
 
     #[test]

@@ -1,16 +1,12 @@
-// FAIL CANARY -- `support` is issued only as a Build dependency. Its helper
-// declares `public machine launch()`, but that edge grants no Product selection
-// scope. Only the executed Product query uses the file alias, so the refusal
-// occurs when Product lookup checks the dependency grant.
+// FAIL CANARY -- `support` is supplied only as a Build library at invocation.
+// Its helper declares `public machine launch()`, but a Build library grants no
+// Product selection scope. Only the executed Product query uses the file alias,
+// so the refusal occurs when Product lookup checks the dependency grant.
 
-use {omega}/build/dependency.omg;
 use {support}/setup/setup.omg;
 
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "product_entry_query_build_scope_alias" };
-    let mutable support_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "helper" });
-    |dependency|::with_alias(@mutable support_dependency, "support");
-    let support_registration: DependencyRegistration = Build::build_dependency(builder, support_dependency);
     let entry: ProductEntryRef = BuildDeclarations::entry(@builder.declarations, "|setup|::launch", "windows_x86_64::ProgramEntry");
     Build::bind(builder, windows_x86_64::ProgramEntry, entry);
 }

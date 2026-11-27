@@ -11,9 +11,9 @@ source that asked: a path through a Product dependency alias names a public
 declaration of that dependency, and a Build-scope edge of the same alias
 grants nothing to the Product.
 
-The first two programs differ only in the scope of the dependency edge their
-Build registers under the alias `support`. With a Product edge the entry is
-found and the program compiles. With a Build edge the alias names no Product
+The first two programs differ only in how `support` reaches the Build. As a
+Product dependency the Build registers, the entry is found and the program
+compiles. As a Build library supplied at invocation, the alias names no Product
 dependency, so the path names nothing and the Build is refused for it.
 
 The invoker can supply a different Build library under the Product alias.
@@ -72,20 +72,42 @@ fn an_entry_described_through_a_product_dependency_alias_compiles() {
 
 #[test]
 fn an_entry_asked_through_a_build_scope_alias_names_nothing() {
-    let (compiled, stderr) =
-        check("tests/fixtures/build/fail/product_entry_query_build_scope_alias");
-    assert!(!compiled);
+    let root = support::repository_root()
+        .join("tests/fixtures/build/fail/product_entry_query_build_scope_alias");
+    let output = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "build-scope-query",
+        false,
+    )
+    .unwrap();
+    let diagnostic = supplied_product(
+        &root,
+        "support",
+        root.join("helper").to_str().unwrap(),
+        target::TargetProfile::WindowsX64,
+        output.path(),
+    )
+    .err()
+    .expect("a Build library grants no Product selection scope");
+    // The root's own private `launch` shares the leaf name, so the refusal
+    // reports a declaration that is not visible through this path.
     assert!(
-        stderr.contains(
-            "product entry `|setup|::launch` names no machine in this build occurrence's package"
+        diagnostic.contains(
+            "product entry `|setup|::launch` is not a product declaration visible from this build occurrence's package"
         ),
-        "{stderr}"
+        "{diagnostic}"
     );
 }
 
-/// Supply the external Build library at invocation. Run the resulting Product
-/// artifact through the CLI so both engines exercise the entry the Build bound.
-fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Result<(), String> {
+/// Supply an external Build library under `alias` at invocation, compile the
+/// Product its Build selects to Psi, and save it under `output`. Returns the
+/// saved artifact's path and manifest identity.
+fn supplied_product(
+    root: &Path,
+    alias: &str,
+    library: &str,
+    target: target::TargetProfile,
+    output: &Path,
+) -> Result<(std::path::PathBuf, String), String> {
     use build_declarations::{BuildDependencySource, ProjectName};
     use compiler::{Artifact, CompileRequest};
     use package_manager::project::{BuildLibraryRequest, ProjectInput, open_products};
@@ -94,14 +116,9 @@ fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Re
     package_compilation::toolchain_library::configure(
         &support::repository_root().join("source/library"),
     )?;
-    let output = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "supplied-query-product",
-        false,
-    )
-    .unwrap();
     let libraries = [BuildLibraryRequest {
         max_reach: Default::default(),
-        alias: ProjectName::parse("kit").unwrap(),
+        alias: ProjectName::parse(alias).unwrap(),
         source: BuildDependencySource::Path(library.into()),
     }];
     let products = open_products(
@@ -112,7 +129,7 @@ fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Re
         &[target],
         true,
         false,
-        &output.path().join("build"),
+        &output.join("build"),
         Default::default(),
     )
     .map_err(|errors| format!("{errors:?}"))?;
@@ -128,7 +145,7 @@ fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Re
         panic!("requested Psi");
     };
     let mut published = CompletedProduct::from_published_psi(artifact)?;
-    let path = output.path().join("program.psi");
+    let path = output.join("program.psi");
     CompletedProduct::save_shared_psi(&mut [&mut published], &path)?;
     let manifest = published
         .artifact()
@@ -136,6 +153,18 @@ fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Re
         .manifest()
         .identity()
         .to_string();
+    Ok((path, manifest))
+}
+
+/// Supply the external Build library at invocation. Run the resulting Product
+/// artifact through the CLI so both engines exercise the entry the Build bound.
+fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Result<(), String> {
+    let output = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "supplied-query-product",
+        false,
+    )
+    .unwrap();
+    let (path, manifest) = supplied_product(root, "kit", library, target, output.path())?;
     let path = path.to_str().unwrap();
     for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
         let arguments = [
@@ -183,7 +212,7 @@ machine build(builder: @mutable BuildPlan) suspends {
     machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: "wrong" }; }
 }
 machine entry(builder: @mutable BuildPlan, slot: @[u8]) -> ProductEntryRef {
-    BuildDeclarations::entry(@builder.declarations, "kit::launch", slot)
+    BuildDeclarations::entry(@builder.declarations, "|kit|::launch", slot)
 }
 "#.replace("HOST", host.target_name());
     let scratch = project::stage(
@@ -209,14 +238,18 @@ machine entry(builder: @mutable BuildPlan, slot: @[u8]) -> ProductEntryRef {
     let tools = root.join("tools/main.omg");
     std::fs::write(&tools, "public machine choose() -> i32 { 8 }").unwrap();
     let diagnostic = run_with_kit(root, "tools", host).unwrap_err();
-    assert!(diagnostic.contains("project role"), "{diagnostic}");
+    // `choose` now returns 8, so the Build takes `wrong` and binds no entry.
+    assert!(
+        diagnostic.contains("has no unique checked entry contract"),
+        "{diagnostic}"
+    );
 
     std::fs::write(&tools, "public machine choose() -> i32 { 7 }").unwrap();
     std::fs::write(root.join("runtime/main.omg"), "machine launch() {}").unwrap();
     let diagnostic = run_with_kit(root, "tools", host).unwrap_err();
     assert!(
         diagnostic
-            .contains("product entry `kit::launch` is not a product declaration visible from"),
+            .contains("product entry `|kit|::launch` is not a product declaration visible from"),
         "{diagnostic}"
     );
 }
