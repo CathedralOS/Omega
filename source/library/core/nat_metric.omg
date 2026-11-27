@@ -554,3 +554,22 @@ ensures
     |nat|::add_zero_right(a);
     transition { _ -> |nat|::Nat::Zero }
 }
+
+// The gap between two sums is at most the sum of the summands' gaps: the
+// triangle through `b + c`, with a shared summand cancelled from each side.
+machine nat_gap_add_add(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat, d: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            nat_gap(|nat|::add(a, c), |nat|::add(b, d)),
+            |nat|::add(nat_gap(a, b), nat_gap(c, d))
+        ),
+        |nat|::Nat::Zero
+    )
+{
+    _ = nat_gap_triangle(|nat|::add(a, c), |nat|::add(b, c), |nat|::add(b, d));
+    |nat|::add_comm(a, c);
+    |nat|::add_comm(b, c);
+    nat_gap_add_common(c, a, b);
+    nat_gap_add_common(b, c, d);
+}

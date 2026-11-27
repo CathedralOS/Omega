@@ -105,6 +105,21 @@ satisfies |algebra|::CommutativeSemiring<Nat>::one
     transition { _ -> Nat::Succ { prev: Nat::Zero } }
 }
 
+// Small constants the rational and real proofs scale by. A constant is
+// written on the left of `mul`, which recurses on its left operand, so the
+// proof engine unfolds it.
+machine two() -> Nat {
+    transition { _ -> (Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }) }
+}
+
+machine four() -> Nat {
+    transition { _ -> (Nat::Succ { prev: Nat::Succ { prev: Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } } } }) }
+}
+
+machine five() -> Nat {
+    transition { _ -> (Nat::Succ { prev: Nat::Succ { prev: Nat::Succ { prev: Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } } } } }) }
+}
+
 // Extraction lemmas: proven library lemmas -- the structural entailment
 // judge discharges each ensures at
 // compile time, so every program importing this module carries machine-
