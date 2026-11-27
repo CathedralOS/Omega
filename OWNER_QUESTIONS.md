@@ -205,7 +205,36 @@ only owners edit `wiki/spec/`. Keep or rewrite them as you see fit.
 and the spec page is the only description a separate reader has of these rows.
 Should the encoding spec describe them this way?
 
-### 5. May `encoding.md` list proposition tag 24, `IsMere`, as the codec already writes it?
+<a id="bundle-evidence-field-type"></a>
+### 5. Which field type makes a record field mathematical evidence rather than a callable selection?
+
+A proof argument "may cite a named theorem, instantiate another theorem, or
+project checked evidence from a bundle", and "an explicitly typed
+mathematical-evidence field uses the general logical-evidence application rule,
+also in ordinary records"
+([logical hypotheses](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) ·
+[operation records](wiki/spec/language/conformances.md#implementations-are-operation-records)).
+The same section also says "an ordinary field whose declared type is a
+structural callable is different: it requires that callable contract". A
+logical contract is written as a structural callable alias, as in
+`data NonzeroIsPositive = machine(n: u8) requires n != 0u8 ensures n > 0u8;`.
+So `data Laws { step: NonzeroIsPositive; }` declares a callable field, and the
+spec names no other way to type a field as that contract's evidence.
+
+The compiler follows the callable reading today. `Laws { step: nonzero_is_positive }`
+asks for a service ceiling, and once given one it fails constant evaluation
+because the record holds a callable. So `use_step::<U8_LAWS.step>(7u8)` has no
+evidence to project.
+
+**Recommend that a field of a logical alias type marked `[erased]` holds that
+alias's evidence**, as in `step [erased]: NonzeroIsPositive;`. Erasure already
+means "without runtime storage" for record fields, and a logical contract has
+nothing to store. Its initializer is checked as a proof argument is, and
+projecting it supplies that checked citation. Alternatively, a distinct type
+former could name the evidence type of an alias.
+Which spelling declares an evidence field?
+
+### 6. May `encoding.md` list proposition tag 24, `IsMere`, as the codec already writes it?
 
 The proposition codec writes and reads tag 24 for `IsMere`. That proposition
 says any two witnesses of its inner proposition are equal:
