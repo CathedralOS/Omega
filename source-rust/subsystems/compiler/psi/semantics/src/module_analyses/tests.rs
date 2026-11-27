@@ -5,9 +5,7 @@
 //! adapted against that closure's rows.
 
 use super::*;
-use crate::descriptors::descriptor_results::{
-    terminal_graph_closure, terminal_graph_for, terminal_graph_rows,
-};
+use crate::descriptors::descriptor_results::{terminal_graph_closure, terminal_graph_rows};
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, OperationId, ScalarQualificationSetId, ScalarType, ValueId,
 };
@@ -236,12 +234,6 @@ fn shapes<'a>(rows: impl IntoIterator<Item = &'a DescriptorMachine>) -> Vec<Stri
     rows.into_iter().map(shape).collect()
 }
 
-fn result_shapes<'a>(
-    rows: impl IntoIterator<Item = Result<&'a DescriptorMachine, DescriptorGraphError>>,
-) -> Vec<Result<String, DescriptorGraphError>> {
-    rows.into_iter().map(|row| row.map(shape)).collect()
-}
-
 #[test]
 fn a_closure_without_dynamic_calls_shares_the_rows_the_free_closure_builds() {
     let module = module(false);
@@ -414,45 +406,6 @@ fn row_results(
     rows.iter()
         .map(|row| row.as_ref().map(shape).map_err(|error| *error))
         .collect()
-}
-
-#[test]
-fn whole_module_rows_match_the_free_module_rows() {
-    for dynamic in [false, true] {
-        let mut module = module(dynamic);
-        let analyses = ModuleAnalyses::new(&module).unwrap();
-        let every_machine = module
-            .machines
-            .iter()
-            .map(|machine| machine.id)
-            .collect::<Vec<_>>();
-        for kind in KINDS {
-            // Machine 4's row fails and keeps its place in the list.
-            let expected = terminal_graph_rows(&module, every_machine.clone(), kind, &[]);
-            assert!(expected.iter().any(Result::is_err));
-            assert_eq!(
-                result_shapes(analyses.descriptor_rows(kind)),
-                row_results(&expected),
-                "dynamic {dynamic}, {kind:?}"
-            );
-        }
-        drop(analyses);
-        // Without the failing machine every row succeeds, as the free
-        // whole-module rows require.
-        module
-            .machines
-            .retain(|machine| machine.id != id(CALLS_MISSING));
-        let analyses = ModuleAnalyses::new(&module).unwrap();
-        for kind in KINDS {
-            let expected = terminal_graph_for(&module, kind, &[]).unwrap();
-            assert_eq!(expected.len(), module.machines.len());
-            assert_eq!(
-                result_shapes(analyses.descriptor_rows(kind)),
-                result_shapes(expected.iter().map(Ok)),
-                "dynamic {dynamic}, {kind:?}"
-            );
-        }
-    }
 }
 
 #[test]

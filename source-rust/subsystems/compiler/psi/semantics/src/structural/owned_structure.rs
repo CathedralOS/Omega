@@ -242,7 +242,7 @@ fn child_types(declaration: &StructuralTypeDeclaration) -> Vec<StructuralTypeId>
     children
 }
 
-pub fn contains_owned_boundary(
+pub(crate) fn contains_owned_boundary(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     boundaries: &BTreeSet<StructuralTypeId>,
     cache: &mut BTreeMap<StructuralTypeId, bool>,
@@ -379,39 +379,6 @@ pub fn validate_accounted_descendants(
     )
 }
 
-pub fn selected_contains_owned_boundary(
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    nominal: &BTreeSet<StructuralTypeId>,
-    cache: &mut BTreeMap<StructuralTypeId, bool>,
-    selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    limit: usize,
-) -> Option<bool> {
-    if nominal.contains(&structural_type) {
-        return Some(true);
-    }
-    if !contains_owned_boundary(types, nominal, cache, &mut BTreeSet::new(), structural_type)? {
-        return Some(false);
-    }
-    for (child_path, child) in
-        selected_owned_children(types, structural_type, path, limit, selected)?
-    {
-        if selected_contains_owned_boundary(
-            types,
-            nominal,
-            cache,
-            selected,
-            child,
-            &child_path,
-            limit,
-        )? {
-            return Some(true);
-        }
-    }
-    Some(false)
-}
-
 pub fn validate_owned_claim_frontier(
     possible: &ClaimTypes<'_>,
     selected_type: StructuralTypeId,
@@ -538,16 +505,6 @@ pub fn validate_owned_claim_frontier(
         return Err("owned value has claims outside its selected nominal frontier");
     }
     Ok(())
-}
-
-pub fn selected_owned_children(
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    limit: usize,
-    selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
-) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
-    selected_children(types, structural_type, path, limit, selected, true)
 }
 
 fn selected_children(

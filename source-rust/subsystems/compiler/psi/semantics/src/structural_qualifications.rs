@@ -826,7 +826,7 @@ impl<'a> DefaultRequirements<'a> {
     /// `operation` reconstructs. A store that replaces a whole qualified
     /// value is not among them, because its source must already deliver the
     /// destination's exact domains.
-    pub fn routed_owners(
+    pub(crate) fn routed_owners(
         &self,
         module: &TerminalModule,
         operation: &Operation,
@@ -3403,12 +3403,6 @@ pub fn validate_shape(module: &TerminalModule) -> Judged<()> {
     validate_shape_from(&DescriptorRowSource::new(module))
 }
 
-/// `validate_shape`, reading descriptor rows from the module's shared
-/// analyses.
-pub fn validate_shape_in(analyses: &crate::ModuleAnalyses<'_>) -> Judged<()> {
-    validate_shape_from(&DescriptorRowSource::of(analyses))
-}
-
 fn validate_shape_from(rows: &DescriptorRowSource<'_, '_>) -> Judged<()> {
     let bodies = rows
         .module()
@@ -3423,15 +3417,6 @@ fn validate_shape_from(rows: &DescriptorRowSource<'_, '_>) -> Judged<()> {
 /// checked bodies. Artifact ingress uses every module body through validate_shape.
 pub fn validate_shape_for_bodies(module: &TerminalModule, bodies: &[MachineId]) -> Judged<()> {
     validate_shape_for_bodies_from(&DescriptorRowSource::new(module), bodies)
-}
-
-/// `validate_shape_for_bodies`, reading descriptor rows from the module's
-/// shared analyses.
-pub fn validate_shape_for_bodies_in(
-    analyses: &crate::ModuleAnalyses<'_>,
-    bodies: &[MachineId],
-) -> Judged<()> {
-    validate_shape_for_bodies_from(&DescriptorRowSource::of(analyses), bodies)
 }
 
 fn validate_shape_for_bodies_from(

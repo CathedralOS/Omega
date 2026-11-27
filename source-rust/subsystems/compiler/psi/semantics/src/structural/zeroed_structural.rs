@@ -101,7 +101,7 @@ pub fn zeroed_structural_shape<'types>(
     zeroed_structural_fields_satisfy(types, root, |_| true)
 }
 
-pub fn zeroed_structural_fields_satisfy<'types>(
+pub(crate) fn zeroed_structural_fields_satisfy<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     accepts_field: impl Fn(&StructuralFieldDeclaration) -> bool,
@@ -111,7 +111,7 @@ pub fn zeroed_structural_fields_satisfy<'types>(
 
 /// Check declaration-level contracts as well as fields without expanding
 /// a fixed array once per element or visiting inactive sum payloads.
-pub fn zeroed_structural_types_and_fields_satisfy<'types>(
+pub(crate) fn zeroed_structural_types_and_fields_satisfy<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     accepts_type: impl Fn(&StructuralTypeDeclaration) -> bool,
@@ -343,7 +343,7 @@ pub fn zeroed_structural_leaves<'types>(
     zeroed_structural_leaves_with_established_erased_fields(types, root, &[])
 }
 
-pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
+pub(crate) fn zeroed_structural_leaves_with_established_erased_fields<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     established_fields: &[EstablishedErasedStructuralField],

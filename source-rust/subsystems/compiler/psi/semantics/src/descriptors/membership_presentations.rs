@@ -20,7 +20,7 @@ pub fn present_structural_memberships<'types, 'domains>(
     )
 }
 
-pub fn present_structural_membership_contract<'types, 'domains>(
+pub(crate) fn present_structural_membership_contract<'types, 'domains>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     domains: impl Iterator<Item = &'domains StructuralDomainDeclaration> + Clone,
     destination: StructuralTypeId,

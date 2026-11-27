@@ -1,20 +1,15 @@
 use crate::descriptors::descriptor_lifetimes::DescriptorPosition;
-use crate::descriptors::descriptor_results::{
-    DescriptorMachine, PayloadMembershipContract,
-};
-use semantic_vocabulary::{
-    BlockId, InvocationSite, MachineId, OperationId, PlaceId, ScalarTerm, ValueId,
-};
+use crate::descriptors::descriptor_results::{DescriptorMachine, PayloadMembershipContract};
+use semantic_vocabulary::{BlockId, InvocationSite, MachineId, PlaceId, ScalarTerm, ValueId};
 use terminal_psi::{
-    CheckedMachineDeclaration, DirectCallRole, EvidenceCallableOwner,
-    EvidenceCallableTarget, EvidenceContractLane, EvidenceTermDeclaration,
-    OutcomeSpecificCallEvidence, OutcomeSpecificEnsure, ProofOutputCall,
-    PropositionApplicationIdentity, StructuralArgument, StructuralDomainDeclaration,
-    StructuralOperationResult, StructuralParameterDeclaration, StructuralTypeDeclaration,
-    TerminalIdentityTable,
+    CheckedMachineDeclaration, DirectCallRole, EvidenceCallableOwner, EvidenceCallableTarget,
+    EvidenceContractLane, EvidenceTermDeclaration, OutcomeSpecificCallEvidence,
+    OutcomeSpecificEnsure, ProofOutputCall, PropositionApplicationIdentity, StructuralArgument,
+    StructuralDomainDeclaration, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, TerminalIdentityTable,
 };
 
-pub enum RuntimeEvidenceResult {
+pub(crate) enum RuntimeEvidenceResult {
     Unit,
     NoNormal,
     Scalar {
@@ -38,7 +33,7 @@ impl RuntimeEvidenceResult {
     }
 }
 
-pub struct RuntimeEvidenceOperation {
+pub(crate) struct RuntimeEvidenceOperation {
     pub site: InvocationSite,
     pub position: DescriptorPosition,
     pub target: EvidenceCallableTarget,
@@ -49,7 +44,7 @@ pub struct RuntimeEvidenceOperation {
     pub selected_evidence: Vec<OutcomeSpecificCallEvidence>,
 }
 #[derive(Clone, Copy)]
-pub struct RuntimeEvidenceCallParts<'operation> {
+pub(crate) struct RuntimeEvidenceCallParts<'operation> {
     pub target: EvidenceCallableTarget,
     pub role: DirectCallRole,
     pub arguments: &'operation [ValueId],
@@ -68,7 +63,7 @@ impl RuntimeEvidenceOperation {
     }
 }
 
-pub struct RuntimeEvidenceBody {
+pub(crate) struct RuntimeEvidenceBody {
     pub id: MachineId,
     pub entry: BlockId,
     pub declaration: Option<CheckedMachineDeclaration>,
@@ -83,9 +78,6 @@ impl RuntimeEvidenceBody {
     pub fn operations(&self) -> impl Iterator<Item = &RuntimeEvidenceOperation> {
         self.calls.iter()
     }
-    pub fn operation(&self, id: OperationId) -> Option<&RuntimeEvidenceOperation> {
-        self.invocation(InvocationSite::Operation(id))
-    }
     pub fn invocation(&self, site: InvocationSite) -> Option<&RuntimeEvidenceOperation> {
         let mut rows = self.calls.iter().filter(|row| row.site == site);
         let row = rows.next()?;
@@ -99,7 +91,7 @@ impl RuntimeEvidenceBody {
         let (_, expression) = rows.next()?;
         rows.next().is_none().then_some(expression)
     }
-    pub fn payload_contract(&self, root: PlaceId) -> Option<&PayloadMembershipContract> {
+    pub(crate) fn payload_contract(&self, root: PlaceId) -> Option<&PayloadMembershipContract> {
         let mut rows = self
             .payload_contracts
             .iter()
@@ -110,7 +102,7 @@ impl RuntimeEvidenceBody {
 }
 
 #[derive(Clone, Copy)]
-pub enum RuntimeEvidenceCallable<'input> {
+pub(crate) enum RuntimeEvidenceCallable<'input> {
     Machine(&'input RuntimeEvidenceBody),
     Runtime(&'input terminal_psi::TerminalCallableContract),
 }
@@ -136,7 +128,7 @@ impl<'input> RuntimeEvidenceCallable<'input> {
             Self::Runtime(contract) => &contract.proof.outcome_specific_ensures,
         }
     }
-    pub fn checked_identity(
+    pub(crate) fn checked_identity(
         self,
         identities: &TerminalIdentityTable,
     ) -> Result<String, &'static str> {
@@ -165,7 +157,7 @@ impl<'input> RuntimeEvidenceCallable<'input> {
     }
 }
 
-pub struct RuntimeEvidenceInputs<'input> {
+pub(crate) struct RuntimeEvidenceInputs<'input> {
     pub identities: &'input TerminalIdentityTable,
     pub callables: &'input terminal_psi::TerminalCallableCatalog,
     pub structural_types: &'input [StructuralTypeDeclaration],

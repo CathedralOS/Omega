@@ -3,7 +3,7 @@ use terminal_psi::ByteSequenceCarrier;
 use terminal_psi::StructuralCaseDeclaration;
 use terminal_psi::StructuralFieldDeclaration;
 use terminal_psi::StructuralTypeShape;
-pub fn validate_quotient_representations(
+pub(crate) fn validate_quotient_representations(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     catalog: &terminal_psi::TerminalQuotientCatalog,
 ) -> Result<(), &'static str> {
@@ -72,7 +72,7 @@ pub fn validate_quotient_representations(
     Ok(())
 }
 
-pub fn validate_quotient_representation_identities(
+pub(crate) fn validate_quotient_representation_identities(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     catalog: &terminal_psi::TerminalQuotientCatalog,
     identities: &terminal_psi::TerminalIdentityTable,

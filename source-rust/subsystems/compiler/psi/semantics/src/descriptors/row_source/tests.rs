@@ -10,7 +10,7 @@ use crate::descriptors::descriptor_results::{
     DescriptorInvocationTarget, terminal_graph_closure, terminal_graph_rows,
 };
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarDomainId,
+    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId,
     ScalarQualificationSetId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
@@ -459,16 +459,6 @@ fn candidate_answer(
         .map_err(|error| (error.machine, error.operation, error.detail))
 }
 
-fn membership_tests() -> Vec<crate::MembershipTest> {
-    vec![crate::MembershipTest {
-        position: (BlockId::new(1).unwrap(), 0),
-        subject: crate::TestedMembership::Scalar {
-            value: ValueId::new(SELECTOR).unwrap(),
-            domain: ScalarDomainId::new(1).unwrap(),
-        },
-    }]
-}
-
 #[test]
 fn builders_reading_a_bundle_answer_as_their_module_entry_points() {
     for (twin, module) in twins() {
@@ -484,17 +474,6 @@ fn builders_reading_a_bundle_answer_as_their_module_entry_points() {
             "{twin} structural qualifications"
         );
         assert_eq!(
-            crate::structural_qualifications::validate_shape_in(&analyses),
-            crate::structural_qualifications::validate_shape(&module),
-            "{twin} structural shape"
-        );
-        let bodies = [id(ROOT), id(BORROWER)];
-        assert_eq!(
-            crate::structural_qualifications::validate_shape_for_bodies_in(&analyses, &bodies),
-            crate::structural_qualifications::validate_shape_for_bodies(&module, &bodies),
-            "{twin} structural shape for bodies"
-        );
-        assert_eq!(
             crate::calls::callable_refinement::validate_callable_result_refinements_in(&analyses),
             crate::calls::callable_refinement::validate_callable_result_refinements(&module),
             "{twin} callable result refinements"
@@ -504,19 +483,8 @@ fn builders_reading_a_bundle_answer_as_their_module_entry_points() {
             crate::references::validate_provider_reference_outputs(&module),
             "{twin} provider reference outputs"
         );
-        assert_eq!(
-            crate::calls::evidence_calls::validate_runtime_evidence_inputs_with_analyses(&analyses),
-            crate::calls::evidence_calls::validate_runtime_evidence_inputs(&module),
-            "{twin} runtime evidence inputs"
-        );
         let value_types = std::collections::BTreeMap::<ValueId, ScalarType>::new();
         for body in &module.machines {
-            assert_eq!(
-                crate::test_memberships_in(&analyses, body.id, &membership_tests()),
-                crate::test_memberships(&module, body.id, &membership_tests()),
-                "{twin} membership tests of {:?}",
-                body.id
-            );
             assert_eq!(
                 crate::target_scalar_ranges_in(&analyses, body, &value_types),
                 crate::target_scalar_ranges(&module, body, &value_types),

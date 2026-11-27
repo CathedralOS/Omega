@@ -91,7 +91,7 @@ pub fn content_path<'a>(
         .collect()
 }
 
-pub fn claim_term(bindings: &[ContentClaimProjection]) -> Result<ContentTerm, &'static str> {
+pub(crate) fn claim_term(bindings: &[ContentClaimProjection]) -> Result<ContentTerm, &'static str> {
     if bindings.is_empty()
         || bindings
             .iter()
@@ -274,7 +274,7 @@ pub fn validate_parent_memberships(
     Ok(())
 }
 
-pub fn validate_contract(
+pub(crate) fn validate_contract(
     types: &[StructuralTypeDeclaration],
     domains: &[StructuralDomainDeclaration],
     identities: &TerminalIdentityTable,

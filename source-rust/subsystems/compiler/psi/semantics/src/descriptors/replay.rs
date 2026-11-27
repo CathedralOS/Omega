@@ -198,144 +198,6 @@ impl DescriptorStoredEffect {
             .collect()
     }
 }
-pub struct DescriptorStoredCallEffect<Origin = DescriptorCallOrigin> {
-    pub destination: DescriptorContentsQuery,
-    pub origins: Vec<Origin>,
-    pub preserves_incoming: bool,
-}
-
-pub fn reconstruct_source_origins(
-    types: &[StructuralTypeDeclaration],
-    machines: &[DescriptorMachine],
-    identity: MachineId,
-    position: DescriptorPosition,
-    location: &DescriptorLocation,
-) -> Option<Vec<DescriptorCallOrigin>> {
-    DescriptorAnalysis::new(types, machines).source_origins(identity, position, location)
-}
-pub fn reconstruct_stored_effects(
-    types: &[StructuralTypeDeclaration],
-    machines: &[DescriptorMachine],
-    identity: MachineId,
-) -> Option<Vec<DescriptorStoredEffect>> {
-    DescriptorAnalysis::new(types, machines).stored_effects(identity)
-}
-fn result_origin(
-    types: &[StructuralTypeDeclaration],
-    machine: &DescriptorMachine,
-    origin: DescriptorStoredOrigin,
-) -> Option<DescriptorResultOrigin> {
-    match origin {
-        DescriptorStoredOrigin::Invocation {
-            carrier_type,
-            projection,
-        } => Some(DescriptorResultOrigin::Invocation {
-            carrier_type,
-            projection,
-        }),
-        DescriptorStoredOrigin::AccessFormation { .. }
-        | DescriptorStoredOrigin::Provider(_)
-        | DescriptorStoredOrigin::ProducedContents(_)
-        | DescriptorStoredOrigin::Carried { .. } => None,
-        DescriptorStoredOrigin::Empty => Some(DescriptorResultOrigin::Empty),
-        DescriptorStoredOrigin::Parameter {
-            position,
-            projection,
-        } => Some(DescriptorResultOrigin::Parameter {
-            position,
-            projection,
-        }),
-        DescriptorStoredOrigin::Literal { machine, place } => {
-            Some(DescriptorResultOrigin::Literal { machine, place })
-        }
-        DescriptorStoredOrigin::IncomingSlot { position, path } => {
-            let root_type = machine.places.iter().find_map(|row| match row.definition {
-                DescriptorDefinition::Parameter {
-                    position: p,
-                    structural_type,
-                    ..
-                } if p == position => Some(structural_type),
-                _ => None,
-            })?;
-            let mut projection = Projection::new(&descriptor_path(types, root_type, &path)?);
-            projection.indirect = true;
-            Some(DescriptorResultOrigin::Parameter {
-                position,
-                projection,
-            })
-        }
-        DescriptorStoredOrigin::IncomingContents {
-            position,
-            steps,
-            projection,
-        } => {
-            let parameter = machine.places.iter().find_map(|row| match row.definition {
-                DescriptorDefinition::Parameter {
-                    position: actual,
-                    structural_type,
-                    ..
-                } if actual == position => Some((row.place, structural_type)),
-                _ => None,
-            })?;
-            let query = DescriptorContentsQuery {
-                root: parameter.0,
-                steps,
-            };
-            Some(DescriptorResultOrigin::Parameter {
-                position,
-                projection: query
-                    .conservative_projection(types, parameter.1)?
-                    .then(&projection),
-            })
-        }
-    }
-}
-pub(crate) fn result_origins(
-    types: &[StructuralTypeDeclaration],
-    machines: &[DescriptorMachine],
-    identity: MachineId,
-) -> Option<Vec<DescriptorResultOrigin>> {
-    let mut replay = Replay::new(types, machines);
-    let machine = replay.machine(identity)?;
-    replay
-        .summary(identity, 0)?
-        .result
-        .slots_without_contents()?
-        .iter()
-        .find(|slot| slot.path.is_empty())?
-        .origins
-        .iter()
-        .map(|origin| result_origin(types, machine, origin.clone()))
-        .collect()
-}
-pub(crate) fn return_slots_have_external_backing(
-    types: &[StructuralTypeDeclaration],
-    machines: &[DescriptorMachine],
-    identity: MachineId,
-    position: DescriptorPosition,
-    source: PlaceId,
-) -> Option<()> {
-    let mut replay = Replay::new(types, machines);
-    let machine = replay.machine(identity)?;
-    let slots =
-        DescriptorSlotKind::Views.owned_slots(types, source, *machine.place_types.get(&source)?)?;
-    if slots.is_empty() || slots.iter().any(|slot| slot.path.is_empty()) {
-        return None;
-    }
-    let states = replay.states(identity, 0)?;
-    let state = states.get(&position)?;
-    for slot in slots {
-        let origins = replay.read(machine, state, &slot)?;
-        if origins.is_empty() {
-            return None;
-        }
-        for origin in origins {
-            replay.exported(machine, &origin)?;
-        }
-    }
-    Some(())
-}
-
 pub(crate) fn call_origins(
     types: &[StructuralTypeDeclaration],
     machines: &[DescriptorMachine],
@@ -763,7 +625,7 @@ pub struct DescriptorSlotInventory {
 impl DescriptorSlotInventory {
     /// Coordinates whose contents the inventory observes, including the
     /// outstanding loans carried inside a value of unknown concrete type.
-    pub fn into_observations(self) -> impl Iterator<Item = DescriptorLocation> {
+    pub(crate) fn into_observations(self) -> impl Iterator<Item = DescriptorLocation> {
         self.slots
             .into_iter()
             .chain(self.unknown_contents.into_iter().map(|contents| contents.location))
@@ -792,22 +654,6 @@ pub enum UnknownContentsKind {
 pub struct UnknownDescriptorContents {
     pub location: DescriptorLocation,
     pub kind: UnknownContentsKind,
-}
-
-pub fn descriptor_slots(
-    types: &[StructuralTypeDeclaration],
-    root: PlaceId,
-    structural_type: StructuralTypeId,
-) -> Option<Vec<DescriptorLocation>> {
-    DescriptorSlotKind::Views.slots(types, root, structural_type)
-}
-
-pub fn descriptor_slot_inventory(
-    types: &[StructuralTypeDeclaration],
-    root: PlaceId,
-    structural_type: StructuralTypeId,
-) -> Option<DescriptorSlotInventory> {
-    DescriptorSlotKind::Views.inventory(types, root, structural_type)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

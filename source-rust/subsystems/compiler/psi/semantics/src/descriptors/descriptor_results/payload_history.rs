@@ -269,7 +269,7 @@ impl<'input> PayloadMembershipHistory<'input> {
             entry_snapshots: None,
         }
     }
-    pub fn for_current_contracts(
+    pub(crate) fn for_current_contracts(
         types: &'input [StructuralTypeDeclaration],
         domains: &'input [terminal_psi::StructuralDomainDeclaration],
         graph: impl Into<crate::module_analyses::DescriptorRowView<'input>>,
@@ -307,37 +307,6 @@ impl<'input> PayloadMembershipHistory<'input> {
             replay: HistoryReplay::default(),
             entry_snapshots: None,
         })
-    }
-    pub fn current_selected_payload_contract(
-        &mut self,
-        position: DescriptorPosition,
-        root: PlaceId,
-        path: &[StructuralPathSegment],
-    ) -> Result<PayloadMembershipContract, &'static str> {
-        let mut analysis = self
-            .analysis
-            .take()
-            .unwrap_or_else(|| DescriptorAnalysis::new(self.types, self.graph));
-        let result =
-            self.current_selected_payload_contract_in(&mut analysis, position, root, path);
-        self.analysis = Some(analysis);
-        result
-    }
-
-    pub fn current_selected_payload_contract_in(
-        &mut self,
-        analysis: &mut DescriptorAnalysis<'_>,
-        position: DescriptorPosition,
-        root: PlaceId,
-        path: &[StructuralPathSegment],
-    ) -> Result<PayloadMembershipContract, &'static str> {
-        self.selected_payload_at(
-            analysis,
-            position,
-            root,
-            path,
-            PayloadMembershipCut::BeforeOperationWithDeclaredBytes,
-        )
     }
 
     /// Read memberships proved at the observation. In particular, a
@@ -408,21 +377,7 @@ impl<'input> PayloadMembershipHistory<'input> {
         contract.ok_or(failure.unwrap_or("selected payload memberships are unresolved"))
     }
 
-    pub fn current_payload_contract(
-        &mut self,
-        position: DescriptorPosition,
-        root: PlaceId,
-    ) -> Result<PayloadMembershipContract, &'static str> {
-        let mut analysis = self
-            .analysis
-            .take()
-            .unwrap_or_else(|| DescriptorAnalysis::new(self.types, self.graph));
-        let result = self.current_payload_contract_in(&mut analysis, position, root);
-        self.analysis = Some(analysis);
-        result
-    }
-
-    pub fn current_payload_contract_in(
+    pub(crate) fn current_payload_contract_in(
         &mut self,
         analysis: &mut DescriptorAnalysis<'_>,
         position: DescriptorPosition,
@@ -450,7 +405,7 @@ impl<'input> PayloadMembershipHistory<'input> {
             &mut self.replay,
         )
     }
-    pub fn scalar_snapshot(
+    pub(crate) fn scalar_snapshot(
         &mut self,
         position: DescriptorPosition,
         root: PlaceId,
@@ -507,7 +462,7 @@ impl<'input> PayloadMembershipHistory<'input> {
     }
 }
 
-pub fn current_selected_payload_contract(
+pub(crate) fn current_selected_payload_contract(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
     graph: &[DescriptorMachine],
@@ -547,7 +502,8 @@ pub fn current_selected_payload_contract(
     contract.ok_or(history_failure.unwrap_or("selected payload memberships are unresolved"))
 }
 
-pub fn current_payload_contract(
+#[cfg(test)]
+pub(crate) fn current_payload_contract(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
     graph: &[DescriptorMachine],

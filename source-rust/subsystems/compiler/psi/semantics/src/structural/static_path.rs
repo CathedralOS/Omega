@@ -1,11 +1,11 @@
 use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IntegerSign, IntegerValue, Proposition, ScalarTerm,
-    ScalarType, StructuralTypeId, ValueId,
+    CanonicalStructuralPathSegment, IntegerSign, IntegerValue, Proposition, ScalarTerm, ScalarType,
+    StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    OperationKind, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine,
 };
 
 pub fn constant_runtime_index(machine: &TerminalMachine, index: ValueId) -> Option<u64> {
@@ -24,7 +24,7 @@ pub fn constant_runtime_index(machine: &TerminalMachine, index: ValueId) -> Opti
     }
 }
 
-pub fn runtime_index_bound(
+pub(crate) fn runtime_index_bound(
     index: ValueId,
     index_type: ScalarType,
     extent: u64,
@@ -144,31 +144,6 @@ pub fn structural_paths_may_overlap(
     }
     true
 }
-pub fn interior_member_borrow(parent: &StructuralArgument, child: &StructuralArgument) -> bool {
-    let admitted = match parent.access {
-        terminal_psi::mutating_access_pair_pattern!() => matches!(
-            child.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        ),
-        StructuralAccess::WriteOnlyBorrow => {
-            matches!(child.access, terminal_psi::exclusive_borrow_pair_pattern!())
-        }
-        StructuralAccess::SharedBorrow => false,
-    };
-    admitted
-        && child.place == parent.place
-        && child
-            .path
-            .strip_prefix(parent.path.as_slice())
-            .is_some_and(|suffix| {
-                suffix.iter().any(|segment| {
-                    !matches!(segment, StructuralPathSegment::RepresentationView { .. })
-                })
-            })
-}
-
 pub fn canonical_structural_path_tip<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -201,7 +176,7 @@ pub fn canonical_structural_storage_path<'a>(
     Some(storage)
 }
 
-pub fn canonical_storage_dependencies<'a>(
+pub(crate) fn canonical_storage_dependencies<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],

@@ -1,13 +1,13 @@
 //! A walk made by `ModuleAnalyses::affine` must give every answer the walk
-//! alone (`MachineAffine::new` without a table) gives, while it reads its
-//! machine's borrowed-storage closure from the bundle's shared rows. The
+//! alone (`MachineAffine::new`) gives, while it reads its machine's
+//! borrowed-storage closure and callee summaries from the bundle. The
 //! root borrows a reference, so each walk needs that closure. In the static
 //! twin the closure is shared; in the dynamic twin machine 2 calls
 //! dynamically, so the closure owns rows adapted against itself.
 
 use super::{ROOT, SELECTING, call, declare_dynamic_slot, dynamic_call, id, machine};
 use crate::module_analyses::{DescriptorRows, ModuleAnalyses, kind_index};
-use crate::plain_affine::{AffineSummaries, Error, MachineAffine};
+use crate::plain_affine::{Error, MachineAffine};
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     BindingRelevance, BoundaryParameterKind, StructuralAccess, StructuralFieldDeclaration,
@@ -124,7 +124,7 @@ fn answers(walks: &MachineAffine<'_>) -> [String; 4] {
 }
 
 fn alone(module: &TerminalModule, machine: u64) -> [String; 4] {
-    answers(&MachineAffine::new(module, id(machine), None).unwrap())
+    answers(&MachineAffine::new(module, id(machine)).unwrap())
 }
 
 /// Whether the bundle has adapted `machine`'s shared borrowed-storage row.
@@ -151,12 +151,10 @@ fn bundle_walks_without_a_dynamic_call_read_the_shared_rows_and_answer_as_a_walk
         analyses.descriptor_closure(DescriptorSlotKind::BorrowedStorage, [id(ROOT)]),
         Ok(DescriptorRows::Shared { .. })
     ));
-    // A second walk over the same bundle reads the same rows.
+    // The walk published its callee's summary, and a second walk over the
+    // same bundle takes it and gives the same answers.
+    assert!(analyses.holds_summary(id(SELECTING)));
     assert_eq!(answers(&analyses.affine(id(ROOT)).unwrap()), expected);
-    // Sharing a module table as well changes no answer.
-    let summaries = AffineSummaries::new(&module);
-    let shared = MachineAffine::from_analyses(&analyses, id(ROOT), Some(&summaries)).unwrap();
-    assert_eq!(answers(&shared), expected);
     for machine in [SELECTING, REALIZATION] {
         assert_eq!(
             answers(&analyses.affine(id(machine)).unwrap()),
@@ -179,11 +177,9 @@ fn bundle_walks_reaching_a_dynamic_call_own_their_rows_and_answer_as_a_walk_alon
         analyses.descriptor_closure(DescriptorSlotKind::BorrowedStorage, [id(ROOT)]),
         Ok(DescriptorRows::Owned(_))
     ));
-    // Rows adapted against this closure alone never share a module table.
-    let summaries = AffineSummaries::new(&module);
-    let shared = MachineAffine::from_analyses(&analyses, id(ROOT), Some(&summaries)).unwrap();
-    assert_eq!(answers(&shared), expected);
-    assert!(!summaries.holds(id(SELECTING)) && !summaries.holds(id(REALIZATION)));
+    // Rows adapted against this closure alone never share the bundle's
+    // summaries.
+    assert!(!analyses.holds_summary(id(SELECTING)) && !analyses.holds_summary(id(REALIZATION)));
     for machine in [SELECTING, REALIZATION] {
         assert_eq!(
             answers(&analyses.affine(id(machine)).unwrap()),
@@ -199,7 +195,7 @@ fn a_machine_outside_the_catalog_is_refused_as_a_walk_alone_refuses_it() {
     let refused = |walks: Result<MachineAffine<'_>, Error>| format!("{:?}", walks.err());
     assert_eq!(
         refused(analyses.affine(id(9))),
-        refused(MachineAffine::new(&module, id(9), None))
+        refused(MachineAffine::new(&module, id(9)))
     );
     assert!(analyses.affine(id(9)).is_err());
 }

@@ -8,25 +8,19 @@ pub(crate) mod borrowed_leaves;
 pub(crate) mod call_results;
 pub(crate) mod memberships;
 pub use borrowed_leaves::{BorrowedResultLeaf, BorrowedResultLeafKind, borrowed_result_leaves};
-pub use memberships::{
-    ReferenceResultMemberships, reference_call_preserved_memberships,
-    reference_result_memberships_weaken,
-};
+pub use memberships::ReferenceResultMemberships;
 pub(crate) mod descriptor_regions;
 pub(crate) mod result_regions;
+pub(crate) use call_results::bind_public_reference_call_results;
 pub use call_results::{
     ReferenceCallContract, ReferenceCallOrigin, ReferenceCallResult, ReferenceCallSource,
-    bind_public_reference_call_results, bind_reference_call_results,
+    bind_reference_call_results,
 };
-pub use descriptor_regions::{
-    descriptor_input_origin_path, reference_result_contents, reference_result_sources,
-    validate_descriptor_result_regions,
+pub use descriptor_regions::{reference_result_contents, validate_descriptor_result_regions};
+pub use result_regions::validate_dynamic_reference_regions;
+pub(crate) use result_regions::{
+    ReferenceInventory, ReferenceLeaf, reference_inventory, reference_leaves,
 };
-pub use result_regions::{
-    ReferenceInventory, ReferenceLeaf, UnknownReferenceContents, reference_inventory,
-    reference_leaves, validate_dynamic_reference_regions,
-};
-use std::slice::from_ref;
 
 pub struct ReferenceOriginBinding<'origin> {
     pub source: terminal_psi::StructuralArgument,
@@ -180,7 +174,7 @@ fn reference_origin_refines<'types>(
     }
 }
 
-pub fn reference_origin_is_covered<'types>(
+pub(crate) fn reference_origin_is_covered<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     actual: &terminal_psi::ReferenceOriginSource,
@@ -306,32 +300,7 @@ pub fn reference_result_refines_regions<'types>(
     })
 }
 
-pub fn reference_origin_paths_may_overlap(
-    left: &[ReferenceOriginProjection],
-    right: &[ReferenceOriginProjection],
-) -> bool {
-    use ReferenceOriginProjection::{Element, Exact};
-    for (left, right) in left.iter().zip(right) {
-        match (left, right) {
-            (Exact(StructuralPathSegment::RepresentationView { .. }), _)
-            | (_, Exact(StructuralPathSegment::RepresentationView { .. })) => return true,
-            (
-                Exact(StructuralPathSegment::Case(left)),
-                Exact(StructuralPathSegment::Case(right)),
-            ) if left != right => return true,
-            (Element, _) | (_, Element) => {}
-            (Exact(left), Exact(right))
-                if !crate::structural_paths_may_overlap(from_ref(left), from_ref(right)) =>
-            {
-                return false;
-            }
-            _ => {}
-        }
-    }
-    true
-}
-
-pub fn captured_reference_origin_type<'types>(
+pub(crate) fn captured_reference_origin_type<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[ReferenceOriginProjection],

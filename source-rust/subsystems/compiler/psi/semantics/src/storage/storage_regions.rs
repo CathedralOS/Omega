@@ -5,24 +5,18 @@ use terminal_psi::{
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, live_field_by_id,
 };
 
-pub struct StorageRegion {
+pub(crate) struct StorageRegion {
     pub path: Vec<StructuralPathSegment>,
     pub indirect: bool,
 }
 
-impl StorageRegion {
-    pub fn direct_path(&self) -> &[StructuralPathSegment] {
-        if self.indirect { &[] } else { &self.path }
-    }
-}
-
-pub fn crosses_unaliased_reference(path: &[StructuralPathSegment]) -> bool {
+pub(crate) fn crosses_unaliased_reference(path: &[StructuralPathSegment]) -> bool {
     path.iter()
         .skip(1)
         .any(|segment| *segment == StructuralPathSegment::Referent)
 }
 
-pub fn projected_storage_region<'a>(
+pub(crate) fn projected_storage_region<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -55,7 +49,7 @@ pub fn projected_storage_region<'a>(
     }
 }
 
-pub fn canonical_field_storage_region<'a>(
+pub(crate) fn canonical_field_storage_region<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],

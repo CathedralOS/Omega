@@ -236,7 +236,7 @@ pub fn sum_shape(
 }
 
 /// The source inputs of a machine's contract, in header order.
-pub fn machine_subjects(
+pub(crate) fn machine_subjects(
     module: &TerminalModule,
     contract: &MachineContract,
 ) -> Result<Vec<SourceSubject>, &'static str> {

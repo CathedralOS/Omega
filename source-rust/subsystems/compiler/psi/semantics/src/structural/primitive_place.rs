@@ -9,65 +9,9 @@ use terminal_psi::{
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
-pub fn primitive_place_type<'a>(
-    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    root: StructuralTypeId,
-    path: &[CanonicalStructuralPathSegment],
-) -> Option<ScalarType> {
-    if path
-        .iter()
-        .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
-    {
-        return None;
-    }
-    if let Some((CanonicalStructuralPathSegment::Field(field), carrier)) = path.split_last() {
-        let declaration = canonical_structural_path_tip(declarations.clone(), root, carrier)?;
-        if let StructuralTypeShape::Record { fields, .. } = &declaration.shape {
-            let field = exactly_one(fields.iter(), |candidate| candidate.id == *field)?;
-            if field.relevance.is_erased() {
-                return None;
-            }
-            if let Some(scalar) = plain_scalar_field(&field.field_type) {
-                return Some(scalar);
-            }
-        }
-    }
-    match canonical_structural_path_tip(declarations, root, path)?.shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
-        _ => None,
-    }
-}
-
-pub fn fixed_array_place_shape<'a>(
-    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    root: StructuralTypeId,
-    path: &[CanonicalStructuralPathSegment],
-) -> Option<(ScalarType, u64)> {
-    if path
-        .iter()
-        .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
-    {
-        return None;
-    }
-    let declaration = canonical_structural_path_tip(declarations.clone(), root, path)?;
-    let StructuralTypeShape::FixedArray {
-        element,
-        length: terminal_psi::ArrayExtent::Literal(length),
-    } = declaration.shape
-    else {
-        return None;
-    };
-    let element_declaration =
-        exactly_one(declarations, |declaration| declaration.id == element)?;
-    match element_declaration.shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) => Some((scalar, length)),
-        _ => None,
-    }
-}
-
 /// Classify the actual memory operand, including a separately retained
 /// field selector. Knowing its scalar carrier supplies no access or bounds.
-pub fn primitive_operation_projection_type<'a>(
+pub(crate) fn primitive_operation_projection_type<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     projection: terminal_psi::OperationProjection<'_>,
@@ -154,19 +98,6 @@ pub fn primitive_projection_restriction<'a>(
         .as_ref()
 }
 
-pub fn primitive_read_requirement<'a>(
-    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    root: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    result: semantic_vocabulary::ValueId,
-) -> Option<semantic_vocabulary::Proposition> {
-    let restriction = primitive_projection_restriction(declarations.clone(), root, path)
-        .or_else(|| {
-            primitive_read_field(declarations, root, path).map(|field| &field.field_type)
-        })?;
-    crate::scalar_field_requirement(restriction, result)
-}
-
 pub fn borrowed_primitive_projection_declaration<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -242,7 +173,7 @@ pub fn primitive_read_projection_type<'a>(
     .and_then(|tip| tip.primitive_scalar())
 }
 
-pub fn primitive_read_field<'a>(
+pub(crate) fn primitive_read_field<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -710,36 +641,6 @@ pub fn inline_descriptor_type<'a>(
         .filter(|declaration| declaration.shape.is_borrowed_descriptor())
 }
 
-pub fn inline_backing_container(
-    declarations: &[StructuralTypeDeclaration],
-    root: StructuralTypeId,
-    projection: &crate::borrowed_storage::Projection,
-) -> Option<Vec<StructuralPathSegment>> {
-    let container = projection.enclosing_storage()?;
-    if !projection_stays_in_inline_storage(declarations.iter(), root, &projection.path)
-        || !projection_stays_in_inline_storage(declarations.iter(), root, &container.path)
-    {
-        return None;
-    }
-    match walk_primitive_projection(
-        declarations.iter(),
-        root,
-        &container.path,
-        plain_scalar_field,
-        |_| {},
-    )? {
-        ProjectionTip::Declared(tip)
-            if crate::descriptor_results::DescriptorSlotKind::BorrowedStorage
-                .is_slot(declarations, tip.id)
-                || crate::descriptor_results::DescriptorSlotKind::AccessOrigins
-                    .is_slot(declarations, tip.id) =>
-        {
-            None
-        }
-        _ => Some(container.path),
-    }
-}
-
 pub struct StructuralStorageSelection<'path> {
     path: &'path [StructuralPathSegment],
     pub place_count: usize,
@@ -853,7 +754,7 @@ fn plain_scalar_field(field: &StructuralFieldType) -> Option<ScalarType> {
     }
 }
 
-pub fn byte_carrier_geometry_matches(
+pub(crate) fn byte_carrier_geometry_matches(
     field: ByteSequenceCarrier,
     declared: ByteSequenceCarrier,
 ) -> bool {
@@ -915,7 +816,7 @@ fn walk_primitive_projection<'a>(
     )
 }
 
-pub fn projection_storage_dependencies<'a>(
+pub(crate) fn projection_storage_dependencies<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],

@@ -44,7 +44,7 @@ pub fn access_reference_correspondence(
 
 pub use terminal_psi::{AccessRamCorrespondence, AccessRamFieldCorrespondence};
 
-pub fn access_ram_correspondence(
+pub(crate) fn access_ram_correspondence(
     module: &TerminalModule,
     carrier: StructuralTypeId,
     source_schema: StructuralTypeId,

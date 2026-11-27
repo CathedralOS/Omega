@@ -10,11 +10,11 @@ pub(crate) mod origins;
 pub(crate) mod representations;
 use opacity::validate_quotient_opacity;
 use operation::validate_operation;
-pub use representations::{
+pub(crate) use representations::{
     validate_quotient_representation_identities, validate_quotient_representations,
 };
 
-pub fn quotient_place_type(
+pub(crate) fn quotient_place_type(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<StructuralTypeId> {

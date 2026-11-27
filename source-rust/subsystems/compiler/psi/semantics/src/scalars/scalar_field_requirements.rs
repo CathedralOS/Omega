@@ -14,14 +14,7 @@ pub fn scalar_field_requires_initialization_evidence(field: &StructuralFieldType
         || matches!(field, StructuralFieldType::AtomicBoundedInteger(_))
 }
 
-pub fn scalar_field_initialization_requirement(
-    field: &StructuralFieldType,
-    value: ValueId,
-) -> Option<Proposition> {
-    scalar_field_requirement(field, value).or_else(|| atomic_resident_requirement(field, value))
-}
-
-pub fn scalar_field_requirement(
+pub(crate) fn scalar_field_requirement(
     field_type: &StructuralFieldType,
     value: ValueId,
 ) -> Option<Proposition> {
@@ -34,7 +27,7 @@ pub fn scalar_field_requirement(
     Some(integer_range_requirement(*bounds, value))
 }
 
-pub fn atomic_resident_requirement(
+pub(crate) fn atomic_resident_requirement(
     field: &StructuralFieldType,
     value: ValueId,
 ) -> Option<Proposition> {
@@ -94,7 +87,7 @@ pub fn scalar_field_accepts_literal(
         .is_ok_and(|checked| *checked.goal() == Proposition::Truth)
 }
 
-pub fn scalar_field_accepts_zero(field_type: &StructuralFieldType) -> bool {
+pub(crate) fn scalar_field_accepts_zero(field_type: &StructuralFieldType) -> bool {
     use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
     let Some(carrier) = field_type.scalar_type() else {
         return false;
@@ -116,7 +109,7 @@ pub fn scalar_field_accepts_zero(field_type: &StructuralFieldType) -> bool {
     scalar_field_accepts_literal(field_type, &zero)
 }
 
-pub fn scalar_field_entails(
+pub(crate) fn scalar_field_entails(
     established: &StructuralFieldType,
     required: &StructuralFieldType,
 ) -> bool {

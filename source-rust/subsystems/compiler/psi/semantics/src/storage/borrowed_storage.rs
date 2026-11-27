@@ -1,13 +1,12 @@
 mod write_frames;
 pub use write_frames::{WriteFrameError, inferred_write_frames, validate_write_frames};
 
-use crate::scalars::scalar_ordering::ScalarOrdering;
 use semantic_vocabulary::{BlockId, PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::StructuralPathSegment;
 
 pub type Position = (BlockId, u32);
-pub type AliasSources = BTreeMap<PlaceId, Vec<(PlaceId, Projection)>>;
+pub(crate) type AliasSources = BTreeMap<PlaceId, Vec<(PlaceId, Projection)>>;
 
 /// The referents a callee can store into through the `@mutable` references
 /// carried by a value it receives with `access`: one path per reference,
@@ -611,7 +610,7 @@ impl Projection {
     /// A captured contiguous window of the whole original descriptor.
     /// A forgotten address, erased selector, field projection or indirect
     /// region cannot establish this correspondence.
-    pub fn is_captured_whole_descriptor_window(&self) -> bool {
+    pub(crate) fn is_captured_whole_descriptor_window(&self) -> bool {
         !self.indirect
             && self.original_descriptor_path() == Some(&[][..])
             && self.address.as_ref().is_some_and(|steps| {
@@ -622,7 +621,7 @@ impl Projection {
             })
     }
 
-    pub fn with_window(mut self, start: ValueId, end: ValueId, position: Position) -> Self {
+    pub(crate) fn with_window(mut self, start: ValueId, end: ValueId, position: Position) -> Self {
         if self.original_descriptor_path().is_none() {
             self.descriptor = DescriptorPrefix::Unknown;
         }
@@ -759,7 +758,7 @@ impl Projection {
         Some(Self::new(&self.path[..length]))
     }
 
-    pub fn without_captured_address(mut self) -> Self {
+    pub(crate) fn without_captured_address(mut self) -> Self {
         self.address = None;
         self
     }
@@ -778,7 +777,7 @@ impl Projection {
     /// Keep the input field that supplied a view after its address is
     /// forgotten. Selecting another field after slicing loses that
     /// identity, even though `path` still describes overlapping storage.
-    pub fn original_descriptor_path(&self) -> Option<&[StructuralPathSegment]> {
+    pub(crate) fn original_descriptor_path(&self) -> Option<&[StructuralPathSegment]> {
         match &self.descriptor {
             DescriptorPrefix::Open(path)
                 if self.exact && *path == self.path && !self.indirect =>
@@ -800,7 +799,9 @@ impl Projection {
     /// a projection with no erased coordinate, an unaddressed (forgotten)
     /// region, or a stripped window not narrowed back to one element,
     /// whose start is unknown.
-    pub fn stripped_origin_path(&self) -> Option<Vec<terminal_psi::ReferenceOriginProjection>> {
+    pub(crate) fn stripped_origin_path(
+        &self,
+    ) -> Option<Vec<terminal_psi::ReferenceOriginProjection>> {
         if !self
             .address
             .as_ref()?
@@ -1035,56 +1036,6 @@ impl Region {
                     &other.projection.path,
                 ))
     }
-}
-
-pub fn regions_overlap_at(
-    left: &Region,
-    right: &Region,
-    position: Position,
-    relations: &ScalarOrdering,
-) -> bool {
-    if !left.overlaps(right) {
-        return false;
-    }
-    if left.projection.indirect
-        || right.projection.indirect
-        || left.root.is_none()
-        || left.root != right.root
-    {
-        return true;
-    }
-    !window_excludes_index(&left.projection, &right.projection, relations, position)
-        && !window_excludes_index(&right.projection, &left.projection, relations, position)
-}
-
-fn window_excludes_index(
-    window: &Projection,
-    selected: &Projection,
-    relations: &ScalarOrdering,
-    position: Position,
-) -> bool {
-    let (Some((start, end)), Some(birth)) = (window.window, window.captured_at) else {
-        return false;
-    };
-    use crate::scalars::scalar_ordering::Term;
-    let index = match selected.path.get(window.path.len()) {
-        Some(StructuralPathSegment::FixedIndex(index)) => Term::Unsigned(*index),
-        Some(StructuralPathSegment::RuntimeIndex { index, .. })
-            if selected.captured_at.is_some_and(|captured| {
-                relations.values_unchanged_since(captured, position, &[*index])
-            }) =>
-        {
-            Term::Value(*index)
-        }
-        _ => return false,
-    };
-    if selected.path[..window.path.len()] != window.path
-        || !relations.values_unchanged_since(birth, position, &[start, end])
-    {
-        return false;
-    }
-    relations.proves(position, index, Term::Value(start), true)
-        || relations.proves(position, Term::Value(end), index, false)
 }
 
 pub fn resolve(aliases: &AliasSources, root: PlaceId, projection: Projection) -> Vec<Region> {

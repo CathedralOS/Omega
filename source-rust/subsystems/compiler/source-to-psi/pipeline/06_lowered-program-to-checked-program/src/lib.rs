@@ -543,7 +543,7 @@ pub fn discharge_carrying(
 }
 
 /// Read-only fields of `Elaboration` needed while checking machines and
-/// holding `AffineSummaries<'_>` against `module` alongside `&mut CheckTables`.
+/// holding `ModuleAnalyses<'_>` against `module` alongside `&mut CheckTables`.
 pub(crate) struct ElaborationView<'a> {
     pub(crate) module: &'a TerminalModule,
     pub(crate) sources: &'a IdTable<MachineId, terminal_check_tables::program::MachineSources>,
@@ -713,7 +713,6 @@ pub(crate) fn finish_discharge<'m>(
     carried: &[Carried<'_>],
     verified: Option<&'m VerifiedAffine>,
     analyses: &'m terminal_semantics::ModuleAnalyses<'_>,
-    affine: &'m terminal_semantics::plain_affine::AffineSummaries<'m>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
     let PreparedDischarge {
@@ -770,7 +769,6 @@ pub(crate) fn finish_discharge<'m>(
             module,
             formed.nominal_calls(),
         ),
-        affine,
         cleanup_catalog: owned_cleanup::Catalog::new(module),
         received_claims: verified.map_or(&[][..], |verified| verified.claims.as_slice()),
     };
@@ -869,7 +867,6 @@ pub(crate) fn discharge_inner(
             &error.in_module(module),
         )
     })?;
-    let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
     let discharged = finish_discharge(
         ElaborationView {
             module: &elaboration.module,
@@ -884,10 +881,8 @@ pub(crate) fn discharge_inner(
         carried,
         None,
         &analyses,
-        &summaries,
         activity,
     )?;
-    drop(summaries);
     drop(analyses);
     publish_rankings(&mut elaboration.module, &discharged.machines)?;
     Ok(discharged)
@@ -1777,9 +1772,6 @@ pub(crate) struct ModuleReplays<'r, 'm> {
     /// nominal calls or scoped requirement addresses make the analyses' rows
     /// the wrong ones (`places::reference_graph_with_generic_calls`).
     borrowed_storage: terminal_semantics::descriptor_results::ModuleSummaries<'r>,
-    /// For the affine claim walk of each machine (`minted`), whose graph
-    /// has no nominal calls.
-    affine: &'r terminal_semantics::plain_affine::AffineSummaries<'r>,
     /// The module's cleanup machines and types by identity, or why they
     /// have none; `minted` refuses each machine with that reason.
     cleanup_catalog: Result<owned_cleanup::Catalog<'r>, &'static str>,

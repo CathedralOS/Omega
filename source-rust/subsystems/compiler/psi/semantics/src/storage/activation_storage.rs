@@ -17,7 +17,7 @@ pub fn activation_claim_shape(
     activation_claim_shape_in(&module.types.structural_types, operation)
 }
 
-pub fn activation_claim_shape_in(
+pub(crate) fn activation_claim_shape_in(
     types: &[terminal_psi::StructuralTypeDeclaration],
     operation: &Operation,
 ) -> Result<ActivationClaimShape, &'static str> {
@@ -113,4 +113,4 @@ pub fn activation_claim_shape_in(
 }
 
 pub(crate) mod flow;
-pub use flow::{validate_flow, validate_machine, validate_module};
+pub use flow::{validate_machine, validate_module};

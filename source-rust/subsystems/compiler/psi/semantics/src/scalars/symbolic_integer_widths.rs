@@ -1,3 +1,4 @@
+use crate::references::reference_storage_geometry::reference_field_representation_width;
 use crate::*;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, MachineId, ScalarTerm, ScalarType, ValueId,

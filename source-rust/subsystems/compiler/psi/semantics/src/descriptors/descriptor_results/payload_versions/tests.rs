@@ -192,52 +192,43 @@ fn scalar_formal_renews_on_arrival_not_between_operations_in_its_block() {
     ]);
     machine.payload_scalar_parameters = BTreeMap::from([(capture.0, vec![parameter])]);
     machine.payload_scalar_definitions.clear();
-    let mut analysis = ScalarCaptureAnalysis::new(&machine).unwrap();
-    analysis
-        .require(capture, observation, &[parameter])
-        .unwrap();
-    assert!(analysis.require(entry, observation, &[parameter]).is_err());
-    require_completed_scalar_capture(
-        std::slice::from_ref(&machine),
-        machine.id,
-        capture,
-        observation,
-        &[parameter],
-    )
-    .unwrap();
+    let capture_at = |source| {
+        require_completed_scalar_capture(
+            std::slice::from_ref(&machine),
+            machine.id,
+            source,
+            observation,
+            &[parameter],
+        )
+    };
+    capture_at(capture).unwrap();
+    assert!(capture_at(entry).is_err());
 }
 
 #[test]
-fn prepared_scalar_capture_refuses_renewed_operands_without_reusing_old_answers() {
+fn scalar_capture_refuses_renewed_operands() {
     let (_, mut machine) = copy_graph();
     let status = ValueId::new(8).unwrap();
     machine
         .payload_scalar_definitions
         .insert(position(1), vec![status]);
-    let mut original = ScalarCaptureAnalysis::new(&machine).unwrap();
-    original
-        .require(position(2), position(5), &[status])
-        .unwrap();
-    original
-        .require(position(2), position(5), &[status])
-        .unwrap();
-    assert_eq!(original.answers.len(), 1);
+    let capture = |machine: &DescriptorMachine, source, observation, values: &[ValueId]| {
+        require_completed_scalar_capture(
+            std::slice::from_ref(machine),
+            machine.id,
+            source,
+            observation,
+            values,
+        )
+    };
+    capture(&machine, position(2), position(5), &[status]).unwrap();
 
     machine
         .payload_scalar_definitions
         .insert(position(4), vec![status]);
-    let mut renewed = ScalarCaptureAnalysis::new(&machine).unwrap();
-    assert!(
-        renewed
-            .require(position(2), position(5), &[status])
-            .is_err()
-    );
-    assert!(
-        renewed
-            .require(position(2), position(2), &[status])
-            .is_err()
-    );
-    assert!(renewed.require(position(2), position(5), &[]).is_ok());
+    assert!(capture(&machine, position(2), position(5), &[status]).is_err());
+    assert!(capture(&machine, position(2), position(2), &[status]).is_err());
+    assert!(capture(&machine, position(2), position(5), &[]).is_ok());
 }
 
 #[test]

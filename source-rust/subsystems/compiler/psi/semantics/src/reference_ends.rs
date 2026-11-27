@@ -57,40 +57,22 @@ impl Error {
 }
 
 pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidates>, Error> {
-    candidates_with(&DescriptorRowSource::new(module), None)
+    candidates_with(&DescriptorRowSource::new(module))
 }
 
 /// `candidates`, reading the borrowed-storage rows from the module's shared
-/// analyses instead of adapting them again.
+/// analyses instead of adapting them again. The replays take and publish
+/// callee summaries through the bundle's table, which the bundle's affine
+/// walks (`ModuleAnalyses::affine`) share: their graphs are the same rows,
+/// so a summary from the table is the one their own replay would produce.
 pub fn candidates_in(
     analyses: &crate::ModuleAnalyses<'_>,
 ) -> Result<IdTable<MachineId, Candidates>, Error> {
-    candidates_with(&DescriptorRowSource::of(analyses), None)
-}
-
-/// `candidates`, taking and publishing callee summaries through the table
-/// that the affine walks of this same module share. Its graph is built
-/// without nominal calls, as each walk's is, so a summary from the table is
-/// the one its own replay would produce.
-pub fn candidates_sharing(
-    module: &TerminalModule,
-    summaries: &crate::plain_affine::AffineSummaries<'_>,
-) -> Result<IdTable<MachineId, Candidates>, Error> {
-    candidates_with(&DescriptorRowSource::new(module), Some(summaries))
-}
-
-/// `candidates_sharing`, reading the borrowed-storage rows from the
-/// module's shared analyses.
-pub fn candidates_sharing_in(
-    analyses: &crate::ModuleAnalyses<'_>,
-    summaries: &crate::plain_affine::AffineSummaries<'_>,
-) -> Result<IdTable<MachineId, Candidates>, Error> {
-    candidates_with(&DescriptorRowSource::of(analyses), Some(summaries))
+    candidates_with(&DescriptorRowSource::of(analyses))
 }
 
 fn candidates_with(
     rows: &DescriptorRowSource<'_, '_>,
-    summaries: Option<&crate::plain_affine::AffineSummaries<'_>>,
 ) -> Result<IdTable<MachineId, Candidates>, Error> {
     let module = rows.module();
     let has_borrowed_storage = |machine: &terminal_psi::TerminalMachine| {
@@ -127,6 +109,11 @@ fn candidates_with(
     if let DescriptorRows::Owned(owned) = &mut graph {
         owned.sort_unstable_by_key(|machine| machine.id);
     }
+    // The closure above built or read the bundle, so it exists here.
+    let analyses = rows
+        .analyses()
+        .map_err(|error| Error::from_graph(module, error))?;
+    let fresh_analysis = || analyses.analysis(DescriptorSlotKind::BorrowedStorage, &graph);
     let needs_analysis: Vec<bool> = module
         .machines
         .iter()
@@ -146,48 +133,36 @@ fn candidates_with(
             .map_err(|error| Error::from_graph(module, error))?;
         machine_candidates(module, machine, prepared, &flow, analysis)
     };
-    let per_machine: Vec<Result<Candidates, Error>> = if worker_budget::current_workers() > 1
-        && active_count >= 2
-    {
-        use rayon::prelude::*;
-        module
-            .machines
-            .par_iter()
-            .zip(needs_analysis.par_iter())
-            .with_max_len(1)
-            .map(|(machine, &active)| {
-                if !active {
-                    return Ok(Candidates::new());
-                }
-                let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(
-                    &module.types.structural_types,
-                    &graph,
-                );
-                if let Some(summaries) = summaries {
-                    summaries.share_with(&mut analysis);
-                }
-                compute_machine(machine, &mut analysis)
-            })
-            .collect()
-    } else {
-        let mut analysis =
-            DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
-        if let Some(summaries) = summaries {
-            summaries.share_with(&mut analysis);
-        }
-        module
-            .machines
-            .iter()
-            .zip(needs_analysis.iter())
-            .map(|(machine, &active)| {
-                if !active {
-                    Ok(Candidates::new())
-                } else {
-                    compute_machine(machine, &mut analysis)
-                }
-            })
-            .collect()
-    };
+    let per_machine: Vec<Result<Candidates, Error>> =
+        if worker_budget::current_workers() > 1 && active_count >= 2 {
+            use rayon::prelude::*;
+            module
+                .machines
+                .par_iter()
+                .zip(needs_analysis.par_iter())
+                .with_max_len(1)
+                .map(|(machine, &active)| {
+                    if !active {
+                        return Ok(Candidates::new());
+                    }
+                    compute_machine(machine, &mut fresh_analysis())
+                })
+                .collect()
+        } else {
+            let mut analysis = fresh_analysis();
+            module
+                .machines
+                .iter()
+                .zip(needs_analysis.iter())
+                .map(|(machine, &active)| {
+                    if !active {
+                        Ok(Candidates::new())
+                    } else {
+                        compute_machine(machine, &mut analysis)
+                    }
+                })
+                .collect()
+        };
     let mut result = IdTable::default();
     for (machine, candidates) in module.machines.iter().zip(per_machine) {
         let owner = result.push(candidates?);

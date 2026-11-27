@@ -154,7 +154,7 @@ impl RecordStorageResolver for UnselectedRecordStorage {
 /// The checked representation width used by both source plan validation
 /// and foreign storage recipes. Bounded nonnegative integers retain every
 /// representable bit, independently of their byte-sized home carrier.
-pub fn reference_field_representation_width<'types>(
+pub(crate) fn reference_field_representation_width<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     field: &StructuralFieldType,
 ) -> Option<u64> {
@@ -583,7 +583,7 @@ where
         Some(leaf.min(projected.unwrap_or(base)))
     }
 
-    pub fn source_compatible(
+    pub(crate) fn source_compatible(
         &mut self,
         source: StructuralTypeId,
         reference: StructuralTypeId,
@@ -719,7 +719,7 @@ where
         })
     }
 
-    pub fn region_source_compatible(
+    pub(crate) fn region_source_compatible(
         &mut self,
         source: StructuralTypeId,
         path: &[StructuralPathSegment],
@@ -876,7 +876,8 @@ where
     }
 }
 
-pub fn reference_storage_dependencies<'types>(
+#[cfg(test)]
+pub(crate) fn reference_storage_dependencies<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
 ) -> Result<Vec<ScalarApplicationId>, StorageGeometryError> {

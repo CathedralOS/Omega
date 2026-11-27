@@ -31,7 +31,7 @@ fn validate_telescope(
 /// Copies of an application commitment do not bind its arguments. Recompute
 /// it from the exact template and retained scalar/type arguments before
 /// those arguments can identify a caller.
-pub fn validate_machine_application_arguments(
+pub(crate) fn validate_machine_application_arguments(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
 ) -> Result<(), &'static str> {

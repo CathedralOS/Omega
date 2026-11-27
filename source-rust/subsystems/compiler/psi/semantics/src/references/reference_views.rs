@@ -216,7 +216,7 @@ pub fn is_copyable_carrier<'types>(
     declared_copyable || is_shared_reference_carrier(types, structural_type)
 }
 
-pub fn is_shared_reference_carrier<'types>(
+pub(crate) fn is_shared_reference_carrier<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     mut structural_type: StructuralTypeId,
 ) -> bool {
@@ -554,19 +554,6 @@ pub fn reference_storage_export_byte_width(
         }
     }
     Some(width)
-}
-
-pub fn reference_storage_region_source_compatible<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-    source: StructuralTypeId,
-    path: &[terminal_psi::StructuralPathSegment],
-    reference: StructuralTypeId,
-    stored: Option<ScalarType>,
-) -> bool {
-    crate::ReferenceStorageGeometry::new(types, |application| {
-        Err(crate::StorageGeometryError::UnresolvedExtent(application))
-    })
-    .view_source_compatible(source, path, reference, stored)
 }
 
 pub fn reference_storage_source_compatible<'types>(

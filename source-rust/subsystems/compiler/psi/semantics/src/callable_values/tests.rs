@@ -934,17 +934,19 @@ fn terminal_projection_keeps_the_missing_boundary_error_context() {
         .operations
         .push(diagnostic_boundary_call(missing));
     module.machines.push(entry);
-    let failure = terminal_callable_values_with_error_context(&module)
+    let analyses = crate::ModuleAnalyses::new(&module).unwrap();
+    let failure = analyses
+        .callable_values()
         .err()
         .expect("the actual malformed flow must refuse");
     assert!(matches!(
-        &failure,
+        failure,
         CallableValuePreparationError::StorageFlow(_)
     ));
     assert_eq!(failure.missing_boundary(&module), Some(missing));
     assert_eq!(
         terminal_callable_values(&module).err().unwrap(),
-        failure.in_module(&module)
+        failure.clone().in_module(&module)
     );
 }
 
@@ -1148,10 +1150,15 @@ fn shared_callable_values_keep_the_failed_storage_diagnostic() {
         .push(diagnostic_boundary_call(BoundaryMachineId::new(2).unwrap()));
     module.machines.push(entry);
     let analyses = crate::module_analyses::ModuleAnalyses::new(&module).unwrap();
-    let free = terminal_callable_values_with_error_context(&module).err();
-    assert_eq!(analyses.callable_values().err(), free.as_ref());
     let message = terminal_callable_values(&module).err();
     assert!(message.is_some());
+    assert_eq!(
+        analyses
+            .callable_values()
+            .err()
+            .map(|failure| failure.clone().in_module(&module)),
+        message
+    );
     assert_eq!(analyses.bound_callable_values(&[]).err(), message);
     assert_eq!(
         analyses.boundary_call_reach(machine_id(1), &[]).err(),

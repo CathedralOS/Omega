@@ -389,7 +389,7 @@ pub fn structural_projection_authority(
     projected_access(&argument.path, access)
 }
 
-pub fn root_before_edge(
+pub(crate) fn root_before_edge(
     machine: &TerminalMachine,
     block: BlockId,
     predecessor: &Block,
@@ -441,16 +441,12 @@ pub fn projection_before_edge<'edge>(
     forwarded
 }
 
-pub struct StorageNames {
+pub(crate) struct StorageNames {
     behind: BTreeMap<BlockId, BTreeSet<PlaceId>>,
 }
 
 impl StorageNames {
-    pub fn in_block(&self, block: BlockId) -> impl Iterator<Item = PlaceId> + '_ {
-        self.behind.get(&block).into_iter().flatten().copied()
-    }
-
-    pub fn captured_roots(&self) -> impl Iterator<Item = PlaceId> + '_ {
+    pub(crate) fn captured_roots(&self) -> impl Iterator<Item = PlaceId> + '_ {
         self.behind.values().flat_map(|roots| roots.iter().copied())
     }
 }
@@ -498,8 +494,4 @@ impl<'a> StoragePredecessors<'a> {
         }
         StorageNames { behind }
     }
-}
-
-pub fn storage_names(machine: &TerminalMachine, block: BlockId, root: PlaceId) -> StorageNames {
-    StoragePredecessors::new(machine).storage_names(block, root)
 }

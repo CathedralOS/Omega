@@ -58,7 +58,7 @@ impl<'a, 'm> DescriptorRowSource<'a, 'm> {
         self.module
     }
 
-    fn analyses(&self) -> Result<&ModuleAnalyses<'m>, DescriptorGraphError> {
+    pub(crate) fn analyses(&self) -> Result<&ModuleAnalyses<'m>, DescriptorGraphError> {
         match self.given {
             Some(analyses) => Ok(analyses),
             None => self

@@ -116,7 +116,7 @@ pub(crate) fn is_access_projection_shape(
     false
 }
 
-pub fn validate_access_view_catalog(
+pub(crate) fn validate_access_view_catalog(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     identities: &terminal_psi::TerminalIdentityTable,
     plans: &[terminal_psi::TerminalAccessViewPlan],
@@ -466,7 +466,7 @@ pub fn contains_access_carrier(module: &TerminalModule, root: StructuralTypeId) 
     )
 }
 
-pub fn contains_access_carrier_in_catalog(
+pub(crate) fn contains_access_carrier_in_catalog(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     plans: &[terminal_psi::TerminalAccessViewPlan],
     root: StructuralTypeId,

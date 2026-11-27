@@ -287,7 +287,7 @@ fn does_no_work(machine: &terminal_psi::TerminalMachine) -> bool {
 /// Its implication is its `requires` and `ensures`.
 /// The named machine is checked as any machine is, so its `ensures` hold
 /// wherever its `requires` do.
-pub fn named_contract(
+pub(crate) fn named_contract(
     module: &TerminalModule,
     owner: MachineId,
     named: MachineId,

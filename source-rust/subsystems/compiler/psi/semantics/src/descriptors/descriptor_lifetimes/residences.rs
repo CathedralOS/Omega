@@ -2,7 +2,7 @@ use super::{DescriptorFlowStep, DescriptorLocation, DescriptorPosition};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Default)]
-pub struct DescriptorResidenceRules {
+pub(crate) struct DescriptorResidenceRules {
     pub captures: BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
 }
 
@@ -20,7 +20,7 @@ impl ResidenceName {
     }
 }
 
-pub fn descriptor_residence_live_positions(
+pub(crate) fn descriptor_residence_live_positions(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     rules: &DescriptorResidenceRules,
     birth: DescriptorPosition,

@@ -176,7 +176,7 @@ pub(crate) fn validate_input_region<'types>(
 }
 
 /// Enumerating known references never proves an unknown packet empty.
-pub fn reference_leaves<'types>(
+pub(crate) fn reference_leaves<'types>(
     types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     maximum_leaves: usize,
@@ -188,21 +188,21 @@ pub fn reference_leaves<'types>(
         .then_some(inventory.references)
 }
 
-pub struct ReferenceInventory {
+pub(crate) struct ReferenceInventory {
     pub references: Vec<ReferenceLeaf>,
     pub unknown_contents: Vec<UnknownReferenceContents>,
 }
 
 /// The exact value whose contained references cannot yet be enumerated.
 /// Its path stops at the carrier and grants no access to a referent.
-pub struct UnknownReferenceContents {
+pub(crate) struct UnknownReferenceContents {
     pub path: Vec<StructuralPathSegment>,
     pub structural_type: StructuralTypeId,
 }
 
 /// References stored in a value. A slice descriptor borrows its
 /// elements from separate storage, and descriptor flow tracks that loan.
-pub fn reference_inventory<'types>(
+pub(crate) fn reference_inventory<'types>(
     types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     maximum_leaves: usize,
@@ -366,7 +366,7 @@ fn collect_reference_inventory<'types>(
     })
 }
 
-pub struct ReferenceLeaf {
+pub(crate) struct ReferenceLeaf {
     pub path: Vec<StructuralPathSegment>,
     pub structural_type: StructuralTypeId,
 }

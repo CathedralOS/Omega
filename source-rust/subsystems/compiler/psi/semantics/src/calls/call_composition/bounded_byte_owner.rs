@@ -18,7 +18,7 @@ pub fn bounded_byte_owner_capacity(
     )
 }
 
-pub fn bounded_byte_owner_capacity_from_catalogs(
+pub(crate) fn bounded_byte_owner_capacity_from_catalogs(
     types: &[terminal_psi::StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
     actual: &StructuralParameterDeclaration,
@@ -28,9 +28,8 @@ pub fn bounded_byte_owner_capacity_from_catalogs(
     bounded_byte_owner_capacity_in(types.iter(), domains.iter(), actual, argument, expected)
 }
 
-pub fn bounded_byte_owner_capacity_in<'type_declaration, 'domain>(
-    types: impl Iterator<Item = &'type_declaration terminal_psi::StructuralTypeDeclaration>
-    + Clone,
+pub(crate) fn bounded_byte_owner_capacity_in<'type_declaration, 'domain>(
+    types: impl Iterator<Item = &'type_declaration terminal_psi::StructuralTypeDeclaration> + Clone,
     domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
     actual: &StructuralParameterDeclaration,
     argument: &StructuralArgument,

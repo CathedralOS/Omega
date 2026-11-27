@@ -1154,7 +1154,7 @@ impl<'types> Flow<'types> {
         }
         Ok(())
     }
-    pub fn select_case(
+    pub(crate) fn select_case(
         &self,
         state: &mut ClaimsState,
         terminator: &Terminator,
@@ -1338,7 +1338,7 @@ impl<'types> Flow<'types> {
         }
         Ok(())
     }
-    pub fn unreachable_block(&mut self, block: &terminal_psi::Block) {
+    pub(crate) fn unreachable_block(&mut self, block: &terminal_psi::Block) {
         for operation in &block.operations {
             if let Ok(position) = self
                 .fresh_results

@@ -1,4 +1,3 @@
-use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{IntegerSign, ScalarType, StructuralTypeId};
 use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
 
@@ -138,16 +137,6 @@ fn collection_shape_backing<'types>(
         }
         _ => None,
     }
-}
-
-pub fn collection_view_backing<'a>(
-    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    collection: StructuralTypeId,
-    element: StructuralTypeId,
-    access: terminal_psi::StructuralAccess,
-) -> Option<CollectionBacking> {
-    let declaration = exactly_one(types.clone(), |row| row.id == collection)?;
-    collection_shape_view_backing(types, &declaration.shape, element, access)
 }
 
 pub(crate) fn collection_shape_view_backing<'a>(

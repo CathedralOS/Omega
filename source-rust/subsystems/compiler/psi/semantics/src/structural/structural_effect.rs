@@ -9,16 +9,10 @@ pub(crate) mod byte_predicate;
 pub use byte_predicate::byte_predicate_equation;
 pub(crate) mod observation;
 pub use observation::{
-    StructuralEffectObservation, same_descriptor_coordinate,
-    structural_effect_leaf_observation, structural_effect_leaf_observation_in,
+    StructuralEffectObservation, same_descriptor_coordinate, structural_effect_leaf_observation,
 };
 pub(crate) mod element_extent;
-pub use byte_extent::{literal_length_equation, subslice_length_equation};
-pub use element_extent::{
-    ElementViewLeaf, element_establishment_length_equation, element_subslice_length_equation,
-    element_view_leaf, element_view_leaf_scalar, element_view_read_scalar,
-    element_view_write_goal,
-};
+pub use element_extent::{element_view_leaf_scalar, element_view_read_scalar};
 
 use crate::OperationSemanticError;
 use crate::operations::OperationSemanticTag;
@@ -43,34 +37,6 @@ pub(crate) fn byte_sequence_field_path(
     selected.field_type.byte_sequence_carrier()?;
     path.push(CanonicalStructuralPathSegment::Field(*field));
     Some((source.place, path))
-}
-
-pub(crate) fn u64_extent_proposition(
-    result: ValueId,
-    count: u128,
-) -> Result<Option<Proposition>, OperationSemanticError> {
-    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
-    let count = ScalarTerm::integer(
-        integer_type,
-        semantic_vocabulary::IntegerValue::Unsigned(count),
-    )
-    .map_err(OperationSemanticError::InvalidProposition)?;
-    Ok(Some(Proposition::Equal(
-        ScalarTerm::value(result, ScalarType::Integer(integer_type)),
-        count,
-    )))
-}
-
-pub(crate) fn u64_extent_difference_proposition(
-    result: ValueId,
-    end: ValueId,
-    start: ValueId,
-) -> Result<Option<Proposition>, OperationSemanticError> {
-    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
-    let value = |identity| ScalarTerm::value(identity, ScalarType::Integer(integer_type));
-    let difference = ScalarTerm::exact_integer_subtract(integer_type, value(end), value(start))
-        .map_err(OperationSemanticError::InvalidProposition)?;
-    Ok(Some(Proposition::Equal(value(result), difference)))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -162,7 +128,7 @@ pub enum StructuralEffectAction {    EstablishNativeCodeLayout,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum StructuralEffectExternalEffect {
+pub(crate) enum StructuralEffectExternalEffect {
     None,
     PortWrite,
 }
@@ -223,7 +189,7 @@ impl StructuralEffectLeafSchema {
         self.action
     }
 
-    pub const fn external_effect(self) -> StructuralEffectExternalEffect {
+    pub(crate) const fn external_effect(self) -> StructuralEffectExternalEffect {
         self.external_effect
     }
 
@@ -413,17 +379,7 @@ structural_effect_rows! {
     EstablishNativeCodeLayout => (Structural, ExactRecord, EstablishNativeCodeLayout, None, AddsOwnedPlace),
 }
 
-pub fn structural_effect_semantic_row(
-    operation: &OperationKind,
-) -> Result<Option<&'static StructuralEffectSemanticRow>, OperationSemanticError> {
-    validate_structural_effect_semantic_rows(&StructuralEffectSemanticRow::ALL)?;
-    exact_structural_effect_semantic_row_in(
-        OperationSemanticTag::for_operation(operation),
-        &StructuralEffectSemanticRow::ALL,
-    )
-}
-
-pub fn validate_structural_effect_semantic_rows(
+pub(crate) fn validate_structural_effect_semantic_rows(
     rows: &[StructuralEffectSemanticRow],
 ) -> Result<(), OperationSemanticError> {
     reject_unexpected_structural_effect_rows(rows)?;
@@ -838,24 +794,4 @@ fn validate_structural_effect_result(
         .ok_or(OperationSemanticError::StructuralEffectResultShapeMismatch(
             tag,
         ))
-}
-
-pub(crate) fn subslice_extent_equation(
-    observation: &StructuralEffectObservation,
-    producer: &StructuralEffectObservation,
-    read: impl Fn(
-        &StructuralEffectObservation,
-    ) -> Option<(&terminal_psi::StructuralArgument, ValueId)>,
-    subslice: impl Fn(&StructuralEffectObservation) -> Option<(PlaceId, ValueId, ValueId)>,
-) -> Result<Option<Proposition>, OperationSemanticError> {
-    let Some((source, result)) = read(observation) else {
-        return Ok(None);
-    };
-    let Some((destination, start, end)) = subslice(producer) else {
-        return Ok(None);
-    };
-    if source.place != destination || !source.path.is_empty() {
-        return Ok(None);
-    }
-    u64_extent_difference_proposition(result, end, start)
 }

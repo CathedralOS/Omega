@@ -61,7 +61,7 @@ pub struct DeclaredReferenceResult<'module> {
 /// body the caller can see: a selected call (`required` names its public
 /// header) or a rigid call reaching a bodiless requirement. `None` means the
 /// callee's actual body origins govern.
-pub fn public_reference_result(
+pub(crate) fn public_reference_result(
     module: &TerminalModule,
     caller: MachineId,
     callee: MachineId,
@@ -117,7 +117,7 @@ pub fn selected_reference_result(
 /// `None` when `callee` has a body, whose actual origins and writes govern.
 /// A bodiless requirement uses its public account even when it returns no
 /// borrowed value: its write authority must not become an absent body walk.
-pub fn requirement_reference_result(
+pub(crate) fn requirement_reference_result(
     module: &TerminalModule,
     callee: MachineId,
 ) -> Result<Option<DeclaredReferenceResult<'_>>, &'static str> {
@@ -383,7 +383,7 @@ impl DeclaredReferenceResult<'_> {
 
     /// Check a selected body's actual returned storage against the declared
     /// input regions. Descriptor copying does not authorize another input.
-    pub fn validate_actual_result(
+    pub(crate) fn validate_actual_result(
         &self,
         parameters: &[terminal_psi::StructuralParameterDeclaration],
         result: &terminal_psi::StructuralResultDeclaration,

@@ -7,8 +7,6 @@ use std::collections::BTreeMap;
 
 pub mod clauses;
 
-use terminal_psi::{CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard};
-
 use semantic_vocabulary::ScalarReadProjection;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ContentConservation, ContentStructuralPlace, ContentTerm,
@@ -827,43 +825,6 @@ pub(crate) fn substitute_scalar_term_values_with<'input>(
             right,
         } => typed_binary_body!(SaturatingIntegerMultiply, scalar_type, left, right),
     }
-}
-
-pub fn substitute_crash_routes(
-    routes: &[CrashRouteBucket],
-    substitutions: &BTreeMap<ValueId, ScalarTerm>,
-) -> Vec<CrashRouteBucket> {
-    routes
-        .iter()
-        .filter_map(|bucket| {
-            let mut alternatives = bucket
-                .alternatives
-                .iter()
-                .filter_map(|guard| match guard {
-                    CrashRouteGuard::Truth => Some(CrashRouteGuard::Truth),
-                    CrashRouteGuard::Predicate(predicate) => {
-                        match substitute_proposition_values(predicate.proposition(), substitutions)
-                        {
-                            Proposition::Truth => Some(CrashRouteGuard::Truth),
-                            Proposition::Falsehood => None,
-                            proposition => Some(CrashRouteGuard::Predicate(
-                                CrashPredicateTerm::new(proposition),
-                            )),
-                        }
-                    }
-                })
-                .collect::<Vec<_>>();
-            alternatives.sort();
-            alternatives.dedup();
-            if alternatives.contains(&CrashRouteGuard::Truth) {
-                alternatives = vec![CrashRouteGuard::Truth];
-            }
-            (!alternatives.is_empty()).then_some(CrashRouteBucket {
-                cause: bucket.cause,
-                alternatives,
-            })
-        })
-        .collect()
 }
 
 #[cfg(test)]

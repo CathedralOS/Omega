@@ -11,16 +11,16 @@
 //! Both plans are affine ownership walks, and each walk replays the summaries
 //! of the callees its machine reaches. Walks over one unchanged module share
 //! one `ModuleWalks` round: the module's `ModuleAnalyses` bundle, whose
-//! borrowed-storage rows, call fences and type permissions every walk reads,
-//! and one `AffineSummaries` table of callee summaries. The first application
-//! that changes a machine ends that round, and later walks start another.
+//! borrowed-storage rows, call fences, type permissions and callee summaries
+//! every walk reads. The first application that changes a machine ends that
+//! round, and later walks start another.
 
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::program::{MachineSources, SourceOrigin};
 use terminal_check_tables::{Construct, RefusalReason};
 use terminal_psi::{TerminalMachine, TerminalModule};
 use terminal_semantics::ModuleAnalyses;
-use terminal_semantics::plain_affine::{self, AffineSummaries, MachineAffine, Site};
+use terminal_semantics::plain_affine::{self, MachineAffine, Site};
 
 /// What every affine walk over one unchanged module shares. A round borrows
 /// the module, so nothing can edit the module while the round exists. A pass
@@ -30,9 +30,9 @@ pub(crate) struct ModuleWalks<'m> {
     module: &'m TerminalModule,
     /// `None` when the module repeats a machine identity, which the bundle
     /// refuses. Each walk then builds its own closure, which refuses that
-    /// module with the same error whenever the walk needs the closure.
+    /// module with the same error whenever the walk needs the closure, so
+    /// there are no summaries to share.
     analyses: Option<ModuleAnalyses<'m>>,
-    summaries: AffineSummaries<'m>,
 }
 
 impl<'m> ModuleWalks<'m> {
@@ -40,7 +40,6 @@ impl<'m> ModuleWalks<'m> {
         Self {
             module,
             analyses: ModuleAnalyses::new(module).ok(),
-            summaries: AffineSummaries::new(module),
         }
     }
 
@@ -49,27 +48,19 @@ impl<'m> ModuleWalks<'m> {
     }
 
     #[cfg(test)]
-    pub(crate) fn summaries(&self) -> &AffineSummaries<'m> {
-        &self.summaries
-    }
-
-    #[cfg(test)]
     pub(crate) fn analyses(&self) -> Option<&ModuleAnalyses<'m>> {
         self.analyses.as_ref()
     }
 
     /// The affine walks of `machine`. They read the machine's
-    /// borrowed-storage closure from the round's bundle and share the round's
-    /// callee summaries.
+    /// borrowed-storage closure and callee summaries from the round's bundle.
     pub(crate) fn affine(
         &self,
         machine: MachineId,
     ) -> Result<MachineAffine<'_>, plain_affine::Error> {
         match &self.analyses {
-            Some(analyses) => {
-                MachineAffine::from_analyses(analyses, machine, Some(&self.summaries))
-            }
-            None => MachineAffine::new(self.module, machine, Some(&self.summaries)),
+            Some(analyses) => analyses.affine(machine),
+            None => MachineAffine::new(self.module, machine),
         }
     }
 
@@ -81,10 +72,10 @@ impl<'m> ModuleWalks<'m> {
         arena::IdTable<MachineId, terminal_semantics::reference_ends::Candidates>,
         terminal_semantics::reference_ends::Error,
     > {
-        use terminal_semantics::reference_ends::{candidates_sharing, candidates_sharing_in};
+        use terminal_semantics::reference_ends::{candidates, candidates_in};
         match &self.analyses {
-            Some(analyses) => candidates_sharing_in(analyses, &self.summaries),
-            None => candidates_sharing(self.module, &self.summaries),
+            Some(analyses) => candidates_in(analyses),
+            None => candidates(self.module),
         }
     }
 }

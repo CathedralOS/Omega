@@ -1,18 +1,11 @@
 use crate::operations::OperationSemanticTag;
 use crate::{
-    GoalFreeScalarLeafSchema, OperationSemanticError, ScalarLeafDenotation,
-    ScalarLeafFactShape, ScalarLeafOperandShape, ScalarLeafResultShape, operation_semantic_row,
+    GoalFreeScalarLeafSchema, OperationSemanticError, ScalarLeafDenotation, ScalarLeafFactShape,
+    ScalarLeafOperandShape, ScalarLeafResultShape, operation_semantic_row,
 };
 use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm, ScalarType, ValueId};
-use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use terminal_psi::{Operation, OperationKind};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScalarLeafLiteral {
-    Integer(IntegerValue),
-    Boolean(bool),
-}
 
 /// The scalar type of each value the scalar-leaf semantics reads. A
 /// caller that holds value types in a dense table passes the table; it
@@ -55,140 +48,6 @@ impl ValueTypes for SortedValueTypes {
             .ok()
             .map(|position| self.0[position].1)
     }
-}
-
-pub fn constant_goal_free_scalar_leaf(
-    operation: &Operation,
-    literals: &BTreeMap<ValueId, ScalarLeafLiteral>,
-    value_types: &BTreeMap<ValueId, ScalarType>,
-) -> Option<ScalarLeafLiteral> {
-    let row = operation_semantic_row(&operation.kind).ok()?;
-    let schema = row.goal_free_scalar_leaf()?;
-    let inputs = scalar_leaf_inputs(&operation.kind)?;
-    let result = operation.result.scalar_ref()?;
-    validate_result_shape(row.tag, schema.result, result.scalar_type).ok()?;
-    validate_operand_shape(row.tag, schema, inputs, result.scalar_type, value_types).ok()?;
-    let integer_literal = |value: ValueId| match literals.get(&value) {
-        Some(ScalarLeafLiteral::Integer(literal)) => Some(*literal),
-        _ => None,
-    };
-    let boolean_literal = |value: ValueId| match literals.get(&value) {
-        Some(ScalarLeafLiteral::Boolean(literal)) => Some(*literal),
-        _ => None,
-    };
-    let integer_type_of = |value: ValueId| match value_types.get(&value) {
-        Some(ScalarType::Integer(integer_type)) => Some(*integer_type),
-        _ => None,
-    };
-    let result_integer_type = || match result.scalar_type {
-        ScalarType::Integer(integer_type) => Some(integer_type),
-        _ => None,
-    };
-    let binary_integer = |left: ValueId, right: ValueId| {
-        Some((
-            integer_type_of(left)?,
-            integer_literal(left)?,
-            integer_type_of(right)?,
-            integer_literal(right)?,
-        ))
-    };
-    macro_rules! integer_binary {
-        ($op:ident, $left:ident, $right:ident) => {
-            ScalarLeafLiteral::Integer(
-                result_integer_type()?
-                    .$op(integer_literal($left)?, integer_literal($right)?)?,
-            )
-        };
-    }
-    Some(match (schema.denotation, inputs) {
-        (ScalarLeafDenotation::BooleanNot, ScalarLeafInputs::Unary(operand)) => {
-            ScalarLeafLiteral::Boolean(!boolean_literal(operand)?)
-        }
-        (ScalarLeafDenotation::BooleanEqual, ScalarLeafInputs::Binary(left, right)) => {
-            ScalarLeafLiteral::Boolean(boolean_literal(left)? == boolean_literal(right)?)
-        }
-        (ScalarLeafDenotation::IntegerEqual, ScalarLeafInputs::Binary(left, right)) => {
-            let (left_type, left, right_type, right) = binary_integer(left, right)?;
-            ScalarLeafLiteral::Boolean(
-                left_type.compare_with(left, right_type, right)? == Ordering::Equal,
-            )
-        }
-        (ScalarLeafDenotation::IntegerLessThan, ScalarLeafInputs::Binary(left, right)) => {
-            let (left_type, left, right_type, right) = binary_integer(left, right)?;
-            ScalarLeafLiteral::Boolean(
-                left_type.compare_with(left, right_type, right)? == Ordering::Less,
-            )
-        }
-        (ScalarLeafDenotation::IntegerLessOrEqual, ScalarLeafInputs::Binary(left, right)) => {
-            let (left_type, left, right_type, right) = binary_integer(left, right)?;
-            ScalarLeafLiteral::Boolean(
-                left_type.compare_with(left, right_type, right)? != Ordering::Greater,
-            )
-        }
-        (ScalarLeafDenotation::IntegerBitwiseNot, ScalarLeafInputs::Unary(operand)) => {
-            ScalarLeafLiteral::Integer(
-                result_integer_type()?.bitwise_not(integer_literal(operand)?)?,
-            )
-        }
-        (ScalarLeafDenotation::IntegerWiden, ScalarLeafInputs::Unary(operand)) => {
-            ScalarLeafLiteral::Integer(
-                integer_type_of(operand)?
-                    .widen_value_to(result_integer_type()?, integer_literal(operand)?)?,
-            )
-        }
-        (ScalarLeafDenotation::IntegerBitwiseAnd, ScalarLeafInputs::Binary(left, right)) => {
-            integer_binary!(bitwise_and, left, right)
-        }
-        (ScalarLeafDenotation::IntegerBitwiseOr, ScalarLeafInputs::Binary(left, right)) => {
-            integer_binary!(bitwise_or, left, right)
-        }
-        (ScalarLeafDenotation::IntegerBitwiseXor, ScalarLeafInputs::Binary(left, right)) => {
-            integer_binary!(bitwise_xor, left, right)
-        }
-        (
-            ScalarLeafDenotation::WrappingIntegerShiftLeft,
-            ScalarLeafInputs::Binary(value, count),
-        ) => ScalarLeafLiteral::Integer(result_integer_type()?.wrapping_shift_left(
-            integer_literal(value)?,
-            integer_type_of(count)?,
-            integer_literal(count)?,
-        )?),
-        (
-            ScalarLeafDenotation::WrappingIntegerShiftRight,
-            ScalarLeafInputs::Binary(value, count),
-        ) => ScalarLeafLiteral::Integer(result_integer_type()?.wrapping_shift_right(
-            integer_literal(value)?,
-            integer_type_of(count)?,
-            integer_literal(count)?,
-        )?),
-        (ScalarLeafDenotation::WrappingIntegerAdd, ScalarLeafInputs::Binary(left, right)) => {
-            integer_binary!(wrapping_add, left, right)
-        }
-        (ScalarLeafDenotation::SaturatingIntegerAdd, ScalarLeafInputs::Binary(left, right)) => {
-            integer_binary!(saturating_add, left, right)
-        }
-        (
-            ScalarLeafDenotation::WrappingIntegerSubtract,
-            ScalarLeafInputs::Binary(left, right),
-        ) => {
-            integer_binary!(wrapping_sub, left, right)
-        }
-        (
-            ScalarLeafDenotation::SaturatingIntegerSubtract,
-            ScalarLeafInputs::Binary(left, right),
-        ) => integer_binary!(saturating_sub, left, right),
-        (
-            ScalarLeafDenotation::WrappingIntegerMultiply,
-            ScalarLeafInputs::Binary(left, right),
-        ) => {
-            integer_binary!(wrapping_mul, left, right)
-        }
-        (
-            ScalarLeafDenotation::SaturatingIntegerMultiply,
-            ScalarLeafInputs::Binary(left, right),
-        ) => integer_binary!(saturating_mul, left, right),
-        _ => return None,
-    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -476,10 +335,6 @@ pub struct GoalFreeScalarLeafSemantics {
 impl GoalFreeScalarLeafSemantics {
     pub fn result_equation(&self) -> &Proposition {
         &self.result_equation
-    }
-
-    pub fn fact_shape(&self) -> ScalarLeafFactShape {
-        self.fact_shape
     }
 }
 

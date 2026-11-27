@@ -9,7 +9,7 @@ pub struct DescriptorMachineSignature<'a> {
     pub result: Option<&'a terminal_psi::StructuralResultDeclaration>,
 }
 
-pub fn machine_invocation(
+pub(crate) fn machine_invocation(
     owner: DescriptorInvocationOwner,
     types: &[StructuralTypeDeclaration],
     slot_kind: DescriptorSlotKind,
@@ -222,7 +222,7 @@ pub fn public_invocation(
     })
 }
 
-pub fn public_result_slots(
+pub(crate) fn public_result_slots(
     types: &[StructuralTypeDeclaration],
     slot_kind: DescriptorSlotKind,
     slot: &impl terminal_psi::ReferenceResultShape,

@@ -19,12 +19,11 @@ pub use reachable::{
     CallableInvocationRoot, CallableInvocationRoots, reachable_callable_invocations,
     reachable_callable_invocations_with_roots,
 };
+pub(crate) use terminal::terminal_callable_values_with_boundary_implementations;
 pub use terminal::{
     CallableValuePreparationError, ReachedBoundaryCalls, boundary_call_reach,
     boundary_call_reach_in, project_callable_invocation, project_owned_cleanup_invocation,
     reached_boundary_calls, stored_callable_definition, terminal_callable_values,
-    terminal_callable_values_with_boundary_implementations,
-    terminal_callable_values_with_error_context,
 };
 pub(crate) use terminal::{bind_declared_implementations, terminal_callable_values_in};
 pub use terminal_psi::execution::callable_reach::{

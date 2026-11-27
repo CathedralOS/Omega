@@ -4,7 +4,7 @@ use crate::descriptors::descriptor_results::{
     self as descriptors, DescriptorAnalysis, DescriptorMachine, PayloadMembershipContract,
 };
 use crate::descriptors::row_source::DescriptorRowSource;
-use semantic_vocabulary::{MachineId, PlaceId, ReferenceOriginExtent, StructuralTypeId};
+use semantic_vocabulary::{MachineId, PlaceId, ReferenceOriginExtent};
 use terminal_psi::{
     Operation, ReferenceOriginProjection, StructuralAccess, StructuralOperationResult,
     StructuralPathQualification, StructuralPathSegment, StructuralResultDeclaration,
@@ -134,31 +134,6 @@ impl<'module, 'r> ReferenceResultMemberships<'module, 'r> {
             &|place| descriptors::terminal_payload_contract(caller, place),
         )
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn reference_call_preserved_memberships(
-    types: &[StructuralTypeDeclaration],
-    domains: &[terminal_psi::StructuralDomainDeclaration],
-    graph: &[DescriptorMachine],
-    identity: MachineId,
-    position: DescriptorPosition,
-    result: &StructuralOperationResult,
-    declaration: &StructuralResultDeclaration,
-    mappings: &[ReferenceCallResult],
-    source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
-) -> Result<Vec<StructuralPathQualification>, &'static str> {
-    preserve_call_memberships(
-        types,
-        domains,
-        || graph,
-        identity,
-        position,
-        result,
-        declaration,
-        mappings,
-        source,
-    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -303,42 +278,6 @@ fn preserve_call_memberships<'input>(
     retained.sort();
     retained.dedup();
     Ok(retained)
-}
-
-pub fn reference_result_memberships_weaken<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-    carrier: StructuralTypeId,
-    source: &[StructuralPathQualification],
-    declared: &[StructuralPathQualification],
-) -> bool {
-    declared.iter().all(|row| source.contains(row))
-        && source.iter().all(|row| {
-            if declared.contains(row) {
-                return true;
-            }
-            let mut crosses_shared = false;
-            for (index, segment) in row.path.iter().enumerate() {
-                if *segment != StructuralPathSegment::Referent {
-                    continue;
-                }
-                let Some(declaration) =
-                    crate::qualification_path_carrier(types.clone(), carrier, &row.path[..index])
-                        .and_then(|carrier| crate::structural_declaration(types.clone(), carrier))
-                else {
-                    return false;
-                };
-                match declaration.shape {
-                    StructuralTypeShape::Reference {
-                        access: StructuralAccess::SharedBorrow,
-                        ..
-                    } => {
-                        crosses_shared = true;
-                    }
-                    _ => return false,
-                }
-            }
-            crosses_shared
-        })
 }
 
 #[cfg(test)]

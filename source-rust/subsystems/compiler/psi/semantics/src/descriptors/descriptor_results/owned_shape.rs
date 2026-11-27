@@ -4,14 +4,14 @@ use std::collections::BTreeSet;
 use terminal_psi::ByteSequenceCarrier;
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
-pub fn plain_owned_shape<'a>(
+pub(crate) fn plain_owned_shape<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
 ) -> bool {
     owned_shape(types, root, false)
 }
 
-pub fn owned_shared_byte_descriptor_shape<'a>(
+pub(crate) fn owned_shared_byte_descriptor_shape<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
 ) -> bool {

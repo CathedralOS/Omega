@@ -4,8 +4,8 @@ use crate::descriptor_lifetimes::{
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    StructuralAccess, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+    StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction,
 };
 
 pub struct ReferenceCompletionOccurrence<'a, Identity> {
@@ -100,26 +100,6 @@ pub fn disposed_reference_on_return(
         }
     }
     found_cleanup
-}
-
-pub fn borrowed_entry_reference_referent<'a>(
-    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    parameter: &StructuralParameterDeclaration,
-    path: &[StructuralPathSegment],
-) -> Option<StructuralTypeId> {
-    if parameter.access == StructuralAccess::Owned
-        || !crate::projection_stays_in_inline_storage(
-            declarations.clone(),
-            parameter.structural_type,
-            path,
-        )
-    {
-        return None;
-    }
-    match crate::runtime_structural_path_tip(declarations, parameter.structural_type, path)?.shape {
-        StructuralTypeShape::Reference { referent, .. } => Some(referent),
-        _ => None,
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1697,7 +1677,7 @@ fn owned_cleanup_disposes_only_the_transferred_descriptor_subtree() {
     ));
 }
 
-pub fn cleanup_disposes_reference(
+pub(crate) fn cleanup_disposes_reference(
     actions: &[TerminalAffineCleanupAction],
     carrier: PlaceId,
     path: &[StructuralPathSegment],

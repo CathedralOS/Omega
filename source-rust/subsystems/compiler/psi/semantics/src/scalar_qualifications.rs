@@ -994,7 +994,7 @@ pub fn validate(module: &TerminalModule) -> Result<(), ScalarQualificationError>
 
 /// Check the complete vocabulary and prove returned memberships for the exact
 /// checked bodies. Abstract check-form requirements remain header assumptions.
-pub fn validate_for_bodies(
+pub(crate) fn validate_for_bodies(
     module: &TerminalModule,
     bodies: &[MachineId],
 ) -> Result<(), ScalarQualificationError> {
