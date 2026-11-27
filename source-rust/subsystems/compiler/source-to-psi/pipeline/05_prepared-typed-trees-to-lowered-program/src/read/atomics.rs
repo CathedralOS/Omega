@@ -188,15 +188,18 @@ impl Program<'_> {
         else {
             return Err(invalid());
         };
-        let instance = self.source_declaration(machine, record)?;
-        // A closed record has a synthesized declaration. Authenticate the
-        // template of its checked application, including the source file.
-        let declaration = self
-            .typed
-            .unique_data_definition_by_symbol(instance)
-            .and_then(|data| data.generic_instance)
-            .and_then(|reference| self.typed.type_reference_table.type_head_symbol(reference))
+        // Application checking records each argument against its original
+        // template binder, whether the closed definition is a materialized
+        // symbol or a retained view of its source occurrence.
+        let application = self
+            .record_sources
+            .get(record)
+            .and_then(|source| source.application.as_ref())
             .ok_or_else(invalid)?;
+        let [(parameter, _)] = application.substitutions.as_slice() else {
+            return Err(invalid());
+        };
+        let declaration = self.typed.symbols.get(*parameter).parent;
         if self.typed.symbols.core_source(declaration)
             != Some(language_core::core_vocabulary::CoreSource::Layout)
             || self.typed.symbols.display_path(declaration, "::") != outcome.name()
