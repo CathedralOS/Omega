@@ -218,7 +218,7 @@ impl StagedOptimizedRelocationFreeObjectContainer {
         let bound = self
             .publication
             .contracts
-            .encoding_subject(encoded.frame)
+            .encoding_subject(encoded.frame.clone())
             .map_err(|_| RelocationFreeObjectContainerError::PublicationMismatch)?;
         if bound != encoded
             || self.publication.contracts.needs_installed_branch_checks()

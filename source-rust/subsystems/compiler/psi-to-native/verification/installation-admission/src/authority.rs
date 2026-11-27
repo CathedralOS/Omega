@@ -3,7 +3,7 @@ use crate::{PlannedInstallationResources, arrival};
 use bound_installations::BoundInstalledEntry;
 use frame_admission::frame_layout::ValidatedTargetFrameLayout;
 use installation_conditions::{InstalledInterruptStackRequirement, InstalledPhysicalStackRoot};
-use machine_code::TargetFrameLayoutIdentity;
+use machine_code::TargetFrameLayoutPlan;
 use post_allocation_machine::PostAllocationMachineProgram;
 use std::sync::Arc;
 
@@ -11,17 +11,19 @@ use std::sync::Arc;
 pub struct BoundInstallationAuthority {
     resources: Arc<PlannedInstallationResources>,
     physical_program: [u8; 32],
-    frame_layout: TargetFrameLayoutIdentity,
+    frame_layout: Arc<TargetFrameLayoutPlan>,
 }
 
 impl BoundInstallationAuthority {
-    pub fn matches_frame(&self, program: [u8; 32], frame: TargetFrameLayoutIdentity) -> bool {
-        self.physical_program == program && self.frame_layout == frame
+    /// Whether this authority was issued for `program` and the frame plan
+    /// `frame`. A shared plan compares by pointer, a copy field by field.
+    pub fn matches_frame(&self, program: [u8; 32], frame: &Arc<TargetFrameLayoutPlan>) -> bool {
+        self.physical_program == program && self.frame_layout == *frame
     }
 
     /// Compare the uncomposed measurements from the retained private bodies
     /// with the guards already present in this physical program. The physical
-    /// frame receipt ties the result to the same register-allocated machine.
+    /// frame plan ties the result to the same register-allocated machine.
     pub fn verify(
         physical: &PostAllocationMachineProgram,
         frame: &ValidatedTargetFrameLayout,
@@ -34,12 +36,12 @@ impl BoundInstallationAuthority {
             target: physical.machine.target,
             machine: physical.entry,
         };
-        let receipt = frame.receipt();
+        let plan = frame.plan();
         if entry != resources.program()
             || root.is_some_and(|root| root.adapter != entry.machine)
-            || receipt.target() != entry.target
+            || plan.target != entry.target
             || physical.identity != physical.recomputed_identity()
-            || receipt.post_allocation_machine() != physical.machine.identity
+            || plan.post_allocation_machine != physical.machine.identity
         {
             return Err(
                 "installation resources differ from the final physical program, target or entry",
@@ -103,7 +105,7 @@ impl BoundInstallationAuthority {
         Ok(Self {
             resources,
             physical_program: physical.identity,
-            frame_layout: receipt.identity(),
+            frame_layout: frame.shared_plan(),
         })
     }
 }

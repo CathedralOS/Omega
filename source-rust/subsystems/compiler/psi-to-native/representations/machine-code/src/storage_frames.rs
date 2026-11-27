@@ -26,10 +26,8 @@ use semantic_vocabulary::{EdgeId, MachineId};
 use target::NativeTarget;
 
 use crate::FunctionFragmentEmissionPlan;
-use crate::identity_encoding::encode_nested_identity;
 
 register_homes::identity_newtype! { pub struct NonAuthoritativeCalleeSaveStorageIdentity([u8; 32]); }
-register_homes::identity_newtype! { pub struct TargetFrameLayoutIdentity([u8; 32]); }
 register_homes::identity_newtype! { pub struct TargetFrameProtocolEncodingIdentity([u8; 32]); }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -232,7 +230,7 @@ pub struct FunctionTargetFrameProtocolEncoding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetFrameProtocolEncodingPlan {
-    pub frame_layout: TargetFrameLayoutIdentity,
+    pub frame_layout: std::sync::Arc<TargetFrameLayoutPlan>,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub physical_register_model: PhysicalRegisterModelIdentity,
     pub target: NativeTarget,
@@ -266,101 +264,11 @@ pub struct FunctionFragmentFrameApplication {
     pub fragments: FunctionFragmentEmissionPlan,
 }
 
-pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutIdentity {
-    let mut hasher =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega.target-frame-layout.v10");
-    hasher.raw(&plan.post_allocation_machine.bytes());
-    hasher.raw(&plan.callee_saved_requirements.bytes());
-    hasher.raw(&plan.callee_save_storage.bytes());
-    hasher.raw(&plan.register_environment.bytes());
-    hasher.raw(&plan.physical_register_model.bytes());
-    hasher.raw(&plan.target.identity_bytes());
-    hasher.byte(plan.abi.abi_tag());
-    hasher.byte(match plan.policy {
-        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1 => 0,
-        TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1 => 1,
-    });
-    hasher.len(plan.functions.len());
-    for function in &plan.functions {
-        hasher.raw(&function.machine.get().to_le_bytes());
-        hasher.byte(u8::from(function.contains_call));
-        hasher.raw(&function.stack_pointer.0.to_le_bytes());
-        hasher.raw(&function.pre_call_stack_alignment.to_le_bytes());
-        hasher.raw(&function.frame_size_bytes.to_le_bytes());
-        hasher.raw(&function.red_zone_resident_bytes.to_le_bytes());
-        hasher.raw(&function.abi_stack_alignment_bytes.to_le_bytes());
-        hasher.raw(&function.outgoing_abi_area.byte_size.to_le_bytes());
-        hasher.raw(&function.outgoing_abi_area.shadow_bytes.to_le_bytes());
-        hasher.len(function.local_storage_slots.len());
-        for slot in &function.local_storage_slots {
-            encode_nested_identity(&mut hasher, |out| slot.id.encode_identity(out));
-            hasher.raw(&slot.frame_offset_bytes.to_le_bytes());
-            hasher.raw(&slot.size_bytes.to_le_bytes());
-            hasher.raw(&slot.alignment_bytes.to_le_bytes());
-        }
-        hasher.len(function.stable_address_loans.len());
-        for slot in &function.stable_address_loans {
-            encode_nested_identity(&mut hasher, |out| slot.encode_identity(out));
-        }
-        hasher.len(function.callee_save_slots.len());
-        for slot in &function.callee_save_slots {
-            hasher.raw(&slot.abstract_slot.0.to_le_bytes());
-            hasher.raw(&slot.storage_view.0.to_le_bytes());
-            hasher.raw(&slot.frame_offset_bytes.to_le_bytes());
-            hasher.raw(&slot.size_bytes.to_le_bytes());
-            hasher.raw(&slot.alignment_bytes.to_le_bytes());
-        }
-        encode_return_address(&mut hasher, function.return_address);
-        hasher.raw(&function.stack_probe.interval_bytes.to_le_bytes());
-        hasher.raw(&function.stack_probe.touches.to_le_bytes());
-        hasher.len(function.unwind.restores.len());
-        for restore in &function.unwind.restores {
-            hasher.raw(&restore.view.0.to_le_bytes());
-            hasher.raw(&restore.frame_offset_bytes.to_le_bytes());
-            hasher.raw(&restore.size_bytes.to_le_bytes());
-        }
-        hasher.raw(&function.unwind.released_bytes.to_le_bytes());
-        encode_return_address(&mut hasher, function.unwind.return_address);
-    }
-    TargetFrameLayoutIdentity::from_bytes(hasher.finish())
-}
-
-fn encode_return_address(
-    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
-    custody: ReturnAddressFrameCustody,
-) {
-    match custody {
-        ReturnAddressFrameCustody::CallerActivationStack {
-            post_prologue_offset_bytes,
-            size_bytes,
-        } => {
-            hasher.byte(0);
-            hasher.raw(&post_prologue_offset_bytes.to_le_bytes());
-            hasher.raw(&size_bytes.to_le_bytes());
-        }
-        ReturnAddressFrameCustody::LiveLinkRegister { view } => {
-            hasher.byte(1);
-            hasher.raw(&view.0.to_le_bytes());
-        }
-        ReturnAddressFrameCustody::SavedLinkRegister {
-            view,
-            frame_offset_bytes,
-            size_bytes,
-        } => {
-            hasher.byte(2);
-            hasher.raw(&view.0.to_le_bytes());
-            hasher.raw(&frame_offset_bytes.to_le_bytes());
-            hasher.raw(&size_bytes.to_le_bytes());
-        }
-    }
-}
-
 pub fn target_frame_protocol_encoding_identity(
     plan: &TargetFrameProtocolEncodingPlan,
 ) -> TargetFrameProtocolEncodingIdentity {
     let mut hasher =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega.target-frame-protocol-encoding.v1");
-    hasher.raw(&plan.frame_layout.bytes());
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega.target-frame-protocol-encoding.v2");
     hasher.raw(&plan.register_environment.bytes());
     hasher.raw(&plan.physical_register_model.bytes());
     hasher.raw(&plan.target.identity_bytes());

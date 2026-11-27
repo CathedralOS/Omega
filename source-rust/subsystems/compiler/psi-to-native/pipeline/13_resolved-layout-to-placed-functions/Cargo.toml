@@ -9,8 +9,6 @@ name = "function_layout"
 
 [dependencies]
 placement = { package = "selected-form-encoding-to-resolved-layout", path = "../12_selected-form-encoding-to-resolved-layout" }
-target-x86_64 = { path = "../../targets/target-x86_64" }
-target-aarch64 = { path = "../../targets/target-aarch64" }
 frame-admission = { path = "../../representations/machine-code/frame-admission" }
 register-environment = { path = "../../targets/register-environment" }
 register-model = { path = "../../targets/register-model" }

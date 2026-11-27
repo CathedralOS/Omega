@@ -94,7 +94,7 @@ impl BoundBodyContracts {
     /// Settle installation and semantic agreement while the binding stage owns both.
     pub fn encoding_subject(
         &self,
-        frame: machine_code::TargetFrameLayoutIdentity,
+        frame: std::sync::Arc<machine_code::TargetFrameLayoutPlan>,
     ) -> Result<machine_code::program_context::BoundEncodingSubject, &'static str> {
         let facts = &self.facts;
         let entry = self.installations.program();
@@ -109,7 +109,7 @@ impl BoundBodyContracts {
             facts.semantic.admission.native_callbacks(),
         ) || !self
             .installations
-            .matches_frame(calls.physical_identity, frame)
+            .matches_frame(calls.physical_identity, &frame)
             || (entry.psi, entry.machine) != (roots.psi, roots.entry)
             || (calls.psi, calls.target) != (entry.psi, entry.target)
             || (facts.physical.stack.psi, facts.physical.stack.target) != (entry.psi, entry.target)

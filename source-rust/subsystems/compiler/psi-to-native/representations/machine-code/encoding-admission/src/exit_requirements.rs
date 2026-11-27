@@ -15,26 +15,11 @@ use selected_instructions::{
 use semantic_vocabulary::EdgeId;
 use target::{Architecture, NativeTarget};
 
-/// Prepare exit requirements, hashing the encoding's frame layout to name it.
-/// Replays use this form so they do not trust a carried frame identity.
+/// Prepare exit requirements. They name the encoding's frame by sharing its
+/// plan, so the exit check compares the plan the encoder used.
 pub fn prepare_exit_requirements(
     program: &PostAllocationMachineProgram,
     encoding: &SelectedFormEncoding,
-) -> Result<EncodedExitRequirements, WholeFunctionExitContractError> {
-    let frame = encoding
-        .frame
-        .as_deref()
-        .map(machine_code::target_frame_layout_identity);
-    prepare_exit_requirements_for_frame(program, encoding, frame)
-}
-
-/// Prepare exit requirements for an encoding whose frame layout identity the
-/// caller already holds: the encoder passes the identity frame planning sealed
-/// for the same plan instead of hashing the layout again.
-pub fn prepare_exit_requirements_for_frame(
-    program: &PostAllocationMachineProgram,
-    encoding: &SelectedFormEncoding,
-    frame: Option<machine_code::TargetFrameLayoutIdentity>,
 ) -> Result<EncodedExitRequirements, WholeFunctionExitContractError> {
     use WholeFunctionExitContractError as Error;
     let mut rows = encoding.rows().iter();
@@ -158,7 +143,7 @@ pub fn prepare_exit_requirements_for_frame(
             selected: encoding.selected(),
             machine: encoding.machine(),
             identity: encoding.identity(),
-            frame,
+            frame: encoding.frame.clone(),
             has_machine_optimization: encoding.post_allocation_machine_optimization().is_some(),
             decoded: std::sync::Arc::clone(&encoding.encoded),
         },

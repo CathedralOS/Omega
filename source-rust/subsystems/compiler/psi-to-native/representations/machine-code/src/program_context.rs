@@ -28,20 +28,21 @@ impl std::ops::Deref for EncodedProgramContext {
     }
 }
 
-/// Program and frame identities carried from encoding to object verification.
-/// The contract digest covers the storage geometry, ABI, publication and execution facts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Program identities and the frame plan carried from encoding to object verification.
+/// The contract digest covers the storage geometry, ABI, publication and execution facts;
+/// the frame is compared as the plan itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundEncodingSubject {
     pub contracts: [u8; 32],
     pub target: target::NativeTarget,
     pub physical: [u8; 32],
-    pub frame: crate::TargetFrameLayoutIdentity,
+    pub frame: Arc<crate::TargetFrameLayoutPlan>,
 }
 
 impl BoundEncodingSubject {
     pub fn from_encoded(
         encoded: &EncodedProgramContext,
-        frame: crate::TargetFrameLayoutIdentity,
+        frame: Arc<crate::TargetFrameLayoutPlan>,
     ) -> Result<Self, &'static str> {
         let roots = encoded
             .contracts

@@ -20,10 +20,9 @@ pub use frames::{
     NonAuthoritativeCalleeSaveSlot, NonAuthoritativeCalleeSaveSlotId,
     NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePlan,
     NonAuthoritativeCalleeSaveStoragePolicy, OutgoingAbiFrameArea, ReturnAddressFrameCustody,
-    StackProbePlan, TargetFrameLayoutIdentity, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
+    StackProbePlan, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
     TargetFrameProtocolEncodingIdentity, TargetFrameProtocolEncodingPlan,
-    TargetFrameProtocolEncodingPolicy, target_frame_layout_identity,
-    target_frame_protocol_encoding_identity,
+    TargetFrameProtocolEncodingPolicy, target_frame_protocol_encoding_identity,
 };
 
 pub mod frame_layout {

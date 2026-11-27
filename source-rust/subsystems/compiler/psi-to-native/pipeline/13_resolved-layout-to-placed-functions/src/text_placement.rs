@@ -148,7 +148,7 @@ impl<Contracts> StagedOptimizedFixedFrameTextSection<Contracts> {
 
     /// The settled layout preserved this encoding and frame through placement.
     pub fn encoding_subject(&self) -> machine_code::program_context::BoundEncodingSubject {
-        self.encoded
+        self.encoded.clone()
     }
 
     pub fn placed_body(&self) -> &Arc<crate::PlacedBodyEvidence> {

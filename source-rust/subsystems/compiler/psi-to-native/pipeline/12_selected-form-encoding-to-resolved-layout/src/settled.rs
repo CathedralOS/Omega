@@ -1,9 +1,9 @@
 pub use machine_code::layout::relaxation_policy::ResolvedLayoutOptimizationError;
+use machine_code::layout::relaxation_policy::x86_rel8_selected;
 #[cfg(test)]
 use machine_code::layout::relaxation_policy::{
     FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
 };
-use machine_code::layout::relaxation_policy::{relaxation_roots, x86_rel8_selected};
 #[cfg(test)]
 use optimization_core::Optimization;
 use optimization_core::OptimizationExecutionPhase;
@@ -59,10 +59,9 @@ pub struct FunctionExitLayout<'a> {
     pub fragment_origins: &'a machine_code::fragment_origins::FragmentOrigins,
     pub frame_demands: &'a machine_code::frame_demands::MachineFrameDemands,
     pub physical: &'a register_model::ValidatedPhysicalRegisterModel,
-    pub layout: &'a machine_code::ResolvedMachineLayout,
-    pub frame: &'a machine_code::TargetFrameLayoutPlan,
+    pub layout: &'a std::sync::Arc<machine_code::ResolvedMachineLayout>,
+    pub frame: &'a std::sync::Arc<machine_code::TargetFrameLayoutPlan>,
     pub protocol: &'a machine_code::TargetFrameProtocolEncodingPlan,
-    pub frame_identity: machine_code::TargetFrameLayoutIdentity,
     pub protocol_identity: machine_code::TargetFrameProtocolEncodingIdentity,
     pub custody: machine_code::WholeFunctionExitLayoutCustody,
 }
@@ -75,9 +74,9 @@ impl SettledFunctionLayout {
     pub fn function_exits(&self) -> FunctionExitLayout<'_> {
         let program = &self.current.program;
         let custody = match self.current.relaxation {
-            Some(run) => {
+            Some(relaxation) => {
                 machine_code::WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
-                    relaxation: run.identity,
+                    relaxation,
                 }
             }
             None => machine_code::WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
@@ -90,7 +89,6 @@ impl SettledFunctionLayout {
             layout: &program.layout,
             frame: &program.frame,
             protocol: &program.protocol,
-            frame_identity: program.frame_identity,
             protocol_identity: program.protocol_identity,
             custody,
         }
@@ -144,9 +142,7 @@ pub(super) fn settle<Contracts>(
             program,
             selections,
             budget,
-            relaxation: relaxation
-                .as_ref()
-                .map(|issued| relaxation_roots(issued.record())),
+            relaxation: relaxation.as_ref().map(|issued| issued.record().identity()),
         },
         relaxation,
     };

@@ -156,7 +156,7 @@ pub fn bind_function_body(
     });
     let subject = publication
         .facts
-        .encoding_subject(program.frame.frame.receipt().identity())?;
+        .encoding_subject(program.frame.frame.shared_plan())?;
     let retain_original = publication.original_for_audit().is_some();
     let check_branches = publication.facts.needs_installed_branch_checks();
     let requirements = machine_code::layout::BoundEncodingRequirements::new(

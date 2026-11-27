@@ -7,6 +7,8 @@ mod fragment_emission;
 mod frame_application;
 mod function_realization;
 mod relative_branches;
+#[cfg(test)]
+mod test_plans;
 mod text_placement;
 
 pub use exit_contract::{

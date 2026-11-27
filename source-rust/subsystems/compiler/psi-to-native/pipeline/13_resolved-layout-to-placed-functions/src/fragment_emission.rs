@@ -219,7 +219,7 @@ fn check_roots(
     let realization = source.function_relative_manifest().record();
     if source.post_allocation_manifest().record().selected != fragments.selected
         || realization.selected != fragments.selected
-        || realization.resolved_layout != source.program().layout.identity
+        || realization.resolved_layout != source.program().layout
     {
         return Err(FunctionFragmentEmissionError::RootMismatch);
     }
