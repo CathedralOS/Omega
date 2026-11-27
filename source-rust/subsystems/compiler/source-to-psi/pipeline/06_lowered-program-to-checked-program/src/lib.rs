@@ -291,9 +291,6 @@ pub enum Discharged {
     /// they. Empty when the machine has no normal return, where the clause
     /// holds vacuously.
     EveryExit(Vec<ObligationId>),
-    /// Only the existing return edges have been proved. The stated result
-    /// guarantee still applies to an invocation prefix's uncompiled suffix.
-    PendingNormalGuarantee(Vec<ObligationId>),
     /// A `DataDomain` clause that a store or a zero establishment was not
     /// shown to keep, with why: the write opens an invariant window.
     /// `wiki/spec/language/dependent_values.md`, "Invariant windows": "A
@@ -344,7 +341,6 @@ impl Discharged {
             | Self::Law(_)
             | Self::ConservedContent(_)
             | Self::TargetCondition(_)
-            | Self::PendingNormalGuarantee(_)
             | Self::EveryExit(_)
             | Self::Window(_)
             | Self::Preserved
@@ -1271,24 +1267,11 @@ fn check_prepared_machine(
     // dependency pass before moving any certificate out of this table. Once
     // it is complete, settlement owns each result; no duplicate proof tree
     // or intermediate verdict table is needed.
-    let pending_result = !lowered.ensures.is_empty()
-        && lowered.blocks.iter().any(|block| {
-            matches!(
-                block.terminator,
-                terminal_psi::Terminator::PendingNormalCompletion { .. }
-            )
-        });
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_none()
             && let ObligationKind::PublishedGuarantee { clause } = row.kind
         {
-            let checked = published(tables, id, obligation, clause, &decided);
-            decided[index] = Some(match checked {
-                Ok(Discharged::EveryExit(exits)) if pending_result => {
-                    Ok(Discharged::PendingNormalGuarantee(exits))
-                }
-                other => other,
-            });
+            decided[index] = Some(published(tables, id, obligation, clause, &decided));
         }
     }
     // A store or a zero establishment that was not shown to keep a clause
@@ -1907,7 +1890,6 @@ fn with_prepared_machine<Outcome>(
     )?;
     let graph = Graph::new(id, lowered, tables)?;
     theorems::validate(module, lowered, tables, &graph)?;
-    minted::check_pending_operands(lowered, tables, &graph)?;
     let reference_graph = places::reference_graph_with_generic_calls(
         module,
         id,

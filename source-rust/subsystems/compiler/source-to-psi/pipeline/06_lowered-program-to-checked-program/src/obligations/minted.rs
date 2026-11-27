@@ -387,7 +387,6 @@ pub(crate) fn width_questions_are_minted(
 /// Where each edge of a terminator goes, as the edge table must state it.
 fn successors(terminator: &Terminator) -> Vec<(EdgeId, Destination)> {
     match terminator {
-        Terminator::PendingNormalCompletion { .. } => Vec::new(),
         Terminator::Jump { edge, target, .. } => vec![(*edge, Destination::Block(*target))],
         Terminator::Conditional {
             when_true,
@@ -1226,56 +1225,6 @@ pub(crate) fn follow_the_lowered_form(
             concerns,
             "an invocation row restates no call of this machine",
         ));
-    }
-    Ok(())
-}
-
-/// A suspended invocation can retain only executable scalars already available
-/// at the selected call. The value table has already been matched to the
-/// module's actual declarations by `values_are_declared`.
-pub(crate) fn check_pending_operands(
-    lowered: &TerminalMachine,
-    tables: &MachineTables,
-    graph: &crate::graph::Graph,
-) -> Checked<()> {
-    for block in &lowered.blocks {
-        let Terminator::PendingNormalCompletion { call, scalars, .. } = &block.terminator else {
-            continue;
-        };
-        if !block.operations.last().is_some_and(|op| {
-            op.id == *call && op.suspension_crossing.is_some() && op.declared_invocation().is_some()
-        }) {
-            return Err(refusal(
-                RefusalReason::ForeignIdentity,
-                lowered.id,
-                Construct::Block(block.id),
-                "an unfinished normal result must follow its own suspending call",
-            ));
-        }
-        for &scalar in scalars {
-            let available = match tables.values.get(scalar).map(|row| row.origin) {
-                Some(ValueOrigin::MachineParameter { .. }) => {
-                    lowered.parameters.iter().any(|formal| formal.id == scalar)
-                }
-                Some(ValueOrigin::BlockParameter { block, .. }) => graph.dominates(
-                    ProgramPoint::BlockEntry(block),
-                    ProgramPoint::AfterOperation(*call),
-                )?,
-                Some(ValueOrigin::Operation(operation)) => graph.dominates(
-                    ProgramPoint::AfterOperation(operation),
-                    ProgramPoint::AfterOperation(*call),
-                )?,
-                _ => false,
-            };
-            if !available {
-                return Err(refusal(
-                    RefusalReason::ForeignIdentity,
-                    lowered.id,
-                    Construct::Value(scalar),
-                    "a pending result refers to a scalar unavailable at its checked call",
-                ));
-            }
-        }
     }
     Ok(())
 }

@@ -123,7 +123,7 @@ pub fn validate_machine(
             | Terminator::ReturnStructural { .. } => {
                 return Err(fault(ExternalRealizationFault::Returns { block: block.id }));
             }
-            Terminator::InvokeNoNormal { .. } | Terminator::PendingNormalCompletion { .. } => {
+            Terminator::InvokeNoNormal { .. } => {
                 return Err(fault(ExternalRealizationFault::Unfollowed {
                     block: block.id,
                 }));

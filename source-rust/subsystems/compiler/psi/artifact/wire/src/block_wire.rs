@@ -494,8 +494,6 @@ pub(crate) mod terminator_wire {
                 site_guard: List<CrashPredicate>,
                 frontier_lower_bound: Ids,
             },
-            ; refuse Terminator::PendingNormalCompletion { .. } =>
-                CodecError::MalformedStructuralFoundation("a Build prefix owes a checked suffix")
         }
         CompletionKind: ExternalCompletionKind, "ExternalCompletionKind" { 1 => ProcessExit }
     }
@@ -504,20 +502,6 @@ pub(crate) mod terminator_wire {
         writer: &mut Writer,
         terminator: &Terminator,
     ) -> Result<(), CodecError> {
-        if let Terminator::PendingNormalCompletion {
-            call,
-            scalars,
-            storage,
-        } = terminator
-            && writer.is_invocation_prefix()
-        {
-            // This byte is local to the prefix commitment. The portable reader
-            // has no such tag and the complete writer never emits it.
-            writer.u8(255);
-            writer.id(*call);
-            Ids::write(writer, scalars)?;
-            return Ids::write(writer, storage);
-        }
         TerminatorRow::write(writer, terminator)
     }
 

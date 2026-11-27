@@ -1,22 +1,22 @@
 # Saved Linux x86-64 Psi
 
-The source compiler published `linux_x86_64.psi` from this fixture’s ordinary Build entry nomination and the bundled library. It compiled 154 source files. Its authenticated entry declaration is `toolchain-contract::targets::linux_x86_64::LinuxX86_64Application`. The native compiler regression reopens the artifact, checks the requested validators and executes the resulting ELF with the status in [expected_native_exit.txt](expected_native_exit.txt).
+The source compiler published `linux_x86_64.psi` from this fixture’s ordinary Build entry nomination and the bundled library. Its authenticated entry declaration is `toolchain-contract::targets::linux_x86_64::LinuxX86_64Application`. The native compiler regression reopens the artifact, checks the requested validators and executes the resulting ELF with the status in [expected_native_exit.txt](expected_native_exit.txt).
 
-From the repository root, publish the fixture with this command.
+From this directory, publish the selected Build with the bundled library.
 
 ```sh
-omega --emit-psi /tmp/linux_x86_64.psi --target linux_x86_64 tests/fixtures/calls/run/scalar_contract_route_exit/main.omg
+omega --emit-psi /tmp/linux_x86_64.psi --target linux_x86_64 --build-input build.omg --build-input main.omg build.omg
 ```
 
-It was published from commit `c5c47a53b080` with the change that introduced semantic format marker 296, under that marker. The bundled `source/library` tree is Git object `fa9e604f2d73cf878c1a7ffa764e27f34f7122ae`.
+The compiler built from `6ea33e576f3` with the integration changes in #5991, #6154, #6180, #6199, #6247, #6262, #6280 and #6282 compiled 51 source files and published the fixture under semantic format marker 300. Its executable SHA-256 was `f6a9a76dbc696804edff7be299e9a1df98e2073dffcc43c4c69205acf57168b4`. The bundled `source/library` tree is Git object `30ef73494382b587b5d0cbd21a3dd1ed3159525c`.
 
 | Input or receipt | Digest |
 | --- | --- |
-| Canonical artifact manifest | `1f091b28b9e3a5598385365b10a760d42e91a65d9358ea19cb952f24fb999077` |
-| Saved file SHA-256, 228690 bytes | `f053200ece36b7f6b113dc47e7b3cbdb1b886225f7eed9e69b4d67fac9362845` |
+| Canonical artifact manifest | `5144a3644e96072721434cab837ef65bc9ccbb96a9042e19c0d6cab68d60503c` |
+| Saved file SHA-256, 226930 bytes | `03a9c86aef779ecd86b15ade1d4e67f7975e0a00b1844af80bb0f3eee66d4538` |
 | main.omg SHA-256 | `073768333496caabb3c28a753482d2888a9a527b0765f7f12941332eba6c8e58` |
-| build.omg SHA-256 | `9483243b6476c41b95be5c949a0e39901e44096d881995872d51df51683d3d5d` |
-| `source/library/system/targets/linux_x86_64/entry.omg` SHA-256 | `cce757bb5e3cc2ddbfe2db44fe03510a97b56fa6cc80db210d4d0402bdb2878b` |
+| build.omg SHA-256 | `95e9fe2fa4d640385511dfecef410202674234e1fd9181a02caaea77cc862e54` |
+| `source/library/system/targets/linux_x86_64/entry.omg` SHA-256 | `da744cd48323520484545a412be9d6334b81d3b55806e056dcf920cda444ac2b` |
 
 ## Historical wire specimen
 

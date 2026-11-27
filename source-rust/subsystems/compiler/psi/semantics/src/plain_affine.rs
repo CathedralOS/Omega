@@ -676,7 +676,6 @@ fn storage_root(used: terminal_psi::StructuralStorageUse<'_>) -> Option<PlaceId>
 fn terminator_roots(terminator: &terminal_psi::Terminator) -> Vec<PlaceId> {
     use terminal_psi::Terminator as T;
     match terminator {
-        T::PendingNormalCompletion { storage, .. } => storage.clone(),
         T::StructuralCase { source, .. }
         | T::EliminateEmpty { source, .. }
         | T::ReturnStructural { source, .. } => vec![*source],
@@ -2890,55 +2889,6 @@ impl<'a> Analysis<'a> {
                 .map_err(|_| Error::malformed("terminal position overflows"))?,
         );
         self.position = Some(at);
-        if let Terminator::PendingNormalCompletion { call, storage, .. } = &block.terminator {
-            let site = Site::Operation(*call);
-            // Earlier ownership preparation runs before crossings are assigned.
-            // The final checker requires the crossing on this exact selected call.
-            if block
-                .operations
-                .last()
-                .is_none_or(|op| op.id != *call || op.declared_invocation().is_none())
-            {
-                return Err(
-                    Error::malformed("the open tail lost its checked suspending call").at(site),
-                );
-            }
-            if state.claims.live().next().is_some() {
-                return Err(
-                    Error::unsupported("an open Build tail with a live logical claim").at(site),
-                );
-            }
-            for &place in storage {
-                self.read(&state, place, &[], site)?;
-            }
-            // A retained owner will be checked again by the successor. Never
-            // forget a linear or nontrivially disposed home at a missing exit.
-            for &place in &state.active {
-                if storage.binary_search(&place).is_ok() {
-                    continue;
-                }
-                let root = self.root(place)?.ok_or_else(|| {
-                    Error::malformed("a pending Build suffix has an undeclared active home")
-                        .at(site)
-                })?;
-                if root.owned {
-                    let ty = terminal_psi::find_structural_type(self.types, root.structural_type)
-                        .ok_or_else(|| {
-                        Error::malformed("a pending Build home has no declared type").at(site)
-                    })?;
-                    if root.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-                        || ty.nominal_cleanup.is_some()
-                        || !ty.no_code_affine_cleanup
-                    {
-                        return Err(Error::unsupported(
-                            "a pending Build suffix must retain an outstanding owned home",
-                        )
-                        .at(site));
-                    }
-                }
-            }
-            return Ok(Vec::new());
-        }
         let site = Site::Edge(
             block
                 .terminator
@@ -2968,7 +2918,6 @@ impl<'a> Analysis<'a> {
             self.end_references(&mut state, at, site)?;
         }
         match &block.terminator {
-            Terminator::PendingNormalCompletion { .. } => unreachable!("handled before selecting an edge"),
             Terminator::StructuralCase { source, path, .. } => {
                 self.argument(
                     &mut state,

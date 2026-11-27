@@ -1519,7 +1519,6 @@ impl DescriptorGraphError {
             && usize::try_from(index).ok() == Some(block.operations.len())
         {
             let kind = match &block.terminator {
-                Terminator::PendingNormalCompletion { .. } => "pending Build completion",
                 Terminator::EliminateEmpty { .. } => "EliminateEmpty",
                 Terminator::InvokeNoNormal { .. } => "InvokeNoNormal",
                 Terminator::ExternalCompletion { .. } => "ExternalCompletion",

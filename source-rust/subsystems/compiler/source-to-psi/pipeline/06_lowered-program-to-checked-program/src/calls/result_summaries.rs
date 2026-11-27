@@ -405,14 +405,6 @@ fn summarize(
     let elaboration = scope.source();
     let module = &elaboration.module;
     let lowered = terminal_machine(&module.machines, id, id)?;
-    if lowered
-        .blocks
-        .iter()
-        .any(|block| matches!(block.terminator, Terminator::PendingNormalCompletion { .. }))
-    {
-        // The missing suffix may yield a different result than every closed arm.
-        return Ok(());
-    }
     let TerminalMachineResult::Scalar(declared) = &lowered.result else {
         return Ok(());
     };

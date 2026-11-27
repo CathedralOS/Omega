@@ -80,7 +80,6 @@ mod error {
             place: semantic_vocabulary::PlaceId,
             reason: String,
         },
-        PendingNormalCompletion(MachineId),
         ScalarReturnFromUnitMachine(MachineId),
         UnitReturnFromScalarMachine(MachineId),
         UnsupportedStructuralResult(MachineId),
@@ -1502,7 +1501,6 @@ mod machine {
             operations: &mut Vec<AbstractOperation>,
         ) -> Result<(), LoweringError> {
             match &block.terminator {
-                Terminator::PendingNormalCompletion { .. } => return Err(LoweringError::PendingNormalCompletion(machine.id)),
                 Terminator::EliminateEmpty { edge, source, path } => {
                     operations.push(AbstractOperation::EliminateEmpty {
                         psi_edge: *edge,

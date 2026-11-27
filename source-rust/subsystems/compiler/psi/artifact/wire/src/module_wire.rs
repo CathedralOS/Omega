@@ -4118,21 +4118,8 @@ pub fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
 pub(crate) fn encode_raw_closed(
     module: &TerminalModule,
 ) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
-    encode_raw_with_writer(module, Writer::default(), MAGIC)
-}
-
-pub(crate) fn encode_invocation_prefix(
-    module: &TerminalModule,
-) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
-    encode_raw_with_writer(module, Writer::invocation_prefix(), b"PSIPREFIX\0")
-}
-
-fn encode_raw_with_writer(
-    module: &TerminalModule,
-    mut writer: Writer,
-    format: &[u8],
-) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
-    writer.bytes(format);
+    let mut writer = Writer::default();
+    writer.bytes(MAGIC);
     writer.u16(FORMAT_MARKER);
     Module::write(&mut writer, module)?;
     let (bytes, integers) = writer.finish_with_integer_types();

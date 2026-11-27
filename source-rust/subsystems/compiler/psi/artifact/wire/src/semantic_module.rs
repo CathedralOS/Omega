@@ -4065,17 +4065,6 @@ pub fn encode_closed_execution_module(
     Ok((bytes, types))
 }
 
-/// A checked invocation prefix has a private commitment and no portable bytes.
-pub fn encode_invocation_prefix(
-    module: &TerminalModule,
-) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
-    scalar_qualification_wire::validate(&module.types.scalar_qualifications)?;
-    validate_canonical_order(module)?;
-    let (bytes, mut types) = module_wire::encode_invocation_prefix(module)?;
-    types.record_callables(module);
-    Ok((bytes, types))
-}
-
 pub use psi_declaration_encoding::encode_structural_domain_declaration;
 
 pub fn encode_structural_type_declaration(
