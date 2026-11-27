@@ -1,9 +1,12 @@
-// Required outputs on a plain application (no `artifact_only`): the
-// full require/resolve/create/write/close/complete custody loop works on
-// an ordinary application kind, not only artifact builds.
+use main.omg as app;
 
 machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Application { name: "build_named_inputs" };
+    builder.product = BuildProduct::Application { name: "build_required_output" };
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry);
+    Build::bind(builder, windows_arm64::ProgramEntry, |app|::entry);
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "manifest.txt");
     let path: BuildPath = BuildOutput::resolve(@builder.output, "manifest.txt");
     let writer: i32 = BuildOutput::create(@mutable builder.output, path, 0);

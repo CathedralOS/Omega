@@ -5,7 +5,6 @@
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "build_facet_swap" };
     builder.source = BuildSource {};
-    builder.inputs = BuildInputs {};
     builder.log = BuildLog {};
     builder.declarations = BuildDeclarations {};
 }

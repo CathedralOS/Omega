@@ -29,6 +29,3 @@ selected optimizations and their Build settings.
 - `invalid_identifier_charset` uses an underscore in `builder.identifier`.
   Build accepts letters, digits, dots, and hyphens. The control receives
   "not a valid application identifier".
-- `invalid_fabricated_inputs` passes an authored `BuildInputs {}` value to
-  `BuildInputs::get`. The lookup requires the original compiler-issued
-  inputs facet and refuses the authored value.

@@ -94,7 +94,6 @@ public data BuildPlan<'storage> {
     elf_interpreter: ElfInterpreterSelection<'storage>;
     optimizations: Optimizations;
     source: BuildSource;
-    inputs: BuildInputs;
     output: BuildOutput;
     log: BuildLog;
     declarations: BuildDeclarations;

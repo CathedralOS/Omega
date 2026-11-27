@@ -32,7 +32,7 @@ pub use package_compilation::build_execution::{
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutput, BuildFilesystemLogicalHandleOutputSource,
     BuildFilesystemOperationAttempt, BuildFilesystemOperationResult, BuildFilesystemProvider,
-    BuildFilesystemRoot, BuildMachineFilesystemScope, BuildNamedInputInventory,
+    BuildFilesystemRoot, BuildMachineFilesystemScope,
     BuildObservationIdentity, BuildObservationSummary, BuildRequiredOutputSettlement,
     BuildSnapshotCapture, BuildSnapshotRequest, RestrictedBuildRequest, prepare_filesystem_scope,
 };
