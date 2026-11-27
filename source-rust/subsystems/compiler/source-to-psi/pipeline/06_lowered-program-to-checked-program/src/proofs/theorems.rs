@@ -279,13 +279,6 @@ pub(crate) fn finalize_citations(
                 citation.instantiation.len(),
             )
             .map_err(invalid)?;
-            // The goals are over the alias's own sum subjects; proving one
-            // needs a case analysis the prover does not yet have.
-            if !context.parameter.contract.data_subjects.is_empty() {
-                return Err(invalid(
-                    "theorem citation over a sum subject has no case analysis yet",
-                ));
-            }
             citation.derivations = derive_citation(
                 row.machine,
                 &context.parameter.contract,
@@ -527,8 +520,7 @@ fn derive_citation(
         .map(|formal| (formal.id, formal.scalar_type))
         .collect();
     let proposition_context =
-        semantic_vocabulary::PropositionContext::from_value_types(declarations.iter().copied())
-            .map_err(|_| invalid("theorem subjects have no proposition context"))?;
+        terminal_semantics::theorems::contract_context(expected).map_err(invalid)?;
     let mut derivations = Vec::with_capacity(goals.len());
     for (position, goal) in goals.iter().enumerate() {
         let obligation = semantic_vocabulary::ObligationId::new(position as u64 + 1)

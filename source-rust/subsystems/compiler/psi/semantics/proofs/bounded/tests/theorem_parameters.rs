@@ -52,6 +52,7 @@ fn fixed_subjects_carrier_bounds_and_even_unused_premises_are_bound() {
     let mut theorem = verify_bounded_theorem(
         &[(id, ScalarType::Integer(integer))],
         &[],
+        &[],
         &goal,
         std::slice::from_ref(&premise),
         &[],
@@ -110,6 +111,7 @@ fn the_same_carrier_cannot_prove_the_next_stricter_bound() {
         verify_bounded_theorem(
             &[(id, ScalarType::Integer(integer))],
             &[],
+            &[],
             &goal,
             &[],
             &[],
@@ -130,10 +132,20 @@ fn a_duplicated_or_omitted_subject_cannot_change_the_theorem_telescope() {
     };
     let input = (id, ScalarType::Integer(integer));
     assert!(matches!(verify_bounded_theorem(
-        &[input, input], &[], &goal, &[], &[], &proof, &mut Budget::default()
+        &[input, input], &[], &[], &goal, &[], &[], &proof, &mut Budget::default()
     ), Err(BoundedTheoremError::DuplicateSubject(found)) if found == id));
     assert!(
-        verify_bounded_theorem(&[], &[], &goal, &[], &[], &proof, &mut Budget::default()).is_err()
+        verify_bounded_theorem(
+            &[],
+            &[],
+            &[],
+            &goal,
+            &[],
+            &[],
+            &proof,
+            &mut Budget::default()
+        )
+        .is_err()
     );
 }
 
@@ -204,6 +216,7 @@ fn a_hypothesis_binds_between_the_subjects_and_the_premises() {
     ));
     let mut theorem = verify_bounded_theorem(
         &[(id, ScalarType::Integer(integer))],
+        &[],
         std::slice::from_ref(&inner),
         &goal,
         &[],
@@ -272,6 +285,7 @@ fn a_disjunction_introduced_inside_an_applied_implication_keeps_its_type() {
     verify_bounded_theorem(
         &[(id, ScalarType::Integer(integer))],
         &[],
+        &[],
         &goal,
         std::slice::from_ref(&premise),
         &[],
@@ -288,6 +302,7 @@ fn a_disjunction_introduced_inside_an_applied_implication_still_names_its_disjun
     assert!(
         verify_bounded_theorem(
             &[(id, ScalarType::Integer(integer))],
+            &[],
             &[],
             &goal,
             std::slice::from_ref(&premise),
@@ -368,6 +383,7 @@ fn an_address_theorem_is_proved_from_its_premise() {
     verify_bounded_theorem(
         &[(id, scalar)],
         &[],
+        &[],
         &goal,
         std::slice::from_ref(&premise),
         &[],
@@ -387,6 +403,7 @@ fn an_address_theorem_assumes_its_lower_carrier_bound() {
     };
     verify_bounded_theorem(
         &[(id, scalar)],
+        &[],
         &[],
         &goal,
         &[],
@@ -410,6 +427,7 @@ fn an_address_theorem_cannot_assume_an_upper_carrier_bound() {
     assert!(
         verify_bounded_theorem(
             &[(id, scalar)],
+            &[],
             &[],
             &goal,
             &[],

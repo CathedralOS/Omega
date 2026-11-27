@@ -130,6 +130,7 @@ fn denote_bounded_certificate_with_machine_parameters(
     #[cfg(test)]
     crate::bounded_observations::record_denotation();
     let mut elab = Elaboration::new(
+        Denotation::new(),
         context,
         goal,
         assumptions,
@@ -6646,7 +6647,10 @@ struct CaseParts<'p> {
 }
 
 impl<'a> Elaboration<'a> {
+    /// `denotation` may already declare what the propositions name, such as
+    /// a theorem's sum inputs.
     fn new(
+        mut denotation: Denotation,
         context: &'a PropositionContext,
         goal: &Proposition,
         assumptions: &'a [Proposition],
@@ -6661,7 +6665,6 @@ impl<'a> Elaboration<'a> {
                 .validate(prop)
                 .map_err(|e| cert_err!(ProofError::MalformedProposition(e)))?;
         }
-        let mut denotation = Denotation::new();
         let mut context_bindings = Vec::with_capacity(assumptions.len() + semantic_axioms.len());
         for prop in assumptions.iter().chain(semantic_axioms) {
             context_bindings.push(denotation.denote(prop)?);
@@ -10037,7 +10040,15 @@ mod tests {
         let ctx = ctx_int(&[0, 1], u8);
         let (p, q) = (le(val(0, u8), val(1, u8)), le(val(1, u8), val(0, u8)));
         let mp = BTreeSet::new();
-        let mut elab = Elaboration::new(&ctx, &p, std::slice::from_ref(&p), &[], &mp).unwrap();
+        let mut elab = Elaboration::new(
+            Denotation::new(),
+            &ctx,
+            &p,
+            std::slice::from_ref(&p),
+            &[],
+            &mp,
+        )
+        .unwrap();
         let bad_imp = node(
             imp(q.clone(), q.clone()),
             ProofRule::ImplicationIntroduction {

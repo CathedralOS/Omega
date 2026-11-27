@@ -285,10 +285,12 @@ pub fn denote_bounded_implication_type(
 /// This operation checks evidence; it neither searches for a missing proof nor
 /// grants any retained signature assumption to the eventual receiver.
 ///
-/// `hypotheses` are bound as in `denote_bounded_implication_type`. The proof
+/// `data_subjects` and `hypotheses` are bound as in
+/// `denote_bounded_implication_type`. The proof
 /// does not use them: it establishes the conclusion from the premises alone.
 pub fn verify_bounded_theorem(
     subjects: &[(ValueId, ScalarType)],
+    data_subjects: &[DataSubject],
     hypotheses: &[BoundedImplicationType],
     goal: &Proposition,
     assumptions: &[Proposition],
@@ -296,16 +298,24 @@ pub fn verify_bounded_theorem(
     proof: &ProofNode,
     budget: &mut Budget,
 ) -> Result<BoundedTheorem, BoundedTheoremError> {
-    let context = subject_context(subjects, &[])?;
+    let context = subject_context(subjects, data_subjects)?;
     let machine_parameters = std::collections::BTreeSet::new();
+    // Each sum is declared before any clause reads it, as in the type.
+    let mut denotation = Denotation::new();
+    let data_inputs = data_subjects
+        .iter()
+        .map(|subject| denotation.declare_data_subject(subject))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut elaboration = Elaboration::new(
+        denotation,
         &context,
         goal,
         assumptions,
         semantic_axioms,
         &machine_parameters,
     )?;
-    let (selected, carrier_bounds) = prepare_subjects(&mut elaboration.denotation, subjects)?;
+    let (mut selected, carrier_bounds) = prepare_subjects(&mut elaboration.denotation, subjects)?;
+    selected.extend(data_inputs);
     let hypotheses = append_hypotheses(
         &mut elaboration.denotation.arena,
         &mut elaboration.denotation.declarations,

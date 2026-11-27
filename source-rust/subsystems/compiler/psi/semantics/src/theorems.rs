@@ -38,16 +38,7 @@ pub fn contract_type(
     budget: &mut proof_admission::Budget,
 ) -> Result<proof_admission::BoundedImplicationType, &'static str> {
     let subjects = contract_subjects(contract)?;
-    let data = contract
-        .data_subjects
-        .iter()
-        .map(|subject| {
-            Ok(proof_admission::DataSubject {
-                place: subject.place,
-                shape: sums(subject.structural_type)?,
-            })
-        })
-        .collect::<Result<Vec<_>, &'static str>>()?;
+    let data = contract_data_subjects(contract, sums)?;
     let hypotheses = hypothesis_types(contract, sums, budget)?;
     proof_admission::denote_bounded_implication_type(
         &subjects,
@@ -58,6 +49,23 @@ pub fn contract_type(
         budget,
     )
     .map_err(|_| "logical contract has no well-formed mathematical implication")
+}
+
+/// Each sum subject with its sum's declaration.
+fn contract_data_subjects(
+    contract: &TheoremContract,
+    sums: &SumShapes<'_>,
+) -> Result<Vec<proof_admission::DataSubject>, &'static str> {
+    contract
+        .data_subjects
+        .iter()
+        .map(|subject| {
+            Ok(proof_admission::DataSubject {
+                place: subject.place,
+                shape: sums(subject.structural_type)?,
+            })
+        })
+        .collect()
 }
 
 /// The closed implication of each of the contract's own proof parameters.
@@ -99,19 +107,8 @@ pub fn contract_subjects(
         }
         subjects.push((formal.id, formal.scalar_type));
     }
-    let mut places = Vec::with_capacity(contract.data_subjects.len());
-    for (position, subject) in (0..).zip(&contract.data_subjects) {
-        if subject.place.get() != u64::from(position) + 1 {
-            return Err("logical contract has another sum subject telescope");
-        }
-        places.push((
-            subject.place,
-            semantic_vocabulary::StructuralPlaceKind::Parameter { position },
-        ));
-    }
     let is_sum = |place: PlaceId| contract.data_subjects.iter().any(|s| s.place == place);
-    let context = PropositionContext::from_value_types_and_places(subjects.iter().copied(), places)
-        .map_err(|_| "logical subjects do not form a proposition context")?;
+    let context = contract_context(contract)?;
     let mut pending: Vec<_> = contract.requires.iter().chain(&contract.ensures).collect();
     while let Some(clause) = pending.pop() {
         context
@@ -160,6 +157,29 @@ pub fn contract_subjects(
         contract_subjects(nested)?;
     }
     Ok(subjects)
+}
+
+/// The names a contract's clauses may use: each scalar subject by its value
+/// and each sum subject by its place, numbered from 1.
+pub fn contract_context(contract: &TheoremContract) -> Result<PropositionContext, &'static str> {
+    let mut places = Vec::with_capacity(contract.data_subjects.len());
+    for (position, subject) in (0..).zip(&contract.data_subjects) {
+        if subject.place.get() != u64::from(position) + 1 {
+            return Err("logical contract has another sum subject telescope");
+        }
+        places.push((
+            subject.place,
+            semantic_vocabulary::StructuralPlaceKind::Parameter { position },
+        ));
+    }
+    PropositionContext::from_value_types_and_places(
+        contract
+            .parameters
+            .iter()
+            .map(|formal| (formal.id, formal.scalar_type)),
+        places,
+    )
+    .map_err(|_| "logical subjects do not form a proposition context")
 }
 
 /// The contracts of a machine's own logical proof formals, in header order.
@@ -796,17 +816,13 @@ pub fn denote_citation(
     budget: &mut proof_admission::Budget,
 ) -> Result<proof_admission::BoundedTheorem, &'static str> {
     use terminal_psi::{ProofNode, ProofRule};
-    if !expected.data_subjects.is_empty() {
-        return Err("theorem citation over a sum subject has no case analysis yet");
-    }
     let goals = citation_goals(module, expected, supplied, formals, instantiated)?;
     let subjects: Vec<_> = expected
         .parameters
         .iter()
         .map(|formal| (formal.id, formal.scalar_type))
         .collect();
-    let context = PropositionContext::from_value_types(subjects.iter().copied())
-        .map_err(|_| "logical subjects are invalid")?;
+    let context = contract_context(expected)?;
     if derivations.len() != goals.len() {
         return Err("theorem citation lost a complete derivation");
     }
@@ -849,9 +865,12 @@ pub fn denote_citation(
     let ensures = apply(actual, requires)?;
     let refinement = apply(refinement, aliases)?;
     let proof = apply(refinement, ensures)?;
-    let hypotheses = hypothesis_types(expected, &module_sums(module), budget)?;
+    let sums = module_sums(module);
+    let data = contract_data_subjects(expected, &sums)?;
+    let hypotheses = hypothesis_types(expected, &sums, budget)?;
     proof_admission::verify_bounded_theorem(
         &subjects,
+        &data,
         &hypotheses,
         &conjunction(expected.ensures.clone()),
         &expected.requires,
