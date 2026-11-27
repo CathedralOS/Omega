@@ -1,6 +1,8 @@
 //! Resolve a stored machine once, keeping its contract separate from its body.
 //! Construction only records code selection. The checker later proves every
 //! obligation reconstructed from that selection and the published contract.
+use crate::read::refuse_at;
+use crate::read::unavailable;
 
 use crate::source_state::callable_values::{MachineValue, RuntimeCallableContractHandle};
 use crate::source_state::signature::SignatureContractKind;
@@ -14,16 +16,7 @@ use terminal_psi::TerminalCallableTermination;
 use super::Program;
 use crate::body::{Expression, ExpressionKind, Termination, ValueType};
 use crate::callables::{CallableContract, MachineSelection};
-use crate::{SourceOrigin, Unserved, refuse};
-
-fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
-    Refusal {
-        source_span: None,
-        reason: RefusalReason::Unsupported,
-        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
-        detail: detail.into(),
-    }
-}
+use crate::{SourceOrigin, Unserved};
 
 impl<'t> Program<'t> {
     /// An alias names the contract, so its signature and clauses form with the
@@ -218,9 +211,8 @@ impl<'t> Program<'t> {
         }
         let value_type = self.value_type(machine, value.type_reference)?;
         let ValueType::Scalar(ScalarType::Callable(contract), _) = value_type else {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Typing("machine value without a callable type"),
             ));
         };

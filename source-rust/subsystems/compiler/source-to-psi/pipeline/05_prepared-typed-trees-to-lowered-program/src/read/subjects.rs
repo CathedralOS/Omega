@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 Which declarations a compilation is responsible for, beyond the machines its
 entries call: what the Build's selections name, and every declaration of the
@@ -43,11 +44,11 @@ mod domain_declarations;
 use semantic_vocabulary::{MachineId, PackageKeyIdentity};
 use source_provenance::DependencyScope;
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 use super::Program;
+use crate::Unserved;
 use crate::source_state::trait_definition::AppliedTraitScope;
-use crate::{Unserved, refuse};
 
 /// Whose declaration a symbol is, for one compilation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,10 +66,9 @@ impl Program<'_> {
         subjects: &[Option<PackageKeyIdentity>],
         purpose: DependencyScope,
     ) -> Checked<Owner> {
-        let subject = crate::source_state::source_subjects::contains(
-            self.typed, symbol, subjects, purpose,
-        )
-        .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Declaration(reason)))?;
+        let subject =
+            crate::source_state::source_subjects::contains(self.typed, symbol, subjects, purpose)
+                .map_err(|reason| refuse_at(entry, Unserved::Declaration(reason)))?;
         Ok(if subject {
             Owner::Subject
         } else {
@@ -102,9 +102,8 @@ impl Program<'_> {
                     file.origin.is_toolchain() || file.dependency_scope == DependencyScope::Build
                 });
             if !in_context {
-                return Err(refuse(
+                return Err(refuse_at(
                     first,
-                    Construct::Machine,
                     Unserved::Declaration("Build entry outside the Build source context"),
                 ));
             }
@@ -184,9 +183,8 @@ impl Program<'_> {
             {
                 self.declared_service(entry, owner)?;
             } else {
-                return Err(refuse(
+                return Err(refuse_at(
                     entry,
-                    Construct::Machine,
                     Unserved::Declaration(
                         "Build selection that is not a machine, a data type or a boundary",
                     ),
@@ -233,13 +231,7 @@ impl Program<'_> {
     /// what it provides.
     pub fn supplied_slots(&mut self, entry: MachineId, supplies: &[crate::Supply]) -> Checked<()> {
         let typed = self.typed;
-        let unserved = |what| {
-            Err(refuse(
-                entry,
-                Construct::Machine,
-                Unserved::Declaration(what),
-            ))
-        };
+        let unserved = |what| Err(refuse_at(entry, Unserved::Declaration(what)));
         for supply in supplies {
             // The slot is a nominal trait, supplied whole, or one
             // exact requirement. Ordinary traits grant no boundary capability.
@@ -285,9 +277,7 @@ impl Program<'_> {
                                 }
                                 Ok(())
                             })
-                            .map_err(|what| {
-                                refuse(entry, Construct::Machine, Unserved::Declaration(what))
-                            })?;
+                            .map_err(|what| refuse_at(entry, Unserved::Declaration(what)))?;
                         self.require_boundary_parent_contract(entry, &receiving)?;
                     }
                     owner
@@ -305,9 +295,8 @@ impl Program<'_> {
                 Some(provider) => AppliedTraitScope::from_conformance(typed, provider)
                     .and_then(|scope| scope.declaring_scope(typed, owner.symbol))
                     .ok_or_else(|| {
-                        refuse(
+                        refuse_at(
                             entry,
-                            Construct::Machine,
                             Unserved::Declaration("supply lost its declaring trait application"),
                         )
                     })?,
@@ -319,9 +308,8 @@ impl Program<'_> {
                     Err(reason) => return unserved(reason),
                 };
                 let (_, header) = typed.trait_machine_signature(requirement).ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         entry,
-                        Construct::Machine,
                         Unserved::Declaration("supply lost its required header"),
                     )
                 })?;
@@ -387,7 +375,7 @@ impl Program<'_> {
                 || !self.proof_machine(machine)
                 || typed
                     .machine_instantiation(machine.symbol)
-                    .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Machine(reason)))?
+                    .map_err(|reason| refuse_at(entry, Unserved::Machine(reason)))?
                     .is_some()
                 || self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject
             {
@@ -407,9 +395,8 @@ impl Program<'_> {
                 && !self.is_family_theorem(machine)
             {
                 return Err(self.read_failure_at(
-                    refuse(
+                    refuse_at(
                         entry,
-                        Construct::Machine,
                         Unserved::Machine("generic machine over data that contains itself"),
                     ),
                     machine.symbol,
@@ -483,9 +470,8 @@ impl Program<'_> {
                     if !typed.symbols.symbols().nodes().is_valid(machine.symbol)
                         || typed.symbols.authored_origin(machine.symbol) == machine.symbol
                     {
-                        return Err(refuse(
+                        return Err(refuse_at(
                             entry,
-                            Construct::Machine,
                             Unserved::Machine(
                                 "active-case helper without its generating declaration",
                             ),
@@ -495,7 +481,7 @@ impl Program<'_> {
                 }
                 if typed
                     .machine_instantiation(machine.symbol)
-                    .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Machine(reason)))?
+                    .map_err(|reason| refuse_at(entry, Unserved::Machine(reason)))?
                     .is_some()
                 {
                     return Ok(());
@@ -689,9 +675,8 @@ impl Program<'_> {
                     })
                 });
             if !matches_machine {
-                self.keep(Err(refuse(
+                self.keep(Err(refuse_at(
                     entry,
-                    Construct::Machine,
                     Unserved::Declaration("operator binding does not describe its named machine"),
                 )))?;
             }
@@ -747,11 +732,7 @@ impl Program<'_> {
         for (declared, kind) in unjudged {
             for symbol in declared {
                 if self.owner(entry, symbol, subjects, purpose)? == Owner::Subject {
-                    self.keep(Err(refuse(
-                        entry,
-                        Construct::Machine,
-                        Unserved::Declaration(kind),
-                    )))?;
+                    self.keep(Err(refuse_at(entry, Unserved::Declaration(kind))))?;
                 }
             }
         }
@@ -807,7 +788,7 @@ impl Program<'_> {
     ) -> Checked<()> {
         use crate::source_state::data::{DataMember, TypeParameterKind};
         let typed = self.typed;
-        let unserved = |what| refuse(entry, Construct::Machine, Unserved::Type(what));
+        let unserved = |what| refuse_at(entry, Unserved::Type(what));
         if data.generic_instance.is_some()
             || data.supply_mode != language_core::DataSupplyMode::CheckedShape
             || !data.lifetime_parameters.is_empty()
@@ -877,9 +858,8 @@ impl Program<'_> {
         use crate::source_state::types::{FixedArrayLength, TypeReferenceNode};
         let typed = self.typed;
         let unserved = || {
-            refuse(
+            refuse_at(
                 entry,
-                Construct::Machine,
                 Unserved::Type("type that cannot be formed under its declared generic binders"),
             )
         };
@@ -1035,9 +1015,8 @@ impl Program<'_> {
                 | TypeParameterKind::Value { type_reference } => {
                     let value = semantic_vocabulary::ValueId::new(inputs.len() as u64 + 1)
                         .ok_or_else(|| {
-                            refuse(
+                            refuse_at(
                                 diagnostic,
-                                Construct::Machine,
                                 Unserved::Parameter("value binder identity overflow"),
                             )
                         })?;
@@ -1049,9 +1028,8 @@ impl Program<'_> {
                     });
                 }
                 _ => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         diagnostic,
-                        Construct::Machine,
                         Unserved::Type(
                             "generic data invariant with a machine or proposition binder",
                         ),
@@ -1090,9 +1068,8 @@ impl Program<'_> {
             .data_type_parameters
             .span(alias.type_parameters)
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     diagnostic,
-                    Construct::Machine,
                     Unserved::Declaration("stale type alias parameters"),
                 )
             })?;
@@ -1113,9 +1090,8 @@ impl Program<'_> {
                 || typed.symbols.get(parameter.symbol).parent != alias.symbol
         }) || !alias.conformance_bounds.is_empty()
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 diagnostic,
-                Construct::Machine,
                 Unserved::Declaration("type alias with unsupported binders"),
             ));
         }
@@ -1143,11 +1119,7 @@ impl Program<'_> {
     ) -> Checked<()> {
         use crate::source_state::types::TypeReferenceNode;
         if !self.typed.contains_type_reference(alias.expansion) {
-            return Err(refuse(
-                site,
-                Construct::Machine,
-                Unserved::Type("stale alias expansion"),
-            ));
+            return Err(refuse_at(site, Unserved::Type("stale alias expansion")));
         }
         match self
             .typed
@@ -1196,9 +1168,8 @@ impl Program<'_> {
                     .typed
                     .trait_machine_signature(requirement.declaration)
                     .ok_or_else(|| {
-                        refuse(
+                        refuse_at(
                             diagnostic,
-                            Construct::Machine,
                             Unserved::Declaration(
                                 "generic schema lost its exact requirement declaration",
                             ),

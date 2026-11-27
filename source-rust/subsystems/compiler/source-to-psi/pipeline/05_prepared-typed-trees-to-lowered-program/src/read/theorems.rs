@@ -1,14 +1,15 @@
 //! A proof header supplies a mathematical implication. Read its complete source
 //! contract without registering a runtime callable or borrowing its authority.
+use crate::read::refuse_at;
 
 use super::{Program, span};
+use crate::Unserved;
 use crate::body::{Ceiling, CrashCeiling, Qualification, ValueType};
-use crate::{Unserved, refuse};
 use crate::source_state::domain::ProofFact;
 use crate::source_state::signature::{SignatureContractKind, StateSignature};
 use semantic_vocabulary::{MachineId, ScalarType, ValueId};
 use std::fmt::Write;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 use terminal_psi::{TheoremContract, ValueDeclaration};
 
 pub(crate) struct PreparedTheoremParameter {
@@ -23,7 +24,7 @@ impl Program<'_> {
         id: MachineId,
         argument: &crate::source_state::expression::StaticMachineArgument,
     ) -> Checked<terminal_psi::TheoremSource> {
-        let unavailable = |reason| refuse(id, Construct::Machine, Unserved::Call(reason));
+        let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
         let typed = self.typed;
         if !typed.symbols.symbols().nodes().is_valid(argument.symbol)
             || argument.application.is_some()
@@ -119,9 +120,8 @@ impl Program<'_> {
         let mut identities = std::mem::take(&mut module.identities).into_builder();
         let published = (|| {
             if self.theorem_parameters.len() != self.theorem_parameter_sources.len() {
-                return Err(refuse(
+                return Err(refuse_at(
                     MachineId::new(1).expect("nonzero diagnostic"),
-                    Construct::Machine,
                     Unserved::Declaration(
                         "logical theorem parameters lost their source correspondence",
                     ),
@@ -132,13 +132,8 @@ impl Program<'_> {
                 .iter()
                 .zip(&self.theorem_parameter_sources)
             {
-                let unavailable = |reason| {
-                    refuse(
-                        parameter.machine,
-                        Construct::Machine,
-                        Unserved::Declaration(reason),
-                    )
-                };
+                let unavailable =
+                    |reason| refuse_at(parameter.machine, Unserved::Declaration(reason));
                 // Only the complete implication identifies a Strict proof type.
                 // The cited declaration and its derivation remain separate.
                 let mut name = String::from("mathematical-proof:");
@@ -225,9 +220,8 @@ impl Program<'_> {
             };
             let (contract, carrier_key) = self.theorem_contract(id, contract)?;
             let unavailable = || {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Declaration("theorem header position overflow"),
                 )
             };
@@ -256,7 +250,7 @@ impl Program<'_> {
         id: MachineId,
         source: &StateSignature,
     ) -> Checked<(TheoremContract, Vec<u8>)> {
-        let unavailable = |reason| refuse(id, Construct::Machine, Unserved::Declaration(reason));
+        let unavailable = |reason| refuse_at(id, Unserved::Declaration(reason));
         if !source.lifetime_parameters.is_empty()
             || !source.type_parameters.is_empty()
             || !source.conformance_bounds.is_empty()

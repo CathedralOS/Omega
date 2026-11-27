@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 The expression family of the reader: names as slots, literals, the scalar
 operators and the short-circuit operators, and whether two read expressions
@@ -11,14 +12,12 @@ use crate::source_state::expression::{
 };
 use semantic_vocabulary::{IntegerType, MachineId, ScalarTerm, ScalarType, ValueId};
 use symbols::{BuiltinTypeAtom, PrimitiveType};
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 use super::authority::Access;
 use super::{Program, Slot, symbol_kind};
-use crate::body::{
-    CaseSelector, Expression, ExpressionKind, Policy, Selector, Strict, ValueType,
-};
-use crate::{SourceOrigin, Unserved, refuse, reject};
+use crate::body::{CaseSelector, Expression, ExpressionKind, Policy, Selector, Strict, ValueType};
+use crate::{SourceOrigin, Unserved, reject};
 
 impl<'t> Program<'t> {
     pub(super) fn authored_node(
@@ -33,9 +32,8 @@ impl<'t> Program<'t> {
             .copied()
             .filter(|owner| self.typed.symbols.symbols().nodes().is_valid(*owner))
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Declaration("authored occurrence without its source machine"),
                 )
             })?;
@@ -55,16 +53,14 @@ impl<'t> Program<'t> {
     ) -> Checked<usize> {
         let typed = self.typed;
         if path.reserved_result_of.is_valid() {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Expression("reserved result outside a contract term"),
             ));
         }
         let symbol = path.resolved_symbol().ok_or_else(|| {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 if path.static_application.is_valid() {
                     Unserved::Expression("applied name used as a plain value binding")
                 } else {
@@ -73,11 +69,7 @@ impl<'t> Program<'t> {
             )
         })?;
         if typed.expression_table.name_path_members(path.members).len() != 1 {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Expression("projected name path"),
-            ));
+            return Err(refuse_at(id, Unserved::Expression("projected name path")));
         }
         // ponytail: linear over the body's slots; bodies in the subset hold a
         // handful of locals.
@@ -86,11 +78,7 @@ impl<'t> Program<'t> {
             .rposition(|slot| slot.symbol == symbol)
             .ok_or_else(|| {
                 let kind = typed.symbols.get(symbol).kind;
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Expression(symbol_kind(kind)),
-                )
+                refuse_at(id, Unserved::Expression(symbol_kind(kind)))
             })
     }
 
@@ -200,20 +188,15 @@ impl<'t> Program<'t> {
     ) -> Checked<ExpressionHandle> {
         let table = &self.typed.expression_table;
         if !table.expression_is_valid(expression) {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Expression("missing expression"),
-            ));
+            return Err(refuse_at(id, Unserved::Expression("missing expression")));
         }
         if let ExpressionNode::Name(path) = table.expression(expression)
             && let Some(constant) = self.typed.named_const_declaration(path)
             && constant.evaluated_value.is_some()
         {
             if !table.expression_is_valid(constant.materialized_initializer) {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Expression("evaluated constant has no materialized initializer"),
                 ));
             }
@@ -236,7 +219,7 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let node = self.node(id, handle)?;
         let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Expression(what)));
         let (kind, result) = match node {
             ExpressionNode::MachineValue(_) => {
                 return unserved("erased runtime machine construction");
@@ -276,7 +259,8 @@ impl<'t> Program<'t> {
                     .iter()
                     .enumerate()
                     .map(|(index, slot)| {
-                        if slot.homed || slot.borrowed.is_some()
+                        if slot.homed
+                            || slot.borrowed.is_some()
                             || !matches!(slot.value_type, ValueType::Scalar(_, Qualification::NONE))
                         {
                             None
@@ -297,26 +281,38 @@ impl<'t> Program<'t> {
                 };
                 let (operands, discarded) = self.with_clause_arguments(id, |program| {
                     let mut operands = Vec::new();
-                    program.clause_term(
-                        id,
-                        &scope,
-                        handle,
-                        ClauseUse::Operand(ValueType::plain(scalar), &mut operands),
-                    )?.operand(id)?;
+                    program
+                        .clause_term(
+                            id,
+                            &scope,
+                            handle,
+                            ClauseUse::Operand(ValueType::plain(scalar), &mut operands),
+                        )?
+                        .operand(id)?;
                     Ok(operands)
                 })?;
                 if !discarded.is_empty() {
-                    return unserved("an erased application discards an operand that needs formation");
+                    return unserved(
+                        "an erased application discards an operand that needs formation",
+                    );
                 }
                 let term = crate::body::scalar_clause_value(operands);
                 if let Some(term) = &term {
                     let mut pending = vec![term];
                     while let Some(operand) = pending.pop() {
                         match operand {
-                            ScalarTerm::DeclarationApplication { arguments, .. } => pending.extend(arguments),
-                            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_)
-                            | ScalarTerm::Integer { .. } | ScalarTerm::IeeeFloatLiteral(_) => {}
-                            _ => return unserved("an erased application operand needs runtime formation"),
+                            ScalarTerm::DeclarationApplication { arguments, .. } => {
+                                pending.extend(arguments)
+                            }
+                            ScalarTerm::Value { .. }
+                            | ScalarTerm::Boolean(_)
+                            | ScalarTerm::Integer { .. }
+                            | ScalarTerm::IeeeFloatLiteral(_) => {}
+                            _ => {
+                                return unserved(
+                                    "an erased application operand needs runtime formation",
+                                );
+                            }
                         }
                     }
                 }
@@ -324,7 +320,9 @@ impl<'t> Program<'t> {
                     Some(term @ ScalarTerm::DeclarationApplication { .. }) => {
                         ExpressionKind::ErasedApplication(term)
                     }
-                    Some(ScalarTerm::Value { id, .. }) => ExpressionKind::Slot(id.get() as usize - 1),
+                    Some(ScalarTerm::Value { id, .. }) => {
+                        ExpressionKind::Slot(id.get() as usize - 1)
+                    }
                     Some(ScalarTerm::Integer { value, .. }) => ExpressionKind::Integer(value),
                     Some(ScalarTerm::Boolean(value)) => ExpressionKind::Boolean(value),
                     _ => return unserved("erased call without a denotational term"),
@@ -337,7 +335,13 @@ impl<'t> Program<'t> {
             // takes evidence, and at this index, is checked where the
             // mathematical signature reads evidence (`families`).
             ExpressionNode::Member(member) if expected == Some(ScalarType::Boolean) => {
-                let base = self.place(id, slots, member.receiver, None, super::authority::Access::Read)?;
+                let base = self.place(
+                    id,
+                    slots,
+                    member.receiver,
+                    None,
+                    super::authority::Access::Read,
+                )?;
                 let evidence = match self.opened_place(id, &base, super::authority::Access::Read)? {
                     Some(record) => self
                         .erased_member(id, record.record(), member.selection.field_symbol())?
@@ -462,7 +466,7 @@ impl<'t> Program<'t> {
             )?,
             _ => SourceOrigin::of(span),
         };
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Expression(what)));
         let expected_scalar = expected.and_then(ValueType::scalar);
         let type_truth = if matches!(node, ExpressionNode::Binary(_) | ExpressionNode::Member(_)) {
             let owner = self.symbols.get(id).copied().unwrap_or_default();
@@ -490,7 +494,7 @@ impl<'t> Program<'t> {
                     unreachable!("matched a parameter-width integer");
                 };
                 let formed = IntegerType::new(integer.sign(), 64)
-                    .map_err(|_| refuse(id, Construct::Machine, Unserved::Typing("literal")))?;
+                    .map_err(|_| refuse_at(id, Unserved::Typing("literal")))?;
                 let (value, formed) =
                     self.literal(id, literal, Some(ScalarType::Integer(formed)))?;
                 let operand = Expression {
@@ -617,13 +621,7 @@ impl<'t> Program<'t> {
                             return unserved("arithmetic on an address");
                         }
                         let result = crate::policy::bitwise_not_type(value_type)
-                            .ok_or_else(|| {
-                                refuse(
-                                    id,
-                                    Construct::Machine,
-                                    Unserved::Typing("unary operand type"),
-                                )
-                            })?;
+                            .ok_or_else(|| refuse_at(id, Unserved::Typing("unary operand type")))?;
                         return Ok(Expression {
                             call_context: None,
                             kind: ExpressionKind::BitwiseNot(Box::new(operand)),
@@ -632,11 +630,7 @@ impl<'t> Program<'t> {
                         });
                     }
                     _ => {
-                        return Err(refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Typing("unary operand type"),
-                        ));
+                        return Err(refuse_at(id, Unserved::Typing("unary operand type")));
                     }
                 }
             }
@@ -1220,7 +1214,7 @@ impl<'t> Program<'t> {
         expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let unserved = |what| refuse_at(id, Unserved::Expression(what));
         if !self
             .typed
             .expression_table
@@ -1255,7 +1249,10 @@ impl<'t> Program<'t> {
         // representation. Its value may read the capture through the ordinary
         // access checks for those operations.
         if let [arm] = self.typed.expression_table.match_arms(matched.arms)
-            && matches!(arm.pattern, crate::source_state::expression::MatchPattern::Wildcard)
+            && matches!(
+                arm.pattern,
+                crate::source_state::expression::MatchPattern::Wildcard
+            )
         {
             self.captures.push((matched.capture, subject.clone()));
             let value = self.arm_value(id, slots, arm.value, &mut ArmsDeliver::expected(expected));
@@ -1327,7 +1324,7 @@ impl<'t> Program<'t> {
         Option<ValueType>,
     )> {
         use crate::source_state::expression::MatchPattern;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let unserved = |what| refuse_at(id, Unserved::Expression(what));
         let mut arms: Vec<(CaseSelector, Expression)> = Vec::new();
         let mut default = None;
         let mut result = ArmsDeliver::expected(expected);
@@ -1441,7 +1438,7 @@ impl<'t> Program<'t> {
         value: ExpressionHandle,
         result: &mut ArmsDeliver,
     ) -> Checked<Expression> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let unserved = |what| refuse_at(id, Unserved::Expression(what));
         // An earlier arm that produces no value supplies no expected type
         // for a later, returning arm. Its own expression remains unchanged.
         let expected = match *result {
@@ -1577,7 +1574,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         use crate::source_state::expression::MatchPattern;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let unserved = |what| refuse_at(id, Unserved::Expression(what));
         let carrier = match subject.result {
             Some(ValueType::Scalar(
                 carrier @ (ScalarType::Integer(_) | ScalarType::Boolean),
@@ -1700,7 +1697,7 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         use crate::source_state::expression::MatchPattern;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let unserved = |what| refuse_at(id, Unserved::Expression(what));
         let boolean = ValueType::Scalar(ScalarType::Boolean, Qualification::NONE);
         let mut arms: Vec<(Selector, Expression)> = Vec::new();
         let mut default = None;
@@ -1865,9 +1862,8 @@ fn arithmetic_operand_hint(
             super::types::atom_type(BuiltinTypeAtom::Integer(carrier), id).map(Some)
         }
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::Selector => {
-            Err(refuse(
+            Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("address arithmetic operand carrier"),
             ))
         }
@@ -1882,13 +1878,7 @@ fn address_arithmetic_result(
     left: ScalarType,
     right: ScalarType,
 ) -> Checked<(Strict, ScalarType)> {
-    let unserved = || {
-        refuse(
-            id,
-            Construct::Machine,
-            Unserved::Expression("arithmetic on an address"),
-        )
-    };
+    let unserved = || refuse_at(id, Unserved::Expression("arithmetic on an address"));
     let primitive = |scalar| {
         PrimitiveType::from_builtin_atom(super::types::scalar_atom(scalar, id)?)
             .ok_or_else(unserved)
@@ -1929,11 +1919,7 @@ fn address_arithmetic_result(
         _ => false,
     };
     if !admitted {
-        return Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Typing("operand types"),
-        ));
+        return Err(refuse_at(id, Unserved::Typing("operand types")));
     }
     Ok((operation, result))
 }
@@ -1969,9 +1955,8 @@ fn binary_expression(
                 .is_some_and(|value| value.qualification().is_none())
         };
         if suffix.is_some() || !plain(&left) || !plain(&right) {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Expression("arithmetic on an address"),
             ));
         }
@@ -1979,11 +1964,7 @@ fn binary_expression(
             left.result.and_then(ValueType::scalar),
             right.result.and_then(ValueType::scalar),
         ) else {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("operand types"),
-            ));
+            return Err(refuse_at(id, Unserved::Typing("operand types")));
         };
         let (operation, result) = address_arithmetic_result(id, operator, left_type, right_type)?;
         (Some(operation), None, ValueType::plain(result))
@@ -2044,25 +2025,17 @@ pub(super) fn binary_selection(
         /// Integer values; the result is Boolean.
         Ordering,
     }
-    let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+    let unserved = |what| refuse_at(id, Unserved::Expression(what));
     if suffix.is_some() {
         let operation = crate::policy::suffixed(operator).map_err(unserved)?;
         if anonymous == (true, true) {
-            return Err(reject(
-                id,
-                source,
-                crate::policy::WHOLLY_ANONYMOUS,
-            ));
+            return Err(reject(id, source, crate::policy::WHOLLY_ANONYMOUS));
         }
         for operand in [left, right] {
             match operand {
                 Some(ValueType::Scalar(ScalarType::Integer(_), Qualification::NONE)) => {}
                 Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
-                    return Err(reject(
-                        id,
-                        source,
-                        crate::policy::QUALIFIED_OPERAND,
-                    ));
+                    return Err(reject(id, source, crate::policy::QUALIFIED_OPERAND));
                 }
                 Some(ValueType::Rigid(_)) | None => {
                     return Err(unserved(crate::policy::QUALIFIED_OPERAND));
@@ -2081,7 +2054,7 @@ pub(super) fn binary_selection(
             ));
         }
     }
-    let typing = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
+    let typing = |what| refuse_at(id, Unserved::Typing(what));
     let (Some(left_type), Some(right_type)) = (left, right) else {
         return Err(typing("Unit operand"));
     };
@@ -2100,9 +2073,8 @@ pub(super) fn binary_selection(
     let (Some((left_type, left_policy)), Some((right_type, right_policy))) =
         (carried(left_type), carried(right_type))
     else {
-        return Err(refuse(
+        return Err(refuse_at(
             id,
-            Construct::Machine,
             Unserved::Expression(
                 "operator on an operand that is not a plain or policy-qualified scalar",
             ),
@@ -2116,11 +2088,7 @@ pub(super) fn binary_selection(
             return Ok((None, None, ValueType::plain(ScalarType::Boolean)));
         }
         BinaryOperator::CaseMembership => {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Expression("case membership"),
-            ));
+            return Err(refuse_at(id, Unserved::Expression("case membership")));
         }
         BinaryOperator::Add => (Strict::Add, Operands::Arithmetic),
         BinaryOperator::Subtract => (Strict::Subtract, Operands::Arithmetic),
@@ -2532,9 +2500,8 @@ impl Program<'_> {
             self.typed.domain_definition(test.domain)
         };
         let Some(definition) = definition else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("membership in a domain without its declaration"),
             ));
         };
@@ -2550,9 +2517,8 @@ impl Program<'_> {
             || !definition.index_arguments.is_empty()
         {
             if needs_evidence {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Expression("routed membership without its applied domain"),
                 ));
             }
@@ -2575,9 +2541,8 @@ impl Program<'_> {
         };
         if retain_domain || test.application.is_valid() {
             let actual = subject.result.ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Expression("domain membership without a value"),
                 )
             })?;
@@ -2624,8 +2589,8 @@ impl Program<'_> {
         };
         let actual = actual.ok_or_else(mismatch)?;
         let plain = carrier.erased().qualified(crate::body::Qualification::NONE);
-        let exact = plain.is_some()
-            && actual.erased().qualified(crate::body::Qualification::NONE) == plain;
+        let exact =
+            plain.is_some() && actual.erased().qualified(crate::body::Qualification::NONE) == plain;
         if !exact && !self.represented_domain_carrier(id, actual, carrier, definition)? {
             return Err(mismatch());
         }

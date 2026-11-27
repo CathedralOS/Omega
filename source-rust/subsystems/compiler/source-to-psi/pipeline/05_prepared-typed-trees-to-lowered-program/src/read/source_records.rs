@@ -1,6 +1,7 @@
 //! A product keeps the source identities that minted its nominal storage.
 //! Retain an actual application from the same typed owner while reading; the
 //! product factory must not reconstruct one from a name after checking.
+use crate::read::refuse_at;
 
 use crate::source_state::data::DataDefinition;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -15,8 +16,8 @@ mod layouts;
 mod opaque;
 
 use super::{Program, places::RecordSource};
+use crate::Unserved;
 use crate::body::RecordType;
-use crate::{Unserved, refuse};
 
 /// A selected layout changes storage, while the record's fields and ownership
 /// still come from its semantic argument. Keep the original storage occurrence
@@ -71,7 +72,7 @@ pub(super) fn source_application_in_scope(
     scope: std::sync::Arc<crate::source_state::SourceTypeScope>,
 ) -> Checked<SourceTypeApplication> {
     use crate::source_state::data::TypeParameterKind;
-    let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+    let unavailable = |detail| refuse_at(machine, Unserved::Type(detail));
     if !typed
         .type_reference_table
         .contains_type_reference(reference)
@@ -532,7 +533,8 @@ impl Program<'_> {
         let result = (|| {
             for source in records {
                 let position = module
-                    .types.structural_types
+                    .types
+                    .structural_types
                     .binary_search_by_key(&source.record, |row| row.id)
                     .map_err(|_| malformed(machine, "source fields lost their canonical record"))?;
                 let declaration = &mut module.types.structural_types[position];
@@ -982,8 +984,7 @@ impl Program<'_> {
                 // neither that type nor a source view mints a nominal schema.
                 continue;
             }
-            if let crate::StorageShape::Reference { referent, access } = declaration.shape
-            {
+            if let crate::StorageShape::Reference { referent, access } = declaration.shape {
                 let application = source.application.as_ref().ok_or_else(|| {
                     malformed(
                         machine,
@@ -1181,9 +1182,8 @@ impl Program<'_> {
                 let crate::source_state::PlanLaidRealizations::TargetInputs(span) =
                     plan.realizations
                 else {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Type("source layout without its target input roster"),
                     ));
                 };
@@ -1258,21 +1258,20 @@ fn correspondence(
         return Err(malformed(machine, "record/source member rosters differ"));
     }
     let mut fields = Vec::new();
-    let mut append = |declared: &[crate::body::RecordField],
-                      symbols: &[SymbolHandle]|
-     -> Checked<()> {
-        for (field, symbol) in declared.iter().zip(symbols) {
-            if !symbol.is_valid() {
-                return Err(malformed(machine, "record field has no declaration"));
+    let mut append =
+        |declared: &[crate::body::RecordField], symbols: &[SymbolHandle]| -> Checked<()> {
+            for (field, symbol) in declared.iter().zip(symbols) {
+                if !symbol.is_valid() {
+                    return Err(malformed(machine, "record field has no declaration"));
+                }
+                fields.push(SourceFieldCorrespondence {
+                    field: field.id,
+                    declaration: *symbol,
+                    schema: *symbol,
+                });
             }
-            fields.push(SourceFieldCorrespondence {
-                field: field.id,
-                declaration: *symbol,
-                schema: *symbol,
-            });
-        }
-        Ok(())
-    };
+            Ok(())
+        };
     append(declaration.fields(), &source.fields)?;
     for (case, (symbol, symbols)) in declaration.cases().iter().zip(&source.cases) {
         if !symbol.is_valid() {

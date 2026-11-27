@@ -13,7 +13,7 @@ use source_declarations::TerminationGuarantee;
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
-use super::{Program, services};
+use super::Program;
 use crate::declare::external_providers::{ExternalProviderSource, ProviderOwnerSource};
 
 impl Program<'_> {
@@ -32,7 +32,7 @@ impl Program<'_> {
             return Ok(false);
         }
         if !self.typed.symbols.symbols().nodes().is_valid(symbol) {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "native selection has a stale source declaration",
             ));
@@ -46,7 +46,7 @@ impl Program<'_> {
 
     pub(crate) fn prepare_external_providers(&mut self, context: MachineId) -> Checked<()> {
         if std::mem::replace(&mut self.external_providers.prepared, true) {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "native declaration headers were already prepared",
             ));
@@ -107,7 +107,7 @@ impl Program<'_> {
                 .iter()
                 .any(|row| row.source == symbol)
             {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "selected native declaration supplied no exact checked conformance question",
                 ));
@@ -126,19 +126,19 @@ impl Program<'_> {
             .machine_trait_conformances
             .try_get(satisfaction)
             .ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "native conformance lost its exact declaration occurrence",
                 )
             })?;
         if !edge.requirement_symbol.is_valid() || edge.via_expression.is_valid() {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "native conformance has no exact retained requirement or binding",
             ));
         }
         let Some((owner, required)) = typed.trait_machine_signature(edge.requirement_symbol) else {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "native conformance needs its exact supported boundary requirement header",
             ));
@@ -148,7 +148,7 @@ impl Program<'_> {
             || !edge.trait_lifetime_arguments.is_empty()
             || !edge.arguments.is_empty()
         {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "native conformance has an unresolved declaring trait application",
             ));
@@ -163,7 +163,7 @@ impl Program<'_> {
         )?;
         let Some((requirement, _)) = self.read_boundary_declaration(context, required.symbol)?
         else {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "native conformance requirement lost its boundary declaration",
             ));
@@ -180,19 +180,19 @@ impl Program<'_> {
             || machine.generic_data_template.is_valid()
             || machine.attached_data_application.is_valid()
         {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "native provider needs a complete closed declaration header",
             ));
         }
         let Some([state]) = typed.machine_states(machine).as_array() else {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "native provider has no unique exact entry signature",
             ));
         };
         if !state.statement_nodes.is_empty() || !state.contracts.is_empty() {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "native provider header contains a body or separate state contract",
             ));
@@ -228,7 +228,7 @@ impl Program<'_> {
         let mut operational = declared.clone();
         if operational.service_reach_row == ServiceReachRowId::NULL {
             if sealed_intrinsic.is_none() {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "native provider has an unresolved service contract",
                 ));
@@ -246,7 +246,10 @@ impl Program<'_> {
             let (declaring, requirement) = typed
                 .trait_machine_signature(satisfaction.requirement_symbol)
                 .ok_or_else(|| {
-                    services::unavailable(context, "native service use lost its exact requirement")
+                    crate::read::unavailable(
+                        context,
+                        "native service use lost its exact requirement",
+                    )
                 })?;
             native_binding(
                 typed,
@@ -256,8 +259,9 @@ impl Program<'_> {
                 requirement,
                 satisfaction.external_binding,
             )?;
-            if !crate::publication::reach::has_authored_ceiling(typed, context, requirement.symbol)? {
-                return Err(services::unavailable(
+            if !crate::publication::reach::has_authored_ceiling(typed, context, requirement.symbol)?
+            {
+                return Err(crate::read::unavailable(
                     context,
                     "native conformance requirement has an open service ceiling",
                 ));
@@ -286,7 +290,7 @@ impl Program<'_> {
                     nominal: symbol,
                     identity: typed
                         .normalized_hermetic_symbol_identity(symbol)
-                        .map_err(|reason| services::unavailable(context, reason))?,
+                        .map_err(|reason| crate::read::unavailable(context, reason))?,
                     package: typed.symbols.symbol_package_identity(symbol),
                 })
             })
@@ -295,7 +299,7 @@ impl Program<'_> {
             .machine_callable_identity_text(machine)
             .filter(|identity| !identity.is_empty())
             .ok_or_else(|| {
-                services::unavailable(context, "native provider has no exact callable identity")
+                crate::read::unavailable(context, "native provider has no exact callable identity")
             })?;
         let declaration = crate::declare::boundary_source(
             typed,
@@ -305,7 +309,7 @@ impl Program<'_> {
             &declared,
             callable,
         )
-        .map_err(|reason| services::unavailable(context, reason))?;
+        .map_err(|reason| crate::read::unavailable(context, reason))?;
         self.admitted_declarations.include(machine.symbol);
         self.admitted_declarations.include(owner.symbol);
         self.admitted_declarations.include(required.symbol);
@@ -472,13 +476,13 @@ fn native_binding(
             .identity(binding)
             .filter(|identity| identity.mechanism() == mechanism)
             .ok_or_else(|| {
-                services::unavailable(
+                crate::read::unavailable(
                     context,
                     "native provider lost its exact retained binding identity",
                 )
             })?;
         if retained != Some(binding) {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "native provider and conformance name different bindings",
             ));
@@ -497,14 +501,14 @@ fn native_binding(
             Some(SealedIntrinsic::FixedImageRequirement(expected)),
         ) if actual == expected => terminal_psi::TerminalSealedNativeIntrinsic::FixedImage(actual),
         _ => {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "native source declaration has no exact retained binding owner",
             ));
         }
     };
     if retained.is_some() {
-        return Err(services::unavailable(
+        return Err(crate::read::unavailable(
             context,
             "native source declaration has no exact retained binding owner",
         ));

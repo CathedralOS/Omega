@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 The statement family of the reader: local bindings, locals declared without
 an initializer, and assignment. An assignment to a name rebinds its slot (a
@@ -23,7 +24,7 @@ use super::authority::Access;
 use super::references::reference_access_violation;
 use super::{Program, Slot};
 use crate::body::{ExpressionKind, Qualification, Statement, ValueType};
-use crate::{SourceOrigin, Unserved, refuse, reject};
+use crate::{SourceOrigin, Unserved, reject};
 
 impl Program<'_> {
     pub(super) fn evaluated_expression(
@@ -48,9 +49,8 @@ impl Program<'_> {
         handle: StatementHandle,
     ) -> Checked<crate::body::Expression> {
         let StatementNode::Call(call) = self.typed.statement_table.statement(handle) else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Statement("call occurrence does not name a call statement"),
             ));
         };
@@ -124,9 +124,8 @@ impl Program<'_> {
                 .and_then(|signature| signature.borrowed(index))
                 .is_some_and(|borrowed| borrowed.referent == crate::body::BorrowedReferent::Value)
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Statement("whole assignment through a reference"),
             ));
         }
@@ -139,14 +138,8 @@ impl Program<'_> {
         slots: &[Slot],
         assignment: &TableAssignment,
     ) -> Checked<Statement> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Statement(what));
-        let typing = || {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("assigned value type"),
-            )
-        };
+        let unserved = |what| refuse_at(id, Unserved::Statement(what));
+        let typing = || refuse_at(id, Unserved::Typing("assigned value type"));
         let assigned = |program: &Self, value: &crate::Expression, place: ValueType| {
             program.mistyped(
                 id,
@@ -399,7 +392,7 @@ impl Program<'_> {
         slots: &[Slot],
         local: &TableLocalData,
     ) -> Checked<(Slot, Statement)> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Statement(what)));
         match local.role {
             language_core::LocalBindingRole::Value
             | language_core::LocalBindingRole::DispatchSubject => {}
@@ -417,11 +410,7 @@ impl Program<'_> {
             }
         }
         if !local.symbol.is_valid() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Spelling("local without a symbol"),
-            ));
+            return Err(refuse_at(id, Unserved::Spelling("local without a symbol")));
         }
         if local.reflected_query_origin.is_some() {
             return unserved("reflected query");
@@ -538,11 +527,7 @@ impl Program<'_> {
                 .filter(|identity| !identity.is_empty())
                 .map(Some)
                 .ok_or_else(|| {
-                    refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Spelling("local type without an identity"),
-                    )
+                    refuse_at(id, Unserved::Spelling("local type without an identity"))
                 })?,
             };
             let slot = Slot {
@@ -583,9 +568,8 @@ impl Program<'_> {
             .result
             .or_else(|| value.diverges().then_some(declared).flatten())
         else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("local bound to a Unit call"),
             ));
         };
@@ -704,7 +688,7 @@ impl Program<'_> {
         expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<crate::Expression> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Statement(what));
+        let unserved = |what| refuse_at(id, Unserved::Statement(what));
         if slots.len() < self.block_slot_base
             || slots.len() - self.block_slot_base > self.block_slots.len()
         {
@@ -729,7 +713,7 @@ impl Program<'_> {
         use crate::body::ArmGuard;
         use crate::publication::selection_questions::TransitionRead;
 
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Statement(what));
+        let unserved = |what| refuse_at(id, Unserved::Statement(what));
         let typed = self.typed;
         let machine_symbol =
             *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
@@ -770,9 +754,8 @@ impl Program<'_> {
             }
             if completed {
                 self.static_truths.truncate(static_truths_len);
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Completion("statement after an unconditional arm"),
                 ));
             }
@@ -891,9 +874,8 @@ impl Program<'_> {
         let value = if self.typed.expression_table.expression_is_valid(block.tail) {
             if completed {
                 self.static_truths.truncate(static_truths_len);
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Completion("statement after an unconditional arm"),
                 ));
             }
@@ -919,7 +901,7 @@ impl Program<'_> {
         slots: &[Slot],
         local: &TableLocalData,
     ) -> Checked<(Slot, Statement)> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Statement(what)));
         if !local.initial_value.is_valid() {
             return unserved("erased local without an initializer");
         }
@@ -974,11 +956,7 @@ impl Program<'_> {
             return unserved("erased local of a data type");
         };
         if declared.is_some_and(|declared| declared != value_type) {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("local initializer type"),
-            ));
+            return Err(refuse_at(id, Unserved::Typing("local initializer type")));
         }
         let slot = Slot {
             symbol: local.symbol,

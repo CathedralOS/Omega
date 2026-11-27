@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 The type family of the reader: which typed-tree type is a scalar, by the
 `builtin_type_atom` route, which is a record, by its data declaration
@@ -60,14 +61,14 @@ pub(super) enum Reading {
     /// That stated value itself, where a Boolean literal is its answer.
     Stated,
 }
-use crate::{Unserved, refuse};
+use crate::Unserved;
 
 /// The checker's integer for a source carrier. The checker states integer
 /// values as host 128-bit integers, so a wider carrier is refused by name.
 fn integer(carrier: FixedInteger, machine: MachineId) -> Checked<ScalarType> {
     IntegerType::from_fixed(carrier)
         .map(ScalarType::Integer)
-        .ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Type("integer width")))
+        .ok_or_else(|| refuse_at(machine, Unserved::Type("integer width")))
 }
 
 /// The scalar type of a builtin atom, by its compiler-installed slot.
@@ -83,7 +84,7 @@ pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<Sc
             | BuiltinTypeAtom::AtomicU64 => "atomic",
             _ => "non-scalar builtin",
         };
-        return Err(refuse(machine, Construct::Machine, Unserved::Type(kind)));
+        return Err(refuse_at(machine, Unserved::Type(kind)));
     };
     match primitive {
         symbols::PrimitiveType::Bool => Ok(ScalarType::Boolean),
@@ -99,11 +100,7 @@ pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<Sc
         symbols::PrimitiveType::F64 => Ok(ScalarType::IeeeFloat(
             semantic_vocabulary::IeeeFloatFormat::Binary64,
         )),
-        symbols::PrimitiveType::Selector => Err(refuse(
-            machine,
-            Construct::Machine,
-            Unserved::Type("selector"),
-        )),
+        symbols::PrimitiveType::Selector => Err(refuse_at(machine, Unserved::Type("selector"))),
     }
 }
 
@@ -113,9 +110,8 @@ pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<Sc
 pub(super) fn scalar_atom(scalar: ScalarType, machine: MachineId) -> Checked<BuiltinTypeAtom> {
     Ok(match scalar {
         ScalarType::Callable(_) => {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Type("callable lender has no builtin scalar storage identity"),
             ));
         }
@@ -123,17 +119,15 @@ pub(super) fn scalar_atom(scalar: ScalarType, machine: MachineId) -> Checked<Bui
         ScalarType::Integer(integer) if integer.is_address() => BuiltinTypeAtom::Address,
         ScalarType::Integer(integer) => {
             let bits = integer.bits().ok_or_else(|| {
-                refuse(
+                refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("scalar lender has an unresolved integer width"),
                 )
             })?;
             BuiltinTypeAtom::Integer(
                 FixedInteger::new(integer.sign(), u64::from(bits)).ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Type("scalar lender has no fixed integer carrier"),
                     )
                 })?,
@@ -156,11 +150,7 @@ fn landed_type(
     use numeric_literals::LandedIntegerType as Landed;
     match landed {
         Landed::Fixed(carrier) => integer(carrier, machine),
-        Landed::Addr => Err(refuse(
-            machine,
-            Construct::Machine,
-            Unserved::Type("address literal"),
-        )),
+        Landed::Addr => Err(refuse_at(machine, Unserved::Type("address literal"))),
     }
 }
 
@@ -212,7 +202,9 @@ impl<'t> Program<'t> {
         domain: crate::body::DomainInstance,
         scope: Option<&crate::source_state::SourceTypeScope>,
     ) -> Checked<&'t crate::source_state::domain::DomainDefinition> {
-        if let Some(application) = self.typed.domain_application(domain.declaration, domain.identity)
+        if let Some(application) = self
+            .typed
+            .domain_application(domain.declaration, domain.identity)
             && !application.is_closed
             && !scope.is_some_and(|scope| {
                 application.arguments.iter().all(|argument| {
@@ -223,9 +215,8 @@ impl<'t> Program<'t> {
                 })
             })
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Type("domain family application with an open carrier or index"),
             ));
         }
@@ -235,9 +226,8 @@ impl<'t> Program<'t> {
         {
             return Ok(definition);
         }
-        let mut refusal = refuse(
+        let mut refusal = refuse_at(
             id,
-            Construct::Machine,
             Unserved::Type("domain application without its prepared theory"),
         );
         if let Some(application) = self
@@ -303,13 +293,7 @@ impl Program<'_> {
         mut handle: TypeReferenceHandle,
         scope: &[(symbols::SymbolHandle, ValueType)],
     ) -> Checked<bool> {
-        let unserved = || {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Type("unresolved formal shape"),
-            )
-        };
+        let unserved = || refuse_at(id, Unserved::Type("unresolved formal shape"));
         let mut source_scope = self.source_scope.clone();
         for _ in 0..=self.typed.type_reference_table.type_reference_count() {
             if !handle.is_valid() {
@@ -317,7 +301,7 @@ impl Program<'_> {
             }
             let supplied = source_scope
                 .supplied_type_reference(self.typed, handle)
-                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Type(detail)))?;
+                .map_err(|detail| refuse_at(id, Unserved::Type(detail)))?;
             if self.source_head_is_readable(supplied.reference, scope) {
                 handle = supplied.reference;
                 source_scope = supplied.scope;
@@ -379,21 +363,13 @@ impl Program<'_> {
     ) -> Checked<ScalarType> {
         let typed = self.typed;
         if !handle.is_valid() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Type("missing type"),
-            ));
+            return Err(refuse_at(id, Unserved::Type("missing type")));
         }
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Type(what)));
         match typed.type_reference_table.type_reference(handle) {
             TypeReferenceNode::Named { symbol, .. } => {
                 if !symbol.is_valid() {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Spelling("type without a symbol"),
-                    ));
+                    return Err(refuse_at(id, Unserved::Spelling("type without a symbol")));
                 }
                 match typed.symbols.builtin_type_atom(*symbol) {
                     Some(BuiltinTypeAtom::Address)
@@ -484,13 +460,7 @@ impl Program<'_> {
                     detail: reason.to_owned(),
                 })?
                 .map(ScalarType::Callable)
-                .ok_or_else(|| {
-                    refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Type("unprepared runtime callable"),
-                    )
-                }),
+                .ok_or_else(|| refuse_at(id, Unserved::Type("unprepared runtime callable"))),
             TypeReferenceNode::Unit => unserved("unit as a value"),
         }
     }
@@ -956,9 +926,8 @@ impl Program<'_> {
             .symbols
             .builtin_atom_symbol(atom)
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Type("scalar lender has no registered builtin"),
                 )
             })?;
@@ -969,9 +938,8 @@ impl Program<'_> {
                 numerics::arithmetic::ArithmeticDomain::Exact,
             )
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Type("scalar lender has no registered type occurrence"),
                 )
             })
@@ -998,9 +966,8 @@ impl Program<'_> {
                 .contains_type_reference(handle)
                 || visiting.contains(&handle)
             {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Type("invalid constrained storage carrier"),
                 ));
             }
@@ -1032,7 +999,7 @@ impl Program<'_> {
             let supplied = self
                 .source_scope
                 .supplied_type_reference(self.typed, handle)
-                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Type(detail)))?;
+                .map_err(|detail| refuse_at(id, Unserved::Type(detail)))?;
             let readable = self.source_head_is_readable(supplied.reference, &self.scope);
             if supplied.reference != handle && readable {
                 let outer = std::mem::replace(&mut self.source_scope, supplied.scope);
@@ -1207,13 +1174,9 @@ impl Program<'_> {
         let carrier = self.value_type(id, base_type)?;
         let qualification =
             self.type_qualification(id, carrier, constraints, DomainSpelling::CompleteType)?;
-        let result = carrier.qualified(qualification).ok_or_else(|| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Type("domain on a type parameter"),
-            )
-        })?;
+        let result = carrier
+            .qualified(qualification)
+            .ok_or_else(|| refuse_at(id, Unserved::Type("domain on a type parameter")))?;
         for domain in qualification.domains.members() {
             if !carrier.qualification().domains.contains(domain) {
                 let at = self.written_domain(constraints, domain);
@@ -1235,7 +1198,7 @@ impl Program<'_> {
     ) -> Checked<Qualification> {
         use crate::source_state::types::{DomainConstraintSubject, TypeConstraintNode};
         use numerics::arithmetic::ArithmeticDomain;
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Type(what)));
         let mut qualification = carrier.qualification();
         let mut written = qualification.domains;
         let typed = self.typed;
@@ -1260,10 +1223,7 @@ impl Program<'_> {
                         identity: domain.semantic_id,
                     };
                     written = written.with(instance).ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Type("constrained by one domain twice or by more than four declared domains"),
+                        refuse_at(id, Unserved::Type("constrained by one domain twice or by more than four declared domains"),
                         )
                     })?;
                     qualification.domains = match spelling {
@@ -1292,13 +1252,9 @@ impl Program<'_> {
     ) -> Checked<crate::body::DomainSet> {
         while !domains.contains(member) {
             let definition = self.domain_theory(id, member)?;
-            domains = domains.with(member).ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Type("more than four declared domains"),
-                )
-            })?;
+            domains = domains
+                .with(member)
+                .ok_or_else(|| refuse_at(id, Unserved::Type("more than four declared domains")))?;
             let Some(parent) =
                 crate::source_state::domain::refinement_parent(self.typed, definition)
             else {
@@ -1333,13 +1289,9 @@ impl Program<'_> {
                 identity: parent.semantic_domain,
             },
         )?;
-        carrier.qualified(qualification).ok_or_else(|| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Type("domain on a type parameter"),
-            )
-        })
+        carrier
+            .qualified(qualification)
+            .ok_or_else(|| refuse_at(id, Unserved::Type("domain on a type parameter")))
     }
 
     /// One intermediate coordinate of a simultaneous cast. Its displayed
@@ -1357,13 +1309,9 @@ impl Program<'_> {
             let carrier = self.value_type(id, *base_type)?;
             let qualification =
                 self.type_qualification(id, carrier, *constraints, DomainSpelling::CastCoordinate)?;
-            return carrier.qualified(qualification).ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Type("domain on a type parameter"),
-                )
-            });
+            return carrier
+                .qualified(qualification)
+                .ok_or_else(|| refuse_at(id, Unserved::Type("domain on a type parameter")));
         }
         self.value_type(id, handle)
     }
@@ -1379,9 +1327,8 @@ impl Program<'_> {
     ) -> Checked<ValueType> {
         let after = self.qualified_scalar_type(id, handle)?;
         if before.qualified(Qualification::NONE) != after.qualified(Qualification::NONE) {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("domain cast entry that changes the carrier"),
             ));
         }
@@ -1390,9 +1337,8 @@ impl Program<'_> {
             .domains
             .is_subset_of(&before.qualification().domains)
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("domain establishment in a clause term"),
             ));
         }
@@ -1418,11 +1364,7 @@ impl Program<'_> {
                         DomainSpelling::CompleteType,
                     )?;
                     return carrier.qualified(qualification).ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Type("domain on a type parameter"),
-                        )
+                        refuse_at(id, Unserved::Type("domain on a type parameter"))
                     });
                 }
                 TypeReferenceNode::Named { symbol, .. } => {
@@ -1497,14 +1439,13 @@ impl Program<'_> {
         at: crate::SourceOrigin,
         use_site: DomainUse,
     ) -> Checked<()> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Type(what)));
         let typed = self.typed;
         let definition = self.domain_theory(id, domain)?;
         self.served(id, domain.declaration)?;
         let declaration = typed.domain_definition(domain.declaration).ok_or_else(|| {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Type("domain application lost its declaring family"),
             )
         })?;
@@ -1546,13 +1487,10 @@ impl Program<'_> {
         if let Some(instance) = parent
             && !required.domains.contains(instance)
         {
-            required.domains = required.domains.with(instance).ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Type("more than four declared domains"),
-                )
-            })?;
+            required.domains = required
+                .domains
+                .with(instance)
+                .ok_or_else(|| refuse_at(id, Unserved::Type("more than four declared domains")))?;
         }
         if required.policy.is_some() {
             return unserved("a domain declared on an arithmetic-policy-qualified carrier");
@@ -1654,7 +1592,7 @@ impl Program<'_> {
         if self.value_type(id, layout.semantic_type)? != subject {
             return Ok(false);
         }
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Type(what)));
         if !subject.qualification().domains.is_empty()
             || crate::source_state::domain::refinement_parent(typed, definition).is_some()
         {
@@ -1695,9 +1633,7 @@ impl Program<'_> {
                 _ => None,
             })
             .map_or(
-                crate::SourceOrigin::Unpositioned(
-                    crate::Unpositioned::SpanAbsent,
-                ),
+                crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
                 |written| crate::SourceOrigin::of(written.source_span),
             )
     }
@@ -1720,7 +1656,7 @@ impl Program<'_> {
         carrier: ValueType,
         at: crate::SourceOrigin,
     ) -> Checked<()> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Type(what)));
         let typed = self.typed;
         for parameter in typed.domain_type_parameters(declaration) {
             if parameter.bounds == crate::source_state::data::DataProperties::default() {
@@ -1839,9 +1775,8 @@ impl Program<'_> {
                 admitted
             },
         ) else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Expression("anonymous operation without an exact meaning"),
             ));
         };
@@ -1869,7 +1804,7 @@ impl Program<'_> {
         expected: Option<ScalarType>,
         landing: AnonymousLanding,
     ) -> Checked<AnonymousValue> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Expression(what)));
         let typed = self.typed;
         let (evaluated, operators) = self.anonymous_calculation(id, expression)?;
         // Only an integer destination makes these errors in the program;
@@ -1887,9 +1822,8 @@ impl Program<'_> {
             |_| "its integer type".to_owned(),
             |fixed| format!("`{fixed}`"),
         );
-        let at = |expression| {
-            crate::SourceOrigin::of(typed.expression_table.source_span(expression))
-        };
+        let at =
+            |expression| crate::SourceOrigin::of(typed.expression_table.source_span(expression));
         // numeric_values.md, "Fractional-intermediate diagnostics": "Integer
         // landing of a fractional final value rejects with its exact value and
         // destination type."
@@ -1982,9 +1916,8 @@ impl Program<'_> {
                 _ => None,
             })
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Expression("anonymous float literal without an expected float type"),
                 )
             })?;
@@ -1993,9 +1926,8 @@ impl Program<'_> {
                 Landing::F32 => u32::try_from(bits)
                     .map(IeeeFloatValue::Binary32)
                     .map_err(|_| {
-                        refuse(
+                        refuse_at(
                             id,
-                            Construct::Machine,
                             Unserved::Expression("binary32 literal has excess representation bits"),
                         )
                     }),
@@ -2008,9 +1940,8 @@ impl Program<'_> {
         };
         let value =
             FloatSemantics::from_decimal(semantic_format, literal.text()).ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Expression("float literal has no exact numeric meaning"),
                 )
             })?;
@@ -2028,7 +1959,7 @@ impl Program<'_> {
         literal: &numeric_literals::IntegerLiteral,
         expected: Option<ScalarType>,
     ) -> Checked<(IntegerValue, IntegerType)> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Expression(what)));
         let landed = match literal.landing() {
             Some(landing) => {
                 if landing.domain != numerics::arithmetic::ArithmeticDomain::Exact {
@@ -2040,19 +1971,14 @@ impl Program<'_> {
         };
         let scalar_type = match (landed, expected) {
             (Some(landed), Some(expected)) if landed != expected => {
-                return Err(refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Typing("literal landed type"),
-                ));
+                return Err(refuse_at(id, Unserved::Typing("literal landed type")));
             }
             (Some(scalar_type), _) | (None, Some(scalar_type)) => scalar_type,
             (None, None) => return unserved("anonymous integer literal without an expected type"),
         };
         let ScalarType::Integer(integer) = scalar_type else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("integer literal in a non-integer place"),
             ));
         };

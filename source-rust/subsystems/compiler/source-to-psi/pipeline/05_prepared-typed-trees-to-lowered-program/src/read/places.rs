@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 Read data declarations, literals, field paths, case tests and complete record
 patterns. Resolved symbols identify each type, field and case; a spelling alone
@@ -35,7 +36,7 @@ use crate::body::{
     CaseSelector, CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType,
 };
 use crate::canonical::{self, Repeated};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::{SourceOrigin, Unserved};
 
 /// Different checking machines own different const-input storage rows.
 /// Their labels must be unique; type equality still uses source applications.
@@ -124,9 +125,8 @@ impl Program<'_> {
         let data = typed
             .unique_data_definition_by_symbol(symbol)
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Type("nominal type without a unique declaration"),
                 )
             })?;
@@ -158,9 +158,8 @@ impl Program<'_> {
             .data_application_definition(semantic)
             .or_else(|| typed.closed_data_definition(semantic))
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Type("record without its exact retained application"),
                 )
             })?;
@@ -224,9 +223,8 @@ impl Program<'_> {
                 _ => None,
             };
             let parameter = parameter.ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Typing("lifetime argument its owner does not declare"),
                 )
             })?;
@@ -263,9 +261,8 @@ impl Program<'_> {
         let mut include = |child| -> Checked<()> {
             let child_owner = self.source(machine, child)?.constant_input_owner;
             match (owner, child_owner) {
-                (Some(left), Some(right)) if left != right => Err(refuse(
+                (Some(left), Some(right)) if left != right => Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("storage combines constants from different checking machines"),
                 )),
                 (None, child) => {
@@ -381,9 +378,8 @@ impl Program<'_> {
                     .iter()
                     .any(|(owner, retained)| same(*owner, retained))
                 {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Type("data application that contains itself"),
                     ));
                 }
@@ -416,7 +412,7 @@ impl Program<'_> {
             }
             return Ok(ValueType::record(record));
         }
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
         if self
             .resolving
             .iter()
@@ -815,27 +811,22 @@ impl Program<'_> {
         while let Some((record, executable)) = self.pending_cleanup.pop() {
             let diagnostic = self.next_identity()?;
             let definition = self.typed.machine_by_symbol(executable).ok_or_else(|| {
-                refuse(
+                refuse_at(
                     diagnostic,
-                    Construct::Machine,
                     Unserved::Declaration("selected cleanup has no machine body"),
                 )
             })?;
             if crate::is_generic_template(self.typed, definition) {
-                return Err(refuse(
+                return Err(refuse_at(
                     diagnostic,
-                    Construct::Machine,
                     Unserved::Declaration("selected cleanup needs a closed ordinary application"),
                 ));
             }
             let machine = self.machine(executable)?;
-            let declaration = self.records.get_mut(record).ok_or_else(|| {
-                refuse(
-                    diagnostic,
-                    Construct::Machine,
-                    Unserved::Type("cleanup carrier identity"),
-                )
-            })?;
+            let declaration = self
+                .records
+                .get_mut(record)
+                .ok_or_else(|| refuse_at(diagnostic, Unserved::Type("cleanup carrier identity")))?;
             declaration.cleanup = Some(crate::body::RecordCleanup {
                 declaration_identity: declaration.identity.clone(),
                 machine,
@@ -873,17 +864,12 @@ impl Program<'_> {
                 }
                 DataMember::Variant(variant) => {
                     if !variant.symbol.is_valid() {
-                        return Err(refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Spelling("case without a symbol"),
-                        ));
+                        return Err(refuse_at(id, Unserved::Spelling("case without a symbol")));
                     }
                     let identity = variant.member_identity().spelling();
                     if identity.is_empty() {
-                        return Err(refuse(
+                        return Err(refuse_at(
                             id,
-                            Construct::Machine,
                             Unserved::Spelling("case without a declaration identity"),
                         ));
                     }
@@ -920,13 +906,9 @@ impl Program<'_> {
         case: Option<usize>,
         position: usize,
     ) -> Checked<DeclaredErased> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
         if !field.symbol.is_valid() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Spelling("field without a symbol"),
-            ));
+            return Err(refuse_at(id, Unserved::Spelling("field without a symbol")));
         }
         // Evidence of indexed data has no layout and no term here: a
         // literal's evidence and every use of it are checked where the
@@ -950,9 +932,8 @@ impl Program<'_> {
         }
         let identity = field.member_identity().spelling();
         if identity.is_empty() {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Spelling("field without a declaration identity"),
             ));
         }
@@ -976,11 +957,7 @@ impl Program<'_> {
     /// Psi's declaration and its type.
     fn declared_field(&mut self, id: MachineId, field: &DataField) -> Checked<(String, ValueType)> {
         if !field.symbol.is_valid() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Spelling("field without a symbol"),
-            ));
+            return Err(refuse_at(id, Unserved::Spelling("field without a symbol")));
         }
         // A field that names lifetime-parameterised data without its
         // lifetime arguments, directly or behind a reference, is refused
@@ -992,16 +969,15 @@ impl Program<'_> {
             let supplied = self
                 .source_scope
                 .supplied_type_reference(self.typed, field.type_reference)
-                .map_err(|reason| refuse(id, Construct::Machine, Unserved::Type(reason)))?;
+                .map_err(|reason| refuse_at(id, Unserved::Type(reason)))?;
             self.parameter_storage(id, rigid, supplied.reference)?
         } else {
             value_type
         };
         let identity = field.member_identity().spelling();
         if identity.is_empty() {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Spelling("field without a declaration identity"),
             ));
         }
@@ -1036,13 +1012,7 @@ impl Program<'_> {
         let template = self
             .typed
             .unique_data_definition_by_symbol(declaration)
-            .ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Typing("applied data lost its template"),
-                )
-            })?;
+            .ok_or_else(|| refuse_at(id, Unserved::Typing("applied data lost its template")))?;
         let mut bound = Vec::new();
         let mut owner = None;
         for parameter in self.typed.data_type_parameters(template) {
@@ -1056,9 +1026,8 @@ impl Program<'_> {
                 .iter()
                 .find(|(binder, _)| *binder == parameter.symbol)
             else {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Typing("applied data without an argument for its value parameter"),
                 ));
             };
@@ -1104,7 +1073,7 @@ impl Program<'_> {
             .fields
             .iter()
             .position(|field| *field == symbol)
-            .ok_or_else(|| refuse(id, Construct::Machine, absent))
+            .ok_or_else(|| refuse_at(id, absent))
     }
 
     /// The position in `RecordType::erased` of the erased field `symbol`
@@ -1134,9 +1103,8 @@ impl Program<'_> {
         symbol: SymbolHandle,
     ) -> Checked<Member> {
         if self.erased_member(id, record.record(), symbol)?.is_some() {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Expression("read of an erased field of data"),
             ));
         }
@@ -1149,9 +1117,8 @@ impl Program<'_> {
                 return Ok(Member::Payload { case, field });
             }
         }
-        Err(refuse(
+        Err(refuse_at(
             id,
-            Construct::Machine,
             Unserved::Typing("member is not a field of its receiver's data type"),
         ))
     }
@@ -1175,9 +1142,8 @@ impl Program<'_> {
         {
             return Ok(());
         }
-        Err(refuse(
+        Err(refuse_at(
             id,
-            Construct::Machine,
             Unserved::Typing("`==` on data with no selected Equatable comparison"),
         ))
     }
@@ -1197,9 +1163,8 @@ impl Program<'_> {
             .iter()
             .position(|(case, _)| *case == symbol)
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Typing("case of another type than its subject's"),
                 )
             })
@@ -1232,9 +1197,8 @@ impl Program<'_> {
             .get(field)
             .map(|field| field.value_type)
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Typing("field position past the record's declaration"),
                 )
             })
@@ -1267,9 +1231,8 @@ impl Program<'_> {
             .and_then(|case| case.fields.get(field))
             .map(|field| field.value_type)
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Typing("payload position past the case's declaration"),
                 )
             })
@@ -1290,7 +1253,7 @@ impl Program<'_> {
         slots: &[Slot],
         local: &crate::source_state::statement::TableLocalData,
     ) -> Checked<Option<crate::body::Statement>> {
-        let refused = |what| refuse(id, Construct::Machine, what);
+        let refused = |what| refuse_at(id, what);
         if !local.pattern_subject.is_valid() {
             return Err(refused(Unserved::Spelling(
                 "record pattern without a resolved subject",
@@ -1370,7 +1333,7 @@ impl Program<'_> {
         pattern: &TableDestructurePattern,
         at: SourceOrigin,
     ) -> Checked<()> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Transition(what));
+        let unserved = |what| refuse_at(id, Unserved::Transition(what));
         if pattern.application_type.is_valid() {
             return Err(unserved("pattern of an applied type"));
         }
@@ -1424,11 +1387,7 @@ impl Program<'_> {
         member: &TableMemberExpression,
         source: SourceOrigin,
     ) -> terminal_check_tables::Refusal {
-        let refused = refuse(
-            id,
-            Construct::Machine,
-            Unserved::Spelling("member without a field symbol"),
-        );
+        let refused = refuse_at(id, Unserved::Spelling("member without a field symbol"));
         let name = member.member.as_str();
         if name.is_empty() || member.case_variant.is_some() {
             return refused;
@@ -1527,9 +1486,8 @@ impl Program<'_> {
             _ => self.place(id, slots, member.receiver, None, access)?,
         };
         let Some(record) = self.opened_place(id, &base, access)? else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("member of a value that is not a record"),
             ));
         };
@@ -1581,9 +1539,9 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let expected = self.expected.take();
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
-        let typing = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
-        let spelling = |what| refuse(id, Construct::Machine, Unserved::Spelling(what));
+        let unserved = |what| refuse_at(id, Unserved::Expression(what));
+        let typing = |what| refuse_at(id, Unserved::Typing(what));
+        let spelling = |what| refuse_at(id, Unserved::Spelling(what));
         // A case literal names its case by symbol; one the typed trees hold
         // only as a name is a spelling.
         let case_symbol = match (literal.case_symbol, &literal.case_name) {
@@ -1825,13 +1783,7 @@ impl Program<'_> {
             .data_type(id, record)?
             .erased
             .get(position)
-            .ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Typing("erased field position"),
-                )
-            })?;
+            .ok_or_else(|| refuse_at(id, Unserved::Typing("erased field position")))?;
         if erased.evidence {
             return Ok(None);
         }
@@ -1839,11 +1791,7 @@ impl Program<'_> {
         let value_type = erased.value_type;
         let term = self.erased_term(id, slots, value, value_type.scalar())?;
         if term.result != Some(value_type) {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("record literal field type"),
-            ));
+            return Err(refuse_at(id, Unserved::Typing("record literal field type")));
         }
         Ok(Some((field_id, term)))
     }
@@ -1862,13 +1810,7 @@ impl Program<'_> {
     ) -> Checked<Expression> {
         let plain = result
             .qualified(crate::body::Qualification::NONE)
-            .ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Expression("zero of a rigid type"),
-                )
-            })?;
+            .ok_or_else(|| refuse_at(id, Unserved::Expression("zero of a rigid type")))?;
         // Ordinary field construction retains each field's qualification
         // evidence. An opaque zero operation cannot establish issuer permissions.
         let kind = match plain {
@@ -1923,9 +1865,8 @@ impl Program<'_> {
         let mut qualification = crate::body::Qualification::NONE;
         for domain in result.qualification().domains.members() {
             qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Expression("zero qualification set is too large"),
                 )
             })?;
@@ -2016,9 +1957,8 @@ impl Program<'_> {
     ) -> Checked<Expression> {
         let subject = self.expression(id, slots, subject, None)?;
         let Some(record) = self.opened(id, subject.result, Access::Read)? else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("case test of a value that is not a sum"),
             ));
         };
@@ -2064,9 +2004,8 @@ impl Program<'_> {
                 &super::expressions::case_condition(subject, case),
             )
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Transition("case pattern whose condition is not its case test"),
             ));
         }
@@ -2097,7 +2036,7 @@ impl Program<'_> {
         pattern: &TableDestructurePattern,
         at: SourceOrigin,
     ) -> Checked<usize> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Transition(what));
+        let unserved = |what| refuse_at(id, Unserved::Transition(what));
         if pattern.application_type.is_valid() {
             return Err(unserved("pattern of an applied type"));
         }
@@ -2138,9 +2077,8 @@ impl Program<'_> {
                 | MatchFieldAction::Equal(_) => {}
             }
             if !field.field_symbol.is_valid() {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Spelling("pattern field without a symbol"),
                 ));
             }
@@ -2164,9 +2102,8 @@ impl Program<'_> {
             let position = match self.member_of(id, record, field.field_symbol)? {
                 Member::Payload { case: owner, field } if owner == case => field,
                 Member::Payload { .. } | Member::Field(_) => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Typing("pattern names a field of another case"),
                     ));
                 }
@@ -2185,9 +2122,8 @@ impl Program<'_> {
         }
         if !pattern.has_rest && (seen.contains(&false) || erased_seen.contains(&false)) {
             if listed.is_empty() {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Typing("pattern misses a payload field"),
                 ));
             }
@@ -2212,7 +2148,7 @@ fn record_roster_coverage(
     roster: &[crate::source_state::expression::TableMatchField],
     waives_rest: bool,
 ) -> Checked<()> {
-    let refused = |what| refuse(id, Construct::Machine, what);
+    let refused = |what| refuse_at(id, what);
     let mut declared = fields.to_vec();
     declared.sort_unstable_by_key(|field| (field.generation(), field.arena_index()));
     if declared.windows(2).any(|fields| fields[0] == fields[1]) {
@@ -2276,7 +2212,7 @@ fn record_shape_for(
     _purpose: super::storage_metadata::TypePurpose,
     members: arena::RootRows<'_, DataMember>,
 ) -> Checked<()> {
-    let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
+    let unserved = |what| Err(refuse_at(id, Unserved::Type(what)));
     if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque && !members.is_empty() {
         return unserved("opaque data with declared members");
     }
@@ -2381,9 +2317,8 @@ pub(super) fn lifetime_binders(
 ) -> Checked<()> {
     for (position, binder) in binders.iter().enumerate() {
         if binder.as_str().is_empty() {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Spelling("lifetime parameter without a tag"),
             ));
         }
@@ -2442,7 +2377,7 @@ pub(super) fn lifetime_application(
     retained: &[RetainedLifetime<'_>],
     declares: impl Fn(&str) -> bool,
 ) -> Checked<()> {
-    let typing = |what| Err(refuse(id, Construct::Machine, Unserved::Typing(what)));
+    let typing = |what| Err(refuse_at(id, Unserved::Typing(what)));
     if arguments.len() != declared {
         return typing("lifetime argument count differs from the data declaration's");
     }

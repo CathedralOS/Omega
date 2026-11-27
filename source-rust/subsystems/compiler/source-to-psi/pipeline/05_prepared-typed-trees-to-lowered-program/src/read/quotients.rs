@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 Quotients of mathematical data.
 
@@ -43,7 +44,7 @@ use crate::body::{
     CallTarget, Ceiling, Expression, ExpressionKind, RecordField, RecordType, StorageShape,
     ValueType,
 };
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::{SourceOrigin, Unserved};
 
 /// A quotient of mathematical data, as the signature needs it.
 #[derive(Debug, Clone)]
@@ -100,7 +101,7 @@ impl Program<'_> {
         state: &State,
     ) -> Checked<Option<LiftedOperation>> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let [statement] = typed.statement_table.statements(state.statement_nodes) else {
             return Ok(None);
         };
@@ -216,7 +217,7 @@ impl Program<'_> {
             return Ok(ValueType::record(known.record));
         }
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
         let quotient = data
             .quotient
             .as_ref()
@@ -425,7 +426,7 @@ impl Program<'_> {
         value_type: ValueType,
         visiting: &mut Vec<StructuralTypeId>,
     ) -> Checked<()> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
         match value_type {
             ValueType::Scalar(_, qualification) => {
                 if !qualification.domains.is_empty() {
@@ -534,7 +535,7 @@ impl Program<'_> {
             return Ok(ValueType::record(known.record));
         }
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
         let quotient = data
             .quotient
             .as_ref()
@@ -740,7 +741,7 @@ impl Program<'_> {
         expected: Option<ValueType>,
     ) -> Checked<Expression> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let unserved = |what| refuse_at(id, Unserved::Call(what));
         let select_machine = |program: &mut Self,
                               argument: &StaticMachineArgument|
          -> Checked<(SymbolHandle, MachineId)> {
@@ -951,7 +952,7 @@ impl Program<'_> {
         result_quotient: Option<&ExecutableQuotient>,
     ) -> Checked<()> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let unserved = |what| refuse_at(id, Unserved::Call(what));
         let (cong_machine, cong_state) = self.declaration(id, cong_symbol)?;
         let cong_params = typed
             .state_parameters

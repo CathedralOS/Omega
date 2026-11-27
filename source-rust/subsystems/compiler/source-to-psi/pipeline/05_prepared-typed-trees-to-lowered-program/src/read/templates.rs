@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 Mathematical machines that are generic over other machines.
 
@@ -22,13 +23,13 @@ use crate::source_state::statement::{
 };
 use semantic_vocabulary::{ClauseValue, MachineId};
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 use super::Program;
 use super::clause_terms::ClauseUse;
 use super::contracts::{AppliedProposition, ClauseScope};
+use crate::Unserved;
 use crate::body::ValueType;
-use crate::{Unserved, refuse};
 
 /// A machine parameter as the signature needs it: a function from its
 /// parameters to its result.
@@ -102,7 +103,7 @@ impl<'t> Program<'t> {
     /// The machine parameters of a generic mathematical machine.
     fn callables(&mut self, id: MachineId, machine: &'t Machine) -> Checked<Vec<Callable>> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let mut callables = Vec::new();
         for parameter in typed.machine_type_parameters(machine) {
             // A value parameter is one more formal of the machine, read with
@@ -150,7 +151,7 @@ impl<'t> Program<'t> {
         machine: SymbolHandle,
     ) -> Checked<TemplateBody> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let (declared, state) = self.declaration(id, machine)?;
         let mut body = TemplateBody {
             callables: self.callables(id, declared)?,
@@ -253,9 +254,8 @@ impl<'t> Program<'t> {
         body: &mut TemplateBody,
     ) -> Checked<()> {
         let result = result.ok_or_else(|| {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Machine(
                     "generic mathematical machine returns a value it does not declare",
                 ),
@@ -283,9 +283,8 @@ impl<'t> Program<'t> {
     ) -> Checked<()> {
         let typed = self.typed;
         let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Machine("generic mathematical machine body statement other than a call"),
             ));
         };
@@ -293,9 +292,8 @@ impl<'t> Program<'t> {
             || !call.machine_arguments.is_empty()
             || !call.evidence_arguments.is_empty()
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Machine(
                     "generic mathematical machine cites a machine with static arguments",
                 ),
@@ -314,7 +312,7 @@ impl<'t> Program<'t> {
         body: &mut TemplateBody,
     ) -> Checked<()> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let cited = self
             .entered_machine(target)
             .filter(|cited| {
