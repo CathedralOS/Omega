@@ -78,6 +78,13 @@ domain binder scopes over its codomain, never over earlier parameters. A type
 family `A -> |proof|::Type<v>` does not itself require a dependent arrow; applying
 that family in a function's result type does.
 
+In proof use, a well-formed mathematical function type can instantiate a
+generic type parameter at its checked universe level. If a record declares
+`state: S` and `S` is instantiated with `Nat -> Rat`, construction can
+supply an arbitrary mathematical function `f` of that type. Projecting
+`state` gives that same term, and applying it to `n` gives `f(n)`. Any
+demand for execution still requires a checked realization.
+
 Universe inference may omit routine written levels at definitions and calls.
 Generalization must deterministically publish the full level telescope and
 constraints from the declared interface, independently of private body edits.
