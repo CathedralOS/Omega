@@ -4119,29 +4119,57 @@ pub fn decode_closed_parts(
     let analyses = terminal_semantics::ModuleAnalyses::new(&module)
         .map_err(|_| CodecError::NonCanonicalOrder("machines by MachineId"))?;
     validate_structural_foundation(&analyses)?;
-    // Artifact ingress judges structural memberships exactly as the lowered
-    // checker does; an artifact cannot carry a domain the checker would refuse.
-    terminal_semantics::structural_qualifications::validate_in(&analyses)
-        .map_err(|error| CodecError::MalformedStructuralFoundation(error.detail))?;
-    // A stored provider of a requirement that ends the process gets the
-    // lowered-form checker's judgment too.
-    terminal_semantics::external_completions::validate(&module).map_err(|_| {
-        CodecError::MalformedStructuralFoundation(
-            "a provider of an external completion does not pass on its own arguments",
-        )
-    })?;
     // Canonical shape only; source-bound `verify_identity_formations` replays
     // the kernel. Decoding does not re-decide a carried judgment.
     crate::identity_formations::validate_identity_formations(&module)?;
     crate::theorem_citations::validate_received_theorems(&module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
-    dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
     drop(analyses);
     opaque_storage
         .restore(&mut module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     types.record_callables(&module);
     Ok((module, bytes.to_vec(), types))
+}
+
+/// Replays the lowered-form checker's judgments that execution relies on, for
+/// a module received from outside this process.
+///
+/// Inspection does not need these: decoding checks only canonical form and
+/// structure. They run once, when the receiving host authorizes the artifact
+/// for execution, so an authorized program cannot carry a domain membership,
+/// external-completion provider or dynamic view result the checker would
+/// refuse. Code this process produced was checked by its own checker and
+/// needs no replay.
+pub fn prepare_received_execution(module: &TerminalModule) -> Result<(), CodecError> {
+    if module.types.opaque_representations.is_empty() {
+        return replay_execution_judgments(module);
+    }
+    // The checker judges guest operations with physical opaque storage
+    // hidden; replay them the same way on a private copy.
+    let mut hidden = module.clone();
+    let _shapes = hidden
+        .take_opaque_storage_shapes()
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    replay_execution_judgments(&hidden)
+}
+
+fn replay_execution_judgments(module: &TerminalModule) -> Result<(), CodecError> {
+    let analyses = terminal_semantics::ModuleAnalyses::new(module)
+        .map_err(|_| CodecError::NonCanonicalOrder("machines by MachineId"))?;
+    // Judge structural memberships exactly as the lowered checker does; an
+    // executed artifact cannot carry a domain the checker would refuse.
+    terminal_semantics::structural_qualifications::validate_in(&analyses)
+        .map_err(|error| CodecError::MalformedStructuralFoundation(error.detail))?;
+    drop(analyses);
+    // A stored provider of a requirement that ends the process gets the
+    // lowered-form checker's judgment too.
+    terminal_semantics::external_completions::validate(module).map_err(|_| {
+        CodecError::MalformedStructuralFoundation(
+            "a provider of an external completion does not pass on its own arguments",
+        )
+    })?;
+    dynamic_result_admission::validate_dynamic_descriptor_results(module)
 }
 
 pub use psi_declaration_encoding::crash_routes::{
