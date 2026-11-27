@@ -1311,6 +1311,10 @@ pub enum ExpressionKind {
     TheoremApplication {
         source: terminal_psi::TheoremSource,
         arguments: Vec<Expression>,
+        /// For a proof formal, the field path each argument reads: empty
+        /// for a scalar subject, and a scalar field's path when the
+        /// argument names a record formal. Empty for a named machine.
+        fields: Vec<Vec<semantic_vocabulary::CanonicalStructuralPathSegment>>,
         /// One proof for each of the applied contract's own proof
         /// parameters, such as `inner` in `Step::<inner>(n)`.
         instantiation: Vec<terminal_psi::TheoremSource>,

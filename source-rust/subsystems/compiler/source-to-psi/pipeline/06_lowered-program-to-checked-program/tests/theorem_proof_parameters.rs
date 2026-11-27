@@ -804,3 +804,80 @@ fn an_address_theorem_cannot_use_a_carrier_bound_it_does_not_have() {
         "{verdict:?}"
     );
 }
+/// A record input is one subject for each of its scalar fields.
+const FIRST_IS_NONZERO: &str = "data Pair { x: u8; y: u8; }
+
+data FirstIsNonzero = machine(p: Pair)
+    requires p.x == 1u8
+    ensures p.x != 0u8;
+
+machine first_is_nonzero(p: Pair)
+requires p.x == 1u8
+ensures p.x != 0u8
+{
+}
+
+machine use_step<Step: FirstIsNonzero>(p: Pair)
+requires p.x == 1u8
+ensures p.x != 0u8
+{
+    Step(p);
+}
+
+machine entry() -> u8 {
+    use_step::<first_is_nonzero>(Pair { x: 1u8, y: 2u8 });
+    0u8
+}
+";
+
+#[test]
+fn a_theorem_over_a_record_field_supplies_its_alias() {
+    let verdict = Program::of(FIRST_IS_NONZERO).judged(|_| {});
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_over_another_field_of_the_record_cannot_supply_its_alias() {
+    let source = FIRST_IS_NONZERO.replacen(
+        "machine first_is_nonzero(p: Pair)\nrequires p.x == 1u8\nensures p.x != 0u8",
+        "machine first_is_nonzero(p: Pair)\nrequires p.y == 1u8\nensures p.y != 0u8",
+        1,
+    );
+    assert!(source.contains("requires p.y == 1u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// A field of the record names its subject where the theorem is applied:
+/// the application's conclusion is about `p.x`, not about `p.y`.
+#[test]
+fn an_applied_record_theorem_concludes_nothing_about_another_field() {
+    let source = FIRST_IS_NONZERO.replacen(
+        "requires p.x == 1u8\nensures p.x != 0u8\n{\n    Step(p);",
+        "requires p.x == 1u8\nensures p.y != 0u8\n{\n    Step(p);",
+        1,
+    );
+    assert!(
+        source.contains("ensures p.y != 0u8\n{\n    Step(p);"),
+        "{source}"
+    );
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// A data invariant is a premise the contract does not state, so a record
+/// with one is refused by name.
+#[test]
+fn a_record_with_a_data_invariant_is_not_a_logical_subject() {
+    let source = FIRST_IS_NONZERO.replacen(
+        "data Pair { x: u8; y: u8; }",
+        "data Pair requires self.x < 9u8 { x: u8; y: u8; }",
+        1,
+    );
+    assert_ne!(source, FIRST_IS_NONZERO);
+    let verdict = Program::try_of(&[("product/main.omg", &source)]).map(|p| p.judged(|_| {}));
+    assert!(
+        format!("{verdict:?}").contains("logical data subject has a data invariant"),
+        "{verdict:?}"
+    );
+}

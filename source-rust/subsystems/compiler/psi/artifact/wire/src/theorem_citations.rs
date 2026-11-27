@@ -114,6 +114,7 @@ pub fn theorem_citation_actual(
             }
             let formals = terminal_semantics::theorems::proof_formal_contracts(module, source)?;
             let theorem = terminal_semantics::theorems::denote_citation(
+                module,
                 &context.parameter.contract,
                 &supplied.contract,
                 &formals,
@@ -385,6 +386,7 @@ pub(crate) fn validate_received_theorems(module: &TerminalModule) -> Result<(), 
                 }
                 let formals = terminal_semantics::theorems::proof_formal_contracts(module, source)?;
                 let goals = terminal_semantics::theorems::recorded_citation_goals(
+                    module,
                     &context.parameter.contract,
                     &supplied.contract,
                     &formals,
@@ -656,6 +658,7 @@ fn named_supply(
         .ok_or("instantiating theorem has no source machine")?;
     let formals = terminal_semantics::theorems::proof_formal_contracts(module, inner)?;
     let theorem = terminal_semantics::theorems::denote_citation(
+        module,
         expected,
         &machine.contract,
         &formals,
@@ -686,6 +689,7 @@ fn recorded_supply(
         .ok_or("instantiating theorem has no source machine")?;
     let formals = terminal_semantics::theorems::proof_formal_contracts(module, inner)?;
     let goals = terminal_semantics::theorems::recorded_citation_goals(
+        module,
         expected,
         &machine.contract,
         &formals,

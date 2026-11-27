@@ -13,6 +13,8 @@ use terminal_psi::{
     TheoremContract, TheoremParameter, TheoremSource,
 };
 
+pub mod data_subjects;
+
 pub fn contract_type(
     contract: &TheoremContract,
     budget: &mut proof_admission::Budget,
@@ -260,10 +262,26 @@ pub fn application<'a>(
         argument
             .validate_after_operands()
             .map_err(|_| "logical subject has a malformed scalar term")?;
+        // A field of a record input is current contents, read where the
+        // application's edge leaves; the checker names its root.
         if argument.scalar_type() != formal.scalar_type
             || !matches!(
                 argument,
-                ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
+                ScalarTerm::Value { .. }
+                    | ScalarTerm::Integer { .. }
+                    | ScalarTerm::Boolean(_)
+                    | ScalarTerm::IntegerField {
+                        version: ContentPlaceVersion::Current,
+                        ..
+                    }
+                    | ScalarTerm::BooleanField {
+                        version: ContentPlaceVersion::Current,
+                        ..
+                    }
+                    | ScalarTerm::IeeeFloatField {
+                        version: ContentPlaceVersion::Current,
+                        ..
+                    }
             )
         {
             return Err("logical subject is not a fixed scalar of its declared carrier");
@@ -363,30 +381,43 @@ pub fn substitute(
 /// The three goals here use neither: the cited implication is proved from
 /// its contract alone.
 pub fn citation_goals(
+    module: &TerminalModule,
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
     formals: &[&TheoremContract],
     instantiated: usize,
 ) -> Result<[Proposition; 3], &'static str> {
-    citation_goals_with(expected, supplied, formals, instantiated, |contract| {
-        contract_type(contract, &mut proof_admission::Budget::default()).map(drop)
-    })
+    citation_goals_with(
+        module,
+        expected,
+        supplied,
+        formals,
+        instantiated,
+        |contract| contract_type(contract, &mut proof_admission::Budget::default()).map(drop),
+    )
 }
 
 /// Recover the root judgments and their subjects from the recorded declarations.
 /// Canonical inspection checks their coordinates without rechecking their proofs.
 pub fn recorded_citation_goals(
+    module: &TerminalModule,
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
     formals: &[&TheoremContract],
     instantiated: usize,
 ) -> Result<[Proposition; 3], &'static str> {
-    citation_goals_with(expected, supplied, formals, instantiated, |contract| {
-        contract_subjects(contract).map(drop)
-    })
+    citation_goals_with(
+        module,
+        expected,
+        supplied,
+        formals,
+        instantiated,
+        |contract| contract_subjects(contract).map(drop),
+    )
 }
 
 fn citation_goals_with(
+    module: &TerminalModule,
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
     formals: &[&TheoremContract],
@@ -410,18 +441,7 @@ fn citation_goals_with(
             "cited theorem's own proof formals are not exactly the proof parameters of the aliased contract",
         );
     }
-    if supplied.parameters != expected.parameters {
-        return Err(
-            "cited theorem's subjects are not the aliased contract's subjects and carriers",
-        );
-    }
-    if supplied
-        .parameter_order
-        .iter()
-        .any(|kind| *kind != terminal_psi::BoundaryParameterKind::Scalar)
-        || supplied.parameter_order.len() != supplied.parameters.len()
-        || !supplied.structural_parameters.is_empty()
-        || !matches!(supplied.result, terminal_psi::TerminalMachineResult::Unit)
+    if !matches!(supplied.result, terminal_psi::TerminalMachineResult::Unit)
         || !supplied.erased_scalar_formals.is_empty()
         || !supplied.entry_claims.is_empty()
         || !supplied.content_entry_claims.is_empty()
@@ -439,14 +459,25 @@ fn citation_goals_with(
     {
         return Err("cited theorem needs its complete fixed mathematical contract");
     }
+    // A record input is one subject for each of its scalar fields
+    // (`data_subjects`), so its clauses are restated over those subjects.
+    let subjects = data_subjects::machine_subjects(module, supplied)?;
+    let ensures: Vec<_> = supplied
+        .ensures
+        .iter()
+        .map(|clause| clause.proposition.clone())
+        .collect();
+    let (parameters, requires, ensures) =
+        data_subjects::flatten(&subjects, &supplied.requires, &ensures)?;
+    if parameters != expected.parameters {
+        return Err(
+            "cited theorem's subjects are not the aliased contract's subjects and carriers",
+        );
+    }
     let actual = TheoremContract {
-        parameters: supplied.parameters.clone(),
-        requires: supplied.requires.clone(),
-        ensures: supplied
-            .ensures
-            .iter()
-            .map(|clause| clause.proposition.clone())
-            .collect(),
+        parameters,
+        requires,
+        ensures,
         proof_parameters: Vec::new(),
     };
     check(expected)?;
@@ -634,6 +665,7 @@ fn weaken_closed_proof(
 /// Replay all three supplied derivations before forming the complete Strict
 /// implication. Named selection identity remains derivation provenance only.
 pub fn denote_citation(
+    module: &TerminalModule,
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
     formals: &[&TheoremContract],
@@ -642,7 +674,7 @@ pub fn denote_citation(
     budget: &mut proof_admission::Budget,
 ) -> Result<proof_admission::BoundedTheorem, &'static str> {
     use terminal_psi::{ProofNode, ProofRule};
-    let goals = citation_goals(expected, supplied, formals, instantiated)?;
+    let goals = citation_goals(module, expected, supplied, formals, instantiated)?;
     let subjects: Vec<_> = expected
         .parameters
         .iter()
