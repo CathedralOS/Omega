@@ -239,6 +239,19 @@ impl CanonicalTerminalArtifact {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, CanonicalTerminalArtifactError> {
+        Self::from_bytes_within(bytes, Default::default())
+    }
+
+    /// Decodes a received envelope under the receiving host's load limits.
+    /// The size limit applies to the whole envelope before anything is read,
+    /// and one work account covers every section, their canonical
+    /// re-encoding and, at authorization, execution preparation.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        limits: terminal_wire::PsiLoadLimits,
+    ) -> Result<Self, CanonicalTerminalArtifactError> {
+        let mut account = terminal_wire::LoadAccount::open(limits, bytes.len())
+            .map_err(CanonicalTerminalArtifactError::Semantic)?;
         let mut cursor = Cursor::new(bytes);
         if cursor.take(ARTIFACT_MAGIC.len())? != ARTIFACT_MAGIC {
             return Err(CanonicalTerminalArtifactEnvelopeError::InvalidMagic.into());
@@ -269,7 +282,20 @@ impl CanonicalTerminalArtifact {
             );
         }
 
-        let closed = ClosedTerminalModule::from_semantic_bytes(semantic_bytes)
+        // The companion sections are parsed once and re-encoded once to prove
+        // their canonical form; pay for both before reading them.
+        let companion_bytes = optimization_bytes.len()
+            + debug_bytes.map_or(0, <[u8]>::len)
+            + publication.map_or(0, <[u8]>::len);
+        account
+            .charge(
+                "parse and re-encode artifact sections",
+                u64::try_from(companion_bytes)
+                    .unwrap_or(u64::MAX)
+                    .saturating_mul(2),
+            )
+            .map_err(CanonicalTerminalArtifactError::Semantic)?;
+        let closed = ClosedTerminalModule::decode_within(semantic_bytes, &mut account)
             .map_err(CanonicalTerminalArtifactError::Semantic)?;
         let semantic_module = closed.module();
         let optimization = decode_psi_optimization_execution_record(optimization_bytes)
@@ -432,6 +458,14 @@ impl std::fmt::Display for CanonicalTerminalArtifactError {
 }
 
 impl std::error::Error for CanonicalTerminalArtifactError {}
+
+impl CanonicalTerminalArtifactError {
+    /// Whether the receiving host's input size or work limit refused the
+    /// artifact, as opposed to malformed input.
+    pub const fn is_resource_refusal(&self) -> bool {
+        matches!(self, Self::Semantic(error) if error.is_resource_refusal())
+    }
+}
 
 ::wire::truncated_from_adapter!(CanonicalTerminalArtifactEnvelopeError => Self::UnexpectedEnd);
 
@@ -730,6 +764,72 @@ mod tests {
             "25241cbdb5eb2253109faba193441a9d90ec7b444b505f944c19efe8d5d7c065"
         );
         assert!(encoded.as_slice() == bytes);
+    }
+
+    /// A real emitted program loads under host limits that admit it. A
+    /// smaller input cap or work budget refuses it as a resource refusal,
+    /// before reading it or before the phase that would overrun, and both
+    /// differ from malformed input.
+    #[test]
+    fn host_load_limits_admit_or_refuse_a_saved_program_by_resource() {
+        let bytes = include_bytes!(
+            "../../../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
+        );
+        let size = bytes.len() as u64;
+        let admitted = CanonicalTerminalArtifact::from_bytes_within(
+            bytes,
+            terminal_wire::PsiLoadLimits {
+                max_input_bytes: Some(size),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let used = admitted.closed_module().load_account().unwrap().used();
+        // Parsing alone pays for every byte, so the account saw at least the input.
+        assert!(used >= size);
+
+        let capped = CanonicalTerminalArtifact::from_bytes_within(
+            bytes,
+            terminal_wire::PsiLoadLimits {
+                max_input_bytes: Some(size - 1),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert!(capped.is_resource_refusal());
+        assert!(matches!(
+            capped,
+            CanonicalTerminalArtifactError::Semantic(CodecError::InputTooLarge { limit, actual })
+                if limit == size - 1 && actual == size
+        ));
+
+        let exhausted = CanonicalTerminalArtifact::from_bytes_within(
+            bytes,
+            terminal_wire::PsiLoadLimits {
+                max_input_bytes: None,
+                work_units: used - 1,
+            },
+        )
+        .unwrap_err();
+        assert!(exhausted.is_resource_refusal());
+        assert!(matches!(
+            exhausted,
+            CanonicalTerminalArtifactError::Semantic(CodecError::LoadWorkExhausted { limit, .. })
+                if limit == used - 1
+        ));
+        let reloaded = CanonicalTerminalArtifact::from_bytes_within(
+            bytes,
+            terminal_wire::PsiLoadLimits {
+                max_input_bytes: None,
+                work_units: used,
+            },
+        )
+        .unwrap();
+        assert!(reloaded.requires_host_trust());
+
+        let truncated =
+            CanonicalTerminalArtifact::from_bytes(&bytes[..bytes.len() - 1]).unwrap_err();
+        assert!(!truncated.is_resource_refusal());
     }
 
     #[test]

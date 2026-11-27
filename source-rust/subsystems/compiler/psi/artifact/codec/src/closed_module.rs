@@ -22,7 +22,9 @@ pub struct ClosedTerminalModule {
     types: ClosedTypeCatalog,
     bytes: Arc<[u8]>,
     identity: TerminalPsiIdentity,
-    received: bool,
+    /// The load account of a module decoded from bytes; `None` for a module
+    /// this process produced.
+    received: Option<terminal_wire::LoadAccount>,
 }
 
 /// Equality compares the program. Where its bytes came from does not change
@@ -41,19 +43,44 @@ impl Eq for ClosedTerminalModule {}
 impl ClosedTerminalModule {
     pub fn new(module: TerminalModule) -> Result<Self, CodecError> {
         let (bytes, types) = terminal_wire::sealing::encode_closed_execution_module(&module)?;
-        Ok(Self::from_encoding(module, bytes, types, false))
+        Ok(Self::from_encoding(module, bytes, types, None))
     }
 
     pub fn from_semantic_bytes(bytes: &[u8]) -> Result<Self, CodecError> {
-        let (module, bytes, types) = terminal_wire::sealing::decode_closed_parts(bytes)?;
-        Ok(Self::from_encoding(module, bytes, types, true))
+        Self::from_semantic_bytes_within(bytes, terminal_wire::PsiLoadLimits::default())
+    }
+
+    /// Decodes received bytes under the receiving host's load limits. The
+    /// module keeps what remains of the work budget for its execution
+    /// preparation.
+    pub fn from_semantic_bytes_within(
+        bytes: &[u8],
+        limits: terminal_wire::PsiLoadLimits,
+    ) -> Result<Self, CodecError> {
+        let mut account = terminal_wire::LoadAccount::open(limits, bytes.len())?;
+        Self::decode_within(bytes, &mut account)
+    }
+
+    pub(crate) fn decode_within(
+        bytes: &[u8],
+        account: &mut terminal_wire::LoadAccount,
+    ) -> Result<Self, CodecError> {
+        let (module, bytes, types) =
+            terminal_wire::sealing::decode_closed_parts_within(bytes, account)?;
+        Ok(Self::from_encoding(module, bytes, types, Some(*account)))
+    }
+
+    /// The work this module's load has used so far, for a module decoded from
+    /// bytes.
+    pub fn load_account(&self) -> Option<terminal_wire::LoadAccount> {
+        self.received
     }
 
     fn from_encoding(
         module: TerminalModule,
         bytes: Vec<u8>,
         types: ClosedTypeCatalog,
-        received: bool,
+        received: Option<terminal_wire::LoadAccount>,
     ) -> Self {
         let identity = TerminalPsiIdentity {
             vocabulary_marker: module.vocabulary_marker,
@@ -73,7 +100,7 @@ impl ClosedTerminalModule {
     /// the host's authorization of its exact artifact and producer; inspection
     /// does not.
     pub const fn requires_host_trust(&self) -> bool {
-        self.received
+        self.received.is_some()
     }
 
     /// The same program after the receiving host accepted it. Only the
@@ -85,11 +112,11 @@ impl ClosedTerminalModule {
     /// run once here, so inspection stays cheap and execution never sees a
     /// received module that skipped them.
     pub(crate) fn host_admitted(&self) -> Result<Self, CodecError> {
-        if self.received {
-            terminal_wire::sealing::prepare_received_execution(&self.module)?;
+        if let Some(mut account) = self.received {
+            terminal_wire::sealing::prepare_received_execution_within(&self.module, &mut account)?;
         }
         Ok(Self {
-            received: false,
+            received: None,
             ..self.clone()
         })
     }

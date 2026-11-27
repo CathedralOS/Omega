@@ -59,6 +59,30 @@ pub enum CodecError {
     MalformedProposition(PropositionError),
     IntegerWidthClosure(semantic_vocabulary::IntegerWidthClosureError),
     ObligationLedgerMismatch,
+    /// The encoded input is larger than the receiving host admits. This is a
+    /// resource refusal, not malformed input.
+    InputTooLarge {
+        limit: u64,
+        actual: u64,
+    },
+    /// Loading would exceed the receiving host's overall work budget in the
+    /// named phase. This is a resource refusal, not malformed input or a
+    /// failed semantic check.
+    LoadWorkExhausted {
+        phase: &'static str,
+        limit: u64,
+    },
+}
+
+impl CodecError {
+    /// Whether a receiving host's resource limit refused the input, as opposed
+    /// to the input being malformed or semantically refused.
+    pub const fn is_resource_refusal(&self) -> bool {
+        matches!(
+            self,
+            Self::InputTooLarge { .. } | Self::LoadWorkExhausted { .. }
+        )
+    }
 }
 
 impl std::fmt::Display for CodecError {

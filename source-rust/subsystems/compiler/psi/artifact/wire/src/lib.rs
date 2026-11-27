@@ -31,6 +31,8 @@ decoding, structural validation and carried proof data.
 */
 
 mod block_wire;
+pub mod loading;
+pub use loading::{DEFAULT_LOAD_WORK_UNITS, LoadAccount, PsiLoadLimits};
 pub use psi_declaration_encoding::invocations::{
     decode_callable_invocations, encode_callable_invocations,
 };
@@ -77,8 +79,8 @@ pub mod test_support {
 pub mod sealing {
     pub use crate::sections::artifact_manifest::manifest_for_semantic;
     pub use crate::semantic_module::{
-        decode_closed_parts, encode_closed_execution_module, encoded_fingerprint,
-        prepare_received_execution,
+        decode_closed_parts, decode_closed_parts_within, encode_closed_execution_module,
+        encoded_fingerprint, prepare_received_execution, prepare_received_execution_within,
     };
 }
 
