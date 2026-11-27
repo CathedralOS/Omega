@@ -1420,7 +1420,7 @@ pub(crate) mod placed {
             )
             .ok_or(malformed())?;
             let tip = terminal_semantics::runtime_structural_path_tip(
-                types.values(),
+                types,
                 allocation.structural_type,
                 path,
             )
@@ -1719,7 +1719,7 @@ pub(crate) mod placed {
                 let mut projection = captured.projection.clone();
                 projection.extend_from_slice(relative);
                 let selected = terminal_semantics::runtime_structural_path_tip(
-                    self.structural_types().values(),
+                    self.structural_types(),
                     field.accessor,
                     &projection,
                 )
@@ -2363,7 +2363,7 @@ impl TerminalExecution<'_> {
             let original_type = if let Some(observed) = observed {
                 observed
             } else if let Some(tip) = terminal_semantics::runtime_structural_path_tip(
-                self.structural_types().values(),
+                self.structural_types(),
                 root_type,
                 &source.path,
             ) {
@@ -2467,7 +2467,7 @@ impl TerminalExecution<'_> {
                 let geometry = crate::storage::provider_storage::value_image::geometry::ImageGeometry::for_execution(self);
                 let root_type = self.live_structural_type(source.place)?;
                 let tip = terminal_semantics::runtime_structural_path_tip(
-                    self.structural_types().values(),
+                    self.structural_types(),
                     root_type,
                     &source.path,
                 )
@@ -2838,7 +2838,7 @@ impl TerminalExecution<'_> {
                                 domain.id == row.domain
                                     && domain.is_pure_predicate()
                                     && terminal_semantics::qualification_path_carrier(
-                                        self.structural_types().values(),
+                                        self.structural_types(),
                                         reference_type,
                                         &row.path,
                                     ) == Some(domain.carrier)
@@ -3040,7 +3040,7 @@ impl TerminalExecution<'_> {
         };
         let types = self.structural_types();
         let Some(array) = terminal_semantics::runtime_structural_path_tip(
-            types.values(),
+            types,
             self.live_structural_type(source.place)?,
             prefix,
         ) else {

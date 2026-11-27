@@ -2489,7 +2489,7 @@ pub(crate) mod normal_qualifications {
             let mut captured = Vec::new();
             for row in promised {
                 let carrier = terminal_semantics::qualification_path_carrier(
-                    self.structural_types().values(),
+                    self.structural_types(),
                     owner.structural_type,
                     &row.path,
                 )
@@ -2536,7 +2536,7 @@ pub(crate) mod normal_qualifications {
             }
             let subject = self.normal_qualification_subject(value, path)?;
             let carrier = terminal_semantics::qualification_path_carrier(
-                self.structural_types().values(),
+                self.structural_types(),
                 value.structural_type,
                 path,
             )

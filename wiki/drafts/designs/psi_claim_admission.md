@@ -40,8 +40,11 @@ dispatch answers from it with indexed type and domain lookups. Each
 `WriteOnlyPrimitiveStore` likewise reads a plan of its destination's declared
 root, scalar restriction and UTF-8 obligation, prepared once per program
 instead of on every store. The stored value is still checked against that
-restriction on every store. Other dispatch paths still repeatedly scan type and
-place tables. Closed checks of an actual value against its predicate are
+restriction on every store. Owned-value claim checks read a `ClaimRoster`
+prepared once per program instead of sorting and classifying every type on each
+owned argument, and the path walks these checks share look declarations up by
+binary search. Other dispatch paths still repeatedly scan type and place
+tables. Closed checks of an actual value against its predicate are
 separate from that static search and must survive the repair.
 
 Keep the local proof kernel, its source-checking and interpreter evaluation uses,

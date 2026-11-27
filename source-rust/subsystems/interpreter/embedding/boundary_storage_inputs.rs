@@ -1765,7 +1765,7 @@ pub(crate) mod reference_outputs {
                 .collect::<Result<Vec<_>, _>>()?;
             for output in outputs {
                 let endpoint = terminal_semantics::runtime_structural_path_tip(
-                    types.values(),
+                    types,
                     binding.referent.structural_type,
                     &output.path,
                 )
@@ -1857,7 +1857,7 @@ pub(crate) mod reference_outputs {
                     }
                     if let Some(path) = path {
                         let tip = terminal_semantics::runtime_structural_path_tip(
-                            types.values(),
+                            types,
                             capture.referent.structural_type,
                             path,
                         )
