@@ -75,10 +75,12 @@ mod types {
             }
             if self.follow_dependencies && !self.expanded_constants.contains(&symbol) {
                 self.expanded_constants.push(symbol);
-                self.types.push(DependencyWork {
-                    value: &declaration.declared_type,
-                    lexical_owner: symbol,
-                });
+                if let Some(declared_type) = &declaration.declared_type {
+                    self.types.push(DependencyWork {
+                        value: declared_type,
+                        lexical_owner: symbol,
+                    });
+                }
                 let initializer = if declaration.authored_initializer.is_valid() {
                     declaration.authored_initializer
                 } else {
@@ -531,7 +533,12 @@ pub(crate) fn collect_machine_body_demand(
                 };
                 expression_roots.contains(&initializer)
             })
-            .map(|declaration| DependencyWork::unscoped(&declaration.declared_type))
+            .filter_map(|declaration| {
+                declaration
+                    .declared_type
+                    .as_ref()
+                    .map(DependencyWork::unscoped)
+            })
             .collect(),
         deferred_machines: Some(Vec::new()),
         purpose: DependencyPurpose::DeclarationReadiness,
@@ -589,7 +596,7 @@ pub(crate) fn collect_machine_body_demand(
 pub(crate) fn collect_declaration(
     program: &SymbolResolvedTrees,
     root: ExpressionHandle,
-    destination: &TypeReference,
+    destination: Option<&TypeReference>,
     purpose: DependencyPurpose,
     retained_base: Option<&SymbolResolvedTrees>,
     selected_calls: Option<&[(SourceSpan, SourceSpan)]>,
@@ -598,7 +605,10 @@ pub(crate) fn collect_declaration(
         expressions: vec![DependencyWork::unscoped(root)],
         initializer_expressions: vec![DependencyWork::unscoped(root)],
         selected_calls,
-        types: vec![DependencyWork::unscoped(destination)],
+        types: destination
+            .map(DependencyWork::unscoped)
+            .into_iter()
+            .collect(),
         purpose,
         ..Collector::new(program)
     };

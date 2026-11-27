@@ -585,8 +585,11 @@ mod resolved_payload {
                     .program
                     .const_declaration(symbol)
                     .ok_or("materialized array extent lost its exact constant declaration")?;
+                let declared_type = declaration.declared_type.as_ref().ok_or(
+                    "materialized array extent constant has no declared carrier before typing",
+                )?;
                 let carrier = self.unconstrained(Operand {
-                    reference: &declaration.declared_type,
+                    reference: declared_type,
                     frame: 0,
                 })?;
                 let TypeReference::Named {
@@ -779,7 +782,7 @@ pub(crate) fn retained_constant_custody(
         } else {
             owner.initializer
         },
-        &owner.declared_type,
+        owner.declared_type.as_ref(),
         if matches!(purpose, InitializerCustodyPurpose::Authored) {
             DependencyPurpose::Authored
         } else {
@@ -1055,7 +1058,7 @@ fn declaration_custody(
     let dependencies = super::initializer_dependencies::collect_declaration(
         program,
         record.authored,
-        &owner.declared_type,
+        owner.declared_type.as_ref(),
         purpose,
         None,
         Some(if purpose == DependencyPurpose::Authored {
@@ -1584,9 +1587,15 @@ pub(crate) fn finalize(
                 "normalization has ambiguous declaration custody",
             ));
         }
+        let declared_type = owner.declared_type.as_ref().ok_or_else(|| {
+            error(
+                record.declaration,
+                "normalization lost its exact declared type",
+            )
+        })?;
         resolved_payload::validate(
             program,
-            &owner.declared_type,
+            declared_type,
             record.materialized,
             &record.receipt.result_value,
         )

@@ -194,7 +194,7 @@ pub(crate) fn collection_field_type(
 // A selected builtin length has a plain count type; it is not a data field.
 // Read only the retained member role and existing canonical type. This supplies
 // no bounds, access or storage authority, and never resolves diagnostic spelling.
-fn selected_member_value_type(
+pub(crate) fn selected_member_value_type(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
     selection: MemberSelection,

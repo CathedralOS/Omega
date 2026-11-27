@@ -72,9 +72,11 @@ pub(crate) fn materialize(
     }
     let domains = domains.into_iter().cloned().collect::<Vec<_>>();
     let mut node = materialize_carrier(program, base, value)?;
+    let mut input_type = base;
     for (position, domain) in domains.iter().enumerate() {
-        // Each entry adds one domain; the type after it carries that
-        // domain and every one added beneath it.
+        // Each entry adds one domain; `target_type` carries the input type
+        // before this entry, and `result_type` carries the domain added here
+        // along with every one added beneath it.
         let result_type = if position + 1 == domains.len() {
             declared_type
         } else {
@@ -93,7 +95,7 @@ pub(crate) fn materialize(
         };
         node = ExpressionNode::Cast(TableCastExpression {
             value: program.expression_table.insert(node),
-            target_type: result_type,
+            target_type: input_type,
             result_type,
             target_label: arena::HandleSpan::empty(),
             domain: numerics::arithmetic::ArithmeticDomain::Exact,
@@ -103,6 +105,7 @@ pub(crate) fn materialize(
             semantic_domain_id: domain.semantic_id,
             form: added(position == 0),
         });
+        input_type = result_type;
     }
     Some(node)
 }
