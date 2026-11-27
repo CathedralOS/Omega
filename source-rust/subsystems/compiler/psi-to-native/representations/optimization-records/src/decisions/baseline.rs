@@ -112,16 +112,19 @@ pub enum BaselineDecisionLogDecodeError {
 ::wire::invalid_error_display!(BaselineDecisionLogDecodeError, "baseline decision log");
 
 impl BaselineDecisionLog {
+    /// Join pass logs in order and digest the joined roster.
+    ///
+    /// Each input comes from `BaselineDecisionLogBuilder::finish` or `decode`,
+    /// which both seal canonical record identities, so the join does not
+    /// re-encode and re-decode every log. The `Result` stays for the Stage 03
+    /// caller's error mapping; joining never fails.
     pub fn concatenate<'log>(
         logs: impl IntoIterator<Item = &'log Self>,
     ) -> Result<Self, BaselineDecisionLogDecodeError> {
-        let mut records = Vec::new();
-        for log in logs {
-            if Self::decode(&log.encode())? != *log {
-                return Err(BaselineDecisionLogDecodeError::DecisionIdentityMismatch);
-            }
-            records.extend(log.records.iter().cloned());
-        }
+        let records = logs
+            .into_iter()
+            .flat_map(|log| log.records.iter().cloned())
+            .collect();
         Ok(finish_log(records))
     }
 

@@ -3,31 +3,30 @@
 pub mod packed_integer;
 
 /*
-We provide fixed-width x86-64 machine-code sequences for
-immediate port I/O (`encode_immediate_port_write` for `out dx, al` and
-`encode_immediate_port_read_u8` for `in al, dx`). Both encoders materialize the
+We provide the fixed-width x86-64 machine-code sequence for an immediate port
+write (`encode_immediate_port_write` for `out dx, al`). It materializes the
 16-bit port and 8-bit payload through caller-volatile scratch registers (`r10`
 and `r11`) using zero-extended `movabs` immediates before moving into `edx` and
-`eax`, keeping the emitted bytewidths (`IMMEDIATE_PORT_WRITE_WIDTH = 27` and
-`IMMEDIATE_PORT_READ_U8_WIDTH = 16`) constant across all operand values.
+`eax`, keeping the emitted width (`IMMEDIATE_PORT_WRITE_WIDTH = 27`) constant
+across all operand values.
 */
 
 /*
-We take the width constants from `target-x86_64`, so the instruction forms
-and the byte encoders agree on the space each operation occupies. These
-encoders take only a port number and, for a write, a byte.
+We take the width constant from `target-x86_64`, so the instruction form and
+the byte encoder agree on the space the operation occupies.
 */
 
 /*
 `isa-x86_64` consumes `IMMEDIATE_PORT_WRITE_WIDTH` and
 `encode_immediate_port_write` when declaring machine effects and encoding
-selected `PortWrite` instructions, and our unit tests verify exact byte output
-for representative port-write (PIC EOI `0x20`) and zero-extended port-read
-(`0x64`) operations.
+selected `PortWrite` instructions. No compiler stage emits an immediate port
+read; Stage 15 only decodes one (`target_x86_64::inspection`). The unit tests
+keep a port-read encoder as the oracle for that decoder and verify exact byte
+output for representative port-write (PIC EOI `0x20`) and zero-extended
+port-read (`0x64`) operations.
 */
 
 pub use target_x86_64::form_effects::port_write::IMMEDIATE_PORT_WRITE_WIDTH;
-pub use target_x86_64::inspection::IMMEDIATE_PORT_READ_U8_WIDTH;
 
 pub fn encode_immediate_port_write(port: u16, value: u8) -> [u8; IMMEDIATE_PORT_WRITE_WIDTH] {
     let mut bytes = [0_u8; IMMEDIATE_PORT_WRITE_WIDTH];
@@ -41,19 +40,21 @@ pub fn encode_immediate_port_write(port: u16, value: u8) -> [u8; IMMEDIATE_PORT_
     bytes
 }
 
-pub fn encode_immediate_port_read_u8(port: u16) -> [u8; IMMEDIATE_PORT_READ_U8_WIDTH] {
-    let mut bytes = [0_u8; IMMEDIATE_PORT_READ_U8_WIDTH];
-    bytes[0..2].copy_from_slice(&[0x49, 0xba]);
-    bytes[2..10].copy_from_slice(&u64::from(port).to_le_bytes());
-    bytes[10..13].copy_from_slice(&[0x44, 0x89, 0xd2]);
-    bytes[13..15].copy_from_slice(&[0x31, 0xc0]);
-    bytes[15] = 0xec;
-    bytes
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::{encode_immediate_port_read_u8, encode_immediate_port_write};
+    use crate::encode_immediate_port_write;
+    use target_x86_64::inspection::IMMEDIATE_PORT_READ_U8_WIDTH;
+
+    /// `in al, dx` after loading the port into `edx` and clearing `eax`.
+    fn encode_immediate_port_read_u8(port: u16) -> [u8; IMMEDIATE_PORT_READ_U8_WIDTH] {
+        let mut bytes = [0_u8; IMMEDIATE_PORT_READ_U8_WIDTH];
+        bytes[0..2].copy_from_slice(&[0x49, 0xba]);
+        bytes[2..10].copy_from_slice(&u64::from(port).to_le_bytes());
+        bytes[10..13].copy_from_slice(&[0x44, 0x89, 0xd2]);
+        bytes[13..15].copy_from_slice(&[0x31, 0xc0]);
+        bytes[15] = 0xec;
+        bytes
+    }
 
     #[test]
     fn pic_eoi_has_one_exact_out_instruction() {

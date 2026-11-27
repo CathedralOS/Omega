@@ -1,7 +1,8 @@
 /*
 We construct the baseline `PostAllocationMachinePlan` from validated register
-homes and pre-allocation machine effects, and we seal the resulting plan with
-its structural receipt (`:PostAllocationCustody`, `:UniqueApplicableChoice`).
+homes and pre-allocation machine effects; the stage seals the optimized plan
+as a `ValidatedPostAllocationMachinePlan` (`:PostAllocationCustody`,
+`:UniqueApplicableChoice`).
 
 Before inspecting functions or instructions, `validate_roots` checks that the
 selected program, machine effects, live ranges, legality evidence, register
@@ -22,15 +23,13 @@ post-allocation optimization phase in `optimization.rs`.
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use optimization_core::PostAllocationOptimizationManifestIdentity;
 use post_allocation_machine::{
     MachineAlternativeChoiceRule, PhysicalAddressOperation as Address, PhysicalOperandFootprint,
     PostAllocationMachineBlock, PostAllocationMachineFunction, PostAllocationMachineIdentity,
     PostAllocationMachineInstruction, PostAllocationMachinePlan, post_allocation_machine_identity,
 };
 use register_homes::{
-    AllocatedProgramFacts, FunctionRegisterHomes, RegisterHomeIdentity, RegisterHomePlan,
-    VirtualRegisterHome,
+    AllocatedProgramFacts, FunctionRegisterHomes, RegisterHomePlan, VirtualRegisterHome,
 };
 use register_model::{
     PreparedRegisterConstraintCatalog, RegisterOperandAccess, TargetRegisterEnvironmentIdentity,
@@ -38,47 +37,14 @@ use register_model::{
 };
 use selected_instructions::{
     BlockMachineEffects, InstructionMachineEffects, MachineAlternative,
-    MachineAlternativeApplicability, PreAllocationMachineEffectIdentity,
-    PreAllocationMachineEffectPlan, SelectedBlock, SelectedInstruction,
-    SelectedInstructionKind as Kind, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+    MachineAlternativeApplicability, PreAllocationMachineEffectPlan, SelectedBlock,
+    SelectedInstruction, SelectedInstructionKind as Kind, SelectedInstructionPlan,
     VirtualRegisterId,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PostAllocationMachineReceipt {
-    identity: PostAllocationMachineIdentity,
-    selected: SelectedInstructionPlanIdentity,
-    effects: PreAllocationMachineEffectIdentity,
-    homes: RegisterHomeIdentity,
-    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    function_count: usize,
-    block_count: usize,
-    instruction_count: usize,
-    operand_count: usize,
-    unit_action_count: usize,
-}
-
-impl PostAllocationMachineReceipt {
-    copied_accessors! {
-        identity: PostAllocationMachineIdentity,
-        selected: SelectedInstructionPlanIdentity,
-        effects: PreAllocationMachineEffectIdentity,
-        homes: RegisterHomeIdentity,
-        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-        register_environment: TargetRegisterEnvironmentIdentity,
-        function_count: usize,
-        block_count: usize,
-        instruction_count: usize,
-        operand_count: usize,
-        unit_action_count: usize,
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedPostAllocationMachinePlan {
     plan: Arc<PostAllocationMachinePlan>,
-    receipt: PostAllocationMachineReceipt,
 }
 
 impl ValidatedPostAllocationMachinePlan {
@@ -90,17 +56,9 @@ impl ValidatedPostAllocationMachinePlan {
         Arc::clone(&self.plan)
     }
 
-    pub const fn receipt(&self) -> PostAllocationMachineReceipt {
-        self.receipt
-    }
-
-    pub(crate) fn new(
-        plan: PostAllocationMachinePlan,
-        receipt: PostAllocationMachineReceipt,
-    ) -> Self {
+    pub(crate) fn new(plan: PostAllocationMachinePlan) -> Self {
         Self {
             plan: Arc::new(plan),
-            receipt,
         }
     }
 }
@@ -155,7 +113,6 @@ pub enum PostAllocationMachineError {
         instruction: u32,
     },
     IdentityMismatch,
-    CountOverflow,
 }
 
 stage_error_display!(
@@ -168,56 +125,6 @@ pub(crate) struct PlanSources<'a> {
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) physical: &'a ValidatedPhysicalRegisterModel,
     pub(crate) constraints: &'a PreparedRegisterConstraintCatalog,
-}
-
-pub(crate) fn seal_post_allocation_machine_plan(
-    plan: PostAllocationMachinePlan,
-) -> Result<ValidatedPostAllocationMachinePlan, PostAllocationMachineError> {
-    let receipt = post_allocation_receipt(&plan)?;
-    Ok(ValidatedPostAllocationMachinePlan::new(plan, receipt))
-}
-
-pub(crate) fn post_allocation_receipt(
-    plan: &PostAllocationMachinePlan,
-) -> Result<PostAllocationMachineReceipt, PostAllocationMachineError> {
-    let block_count = plan.functions.iter().try_fold(0_usize, |count, function| {
-        count
-            .checked_add(function.blocks.len())
-            .ok_or(PostAllocationMachineError::CountOverflow)
-    })?;
-    let (ordinary_instruction_count, operand_count, ordinary_unit_action_count) = plan
-        .instructions()
-        .try_fold((0_usize, 0_usize, 0_usize), |counts, instruction| {
-            Ok::<_, PostAllocationMachineError>((
-                counts
-                    .0
-                    .checked_add(1)
-                    .ok_or(PostAllocationMachineError::CountOverflow)?,
-                counts
-                    .1
-                    .checked_add(instruction.operands.len())
-                    .ok_or(PostAllocationMachineError::CountOverflow)?,
-                counts
-                    .2
-                    .checked_add(instruction.unit_uses.len())
-                    .and_then(|count| count.checked_add(instruction.unit_defs.len()))
-                    .and_then(|count| count.checked_add(instruction.unit_clobbers.len()))
-                    .ok_or(PostAllocationMachineError::CountOverflow)?,
-            ))
-        })?;
-    Ok(PostAllocationMachineReceipt {
-        identity: plan.identity,
-        selected: plan.selected,
-        effects: plan.effects,
-        homes: plan.homes,
-        post_allocation_manifest: plan.post_allocation_manifest,
-        register_environment: plan.register_environment,
-        function_count: plan.functions.len(),
-        block_count,
-        instruction_count: ordinary_instruction_count,
-        operand_count,
-        unit_action_count: ordinary_unit_action_count,
-    })
 }
 
 pub(crate) fn compute_post_allocation_machine_plan(

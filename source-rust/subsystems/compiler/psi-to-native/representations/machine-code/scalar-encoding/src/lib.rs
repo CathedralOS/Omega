@@ -24,10 +24,8 @@ encoded-scalar implementation to a direct one-to-one step table and decoder.
 /*
 `isa-aarch64` and `isa-x86_64` consume `Step` and `plan` in their
 `selected_form_encoding` modules to emit and validate encoded-scalar instruction
-streams. Under the `test-support` feature, our `replay` module executes a
-decoded `Step` stream against a 32-register state array and byte buffer, while
-`harness` drives the shared footprint, sign-extension, bit-flip rejection, and
-scratch-aliasing test sweeps for both architectures.
+streams. Under the `test-support` feature, `harness` drives the shared bit-flip
+rejection and scratch-aliasing test sweep.
 */
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,74 +86,3 @@ pub fn plan(load: bool, registers: [u8; 6], finish: Step) -> Vec<Step> {
 
 #[cfg(feature = "test-support")]
 pub mod harness;
-
-#[cfg(feature = "test-support")]
-pub mod replay {
-    use crate::Step;
-
-    pub fn execute(
-        bytes: &[u8],
-        slots: usize,
-        decode: impl Fn(&[u8], usize) -> (Step, usize),
-        state: &mut [u64; 32],
-        memory: &mut [u8],
-    ) -> Vec<usize> {
-        let mut position = 0;
-        let mut less = false;
-        let mut accesses = Vec::new();
-        for _ in 0..128 {
-            if position == slots {
-                return accesses;
-            }
-            let (step, size) = decode(bytes, position);
-            position += size;
-            match step {
-                Step::Zero(destination) => state[destination as usize] = 0,
-                Step::Copy(destination, source) => {
-                    state[destination as usize] = state[source as usize]
-                }
-                Step::ByteCount(destination, source) => {
-                    state[destination as usize] = state[source as usize] & 255
-                }
-                Step::SubOne(register) => state[register as usize] -= 1,
-                Step::AddOne(register) => state[register as usize] += 1,
-                Step::LoadByte(destination, base, offset) => {
-                    let address = (state[base as usize] + state[offset as usize]) as usize;
-                    accesses.push(address);
-                    state[destination as usize] = u64::from(memory[address]);
-                }
-                Step::StoreByte(source, base, offset) => {
-                    let address = (state[base as usize] + state[offset as usize]) as usize;
-                    accesses.push(address);
-                    memory[address] = state[source as usize] as u8;
-                }
-                Step::SignByte(register) => {
-                    state[register as usize] = state[register as usize] as i8 as i64 as u64
-                }
-                Step::ShiftLeft8(register) => state[register as usize] <<= 8,
-                Step::ShiftRight8(register) => state[register as usize] >>= 8,
-                Step::Or(destination, source) => {
-                    state[destination as usize] |= state[source as usize]
-                }
-                Step::Compare(left, right) => less = state[left as usize] < state[right as usize],
-                Step::TestSigned(register, target) => {
-                    if state[register as usize] & 256 == 0 {
-                        position = target;
-                    }
-                }
-                Step::ZeroBranch(register, target) => {
-                    if state[register as usize] == 0 {
-                        position = target;
-                    }
-                }
-                Step::LessBranch(target) => {
-                    if less {
-                        position = target;
-                    }
-                }
-                Step::Branch(target) => position = target,
-            }
-        }
-        panic!("codec loop did not terminate");
-    }
-}

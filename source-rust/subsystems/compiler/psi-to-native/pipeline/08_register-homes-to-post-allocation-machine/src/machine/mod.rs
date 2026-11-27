@@ -1,7 +1,7 @@
 /*
 We lower a register-allocated selected instruction program into a sealed
 post-allocation physical machine plan and run the post-allocation optimization
-phase over that plan before sealing custody.
+phase over that plan before sealing it.
 
 During register allocation in native stage 07, virtual registers received physical
 register views (`rax`, `x0`, `xmm1`), and pre-allocation machine effects were
@@ -27,7 +27,7 @@ deterministic steps:
       |     (selected post-allocation rules rewrite instructions onto ISA-declared
       |      OptimizationSelected forms when extra clobbered units are proved dead)
       |
-      |  3. plan::seal_post_allocation_machine_plan (:PostAllocationCustody)
+      |  3. ValidatedPostAllocationMachinePlan::new (:PostAllocationCustody)
       v
     StagedOptimizedPostAllocationMachinePlan
 
@@ -62,10 +62,9 @@ Provenance and custody boundaries:
 We consume `AllocatedProgramFacts` from native stage 07,
 including its settled preservation requirements and register environment. We
 produce `StagedOptimizedPostAllocationMachinePlan`, which pairs the sealed
-`ValidatedPostAllocationMachinePlan` (`post-allocation-machine`) with the shared
-`PreAllocationMachineEffectPlan`, the `PostAllocationMachineOptimizationRun`
-evidence, and a `StagedOptimizedPostAllocationMachineCustodyReceipt`
-(`:PostAllocationCustody`). The common encoder (`native-encoding`)
+`ValidatedPostAllocationMachinePlan` (`post-allocation-machine`) with the
+`PostAllocationMachineOptimizationRun` evidence (`:PostAllocationCustody`).
+The common encoder (`native-encoding`)
 and backend machine emission read its current `PostAllocationMachineProgram`.
 That form owns physical choices and shares the exact unchanged function
 instruction/contract chunks. It retains no selected-program container or
@@ -113,15 +112,11 @@ mod plan;
 
 use std::sync::Arc;
 
-use optimization_core::OptimizationSelectionIdentity;
-use post_allocation_machine::PostAllocationMachineIdentity;
-use selected_instructions::PreAllocationMachineEffectPlan;
-
 use optimization::execute_post_allocation_machine_optimizations;
 pub use optimization::{
     PostAllocationMachineOptimizationError, PostAllocationMachineOptimizationRun,
 };
-use plan::{PlanSources, compute_post_allocation_machine_plan, seal_post_allocation_machine_plan};
+use plan::{PlanSources, compute_post_allocation_machine_plan};
 pub use plan::{PostAllocationMachineError, ValidatedPostAllocationMachinePlan};
 
 /// Machine lowering takes the allocation issued by the register allocator.
@@ -151,8 +146,7 @@ pub fn stage_optimized_post_allocation_machine_plan(
         allocation.publication.budget(),
     )
     .map_err(OptimizedPostAllocationMachinePipelineError::Optimization)?;
-    let machine = seal_post_allocation_machine_plan(machine)
-        .map_err(OptimizedPostAllocationMachinePipelineError::PostAllocation)?;
+    let machine = ValidatedPostAllocationMachinePlan::new(machine);
     let mut current = post_allocation_machine::PostAllocationMachineProgram {
         contracts: Arc::clone(&allocation.selected.plan.contracts),
         psi: allocation.selected.plan.psi,
@@ -171,44 +165,20 @@ pub fn stage_optimized_post_allocation_machine_plan(
         identity: [0; 32],
     };
     current.identity = current.recomputed_identity();
-    let effects = Arc::clone(allocation.effects);
-    let custody = post_allocation_machine_custody(&effects, &machine, &optimization);
     Ok(StagedOptimizedPostAllocationMachinePlan {
         body: std::sync::Arc::clone(allocated.body_facts()),
         current,
-        effects,
         machine,
         optimization,
-        custody,
     })
-}
-
-fn post_allocation_machine_custody(
-    effects: &PreAllocationMachineEffectPlan,
-    machine: &ValidatedPostAllocationMachinePlan,
-    optimization: &PostAllocationMachineOptimizationRun,
-) -> StagedOptimizedPostAllocationMachineCustodyReceipt {
-    StagedOptimizedPostAllocationMachineCustodyReceipt {
-        effects: effects.identity,
-        machine: machine.receipt().identity(),
-        phase_selections: optimization.phase_selections(),
-        optimization_source: optimization.source(),
-        optimization_action_count: optimization.action_count(),
-        function_count: machine.plan().functions.len(),
-        instruction_count: machine.receipt().instruction_count(),
-        operand_count: machine.receipt().operand_count(),
-        unit_action_count: machine.receipt().unit_action_count(),
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedPostAllocationMachinePlan {
     body: std::sync::Arc<physical_program::NativeBodyFacts>,
     current: post_allocation_machine::PostAllocationMachineProgram,
-    effects: Arc<PreAllocationMachineEffectPlan>, // Retained pre-allocation machine effects paired with the plan.
-    machine: ValidatedPostAllocationMachinePlan,  // Sealed post-allocation physical machine plan.
+    machine: ValidatedPostAllocationMachinePlan, // Sealed post-allocation physical machine plan.
     optimization: PostAllocationMachineOptimizationRun, // Post-allocation optimization phase run evidence.
-    custody: StagedOptimizedPostAllocationMachineCustodyReceipt, // Custody receipt binding effects, machine, and phase run.
 }
 
 impl StagedOptimizedPostAllocationMachinePlan {
@@ -222,37 +192,8 @@ impl StagedOptimizedPostAllocationMachinePlan {
 
     borrowed_accessors! {
         current: post_allocation_machine::PostAllocationMachineProgram,
-        effects: Arc<PreAllocationMachineEffectPlan>,
         machine: ValidatedPostAllocationMachinePlan,
         optimization: PostAllocationMachineOptimizationRun,
-        custody: StagedOptimizedPostAllocationMachineCustodyReceipt,
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostAllocationMachineCustodyReceipt {
-    effects: selected_instructions::PreAllocationMachineEffectIdentity,
-    machine: PostAllocationMachineIdentity,
-    phase_selections: OptimizationSelectionIdentity, // Post-allocation phase projection identity.
-    optimization_source: PostAllocationMachineIdentity, // Baseline plan identity before phase rules ran.
-    optimization_action_count: usize,
-    function_count: usize,
-    instruction_count: usize,
-    operand_count: usize,
-    unit_action_count: usize,
-}
-
-impl StagedOptimizedPostAllocationMachineCustodyReceipt {
-    copied_accessors! {
-        effects: selected_instructions::PreAllocationMachineEffectIdentity,
-        machine: PostAllocationMachineIdentity,
-        phase_selections: OptimizationSelectionIdentity,
-        optimization_source: PostAllocationMachineIdentity,
-        optimization_action_count: usize,
-        function_count: usize,
-        instruction_count: usize,
-        operand_count: usize,
-        unit_action_count: usize,
     }
 }
 

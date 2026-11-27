@@ -7,7 +7,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use crate::count_where;
 pub use machine_code::{
     CalleeSaveFrameSlot, FrameUnwindPlan, FrameUnwindRestore,
     FunctionNonAuthoritativeCalleeSaveStorage, FunctionTargetFrameLayout,
@@ -26,13 +25,11 @@ use register_environment::{
     selected_preservation_storage_catalog,
 };
 use register_homes::{
-    AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
-    AllocatedCalleeSavedRequirements, AllocatedCalleeSavedUnitRequirement,
-    encode_callee_saved_modification_witness_identity,
+    AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirements,
+    AllocatedCalleeSavedUnitRequirement, encode_callee_saved_modification_witness_identity,
 };
 use register_model::{
-    PhysicalRegisterModelIdentity, PreservationStorageCatalogIdentity, PreservationStorageGroupId,
-    RegisterUnitId, TargetRegisterEnvironmentIdentity, ValidatedPreservationStorageCatalog,
+    PreservationStorageGroupId, RegisterUnitId, ValidatedPreservationStorageCatalog,
 };
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, MachineAlternativeFamily};
 use target::{Architecture, NativeTarget, ObjectFormat};
@@ -85,21 +82,7 @@ impl std::error::Error for NonAuthoritativeCalleeSaveStorageError {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NonAuthoritativeCalleeSaveStorageReceipt {
     identity: NonAuthoritativeCalleeSaveStorageIdentity,
-    callee_saved_requirements: AllocatedCalleeSavedRequirementIdentity,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical_register_model: PhysicalRegisterModelIdentity,
-    preservation_storage_catalog: PreservationStorageCatalogIdentity,
     target: NativeTarget,
-    abi: FrameAbiPreservationConvention,
-    policy: NonAuthoritativeCalleeSaveStoragePolicy,
-    usage: OptimizationWorkUsage,
-    function_count: usize,
-    modified_function_count: usize,
-    slot_count: usize,
-    modified_unit_count: usize,
-    witness_count: usize,
-    max_abstract_area_bytes: u64,
-    max_abstract_area_alignment: u64,
 }
 
 impl NonAuthoritativeCalleeSaveStorageReceipt {
@@ -133,18 +116,7 @@ impl ValidatedNonAuthoritativeCalleeSaveStorage {
 pub struct TargetFrameLayoutReceipt {
     identity: TargetFrameLayoutIdentity,
     post_allocation_machine: PostAllocationMachineIdentity,
-    callee_saved_requirements: AllocatedCalleeSavedRequirementIdentity,
-    callee_save_storage: NonAuthoritativeCalleeSaveStorageIdentity,
     target: NativeTarget,
-    abi: FrameAbiPreservationConvention,
-    policy: TargetFrameLayoutPolicy,
-    function_count: usize,
-    framed_function_count: usize,
-    calling_function_count: usize,
-    callee_save_slot_count: usize,
-    saved_link_count: usize,
-    probed_function_count: usize,
-    max_frame_size_bytes: u64,
 }
 
 impl TargetFrameLayoutReceipt {
@@ -705,48 +677,7 @@ fn seal_storage(
 ) -> NonAuthoritativeCalleeSaveStorageReceipt {
     NonAuthoritativeCalleeSaveStorageReceipt {
         identity: non_authoritative_callee_save_storage_identity(plan),
-        callee_saved_requirements: plan.callee_saved_requirements,
-        register_environment: plan.register_environment,
-        physical_register_model: plan.physical_register_model,
-        preservation_storage_catalog: plan.preservation_storage_catalog,
         target: plan.target,
-        abi: plan.abi,
-        policy: plan.policy,
-        usage: plan.usage,
-        function_count: plan.functions.len(),
-        modified_function_count: count_where(&plan.functions, |function| {
-            !function.slots.is_empty()
-        }),
-        slot_count: plan
-            .functions
-            .iter()
-            .map(|function| function.slots.len())
-            .sum(),
-        modified_unit_count: plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.slots)
-            .map(|slot| slot.modified_units.len())
-            .sum(),
-        witness_count: plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.slots)
-            .flat_map(|slot| &slot.modified_units)
-            .map(|requirement| requirement.witnesses.len())
-            .sum(),
-        max_abstract_area_bytes: plan
-            .functions
-            .iter()
-            .map(|function| function.abstract_area_bytes)
-            .max()
-            .unwrap_or(0),
-        max_abstract_area_alignment: plan
-            .functions
-            .iter()
-            .map(|function| function.abstract_area_alignment)
-            .max()
-            .unwrap_or(1),
     }
 }
 
@@ -854,36 +785,7 @@ fn seal_frame_layout(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutReceipt {
     TargetFrameLayoutReceipt {
         identity: target_frame_layout_identity(plan),
         post_allocation_machine: plan.post_allocation_machine,
-        callee_saved_requirements: plan.callee_saved_requirements,
-        callee_save_storage: plan.callee_save_storage,
         target: plan.target,
-        abi: plan.abi,
-        policy: plan.policy,
-        function_count: plan.functions.len(),
-        framed_function_count: count_where(&plan.functions, |row| row.frame_size_bytes != 0),
-        calling_function_count: count_where(&plan.functions, |row| row.contains_call),
-        callee_save_slot_count: plan
-            .functions
-            .iter()
-            .map(|row| row.callee_save_slots.len())
-            .sum(),
-        saved_link_count: plan
-            .functions
-            .iter()
-            .filter(|row| {
-                matches!(
-                    row.return_address,
-                    ReturnAddressFrameCustody::SavedLinkRegister { .. }
-                )
-            })
-            .count(),
-        probed_function_count: count_where(&plan.functions, |row| row.stack_probe.touches != 0),
-        max_frame_size_bytes: plan
-            .functions
-            .iter()
-            .map(|row| row.frame_size_bytes)
-            .max()
-            .unwrap_or(0),
     }
 }
 
