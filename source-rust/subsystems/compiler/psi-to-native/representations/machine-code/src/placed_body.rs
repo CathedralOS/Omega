@@ -17,13 +17,22 @@ use std::sync::Arc;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBodyReadback {
-    pub physical: ValidatedPhysicalRegisterModel,
+    // The target's register environment shares one validated register model
+    // behind an `Arc`; every body keeps a handle rather than its own copy.
+    pub environment: register_environment::ValidatedTargetRegisterEnvironment,
     pub instruction_effects: Arc<[PlacedInstructionEffects]>,
     pub layout: Arc<ResolvedMachineLayout>,
     pub frame: Arc<TargetFrameLayoutPlan>,
     pub protocol: Arc<TargetFrameProtocolEncodingPlan>,
     pub frame_application: Arc<FunctionFragmentFrameApplication>,
     pub allocation: Arc<AllocationPublicationFacts>,
+}
+
+impl NativeBodyReadback {
+    /// The physical register model the body's bytes were encoded against.
+    pub fn physical(&self) -> &ValidatedPhysicalRegisterModel {
+        self.environment.physical()
+    }
 }
 
 /// Object and image checks need each instruction's decoded effects and owning

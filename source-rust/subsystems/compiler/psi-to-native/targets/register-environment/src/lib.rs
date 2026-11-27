@@ -40,16 +40,16 @@ pub use register_model::FrameAbiPreservationConvention;
 use calling_conventions::MachineRegister;
 use catalog::{
     conservative_baseline_reservation_profile, prepared_target_constraint_catalog,
-    selected_constraint_keys, target_physical_register_model,
+    selected_constraint_keys, target_validated_physical_register_model,
 };
 use register_model::{
     PreparedRegisterConstraintCatalog, PreservationConvention, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterModelValidationError, RegisterReservationProfile,
+    RegisterInstructionConstraint, RegisterReservationProfile,
     RegisterReservationProfileValidationError, RegisterViewId,
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedPreservationStorageCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
-    validate_physical_register_model, validate_register_reservation_profile,
+    validate_register_reservation_profile,
 };
 use selected_instructions::SelectedConstraintKeys;
 use target::{Architecture, NativeTarget, ObjectFormat};
@@ -88,16 +88,17 @@ pub fn baseline_target_register_environment(
 fn build_baseline_target_register_environment(
     target: NativeTarget,
 ) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
-    let validated = validate_physical_register_model(target_physical_register_model(target))
-        .map_err(TargetRegisterEnvironmentValidationError::Physical)?;
-    let constraints = prepared_target_constraint_catalog(target, &validated)?;
+    // The ISA crate validates its canonical model once per process; the
+    // environment borrows that instance instead of copying and re-validating it.
+    let validated = target_validated_physical_register_model(target);
+    let constraints = prepared_target_constraint_catalog(target, validated)?;
     let reservations = conservative_baseline_reservation_profile(target, validated.model());
     assemble_target_register_environment(target, validated, constraints, reservations)
 }
 
 fn assemble_target_register_environment(
     target: NativeTarget,
-    physical: ValidatedPhysicalRegisterModel,
+    physical: &'static ValidatedPhysicalRegisterModel,
     constraints: PreparedRegisterConstraintCatalog,
     reservations: RegisterReservationProfile,
 ) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
@@ -125,11 +126,11 @@ fn assemble_target_register_environment(
     {
         return Err(TargetRegisterEnvironmentValidationError::InapplicableReservationOverlay);
     }
-    let reservations = validate_register_reservation_profile(reservations, target, &physical)
+    let reservations = validate_register_reservation_profile(reservations, target, physical)
         .map_err(TargetRegisterEnvironmentValidationError::Reservations)?;
     let identity = target_register_environment_identity(
         target,
-        &physical,
+        physical,
         &constraints,
         &reservations,
         &selected_keys.rows,
@@ -155,7 +156,8 @@ pub struct ValidatedTargetRegisterEnvironment {
 #[derive(Debug, PartialEq, Eq)]
 struct TargetRegisterEnvironmentParts {
     target: NativeTarget,
-    physical: ValidatedPhysicalRegisterModel,
+    // Every environment borrows the ISA crate's process-wide validated model.
+    physical: &'static ValidatedPhysicalRegisterModel,
     constraints: PreparedRegisterConstraintCatalog,
     reservations: ValidatedRegisterReservationProfile,
     selected_keys: SelectedConstraintKeys,
@@ -165,7 +167,7 @@ struct TargetRegisterEnvironmentParts {
 impl ValidatedTargetRegisterEnvironment {
     fn new(
         target: NativeTarget,
-        physical: ValidatedPhysicalRegisterModel,
+        physical: &'static ValidatedPhysicalRegisterModel,
         constraints: PreparedRegisterConstraintCatalog,
         reservations: ValidatedRegisterReservationProfile,
         selected_keys: SelectedConstraintKeys,
@@ -200,7 +202,7 @@ impl ValidatedTargetRegisterEnvironment {
     }
 
     pub fn physical(&self) -> &ValidatedPhysicalRegisterModel {
-        &self.parts.physical
+        self.parts.physical
     }
 
     pub fn constraints(&self) -> &PreparedRegisterConstraintCatalog {
@@ -234,7 +236,7 @@ impl ValidatedTargetRegisterEnvironment {
     }
 
     pub fn fixed_register_view(&self, register: MachineRegister) -> Option<RegisterViewId> {
-        fixed_register_view(&self.parts.physical, register)
+        fixed_register_view(self.parts.physical, register)
     }
 }
 
@@ -378,7 +380,6 @@ pub fn selected_preservation_storage_catalog(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetRegisterEnvironmentValidationError {
-    Physical(RegisterModelValidationError),
     TargetArchitectureMismatch {
         target: Architecture,
         model: Architecture,

@@ -2485,16 +2485,13 @@ mod port_effects {
         }
 
         fn span(instruction: &SelectedInstruction, offset: u64) -> FunctionFragmentInstructionSpan {
-            let physical = register_model::validate_physical_register_model(
-                target_x86_64::x86_64_physical_register_model(),
-            )
-            .unwrap();
+            let physical = target_x86_64::validated_x86_64_physical_register_model();
             let alternative = MachineAlternativeKey {
                 family: MachineAlternativeFamily::PortWrite,
                 variant: 0,
             };
             let encoded = isa_x86_64::encode_x86_64_selected_form(
-                &physical,
+                physical,
                 instruction.kind,
                 alternative,
                 &[],

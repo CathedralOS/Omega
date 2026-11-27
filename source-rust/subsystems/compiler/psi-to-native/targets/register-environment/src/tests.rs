@@ -9,14 +9,16 @@ every component and policy variation.
 mod abi_call_clobbers;
 mod supported_targets;
 
-use super::catalog::conservative_baseline_reservation_profile;
+use super::catalog::{
+    conservative_baseline_reservation_profile, target_validated_physical_register_model,
+};
 use super::{
     TargetRegisterEnvironmentValidationError, assemble_target_register_environment,
     baseline_target_register_environment,
 };
 use register_model::validate_physical_register_model;
 use target::NativeTarget;
-use target_x86_64::{x86_64_physical_register_model, x86_64_register_constraint_catalog};
+use target_x86_64::{validated_x86_64_physical_register_model, x86_64_register_constraint_catalog};
 
 #[test]
 fn prepared_constraints_share_rows_and_keep_the_receiving_identity() {
@@ -100,7 +102,7 @@ fn prepared_constraints_cannot_cross_environment_roots() {
     assert_eq!(
         assemble_target_register_environment(
             target,
-            environment.physical().clone(),
+            target_x86_64::validated_x86_64_physical_register_model(),
             arm.constraints().clone(),
             environment.reservations().profile().clone()
         ),
@@ -118,7 +120,7 @@ fn prepared_constraints_cannot_cross_environment_roots() {
     assert_eq!(
         assemble_target_register_environment(
             target,
-            environment.physical().clone(),
+            target_x86_64::validated_x86_64_physical_register_model(),
             other_root,
             environment.reservations().profile().clone()
         ),
@@ -146,7 +148,7 @@ fn prepared_constraints_do_not_bypass_supplied_row_validation() {
         row.clobbers.clear();
         let error = validate_target_register_environment_join(
             target,
-            environment.physical().clone(),
+            target_validated_physical_register_model(target),
             supplied,
             environment.reservations().profile().clone(),
         )
@@ -166,7 +168,7 @@ fn prepared_constraints_do_not_bypass_supplied_row_validation() {
 // environment producer's already-prepared output.
 fn validate_target_register_environment_join(
     target: NativeTarget,
-    physical: register_model::ValidatedPhysicalRegisterModel,
+    physical: &'static register_model::ValidatedPhysicalRegisterModel,
     constraints: register_model::RegisterConstraintCatalog,
     reservations: register_model::RegisterReservationProfile,
 ) -> Result<super::ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
@@ -180,11 +182,11 @@ fn validate_target_register_environment_join(
     }
     let constraints = match target.architecture {
         target::Architecture::X86_64 => {
-            target_x86_64::validate_x86_64_register_constraint_catalog(constraints, &physical)
+            target_x86_64::validate_x86_64_register_constraint_catalog(constraints, physical)
                 .map_err(TargetRegisterEnvironmentValidationError::X86_64)?
         }
         target::Architecture::Aarch64 => {
-            target_aarch64::validate_aarch64_register_constraint_catalog(constraints, &physical)
+            target_aarch64::validate_aarch64_register_constraint_catalog(constraints, physical)
                 .map_err(TargetRegisterEnvironmentValidationError::Aarch64)?
         }
     };
@@ -217,11 +219,10 @@ fn baseline_profile_is_exact_conservative_and_platform_applicable() {
     );
     assert_ne!(linux.identity(), macos.identity());
 
-    let raw = target_aarch64::aarch64_physical_register_model();
-    let physical = validate_physical_register_model(raw.clone()).unwrap();
-    let catalog = target_aarch64::aarch64_register_constraint_catalog(&physical);
+    let physical = target_aarch64::validated_aarch64_physical_register_model();
+    let catalog = target_aarch64::aarch64_register_constraint_catalog(physical);
     let mut inapplicable =
-        conservative_baseline_reservation_profile(NativeTarget::macos_arm64(), &raw);
+        conservative_baseline_reservation_profile(NativeTarget::macos_arm64(), physical.model());
     inapplicable.name = "test.inapplicable-platform".into();
     assert_eq!(
         validate_target_register_environment_join(
@@ -284,21 +285,16 @@ fn environment_identity_binds_each_component_and_explicit_policy() {
             .identity()
     );
 
-    let raw = x86_64_physical_register_model();
-    let physical = validate_physical_register_model(raw.clone()).unwrap();
-    let catalog = x86_64_register_constraint_catalog(&physical);
-    let mut reduced = conservative_baseline_reservation_profile(target, &raw);
+    let physical = validated_x86_64_physical_register_model();
+    let catalog = x86_64_register_constraint_catalog(physical);
+    let mut reduced = conservative_baseline_reservation_profile(target, physical.model());
     reduced.name = "test.no-metering-reservation".into();
     reduced
         .active_overlays
         .retain(|name| name != "omega.x86.metering");
-    let reduced = validate_target_register_environment_join(
-        target,
-        physical.clone(),
-        catalog.clone(),
-        reduced,
-    )
-    .unwrap();
+    let reduced =
+        validate_target_register_environment_join(target, physical, catalog.clone(), reduced)
+            .unwrap();
     assert_ne!(
         baseline.reservations().identity(),
         reduced.reservations().identity()
@@ -313,7 +309,7 @@ fn environment_identity_binds_each_component_and_explicit_policy() {
         changed_layout_target,
         physical,
         catalog.clone(),
-        conservative_baseline_reservation_profile(changed_layout_target, &raw),
+        conservative_baseline_reservation_profile(changed_layout_target, physical.model()),
     )
     .unwrap();
     assert_ne!(baseline.identity(), changed_layout.identity());
