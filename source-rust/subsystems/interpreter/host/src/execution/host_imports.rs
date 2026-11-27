@@ -21,6 +21,19 @@ macro_rules! import_signature_via_clone {
             }
         }
     };
+    // An adapter that may serve a guest admitted without producer trust, when
+    // `$serves` holds for this installation.
+    ($name:ty, contained: |$adapter:ident| $serves:expr) => {
+        impl TerminalImportAdapter for $name {
+            fn implemented_signature(&self) -> TerminalImportSignature {
+                self.signature.clone()
+            }
+            fn serves_contained_execution(&self) -> bool {
+                let $adapter = self;
+                $serves
+            }
+        }
+    };
 }
 
 macro_rules! handle_effect_requires_dispatch {

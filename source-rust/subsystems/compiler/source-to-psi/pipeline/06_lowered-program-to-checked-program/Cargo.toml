@@ -40,6 +40,7 @@ numerics = { path = "../../../foundation/numerics" }
 terminal-work = { path = "../../../psi/semantics/work" }
 terminal-interpreter = { path = "../../../../interpreter" }
 build-model = { path = "../../../build/model" }
+psi-authorization = { path = "../../../psi/artifact/authorization" }
 bignum = { path = "../../../../../foundation/bignum" }
 bundled-declarations = { path = "../../representations/source-files/bundled-declarations" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }

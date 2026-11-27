@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod contained_guest;
 mod guest_discard;
 
 const BLOCKING: &str = r#"

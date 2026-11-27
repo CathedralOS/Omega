@@ -167,6 +167,62 @@ pub fn authorize_terminal_artifact(
     })
 }
 
+/// An exact received artifact the host admitted for contained interpretation
+/// without trusting its producer.
+///
+/// It runs only on the interpreter, under host bindings that enforce what they
+/// rely on dynamically (`terminal_interpreter::TerminalProgram::admit_contained`).
+/// Its checked judgments are not reused: native lowering and fact-driven
+/// optimization take [`AuthorizedTerminalArtifact`] and refuse this one, and
+/// its inner artifact still requires host trust everywhere else.
+#[derive(Debug, Clone)]
+pub struct ContainedTerminalArtifact {
+    artifact: Arc<CanonicalTerminalArtifact>,
+}
+
+impl ContainedTerminalArtifact {
+    pub fn artifact(&self) -> &CanonicalTerminalArtifact {
+        &self.artifact
+    }
+
+    pub fn identity(&self) -> TerminalArtifactIdentity {
+        self.artifact.manifest().identity()
+    }
+
+    /// Checks a separate input without broadening this admission.
+    pub fn require_artifact(
+        &self,
+        artifact: &CanonicalTerminalArtifact,
+    ) -> Result<(), ArtifactTrustError> {
+        let authorized = self.identity();
+        let requested = artifact.manifest().identity();
+        if authorized != requested {
+            return Err(ArtifactTrustError::ArtifactMismatch {
+                authorized,
+                requested,
+            });
+        }
+        Ok(())
+    }
+}
+
+/// Admits an exact artifact for contained interpretation without producer
+/// trust. The same execution-only checks run, under the load budget the
+/// artifact was decoded with. The caller's own copy stays received.
+pub fn admit_contained_interpretation(
+    artifact: Arc<CanonicalTerminalArtifact>,
+) -> Result<ContainedTerminalArtifact, ArtifactTrustError> {
+    Ok(ContainedTerminalArtifact {
+        artifact: artifact.record_contained_admission().map_err(|error| {
+            if error.is_resource_refusal() {
+                ArtifactTrustError::LoadWorkExhausted(error)
+            } else {
+                ArtifactTrustError::ExecutionPreparation(error)
+            }
+        })?,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -275,6 +331,10 @@ mod tests {
                 .len(),
             1
         );
+        assert!(matches!(
+            admit_contained_interpretation(Arc::clone(&received)),
+            Err(ArtifactTrustError::ExecutionPreparation(_))
+        ));
         let producer = HostProducerTrust::accept("inspection test host");
         assert!(matches!(
             authorize_terminal_artifact(received, Some(&producer)),
@@ -309,6 +369,10 @@ mod tests {
         authorize_terminal_artifact(decoded, Some(&producer)).unwrap();
         let tight = load(decode_used);
         assert!(matches!(
+            admit_contained_interpretation(Arc::clone(&tight)),
+            Err(ArtifactTrustError::LoadWorkExhausted(error)) if error.is_resource_refusal()
+        ));
+        assert!(matches!(
             authorize_terminal_artifact(tight, Some(&producer)),
             Err(ArtifactTrustError::LoadWorkExhausted(error)) if error.is_resource_refusal()
         ));
@@ -326,12 +390,13 @@ mod tests {
                         continue;
                     }
                     visit(&path, callers);
-                } else if path.extension().is_some_and(|extension| extension == "rs")
-                    && std::fs::read_to_string(&path)
-                        .unwrap()
-                        .contains(".record_host_authorization(")
-                {
-                    callers.push(path);
+                } else if path.extension().is_some_and(|extension| extension == "rs") {
+                    let text = std::fs::read_to_string(&path).unwrap();
+                    if text.contains(".record_host_authorization(")
+                        || text.contains(".record_contained_admission(")
+                    {
+                        callers.push(path);
+                    }
                 }
             }
         }
@@ -348,6 +413,27 @@ mod tests {
             [manifest.join("authorization.rs").canonicalize().unwrap()],
             "received Psi must become executable only through authorize_terminal_artifact"
         );
+    }
+
+    /// Contained admission makes a copy the interpreter may run without
+    /// producer trust. It passes the same execution-only checks, and every
+    /// trusted route still refuses it.
+    #[test]
+    fn contained_admission_grants_interpretation_without_producer_trust() {
+        let original = artifact(false);
+        let decoded =
+            Arc::new(CanonicalTerminalArtifact::from_bytes(&original.to_bytes()).unwrap());
+        let contained = admit_contained_interpretation(Arc::clone(&decoded)).unwrap();
+        assert!(contained.artifact().admitted_for_contained_interpretation());
+        assert!(contained.artifact().requires_host_trust());
+        assert!(!decoded.admitted_for_contained_interpretation());
+        assert!(decoded.requires_host_trust());
+        assert_eq!(contained.identity(), decoded.manifest().identity());
+        contained.require_artifact(&decoded).unwrap();
+        assert!(matches!(
+            contained.require_artifact(&artifact(true)),
+            Err(ArtifactTrustError::ArtifactMismatch { .. })
+        ));
     }
 
     #[test]

@@ -364,6 +364,12 @@ impl TerminalImportAdapter for DescriptorIoImport<'_> {
     fn implemented_signature(&self) -> TerminalImportSignature {
         self.contract.signature.clone()
     }
+
+    // Finite replay input and capped private output are contained. Delegated
+    // filesystem descriptors reach the host's kernel and are not.
+    fn serves_contained_execution(&self) -> bool {
+        self.linux_filesystem.is_none() && self.output.limits.is_some()
+    }
 }
 
 impl TerminalEffectHandler for DescriptorIoImport<'_> {

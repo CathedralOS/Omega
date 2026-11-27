@@ -277,7 +277,12 @@ fn wait(
     Ok(result)
 }
 
-import_signature_via_clone!(ClockImport);
+// A snapshot is private modeled time. Live time waits in real time with no
+// ceiling the host has granted, so it does not serve contained execution.
+import_signature_via_clone!(ClockImport, contained: |adapter| adapter
+    .clock
+    .lock()
+    .is_ok_and(|clock| matches!(*clock, TerminalClockEnvironment::Snapshot(_))));
 
 impl TerminalEffectHandler for ClockImport {
     fn storage_requirements(

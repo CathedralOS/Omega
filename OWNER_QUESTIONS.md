@@ -162,3 +162,33 @@ motive by the core's box rules; a relation written `Box<Squash<R>>` is the
 explicitly squashed relation of
 [the set-quotient foundation](quotients.md#set-quotient-foundation)." In
 modules.md, change "five mathematical declarations" to "six".
+
+<a id="untrusted-psi-run-flag"></a>
+### 4. Should `omega run` accept a Psi artifact the host does not trust, and under what flag?
+
+The admission contract makes an untrusted artifact runnable only through a
+containment-audited interpreter and host bindings, and the command line names
+only the trusted route.
+[Publication and separate consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption) ·
+[Loading and preparation](wiki/spec/build/embedding.md#loading-and-preparation) ·
+[Command line](wiki/spec/build/command_line.md)
+
+The embedding now has that route.
+`psi_authorization::admit_contained_interpretation` admits an artifact without
+producer trust, `TerminalProgram::admit_contained` runs it, and the runtime
+host's `TerminalRuntimeContainment` runs it under a storage account and output
+limits. It refuses native providers, native services, filesystem delegation,
+components and live time, and native lowering never accepts it.
+[Containment audit](wiki/drafts/designs/psi_containment_audit.md#contained-interpretation) ·
+[Runtime host](source-rust/subsystems/interpreter/host/src/execution.rs)
+
+`omega run --trusted-artifact <manifest-id>` is the only CLI form, so a user
+cannot run an untrusted artifact without writing an embedding.
+- **Option A (add a flag):** add
+  `omega run --engine psi --untrusted-artifact [--max-psi-input-bytes <bytes>] <program.psi>`.
+  It runs on the contained route with default work, storage and output limits,
+  and refuses `--engine native`.
+- **Option B (embedding only):** keep the CLI trusted-only. Untrusted
+  interpretation stays an embedding capability that a host opts into in code.
+
+Should the command line expose untrusted interpretation?

@@ -94,6 +94,7 @@ pub(super) fn execute_installed(
             scalar_admission: request
                 .provisions
                 .and_then(|provisions| provisions.scalar_applications()),
+            account: request.containment.map(|containment| containment.account),
             ..Default::default()
         })
         .map_err(TerminalRuntimeError::Artifact)?;
