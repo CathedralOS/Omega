@@ -3630,16 +3630,13 @@ pub(crate) mod execution {
             let program = std::sync::Arc::clone(&self.program);
             loop {
                 self.reclaim_orphan_scalar_records();
-                loop {
-                    let Some(operation) = program
-                        .verified_machine(self.current_machine)?
-                        .block(&self.current)
-                        .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
-                        .operations
-                        .get(self.next_operation)
-                    else {
-                        break;
-                    };
+                while let Some(operation) = program
+                    .verified_machine(self.current_machine)?
+                    .block(&self.current)
+                    .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
+                    .operations
+                    .get(self.next_operation)
+                {
                     self.collect_retired_descriptor_storage(None);
                     let pending_component = matches!(
                         &operation.kind,
