@@ -163,6 +163,62 @@ explicitly squashed relation of
 [the set-quotient foundation](quotients.md#set-quotient-foundation)." In
 modules.md, change "five mathematical declarations" to "six".
 
+<a id="for-every-conclusion"></a>
+### 3. How does a theorem prove a for-every conclusion?
+
+The `Real` quotient's relation says two sequences agree at every index:
+`proposition agree(x: Seq, y: Seq) = (n: |nat|::Nat) -> close(x, y, n)`, a
+dependent arrow, which is a Π type.
+[Universes and mathematical function types](wiki/spec/proofs/mathematical_bindings.md#universes-and-mathematical-function-types)
+Its equivalence rows and the congruences the lifted `add` and `multiply` cite
+must conclude `agree(...)`. Each such proof holds index by index: the row for
+transitivity, for example, proves `close(x, z, n)` from the premises at `5n`.
+
+The spec fixes the premise side. A premise `agree(x, y)` is applied at the
+index a step needs, and automation may supply that elimination.
+[Mathematical values and quantification](wiki/spec/proofs/contracts.md#mathematical-values-and-quantification)
+For the conclusion side, it says how checked evidence meets a dependent
+function type only where a machine is cited in an evidence position: "introduce
+every input under its exact binder, establish the cited contract's premises,
+and check its guarantee against the expected codomain."
+[Logical hypotheses and machine use](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+A theorem whose own `ensures` is `agree(x, y)` has no index in scope: the
+binder `n` belongs to the definition of `agree`, and the body cannot name it.
+No quantifier keyword may be added, and machine calls may not be partial.
+
+**Recommend that a theorem cited as evidence may take the expected arrow's
+binders as its trailing explicit parameters.** The transitivity row is then
+written
+
+```omega
+machine transitive(x: Seq, y: Seq, z: Seq, n: |nat|::Nat)
+requires agree(x, y), agree(y, z)
+ensures close(x, z, n)
+{
+    close_through(x, y, z, n);
+}
+```
+
+and checked as the row `transitive(x, y, z) ensures agree(x, z)`: its type,
+`(x) -> (y) -> (z) -> agree(x,y) -> agree(y,z) -> (n) -> close(x,z,n)` after
+moving premises ahead of `n`, is the row's type once `agree` is unfolded. The
+index is an ordinary header parameter, so the body cites lemmas at `n` with
+no new scope rule, and the rule is the existing evidence elaboration applied
+to rows and to `Quotient::lift` congruences, which are already evidence
+positions. The other choice is an implicit introduction: a theorem that
+concludes `agree(x, z)` is checked under a fresh index named by the arrow's
+binder, and its body may name `n`. That keeps the row's written shape but lets
+a body name a binder declared in another definition. Which should it be?
+
+**Specification text, if adopted.** In mathematical_bindings.md, "Logical
+hypotheses and machine use", after "check its guarantee against the expected
+codomain", add: "A cited theorem may take the binders of an expected
+dependent arrow as its trailing explicit parameters, in order, after the
+parameters the expected type binds before its premises. Its guarantee is
+checked against the arrow's codomain under those parameters. This applies to
+conformance rows and to every other evidence position; it is not a partial
+call, since the citation supplies evidence and never runs the theorem."
+
 <a id="untrusted-psi-run-flag"></a>
 ### 4. Should `omega run` accept a Psi artifact the host does not trust, and under what flag?
 

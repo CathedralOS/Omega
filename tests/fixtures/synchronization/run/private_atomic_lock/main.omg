@@ -1,0 +1,18 @@
+// This participant is the only writer. Releasing its flag allows its next acquisition to return.
+data Flag { held: AtomicU32; }
+
+machine acquire(flag: @Flag) {
+    let prior: u32 = flag.held.swap(1, ReceivePublish);
+    transition prior == 1 {
+        true -> acquire(flag),
+        _ -> acquired()
+    }
+    machine acquired() {}
+}
+
+machine main() {
+    let mutable flag: Flag;
+    acquire(@flag);
+    flag.held.store(0, Publish);
+    acquire(@flag);
+}
