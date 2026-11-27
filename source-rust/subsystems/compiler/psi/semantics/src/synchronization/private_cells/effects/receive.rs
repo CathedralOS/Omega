@@ -1,7 +1,7 @@
 //! Replay every feasible returned alternative over the caller's actual cells.
 use super::super::storage::Arrivals;
 use super::{
-    Bindings, Effect, NormalEffects, ProgressFailure, ProgressScope, ReturnPath, ScalarFact,
+    Bindings, Effect, NormalEffects, ProgressFailure, ProgressScope, NormalReturn, ScalarFact,
     Storage, Stored, Subject,
 };
 use semantic_vocabulary::Proposition;
@@ -18,7 +18,7 @@ impl NormalEffects {
         scope: ProgressScope,
     ) -> Option<Result<(), ProgressFailure>> {
         let entry = memory.requirements(requirements);
-        let possible = |path: &ReturnPath| {
+        let possible = |path: &NormalReturn| {
             let mut inputs = Vec::new();
             for condition in &path.when {
                 if let Some(answer) = condition.selector.answer(&scalar, &entry) {
@@ -80,7 +80,7 @@ impl NormalEffects {
     }
 }
 
-impl ReturnPath {
+impl NormalReturn {
     fn apply(
         &self,
         memory: &mut Storage,

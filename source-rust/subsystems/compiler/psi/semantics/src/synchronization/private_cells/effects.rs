@@ -40,11 +40,11 @@ enum Effect {
 /// observed in that alternative's execution order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NormalEffects {
-    paths: Vec<ReturnPath>,
+    paths: Vec<NormalReturn>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct ReturnPath {
+struct NormalReturn {
     when: Vec<Decision>,
     events: Vec<Effect>,
 }
@@ -73,12 +73,12 @@ impl Decision {
 impl Default for NormalEffects {
     fn default() -> Self {
         Self {
-            paths: vec![ReturnPath::default()],
+            paths: vec![NormalReturn::default()],
         }
     }
 }
 
-impl ReturnPath {
+impl NormalReturn {
     fn compact_stores(&mut self) {
         let mut later = std::collections::BTreeSet::new();
         self.events.reverse();
@@ -144,7 +144,7 @@ impl NormalEffects {
     fn append_call(&mut self, callee: Self, program_size: usize) -> Option<()> {
         let limit = program_size
             .saturating_add(1)
-            .max(callee.paths.iter().map(ReturnPath::size).sum());
+            .max(callee.paths.iter().map(NormalReturn::size).sum());
         let mut results = Vec::new();
         let mut size = 0;
         for prefix in &self.paths {
