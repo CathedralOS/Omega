@@ -1,0 +1,25 @@
+use {signals}/main.omg as signals;
+
+machine sample(source: @|signals|::Signal) -> u32 reaches |signals|::Samples crashes none {
+    |signals|::Samples::read(source)
+}
+machine wait(signal: @|signals|::Signal, expected: u32) {
+    let sampled: u32 = signal.word.load(Receive);
+    transition sampled != expected { true -> wait(signal, expected), _ -> done() }
+    machine done() {}
+}
+machine loop_requests(source: @|signals|::Signal, signal: @|signals|::Signal, expected: u32) reaches |signals|::Samples crashes none {
+    let current: u32 = sample(source);
+    signal.word.store(current, Publish);
+    transition current == 0 {
+        true -> loop_requests(source, signal, current),
+        _ -> wait(signal, expected)
+    }
+}
+machine main() reaches |signals|::Samples crashes none {
+    let mutable source: |signals|::Signal;
+    source.word.store(0, Publish);
+    let first: u32 = sample(@source);
+    let mutable signal: |signals|::Signal;
+    loop_requests(@source, @signal, first);
+}

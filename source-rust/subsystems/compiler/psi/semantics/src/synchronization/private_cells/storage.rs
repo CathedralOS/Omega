@@ -18,7 +18,9 @@ use terminal_psi::StructuralPathSegment as Segment;
 
 #[derive(Clone, Default)]
 pub(super) struct Storage {
-    next_allocation: Rc<Cell<usize>>,
+    // Shared by forked executions. This supplier of fresh names is excluded
+    // from joins and worklist keys; frame/control visitation bounds the calls.
+    next_identity: Rc<Cell<usize>>,
     pub(super) conditions: Rc<Vec<Assumption>>,
     contents: Rc<Facts<Allocation, Stored>>,
     /// A write through a selected reference establishes its value even
@@ -84,10 +86,24 @@ impl Storage {
         self.allocate_with(Stored::INCOMING, Allocation::ExclusiveInput)
     }
 
+    pub(super) fn observation(
+        &self,
+        scalar_type: semantic_vocabulary::ScalarType,
+    ) -> super::super::progress::ScalarFact {
+        super::super::progress::ScalarFact::Observation {
+            occurrence: self.fresh_identity(),
+            scalar_type,
+        }
+    }
+
+    fn fresh_identity(&self) -> usize {
+        let id = self.next_identity.get();
+        self.next_identity.set(id + 1);
+        id
+    }
+
     fn allocate_with(&mut self, contents: Stored, home: fn(usize) -> Allocation) -> Location {
-        let id = self.next_allocation.get();
-        let allocation = home(id);
-        self.next_allocation.set(id + 1);
+        let allocation = home(self.fresh_identity());
         Rc::make_mut(&mut self.contents).insert(allocation, contents);
         Location::allocation(allocation)
     }

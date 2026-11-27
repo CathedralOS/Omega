@@ -266,6 +266,12 @@ fn advance<'m>(
                         Some(false) => path.coverage = control::Coverage::Partial,
                         Some(true) => {}
                     }
+                    if let Some(result) = op.result.as_scalar() {
+                        frame
+                            .bindings
+                            .values
+                            .insert(result.id, memory.observation(result.scalar_type));
+                    }
                     return Some(Advance::Continue);
                 }
                 Some(SelectedCall::UnresolvedImport) => Err(ProgressFailure::UnprovedImport),
