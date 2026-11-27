@@ -149,6 +149,7 @@ fn normalize_conformance_machine_entry(syntax_trees: &mut SyntaxTrees, machine: 
     }
 
     let state = syntax_trees.items.insert_state(&State {
+        assembly_target_requirement: Default::default(),
         name: requirement_name,
         parameters: HandleSpan::empty(),
         return_type: syntax_trees::types::TypeReferenceHandle::invalid(),

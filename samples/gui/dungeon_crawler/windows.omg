@@ -1,0 +1,191 @@
+use main.omg as app;
+use {dungeon_core}/configuration/configuration.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/windows_gui_host.omg;
+
+public boundary trait WindowsSleep {
+    machine sleep(milliseconds: u32) reaches ExecutionDelay crashes none;
+}
+
+const CLIENT_WIDTH: i32 = (|configuration|::FRAME_WIDTH as i32) * |configuration|::WINDOW_SCALE;
+const CLIENT_HEIGHT: i32 = (|configuration|::FRAME_HEIGHT as i32) * |configuration|::WINDOW_SCALE;
+
+machine pump_one(window: u64, message: @mutable |windows_gui_host|::WindowsMessage, close_requested: @mutable bool) -> bool
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    let available: bool = |windows_gui_host|::WindowsGuiHost::pump_message(message);
+    transition available { true -> inspect(window, message, close_requested), _ -> (false) }
+    machine inspect(window: u64, message: @|windows_gui_host|::WindowsMessage, close_requested: @mutable bool) -> bool {
+        let target: u64 = |windows_gui_host|::windows_message_window(message);
+        let kind: u64 = |windows_gui_host|::windows_message_kind(message);
+        let command: u64 = |windows_gui_host|::windows_message_word_parameter(message) & 0xFFFF;
+        // The dialog class can deliver a close as WM_QUIT, WM_CLOSE, or WM_COMMAND/IDCANCEL.
+        transition kind == 0x0012 || (target == window && (kind == 0x0010 || (kind == 0x0111 && command == 2))) {
+            true -> cancel(close_requested),
+            _ -> (true)
+        }
+    }
+    machine cancel(close_requested: @mutable bool) -> bool {
+        $close_requested = true;
+        true
+    }
+}
+
+machine present_frame(window: u64, pixels: @[i32; |configuration|::FRAME_PIXELS]) -> bool
+reaches
+    SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
+    FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
+    FilesystemNamespaceMutation {
+    let device: u64 = |windows_gui_host|::WindowsGuiHost::get_dc(window);
+    transition device != 0 { true -> copy(window, device, pixels), _ -> (false) }
+    machine copy(window: u64, device: u64, pixels: @[i32; |configuration|::FRAME_PIXELS]) -> bool {
+        let width: i32 = |configuration|::FRAME_WIDTH as i32;
+        let height: i32 = |configuration|::FRAME_HEIGHT as i32;
+        // Negative DIB height puts row 0 at the top of the client area.
+        let info: [i32; 11] = [40, width, -height, 0x00200001, 0, 0, 0, 0, 0, 0, 0];
+        let copied: i32 = |windows_gui_host|::WindowsGuiHost::stretch_dibits(
+            device, 0, 0, CLIENT_WIDTH, CLIENT_HEIGHT,
+            0, 0, width, height, @pixels[0], @info[0], 0, 0x00CC0020
+        );
+        let released: i32 = |windows_gui_host|::WindowsGuiHost::release_dc(window, device);
+        copied == height && released == 1
+    }
+}
+
+machine windows_loop(main: @mutable |app|::Main, window: u64) reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    main.pumped = 0;
+    transition { _ -> pump(main, window) }
+
+    machine pump(main: @mutable |app|::Main, window: u64) {
+        let available: bool = pump_one(window, @mutable main.message, @mutable main.close_requested);
+        transition available && !main.close_requested && main.pumped < |configuration|::EVENT_BUDGET {
+            true -> pump_next(main, window),
+            _ -> visible(main, window)
+        }
+    }
+    machine pump_next(main: @mutable |app|::Main, window: u64)
+    requires main.pumped < |configuration|::EVENT_BUDGET {
+        main.pumped = main.pumped + 1;
+        transition { _ -> pump(main, window) }
+    }
+    machine visible(main: @mutable |app|::Main, window: u64) {
+        let alive: bool = |windows_gui_host|::WindowsGuiHost::is_window(window);
+        transition alive && !main.close_requested { true -> focus(main, window), _ -> close(window) }
+    }
+    machine focus(main: @mutable |app|::Main, window: u64) {
+        let focused: u64 = |windows_gui_host|::WindowsGuiHost::foreground_window();
+        transition focused == window { true -> escape(main, window), _ -> draw(main, window) }
+    }
+    machine escape(main: @mutable |app|::Main, window: u64) {
+        let escape_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(27);
+        transition escape_key > 0 { true -> close(window), _ -> restart(main, window) }
+    }
+    machine restart(main: @mutable |app|::Main, window: u64) {
+        let restart_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(82);
+        transition restart_key > 0 { true -> reset(main, window), _ -> input(main, window) }
+    }
+    machine reset(main: @mutable |app|::Main, window: u64) {
+        |app|::reset_game(main);
+        transition { _ -> input(main, window) }
+    }
+    machine input(main: @mutable |app|::Main, window: u64) {
+        main.direction = -1;
+        let attack: u64 = |windows_gui_host|::WindowsGuiHost::key_state(32);
+        main.swing = attack > 0;
+        let up: u64 = |windows_gui_host|::WindowsGuiHost::key_state(38);
+        let north_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(87);
+        transition up > 0 || north_key > 0 { true -> north(main, window), _ -> east_input(main, window) }
+    }
+    machine north(main: @mutable |app|::Main, window: u64) {
+        main.direction = 0;
+        transition { _ -> update(main, window) }
+    }
+    machine east_input(main: @mutable |app|::Main, window: u64) {
+        let right: u64 = |windows_gui_host|::WindowsGuiHost::key_state(39);
+        let east_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(68);
+        transition right > 0 || east_key > 0 { true -> east(main, window), _ -> south_input(main, window) }
+    }
+    machine east(main: @mutable |app|::Main, window: u64) {
+        main.direction = 1;
+        transition { _ -> update(main, window) }
+    }
+    machine south_input(main: @mutable |app|::Main, window: u64) {
+        let down: u64 = |windows_gui_host|::WindowsGuiHost::key_state(40);
+        let south_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(83);
+        transition down > 0 || south_key > 0 { true -> south(main, window), _ -> west_input(main, window) }
+    }
+    machine south(main: @mutable |app|::Main, window: u64) {
+        main.direction = 2;
+        transition { _ -> update(main, window) }
+    }
+    machine west_input(main: @mutable |app|::Main, window: u64) {
+        let left: u64 = |windows_gui_host|::WindowsGuiHost::key_state(37);
+        let west_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(65);
+        transition left > 0 || west_key > 0 { true -> west(main, window), _ -> update(main, window) }
+    }
+    machine west(main: @mutable |app|::Main, window: u64) {
+        main.direction = 3;
+        transition { _ -> update(main, window) }
+    }
+    machine update(main: @mutable |app|::Main, window: u64) {
+        |app|::tick_game(main);
+        transition { _ -> draw(main, window) }
+    }
+    machine draw(main: @mutable |app|::Main, window: u64) {
+        |app|::render_frame(main);
+        let shown: bool = present_frame(window, @main.pixels);
+        WindowsSleep::sleep(|configuration|::FRAME_DELAY_MILLISECONDS);
+        transition shown { true -> windows_loop(main, window), _ -> close(window) }
+    }
+    machine close(window: u64) {
+        transition |windows_gui_host|::WindowsGuiHost::is_window(window) {
+            true -> destroy(window),
+            _ -> done()
+        }
+        machine destroy(window: u64) {
+            _ = |windows_gui_host|::WindowsGuiHost::window_destroy(window);
+        }
+        machine done() {}
+    }
+}
+
+public machine entry_start() reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    let mutable main: |app|::Main;
+    let ready: bool = |app|::prepare(@mutable main);
+    transition ready { true -> open(@mutable main), _ -> fail() }
+
+    machine fail() {
+        |app|::fail_self_test();
+    }
+
+    machine open(main: @mutable |app|::Main) {
+        let class_name: [u8; 7] = "#32770\0";
+        let title: [u8; 16] = "HOLLOW / OMEGA\0\0";
+        // WS_VISIBLE | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX (0x10CA0000):
+        // fixed-size titled desktop window matching the 4x framebuffer client area.
+        let window: u64 = |windows_gui_host|::WindowsGuiHost::window_create_client(
+            @class_name[..], @title[..], 0x10CA0000, 120, 80, CLIENT_WIDTH, CLIENT_HEIGHT
+        );
+        transition window != 0 { true -> windows_loop(main, window), _ -> done() }
+    }
+
+    machine done() {}
+}

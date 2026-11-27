@@ -424,6 +424,12 @@ fn prepares_memory_transfers_as_place_assignments() {
     let parsed = prepare_source(source).expect("prepare assembly instructions");
     let statements = main_statements(&parsed);
 
+    let entry = parsed.items.state_handles(root_machine(&parsed).states)[0];
+    assert_eq!(
+        parsed.items.state(entry).assembly_target_requirement,
+        language_core::inline_assembly::AsmTargetApplicability::Aarch64
+    );
+
     assert_eq!(statements.len(), 2, "two desugared transfers");
     let StatementNode::Assignment(store) = parsed.statements.statement(statements[0]) else {
         panic!("str should desugar to an assignment");

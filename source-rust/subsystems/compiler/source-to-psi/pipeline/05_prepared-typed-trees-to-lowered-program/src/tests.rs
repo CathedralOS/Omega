@@ -239,6 +239,7 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
 fn emitted_calls_have_behavior_before_any_judgment() {
     let mut bodies = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![
             Statement::discard(call(2, Vec::new(), None)),
@@ -250,6 +251,7 @@ fn emitted_calls_have_behavior_before_any_judgment() {
         ],
     });
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![Statement::Arm {
             guard: ArmGuard::Always,
@@ -433,6 +435,7 @@ fn obligations(tables: &MachineTables) -> Vec<ObligationKind> {
 fn strict_operands_and_call_arguments_evaluate_left_to_right() {
     // machine 1() -> u32 { f(2) + g() }  with f = 2, g = 3
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![returns(strict(
             Strict::Add,
@@ -497,6 +500,7 @@ fn strict_operands_and_call_arguments_evaluate_left_to_right() {
 fn greater_swaps_operands_without_reordering_evaluation() {
     // machine 1(a: u32, b: u32) -> bool { a > b }
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type(), u32_type()]),
         statements: vec![returns(strict(
             Strict::Greater,
@@ -524,6 +528,7 @@ fn equality_with_true_is_the_boolean_itself() {
     // machine 1(a: u32, b: u32) -> bool { (a < b) == true }, which is how a
     // transition's `true ->` arm tests its subject.
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type(), u32_type()]),
         statements: vec![returns(strict(
             Strict::Equal,
@@ -555,6 +560,7 @@ fn equality_with_true_is_the_boolean_itself() {
 fn equality_with_false_still_compares() {
     // `(a < b) == false` is not rewritten: only `== true` is the subject.
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type(), u32_type()]),
         statements: vec![returns(strict(
             Strict::Equal,
@@ -586,6 +592,7 @@ fn equality_with_false_still_compares() {
 fn short_circuit(conjunction: bool) -> (TerminalMachine, MachineTables) {
     // machine 1() -> bool { f() && g() } (or `||`)
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![returns(expression(
             ExpressionKind::ShortCircuit {
@@ -703,6 +710,7 @@ fn associating_one_connective_preserves_mixed_call_order() {
         };
         let (machine, _) = lower(
             Body {
+                assembly_target_requirement: Default::default(),
                 slots: Vec::new(),
                 statements: vec![returns(either)],
             },
@@ -748,6 +756,7 @@ fn associating_one_connective_preserves_mixed_call_order() {
 fn every_call_owes_one_requirement_per_callee_requires_clause() {
     // machine 1(x: u32) { f(x); f(x); }  with f requiring two clauses
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type()]),
         statements: vec![
             Statement::discard(call(2, vec![slot(0, u32_type())], None)),
@@ -792,6 +801,7 @@ fn every_normal_exit_owes_one_guarantee_per_ensures_clause() {
     // machine 1(a: bool) -> u32 ensures P ensures Q
     //     { transition { a -> 1  _ -> 2 } }
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![ScalarType::Boolean]),
         statements: vec![
             Statement::Arm {
@@ -850,6 +860,7 @@ fn every_normal_exit_owes_one_guarantee_per_ensures_clause() {
 #[test]
 fn a_unit_machine_completes_after_its_last_statement() {
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type()]),
         statements: vec![Statement::Bind {
             slot: 0,
@@ -898,6 +909,7 @@ fn sized(sign: IntegerSign, bits: u16) -> ScalarType {
 /// `return a as target`, over one formal of type `from`.
 fn cast_of_formal(from: ScalarType, target: ScalarType) -> (TerminalMachine, MachineTables) {
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![from]),
         statements: vec![returns(expression(
             ExpressionKind::Cast(Box::new(slot(0, from))),
@@ -959,6 +971,7 @@ fn a_cast_is_one_exact_conversion_and_only_a_partial_one_owes_safety() {
 #[test]
 fn a_value_machine_that_falls_off_its_end_is_refused() {
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: Vec::new(),
     };
@@ -1017,6 +1030,7 @@ fn crash_sites(machine: &TerminalMachine) -> Vec<(BlockId, CrashCause, Vec<Crash
 fn a_crash_is_a_terminator_with_its_cause_and_incoming_conjunction() {
     // machine 1(a: bool, b: bool) { transition { a -> {}  b -> crash Trap  _ -> crash Abort } }
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![ScalarType::Boolean, ScalarType::Boolean]),
         statements: vec![
             Statement::Arm {
@@ -1070,6 +1084,7 @@ fn a_crash_is_a_terminator_with_its_cause_and_incoming_conjunction() {
 #[test]
 fn every_crash_site_owes_one_coverage_per_cause_on_a_no_successor_edge() {
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![ScalarType::Boolean]),
         statements: vec![
             crash_arm(Some(boolean_slot(0)), CrashCause::Trap),
@@ -1125,6 +1140,7 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
     // machine 1(x: u32) { transition { _ -> f(x) } }
     // with f(y: u32) requires P crashes Trap when y < 3 crashes Abort
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type()]),
         statements: vec![returns(call(2, vec![slot(0, u32_type())], None))],
     };
@@ -1239,6 +1255,7 @@ fn a_private_crash_outcome_does_not_replace_the_published_call_contract() {
     // The helper's signature explicitly promises no crash. A separate body
     // outcome cannot donate a wider public contract to this invocation.
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![returns(call(2, Vec::new(), None))],
     };
@@ -1277,6 +1294,7 @@ fn a_declared_crash_ceiling_is_kept_when_the_private_body_has_no_route() {
     };
     let (machine, tables) = lower_with(
         Body {
+            assembly_target_requirement: Default::default(),
             slots: Vec::new(),
             statements: vec![returns(call(2, Vec::new(), None))],
         },
@@ -1309,6 +1327,7 @@ fn an_open_crash_ceiling_retains_the_inferred_body_route() {
     let inferred = routes(&[CrashCause::Trap]);
     let (machine, tables) = lower_with(
         Body {
+            assembly_target_requirement: Default::default(),
             slots: Vec::new(),
             statements: vec![returns(call(2, Vec::new(), None))],
         },
@@ -1357,6 +1376,7 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
     // machine 1(x: u32) -> u32 { f(x) + 1 }
     // with f(y: u32) -> u32 crashes Trap when y < 3 crashes Abort
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type()]),
         statements: vec![returns(strict(
             Strict::Add,
@@ -1478,6 +1498,7 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
 fn a_call_that_never_returns_inside_an_expression_ends_its_path() {
     // machine 1() -> u32 { f() + 1 }
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![returns(strict(
             Strict::Add,
@@ -1517,6 +1538,7 @@ fn a_binding_of_a_call_that_never_returns_ends_the_body() {
     let mut sum = strict(Strict::Add, slot(0, u32_type()), integer(1), u32_type());
     sum.source = authored(20);
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type(), u32_type()]),
         statements: vec![
             Statement::Bind {
@@ -1558,6 +1580,7 @@ fn a_binding_of_a_call_that_never_returns_ends_the_body() {
 fn a_right_operand_that_never_returns_ends_only_its_branch() {
     // machine 1(a: bool) -> bool { a || f() }
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![ScalarType::Boolean]),
         statements: vec![returns(expression(
             ExpressionKind::ShortCircuit {
@@ -1623,6 +1646,7 @@ fn a_never_returning_argument_stops_later_arguments_and_the_outer_call() {
     let mut later = call(4, Vec::new(), Some(u32_type()));
     later.source = authored(20);
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type()]),
         statements: vec![
             Statement::Bind {
@@ -1665,6 +1689,7 @@ fn a_never_returning_argument_stops_later_arguments_and_the_outer_call() {
 #[test]
 fn a_never_returning_record_base_stops_its_field_projection() {
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![returns(member(
             of_type(
@@ -1699,6 +1724,7 @@ fn a_never_returning_record_base_stops_its_field_projection() {
 #[test]
 fn a_refused_operand_is_not_a_never_returning_evaluation() {
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![returns(strict(
             Strict::Add,
@@ -1726,6 +1752,7 @@ fn a_refused_operand_is_not_a_never_returning_evaluation() {
 #[test]
 fn a_never_returning_later_pattern_keeps_earlier_match_arrivals() {
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type()]),
         statements: vec![returns(expression(
             ExpressionKind::Match {
@@ -1817,6 +1844,7 @@ fn statements_after_a_call_that_never_returns_are_not_lowered() {
     let mut call_g = call(3, Vec::new(), None);
     call_g.source = authored(30);
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type(), u32_type(), u32_type()]),
         statements: vec![
             Statement::discard(call_f),
@@ -1867,6 +1895,7 @@ fn statements_after_a_call_that_never_returns_are_not_lowered() {
 fn statements_after_a_call_that_may_return_are_lowered() {
     // machine 1(x: u32) { f(); let y = x + 1; }
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type(), u32_type()]),
         statements: vec![
             Statement::discard(call(2, Vec::new(), None)),
@@ -1903,6 +1932,7 @@ fn statements_after_a_call_that_may_return_are_lowered() {
 #[test]
 fn an_erased_binding_after_a_call_that_never_returns_is_not_reported() {
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type()]),
         statements: vec![
             Statement::discard(call(2, Vec::new(), None)),
@@ -1940,6 +1970,7 @@ fn designated_operands_on_a_machine_call_are_refused() {
     let twin = |statement| {
         try_lower(
             Body {
+                assembly_target_requirement: Default::default(),
                 slots: Vec::new(),
                 statements: vec![Statement::discard(statement)],
             },
@@ -1975,6 +2006,7 @@ fn ensures_over_result_name_the_result_pseudo_value() {
     };
     let clause = Proposition::Equal(result, seven);
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type()]),
         statements: vec![returns(integer(7))],
     };
@@ -2028,10 +2060,12 @@ fn outcomes_follow_the_ceiling_or_the_body() {
     use crate::body::outcome::outcomes;
     // machine 1 calls 2; 2 is `{ crash Trap; }`.
     let caller = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![Statement::discard(call(2, Vec::new(), None))],
     };
     let crashing = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![crash_arm(None, CrashCause::Trap)],
     };
@@ -2103,6 +2137,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
             (callee_statements, CrashCeiling::Inferred),
         ] {
             bodies.push(Body {
+                assembly_target_requirement: Default::default(),
                 slots: Vec::new(),
                 statements,
             });
@@ -2158,6 +2193,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
     use crate::body::outcome::outcomes;
     // machine 1(a: bool) -> bool { a && f() }  with f = `{ crash Trap; }`
     let caller = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![ScalarType::Boolean]),
         statements: vec![returns(expression(
             ExpressionKind::ShortCircuit {
@@ -2169,6 +2205,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
         ))],
     };
     let crashing = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![crash_arm(None, CrashCause::Trap)],
     };
@@ -2282,6 +2319,7 @@ fn settle_both(
             })
             .collect();
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: Vec::new(),
             statements,
         });
@@ -2713,6 +2751,7 @@ fn a_record_literal_evaluates_its_operands_in_authored_order_then_establishes_on
     // first, so the call runs before the constant, and the establishment
     // comes after both with its roster in declaration order.
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![returns(literal(
             vec![(1, call(2, Vec::new(), Some(u32_type()))), (0, integer(3))],
@@ -2791,6 +2830,7 @@ fn a_nested_read_interns_one_place_per_projection_and_reuses_it() {
     // far(l: Line) -> u32 { l.to.y & l.to.y }
     let read = || member(member(place(0, line()), 1, point()), 1, u32_type().into());
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![line()],
         statements: vec![returns(strict(
             Strict::BitwiseAnd,
@@ -2870,6 +2910,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
     //     r.x
     // }
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![
             u32_type().into(),
             point(),
@@ -3001,6 +3042,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
 fn a_record_argument_is_passed_whole_and_owned_and_its_home_is_retired() {
     // f(p: Point) -> u32 { g(p, 5) }, with g(Point, u32) -> u32.
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![point()],
         statements: vec![returns(call(
             2,
@@ -3078,6 +3120,7 @@ fn a_record_argument_is_passed_whole_and_owned_and_its_home_is_retired() {
 fn a_projected_record_is_copied_out_by_its_path() {
     // ends(l: Line) -> Point { l.to }
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![line()],
         statements: vec![returns(member(place(0, line()), 1, point()))],
     };
@@ -3120,6 +3163,7 @@ fn a_module_with_records_declares_them_and_encodes() {
     let inner = |x: Expression| literal(vec![(0, x), (1, integer(7))], point());
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![returns(literal(
             vec![(1, inner(slot(0, u32_type()))), (0, inner(integer(1)))],
@@ -3143,6 +3187,7 @@ fn a_module_with_records_declares_them_and_encodes() {
     // A scalar module declares nothing.
     let mut scalar_bodies: IdTable<MachineId, Body> = IdTable::default();
     scalar_bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![returns(integer(1))],
     });
@@ -3202,6 +3247,7 @@ fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
     }
     let mut bodies = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![line(), point()],
         statements: vec![
             bind(1, member(place(0, line()), 0, point())),
@@ -3312,6 +3358,7 @@ fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
     let point_value = |x, y| literal(vec![(0, integer(x)), (1, integer(y))], point());
     let mut bodies = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![envelope, point(), point()],
         statements: vec![
             bind(1, endpoint(0)),
@@ -3356,6 +3403,7 @@ fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
     //     l.from.x
     // }
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![point(), line()],
         statements: vec![
             bind(0, literal(vec![(0, integer(1)), (1, integer(2))], point())),
@@ -3469,6 +3517,7 @@ fn a_whole_assignment_constructs_its_value_then_replaces_the_same_root() {
     // into the root `p` already names (structural_access.md: "Root, field,
     // and indexed destinations do not change construction semantics").
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into(), point()],
         statements: vec![
             bind(1, literal(vec![(0, integer(1)), (1, integer(2))], point())),
@@ -3528,6 +3577,7 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
     //     x
     // }
     let body = || Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into(), point()],
         statements: vec![
             declare(0, Some("named(name(u32))")),
@@ -3637,6 +3687,7 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
     // A scalar home with no type identity cannot be declared.
     let mut nameless: IdTable<MachineId, Body> = IdTable::default();
     nameless.push(Body {
+        assembly_target_requirement: Default::default(),
         statements: vec![declare(0, None), returns(integer(1))],
         ..body()
     });
@@ -3784,6 +3835,7 @@ fn a_case_literal_evaluates_its_operands_in_authored_order_then_establishes_once
     // authored first, so the call runs before the constant, and the one
     // establishment follows both with its roster in declaration order.
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![returns(case_of(
             PAIR,
@@ -3840,6 +3892,7 @@ fn a_case_literal_evaluates_its_operands_in_authored_order_then_establishes_once
     // one row on its root.
     let (machine, tables) = lower_sums(
         Body {
+            assembly_target_requirement: Default::default(),
             slots: Vec::new(),
             statements: vec![returns(case_of(EMPTY, Vec::new()))],
         },
@@ -3860,6 +3913,7 @@ fn a_case_literal_evaluates_its_operands_in_authored_order_then_establishes_once
 fn weigh(arms: Vec<(usize, Expression)>, default: Option<Expression>) -> Body {
     let arm = |value: Expression| (Target::Value(value), nowhere());
     Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![shape()],
         statements: vec![Statement::Dispatch {
             subject: place(0, shape()),
@@ -4013,6 +4067,7 @@ fn a_value_match_joins_its_arms_with_the_result_as_one_block_parameter() {
     );
     let (machine, tables) = lower_sums(
         Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![shape()],
             statements: vec![returns(strict(
                 Strict::BitwiseAnd,
@@ -4065,6 +4120,7 @@ fn a_case_test_observes_the_sum_in_place_and_a_payload_read_ends_its_carrier_in_
     let scalar = ValueType::Scalar(u32_type(), Qualification::NONE);
     let (machine, tables) = lower_sums(
         Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![shape()],
             statements: vec![
                 Statement::Arm {
@@ -4107,6 +4163,7 @@ fn a_data_payload_is_copied_out_by_its_case_and_field() {
     // f(s: Shape) -> Point { transition s { Boxed { inner } -> inner  _ -> .. } }
     let (machine, _) = lower_sums(
         Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![shape()],
             statements: vec![Statement::Dispatch {
                 subject: place(0, shape()),
@@ -4147,6 +4204,7 @@ fn each_sum_construct_outside_the_slice_is_refused_by_name_in_lowering() {
     // A crash inside a case arm: its site guard could not state the case.
     let crash = try_lower_sums(
         Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![shape()],
             statements: vec![Statement::Dispatch {
                 subject: place(0, shape()),
@@ -4170,6 +4228,7 @@ fn each_sum_construct_outside_the_slice_is_refused_by_name_in_lowering() {
     let inner = payload(place(0, shape()), BOXED, 0, point());
     try_lower_sums(
         Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![shape()],
             statements: vec![returns(member(inner, 0, scalar))],
         },
@@ -4182,6 +4241,7 @@ fn each_sum_construct_outside_the_slice_is_refused_by_name_in_lowering() {
 fn a_module_with_a_sum_declares_its_cases_and_encodes() {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![returns(case_of(DOT, vec![(0, slot(0, u32_type()))]))],
     });
@@ -4252,6 +4312,7 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
     //     1
     // }
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![line(), point()],
         statements: vec![
             declare(0, None),
@@ -4368,6 +4429,7 @@ fn an_entry_clause_over_a_record_formals_field_encodes_in_the_module_contract() 
     let clause = crate::canonical::equal(field, seven, id(1)).unwrap();
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![point()],
         statements: vec![returns(member(place(0, point()), 1, u32_type().into()))],
     });
@@ -4389,6 +4451,7 @@ fn erased_module() -> crate::Elaboration {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type()]),
         statements: vec![
             Statement::Witness {
@@ -4404,6 +4467,7 @@ fn erased_module() -> crate::Elaboration {
     });
     signatures.push(signature(Vec::new(), Some(u32_type())));
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type(), u32_type()]),
         statements: vec![returns(slot(0, u32_type()))],
     });
@@ -4504,6 +4568,7 @@ fn an_erased_argument_is_a_term_and_evaluates_nothing() {
 #[test]
 fn an_erased_binding_is_refused_as_a_runtime_value() {
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type()]),
         statements: vec![returns(slot(0, u32_type()))],
     };
@@ -4517,6 +4582,7 @@ fn an_erased_binding_is_refused_as_a_runtime_value() {
         "completion an erased binding is read as a runtime value"
     );
     let computed = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type(), u32_type()]),
         statements: vec![Statement::Witness {
             slot: 1,
@@ -4553,6 +4619,7 @@ fn a_scalar_match_evaluates_its_subject_once_and_tests_each_value_in_authored_or
     );
     let (machine, tables) = lower(
         Body {
+            assembly_target_requirement: Default::default(),
             slots: scalars(vec![u32_type()]),
             statements: vec![
                 Statement::Bind {
@@ -4662,10 +4729,12 @@ fn logical_claim_publication_preserves_two_siblings_across_an_ordinary_call() {
     let pair = ValueType::record(id(2));
     let mut bodies = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![pair],
         statements: vec![returns(place(0, pair))],
     });
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![token, token],
         statements: vec![returns(Expression {
             call_context: None,
@@ -4740,6 +4809,7 @@ fn machines_planned_on_workers_apply_what_planning_in_order_yields() {
     use semantic_vocabulary::StructuralTypeId;
     let (machine, _) = lower(
         Body {
+            assembly_target_requirement: Default::default(),
             slots: scalars(vec![u32_type()]),
             statements: vec![Statement::Bind {
                 slot: 0,

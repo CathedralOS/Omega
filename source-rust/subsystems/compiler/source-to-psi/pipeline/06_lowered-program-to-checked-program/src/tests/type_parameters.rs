@@ -273,6 +273,7 @@ fn lowered(machines: Vec<Shape>, contracts: &[u64]) -> crate::lowering::Elaborat
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     for machine in machines {
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: machine.parameters.clone(),
             statements: machine.statements,
         });
@@ -587,6 +588,7 @@ fn rigid_result_transport(
     };
     for returned in [call, item(input_type)] {
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![input_type],
             statements: vec![returns(returned)],
         });
@@ -921,6 +923,7 @@ fn a_real_helper_cannot_supply_an_unresolved_requirements_service_reach() {
     let mut signatures = IdTable::default();
     for position in 1..=3 {
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: Vec::new(),
             statements: match position {
                 1 => vec![call(2)],

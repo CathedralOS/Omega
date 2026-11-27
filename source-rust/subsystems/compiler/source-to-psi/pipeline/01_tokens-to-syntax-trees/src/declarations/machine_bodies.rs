@@ -74,6 +74,7 @@ pub(crate) fn parse_body<'tokens, 'source>(
     }
     Ok((
         Some(MachineBody {
+            assembly_target_requirement: Default::default(),
             statements,
             nested_machines,
         }),

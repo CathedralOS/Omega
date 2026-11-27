@@ -2,10 +2,10 @@ use configuration/configuration.omg;
 use presentation/frame/frame.omg;
 use world/rooms/rooms.omg;
 
-public data Art {}
+public const RENDER_HEIGHT: i32 = |configuration|::ROOM_HEIGHT + (|configuration|::HUD_HEIGHT as i32);
 
-public machine Art::pixel(frame: @|frame|::Frame, x: i32, y: i32) -> i32
-requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |configuration|::ROOM_HEIGHT + (|configuration|::HUD_HEIGHT as i32) {
+public machine pixel(frame: @|frame|::Frame, x: i32, y: i32) -> i32
+requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < RENDER_HEIGHT {
     transition y < (|configuration|::HUD_HEIGHT as i32) { true -> hud(frame, x, y), _ -> scene(frame, x, y - (|configuration|::HUD_HEIGHT as i32)) }
     machine hud(frame: @|frame|::Frame, x: i32, y: i32) -> i32
     requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
@@ -21,14 +21,15 @@ requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |configurati
     machine title_pixel(frame: @|frame|::Frame, x: i32, y: i32) -> i32
     requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
         let title: [u8; 6] = "HOLLOW";
-        transition x / 4 >= 0 && x / 4 < 6 {
-            true -> title_letter(title[x / 4], x % 4, y),
+        let index: i32 = x / 4;
+        transition index >= 0 && index < 6 {
+            true -> title_letter(title[index], x % 4, y),
             _ -> (1119769)
         }
     }
     machine title_letter(letter: u8, x: i32, y: i32) -> i32
     requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
-        transition Art::letter(letter, x, y) { true -> (16241271), _ -> (1119769) }
+        transition letter_pixel(letter, x, y) { true -> (16241271), _ -> (1119769) }
     }
     machine room_name(frame: @|frame|::Frame, x: i32, y: i32) -> i32
     requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
@@ -46,7 +47,7 @@ requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |configurati
     }
     machine label_pixel(letter: u8, x: i32, y: i32) -> i32
     requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
-        transition Art::letter(letter, x, y) { true -> (8632227), _ -> (1119769) }
+        transition letter_pixel(letter, x, y) { true -> (8632227), _ -> (1119769) }
     }
     machine hearts(frame: @|frame|::Frame, x: i32, y: i32) -> i32
     requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
@@ -85,7 +86,7 @@ requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |configurati
         }
     }
     machine map_cell(frame: @|frame|::Frame, column: i32, row: i32, x: i32, y: i32) -> i32
-    requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
+    requires x >= -512 && x <= 512 && y >= -512 && y <= 512 && column >= 0 && column <= 3 && row >= 0 && row <= 2 {
         let room: i32 = (1 - row) * 3 + column;
         transition x > 0 && x < 8 && y > 0 && y < 7 {
             true -> map_color(frame, room),
@@ -141,7 +142,7 @@ requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |configurati
     }
     machine hero_pixel(frame: @|frame|::Frame, x: i32, y: i32, dx: i32, dy: i32) -> i32
     requires x >= -512 && x <= 512 && y >= -512 && y <= 512 && dx >= 0 && dx < 12 && dy >= 0 && dy < 16 {
-        let color: i32 = Art::hero(dx, dy, frame.subject.facing, frame.clock.ticks);
+        let color: i32 = hero_sprite(dx, dy, frame.subject.facing, frame.clock.ticks);
         transition color > 0 { true -> (color), _ -> sword(frame, x, y) }
     }
     machine sword(frame: @|frame|::Frame, x: i32, y: i32) -> i32
@@ -165,7 +166,7 @@ requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |configurati
         }
     }
     machine bat(frame: @|frame|::Frame, x: i32, y: i32, dx: i32, dy: i32) -> i32
-    requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
+    requires x >= -512 && x <= 512 && y >= -512 && y <= 512 && dx >= 0 && dx < 18 && dy >= 0 && dy < 12 {
         let wing: i32 = (frame.clock.ticks / 12) % 2;
         transition (dx >= 6 && dx <= 11 && dy >= 3 && dy <= 9) || (dx < 6 && dy >= wing * 3 && dy <= 4 + dx / 2) || (dx > 11 && dy >= wing * 3 && dy <= 4 + (17 - dx) / 2) {
             true -> bat_color(dx, dy),
@@ -225,7 +226,7 @@ requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |configurati
     }
     machine ground(frame: @|frame|::Frame, x: i32, y: i32) -> i32
     requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
-        let tile: i32 = |rooms|::tile_at(@frame.room_data, x / |configuration|::TILE_SIZE, y / |configuration|::TILE_SIZE, frame.key);
+        let tile: i32 = |rooms|::tile_at::<|configuration|::ROOM_COUNT>(@frame.room_data, x / |configuration|::TILE_SIZE, y / |configuration|::TILE_SIZE, frame.key);
         transition tile {
             1 -> stone(x, y),
             2 -> water(frame, x, y),
@@ -268,7 +269,7 @@ requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |configurati
     }
 }
 
-public machine Art::hero(x: i32, y: i32, facing: i32, tick: i32) -> i32
+public machine hero_sprite(x: i32, y: i32, facing: i32, tick: i32) -> i32
 requires x >= 0 && x < 12 && y >= 0 && y < 16 {
     transition y < 4 && x >= 3 && x <= 9 { true -> (9297344), _ -> face(x, y, facing, tick) }
     machine face(x: i32, y: i32, facing: i32, tick: i32) -> i32
@@ -293,17 +294,17 @@ requires x >= 0 && x < 12 && y >= 0 && y < 16 {
     }
 }
 
-public machine Art::letter(character: u8, x: i32, y: i32) -> bool {
+public machine letter_pixel(character: u8, x: i32, y: i32) -> bool {
     transition x >= 0 && x < 3 && y >= 0 && y < 5 { true -> glyph(character, x, y), _ -> (false) }
     machine glyph(character: u8, x: i32, y: i32) -> bool
     requires x >= 0 && x < 3 && y >= 0 && y < 5 {
-        let bits: u32 = Art::glyph(character);
+        let bits: u32 = glyph_bits(character);
         let offset: u32 = (y * 3 + x) as u32;
         (bits & (1u32 << offset)) != 0
     }
 }
 
-machine Art::glyph(character: u8) -> u32 {
+machine glyph_bits(character: u8) -> u32 {
     transition character {
         65 -> (23530),
         67 -> (25126),

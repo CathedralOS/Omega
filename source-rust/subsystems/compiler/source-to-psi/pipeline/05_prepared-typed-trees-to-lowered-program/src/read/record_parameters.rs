@@ -977,6 +977,7 @@ mod tests {
                 })
             };
             let mut bodies: IdTable<MachineId, Body> = program.symbols.map(|_, _| Body {
+                assembly_target_requirement: Default::default(),
                 slots: Vec::new(),
                 statements: Vec::new(),
             });

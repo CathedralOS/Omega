@@ -898,6 +898,14 @@ impl AsmTargetApplicability {
         }
     }
 
+    pub const fn architecture_name(self) -> &'static str {
+        match self {
+            Self::Any => "any",
+            Self::X86_64 => "x86_64",
+            Self::Aarch64 => "aarch64",
+        }
+    }
+
     pub fn accepts_target_name(self, target: &str) -> bool {
         match self {
             Self::Any => true,
@@ -905,7 +913,7 @@ impl AsmTargetApplicability {
                 target,
                 "linux_x86_64" | "windows_x86_64" | "macos_x86_64" | "uefi_x86_64"
             ),
-            Self::Aarch64 => matches!(target, "linux_arm64" | "macos_arm64"),
+            Self::Aarch64 => matches!(target, "linux_arm64" | "macos_arm64" | "windows_arm64"),
         }
     }
 }
@@ -2723,6 +2731,14 @@ mod tests {
             assert_eq!(contract.target, AsmTargetApplicability::X86_64);
             assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
             assert!(contract.clobbers.is_empty());
+        }
+    }
+
+    #[test]
+    fn arm_assembly_accepts_each_hosted_arm_target() {
+        for target in ["linux_arm64", "macos_arm64", "windows_arm64"] {
+            assert!(AsmTargetApplicability::Aarch64.accepts_target_name(target));
+            assert!(!AsmTargetApplicability::X86_64.accepts_target_name(target));
         }
     }
 

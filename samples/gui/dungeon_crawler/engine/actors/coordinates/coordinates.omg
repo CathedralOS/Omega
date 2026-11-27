@@ -1,10 +1,14 @@
 use actors/state/state.omg as actor_state;
 use configuration/configuration.omg;
 
+public const STEP_MIN: i32 = - |configuration|::MAX_MOVEMENT_STEP;
+public const STEP_X_LIMIT: i32 = |configuration|::ROOM_WIDTH + |configuration|::MAX_MOVEMENT_STEP;
+public const STEP_Y_LIMIT: i32 = |configuration|::ROOM_HEIGHT + |configuration|::MAX_MOVEMENT_STEP;
+
 public machine step_x(position: |actor_state|::Position, direction: i32, speed: i32) -> i32
 terminates
 requires direction >= 0 && direction < 4 && speed >= 0 && speed <= |configuration|::MAX_MOVEMENT_STEP
-ensures result >= - |configuration|::MAX_MOVEMENT_STEP && result < |configuration|::ROOM_WIDTH + |configuration|::MAX_MOVEMENT_STEP {
+ensures result >= STEP_MIN && result < STEP_X_LIMIT {
     transition direction {
         1 -> (position.x + speed),
         3 -> (position.x - speed),
@@ -15,7 +19,7 @@ ensures result >= - |configuration|::MAX_MOVEMENT_STEP && result < |configuratio
 public machine step_y(position: |actor_state|::Position, direction: i32, speed: i32) -> i32
 terminates
 requires direction >= 0 && direction < 4 && speed >= 0 && speed <= |configuration|::MAX_MOVEMENT_STEP
-ensures result >= - |configuration|::MAX_MOVEMENT_STEP && result < |configuration|::ROOM_HEIGHT + |configuration|::MAX_MOVEMENT_STEP {
+ensures result >= STEP_MIN && result < STEP_Y_LIMIT {
     transition direction {
         0 -> (position.y - speed),
         2 -> (position.y + speed),

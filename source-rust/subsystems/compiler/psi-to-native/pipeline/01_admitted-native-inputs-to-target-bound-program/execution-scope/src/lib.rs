@@ -13,6 +13,7 @@ pub fn derive_native_scope(
     binding: NativeScopeBinding<'_>,
 ) -> Result<NativeExecutionScope, Vec<diagnostics::Diagnostic>> {
     let reach = TargetReach::derive(ScopeInputs {
+        target: binding.target(),
         artifact: binding.artifact(),
         entry: binding.entry(),
         entry_call: binding
@@ -29,6 +30,7 @@ pub fn derive_native_scope(
 
 /// Sources of native calls for one checked proposal and entry.
 struct ScopeInputs<'a> {
+    target: &'a str,
     artifact: terminal_codec::TerminalArtifactView<'a>,
     entry: MachineId,
     entry_call: Option<(BoundaryMachineId, MachineId)>,
@@ -101,6 +103,7 @@ struct ScopeBoundaryIndex<'a> {
 impl TargetReach {
     fn derive(input: ScopeInputs<'_>) -> Result<Self, NativeExecutionScopeError> {
         let ScopeInputs {
+            target,
             artifact,
             entry,
             entry_call,
@@ -190,6 +193,18 @@ impl TargetReach {
             }
             machines.push(machine);
             let body = &module.machines[function_position];
+            let requirement = body.assembly_target_requirement;
+            if !requirement.accepts_target_name(target) {
+                let declared = body
+                    .declaration
+                    .as_ref()
+                    .and_then(|row| module.identities.text(row.machine.identity()))
+                    .map_or_else(|| format!("{machine:?}"), |name| format!("`{name}`"));
+                let architecture = requirement.architecture_name();
+                return Err(NativeExecutionScopeError::TargetContext(format!(
+                    "reachable machine {declared} contains checked assembly that requires {architecture}; the selected target is `{target}`"
+                )));
+            }
             for block in &body.blocks {
                 for operation in &block.operations {
                     if let OperationKind::BoundaryCall { .. } = operation.kind {
