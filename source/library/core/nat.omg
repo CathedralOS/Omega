@@ -685,7 +685,7 @@ ensures
 // Recursive mod/gcd calls cite this law at their actual operands to establish
 // the required decrease. The Zero arm contradicts the positive-b premise;
 // the Succ arm uses sub_lt_of_le with the exposed predecessor.
-machine sub_lt(a: Nat, b: Nat) -> Nat
+public machine sub_lt(a: Nat, b: Nat) -> Nat
 requires
     |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, b), Nat::Zero),
     |proof|::Identity::<Nat>(saturating_sub(b, a), Nat::Zero)
@@ -809,7 +809,7 @@ ensures
 // saturating_sub(Succ a, b) == Zero (`a < b`). Flat: sub_eq_add reconstructs
 // b == add(a, Succ w), le_add bounds Succ a by exactly that sum, and the
 // goal rewrites through the reconstruction.
-machine lt_of_sub_pos(a: Nat, b: Nat, w: Nat) -> Nat
+public machine lt_of_sub_pos(a: Nat, b: Nat, w: Nat) -> Nat
 requires
     |proof|::Identity::<Nat>(saturating_sub(b, a), Nat::Succ { prev: w })
 ensures

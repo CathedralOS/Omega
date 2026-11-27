@@ -1267,9 +1267,27 @@ starts with records.
   price: a law about such a machine is provable only if it holds for every
   amount of fuel, as `mod`'s bound does; a law that needs the fuel to be
   enough, such as `div(a, b) * b + mod(a, b) = a`, is not provable this way
-  and is refused. This implementation omitted the per-call decrease check. The
+  and is refused. The
   [computed descent ruling](../../spec/language/termination.md#computed-recursive-arguments-in-proofs)
-  requires it and specifies when an internal bound is sound.
+  requires a decrease check at each call and specifies when an internal bound
+  is sound.
+- **Computed descent (2026-11-27).** Each recursive call of a machine defined
+  on fuel now owes `saturating_sub(Succ(next), a) = Zero`, its ranked
+  argument strictly below the caller's, as a statement of its own. It is
+  stated over the variables in scope and proved from the machine's premises,
+  the citations read so far and, new, the equation each enclosing dispatch
+  keeps between its subject and the case (`saturating_sub(b, a) = Zero` in
+  `mod`'s recursive arm). Premises owed at calls use those equations too. The
+  order is recognized by what it computes: a machine read so far whose
+  definition is exactly core's `saturating_sub`, over data with one case
+  without fields and one with one field, so core `Nat` and a program's copy
+  of it qualify and a lookalike does not. Data without one, such as a
+  program's own `Peano` with no truncated subtraction, is refused. The
+  repeated-subtraction `mod` this audit describes is kept as a public
+  compiler fixture (`computed_descent/pass/repeated_subtraction_mod`); its
+  twin calling `mod(a, b)` is refused at that call. Still owed: the
+  well-foundedness of the order discharged once and a proof that the fuel
+  suffices.
 - **A choice by a computed value** (`rat_eq`, `mod`) is a definition by
   cases of its own over its subject and the variables in scope, so the
   prover computes with it as with any other. In a law, a split on a computed

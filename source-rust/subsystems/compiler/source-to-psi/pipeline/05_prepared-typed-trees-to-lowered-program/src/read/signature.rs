@@ -517,6 +517,12 @@ struct Valuing<'s> {
     fuel: Option<Fuel>,
     /// The machine's own premises, as terms of this scope.
     premises: &'s [TermHandle],
+    /// For each enclosing dispatch, the equation between its subject and
+    /// the case being read, as terms of this scope. A dispatch on a computed
+    /// value such as `saturating_sub(b, a)` replaces the value by the case,
+    /// so this is the only place the branch keeps what it knows. A call
+    /// here owes its premises and descent under these as well.
+    facts: &'s [TermHandle],
     /// What the bodies read so far have cited.
     cited: &'s [Citation],
 }
@@ -529,6 +535,25 @@ struct Fuel {
     machine: MachineId,
     step: Option<TermHandle>,
     default: TermHandle,
+    /// Set in the one reading of the body that owes each recursive call's
+    /// descent: the body is read once per case of the fuel, and the
+    /// obligation is the same in each.
+    descent: Option<Descent>,
+}
+
+/// What a recursive call at a computed natural owes: its ranked argument
+/// `next` strictly below the caller's ranked formal `ranked` in natural
+/// order, spelled as core spells it, `saturating_sub(Succ(next), ranked) =
+/// Zero` (`wiki/spec/language/termination.md`, "Computed recursive arguments
+/// in proofs").
+#[derive(Clone, Copy)]
+struct Descent {
+    /// The position of the ranked formal among the machine's formals.
+    measure: usize,
+    /// The caller's ranked formal, as a term of the body's scope.
+    ranked: TermHandle,
+    /// The entry of the ranked formal's data.
+    nat: u32,
 }
 
 /// The machine a definition is being read for.
@@ -2619,6 +2644,7 @@ impl<'p> Converter<'p, '_> {
                     result,
                     fuel: None,
                     premises: &premises,
+                    facts: &[],
                     cited: &[],
                 };
                 let slots = self.formal_slots(count, body.slots.len());
@@ -2744,6 +2770,7 @@ impl<'p> Converter<'p, '_> {
                 result: defining.result,
                 fuel: None,
                 premises: &premises,
+                facts: &[],
                 cited: &[],
             };
             let scope = Scope {
@@ -2793,9 +2820,10 @@ impl<'p> Converter<'p, '_> {
     /// definition with its ranked formal as the fuel. Nothing is assumed:
     /// both are total definitions the kernel checks. What the machine's
     /// `terminates by` promises, that the ranked argument of each call is
-    /// smaller, is what makes the fuel last, and is not checked here
-    /// (`OWNER_QUESTIONS.md`, "decrease of a computed subject"); a law about
-    /// the machine is proved from the definition over fuel alone.
+    /// strictly smaller in natural order, is what makes the fuel last: each
+    /// call owes that descent as a statement of its own (`Descent`), so a
+    /// call at an argument that does not shrink is refused there. A law
+    /// about the machine is proved from the definition over fuel alone.
     fn by_fuel(
         &mut self,
         defining: &Defining<'_>,
@@ -2840,6 +2868,13 @@ impl<'p> Converter<'p, '_> {
             let mut context = vec![fuel; arity as usize];
             context.extend(vec![landing; arity as usize]);
             context.extend(types.iter().copied());
+            // The case with no fuel left binds nothing besides the formals,
+            // so it states each call's descent over them alone.
+            let descent = (arity == 0).then(|| Descent {
+                measure,
+                ranked: self.variable((count - 1 - measure) as u32),
+                nat: data,
+            });
             let valuing = Valuing {
                 owner: id,
                 context: &context,
@@ -2848,8 +2883,10 @@ impl<'p> Converter<'p, '_> {
                     machine: id,
                     step,
                     default,
+                    descent,
                 }),
                 premises: defining.premises,
+                facts: &[],
                 cited: &[],
             };
             let slots = self.formal_slots(count, body.slots.len());
@@ -2908,6 +2945,146 @@ impl<'p> Converter<'p, '_> {
         let mut operands = vec![own[measure]];
         operands.extend(own);
         Ok(self.signature.arena.apply_arguments(head, &operands))
+    }
+
+    /// The entry of the truncated subtraction that orders the data at
+    /// `data`, the natural order a recursive call at a computed value of it
+    /// descends under.
+    ///
+    /// The order is recognized by what it computes, not by its name: data
+    /// with one case without fields and one case with one field, and a
+    /// machine read so far whose definition is exactly core's
+    /// `saturating_sub(a, b)`, by cases on `b`: `a` at zero and the
+    /// predecessor of the recursion at a successor, where the predecessor is
+    /// itself exactly core's `pred`. So core's `Nat` and a program's copy of
+    /// it are ordered, and a lookalike that computes anything else orders
+    /// nothing. Data without such a machine has no order the descent could
+    /// be checked under, and its machine is refused.
+    fn natural_order(&mut self, id: MachineId, data: u32) -> Checked<u32> {
+        let refused = || {
+            unserved(
+                id,
+                "recursive call at a computed value whose data has no natural order: no machine read so far is the truncated subtraction `saturating_sub` that spells it",
+            )
+        };
+        let SignatureEntryKind::Data { shape, .. } = &self.signature.entries[data as usize].kind
+        else {
+            return Err(refused());
+        };
+        let shape = shape.clone();
+        let zero = (0..shape.cases()).find(|&case| shape.arity(case) == 0);
+        let successor = (0..shape.cases()).find(|&case| shape.arity(case) == 1);
+        let (2, Some(zero), Some(successor)) = (shape.cases(), zero, successor) else {
+            return Err(refused());
+        };
+        let functions: Vec<u32> = (0..self.signature.entries.len() as u32)
+            .filter(|&entry| {
+                matches!(
+                    self.signature.entries[entry as usize].kind,
+                    SignatureEntryKind::Function { .. }
+                )
+            })
+            .collect();
+        let defines = |converter: &Self, entry: u32, expected: TermHandle| {
+            converter.signature.declarations[entry as usize]
+                .body
+                .is_some_and(|body| converter.signature.arena.structurally_equal(body, expected))
+        };
+        let pred = self.canonical_pred(&shape, data, zero, successor);
+        for &candidate in &functions {
+            if !defines(self, candidate, pred) {
+                continue;
+            }
+            let monus = self.canonical_monus(&shape, data, zero, successor, candidate);
+            if let Some(&order) = functions.iter().find(|&&entry| defines(self, entry, monus)) {
+                return Ok(order);
+            }
+        }
+        Err(refused())
+    }
+
+    /// Core's `pred` over the data at `data`, as `read_function` defines it:
+    /// `λ a. a`'s cases, zero at zero and the field at a successor.
+    fn canonical_pred(
+        &mut self,
+        shape: &PlainData,
+        data: u32,
+        zero: usize,
+        successor: usize,
+    ) -> TermHandle {
+        let ty = self.constant(data);
+        let motive = self.signature.arena.insert(Term::Lambda {
+            domain: ty,
+            body: ty,
+        });
+        let mut branches = vec![ty; shape.cases()];
+        let at_zero = self.constant(data + 1 + zero as u32);
+        branches[zero] = shape.branch(&mut self.signature.arena, data, motive, zero, at_zero);
+        let field = shape.field(&mut self.signature.arena, successor, 0, 0);
+        branches[successor] =
+            shape.branch(&mut self.signature.arena, data, motive, successor, field);
+        let tree = self.variable(0);
+        let body = shape.induct(&mut self.signature.arena, data, motive, &branches, tree);
+        self.signature
+            .arena
+            .insert(Term::Lambda { domain: ty, body })
+    }
+
+    /// Core's `saturating_sub(a, b)` over the data at `data`, as
+    /// `read_function` defines it with `pred` at entry `pred`: by cases on
+    /// `b`, a function of `a` that is `a` at zero and `pred` of the
+    /// recursion at a successor.
+    fn canonical_monus(
+        &mut self,
+        shape: &PlainData,
+        data: u32,
+        zero: usize,
+        successor: usize,
+        pred: u32,
+    ) -> TermHandle {
+        let ty = self.constant(data);
+        let landing = self.signature.arena.insert(Term::Pi {
+            domain: ty,
+            codomain: ty,
+        });
+        let motive = self.signature.arena.insert(Term::Lambda {
+            domain: ty,
+            body: landing,
+        });
+        let mut branches = vec![ty; shape.cases()];
+        let left = self.variable(0);
+        let at_zero = self.signature.arena.insert(Term::Lambda {
+            domain: ty,
+            body: left,
+        });
+        branches[zero] = shape.branch(&mut self.signature.arena, data, motive, zero, at_zero);
+        let recursion = shape.hypothesis(&mut self.signature.arena, successor, 0, 1);
+        let left = self.variable(0);
+        let recursion = self.signature.arena.apply_arguments(recursion, &[left]);
+        let pred = self.constant(pred);
+        let at_successor = self.signature.arena.apply_arguments(pred, &[recursion]);
+        let at_successor = self.signature.arena.insert(Term::Lambda {
+            domain: ty,
+            body: at_successor,
+        });
+        branches[successor] = shape.branch(
+            &mut self.signature.arena,
+            data,
+            motive,
+            successor,
+            at_successor,
+        );
+        let tree = self.variable(0);
+        let induction = shape.induct(&mut self.signature.arena, data, motive, &branches, tree);
+        let left = self.variable(1);
+        let mut body = self.signature.arena.apply_arguments(induction, &[left]);
+        for _ in 0..2 {
+            body = self
+                .signature
+                .arena
+                .insert(Term::Lambda { domain: ty, body });
+        }
+        body
     }
 
     /// A closed value of the type at `entry`: the first case of data that
@@ -3157,8 +3334,17 @@ impl<'p> Converter<'p, '_> {
             let mut context = vec![ty; arity as usize];
             context.extend(vec![landing; arity as usize]);
             context.extend(valuing.context.iter().copied());
+            // The terms of the scope are terms of the branch as they stand,
+            // so the branch knows its subject is this case.
+            let mut facts = valuing.facts.to_vec();
+            facts.push(self.signature.arena.insert(Term::Id {
+                ty,
+                left: bound.term,
+                right: slots[slot].expect("bound above").term,
+            }));
             let inner = Valuing {
                 context: &context,
+                facts: &facts,
                 ..*valuing
             };
             let branch_scope = Scope {
@@ -3232,9 +3418,10 @@ impl<'p> Converter<'p, '_> {
     /// What a call of `callee` at `operands` owes: each of `callee`'s
     /// premises at those arguments. One that is a premise of the machine
     /// being defined is in hand. Any other is a statement of its own, over
-    /// every variable in scope and under the defining machine's premises,
-    /// proved from what the body has cited so far. A term outside a
-    /// definition has nowhere to prove one, so such a call is refused there.
+    /// every variable in scope and under the defining machine's premises and
+    /// the facts of the enclosing dispatches, proved from what the body has
+    /// cited so far. A term outside a definition has nowhere to prove one,
+    /// so such a call is refused there.
     fn owed(
         &mut self,
         id: MachineId,
@@ -3256,6 +3443,11 @@ impl<'p> Converter<'p, '_> {
                 "term outside a definition calls a machine that has a premise",
             ));
         };
+        let callee_name = program
+            .symbols
+            .get(callee)
+            .map(|symbol| self.name(*symbol))
+            .unwrap_or_default();
         let actuals: Vec<_> = operands.iter().map(|operand| operand.term).collect();
         for premise in &called.requires {
             let goal = self.equality(callee, premise, &actuals, None)?;
@@ -3266,62 +3458,152 @@ impl<'p> Converter<'p, '_> {
             {
                 continue;
             }
-            let mut statement = self.implication(valuing.premises, goal);
-            for &variable in valuing.context.iter().rev() {
-                statement = self.signature.arena.insert(Term::Pi {
-                    domain: variable,
-                    codomain: statement,
-                });
-            }
-            let owner = *program
-                .symbols
+            let source = program
+                .names
                 .get(valuing.owner)
-                .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
-            // A body read twice, once per way of defining it, owes the
-            // premise once.
-            if self.signature.laws.iter().any(|law| {
-                law.machine == owner
-                    && self.signature.arena.structurally_equal(
-                        self.signature.declarations[law.statement as usize].ty,
-                        statement,
-                    )
-            }) {
-                continue;
-            }
-            let law = index(id, self.signature.laws.len())?;
-            index(id, self.signature.declarations.len() + 1)?;
-            let owner_name = self.name(owner);
-            let callee_name = program
-                .symbols
-                .get(callee)
-                .map(|symbol| self.name(*symbol))
-                .unwrap_or_default();
-            let entry = self.push(
-                Declaration::assumption(0, statement),
-                SignatureEntryKind::Statement { law },
-                owner_name.clone(),
-            );
-            self.signature.laws.push(Law {
-                machine: owner,
-                clause: 0,
-                statement: entry,
-                formals: valuing.context.to_vec(),
-                premises: valuing.premises.to_vec(),
+                .and_then(|names| names.declared);
+            self.owe_statement(
+                id,
+                valuing,
                 goal,
-                declared: None,
-                proof: LawProof::Direct(LawCase {
-                    citations: valuing.cited.to_vec(),
-                    ..LawCase::default()
-                }),
-                formal_names: Vec::new(),
-                machine_name: owner_name,
-                text: format!("the premise of `{callee_name}` at its call"),
-                source: program
-                    .names
-                    .get(valuing.owner)
-                    .and_then(|names| names.declared),
+                format!("the premise of `{callee_name}` at its call"),
+                source,
+            )?;
+        }
+        Ok(())
+    }
+
+    /// What a recursive call at `operands` of a machine defined on fuel
+    /// owes: its ranked argument strictly below the caller's in natural
+    /// order, instantiated at the call's actual arguments and proved from
+    /// the premises, facts and citations in scope there. A call at the
+    /// caller's own ranked formal, or at anything the body cannot show to
+    /// be smaller, leaves the statement unproved, and the refusal names that
+    /// call (`wiki/spec/language/termination.md`, "Computed recursive
+    /// arguments in proofs").
+    fn descends(
+        &mut self,
+        id: MachineId,
+        descent: Descent,
+        operands: &[Bound],
+        call: &Expression,
+        scope: &Scope<'_>,
+    ) -> Checked<()> {
+        let Some(valuing) = scope.value else {
+            return Err(unserved(id, "recursive call outside a definition"));
+        };
+        let next = operands
+            .get(descent.measure)
+            .ok_or_else(|| unserved(id, "recursive call without its ranked argument"))?
+            .term;
+        let SignatureEntryKind::Data { shape, .. } =
+            &self.signature.entries[descent.nat as usize].kind
+        else {
+            return Err(unserved(id, "natural order over a value without cases"));
+        };
+        let cases = shape.cases();
+        let zero = (0..cases).find(|&case| shape.arity(case) == 0);
+        let successor = (0..cases).find(|&case| shape.arity(case) == 1);
+        let (Some(zero), Some(successor)) = (zero, successor) else {
+            return Err(unserved(
+                id,
+                "natural order over data without zero and successor",
+            ));
+        };
+        let order = self.natural_order(id, descent.nat)?;
+        let nat = self.constant(descent.nat);
+        let zero = self.constant(descent.nat + 1 + zero as u32);
+        let successor = self.constant(descent.nat + 1 + successor as u32);
+        let saturating_sub = self.constant(order);
+        let arena = &mut self.signature.arena;
+        let above = arena.apply_arguments(successor, &[next]);
+        let left = arena.apply_arguments(saturating_sub, &[above, descent.ranked]);
+        let goal = arena.insert(Term::Id {
+            ty: nat,
+            left,
+            right: zero,
+        });
+        let owner = self
+            .program
+            .symbols
+            .get(valuing.owner)
+            .map(|symbol| self.name(*symbol))
+            .unwrap_or_default();
+        let source = call.source.span().or_else(|| {
+            self.program
+                .names
+                .get(valuing.owner)
+                .and_then(|names| names.declared)
+        });
+        self.owe_statement(
+            id,
+            valuing,
+            goal,
+            format!("the descent of `{owner}` at its recursive call"),
+            source,
+        )
+    }
+
+    /// `goal` as a statement of its own, over every variable of `valuing`'s
+    /// scope and under its premises and facts, proved from what the body has
+    /// cited so far. A body read twice, once per way of defining it, owes
+    /// each statement once.
+    fn owe_statement(
+        &mut self,
+        id: MachineId,
+        valuing: &Valuing<'_>,
+        goal: TermHandle,
+        text: String,
+        source: Option<source_text::SourceSpan>,
+    ) -> Checked<()> {
+        let mut hypotheses = valuing.premises.to_vec();
+        hypotheses.extend_from_slice(valuing.facts);
+        let mut statement = self.implication(&hypotheses, goal);
+        for &variable in valuing.context.iter().rev() {
+            statement = self.signature.arena.insert(Term::Pi {
+                domain: variable,
+                codomain: statement,
             });
         }
+        let owner = *self
+            .program
+            .symbols
+            .get(valuing.owner)
+            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        if self.signature.laws.iter().any(|law| {
+            law.machine == owner
+                && self.signature.arena.structurally_equal(
+                    self.signature.declarations[law.statement as usize].ty,
+                    statement,
+                )
+        }) {
+            return Ok(());
+        }
+        let law = index(id, self.signature.laws.len())?;
+        index(id, self.signature.declarations.len() + 1)?;
+        let owner_name = self.name(owner);
+        let entry = self.push(
+            Declaration::assumption(0, statement),
+            SignatureEntryKind::Statement { law },
+            owner_name.clone(),
+        );
+        self.signature.laws.push(Law {
+            machine: owner,
+            clause: 0,
+            statement: entry,
+            formals: valuing.context.to_vec(),
+            premises: hypotheses,
+            goal,
+            declared: None,
+            proof: LawProof::Direct(LawCase {
+                citations: valuing.cited.to_vec(),
+                ..LawCase::default()
+            }),
+            formal_names: Vec::new(),
+            machine_name: owner_name,
+            text,
+            source,
+        });
         Ok(())
     }
 
@@ -3464,6 +3746,9 @@ impl<'p> Converter<'p, '_> {
                     && fuel.machine == *callee
                 {
                     self.owed(id, *callee, &operands, scope)?;
+                    if let Some(descent) = fuel.descent {
+                        self.descends(id, descent, &operands, expression, scope)?;
+                    }
                     let actuals: Vec<_> = operands.iter().map(|operand| operand.term).collect();
                     return Ok(plain(match fuel.step {
                         Some(step) => self.signature.arena.apply_arguments(step, &actuals),

@@ -296,17 +296,40 @@ fn a_law_with_its_innermost_case_uncited_is_refused() {
 }
 
 #[test]
-fn a_law_about_a_machine_that_recurses_on_a_computed_value_compiles() {
-    let (output, report) = check("fuel_recursion/pass/drain_reaches_zero");
+fn repeated_subtraction_modulo_whose_descent_is_cited_compiles() {
+    // Core's modulo before it became one structural division helper. Its
+    // recursive call is at the computed `saturating_sub(a, b)`, and citing
+    // `sub_lt(a, b)` shows that argument is below `a`.
+    let (output, report) = check("computed_descent/pass/repeated_subtraction_mod");
     assert_eq!(output.status.code(), Some(0), "{report}");
 }
 
 #[test]
-fn a_false_law_about_such_a_machine_is_refused() {
-    let (output, report) = check("fuel_recursion/fail/drain_stops_at_one");
+fn the_same_modulo_recursing_at_its_own_dividend_is_refused_at_that_call() {
+    // The twin keeps the citation of `sub_lt(a, b)` and calls `mod(a, b)`.
+    // Its bound would still hold for every amount of fuel, so only the
+    // descent check refuses it, at the call (`main.omg:26:28`).
+    let (output, report) = check("computed_descent/fail/mod_at_unchanged_dividend");
     assert_eq!(output.status.code(), Some(1), "{report}");
     assert!(
-        report.contains("cannot prove ensures contract for `drain`") && report.contains(UNPROVED),
+        report.contains(
+            "cannot prove ensures contract for `mod`: the descent of `mod` at its recursive call"
+        ) && report.contains(UNPROVED)
+            && report.contains("main.omg:26:28"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_machine_that_recurses_on_a_computed_value_of_local_data_is_refused() {
+    // `Peano` is the program's own data, so no natural order checks the
+    // descent of `drain(before(a))`.
+    let (output, report) = check("fuel_recursion/fail/drain_local_data");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("not supported yet")
+            && report
+                .contains("recursive call at a computed value whose data has no natural order"),
         "{report}"
     );
 }
