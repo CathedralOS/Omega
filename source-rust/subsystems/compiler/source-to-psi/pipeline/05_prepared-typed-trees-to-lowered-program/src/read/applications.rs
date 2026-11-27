@@ -50,7 +50,7 @@ impl<'source> Program<'source> {
         application: crate::source_state::static_applications::StaticMachineApplicationHandle,
         authored: &[crate::source_state::expression::StaticMachineArgument],
     ) -> Checked<ApplicationBindings<'source>> {
-        let unavailable = |reason| super::services::unavailable(id, reason);
+        let unavailable = |reason| crate::read::unavailable(id, reason);
         let typed = self.typed;
         let parameters = if let Some(machine) = typed.machine_by_symbol(target) {
             typed.machine_type_parameters(machine)
@@ -213,7 +213,7 @@ impl<'source> Program<'source> {
         application: crate::source_state::static_applications::StaticMachineApplicationHandle,
         authored: &[crate::source_state::expression::StaticMachineArgument],
     ) -> Checked<ApplicationArguments<'source>> {
-        let unavailable = |reason| super::services::unavailable(id, reason);
+        let unavailable = |reason| crate::read::unavailable(id, reason);
         let typed = self.typed;
         let prepared = self.application_bindings(id, caller, target, application, authored)?;
         let parameters = prepared.parameters;

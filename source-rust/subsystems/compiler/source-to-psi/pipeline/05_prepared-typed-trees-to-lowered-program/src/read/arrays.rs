@@ -1,6 +1,7 @@
 //! Resolve an array's actual element type and closed extent once. Array
 //! elements keep the canonical indexed namespace; they never acquire invented
 //! field declarations or a nominal schema.
+use crate::read::refuse_at;
 
 mod argument_types;
 
@@ -10,14 +11,14 @@ use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableInd
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle};
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, StructuralTypeId};
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 use terminal_psi::ArrayExtent;
 use terminal_semantics::CollectionExtent;
 
 use super::authority::Access;
 use super::{Program, Slot, places::RecordSource};
 use crate::{
-    Expression, ExpressionKind, RecordType, SourceOrigin, StorageShape, Unserved, ValueType, refuse,
+    Expression, ExpressionKind, RecordType, SourceOrigin, StorageShape, Unserved, ValueType,
 };
 
 // Retain the same scoped type/region identity used by byte views. A bare
@@ -35,7 +36,7 @@ pub(super) fn source_sequence_view(
     lexical_owner: SymbolHandle,
     machine: MachineId,
 ) -> Checked<Option<SourceSequenceView>> {
-    let fail = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
+    let fail = |reason| refuse_at(machine, Unserved::Type(reason));
     // Non-byte qualification needs its own predicate owner. Keep the existing
     // refusal instead of dropping a domain while selecting an element view.
     if view.referent.reference != view.slice.reference {
@@ -83,7 +84,7 @@ impl Program<'_> {
         owner: MachineId,
         value: semantic_vocabulary::ValueId,
     ) -> Checked<super::ConstBinding> {
-        let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+        let unavailable = |detail| refuse_at(machine, Unserved::Type(detail));
         if owner != machine {
             return Err(unavailable(
                 "fixed-array length names another machine's input",
@@ -190,8 +191,7 @@ impl Program<'_> {
         use language_core::ReferenceAccess;
         use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
 
-        let unavailable =
-            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
+        let unavailable = |detail| refuse_at(machine, Unserved::Expression(detail));
         // expressions.md, "Borrowed range access": "a bare range
         // `items[start..end]` forms a shared view when received as a
         // reference". So a bare range lends exactly what `@items[start..end]`
@@ -381,7 +381,9 @@ impl Program<'_> {
                 ExpressionKind::Establish {
                     operand: Box::new(expression),
                     clauses,
-                    stated: terminal_check_tables::program::EstablishedCondition::DomainMembership(stated),
+                    stated: terminal_check_tables::program::EstablishedCondition::DomainMembership(
+                        stated,
+                    ),
                 }
             };
             Ok(Expression {
@@ -500,8 +502,7 @@ impl Program<'_> {
     ) -> Checked<Expression> {
         use language_core::ReferenceAccess;
         use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
-        let unavailable =
-            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
+        let unavailable = |detail| refuse_at(machine, Unserved::Expression(detail));
         if cast.form.recast_access() != Some(ReferenceAccess::Shared) {
             return Err(unavailable(
                 "exclusive storage view without establishment and handback evidence",
@@ -592,9 +593,8 @@ impl Program<'_> {
         // A literal constructs the bare carrier, whatever its context
         // expects: a qualified destination then refuses the plain value.
         let Some(ValueType::Record(array, _, regions)) = expected else {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Type("array literal without a closed contextual type"),
             ));
         };
@@ -610,11 +610,7 @@ impl Program<'_> {
         if let CollectionExtent::Fixed(extent) = extent
             && u64::try_from(supplied.len()).ok() != Some(extent)
         {
-            return Err(refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Typing("array literal extent"),
-            ));
+            return Err(refuse_at(machine, Unserved::Typing("array literal extent")));
         }
         let mut elements = Vec::with_capacity(supplied.len());
         for handle in supplied {
@@ -669,9 +665,8 @@ impl Program<'_> {
             base
         };
         let Some(array) = self.opened_place(machine, &base, access)? else {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Typing("index into non-array storage"),
             ));
         };
@@ -693,9 +688,8 @@ impl Program<'_> {
                 self.collection_range_selection(machine, handle, array.record())?;
                 return self.collection_window(machine, slots, base, range, source);
             }
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Expression("range of a collection that is not a shared view"),
             ));
         }
@@ -713,9 +707,8 @@ impl Program<'_> {
             && element_read == ElementRead::Whole
             && !self.data_type(machine, element)?.is_copyable()
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Typing("copying a slice element requires a copyable element type"),
             ));
         }
@@ -732,13 +725,8 @@ impl Program<'_> {
             self.storage_value_type(machine, element, qualification)?,
             element_regions,
         );
-        let index_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| {
-            refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Type("u64 index carrier"),
-            )
-        })?;
+        let index_type = IntegerType::new(IntegerSign::Unsigned, 64)
+            .map_err(|_| refuse_at(machine, Unserved::Type("u64 index carrier")))?;
         if stored_length {
             let operands = self.collection_index_operand_types(machine, array.record());
             if !crate::source_state::operator::builtin_index_read_is_spelled(
@@ -747,9 +735,8 @@ impl Program<'_> {
                 handle,
                 &operands,
             ) {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Typing("slice index without its selected core operation"),
                 ));
             }
@@ -765,18 +752,16 @@ impl Program<'_> {
         )?;
         if !matches!(index.result.and_then(ValueType::scalar), Some(ScalarType::Integer(integer)) if !integer.is_address())
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Typing("array index is not a fixed integer"),
             ));
         }
         if stored_length
             && index.result.and_then(ValueType::scalar) != Some(ScalarType::Integer(index_type))
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Typing("slice index that is not a u64"),
             ));
         }
@@ -819,9 +804,8 @@ impl Program<'_> {
                 qualification,
                 ..
             } => Ok((*element, *qualification, CollectionExtent::StoredLength)),
-            _ => Err(refuse(
+            _ => Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Typing("index or literal of a non-array type"),
             )),
         }
@@ -854,9 +838,8 @@ impl Program<'_> {
         let super::source_views::SourceViewKind::Elements(SourceSequenceView { access, identity }) =
             view.kind
         else {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Type("element view changed its selected carrier"),
             ));
         };
@@ -880,17 +863,15 @@ impl Program<'_> {
                 .type_reference_table
                 .type_reference(view.slice.reference.reference)
             else {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("sequence loan lost its source reference"),
                 ));
             };
             let value = self.value_type(machine, *referee)?;
             let ValueType::Record(record, _, _) = value else {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("sequence loan lost its element descriptor"),
                 ));
             };
@@ -900,9 +881,8 @@ impl Program<'_> {
                 access: None,
             } = self.data_type(machine, record)?.shape
             else {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("sequence loan requires its exact unborrowed slice type"),
                 ));
             };
@@ -968,7 +948,7 @@ impl Program<'_> {
     ) -> Checked<ValueType> {
         use crate::source_state::constant_recipes::DeclaredArrayExtent;
 
-        let unserved = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
+        let unserved = |reason| refuse_at(machine, Unserved::Type(reason));
         // `[T; N]` names either a const parameter the enclosing declaration
         // binds, or a constant (`const N: u64 = measure();`). Only a constant
         // has a declaration to read a value from.
@@ -1116,18 +1096,13 @@ impl Program<'_> {
                 return Ok(id);
             }
             ValueType::Record(..) => {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("storage of a record that carries a declared domain"),
                 ));
             }
             ValueType::Rigid(_) => {
-                return Err(refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Type("rigid array element"),
-                ));
+                return Err(refuse_at(machine, Unserved::Type("rigid array element")));
             }
         };
         if let Some((id, _)) = self.records.iter().find(|(_, row)| {
@@ -1165,13 +1140,7 @@ impl Program<'_> {
         self.typed
             .type_identity_text(application.type_identity(self.typed))
             .filter(|identity| !identity.is_empty())
-            .ok_or_else(|| {
-                refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Spelling("storage type identity"),
-                )
-            })
+            .ok_or_else(|| refuse_at(machine, Unserved::Spelling("storage type identity")))
     }
 
     pub(super) fn storage_source_application(

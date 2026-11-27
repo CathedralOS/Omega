@@ -1,5 +1,6 @@
 //! Byte literals and views use Terminal's byte carrier and real immutable
 //! backing. They have no nominal data declaration or layout authority.
+use crate::read::refuse_at;
 
 use crate::body::Qualification;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -7,12 +8,12 @@ use language_core::ReferenceAccess;
 use semantic_vocabulary::ByteSequencePredicateSet;
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
 
 use super::{Program, places::RecordSource};
 use crate::{
-    Expression, ExpressionKind, RecordType, SourceOrigin, StorageShape, Unserved, ValueType, refuse,
+    Expression, ExpressionKind, RecordType, SourceOrigin, StorageShape, Unserved, ValueType,
 };
 
 // The reader and source export use the same reference/region owner. A shape
@@ -30,7 +31,7 @@ pub(super) fn source_byte_view(
     lexical_owner: SymbolHandle,
     machine: MachineId,
 ) -> Checked<Option<SourceByteView>> {
-    let fail = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
+    let fail = |reason| refuse_at(machine, Unserved::Type(reason));
     let Some(access) = view.access else {
         return Ok(None);
     };
@@ -172,9 +173,8 @@ pub(super) fn mutable_byte_formal_identity(
     view: &crate::source_state::SourceSliceApplication,
 ) -> Checked<String> {
     let malformed = || {
-        refuse(
+        refuse_at(
             machine,
-            Construct::Machine,
             Unserved::Type("byte view formal without its declared slice"),
         )
     };
@@ -206,7 +206,7 @@ fn byte_view_domains(
         ByteSequencePredicate, byte_slice_domain_predicate,
     };
     use crate::source_state::types::{DomainConstraintSubject, TypeConstraintNode};
-    let fail = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
+    let fail = |reason| refuse_at(machine, Unserved::Type(reason));
     let table = &typed.type_reference_table;
     let mut referee = referee.clone();
     let mut domains = Vec::new();
@@ -317,9 +317,8 @@ impl Program<'_> {
         };
         let index = self.expression(machine, slots, index, Some(ValueType::plain(scalar(64))))?;
         if index.result.and_then(ValueType::scalar) != Some(scalar(64)) {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Typing("byte view index that is not a u64"),
             ));
         }
@@ -391,9 +390,8 @@ impl Program<'_> {
                 &operands,
             )
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Expression("range with a selected user operator"),
             ));
         }
@@ -409,8 +407,7 @@ impl Program<'_> {
         handle: crate::source_state::expression::ExpressionHandle,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        let unavailable =
-            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
+        let unavailable = |detail| refuse_at(machine, Unserved::Expression(detail));
         let Some(ValueType::Record(row, _, _)) = base.result else {
             return Err(unavailable("range without its byte descriptor"));
         };
@@ -470,8 +467,7 @@ impl Program<'_> {
         range: &crate::source_state::expression::TableRangeExpression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        let unavailable =
-            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
+        let unavailable = |detail| refuse_at(machine, Unserved::Expression(detail));
         let Some(ValueType::Record(row, _, regions)) = base.result else {
             return Err(unavailable("range without its collection descriptor"));
         };
@@ -551,9 +547,8 @@ impl Program<'_> {
             .opened(machine, base.result, super::authority::Access::Read)?
             .map(super::authority::Opened::record)
         else {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Typing("collection measurement of non-collection storage"),
             ));
         };
@@ -574,9 +569,8 @@ impl Program<'_> {
                 place = base;
             }
             if !matches!(place.kind, ExpressionKind::Slot(_)) {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Expression("length of a fixed array that is not a field path"),
                 ));
             }
@@ -591,9 +585,8 @@ impl Program<'_> {
                         .iter()
                         .rposition(|slot| slot.symbol == binding.symbol)
                         .ok_or_else(|| {
-                            refuse(
+                            refuse_at(
                                 machine,
-                                Construct::Machine,
                                 Unserved::Expression("fixed-array length has no constant binding"),
                             )
                         })?;
@@ -605,9 +598,8 @@ impl Program<'_> {
                         || slot.erased
                         || slot.borrowed.is_some()
                     {
-                        return Err(refuse(
+                        return Err(refuse_at(
                             machine,
-                            Construct::Machine,
                             Unserved::Expression(
                                 "fixed-array length lost its immutable constant input",
                             ),
@@ -626,9 +618,8 @@ impl Program<'_> {
                     }
                 }
                 terminal_psi::ArrayExtent::Application(_) => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Expression(
                             "fixed-array length with an unresolved scalar application",
                         ),
@@ -649,9 +640,8 @@ impl Program<'_> {
                 .length_operation()
                 .is_none()
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Expression("collection measurement without its descriptor operation"),
             ));
         }
@@ -764,7 +754,7 @@ impl Program<'_> {
         machine: MachineId,
         row: StructuralTypeId,
     ) -> Checked<TypeReferenceHandle> {
-        let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+        let unavailable = |detail| refuse_at(machine, Unserved::Type(detail));
         let source = self
             .record_sources
             .get(row)
@@ -826,9 +816,8 @@ impl Program<'_> {
         let mut qualification = Qualification::NONE;
         for domain in domains {
             qualification.domains = qualification.domains.with(*domain).ok_or_else(|| {
-                refuse(
+                refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("byte view in more than four domains"),
                 )
             })?;
@@ -893,9 +882,8 @@ impl Program<'_> {
                 .find(|known| known.source == source && known.carrier == carrier)
             {
                 if *known != row {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Type("one byte domain has conflicting primitive meanings"),
                     ));
                 }
@@ -948,9 +936,8 @@ impl Program<'_> {
                 ));
             }
             Some(_) => {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("literal requires an immutable byte view"),
                 ));
             }
@@ -1059,7 +1046,7 @@ impl Program<'_> {
         reference: TypeReferenceHandle,
         presented: Option<ValueType>,
     ) -> Checked<Option<ValueType>> {
-        let fail = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
+        let fail = |reason| refuse_at(machine, Unserved::Type(reason));
         let Some(slice) = self
             .source_scope
             .slice_application(self.typed, reference)
@@ -1142,9 +1129,8 @@ impl Program<'_> {
         qualification: Qualification,
     ) -> Checked<ByteSequencePredicateSet> {
         if qualification.policy.is_some() {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Type("arithmetic policy on byte storage"),
             ));
         }
@@ -1152,9 +1138,8 @@ impl Program<'_> {
         for domain in qualification.domains.members() {
             let theory = self.domain_theory(machine, domain)?;
             if theory.access_policy.is_some() {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("byte predicate conversion needs governed domain evidence"),
                 ));
             }

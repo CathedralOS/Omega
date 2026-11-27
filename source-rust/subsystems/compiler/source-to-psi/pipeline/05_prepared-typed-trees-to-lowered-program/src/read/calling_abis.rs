@@ -1,5 +1,6 @@
 //! Read declaration ABIs and their selected policy bodies with the product.
 //! Targets evaluate those checked bodies later with their own ABI geometry.
+use crate::read::unavailable;
 
 use std::sync::Arc;
 
@@ -9,7 +10,7 @@ use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use application_identity::callback_declarations::BoundaryTelescope;
 use semantic_vocabulary::{CallingAbiIdentity, CallingSignatureId, MachineId, StructuralTypeId};
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
+use terminal_check_tables::Checked;
 use terminal_psi::calling_policies::*;
 use terminal_psi::{StructuralAccess, TerminalIdentityTableBuilder, TerminalModule};
 
@@ -34,15 +35,6 @@ struct PreparedStorage {
     parameters: Vec<CallingAbiParameter>,
     result: Option<StructuralTypeId>,
     telescope: BoundaryTelescope,
-}
-
-fn unavailable(entry: MachineId, detail: impl Into<String>) -> Refusal {
-    Refusal {
-        reason: RefusalReason::Unsupported,
-        site: terminal_check_tables::RefusalSite::Machine(entry, Construct::Machine),
-        source_span: None,
-        detail: detail.into(),
-    }
 }
 
 impl Program<'_> {
@@ -564,7 +556,8 @@ impl PreparedCallingAbis {
                 ));
             }
             if let Some(existing) = module
-                .interfaces.calling_signatures
+                .interfaces
+                .calling_signatures
                 .iter()
                 .find(|row| row.boundary == application.boundary)
             {
@@ -578,7 +571,10 @@ impl PreparedCallingAbis {
                 module.interfaces.calling_signatures.push(application);
             }
         }
-        module.interfaces.calling_signatures.sort_by_key(|row| row.boundary);
+        module
+            .interfaces
+            .calling_signatures
+            .sort_by_key(|row| row.boundary);
         Ok(())
     }
 }
@@ -825,11 +821,7 @@ mod descriptor_storage_tests {
         let checked = written.map(|(reference, access)| {
             let ordinary = program.value_type(entry, reference).unwrap();
             let formal = program
-                .formal_value_type(
-                    entry,
-                    reference,
-                    crate::body::BorrowedReferent::Slice,
-                )
+                .formal_value_type(entry, reference, crate::body::BorrowedReferent::Slice)
                 .unwrap();
             let crate::ValueType::Record(carrier, _, _) = formal else {
                 panic!("a borrowed slice has structural descriptor storage");

@@ -4,7 +4,7 @@
 use crate::source_state::{SourceSliceApplication, SourceTypeApplication, TypedTrees};
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 pub(super) enum SourceViewKind {
     Bytes(super::bytes::SourceByteView),
@@ -26,13 +26,7 @@ pub(super) fn source_view(
     let Some(slice) = source
         .scope
         .slice_application(typed, source.reference)
-        .map_err(|reason| {
-            crate::refuse(
-                machine,
-                Construct::Machine,
-                crate::Unserved::Type(reason),
-            )
-        })?
+        .map_err(|reason| crate::read::refuse_at(machine, crate::Unserved::Type(reason)))?
     else {
         return Ok(None);
     };

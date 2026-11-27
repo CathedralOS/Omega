@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 `clause_term` reads every term a clause writes: an operand of a comparison
 in a `requires` or `ensures`, a domain or data predicate, the body of a
@@ -31,7 +32,7 @@ use super::authority::Access;
 use super::contracts::{ClauseScope, ResultTerm, formal_place, static_read_path};
 use super::types::{OPEN_CARRIER_FAMILY, TypeTruth};
 use crate::body::{Qualification, ValueType};
-use crate::{SourceOrigin, Unserved, refuse, reject};
+use crate::{SourceOrigin, Unserved, reject};
 
 /// The sort of term the caller needs.
 pub(super) enum ClauseUse<'a> {
@@ -68,9 +69,8 @@ impl ClauseTerm {
             Self::TypeParameter(slot) => {
                 Ok(terminal_psi::MathematicalPredicateBody::TypeParameter(slot))
             }
-            _ => Err(refuse(
+            _ => Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("expected a proof-relevant mathematical type"),
             )),
         }
@@ -88,9 +88,8 @@ impl ClauseTerm {
     pub(super) fn operand(self, id: MachineId) -> Checked<u32> {
         match self {
             Self::Operand(position) => Ok(position),
-            _ => Err(refuse(
+            _ => Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("expected a value operand of Identity"),
             )),
         }
@@ -99,9 +98,8 @@ impl ClauseTerm {
     pub(super) fn scalar(self, id: MachineId) -> Checked<(ScalarTerm, ValueType)> {
         match self {
             Self::Scalar(term, value_type) => Ok((term, value_type)),
-            _ => Err(refuse(
+            _ => Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("expected a scalar operand"),
             )),
         }
@@ -110,9 +108,8 @@ impl ClauseTerm {
     pub(super) fn integer(self, id: MachineId) -> Checked<IntegerMathTerm> {
         match self {
             Self::Integer(term) => Ok(term),
-            _ => Err(refuse(
+            _ => Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("expected a mathematical integer"),
             )),
         }
@@ -171,7 +168,7 @@ impl Program<'_> {
     ) -> Checked<ClauseTerm> {
         let typed = self.typed;
         let table = &typed.expression_table;
-        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unavailable = |what| refuse_at(id, Unserved::Contract(what));
         if !expression.is_valid() {
             return Err(unavailable("missing term"));
         }
@@ -1944,9 +1941,8 @@ impl Program<'_> {
                 for &req_expr in &unfolded.requires {
                     let req_prop = program.clause(id, &callee, req_expr)?;
                     if !program.enclosing_requires.contains(&req_prop) {
-                        return Err(refuse(
+                        return Err(refuse_at(
                             id,
-                            Construct::Machine,
                             Unserved::Contract(
                                 "called machine in a clause has an unproved precondition",
                             ),

@@ -1,6 +1,8 @@
 //! Keep each callable's authored permissions separate from what its body reaches.
 //! Private omitted axes are inferred from actual calls, never from callers or a
 //! list of eligible implementations. Published axes are checked as ceilings.
+use crate::read::refuse_at;
+pub(crate) use crate::read::unavailable;
 
 use crate::publication::reach::{SourceEnvelope, SourceInvocation as Invocation};
 use crate::source_state::TypedTrees;
@@ -13,7 +15,7 @@ use semantic_vocabulary::ServiceReachRowId;
 use semantic_vocabulary::{ContractId, MachineId};
 use source_declarations::TerminationGuarantee;
 use source_declarations::TerminationInterface;
-use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
+use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{TerminalCallableTermination, TerminalModule};
 
 use super::Program;
@@ -21,15 +23,6 @@ use crate::body::{
     Body, CallTarget, Expression, ExpressionKind as E, RecordType, Signature, Statement,
     StorageShape, Target, ValueType,
 };
-
-pub(crate) fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
-    Refusal {
-        source_span: None,
-        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
-        reason: RefusalReason::Unsupported,
-        detail: detail.into(),
-    }
-}
 
 pub(super) fn service(
     typed: &TypedTrees,
@@ -1468,7 +1461,7 @@ fn source_roots(envelope: &SourceEnvelope, roots: &mut Vec<ServiceReachId>) {
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
 use semantic_vocabulary::ServiceId;
 
-use crate::{Unserved, refuse};
+use crate::Unserved;
 
 impl<'t> Program<'t> {
     pub(super) fn service(
@@ -1476,8 +1469,7 @@ impl<'t> Program<'t> {
         caller: MachineId,
         scope: AppliedTraitScope<'t>,
     ) -> Checked<ServiceId> {
-        let unavailable =
-            |reason| refuse(caller, Construct::Machine, Unserved::Declaration(reason));
+        let unavailable = |reason| refuse_at(caller, Unserved::Declaration(reason));
         if !scope.declaration.is_boundary {
             return Err(unavailable(
                 "ordinary trait cannot declare a service identity",
@@ -1844,9 +1836,8 @@ impl<'t> Program<'t> {
             },
         )
         .ok_or_else(|| {
-            refuse(
+            refuse_at(
                 caller,
-                Construct::Machine,
                 Unserved::Declaration("boundary service needs its complete applied declaration"),
             )
         })?;
@@ -1883,7 +1874,7 @@ impl<'t> Program<'t> {
         use crate::source_state::static_applications::StaticMachineBindingValue;
 
         let typed = self.typed;
-        let unserved = |what| refuse(owner, Construct::Machine, Unserved::Declaration(what));
+        let unserved = |what| refuse_at(owner, Unserved::Declaration(what));
         let symbol = *self
             .symbols
             .get(owner)
@@ -1978,9 +1969,8 @@ impl<'t> Program<'t> {
                     // this header row is only its service projection.
                 }
                 Named::Parameter { .. } => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         caller,
-                        Construct::Machine,
                         Unserved::Machine("invokes has no exact formal origin"),
                     ));
                 }
@@ -2001,9 +1991,8 @@ impl<'t> Program<'t> {
                     ));
                 }
                 Named::Unresolved => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         caller,
-                        Construct::Machine,
                         Unserved::Typing(
                             "invokes naming a declaration typing does not select as a requirement",
                         ),
@@ -2036,8 +2025,7 @@ impl<'t> Program<'t> {
         if self.readiness.is_empty() {
             return Ok(Vec::new());
         }
-        let unavailable =
-            |reason| refuse(caller, Construct::Machine, Unserved::Declaration(reason));
+        let unavailable = |reason| refuse_at(caller, Unserved::Declaration(reason));
         let sources = source_admission::source_identity::toolchain_source_identities(
             self.typed.symbols.source_files(),
         )

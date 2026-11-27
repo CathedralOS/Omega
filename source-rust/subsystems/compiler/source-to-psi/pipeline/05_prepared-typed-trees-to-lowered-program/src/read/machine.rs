@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 The machine family of the reader: which declarations are admitted (the subset
 gate), their signatures and formals, and
@@ -25,7 +26,7 @@ use crate::body::{
     Statement, Target, Termination, ValueType,
 };
 use crate::canonical::{self, Repeated};
-use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
+use crate::{Binder, MachineNames, SourceOrigin, Unserved};
 use source_text::SourceSpan;
 
 /// Where a conformance witness found the requirement contract it proves.
@@ -68,7 +69,7 @@ fn refuse_parameters(
     what: &'static str,
     declaration: &str,
 ) -> terminal_check_tables::Refusal {
-    let mut refusal = refuse(id, Construct::Machine, Unserved::Machine(what));
+    let mut refusal = refuse_at(id, Unserved::Machine(what));
     refusal.detail = format!("{}: `{declaration}`", refusal.detail);
     refusal
 }
@@ -87,9 +88,8 @@ impl<'t> Program<'t> {
         requirement: SymbolHandle,
         formation: &str,
     ) -> terminal_check_tables::Refusal {
-        let mut refusal = refuse(
+        let mut refusal = refuse_at(
             id,
-            Construct::Machine,
             Unserved::Machine("a boundary conformer is callable only through its provider slot"),
         );
         let active = if self
@@ -145,7 +145,7 @@ impl<'t> Program<'t> {
         machine: &Machine,
     ) -> Checked<Vec<&'t crate::source_state::data::TypeParameter>> {
         let own = self.typed.machine_type_parameters(machine);
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         if own.is_empty() != machine.type_parameters.is_empty() {
             return Err(unserved("type parameter span"));
         }
@@ -206,19 +206,14 @@ impl<'t> Program<'t> {
             )
         {
             *fixed.get_mut(*id).ok_or_else(|| {
-                refuse(
-                    *id,
-                    Construct::Machine,
-                    Unserved::Machine("input boundary without a machine"),
-                )
+                refuse_at(*id, Unserved::Machine("input boundary without a machine"))
             })? = true;
         }
         let mut subjects = self.symbols.map(|_, _| false);
         for &id in &self.subject_machines {
             *subjects.get_mut(id).ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Machine("verification subject without a machine"),
                 )
             })? = true;
@@ -292,9 +287,8 @@ impl<'t> Program<'t> {
             targets.push(state.symbol);
         }
         let invalid = || {
-            refuse(
+            refuse_at(
                 diagnostic,
-                Construct::Machine,
                 Unserved::Machine("private input use with an invalid symbol"),
             )
         };
@@ -341,9 +335,8 @@ impl<'t> Program<'t> {
                 .map(|selection| &selection.implementation),
         ) {
             *boundary.get_mut(*id).ok_or_else(|| {
-                refuse(
+                refuse_at(
                     *id,
-                    Construct::Machine,
                     Unserved::Machine("local summary boundary without a machine"),
                 )
             })? = (true, true);
@@ -351,9 +344,8 @@ impl<'t> Program<'t> {
         for contract in &self.fixed_contracts {
             let id = *contract.machine();
             let current = boundary.get_mut(id).ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Machine("local contract boundary without a machine"),
                 )
             })?;
@@ -367,18 +359,13 @@ impl<'t> Program<'t> {
         let mut complete_subject = self.symbols.map(|_, _| false);
         for &id in &self.subject_machines {
             *complete_subject.get_mut(id).ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Machine("local subject without a machine"),
-                )
+                refuse_at(id, Unserved::Machine("local subject without a machine"))
             })? = true;
         }
         for (id, &symbol) in self.symbols.iter() {
             let &(outcome_boundary, result_boundary) = boundary.get(id).ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Machine("local body without a contract boundary"),
                 )
             })?;
@@ -393,7 +380,7 @@ impl<'t> Program<'t> {
                     scope.subjects(),
                     self.purpose,
                 )
-                .map_err(|reason| refuse(id, Construct::Machine, Unserved::Declaration(reason)))?,
+                .map_err(|reason| refuse_at(id, Unserved::Declaration(reason)))?,
                 _ => complete,
             };
             if !local_subject {
@@ -409,9 +396,8 @@ impl<'t> Program<'t> {
                 .typed
                 .machine_by_symbol(template.unwrap_or(symbol))
                 .ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Machine("a local body has no originating declaration"),
                     )
                 })?;
@@ -458,9 +444,8 @@ impl<'t> Program<'t> {
 
     pub(super) fn next_identity(&self) -> Checked<MachineId> {
         MachineId::new(self.symbols.len() as u64 + 1).ok_or_else(|| {
-            refuse(
+            refuse_at(
                 MachineId::new(1).expect("1 is nonzero"),
-                Construct::Machine,
                 Unserved::Machine("identity overflow"),
             )
         })
@@ -489,9 +474,8 @@ impl<'t> Program<'t> {
     /// Fills the row `reserve_row` reserved once the signature is read.
     pub(super) fn complete_row(&mut self, id: MachineId, row: MachineRow) -> Checked<()> {
         let lost = || {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Machine("a read signature lost its reserved row"),
             )
         };
@@ -572,9 +556,8 @@ impl<'t> Program<'t> {
     /// The `MachineId` of a callee, reading its signature the first time.
     pub fn machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
         if self.refused_signatures.contains(&symbol) {
-            let mut refused = refuse(
+            let mut refused = refuse_at(
                 self.next_identity()?,
-                Construct::Machine,
                 Unserved::Machine("a call of a machine whose signature is refused above"),
             );
             refused.detail.push_str(&format!(
@@ -584,25 +567,22 @@ impl<'t> Program<'t> {
             return Err(refused);
         }
         if self.type_purpose == super::storage_metadata::TypePurpose::StorageDescription {
-            return Err(refuse(
+            return Err(refuse_at(
                 self.next_identity()?,
-                Construct::Machine,
                 Unserved::Declaration("machine admission after storage metadata"),
             ));
         }
         if self.unapplied_map_body(symbol) && !(self.rigid && self.symbols.is_empty()) {
-            return Err(refuse(
+            return Err(refuse_at(
                 self.next_identity()?,
-                Construct::Machine,
                 Unserved::Machine("generic map body needs its complete selected application"),
             ));
         }
         let diagnostic = self.next_identity()?;
         let (declared, entry) = self.declaration(diagnostic, symbol)?;
         if self.returns_float_meaning(entry.return_type) {
-            return Err(refuse(
+            return Err(refuse_at(
                 diagnostic,
-                Construct::Machine,
                 Unserved::Type("proof-only FloatMeaning has no runtime ABI"),
             ));
         }
@@ -645,9 +625,8 @@ impl<'t> Program<'t> {
             Some(alternative) => {
                 let parameters = self.typed.machine_type_parameters(declared);
                 if alternative.arguments.len() != parameters.len() {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Machine("static alternative lost its complete binder roster"),
                     ));
                 }
@@ -723,9 +702,8 @@ impl<'t> Program<'t> {
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
         if self.type_purpose == super::storage_metadata::TypePurpose::StorageDescription {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Declaration("machine admission after storage metadata"),
             ));
         }
@@ -736,9 +714,8 @@ impl<'t> Program<'t> {
         if let Some((owner, required)) = bound
             && (owner != declaring_trait || !self.applies_requirement(required, requirement))
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Machine("conformance witness cannot rebind a declared requirement"),
             ));
         }
@@ -775,9 +752,8 @@ impl<'t> Program<'t> {
         reading: Reading,
     ) -> Checked<MachineId> {
         if self.type_purpose == super::storage_metadata::TypePurpose::StorageDescription {
-            return Err(refuse(
+            return Err(refuse_at(
                 diagnostic,
-                Construct::Machine,
                 Unserved::Declaration("machine admission after storage metadata"),
             ));
         }
@@ -786,9 +762,8 @@ impl<'t> Program<'t> {
             && !(self.rigid && matches!(&reading, Reading::Applied(_)))
             && !(self.rigid && matches!(reading, Reading::Implementation))
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 diagnostic,
-                Construct::Machine,
                 Unserved::Machine("generic map body needs its complete selected application"),
             ));
         }
@@ -931,9 +906,8 @@ impl<'t> Program<'t> {
             let mut enclosing = Vec::with_capacity(parameters.len() + arguments.len());
             if let Some(written) = map_arguments {
                 if !self.rigid || parameters.len() != written.len() {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         caller,
-                        Construct::Machine,
                         Unserved::Call("symbolic map argument roster differs from its constructor"),
                     ));
                 }
@@ -943,20 +917,15 @@ impl<'t> Program<'t> {
                 }
             } else {
                 let scope = self.scopes.get(caller).ok_or_else(|| {
-                    refuse(
-                        caller,
-                        Construct::Machine,
-                        Unserved::Call("map member lost its calling scope"),
-                    )
+                    refuse_at(caller, Unserved::Call("map member lost its calling scope"))
                 })?;
                 for parameter in parameters {
                     let (_, value) = scope
                         .iter()
                         .find(|(binder, _)| *binder == parameter.symbol)
                         .ok_or_else(|| {
-                            refuse(
+                            refuse_at(
                                 caller,
-                                Construct::Machine,
                                 Unserved::Call(
                                     "map member has no supplied type for its enclosing binder",
                                 ),
@@ -968,9 +937,8 @@ impl<'t> Program<'t> {
             enclosing.append(&mut arguments);
             arguments = enclosing;
         } else if map_arguments.is_some() {
-            return Err(refuse(
+            return Err(refuse_at(
                 caller,
-                Construct::Machine,
                 Unserved::Call("named member lost its supplying map"),
             ));
         }
@@ -986,9 +954,8 @@ impl<'t> Program<'t> {
         let mut ancestor = Some(caller);
         while let Some(current) = ancestor {
             let source = self.symbols.get(current).ok_or_else(|| {
-                refuse(
+                refuse_at(
                     caller,
-                    Construct::Machine,
                     Unserved::Call("type application has no exact caller"),
                 )
             })?;
@@ -998,9 +965,8 @@ impl<'t> Program<'t> {
                     self.same_type_arguments(&enclosing, &arguments)
                 })
             {
-                return Err(refuse(
+                return Err(refuse_at(
                     caller,
-                    Construct::Machine,
                     Unserved::Call("recursive generic type application changes its arguments"),
                 ));
             }
@@ -1009,9 +975,8 @@ impl<'t> Program<'t> {
             };
             ancestor = self.applied[position].2;
             if ancestor.is_some_and(|parent| parent >= current) {
-                return Err(refuse(
+                return Err(refuse_at(
                     caller,
-                    Construct::Machine,
                     Unserved::Call("type application has an invalid caller ancestry"),
                 ));
             }
@@ -1071,14 +1036,14 @@ impl<'t> Program<'t> {
                     .trait_machine_signature(closed.template)
                     .is_some_and(|(owner, _)| owner.symbol == declaring_trait)
             {
-                return Err(super::services::unavailable(
+                return Err(crate::read::unavailable(
                     id,
                     "the applied requirement belongs to another trait",
                 ));
             }
             typed
                 .require_closed_requirement_call_application(requirement, closed.application)
-                .map_err(|reason| super::services::unavailable(id, reason))?;
+                .map_err(|reason| crate::read::unavailable(id, reason))?;
             return Ok(closed.signature);
         }
         typed
@@ -1090,9 +1055,8 @@ impl<'t> Program<'t> {
                     .find(|signature| signature.symbol == requirement)
             })
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Machine("requirement that its trait does not declare"),
                 )
             })
@@ -1130,9 +1094,8 @@ impl<'t> Program<'t> {
                 .typed
                 .machine_by_symbol(implementation)
                 .ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Machine("generic witness lost its actual body"),
                     )
                 })?;
@@ -1147,9 +1110,8 @@ impl<'t> Program<'t> {
             && let Some((owner, applied)) = self.conformer_requirement(id, machine)?
         {
             if owner != declaring_trait || !self.applies_requirement(applied.symbol, requirement) {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Machine("conformance witness cannot rebind a declared requirement"),
                 ));
             }
@@ -1174,9 +1136,8 @@ impl<'t> Program<'t> {
                         == requirement
                 })
                 .ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Machine("witness needs its exact closed trait application"),
                     )
                 })?;
@@ -1190,9 +1151,8 @@ impl<'t> Program<'t> {
                     .map_or(signature.symbol, |application| application.template)
                     != requirement
         }) {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Machine("selected witness names another public declaration"),
             ));
         }
@@ -1208,7 +1168,7 @@ impl<'t> Program<'t> {
                 .typed
                 .machine_by_symbol(implementation)
                 .ok_or_else(|| {
-                    super::services::unavailable(id, "the refinement check lost its implementation")
+                    crate::read::unavailable(id, "the refinement check lost its implementation")
                 })?;
             self.with_method_type_parameters(id, implementation, declared, |program| {
                 program.witnessed_signature(declared, arguments, expected)
@@ -1277,9 +1237,8 @@ impl<'t> Program<'t> {
                 }
             }
             if expected != signature {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Machine(
                         "selected call disagrees with its independent public witness",
                     ),
@@ -1362,9 +1321,8 @@ impl<'t> Program<'t> {
             .map(|parameter| parameter.symbol)
             .collect();
         if binders.len() != types.len() {
-            return Err(refuse(
+            return Err(refuse_at(
                 caller,
-                Construct::Machine,
                 Unserved::Call("requirement application lost its type argument tuple"),
             ));
         }
@@ -1389,7 +1347,7 @@ impl<'t> Program<'t> {
         target: SymbolHandle,
         scope: &crate::source_state::trait_definition::AppliedTraitScope<'t>,
     ) -> Checked<MachineId> {
-        let refused = |what| refuse(caller, Construct::Machine, Unserved::Call(what));
+        let refused = |what| refuse_at(caller, Unserved::Call(what));
         let (owner, declared) = self
             .typed
             .trait_machine_signature(target)
@@ -1669,12 +1627,8 @@ impl<'t> Program<'t> {
         let mut refusal = if row.request.is_violation() {
             crate::reject(id, source, row.request.construct())
         } else {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Declaration(row.request.construct()),
-            )
-            .with_source_span(source.span())
+            refuse_at(id, Unserved::Declaration(row.request.construct()))
+                .with_source_span(source.span())
         };
         if !row.detail.is_empty() {
             refusal.detail.push_str(": ");
@@ -1690,19 +1644,11 @@ impl<'t> Program<'t> {
     ) -> Checked<(&'t Machine, &'t State)> {
         let typed = self.typed;
         if !symbol.is_valid() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Spelling("callee without a symbol"),
-            ));
+            return Err(refuse_at(id, Unserved::Spelling("callee without a symbol")));
         }
-        let machine = typed.machine_by_symbol(symbol).ok_or_else(|| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Call("target is not a machine declaration"),
-            )
-        })?;
+        let machine = typed
+            .machine_by_symbol(symbol)
+            .ok_or_else(|| refuse_at(id, Unserved::Call("target is not a machine declaration")))?;
         // A data declaration is not a code namespace, even when all
         // arguments are explicit (machines.md, "Static declarations and
         // explicit state"). Test retained attachment, not name spelling:
@@ -1726,11 +1672,7 @@ impl<'t> Program<'t> {
             "state span",
         )?;
         let Some([state]) = states.as_array() else {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Machine("not exactly one state"),
-            ));
+            return Err(refuse_at(id, Unserved::Machine("not exactly one state")));
         };
         Ok((machine, state))
     }
@@ -1741,21 +1683,20 @@ impl<'t> Program<'t> {
         } else {
             reading
         };
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Machine(what)));
         if self
             .typed
             .executable_application_template(machine.symbol)
-            .map_err(|what| refuse(id, Construct::Machine, Unserved::Machine(what)))?
+            .map_err(|what| refuse_at(id, Unserved::Machine(what)))?
             .is_some()
         {
             for state in self.typed.machine_states(machine) {
                 self.typed
                     .executable_callable_template(state.symbol)
-                    .map_err(|what| refuse(id, Construct::Machine, Unserved::Machine(what)))?
+                    .map_err(|what| refuse_at(id, Unserved::Machine(what)))?
                     .ok_or_else(|| {
-                        refuse(
+                        refuse_at(
                             id,
-                            Construct::Machine,
                             Unserved::Machine("generated entry has no retained application"),
                         )
                     })?;
@@ -1784,11 +1725,7 @@ impl<'t> Program<'t> {
             || machine.authored_target.is_some()
             || machine.target_family_interface
         {
-            let mut refusal = refuse(
-                id,
-                Construct::Machine,
-                Unserved::Machine("target selection"),
-            );
+            let mut refusal = refuse_at(id, Unserved::Machine("target selection"));
             refusal.detail.push_str(&format!(
                 "; declaration `{}` ({:?}); target={:?}; authored target={:?}; family interface={}; purpose={:?}; supply={:?}; body={:?}; declared at {:?}",
                 self.typed.symbols.display_path(machine.symbol, "::"),
@@ -1995,9 +1932,8 @@ impl<'t> Program<'t> {
         if symbols.iter().any(|symbol| !symbol.is_valid())
             || symbols.windows(2).any(|pair| pair[0] == pair[1])
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Parameter("invalid or duplicate const binder"),
             ));
         }
@@ -2126,9 +2062,8 @@ impl<'t> Program<'t> {
             }
             let scalar_type = self.scalar_type(id, *type_reference)?;
             let value = values[formals.len() + position].ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Parameter("const parameter without an input identity"),
                 )
             })?;
@@ -2169,9 +2104,8 @@ impl<'t> Program<'t> {
                 continue;
             };
             if !parameter.symbol.is_valid() {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Spelling("value parameter without a symbol"),
                 ));
             }
@@ -2185,9 +2119,8 @@ impl<'t> Program<'t> {
                 semantic_vocabulary::ScalarType::Integer(_)
                     | semantic_vocabulary::ScalarType::Boolean
             ) {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Parameter("value parameter that is not an integer or a Boolean"),
                 ));
             }
@@ -2206,7 +2139,7 @@ impl<'t> Program<'t> {
     /// their supplied tuple and prove the original clause instead.
     fn assume_type_equations(&mut self, id: MachineId, machine: &Machine) -> Checked<()> {
         let typed = self.typed;
-        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Type(detail));
+        let unavailable = |detail| refuse_at(id, Unserved::Type(detail));
         let mut definitions = Vec::with_capacity(machine.declared_type_equations.len());
         for equation in typed
             .declared_type_equations
@@ -2324,9 +2257,8 @@ impl<'t> Program<'t> {
             self.retain_rigid_scope();
         }
         if self.scope.iter().any(|(binder, _)| !binder.is_valid()) {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Spelling("type parameter without a symbol"),
             ));
         }
@@ -2421,11 +2353,7 @@ impl<'t> Program<'t> {
             }
         }
         if !self.contracts_restate_formal_domains(state) {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("contracts on a state"),
-            ));
+            return Err(refuse_at(id, Unserved::Contract("contracts on a state")));
         }
         // A theorem over indexed data is read from its own body
         // (`families`), not as a body of lets and one value.
@@ -2451,9 +2379,8 @@ impl<'t> Program<'t> {
             .as_ref()
             .is_some_and(|prepared| !prepared.matches(&signature))
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Machine("dependent signature differs from its prepared input shapes"),
             ));
         }
@@ -2566,7 +2493,7 @@ impl<'t> Program<'t> {
         // Name the conformer: the refusal is raised before its signature is read.
         let unserved = |what| {
             self.read_failure_at(
-                refuse(id, Construct::Machine, Unserved::Machine(what)),
+                refuse_at(id, Unserved::Machine(what)),
                 machine.symbol,
                 "the requirement it satisfies",
             )
@@ -2684,7 +2611,7 @@ impl<'t> Program<'t> {
         // Name the conformer: the refusal is raised before its signature is read.
         let unserved = |what| {
             self.read_failure_at(
-                refuse(id, Construct::Machine, Unserved::Machine(what)),
+                refuse_at(id, Unserved::Machine(what)),
                 machine.symbol,
                 "the requirement it satisfies",
             )
@@ -2753,9 +2680,8 @@ impl<'t> Program<'t> {
         // supplied signature after instantiating it in the requirement's
         // regions, for both inherited clauses and the advertised entry.
         if !self.same_signature(id, required, body, machine)? || body.erased != required.erased {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("member signature differs from its requirement's"),
             ));
         }
@@ -2868,7 +2794,7 @@ impl<'t> Program<'t> {
         if required.is_empty() {
             return Ok(Vec::new());
         }
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let application = self
             .typed
             .machine_instantiation(machine.symbol)
@@ -2905,7 +2831,7 @@ impl<'t> Program<'t> {
         required: &[(SymbolHandle, semantic_vocabulary::ScalarType)],
         parameters: arena::RootRows<'_, crate::source_state::data::TypeParameter>,
     ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         if parameters.len() != required.len() {
             return Err(unserved(
                 "member and requirement have different value telescopes",
@@ -2943,11 +2869,7 @@ impl<'t> Program<'t> {
             .data_type_parameters
             .span_or_empty(requirement.type_parameters);
         if own.is_empty() != requirement.type_parameters.is_empty() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Machine("type parameter span"),
-            ));
+            return Err(refuse_at(id, Unserved::Machine("type parameter span")));
         }
         let mut parameters = Vec::new();
         if self.rigid
@@ -2974,7 +2896,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         requirement: &StateSignature,
     ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Machine(what)));
         let parameters = self.requirement_parameters(id, requirement)?;
         let mut binders = Vec::with_capacity(parameters.len());
         for parameter in parameters {
@@ -3007,9 +2929,8 @@ impl<'t> Program<'t> {
                 .nodes()
                 .is_valid(parameter.symbol)
             {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Spelling("value parameter without a symbol"),
                 ));
             }
@@ -3019,9 +2940,8 @@ impl<'t> Program<'t> {
                 semantic_vocabulary::ScalarType::Integer(_)
                     | semantic_vocabulary::ScalarType::Boolean
             ) {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Parameter("value parameter that is not an integer or a Boolean"),
                 ));
             }
@@ -3067,7 +2987,7 @@ impl<'t> Program<'t> {
         target: SymbolHandle,
     ) -> Checked<Signature> {
         use language_core::sealed_intrinsics::CompilerPrimitive;
-        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
+        let unavailable = |detail| refuse_at(id, Unserved::Call(detail));
         let Some((CompilerPrimitive::ByteObservation(_), _schema)) = self
             .typed
             .compiler_primitive_schema(target)
@@ -3194,7 +3114,7 @@ impl<'t> Program<'t> {
         Signature,
     )> {
         use language_core::sealed_intrinsics::CompilerPrimitive;
-        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
+        let unavailable = |detail| refuse_at(id, Unserved::Call(detail));
         let Some((CompilerPrimitive::PackedInteger(primitive), _schema)) = self
             .typed
             .compiler_primitive_schema(target)
@@ -3268,7 +3188,7 @@ impl<'t> Program<'t> {
     ) -> Checked<MachineId> {
         use crate::source_state::data::TypeParameterKind;
         use language_core::sealed_intrinsics::CompilerPrimitive;
-        let unavailable = |detail| refuse(caller, Construct::Machine, Unserved::Call(detail));
+        let unavailable = |detail| refuse_at(caller, Unserved::Call(detail));
         let Some((CompilerPrimitive::PackedInteger(primitive), _)) = self
             .typed
             .compiler_primitive_schema(target)
@@ -3289,7 +3209,7 @@ impl<'t> Program<'t> {
             }
         }
         let id = self.read_row(target, |program, id| {
-            let row_unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
+            let row_unavailable = |detail| refuse_at(id, Unserved::Call(detail));
             let Some((CompilerPrimitive::PackedInteger(primitive), _)) = program
                 .typed
                 .compiler_primitive_schema(target)
@@ -3438,7 +3358,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         target: SymbolHandle,
     ) -> Checked<Signature> {
-        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
+        let unavailable = |detail| refuse_at(id, Unserved::Call(detail));
         if self.typed.symbols.sealed_intrinsic(target)
             != Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
         {
@@ -3607,9 +3527,8 @@ impl<'t> Program<'t> {
             || !signature.native_callback_parameters.is_empty()
             || signature.spelling.is_some()
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Declaration(
                     "static requirement with unrepresented binders, defaults or callbacks",
                 ),
@@ -3799,7 +3718,7 @@ impl<'t> Program<'t> {
         declared: Declarer,
     ) -> Checked<(Signature, MachineNames)> {
         self.served(id, requirement.symbol)?;
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Machine(what)));
         if let Some(closed) = self
             .typed
             .closed_requirement_application(requirement.symbol)
@@ -3828,8 +3747,8 @@ impl<'t> Program<'t> {
                         Stop::Rejected(detail) => {
                             crate::reject(id, self.declared_at(requirement.symbol), detail)
                         }
-                        Stop::Unserved(reason) => super::services::unavailable(id, reason),
-                        Stop::Defect(reason) => super::services::unavailable(id, reason),
+                        Stop::Unserved(reason) => crate::read::unavailable(id, reason),
+                        Stop::Defect(reason) => crate::read::unavailable(id, reason),
                     }
                 })?;
             }
@@ -4042,13 +3961,8 @@ impl<'t> Program<'t> {
                 slot.value_type.declared().is_some() && !slot.erased && slot.borrowed.is_none()
             })
             .count();
-        let result_value = ValueId::new(scalar_formals as u64 + 1).ok_or_else(|| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("result identity"),
-            )
-        })?;
+        let result_value = ValueId::new(scalar_formals as u64 + 1)
+            .ok_or_else(|| refuse_at(id, Unserved::Contract("result identity")))?;
         // Requirements and crash guards describe invocation entry, so they
         // observe the inputs, a formal's fields and elements included;
         // guarantees choose owned inputs or borrowed completion storage in
@@ -4093,11 +4007,7 @@ impl<'t> Program<'t> {
         let mut crash_clauses = false;
         for contract in contracts {
             if contract.binding.is_some() {
-                return Err(refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Contract("result binding"),
-                ));
+                return Err(refuse_at(id, Unserved::Contract("result binding")));
             }
             let facts = span(
                 |span| typed.proof_facts.span(span),
@@ -4162,9 +4072,8 @@ impl<'t> Program<'t> {
                     read_ensures?;
                 }
                 SignatureContractKind::EnsuresForResultCase { .. } => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Contract("outcome-specific ensures"),
                     ));
                 }
@@ -4241,9 +4150,8 @@ impl<'t> Program<'t> {
             // Stage 01 rejects this header; refused here too rather than
             // trusted to have been.
             _ if declares_none => {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Contract("`crashes none` beside a `crashes Cause` clause"),
                 ));
             }
@@ -4274,9 +4182,8 @@ impl<'t> Program<'t> {
                 false,
             ) => CrashCeiling::Inferred,
             (Declarer::RuntimeCallable { .. }, false) => {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Contract("runtime callable with an open crash ceiling"),
                 ));
             }
@@ -4349,9 +4256,8 @@ impl<'t> Program<'t> {
             TerminationGuarantee::Terminates { premises } if premises.is_empty() => {
                 Ok(Termination::Promised)
             }
-            TerminationGuarantee::Terminates { .. } => Err(refuse(
+            TerminationGuarantee::Terminates { .. } => Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("requirement termination needs its actual progress premises"),
             )),
         }
@@ -4368,9 +4274,8 @@ impl<'t> Program<'t> {
                 // termination.md, "Opaque progress profiles": a premise
                 // attaches a provider's progress profile to a subject.
                 if !premises.is_empty() {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Contract("termination under a progress premise"),
                     ));
                 }
@@ -4448,9 +4353,8 @@ impl<'t> Program<'t> {
                     ));
                 }
                 Some(TypeTruth::Known(false)) => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Contract("type equation that is false for this application"),
                     ));
                 }
@@ -4467,16 +4371,14 @@ impl<'t> Program<'t> {
                     ));
                 }
                 Some(TypeTruth::Open) if requirement => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Contract("integer carrier premise that is not a conjunction"),
                     ));
                 }
                 Some(TypeTruth::Open) => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Contract(super::types::OPEN_CARRIER_FAMILY),
                     ));
                 }
@@ -4501,7 +4403,7 @@ impl<'t> Program<'t> {
         if self
             .source_scope
             .slice_application(self.typed, reference)
-            .map_err(|reason| refuse(machine, Construct::Machine, Unserved::Type(reason)))?
+            .map_err(|reason| refuse_at(machine, Unserved::Type(reason)))?
             .is_some()
         {
             Ok((reference, BorrowedReferent::Slice))
@@ -4552,18 +4454,13 @@ impl<'t> Program<'t> {
         formal: &StateParameter,
     ) -> Checked<(ValueType, bool, Option<crate::body::Borrowed>)> {
         if !formal.symbol.is_valid() {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Spelling("parameter without a symbol"),
             ));
         }
         if formal.is_const {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Parameter("const parameter"),
-            ));
+            return Err(refuse_at(id, Unserved::Parameter("const parameter")));
         }
         let reference = match formal.type_reference.is_valid().then(|| {
             self.typed
@@ -4591,8 +4488,7 @@ impl<'t> Program<'t> {
             }
             let value_type = self.value_type(id, formal.type_reference)?;
             if formal.is_mutable {
-                let unserved =
-                    |what| Err(refuse(id, Construct::Machine, Unserved::Parameter(what)));
+                let unserved = |what| Err(refuse_at(id, Unserved::Parameter(what)));
                 if erased {
                     return unserved("mutable erased parameter");
                 }
@@ -4601,9 +4497,8 @@ impl<'t> Program<'t> {
                 }
             }
             if erased && value_type.policy().is_some() {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Parameter("erased parameter of a policy-qualified type"),
                 ));
             }
@@ -4611,15 +4506,14 @@ impl<'t> Program<'t> {
             // the mathematical signature reads (`families`).
             let evidence = self.mathematical && self.family_of(value_type).is_some();
             if erased && value_type.scalar().is_none() && !evidence {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Parameter("erased parameter of a data type"),
                 ));
             }
             return Ok((value_type, erased, None));
         };
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Parameter(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Parameter(what)));
         if erased {
             return unserved("erased reference parameter");
         }
@@ -4677,11 +4571,7 @@ impl<'t> Program<'t> {
                 }))
                 .filter(|identity| !identity.is_empty())
                 .ok_or_else(|| {
-                    refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Spelling("referent type without an identity"),
-                    )
+                    refuse_at(id, Unserved::Spelling("referent type without an identity"))
                 })?,
             ),
         };
@@ -4691,9 +4581,8 @@ impl<'t> Program<'t> {
                 .region_tuple(value_type.regions())
                 .first()
                 .ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Parameter("view without its outer loan region"),
                     )
                 })?,
@@ -4717,9 +4606,8 @@ impl<'t> Program<'t> {
     /// must "use binders declared in the lexical owner").
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
         if self.type_purpose == super::storage_metadata::TypePurpose::StorageDescription {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Declaration("body admission after storage metadata"),
             ));
         }
@@ -4824,9 +4712,8 @@ impl<'t> Program<'t> {
             Some(_) => self.value_binders(id, machine)?,
         };
         if formals.len() + binders.len() != signature.parameters.len() {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Machine("formals that differ from the signature's"),
             ));
         }
@@ -4878,13 +4765,7 @@ impl<'t> Program<'t> {
         let ranking = self.ranking(id, machine, &slots)?;
         self.signatures
             .get_mut(id)
-            .ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Machine("missing signature"),
-                )
-            })?
+            .ok_or_else(|| refuse_at(id, Unserved::Machine("missing signature")))?
             .ranking = ranking;
         let statements = typed.statement_table.statements(state.statement_nodes);
         if let Some(names) = self.names.get_mut(id) {
@@ -4913,9 +4794,8 @@ impl<'t> Program<'t> {
             let handle = state
                 .statement_nodes
                 .handle_at(u32::try_from(position).map_err(|_| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Statement("statement position exceeds its source arena"),
                     )
                 })?);
@@ -4944,9 +4824,8 @@ impl<'t> Program<'t> {
                 continue;
             }
             if completed {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Completion("statement after an unconditional arm"),
                 ));
             }
@@ -4956,18 +4835,10 @@ impl<'t> Program<'t> {
             self.block_slot_base = slots.len();
             let read = match statement {
                 StatementNode::Assembly(_) => {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Statement("assembly"),
-                    ));
+                    return Err(refuse_at(id, Unserved::Statement("assembly")));
                 }
                 StatementNode::AssemblyFact(_) => {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Statement("assembly fact"),
-                    ));
+                    return Err(refuse_at(id, Unserved::Statement("assembly fact")));
                 }
                 StatementNode::Assignment(assignment) => self.assignment(id, &slots, assignment)?,
                 StatementNode::Call(call) => {
@@ -4977,11 +4848,7 @@ impl<'t> Program<'t> {
                         state
                             .statement_nodes
                             .handle_at(u32::try_from(position).map_err(|_| {
-                                refuse(
-                                    id,
-                                    Construct::Machine,
-                                    Unserved::Statement("statement coordinate overflows"),
-                                )
+                                refuse_at(id, Unserved::Statement("statement coordinate overflows"))
                             })?),
                     )?;
                     Statement::Evaluate {

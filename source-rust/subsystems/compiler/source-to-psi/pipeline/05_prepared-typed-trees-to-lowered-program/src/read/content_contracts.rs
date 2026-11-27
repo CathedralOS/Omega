@@ -1,18 +1,17 @@
 //! Read an authored equality over content projections before the terminal domain catalogue is allocated.
 use super::Program;
 use super::contracts::{ClauseScope, ResultTerm};
-use crate::body::{
-    ContentEquation, ProjectedContent, Qualification, StorageShape, ValueType,
-};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::body::{ContentEquation, ProjectedContent, Qualification, StorageShape, ValueType};
+use crate::read::refuse_at;
 use crate::source_state::domain::ProofFact;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use crate::source_state::types::TypeReferenceNode;
+use crate::{SourceOrigin, Unserved};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Step, ContentAlgebra, ContentPlaceSegment,
     ContentPlaceVersion, MachineId, StructuralTypeId,
 };
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 impl Program<'_> {
     pub(super) fn content_equation(
@@ -303,5 +302,5 @@ impl Program<'_> {
 }
 
 fn unavailable(id: MachineId, detail: &'static str) -> terminal_check_tables::Refusal {
-    refuse(id, Construct::Machine, Unserved::Contract(detail))
+    refuse_at(id, Unserved::Contract(detail))
 }

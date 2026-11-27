@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 A clause that calls a pure, total declaration can name the result even when
 the declaration has no body. The term records the selected operation, its
@@ -31,13 +32,13 @@ is refused, as is any recursion through unfolding.
 use crate::source_state::expression::TableCallExpression;
 use semantic_vocabulary::{MachineId, ScalarTerm, ScalarType, ValueId};
 use symbols::{SymbolHandle, SymbolKind};
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 use super::Program;
 use super::clause_terms::ClauseUse;
 use super::contracts::{ClauseScope, ResultTerm};
+use crate::Unserved;
 use crate::body::{Qualification, ValueType};
-use crate::{Unserved, refuse};
 
 /// A called machine prepared for unfolding: its parameter bindings, its body
 /// expression and its declared result.
@@ -85,9 +86,8 @@ impl Program<'_> {
         });
         let read = body(self);
         let unfolding = self.unfolding_calls.pop().ok_or_else(|| {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("called machine lost its unfolding scope"),
             )
         })?;
@@ -110,9 +110,8 @@ impl Program<'_> {
             .filter(|frame| frame.machine == owner)
         {
             let used = unfolding.used.get_mut(position).ok_or_else(|| {
-                refuse(
+                refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Contract("called machine argument is outside its unfolding scope"),
                 )
             })?;
@@ -127,7 +126,7 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         call: &TableCallExpression,
     ) -> Checked<UnfoldedCall> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Contract(what)));
         let machine = self.clause_call_machine(id, call)?;
         let typed = self.typed;
         let (declaration, state) = self.declaration(id, machine)?;
@@ -162,9 +161,8 @@ impl Program<'_> {
             }
             for fact in typed.proof_facts.span_or_empty(contract.facts) {
                 let expr = fact.as_expression().copied().ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Contract(
                             "called machine in a clause has a non-expression precondition",
                         ),
@@ -271,7 +269,7 @@ impl Program<'_> {
         id: MachineId,
         call: &TableCallExpression,
     ) -> Checked<SymbolHandle> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Contract(what)));
         if call.receiver.is_valid()
             || call.runtime_call.is_some()
             || !call.evidence_arguments.is_empty()
@@ -325,7 +323,7 @@ impl Program<'_> {
             &crate::source_state::state::State,
         ) -> Checked<R>,
     ) -> Checked<Unfolded<R>> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Contract(what)));
         let typed = self.typed;
         let (declaration, state) = self.declaration(id, machine)?;
         self.served(id, machine)?;
@@ -363,13 +361,8 @@ impl Program<'_> {
             if qualification != Qualification::NONE {
                 return unserved("called machine in a clause takes a qualified parameter");
             }
-            let formal = ValueId::new(position as u64 + 1).ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Contract("too many clause parameters"),
-                )
-            })?;
+            let formal = ValueId::new(position as u64 + 1)
+                .ok_or_else(|| refuse_at(id, Unserved::Contract("too many clause parameters")))?;
             bound.push((parameter.symbol, ScalarTerm::value(formal, scalar_type)));
         }
         Ok(Unfolded {
@@ -393,7 +386,7 @@ impl Program<'_> {
             .typed
             .expression_table
             .expression_handles(call.arguments);
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
         if arguments.len() != bound.len() {
             return Err(unserved(
                 "call in a clause with the wrong number of arguments",

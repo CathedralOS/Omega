@@ -96,6 +96,26 @@ use terminal_check_tables::{Checked, Construct};
 use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
 
+/// Refuses a construct of machine `machine` that the reader does not serve.
+/// Nearly every refusal in the reader concerns the whole machine, so this
+/// spares each site the `Construct::Machine` argument.
+pub(crate) fn refuse_at(machine: MachineId, unserved: Unserved) -> terminal_check_tables::Refusal {
+    refuse(machine, Construct::Machine, unserved)
+}
+
+/// Refuses machine `machine` with a detail that no `Unserved` family names.
+pub(crate) fn unavailable(
+    machine: MachineId,
+    detail: impl Into<String>,
+) -> terminal_check_tables::Refusal {
+    terminal_check_tables::Refusal {
+        reason: terminal_check_tables::RefusalReason::Unsupported,
+        site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
+        source_span: None,
+        detail: detail.into(),
+    }
+}
+
 /// One member of a complete static type partition. An opaque remainder
 /// excludes exactly the closed types checked by the other members, so an
 /// open classifier's fallback is checked without inventing runtime RTTI.
@@ -727,7 +747,7 @@ impl<'t> Program<'t> {
                             exact_toolchain_sources: self
                                 .shared
                                 .exact_toolchain_sources(self.typed)
-                                .map_err(|reason| services::unavailable(diagnostic, reason))?,
+                                .map_err(|reason| self::unavailable(diagnostic, reason))?,
                         },
                     )
                     .ok_or_else(|| {

@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 The reader's rejections: where it meets a program the specification says is
 wrong, as opposed to one it does not read yet.
@@ -49,12 +50,12 @@ naming nothing in `services`), through the same `crate::reject`.
 */
 
 use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerWidth, MachineId, ScalarType};
-use terminal_check_tables::{Construct, Refusal};
+use terminal_check_tables::Refusal;
 
 use super::Program;
 use super::regions::Region;
 use crate::body::{Policy, Qualification, ValueType};
-use crate::{SourceOrigin, Unserved, refuse, reject};
+use crate::{SourceOrigin, Unserved, reject};
 
 /// What a value is supplied to, for the rules above.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,7 +101,7 @@ impl Program<'_> {
         found: Option<ValueType>,
         unserved: &'static str,
     ) -> Refusal {
-        let refused = refuse(id, Construct::Machine, Unserved::Typing(unserved));
+        let refused = refuse_at(id, Unserved::Typing(unserved));
         let (Some(expected), Some(found)) = (expected, found) else {
             return refused;
         };
@@ -480,7 +481,9 @@ impl Program<'_> {
                         definition.name.as_str(),
                         arguments
                             .iter()
-                            .map(|argument| self.typed.display_type_reference_with_constraints(*argument))
+                            .map(|argument| self
+                                .typed
+                                .display_type_reference_with_constraints(*argument))
                             .collect::<Vec<_>>()
                             .join(", ")
                     ),

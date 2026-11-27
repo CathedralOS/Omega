@@ -1,5 +1,6 @@
 //! A transparent domain alias checks its constituent declarations, including
 //! dependencies that the package check would otherwise reach only at a use.
+use crate::read::refuse_at;
 
 use super::{Program, judged_where_used};
 use crate::source_state::domain::{
@@ -7,10 +8,10 @@ use crate::source_state::domain::{
     index_argument_is_closed,
 };
 use crate::source_state::type_identity::ExactOwnerTypeIdentityRequest;
-use crate::{Unserved, refuse, reject};
+use crate::{Unserved, reject};
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 #[derive(Clone, Copy)]
 pub(super) enum DomainForm {
@@ -35,7 +36,7 @@ impl<'source> Program<'source> {
             Finish(usize, SymbolHandle),
         }
         let typed = self.typed;
-        let unsupported = |reason| refuse(id, Construct::Machine, Unserved::Declaration(reason));
+        let unsupported = |reason| refuse_at(id, Unserved::Declaration(reason));
         let mut pending = vec![Visit::Read(domain)];
         let root = domain.symbol;
         while let Some(visit) = pending.pop() {
@@ -130,7 +131,7 @@ impl<'source> Program<'source> {
     ) -> Checked<&'source DomainDefinition> {
         let typed = self.typed;
         let at = self.declared_at(domain.symbol);
-        let unsupported = |reason| refuse(id, Construct::Machine, Unserved::Declaration(reason));
+        let unsupported = |reason| refuse_at(id, Unserved::Declaration(reason));
         let Some(member) = typed.domain_definition(constituent.domain_symbol) else {
             let path = typed
                 .domain_path_members(constituent.domain)

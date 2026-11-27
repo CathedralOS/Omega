@@ -1,5 +1,6 @@
 //! Calls compare complete source applications under their own const tuple.
 //! The generic body keeps its original symbolic inputs and storage geometry.
+use crate::read::refuse_at;
 
 use super::Program;
 use crate::body::ValueType;
@@ -44,8 +45,8 @@ impl Program<'_> {
 }
 
 use crate::body::{CallTarget, Expression, ExpressionKind};
-use crate::{SourceOrigin, Unserved, refuse};
 use crate::source_state::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
+use crate::{SourceOrigin, Unserved, refuse};
 use semantic_vocabulary::{MachineId, ScalarTerm, StructuralTypeId, ValueId};
 use terminal_check_tables::{Checked, Construct};
 
@@ -211,9 +212,8 @@ impl Program<'_> {
         };
         let Some(used) = self.nominal_const_inputs(expected_source, *callee) else {
             if !values.is_empty() {
-                return Err(refuse(
+                return Err(refuse_at(
                     caller,
-                    Construct::Machine,
                     Unserved::Call("nominal type has no complete const-input account"),
                 ));
             }
@@ -260,11 +260,7 @@ impl Program<'_> {
                 return Ok(None);
             };
             let scalar_type = value.result.and_then(ValueType::scalar).ok_or_else(|| {
-                refuse(
-                    caller,
-                    Construct::Machine,
-                    Unserved::Call("nominal index lost its scalar type"),
-                )
+                refuse_at(caller, Unserved::Call("nominal index lost its scalar type"))
             })?;
             let term = match value.kind {
                 ExpressionKind::Slot(slot) => {
@@ -282,9 +278,8 @@ impl Program<'_> {
                 }
                 ExpressionKind::Integer(value) => {
                     let semantic_vocabulary::ScalarType::Integer(scalar_type) = scalar_type else {
-                        return Err(refuse(
+                        return Err(refuse_at(
                             caller,
-                            Construct::Machine,
                             Unserved::Call("nominal integer index changed its carrier"),
                         ));
                     };
@@ -371,9 +366,8 @@ impl Program<'_> {
                     continue;
                 }
                 let semantic_vocabulary::InvocationSite::Operation(operation) = call.site else {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         call.machine,
-                        Construct::Machine,
                         Unserved::Call("nominal const call lost its operation coordinate"),
                     ));
                 };
@@ -477,9 +471,8 @@ impl Program<'_> {
             }
             if let Some(position) = consumed.iter().position(|consumed| !consumed) {
                 let source = &self.nominal_calls[position];
-                return Err(refuse(
+                return Err(refuse_at(
                     source.caller,
-                    Construct::Machine,
                     Unserved::Call("nominal call has no complete emitted type correspondence"),
                 )
                 .with_source_span(source.source.span()));

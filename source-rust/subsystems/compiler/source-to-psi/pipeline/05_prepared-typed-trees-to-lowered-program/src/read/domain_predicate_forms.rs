@@ -1,15 +1,16 @@
 //! An indexed domain must form for arbitrary const inputs, even when every
 //! use supplies the same literal. Only concrete applications publish domain
 //! predicates, whose sole value parameter in Psi is `self`.
+use crate::read::refuse_at;
 
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{PredicateDefinition, Program};
+use crate::Unserved;
 use crate::source_state::data::TypeParameterKind;
 use crate::source_state::domain::{DomainDefinition, ProofFact};
 use crate::source_state::references::collect_expression_references;
-use crate::{Unserved, refuse};
 use semantic_vocabulary::{MachineId, ScalarQualificationSetId, ScalarTerm, ValueId};
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 use terminal_psi::{MathematicalPredicateBody, ValueDeclaration};
 
 impl Program<'_> {
@@ -68,7 +69,7 @@ impl Program<'_> {
 
     pub(crate) fn form_domain_predicate(&mut self, domain: &DomainDefinition) -> Checked<()> {
         let id = MachineId::new(1).expect("one is nonzero");
-        let invalid = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
+        let invalid = |what| refuse_at(id, Unserved::Declaration(what));
         let typed = self.typed;
         self.served(id, domain.symbol)?;
         if !self.has_bound_scalar_predicate(id, domain) {

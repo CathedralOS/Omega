@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 Turns the mathematical declarations this reader has read into one kernel
 signature (`terminal_check_tables::mathematics`).
@@ -58,11 +59,11 @@ use terminal_check_tables::{Checked, Construct, Refusal};
 use super::Program;
 use super::families::{EvidenceUse, FamilyRecord, FamilyTerm, FamilyTheorem};
 use super::quotients::LiftedOperation;
+use crate::Unserved;
 use crate::body::{
     ArmGuard, Body, CallTarget, CaseSelector, Expression, ExpressionKind, Statement, Target,
     ValueType,
 };
-use crate::{Unserved, refuse};
 
 /// The trait requirement a mathematical machine satisfies, read at the
 /// trait's actual type arguments.
@@ -85,7 +86,7 @@ impl Program<'_> {
     /// trait's operations; the signature resolves each to its satisfier.
     pub(crate) fn satisfaction(&mut self, id: MachineId) -> Checked<Option<Satisfaction>> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let symbol = *self
             .symbols
             .get(id)
@@ -607,7 +608,7 @@ struct Integers<'e> {
 }
 
 fn unserved(id: MachineId, what: &'static str) -> Refusal {
-    refuse(id, Construct::Machine, Unserved::Machine(what))
+    refuse_at(id, Unserved::Machine(what))
 }
 
 /// The slot each slot of a body stands for, following every local bound to

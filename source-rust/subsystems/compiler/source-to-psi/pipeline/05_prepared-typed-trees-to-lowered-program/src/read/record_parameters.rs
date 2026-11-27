@@ -38,7 +38,7 @@ impl Program<'_> {
                     .iter()
                     .any(|declared| declared == parameter)
             {
-                return Err(super::services::unavailable(
+                return Err(crate::read::unavailable(
                     id,
                     "static record profile changed its original binder declaration",
                 ));
@@ -47,7 +47,7 @@ impl Program<'_> {
             let mut scope = owner;
             while scope != known.account.owner {
                 if !scope.is_valid() || !typed.symbols.symbols().nodes().is_valid(scope) {
-                    return Err(super::services::unavailable(
+                    return Err(crate::read::unavailable(
                         id,
                         "static record profile is outside its actual lexical context",
                     ));
@@ -58,12 +58,12 @@ impl Program<'_> {
         }
         let Some(root) = typed
             .static_record_parameter_schema(owner, parameter.symbol)
-            .map_err(|reason| super::services::unavailable(id, reason))?
+            .map_err(|reason| crate::read::unavailable(id, reason))?
         else {
             return Ok(false);
         };
         if parameter.bounds != crate::source_state::data::DataProperties::default() {
-            return Err(super::services::unavailable(
+            return Err(crate::read::unavailable(
                 id,
                 "static record parameter needs its complete declared storage and multiplicity obligations",
             ));
@@ -76,8 +76,7 @@ impl Program<'_> {
                 .filter(|identity| !identity.is_empty())
                 .ok_or("static record schema lost its complete application identity")
         };
-        let application =
-            identity(&root).map_err(|reason| super::services::unavailable(id, reason))?;
+        let application = identity(&root).map_err(|reason| crate::read::unavailable(id, reason))?;
         let mut members = Vec::<StaticRecordMember>::new();
         let mut signatures = Vec::<StateSignature>::new();
         root.try_visit(typed, &mut |scope: &AppliedTraitScope<'_>| -> Result<(), &'static str> {
@@ -106,7 +105,7 @@ impl Program<'_> {
                 signatures.push(signature.clone());
             }
             Ok(())
-        }).map_err(|reason| super::services::unavailable(id, reason))?;
+        }).map_err(|reason| crate::read::unavailable(id, reason))?;
         self.static_contracts
             .insert_record_binding(
                 root.declaration.symbol,
@@ -120,7 +119,7 @@ impl Program<'_> {
                     signatures,
                 },
             )
-            .map_err(|reason| super::services::unavailable(id, reason))?;
+            .map_err(|reason| crate::read::unavailable(id, reason))?;
         Ok(true)
     }
 
@@ -143,7 +142,7 @@ impl Program<'_> {
             .iter()
             .position(|member| member.requirement == origin)
             .ok_or_else(|| {
-                super::services::unavailable(
+                crate::read::unavailable(
                     id,
                     "const record call is outside its exact requirement roster",
                 )
@@ -151,18 +150,18 @@ impl Program<'_> {
         if !self
             .typed
             .declaration_type_parameters(*self.symbols.get(id).ok_or_else(|| {
-                super::services::unavailable(id, "const record caller has no source declaration")
+                crate::read::unavailable(id, "const record caller has no source declaration")
             })?)
             .iter()
             .any(|parameter| parameter.symbol == receiver)
         {
-            return Err(super::services::unavailable(
+            return Err(crate::read::unavailable(
                 id,
                 "const record receiver is outside the caller's retained telescope",
             ));
         }
         let signature = binding.signatures.get(position).ok_or_else(|| {
-            super::services::unavailable(id, "const record requirement lost its prepared signature")
+            crate::read::unavailable(id, "const record requirement lost its prepared signature")
         })?;
         if signature.symbol != target {
             // A receiver can name the original requirement or its prepared
@@ -171,7 +170,7 @@ impl Program<'_> {
             let exact = self
                 .typed
                 .static_record_bound_requirement(binding.account.owner, receiver, target)
-                .map_err(|reason| super::services::unavailable(id, reason))?;
+                .map_err(|reason| crate::read::unavailable(id, reason))?;
             let same_member = exact.is_some_and(|required| {
                 required.signature.symbol == signature.symbol
                     || self
@@ -187,7 +186,7 @@ impl Program<'_> {
                         })
             });
             if !same_member {
-                return Err(super::services::unavailable(
+                return Err(crate::read::unavailable(
                     id,
                     "const record call has an unrepresented local requirement application",
                 ));
@@ -246,7 +245,7 @@ impl Program<'_> {
             .record_binding_mut(receiver)
             .and_then(|binding| binding.account.members.get_mut(position))
             .ok_or_else(|| {
-                super::services::unavailable(id, "const record requirement lost its owning binder")
+                crate::read::unavailable(id, "const record requirement lost its owning binder")
             })?;
         member.instances.push(StaticRecordRequirementInstance {
             machine: id,
@@ -270,7 +269,7 @@ impl Program<'_> {
         )>,
     > {
         let owner = *self.symbols.get(id).ok_or_else(|| {
-            super::services::unavailable(id, "selected record has no actual source caller")
+            crate::read::unavailable(id, "selected record has no actual source caller")
         })?;
         self.typed
             .source_call_record_operand(
@@ -280,7 +279,7 @@ impl Program<'_> {
                 selected_supplier,
                 self.shared
                     .exact_toolchain_sources(self.typed)
-                    .map_err(|reason| super::services::unavailable(id, reason))?,
+                    .map_err(|reason| crate::read::unavailable(id, reason))?,
             )
             .map(|record| {
                 record.map(|record| {
@@ -294,7 +293,7 @@ impl Program<'_> {
                     )
                 })
             })
-            .map_err(|reason| super::services::unavailable(id, &reason))
+            .map_err(|reason| crate::read::unavailable(id, &reason))
     }
 }
 
