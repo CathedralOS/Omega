@@ -12,9 +12,6 @@ use crate::{Signature, callables::CallableNamespace, declare::boundaries::Bounda
 
 pub use terminal_check_tables::contracts::ExternalProviderCandidate;
 
-#[cfg(any(test, feature = "test-support"))]
-pub type ProviderContractHeader = crate::callables::headers::CallableHeader;
-
 #[derive(Debug, Clone)]
 pub(crate) struct ProviderOwnerSource {
     pub nominal: SymbolHandle,

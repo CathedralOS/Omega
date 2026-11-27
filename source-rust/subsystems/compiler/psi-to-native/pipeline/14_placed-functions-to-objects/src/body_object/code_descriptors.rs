@@ -135,7 +135,6 @@ pub fn place(
             offset: data_offset,
             size: byte_count,
             kind: SymbolKind::Object,
-            import_library: String::new(),
         });
         descriptors.push(ObjectCodeDescriptor {
             source,

@@ -195,14 +195,6 @@ pub(crate) mod tables {
 
 #[cfg(any(test, feature = "test-support"))]
 pub use lowerer::lower_symbol_resolved_trees;
-#[cfg(any(test, feature = "test-support"))]
-pub use lowerer::seeded_continuation::{
-    SeededContinuationError, SeededTypingBase, lower_seeded_extension,
-    lower_symbol_resolved_trees_to_seeded_base,
-};
-#[cfg(not(any(test, feature = "test-support")))]
 pub use lowerer::seeded_continuation::{
     SeededTypingBase, lower_symbol_resolved_trees_to_seeded_base,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use types::access_borrow_factory::{access_borrow_factory, access_borrow_factory_of};

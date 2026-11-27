@@ -7,29 +7,23 @@ We group the emitted call evidence into six subordinate modules:
 2. `callbacks` — symbolic materializations of compiler-private callback addresses (`CallbackAddressMaterialization`).
 3. `fixups` — row-relative unresolved internal-machine and normalized-foreign call fields
    (`SelectedFormInternalMachineFixup`, `SelectedFormNormalizedForeignCallFixup`).
-4. `foreign` — normalized foreign call relocations (`ForeignCallRelocation`) and per-call
-   MXCSR/FPCR floating-control preservation (`ForeignCallFloatingControlRecord`).
-5. `internal` — internal Unit and scalar call records (`InternalUnitCallRecord`,
-   `InternalUnitScalarCallRecord`, `InstalledProviderUnitScalarCallRecord`).
-6. `results` — durable scalar result homes (`ForeignCallScalarResultRecord`) and structural return
-   ownership (`StructuralReturnRecord`).
+4. `foreign` — per-call MXCSR/FPCR floating-control preservation
+   (`ForeignCallFloatingControlRecord`).
+5. `internal` — internal Unit call records (`InternalUnitCallRecord`).
+6. `results` — durable scalar result homes (`ForeignCallScalarResultRecord`).
 */
 
-use crate::{
-    ScalarCallStackEvidence, UnitCallStackEvidence, UnitScalarHomeRecord,
-    UnitScalarParameterLocationRecord,
-};
-use calling_conventions::{CallPlan, ValuePlacement, ValueShape};
+use crate::{UnitScalarHomeRecord, UnitScalarParameterLocationRecord};
+use calling_conventions::{ValuePlacement, ValueShape};
 use operation_operands::values::AbstractResult;
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId,
+    BlockId, BoundaryMachineId, ClaimId, IntegerType, IntegerValue, MachineId, OperationId,
     PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use target_vocabulary::CallSiteOwner;
 use terminal_psi::{
-    ClaimTransfer, CompletionReceipt, ProviderCandidateConformance, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration,
+    ClaimTransfer, CompletionReceipt, ProviderCandidateConformance, StructuralPathSegment,
+    StructuralResultDeclaration,
 };
 
 pub mod arguments {
@@ -164,15 +158,6 @@ pub mod arguments {
         pub code_offset: usize,
         pub byte_count: usize,
     }
-}
-
-#[macro_export]
-macro_rules! internal_arg_source_triple_pattern {
-    ($($fields:tt)*) => {
-        $crate::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { $($fields)* }
-            | $crate::InternalUnitScalarArgumentSourceRecord::SelectedCall { $($fields)* }
-            | $crate::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { $($fields)* }
-    };
 }
 
 pub mod callbacks {
@@ -375,30 +360,6 @@ pub mod fixups {
 }
 
 pub mod foreign {
-    use super::*;
-    use crate::{
-        CallbackAddressMaterialization, ExternalExecutionRecord, ForeignCallScalarArgumentRecord,
-        ForeignCallScalarResultRecord,
-    };
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct ForeignCallRelocation {
-        pub owner: CallSiteOwner,
-        pub operation_ordinal: usize,
-        pub offset: usize,
-        pub locator: target::NormalizedForeignLocator,
-        pub provider_execution: ExternalExecutionRecord,
-        pub boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
-        pub call_plan: calling_conventions::CallPlan,
-        pub scalar_arguments: Vec<ForeignCallScalarArgumentRecord>,
-        pub callback_addresses: Vec<CallbackAddressMaterialization>,
-        pub scalar_result: Option<ForeignCallScalarResultRecord>,
-        pub x86_floating_control: Option<ForeignCallFloatingControlRecord>,
-        pub aarch64_floating_control: Option<ForeignCallFloatingControlRecord>,
-        pub unit_stack: UnitCallStackEvidence,
-        pub same_stack_contribution: provider_stack_contribution::AdmittedSameStackContribution,
-    }
-
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ForeignCallFloatingControlRecord {
         pub target: target::NativeTarget,
@@ -412,28 +373,7 @@ pub mod foreign {
 
 pub mod internal {
     use super::*;
-    use crate::{
-        InternalUnitCallArgumentRecord, InternalUnitScalarCallArgumentRecord,
-        InternalUnitScalarCallResultRecord,
-    };
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct StructuralCallScalarReturnEvidence {
-        pub psi_edge: EdgeId,
-        pub psi_operation: OperationId,
-        pub source_value: ValueId,
-        pub scalar_type: ScalarType,
-        pub callee: MachineId,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct InternalCallRelocation {
-        pub owner: CallSiteOwner,
-        pub target: MachineId,
-        pub unit_stack: Option<UnitCallStackEvidence>,
-        pub scalar_stack: Option<ScalarCallStackEvidence>,
-        pub offset: usize,
-    }
+    use crate::{InternalUnitCallArgumentRecord, InternalUnitScalarCallArgumentRecord};
 
     pub fn unit_call_arguments(
         calls: &[InternalUnitCallRecord],
@@ -477,34 +417,6 @@ pub mod internal {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct InternalUnitScalarCallRecord {
-        pub owner: CallSiteOwner,
-        pub target: MachineId,
-        pub call_plan: CallPlan,
-        pub result: InternalUnitScalarCallResultRecord,
-        pub arguments: Vec<InternalUnitScalarCallArgumentRecord>,
-        pub operation_ordinal: usize,
-        pub code_offset: usize,
-        pub byte_count: usize,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct InstalledProviderUnitScalarCallRecord {
-        pub owner: CallSiteOwner,
-        pub boundary: BoundaryMachineId,
-        pub provider: ProviderCandidateConformance,
-        pub call_plan: CallPlan,
-        pub arguments: Vec<InternalUnitScalarCallArgumentRecord>,
-        pub source_arguments: Vec<StructuralArgument>,
-        pub claim_transfers: Vec<ClaimTransfer>,
-        pub completion_claim_sources: Vec<target_vocabulary::CompletionClaimSource>,
-        pub completion_receipts: Vec<CompletionReceipt>,
-        pub operation_ordinal: usize,
-        pub code_offset: usize,
-        pub byte_count: usize,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum InternalUnitCallSource {
         ProgramEntry {
             boundary: BoundaryMachineId,
@@ -534,30 +446,6 @@ pub mod results {
         pub code_offset: usize,
         pub byte_count: usize,
     }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct StructuralReturnRecord {
-        pub psi_edge: EdgeId,
-        pub scalar_parameters: Vec<target_vocabulary::ScalarAbiValue>,
-        pub parameters: Vec<StructuralParameterDeclaration>,
-        pub parameter_placements: Vec<ValuePlacement>,
-        pub source: StructuralParameterDeclaration,
-        pub result: StructuralResultDeclaration,
-        pub shape: ValueShape,
-        pub source_placement: ValuePlacement,
-        pub result_placement: ValuePlacement,
-        pub returned_claims: Vec<ClaimId>,
-        pub trivial_affine_locals: Vec<(
-            OperationId,
-            StructuralPlaceDeclaration,
-            StructuralTypeDeclaration,
-        )>,
-        pub trivial_affine_discards: Vec<PlaceId>,
-        pub code_offset: usize,
-        pub byte_count: usize,
-    }
-
-    pub type InternalUnitScalarCallResultRecord = ForeignCallScalarResultRecord;
 }
 
 pub use arguments::{
@@ -574,12 +462,9 @@ pub use fixups::{
     SelectedFormInternalMachineFixupState, SelectedFormNormalizedForeignCallFixup,
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
-pub use foreign::{ForeignCallFloatingControlRecord, ForeignCallRelocation};
+pub use foreign::ForeignCallFloatingControlRecord;
 pub use internal::{
-    InstalledProviderUnitScalarCallRecord, InternalCallRelocation, InternalStructuralCallResult,
-    InternalUnitCallRecord, InternalUnitCallSource, InternalUnitScalarCallRecord,
-    StructuralCallScalarReturnEvidence, unit_call_arguments,
+    InternalStructuralCallResult, InternalUnitCallRecord, InternalUnitCallSource,
+    unit_call_arguments,
 };
-pub use results::{
-    ForeignCallScalarResultRecord, InternalUnitScalarCallResultRecord, StructuralReturnRecord,
-};
+pub use results::ForeignCallScalarResultRecord;

@@ -40,30 +40,6 @@ impl std::fmt::Display for RelativeBranchError {
 
 impl std::error::Error for RelativeBranchError {}
 
-/// Validate the carried branch obligations against the current framed bytes.
-/// The input contains no earlier fragment plan or executable source graph.
-pub(super) fn validate_current_relative_branch_rows<'a>(
-    fragments: &FunctionFragmentEmissionPlan,
-    origins: &[FunctionFrameBranchOrigins],
-    machine: MachineId,
-    candidates: impl IntoIterator<Item = &'a FunctionFragmentInstructionSpan>,
-) -> Result<Vec<SelectedInstructionId>, RelativeBranchError> {
-    let mut checked = Vec::new();
-    validate_rows(
-        fragments,
-        origins,
-        machine,
-        candidates,
-        |row| Some(&row.bytes),
-        |row, _| {
-            checked.push(row.instruction);
-            Ok(())
-        },
-    )?;
-    checked.sort_unstable();
-    Ok(checked)
-}
-
 /// Instruction identities and exact bytes proven to branch within this function.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedFunctionBranches {

@@ -16,7 +16,6 @@ use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
 use crate::digest_encoder::DomainDigestEncoder;
 use crate::native_artifact::boundary_application_coverage_identity;
-use crate::physical::PhysicalEvidencePass;
 use crate::physical::derivation::foreign_calls::derive_normalized_foreign_child;
 use crate::physical::derivation::hashing::{
     hash_callback_relocation, hash_machine_function_identity, hash_object_symbol,
@@ -52,14 +51,17 @@ use target_vocabulary::CallSiteOwner;
 use terminal_psi::OperationKind;
 use terminal_psi::Terminator;
 
-pub(crate) enum NativePhysicalEvidenceDerivation {
+/// What an audit derives from an artifact's emitted bytes: no evidence for an
+/// unavailable scope, complete evidence, or the gap that blocks it.
+#[derive(Debug)]
+pub enum NativePhysicalEvidenceDerivation {
     Unavailable,
     Complete(NativePhysicalEvidence),
     Blocked(NativePhysicalEvidenceGap),
 }
 
 impl NativePhysicalEvidenceDerivation {
-    pub(crate) fn split(
+    pub fn split(
         self,
     ) -> (
         Option<NativePhysicalEvidence>,
@@ -81,7 +83,6 @@ fn blocked(subject: NativePhysicalEvidenceGapSubject) -> NativePhysicalEvidenceD
 }
 
 pub(crate) fn derive_physical_evidence(
-    pass: PhysicalEvidencePass,
     scope: &NativePhysicalEvidenceScope,
     terminal_artifact: terminal_codec::TerminalExecutionView<'_>,
     target: NativeTarget,
@@ -97,7 +98,6 @@ pub(crate) fn derive_physical_evidence(
 ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
     originals.require_roster(object)?;
     derive_object_physical_evidence(
-        pass,
         scope,
         terminal_artifact,
         target,
@@ -115,7 +115,6 @@ pub(crate) fn derive_physical_evidence(
 }
 
 fn derive_object_physical_evidence(
-    pass: PhysicalEvidencePass,
     scope: &NativePhysicalEvidenceScope,
     terminal_artifact: terminal_codec::TerminalExecutionView<'_>,
     target: NativeTarget,
@@ -137,7 +136,7 @@ fn derive_object_physical_evidence(
         && let Some(publication) = optimized.fragment_publication()
     {
         publication.validate_object(object)?;
-        pass.verify(|| publication.replay_foreign_call_custody(object))?;
+        publication.replay_foreign_call_custody(object)?;
     }
     let module = terminal_artifact.module();
     // Physical homes retain the selected record geometry from lowering. Replay
@@ -335,7 +334,6 @@ fn derive_object_physical_evidence(
                     .ok_or("native binding cannot supply a builtin or provider-only settlement")?;
                 if let Some(builtin) = hosted_builtin_settlement(&installed.settlement) {
                     children.push(derive_hosted_builtin_child(
-                        pass,
                         builtin,
                         occurrence,
                         projection.identity(),
@@ -347,7 +345,6 @@ fn derive_object_physical_evidence(
                         installed,
                     )?);
                 } else if let Some(child) = derive_admitted_provider_settlement_child(
-                    pass,
                     module,
                     object,
                     image,
@@ -371,7 +368,6 @@ fn derive_object_physical_evidence(
             }
             (None, Some(foreign)) => {
                 let Some(child) = derive_normalized_foreign_child(
-                    pass,
                     &result_geometry,
                     occurrence,
                     projection.identity(),
@@ -400,7 +396,6 @@ fn derive_object_physical_evidence(
             }
             (None, None) => {
                 if let Some(child) = derive_boundary_internal_call_child(
-                    pass,
                     module,
                     object,
                     image,
@@ -467,7 +462,6 @@ fn derive_object_physical_evidence(
             return Err("D29 physical occurrence does not rejoin one realization companion");
         };
         let Some(span) = derive_operator_physical_span(
-            pass,
             occurrence,
             realization.realization(),
             module,
@@ -530,7 +524,6 @@ fn derive_object_physical_evidence(
             &private.body,
         )?;
         let derived = derive_object_physical_evidence(
-            pass,
             &scope,
             source.view(),
             target,

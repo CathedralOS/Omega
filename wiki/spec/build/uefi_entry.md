@@ -36,10 +36,10 @@ a firmware-specific intrinsic.
 
 The UEFI x64 profile's physical `UefiPhysicalEntry::enter` accepts the platform's
 image handle and system-table occurrence and returns `EfiStatus` under
-the UEFI x64 convention and its exact selected calling policy. Its separate
-semantic `ProgramStorageEntry::enter`
-introduces exactly two `Extent in Granted` occurrences: image and initial
-storage. Neither requirement replaces or refines the other.
+the UEFI x64 convention and its exact selected calling policy. The adapter supplies two `Extent in Granted` occurrences, image and initial
+storage, to the selected semantic entry. The OS handoff uses
+`ProgramStorageEntry::enter`. A [returning application](#returning-application-versus-os-handoff)
+also receives a borrow of the live console output protocol.
 
 A generated physical shell invokes the exact source-authored target bootstrap
 adapter. The adapter validates arrival, installs lifecycle-scoped providers, obtains
@@ -65,7 +65,8 @@ operations and within its firmware phase. Each protected domain uses
 physical requirement permits the `UefiBootServices` reach. Allocating or
 freeing pages, reading the firmware memory map, and exiting Boot Services each
 publish that reach. The adapter’s synchronous handoff to the
-Build-bound continuation contributes `invokes ProgramStorageEntry`. Calls to
+Build-bound continuation contributes `invokes UefiApplicationEntry` for a
+returning application or `invokes ProgramStorageEntry` for the OS handoff. Calls to
 outbound firmware and grant providers contribute their published effect rows. [Initial-call authority](../resources/authority.md#initial-call-authority)
 
 Firmware supplies the image handle for this invocation. The selected Loaded Image
@@ -80,7 +81,7 @@ phase, schema, calling plan, continuation and receipts.
 
 Before introducing either complete root, the checked adapter proves that both
 ranges fit their backing, are disjoint and exclude the live stack and retained
-state. It then forwards both grants to `ProgramStorageEntry::enter`. Failure
+state. It then forwards both grants to the selected semantic entry. Failure
 before installation calls no continuation and returns all moved bootstrap inputs.
 Target result mapping specifies recoverable bootstrap errors; normal Unit return maps to success. Crash, trap, or abort
 does not manufacture a returning status result.
@@ -106,6 +107,8 @@ to privately provisioned Omega storage while retaining firmware return state
 for a returning profile. Numeric totals from a different invocation or private
 firmware ledger cannot replace that exact evidence.
 
+<a id="returning-uefi-firmware-services"></a>
+
 ## Returning application versus OS handoff
 
 A returning `UefiApplication` keeps Boot Services live, reclaims adapter-owned
@@ -114,7 +117,28 @@ handoff is non-returning and has a different lifecycle, despite sharing the
 physical calling convention. One cannot be inferred from the other's Unit
 source signature.
 
-An ordinary source-authored adapter implements the bounded linear
+The target owns the returning application's entry contract:
+
+```omega
+public boundary trait UefiApplicationEntry {
+    machine enter(
+        image: Extent in Granted,
+        initial_storage: Extent in Granted,
+        console_output: @EfiTextOutputProtocol
+    ) reaches |process|::StandardOutput
+      crashes Trap crashes Abort;
+}
+```
+
+The adapter obtains `ConsoleOut` from the invocation's system table. UEFI
+spells the protocol pointer `EFI_SYSTEM_TABLE.ConOut`. The separate
+`ConsoleOutHandle` field names the device handle. The adapter calls
+`UefiApplicationEntry::enter(image, initial_storage, console_output)` and
+lends the protocol for that call within its valid firmware phase. Build
+selects the output operation. The application supplies the live receiver
+when it calls `TextOutput::output_string(console_output, @message)`.
+
+For an OS handoff, an ordinary source-authored adapter implements the bounded linear
 `GetMemoryMap`/`ExitBootServices` cycle under the selected target/provider contract:
 
 1. Acquire explicit map-buffer storage and retain allocations, Boot Services,

@@ -3,8 +3,7 @@
 //! type alone performs no conversion. The slice covers all `N` elements of the
 //! same backing, and its length comes from the array type.
 //!
-//! See `OWNER_QUESTIONS.md`, "Explicit casts between slices and fixed-array
-//! references", and `wiki/spec/layouts/recasts.md`.
+//! See `wiki/spec/layouts/recasts.md`, "Slices and fixed-array references".
 
 #[path = "support/observations.rs"]
 mod observations;

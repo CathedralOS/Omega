@@ -31,7 +31,6 @@ pub(super) fn place(
         offset: text_offset,
         size: pool_bytes.len(),
         kind: SymbolKind::Object,
-        import_library: String::new(),
     });
     text_bytes.extend_from_slice(&pool_bytes);
     Ok(Some(ObjectByteLiteralPool {

@@ -11,7 +11,6 @@ pub(crate) mod imports {
     use crate::dyld_linking::write_uleb128;
     use crate::file_layout::layout::align_to;
     use crate::isa::MachoIsa;
-    use calling_conventions::{DARWIN_LIBOBJC_PATH, darwin_import_library};
     use diagnostics::Diagnostic;
     use image::{
         FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegionOrigin, FinalImage,
@@ -43,7 +42,6 @@ pub(crate) mod imports {
         symbol: String,
         bind_symbol: Vec<u8>,
         library: Vec<u8>,
-        legacy_objc_registration: bool,
     }
 
     fn ensure_dylib(dylibs: &mut Vec<MachoDylib>, path: &[u8]) {
@@ -54,14 +52,8 @@ pub(crate) mod imports {
 
     fn plan_dylibs(imports: &[PreparedMachoImport]) -> Result<Vec<MachoDylib>, Diagnostic> {
         let mut dylibs = vec![MachoDylib::LIBSYSTEM];
-        let uses_legacy_objc = imports.iter().any(|import| import.legacy_objc_registration);
         for import in imports {
             ensure_dylib(&mut dylibs, &import.library);
-        }
-        if uses_legacy_objc {
-            ensure_dylib(&mut dylibs, MachoDylib::FOUNDATION.path.as_ref());
-            ensure_dylib(&mut dylibs, MachoDylib::APPKIT.path.as_ref());
-            ensure_dylib(&mut dylibs, MachoDylib::COREGRAPHICS.path.as_ref());
         }
         if dylibs.len() > 15 {
             return Err(Diagnostic::error(format!(
@@ -112,18 +104,7 @@ pub(crate) mod imports {
                     symbol.name
                 )));
             }
-            let (library, bind_symbol, legacy_objc_registration) = match &import.import {
-                FinalImageImportPlan::StringBackedBootstrap { .. } => {
-                    let library = darwin_import_library(&symbol.name).as_bytes().to_vec();
-                    if symbol.name.is_empty() || symbol.name.as_bytes().contains(&0) {
-                        return Err(Diagnostic::error(format!(
-                            "Mach-O bootstrap import `{}` lacks a canonical library/symbol spelling",
-                            symbol.name
-                        )));
-                    }
-                    let uses_objc = library == DARWIN_LIBOBJC_PATH.as_bytes();
-                    (library, symbol.name.as_bytes().to_vec(), uses_objc)
-                }
+            let (library, bind_symbol) = match &import.import {
                 FinalImageImportPlan::Normalized(locator) => {
                     let (library, binding_symbol) = match locator {
                         NormalizedImportLocator::Foreign(foreign) => {
@@ -171,7 +152,7 @@ pub(crate) mod imports {
                         )));
                     }
                     normalized_imports.push((import.symbol_handle, locator.clone()));
-                    (library, binding_symbol, false)
+                    (library, binding_symbol)
                 }
                 FinalImageImportPlan::None => {
                     return Err(Diagnostic::error(format!(
@@ -186,7 +167,6 @@ pub(crate) mod imports {
                     symbol: symbol.name.clone(),
                     bind_symbol,
                     library,
-                    legacy_objc_registration,
                 });
             }
         }
@@ -465,11 +445,22 @@ pub(crate) mod imports {
                 kind: SymbolKind::Import,
                 ..FinalImageSymbol::default()
             });
+            let profile = if image.target == NativeTarget::macos_x64() {
+                TargetProfile::MacosX64
+            } else {
+                TargetProfile::MacosArm64
+            };
+            let locator = normalize_foreign_locator(
+                ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
+                    symbol: b"_write".to_vec(),
+                },
+                profile,
+            )
+            .expect("valid libSystem locator");
             image.symbol_table.imports.insert(FinalImageImport {
                 symbol_handle: symbol,
-                import: FinalImageImportPlan::StringBackedBootstrap {
-                    library: "/usr/lib/libSystem.B.dylib".into(),
-                },
+                import: FinalImageImportPlan::Normalized(locator.into()),
             });
             image::test_support::install_imports(image);
             image
@@ -550,7 +541,7 @@ pub(crate) mod imports {
             let mut image = image_with_referenced_import();
 
             let imports = install_import_thunks(&mut image, MachoIsa::Aarch64)
-                .expect("valid bootstrap import");
+                .expect("valid libSystem import");
             patch_test_thunks(&mut image, &imports.thunks);
             validate_import_thunk_footprints(&image, &imports.thunks)
                 .expect("patched Mach-O thunk bytes should validate");
@@ -578,7 +569,7 @@ pub(crate) mod imports {
         fn mutated_import_thunk_opcode_rejects_final_validation() {
             let mut image = image_with_referenced_import();
             let imports = install_import_thunks(&mut image, MachoIsa::Aarch64)
-                .expect("valid bootstrap import");
+                .expect("valid libSystem import");
             patch_test_thunks(&mut image, &imports.thunks);
             image.memory.text[9] = 0;
 
@@ -594,7 +585,7 @@ pub(crate) mod imports {
             insert_write_import(&mut image);
 
             let imports = install_import_thunks(&mut image, MachoIsa::X86_64)
-                .expect("valid x86-64 bootstrap import");
+                .expect("valid x86-64 libSystem import");
             assert_eq!(imports.thunks.len(), 1);
             assert_eq!(image.executable_regions[0].byte_count, 6);
             assert_eq!(image.memory.text.len(), 6);
@@ -624,7 +615,7 @@ pub(crate) mod imports {
                 crate::test_support::image(NativeTarget::macos_x64(), Default::default());
             insert_write_import(&mut image);
             let imports = install_import_thunks(&mut image, MachoIsa::X86_64)
-                .expect("valid x86-64 bootstrap import");
+                .expect("valid x86-64 libSystem import");
             patch_import_thunks(&mut image, &TEST_LAYOUT, &imports.thunks).expect("patch");
             image.memory.text[0] = 0xff;
             image.memory.text[1] = 0x24;
@@ -1426,7 +1417,7 @@ pub(crate) mod loader_fixups {
         rebases.sort_unstable_by_key(|pointer| pointer.data_offset);
         let mut imported_locations = Vec::new();
         let mut data_end = object_data_bytes;
-        for (handle, symbol) in referenced_imports() {
+        for (handle, _) in referenced_imports() {
             let mut locators = object
                 .layout
                 .normalized_imports
@@ -1458,12 +1449,7 @@ pub(crate) mod loader_fixups {
                     ),
                 }
             } else {
-                (
-                    std::borrow::Cow::Borrowed(
-                        calling_conventions::darwin_import_library(&symbol.name).as_bytes(),
-                    ),
-                    std::borrow::Cow::Borrowed(symbol.name.as_bytes()),
-                )
+                return Err(invalid());
             };
             let data_offset = data_end.checked_add(7).ok_or_else(invalid)? & !7;
             data_end = data_offset.checked_add(8).ok_or_else(invalid)?;

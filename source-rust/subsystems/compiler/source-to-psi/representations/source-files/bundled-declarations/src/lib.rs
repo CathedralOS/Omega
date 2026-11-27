@@ -1,6 +1,6 @@
 //! Exact library bytes used to recognize declarations after source admission
 //! establishes toolchain ownership.
-use language_core::bundled_files::BundledFile;
+use language_core::bundled_files::{BuildCompanionFile, BundledFile};
 
 pub mod core_vocabulary;
 pub mod sealed_intrinsics;
@@ -26,20 +26,20 @@ pub fn recognize_core_file(relative_path: &std::path::Path, source: &[u8]) -> Op
     (bytes(file) == source).then_some(file)
 }
 
-/// Exact installed declarations for the Build interpreter’s designated standard streams.
-pub const BUILD_STREAMS: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../../../source/library/core/sandbox/streams.omg"
-));
-
-/// Host recognition first checks the installed Build-file origin and path.
-pub const BUILD_PROGRAM: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../../../source/library/build/program.omg"
-));
-
-/// A Build may bind this requirement only in the installed system package.
-pub const SYSTEM_FILESYSTEM: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../../../source/library/system/filesystem.omg"
-));
+/// Exact installed bytes of a Build companion file.
+pub const fn build_companion_bytes(file: BuildCompanionFile) -> &'static [u8] {
+    match file {
+        BuildCompanionFile::SandboxStreams => include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../../../source/library/core/sandbox/streams.omg"
+        )),
+        BuildCompanionFile::BuildProgram => include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../../../source/library/build/program.omg"
+        )),
+        BuildCompanionFile::SystemFilesystem => include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../../../source/library/system/filesystem.omg"
+        )),
+    }
+}

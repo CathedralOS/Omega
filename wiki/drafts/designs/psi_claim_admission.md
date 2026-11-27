@@ -46,8 +46,9 @@ is separate from artifact admission.
    results rather than recomputing at decode, preparation and dispatch. Preserve
    structural rejection of invalid references, counts, shapes and encodings.
 
-3. **Bound shared loading.** Put the existing 64 MiB cap in shared external loaders,
-   including envelope paths. Keep count, nesting and string controls. Add an overall
+3. **Bound shared loading.** Enforce any encoded input size limit set by the
+   receiving host in shared external loaders, including envelope paths.
+   Keep length, count, nesting and string controls. Add an overall
    budget across decoding, re-encoding, validation and preparation; charge expensive
    descriptor/entailment work as well as parsing. Distinguish exhausted work from
    malformed input and unsupported semantics. Do not charge historical producer
@@ -78,7 +79,9 @@ Extend existing codec, interpreter, embedding and performance suites:
   cannot authorize execution/native lowering. Inspection remains available without it.
 - Proof-bearing current encodings round-trip canonically and confer no trust.
   Existing local kernel and source proof tests keep their meaning.
-- Shared loaders reject oversized, malformed and excessively nested inputs before
+- Emit a valid artifact within the caller's output quota. Load it under a host
+  budget that admits it and verify a resource refusal under a smaller input cap.
+  Shared loaders reject malformed and excessively nested inputs before
   unsafe allocation. Structurally valid adversarial inputs hit an enforceable
   aggregate work limit with a distinct exhaustion reason.
 - Inspection avoids execution-only analysis while retaining structural checks.

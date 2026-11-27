@@ -67,10 +67,29 @@ impl SettledSource {
         publication: terminal_codec::TerminalPublication,
         providers: prepare_typed_source::InvocationProviders<'_>,
     ) -> Result<JudgedSource, prepare_typed_source::SourcePreparationFailure> {
+        self.freeze()?.judge(compilation, publication, providers)
+    }
+}
+
+pub struct FrozenSource {
+    pub program: PreparedTypedTrees,
+    pub accounting: crate::compile_time_invocations::SourceCompletionAccounting,
+}
+
+impl FrozenSource {
+    /// Judge one exact invocation in this frozen program. The program is a
+    /// shared snapshot, so several callers frozen together are each judged
+    /// alone, with only their own caller as the entry.
+    pub(super) fn judge(
+        self,
+        compilation: TerminalSourceCompilation<'_>,
+        publication: terminal_codec::TerminalPublication,
+        providers: prepare_typed_source::InvocationProviders<'_>,
+    ) -> Result<JudgedSource, prepare_typed_source::SourcePreparationFailure> {
         let FrozenSource {
             program,
             accounting,
-        } = self.freeze()?;
+        } = self;
         let judgment = (|| {
             let frozen = std::sync::Arc::clone(program.trees());
             let choices = if providers.overrides.is_empty() && providers.defaults.is_empty() {
@@ -117,11 +136,6 @@ impl SettledSource {
             }),
         }
     }
-}
-
-pub struct FrozenSource {
-    pub program: PreparedTypedTrees,
-    pub accounting: crate::compile_time_invocations::SourceCompletionAccounting,
 }
 
 pub struct JudgedSource {

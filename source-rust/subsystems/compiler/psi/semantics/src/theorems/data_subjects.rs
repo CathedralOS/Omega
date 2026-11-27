@@ -65,9 +65,10 @@ pub fn flatten(
     Ok((parameters, requires, ensures))
 }
 
-/// The scalar fields of a plain record, in declared order. A record with a
-/// data invariant, a field that is not a plain relevant scalar, or any other
-/// shape is refused by name.
+/// The scalar fields of a plain record, in declared order, with the fields
+/// of a nested plain record in its place. A record with a data invariant, a
+/// field that is neither a plain relevant scalar nor a plain record, or any
+/// other shape is refused by name.
 pub fn record_leaves(
     module: &TerminalModule,
     record: StructuralTypeId,
@@ -84,19 +85,26 @@ pub fn record_leaves(
     {
         return Err("logical data subject has a data invariant");
     }
-    fields
-        .iter()
-        .map(|field| match field.field_type {
-            StructuralFieldType::Scalar(scalar) if !field.relevance.is_erased() => Ok((
-                vec![CanonicalStructuralPathSegment::Field(field.id)],
-                scalar,
-            )),
-            StructuralFieldType::Structural(_) => {
-                Err("logical data subject has a field that is itself data")
+    let mut leaves = Vec::new();
+    for field in fields {
+        if field.relevance.is_erased() {
+            return Err("logical data subject has a field that is not a plain scalar");
+        }
+        let at = CanonicalStructuralPathSegment::Field(field.id);
+        match field.field_type {
+            StructuralFieldType::Scalar(scalar) => leaves.push((vec![at], scalar)),
+            // A field that is itself a plain record contributes its own
+            // scalar fields in place, each under this field's path.
+            StructuralFieldType::Structural(child) => {
+                for (mut path, scalar) in record_leaves(module, child)? {
+                    path.insert(0, at);
+                    leaves.push((path, scalar));
+                }
             }
-            _ => Err("logical data subject has a field that is not a plain scalar"),
-        })
-        .collect()
+            _ => return Err("logical data subject has a field that is not a plain scalar"),
+        }
+    }
+    Ok(leaves)
 }
 
 /// The source inputs of a machine's contract, in header order.

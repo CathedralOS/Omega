@@ -58,8 +58,6 @@ mod read;
 mod references;
 mod sum_disposal;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use canonical::substituted_routes as substituted_call_routes;
 pub use compilation::{lower_for_publication, source_roster};
 pub use declare::provider_selections;
 pub use lowered_source_publication::LoweredSourcePublication;
@@ -171,31 +169,25 @@ pub use body::outcome::Outcome;
 #[cfg(any(test, feature = "test-support"))]
 pub use body::{
     ArmGuard, Axis, Body, Borrowed, BorrowedReferent, CaseSelector, CaseType, Ceiling,
-    CrashCeiling, DomainInstance, DomainSet, ErasedField, Expression, ExpressionKind, Policy,
-    Qualification, Ranking, RecordField, RecordType, Selector, Signature, Statement, StorageShape,
-    Strict, Target, Termination, ValueType, self_place,
+    CrashCeiling, DomainInstance, Expression, ExpressionKind, Policy, Qualification, Ranking,
+    RecordField, RecordType, Selector, Signature, Statement, StorageShape, Strict, Target,
+    Termination, ValueType, self_place,
 };
 #[cfg(not(any(test, feature = "test-support")))]
 pub use body::{
-    ArmGuard, Body, Borrowed, Ceiling, DomainSet, Expression, ExpressionKind, RecordType,
-    Signature, Statement, StorageShape, Target, Termination, ValueType,
+    ArmGuard, Body, Borrowed, Ceiling, Expression, ExpressionKind, RecordType, Signature,
+    Statement, StorageShape, Target, Termination, ValueType,
 };
-pub use callables::formations::check_bound_callable_shapes;
+use callables::formations::check_bound_callable_shapes;
 #[cfg(any(test, feature = "test-support"))]
 pub use callables::headers::{CallableCrashPolicy, CallableHeader};
 #[cfg(any(test, feature = "test-support"))]
 pub use callables::static_contracts::{
     StaticCallableEnvelope, StaticConformanceQuestion, StaticImplementation,
-    StaticProviderCandidate, StaticRequirementSchema, StaticSchemaQuestion, StaticServiceCeiling,
+    StaticRequirementSchema, StaticSchemaQuestion, StaticServiceCeiling,
 };
-#[cfg(not(any(test, feature = "test-support")))]
 pub use compilation::prepare_compilation;
-#[cfg(any(test, feature = "test-support"))]
-pub use compilation::{LoweredCompilationWithSource, prepare_compilation};
-#[cfg(not(any(test, feature = "test-support")))]
 pub use declare::external_providers::ExternalProviderCandidate;
-#[cfg(any(test, feature = "test-support"))]
-pub use declare::external_providers::{ExternalProviderCandidate, ProviderContractHeader};
 pub use publication::reach::ServiceReach;
 pub use read::calling::{CallingPolicySelections, ProgramEntryContractSelection};
 // Installed logical calls share source preparation with ordinary refinement;
@@ -831,7 +823,7 @@ pub(crate) fn is_generic_template(
 
 /// The declaration a machine was generated from, when stage 04 generated it
 /// to close a static application: the generic machine it specializes.
-pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHandle> {
+pub(crate) fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHandle> {
     typed
         .executable_application_template(machine)
         .ok()
@@ -2425,7 +2417,7 @@ fn finish_storage(
         further.append(&mut unsupported);
         return Err(first);
     }
-    lower::publish_write_frames_with(module, tables, parallel)?;
+    lower::publish_write_frames(module)?;
     publication::claims::publish(diagnostic, module, parallel)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.

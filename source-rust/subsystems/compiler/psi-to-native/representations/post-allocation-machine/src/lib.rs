@@ -9,16 +9,14 @@ home or frame spill slot, instruction selection must resolve each selected
 instruction to its unique applicable `MachineAlternative` and materialize
 explicit physical register-unit footprints (`storage_units`, `read_units`,
 `write_units`, `implicit_unit_uses`, `implicit_unit_defs`, and `implicit_unit_clobbers`).
-We store that post-allocation machine program, its domain-separated content
-identity (`omega.terminal-postallocation-machine.v27`), and its descriptive
-target cost model (`TargetCostModel`).
+We store that post-allocation machine program and its domain-separated content
+identity (`omega.terminal-postallocation-machine.v27`).
 */
 
 pub(crate) use ::wire::codec_bytes;
 pub(crate) use ::wire::digest_encoder;
 
 pub mod control_flow;
-pub mod costs;
 pub mod evidence;
 pub mod identity;
 pub mod instructions;
@@ -28,7 +26,6 @@ pub mod program_validation;
 pub use program::{PhysicalFunction, PostAllocationMachineProgram};
 
 pub use control_flow::{PostAllocationMachineBlock, PostAllocationMachineFunction};
-pub use costs::{TargetCostModelIdentity, target_cost_model};
 pub use evidence::{PostAllocationMachineOptimizationCustody, PostAllocationMachinePhaseReceipt};
 pub use identity::{PostAllocationMachineIdentity, post_allocation_machine_identity};
 pub use instructions::{

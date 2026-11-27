@@ -1,8 +1,7 @@
 /*
 We assemble a `FinalImage` from a `FinalImageInput` by pre-sizing the symbol,
 import, and relocation arenas and copying the object plan's symbols, executable
-regions, initialized-data regions, normalized or bootstrap imports, and
-relocation records in a single deterministic pass.
+regions, initialized-data regions, normalized imports, and relocation records in a single deterministic pass.
 */
 
 mod copies {
@@ -93,7 +92,7 @@ mod copies {
                 .symbols
                 .iter()
                 .filter(|(_, symbol)| symbol.kind == SymbolKind::Import)
-                .map(|(symbol_handle, symbol)| FinalImageImport {
+                .map(|(symbol_handle, _)| FinalImageImport {
                     symbol_handle: final_image_symbol_handle(symbol_handle),
                     import: object
                         .layout
@@ -103,9 +102,9 @@ mod copies {
                             (import.symbol == symbol_handle)
                                 .then(|| FinalImageImportPlan::Normalized(import.locator.clone()))
                         })
-                        .unwrap_or_else(|| FinalImageImportPlan::StringBackedBootstrap {
-                            library: symbol.import_library.clone(),
-                        }),
+                        // Without a normalized row the import keeps no plan,
+                        // and every image writer refuses it.
+                        .unwrap_or(FinalImageImportPlan::None),
                 }),
         );
     }

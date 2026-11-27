@@ -16,7 +16,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 use super::demanded_values::{DemandedValues, RoundProgram};
-use super::{FixedLayoutTargetScope, PreparedBuildMachineProgram};
+use super::{FixedLayoutTargetScope, PlannedCall, PreparedBuildMachineProgram};
 use crate::compile_time_invocations::{BuildTimeValue, InvocationTarget, SourceCompletionAccounting};
 
 mod placements;
@@ -259,6 +259,40 @@ impl DemandedValues for Layouts<'_> {
         true
     }
 
+    /// Each demand calls its policy once for its own target. A plan an
+    /// earlier round installed needs no call.
+    fn plan_round(
+        &mut self,
+        values: &[usize],
+        round: &RoundProgram,
+        typed: &TypedTrees,
+    ) -> Vec<PlannedCall> {
+        values
+            .iter()
+            .filter_map(|&value| {
+                let demand = &self.demands[value];
+                let scope = &self.scopes[demand.scope];
+                if let Some(plan) = typed.plan_laid_layout_for_type(demand.storage.application)
+                    && plan
+                        .geometry_for_target(typed, Some(&scope.target))
+                        .is_some()
+                {
+                    return None;
+                }
+                let facts = scope.facts.as_ref()?;
+                layout_call(
+                    typed,
+                    round.layout_policies(),
+                    demand.requester,
+                    demand.storage,
+                    facts,
+                )
+                .ok()
+                .map(|call| call.plan)
+            })
+            .collect()
+    }
+
     fn evaluate(
         &mut self,
         value: usize,
@@ -301,18 +335,26 @@ impl DemandedValues for Layouts<'_> {
     }
 }
 
-fn evaluate_application(
-    typed: &mut TypedTrees,
+/// The policy call that plans one storage application's layout on one
+/// target, with the schema it is given.
+struct LayoutCall<'typed> {
+    plan: PlannedCall,
+    policy: crate::source_state::expression::StaticMachineArgument,
+    data: &'typed crate::source_state::data::DataDefinition,
+    fields: Vec<crate::source_state::PlanLaidSchemaField>,
+    retired: Vec<u64>,
+}
+
+/// Names the call of `storage`'s policy for `scope`'s target. The call
+/// carries that target's facts, so it is frozen only with calls for the
+/// same target.
+fn layout_call<'typed>(
+    typed: &'typed TypedTrees,
     program: &PreparedBuildMachineProgram,
     requester: SymbolHandle,
     storage: crate::source_state::layout_storage::LayoutStorageArguments,
-    scope: &FixedLayoutTargetScope,
-    accounting: &mut SourceCompletionAccounting,
-) -> Result<(), String> {
-    let facts = scope
-        .facts
-        .as_ref()
-        .ok_or("target has no complete layout facts")?;
+    facts: &layout_plans::LayoutTargetFacts,
+) -> Result<LayoutCall<'typed>, String> {
     let policy = typed.static_operand_from_type_reference(storage.policy)?;
     let requirement_symbol = storage
         .plan_requirement(typed, requester)
@@ -329,13 +371,46 @@ fn evaluate_application(
     let argument = schema::record_argument(&fields, &retired)?;
     // The public call entrance checks the selected plan and its body using
     // this exact policy application.
-    let entry = program.entry_selected(
-        requester,
-        requester,
-        &policy,
-        requirement_symbol,
-        &[argument, BuildTimeValue::LayoutTarget(facts.clone())],
-    )?;
+    let plan = program
+        .plan_selected(
+            requester,
+            requester,
+            &policy,
+            requirement_symbol,
+            &[argument, BuildTimeValue::LayoutTarget(facts.clone())],
+        )?
+        .for_target(facts);
+    Ok(LayoutCall {
+        plan,
+        policy,
+        data,
+        fields,
+        retired,
+    })
+}
+
+fn evaluate_application(
+    typed: &mut TypedTrees,
+    program: &PreparedBuildMachineProgram,
+    requester: SymbolHandle,
+    storage: crate::source_state::layout_storage::LayoutStorageArguments,
+    scope: &FixedLayoutTargetScope,
+    accounting: &mut SourceCompletionAccounting,
+) -> Result<(), String> {
+    let facts = scope
+        .facts
+        .as_ref()
+        .ok_or("target has no complete layout facts")?;
+    let LayoutCall {
+        plan,
+        policy,
+        data,
+        fields,
+        retired,
+    } = layout_call(typed, program, requester, storage, facts)?;
+    let entry = program
+        .prepare_planned(&plan)
+        .map_err(|errors| diagnostics::join_messages(&errors))?;
     // The accepted call can use a captured body. Store the policy declaration
     // that the captured body implements in the published layout.
     let accepted = entry.accepted_source();

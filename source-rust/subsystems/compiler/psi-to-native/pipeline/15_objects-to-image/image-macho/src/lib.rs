@@ -171,6 +171,23 @@ mod tests {
         FinalImage, FinalImageMemory, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
     };
     use object_file::{RelocationKind, SymbolKind};
+    use target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
+
+    fn dylib_import(
+        profile: TargetProfile,
+        install_name: &[u8],
+        symbol: &str,
+    ) -> image::FinalImageImportPlan {
+        let locator = normalize_foreign_locator(
+            ForeignLocatorCandidate::MachODylibSymbol {
+                install_name: install_name.to_vec(),
+                symbol: symbol.as_bytes().to_vec(),
+            },
+            profile,
+        )
+        .expect("valid Mach-O dylib locator");
+        image::FinalImageImportPlan::Normalized(locator.into())
+    }
 
     fn word(bytes: &[u8], offset: usize) -> u32 {
         u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
@@ -382,9 +399,11 @@ mod tests {
         });
         image.symbol_table.imports.insert(image::FinalImageImport {
             symbol_handle: imported,
-            import: image::FinalImageImportPlan::StringBackedBootstrap {
-                library: String::new(),
-            },
+            import: dylib_import(
+                TargetProfile::MacosX64,
+                b"/usr/lib/libSystem.B.dylib",
+                "_write",
+            ),
         });
         image::test_support::install_imports(&mut image);
         image
@@ -447,7 +466,10 @@ mod tests {
 
     #[test]
     fn loader_mapping_accepts_eager_import_storage() {
-        for name in ["_write", "_objc_msgSend"] {
+        for (install_name, name) in [
+            (&b"/usr/lib/libSystem.B.dylib"[..], "_write"),
+            (&b"/usr/lib/libobjc.A.dylib"[..], "_objc_msgSend"),
+        ] {
             let mut image = storage_image(13, 24, 16);
             crate::codec_bytes::patch_encoded(
                 &mut image.memory.text,
@@ -461,9 +483,7 @@ mod tests {
             });
             image.symbol_table.imports.insert(image::FinalImageImport {
                 symbol_handle: imported,
-                import: image::FinalImageImportPlan::StringBackedBootstrap {
-                    library: String::new(),
-                },
+                import: dylib_import(TargetProfile::MacosArm64, install_name, name),
             });
             image::test_support::install_imports(&mut image);
             image
@@ -823,32 +843,38 @@ fn emit_macho_container_contents(
     );
     bytes.extend(code_signature);
 
-    dyld_linking::loader_mapping::validate_macho_container_mapping(
-        &bytes,
-        layout,
-        &image.memory.text,
-        &image.memory.data,
-        image.memory.bss_size,
-        isa,
-        identity,
-    )?;
-    let import_pointers: Vec<_> = import_thunks
-        .iter()
-        .map(|thunk| MachoImportPointer {
-            data_offset: thunk.data_offset,
-            install_name: &thunk.library,
-            symbol: &thunk.bind_symbol,
-        })
-        .collect();
-    dyld_linking::loader_fixups::validate_macho_loader_fixups_for_segment(
-        &bytes,
-        &image.memory.data,
-        &rebase_pointers,
-        &import_pointers,
-        data_segment.unwrap_or(0),
-    )?;
-    if identity.is_some() {
-        shared_component::validate_export_trie(&bytes, &image, exports, plan.text_offset)?;
+    // Default compilation does not reparse its own container. This crate's
+    // tests reparse every container they emit; retained-artifact validation
+    // replays the loader mapping and object fixups independently
+    // (`validate_macho_loader_mapping`, `validate_macho_object_fixups`).
+    if cfg!(test) {
+        dyld_linking::loader_mapping::validate_macho_container_mapping(
+            &bytes,
+            layout,
+            &image.memory.text,
+            &image.memory.data,
+            image.memory.bss_size,
+            isa,
+            identity,
+        )?;
+        let import_pointers: Vec<_> = import_thunks
+            .iter()
+            .map(|thunk| MachoImportPointer {
+                data_offset: thunk.data_offset,
+                install_name: &thunk.library,
+                symbol: &thunk.bind_symbol,
+            })
+            .collect();
+        dyld_linking::loader_fixups::validate_macho_loader_fixups_for_segment(
+            &bytes,
+            &image.memory.data,
+            &rebase_pointers,
+            &import_pointers,
+            data_segment.unwrap_or(0),
+        )?;
+        if identity.is_some() {
+            shared_component::validate_export_trie(&bytes, &image, exports, plan.text_offset)?;
+        }
     }
 
     Ok(MachoContainerContents {

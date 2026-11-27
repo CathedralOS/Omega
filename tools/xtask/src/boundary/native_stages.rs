@@ -13,10 +13,6 @@ pub(super) const DRIVER: &str = native!("");
 const HOST_PROVIDERS: &str = native!("/pipeline/00_psi-to-admitted-native-inputs/host-providers");
 const ANALYSES: &str =
     native!("/pipeline/06_selected-instructions-to-selected-instructions/analyses");
-const ENCODING: &str = native!("/representations/machine-code/encoding-admission");
-const AARCH64: &str =
-    native!("/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64");
-const X86: &str = native!("/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64");
 pub(super) const IMAGE_EMISSION: &str = native!("/pipeline/15_objects-to-image/image-emission");
 pub(super) const NATIVE_ARTIFACT: &str = native!("/pipeline/15_objects-to-image/native-artifact");
 pub(super) const OBJECT_REPLAY: &str = native!("/verification/published-objects");
@@ -27,8 +23,6 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
     let stages = &NATIVE_STAGES;
     let mut readers = vec![
         ("source-rust/subsystems/package-manager", HOST_PROVIDERS),
-        (ENCODING, AARCH64),
-        (ENCODING, X86),
         // Fixed-width entry layouts already contain the final call and relocation fields.
         (stages[14], stages[12]),
         (
@@ -51,6 +45,9 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
     ] {
         readers.push((OBJECT_REPLAY, dependency));
     }
+    readers.extend(super::linear_pipeline::legacy_representation_links_into(
+        stages,
+    ));
     readers
         .into_iter()
         .map(|(owner, dependency)| Allowance { owner, dependency })

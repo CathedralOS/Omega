@@ -93,7 +93,7 @@ execution trust, under shared input and work limits.
 
 The [implementation plan](../../../wiki/drafts/designs/psi_claim_admission.md)
 tracks the API gate, splitting the inspection and preparation decoders, the
-shared 64 MiB input cap and the total loading budget. It also moves
+host's optional encoded input size limit and the total loading budget. It also moves
 declaration-dependent restrictions and descriptor lookups out of repeated
 dispatch: today primitive stores, reference paths and boundary qualifications
 reach static entailment from the execution layer. Prepared plans must keep

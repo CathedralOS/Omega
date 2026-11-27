@@ -247,6 +247,8 @@ new requirement. If the destination instead declares a `machine` requirement,
 the existing binding and no-rebinding rules still apply, even for pure
 operations with identical behavioral contracts.
 
+A proof argument can cite the projected callable under the
+[invocation, storage and evidence rules](machine_values.md#invocation-storage-and-evidence).
 This forwarding preserves evidence carried by the callable, not every law of
 its enclosing implementation record. Destination schema constraints and
 separately stored evidence must still be established for the exact final

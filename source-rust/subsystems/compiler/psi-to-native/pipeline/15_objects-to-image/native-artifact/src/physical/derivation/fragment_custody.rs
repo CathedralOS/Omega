@@ -27,7 +27,6 @@ pub(super) struct FragmentForeignCallRejoin<'a> {
 }
 
 pub(super) fn fragment_normalized_foreign_rejoin<'a>(
-    pass: crate::physical::PhysicalEvidencePass,
     publication: &'a FragmentPublicationBinding,
     occurrence: &OptimizedBoundaryOccurrence,
     foreign: &image_emission::ObjectForeignCall,
@@ -145,74 +144,71 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
             if start != foreign.text_offset {
                 return Err("kernel entry moved away from its selected instruction");
             }
-            pass.verify(|| {
-                let views = transport
-                    .operand_views
-                    .iter()
-                    .copied()
-                    .collect::<Option<Vec<_>>>()
-                    .ok_or("kernel entry lacks fixed operand homes")?;
-                let accesses = &transport.operand_accesses;
-                if record.call.binding.table_dispatch().is_some() {
-                    match section.target.architecture {
-                        target::Architecture::X86_64 => {
-                            target_x86_64::inspection::selected_table_call_effects(
-                                record,
-                                span.alternative,
-                                &views,
-                                accesses,
-                                bytes,
-                            )
-                            .ok_or("table entry bytes disagree with its selected binding")?;
-                        }
-                        target::Architecture::Aarch64 => {
-                            target_aarch64::inspection::selected_table_call_effects(
-                                record,
-                                span.alternative,
-                                &views,
-                                accesses,
-                                bytes,
-                            )
-                            .ok_or("table entry bytes disagree with its selected binding")?;
-                        }
+            let views = transport
+                .operand_views
+                .iter()
+                .copied()
+                .collect::<Option<Vec<_>>>()
+                .ok_or("kernel entry lacks fixed operand homes")?;
+            let accesses = &transport.operand_accesses;
+            if record.call.binding.table_dispatch().is_some() {
+                match section.target.architecture {
+                    target::Architecture::X86_64 => {
+                        target_x86_64::inspection::selected_table_call_effects(
+                            record,
+                            span.alternative,
+                            &views,
+                            accesses,
+                            bytes,
+                        )
+                        .ok_or("table entry bytes disagree with its selected binding")?;
                     }
-                } else {
-                    let kernel = record
-                        .call
-                        .binding
-                        .system_call()
-                        .ok_or("normalized external entry mechanism is absent")?;
-                    match section.target.architecture {
-                        target::Architecture::X86_64 => {
-                            target_x86_64::inspection::selected_system_call_effects(
-                                section.target,
-                                target_x86_64::validated_x86_64_physical_register_model(),
-                                instruction_kind,
-                                span.alternative,
-                                &views,
-                                accesses,
-                                kernel.number,
-                                bytes,
-                            )
-                            .ok_or("kernel entry bytes disagree with its selected binding")?;
-                        }
-                        target::Architecture::Aarch64 => {
-                            target_aarch64::inspection::selected_system_call_effects(
-                                section.target,
-                                target_aarch64::validated_aarch64_physical_register_model(),
-                                instruction_kind,
-                                span.alternative,
-                                &views,
-                                accesses,
-                                kernel.number,
-                                bytes,
-                            )
-                            .ok_or("kernel entry bytes disagree with its selected binding")?;
-                        }
+                    target::Architecture::Aarch64 => {
+                        target_aarch64::inspection::selected_table_call_effects(
+                            record,
+                            span.alternative,
+                            &views,
+                            accesses,
+                            bytes,
+                        )
+                        .ok_or("table entry bytes disagree with its selected binding")?;
                     }
                 }
-                Ok(())
-            })?;
+            } else {
+                let kernel = record
+                    .call
+                    .binding
+                    .system_call()
+                    .ok_or("normalized external entry mechanism is absent")?;
+                match section.target.architecture {
+                    target::Architecture::X86_64 => {
+                        target_x86_64::inspection::selected_system_call_effects(
+                            section.target,
+                            target_x86_64::validated_x86_64_physical_register_model(),
+                            instruction_kind,
+                            span.alternative,
+                            &views,
+                            accesses,
+                            kernel.number,
+                            bytes,
+                        )
+                        .ok_or("kernel entry bytes disagree with its selected binding")?;
+                    }
+                    target::Architecture::Aarch64 => {
+                        target_aarch64::inspection::selected_system_call_effects(
+                            section.target,
+                            target_aarch64::validated_aarch64_physical_register_model(),
+                            instruction_kind,
+                            span.alternative,
+                            &views,
+                            accesses,
+                            kernel.number,
+                            bytes,
+                        )
+                        .ok_or("kernel entry bytes disagree with its selected binding")?;
+                    }
+                }
+            }
             None
         }
         _ => return Err("external call import fields disagree with its entry mechanism"),
@@ -240,7 +236,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
                     .iter()
                     .filter(|row| matches!(row.destination, NativePlace::Parameter(_)))
                     .count()
-        || !floating_control::rejoin(pass, publication, record, foreign)
+        || !floating_control::rejoin(publication, record, foreign)
     {
         return Err("normalized foreign D41 roster row drifted from its projected custody");
     }

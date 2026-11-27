@@ -199,8 +199,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
             (linear_pipeline::TEXT_READER, linear_pipeline::PSI_STAGES[0]),
             (linear_pipeline::TEXT_READER, linear_pipeline::PSI_STAGES[1]),
             ("source-rust/subsystems/compiler/build/evaluation/result", linear_pipeline::PSI_STAGES[7]),
-            ("source-rust/subsystems/compiler/source-to-psi/representations/evaluation-receipts", linear_pipeline::PSI_STAGES[7]),
-        ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
+        ].into_iter().chain(linear_pipeline::legacy_representation_links_into(&linear_pipeline::PSI_STAGES)).map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
         ..rule(
             vec![""],
             linear_pipeline::PSI_STAGES.to_vec(),
@@ -1016,7 +1015,6 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
         ],
         &[
             (TARGET_REPLAY_RECORD, "pub fn target_for_correspondence(&self) -> &TargetOperationsForReplay {"),
-            ("source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/object_artifact.rs", ".map(crate::RetainedTargetOperations::target_for_correspondence)"),
         ],
         "only explicit object correspondence audits may inspect the original target forms",
     ));

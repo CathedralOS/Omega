@@ -875,6 +875,58 @@ fn an_applied_record_theorem_concludes_nothing_about_another_field() {
     assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
 }
 
+/// A field that is itself a plain record is one subject for each of its
+/// own scalar fields, in place.
+fn nested(source: &str) -> String {
+    source
+        .replace(
+            "data Pair { x: u8; y: u8; }",
+            "data Inner { x: u8; z: u8; }\n\ndata Pair { inner: Inner; y: u8; }",
+        )
+        .replace("p.x", "p.inner.x")
+        .replace(
+            "Pair { x: 1u8, y: 2u8 }",
+            "Pair { inner: Inner { x: 1u8, z: 3u8 }, y: 2u8 }",
+        )
+}
+
+#[test]
+fn a_theorem_over_a_nested_record_field_supplies_its_alias() {
+    let source = nested(FIRST_IS_NONZERO);
+    assert!(source.contains("requires p.inner.x == 1u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_over_another_nested_field_cannot_supply_its_alias() {
+    let source = nested(FIRST_IS_NONZERO).replacen(
+        "machine first_is_nonzero(p: Pair)\nrequires p.inner.x == 1u8\nensures p.inner.x != 0u8",
+        "machine first_is_nonzero(p: Pair)\nrequires p.inner.z == 1u8\nensures p.inner.z != 0u8",
+        1,
+    );
+    assert!(source.contains("requires p.inner.z == 1u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// The application's conclusion is about the nested field the actual
+/// record holds at that path, not about the outer record's other field.
+#[test]
+fn an_applied_nested_record_theorem_concludes_nothing_about_another_field() {
+    let source = nested(FIRST_IS_NONZERO).replacen(
+        "requires p.inner.x == 1u8\nensures p.inner.x != 0u8\n{\n    Step(p);",
+        "requires p.inner.x == 1u8\nensures p.y != 0u8\n{\n    Step(p);",
+        1,
+    );
+    assert!(
+        source.contains("ensures p.y != 0u8\n{\n    Step(p);"),
+        "{source}"
+    );
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
 /// A data invariant is a premise the contract does not state, so a record
 /// with one is refused by name.
 #[test]
@@ -888,6 +940,206 @@ fn a_record_with_a_data_invariant_is_not_a_logical_subject() {
     let verdict = Program::try_of(&[("product/main.omg", &source)]).map(|p| p.judged(|_| {}));
     assert!(
         format!("{verdict:?}").contains("logical data subject has a data invariant"),
+        "{verdict:?}"
+    );
+}
+
+/// A constant record stores a machine in an ordinary callable field. The
+/// same field is invoked under its callable contract and cited as a theorem
+/// (OWNER_QUESTIONS.md#bundle-evidence-field-type).
+const CALLABLE_FIELD: &str = "data NonzeroIsPositive = machine(n: u8)
+    requires n != 0u8
+    ensures n > 0u8
+    reaches none crashes none;
+
+machine nonzero_is_positive(n: u8)
+requires n != 0u8
+ensures n > 0u8
+{
+}
+
+data Laws [copy] { step: NonzeroIsPositive; }
+
+const U8_LAWS: Laws = Laws { step: nonzero_is_positive };
+
+machine use_step<Step: NonzeroIsPositive>(n: u8)
+requires n != 0u8
+ensures n > 0u8
+{
+    Step(n);
+}
+
+machine entry() -> u8 {
+    let laws: Laws = U8_LAWS;
+    laws.step(7u8);
+    use_step::<U8_LAWS.step>(7u8);
+    0u8
+}
+";
+
+fn stored(source: &str) -> Result<Verdict, String> {
+    Program::try_of(&[("product/main.omg", source)])
+        .map(|program| program.judged(|_| {}))
+        .map_err(|refusal| format!("{refusal:?}"))
+}
+
+#[test]
+fn a_theorem_stored_in_a_constant_callable_field_is_invoked_and_cited() {
+    let program = Program::of(CALLABLE_FIELD);
+    let verdict = program.judged(|elaboration| {
+        let module = &elaboration.module;
+        let cited = module
+            .proofs
+            .theorem_citations
+            .iter()
+            .filter_map(|row| match row.source {
+                terminal_psi::TheoremSource::Named(source) => Some(source),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(!cited.is_empty(), "the field's selection is cited by name");
+        assert!(
+            !module.execution.callables.descriptors.is_empty(),
+            "the stored selection remains an ordinary callable value"
+        );
+        for source in cited {
+            assert!(
+                module
+                    .machines
+                    .iter()
+                    .flat_map(|machine| machine.module_invocations())
+                    .all(|invocation| invocation.inputs.callee != source),
+                "citing the field executes no callback"
+            );
+        }
+    });
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// The field's type admits only selections proved for seven, so its
+/// evidence does not cover the complete aliased implication.
+#[test]
+fn a_field_whose_selections_are_proved_only_for_seven_cannot_be_cited() {
+    let source = CALLABLE_FIELD
+        .replace(
+            "data Laws [copy] { step: NonzeroIsPositive; }",
+            "data OnlySeven = machine(n: u8)
+    requires n == 7u8
+    ensures n > 0u8
+    reaches none crashes none;
+
+machine only_seven(n: u8)
+requires n == 7u8
+ensures n > 0u8
+{
+}
+
+data Laws [copy] { step: OnlySeven; }",
+        )
+        .replace(
+            "Laws { step: nonzero_is_positive }",
+            "Laws { step: only_seven }",
+        );
+    assert!(source.contains("Laws { step: only_seven }"), "{source}");
+    let verdict = stored(&source);
+    assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+    assert!(
+        format!("{verdict:?}")
+            .contains("explicit proof argument does not establish the complete aliased contract"),
+        "{verdict:?}"
+    );
+}
+
+/// The selected machine recurs until `n` is nonzero, so its guarantee
+/// holds only after it returns. It stays an ordinary callable value.
+const RETURNING: &str = "machine positive_after_return(n: u8)
+requires n != 0u8
+ensures n > 0u8
+{
+    transition n == 0u8 {
+        true -> positive_after_return(n),
+        _ -> finish(n)
+    }
+}
+
+machine finish(n: u8)
+{
+}
+
+data Laws [copy]";
+
+#[test]
+fn a_field_whose_selection_proves_its_claim_only_after_returning_cannot_be_cited() {
+    let source = CALLABLE_FIELD
+        .replace("data Laws [copy]", RETURNING)
+        .replace(
+            "Laws { step: nonzero_is_positive }",
+            "Laws { step: positive_after_return }",
+        );
+    assert!(
+        source.contains("Laws { step: positive_after_return }"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+    assert!(
+        format!("{verdict:?}").contains("its guarantee holds only after it returns"),
+        "{verdict:?}"
+    );
+}
+
+/// Naming such a machine directly is refused the same way: a citation runs
+/// nothing, so it cannot rely on the body returning.
+#[test]
+fn a_named_theorem_that_proves_its_claim_only_after_returning_cannot_be_cited() {
+    let source = CALLABLE_FIELD
+        .replace("data Laws [copy]", RETURNING)
+        .replace(
+            "use_step::<U8_LAWS.step>(7u8)",
+            "use_step::<positive_after_return>(7u8)",
+        );
+    assert!(
+        source.contains("use_step::<positive_after_return>"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    assert!(
+        format!("{verdict:?}").contains("its guarantee holds only after it returns"),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn a_field_whose_selection_cannot_be_cited_is_still_invoked() {
+    let source = CALLABLE_FIELD
+        .replace("data Laws [copy]", RETURNING)
+        .replace(
+            "Laws { step: nonzero_is_positive }",
+            "Laws { step: positive_after_return }",
+        )
+        .replace("    use_step::<U8_LAWS.step>(7u8);\n", "");
+    assert!(!source.contains("use_step::<U8_LAWS.step>"), "{source}");
+    let verdict = stored(&source);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+/// A runtime record may hold any selection its type allows, so its field
+/// has no one selection whose evidence covers the citation.
+#[test]
+fn a_runtime_record_field_cannot_be_cited() {
+    let source = CALLABLE_FIELD.replace(
+        "machine entry() -> u8 {",
+        "machine use_laws(laws: Laws) {
+    use_step::<laws.step>(7u8);
+}
+
+machine entry() -> u8 {
+    use_laws(U8_LAWS);",
+    );
+    assert!(source.contains("use_step::<laws.step>"), "{source}");
+    let verdict = stored(&source);
+    assert!(
+        format!("{verdict:?}").contains("only a constant has one possible selection"),
         "{verdict:?}"
     );
 }

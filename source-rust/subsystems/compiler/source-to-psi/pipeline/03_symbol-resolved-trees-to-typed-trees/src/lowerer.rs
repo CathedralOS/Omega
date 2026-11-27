@@ -636,7 +636,7 @@ pub(crate) mod seeded_continuation {
     use symbols::SymbolHandle;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum SeededContinuationError {
+    enum SeededContinuationError {
         RetainedResolvedRootsChanged,
         CrossPairedResolvedBase,
         AuthoredSelectionPrefixChanged,
@@ -843,7 +843,7 @@ pub(crate) mod seeded_continuation {
         })
     }
 
-    pub fn lower_seeded_extension(
+    fn lower_seeded_extension(
         source: crate::source_resolved::continuations::RebasedSeededSymbolResolvedTrees,
         retained: SeededTypingBase,
     ) -> Result<SeededTypingBase, SeededContinuationError> {
@@ -2080,6 +2080,7 @@ pub(crate) fn close_typed_cohort(
         cohort,
         cohort.typed_expressions,
         cohort.typed_type_references,
+        true,
     )?;
     let bound_expressions = lowerer.typed_trees.expression_table.expression_count();
     let bound_types = lowerer
@@ -2088,16 +2089,22 @@ pub(crate) fn close_typed_cohort(
         .type_reference_count();
     settle_satisfied_declarations_from(&mut lowerer.typed_trees, cohort.typed_machines)?;
     normalize_machine_progress_premises(&mut lowerer.typed_trees, cohort.typed_machines)?;
-    crate::expressions::operand_owners::retain_cohort_static_argument_contexts(&mut lowerer.typed_trees, cohort)
+    let static_contexts_walked_program =
+        crate::expressions::operand_owners::retain_cohort_static_argument_contexts(
+            &mut lowerer.typed_trees,
+            cohort,
+        )
         .map_err(Diagnostic::error)?;
     lowerer
         .typed_trees
         .instantiate_nominal_machine_parameter_contracts(cohort.typed_type_parameters)
         .map_err(|message| Diagnostic::error(message.to_owned()))?;
-    if crate::expressions::operand_owners::cohort_may_need_applied_callable_signatures(
-        &lowerer.typed_trees,
-        cohort,
-    ) {
+    let applied_signatures_walk_program =
+        crate::expressions::operand_owners::cohort_may_need_applied_callable_signatures(
+            &lowerer.typed_trees,
+            cohort,
+        );
+    if applied_signatures_walk_program {
         lowerer
             .typed_trees
             .prepare_applied_callable_signatures()
@@ -2203,11 +2210,15 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
+    // Bind calls and callable types the preparation passes created. A
+    // program-wide pass above may have rewritten retained declarations, and
+    // then binding walks the whole program as well.
     callable_admission.extend(crate::expressions::runtime_callables::bind_calls_in_cohort(
         &mut lowerer.typed_trees,
         cohort,
         bound_expressions,
         bound_types,
+        !(static_contexts_walked_program || applied_signatures_walk_program),
     )?);
     crate::expressions::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)?;
     crate::declarations::constructor_applications::retain_projection_types_in_cohort(

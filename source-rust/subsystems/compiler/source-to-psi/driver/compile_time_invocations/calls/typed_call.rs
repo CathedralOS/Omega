@@ -17,8 +17,9 @@ use crate::source_state::reflection::construction::declaration_query_argument_ro
 use crate::source_state::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
 
+/// One generated caller in a probe program, and the call it returns.
+#[derive(Debug, Clone)]
 pub(super) struct TypedCall {
-    pub(super) source: TypedTrees,
     pub(super) caller: SymbolHandle,
     pub(super) call: ExpressionHandle,
     /// Actual backing and issued opaque inputs of the checked probe. Constructed
@@ -26,8 +27,13 @@ pub(super) struct TypedCall {
     pub(super) input_values: Vec<BuildTimeValue>,
 }
 
-pub(super) fn prepare(
+/// Adds to `probe` a new caller that returns `request` with `arguments`.
+/// `program` is the source `probe` was copied from: every authored row is
+/// read there, so callers added to the same probe earlier cannot change what
+/// this one reads. A failure can leave part of a caller in `probe`.
+pub(super) fn prepare_into(
     program: &TypedTrees,
+    probe: &mut TypedTrees,
     requester: SymbolHandle,
     declaration: CallableDeclaration<'_>,
     request: &TableCallExpression,
@@ -56,12 +62,11 @@ pub(super) fn prepare(
     } else {
         None
     };
-    let mut probe = program.clone();
     // Allocate this call's real source owner before closing the selected
     // application. Its result below comes from that public signature before
     // the caller enters typed preparation or judgment.
     let original_result = declaration.shape(program)?.return_type;
-    let caller = TypedInvocationDeclaration::new(&mut probe, requester, "@const-invocation");
+    let caller = TypedInvocationDeclaration::new(probe, requester, "@const-invocation");
     let mut call = request.clone();
     if request_expression.is_valid() && matches!(declaration, CallableDeclaration::Signature(_)) {
         // This is another actual call of the same public requirement. Its
@@ -106,7 +111,7 @@ pub(super) fn prepare(
             probe.static_operand_type_reference_in_scope(&selection, selection_owner)?
         };
         call.requirement_application = application;
-        let mut path = arguments::name_path(&mut probe, selection.symbol, name);
+        let mut path = arguments::name_path(probe, selection.symbol, name);
         path.static_application = probe.expression_table.insert_static_member(selection);
         call.receiver = probe.expression_table.insert(ExpressionNode::Name(path));
         *probe.expression_table.expression_mut(concrete) = ExpressionNode::Call(call);
@@ -130,17 +135,17 @@ pub(super) fn prepare(
     let declaration = selected_signature
         .as_ref()
         .map_or(declaration, CallableDeclaration::Signature);
-    let shape = declaration.shape(&probe)?;
+    let shape = declaration.shape(probe)?;
     let parameters = shape.parameters.to_vec();
     let declared_result = shape.return_type;
-    let type_parameters = declaration.static_parameters(&probe)?.to_vec();
+    let type_parameters = declaration.static_parameters(probe)?.to_vec();
     // These are fresh caller binders, not the callee's region identities.
     // Ordinary call checking relates them through the actual formal inputs.
-    let lifetime_parameters = declaration.lifetime_parameters(&probe)?.to_vec();
+    let lifetime_parameters = declaration.lifetime_parameters(probe)?.to_vec();
     // Region substitution resolves declaration ordinals through the canonical
     // machine table, including inside nominal applications. Publish this
     // caller's telescope before constructing any such types.
-    let mut body = caller.define(&mut probe, original_result, lifetime_parameters);
+    let mut body = caller.define(probe, original_result, lifetime_parameters);
     let declaration_argument = declaration_query_argument_role(
         program,
         StaticArgumentCall::Expression(ExpressionHandle::invalid(), request),
@@ -250,13 +255,8 @@ pub(super) fn prepare(
         &mut body.machine,
     )?;
     body.state.return_type = result_type;
-    let actuals = arguments::materialize(
-        &mut probe,
-        &mut body.state,
-        &parameters,
-        arguments,
-        &input_types,
-    )?;
+    let actuals =
+        arguments::materialize(probe, &mut body.state, &parameters, arguments, &input_types)?;
     if materialized && !call.machine_arguments.is_empty() {
         call.machine_arguments = supplied.into_boxed_slice();
     }
@@ -270,10 +270,9 @@ pub(super) fn prepare(
         .or_else(|| probe.symbols.symbol_provenance_source_span(requester))
         .ok_or("source invocation lost its actual requesting source")?;
     probe.expression_table.set_source_span(concrete, call_span);
-    let owner = body.return_expression(&mut probe, concrete)?;
+    let owner = body.return_expression(probe, concrete)?;
     probe.retain_call_static_argument_context(concrete, owner)?;
     Ok(TypedCall {
-        source: probe,
         caller: owner,
         call: concrete,
         input_values: actuals.input_values,

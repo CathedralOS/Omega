@@ -56,12 +56,11 @@ Omega has one specification in [wiki/spec/](wiki/spec/). Describe
 compiler-specific implementation status in the compiler's plan or layer
 contracts.
 
-**Only the two owners, Zac and Jarod, edit `wiki/spec/`** (owner ruling,
-2026-11-27). Agents read it and build what it says; they never add, change or delete text
-there, even to record a ruling or to match landed code. When a change would make
-a spec sentence inaccurate, don't make the change. Record the sentence, the
-proposed text and the reason in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md), and keep
-building to the current text.
+**Zac and Jarod decide the specification.** When an owner directs closure of an
+answered question, apply the ruling to the governing docs or specification,
+update references and remove the entry from [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md)
+in the same PR. Otherwise agents read `wiki/spec/` and build what it says.
+Escalate an unresolved change with the existing sentence, proposed text and reason.
 
 The Psi wire encoding (numeric tags, field layouts and format markers) is the
 compiler's file format, not specification. It lives beside the codec in

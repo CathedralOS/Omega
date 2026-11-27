@@ -1,11 +1,12 @@
 /*
   Block-local live-range, constraint, copy-affinity, edge-transfer, and
-  interference analysis (`analyze_live_ranges`, `analyze_live_ranges_reusing`,
-  `ValidatedLiveRanges`, `StagedOptimizedLiveRanges`).
+  interference analysis (`analyze_live_ranges`, `ValidatedLiveRanges`,
+  `StagedOptimizedLiveRanges`).
 
   Constructs `LiveRangePlan` facts from `SelectedInstructionPlan` and
-  `ValidatedLiveness`, reusing unchanged function rows across register-pressure
-  recovery steps.
+  `ValidatedLiveness`. `UnsealedRecoveryFacts` and
+  `reanalyze_rewritten_functions` in `lib.rs` reuse unchanged function rows
+  through `compute::compute_function`.
 */
 
 use crate::{SelectedProgramView, ValidatedLiveness};
@@ -1468,60 +1469,6 @@ pub mod compute {
             functions,
         })
     }
-
-    pub(crate) fn compute_terminal_live_ranges_reusing(
-        previous: &impl crate::SelectedProgramView,
-        previous_liveness: &ValidatedLiveness,
-        previous_ranges: &crate::ValidatedLiveRanges,
-        selected: &impl crate::SelectedProgramView,
-        liveness: &ValidatedLiveness,
-    ) -> Result<(LiveRangePlan, Vec<bool>), LiveRangeError> {
-        let prior = previous_ranges.plan();
-        let mut carried = vec![false; selected.selected_plan().functions.len()];
-        let compatible = prior.selected == previous.selected_identity()
-            && prior.liveness == previous_liveness.receipt().identity()
-            && previous_liveness.plan().selected == previous.selected_identity()
-            && prior.optimization_unit == previous.optimization_unit_identity()
-            && prior.work_schedule == previous.work_schedule_identity()
-            && prior.target == previous.selected_plan().target
-            && prior.optimization_unit == selected.optimization_unit_identity()
-            && prior.work_schedule == selected.work_schedule_identity()
-            && prior.target == selected.selected_plan().target
-            && prior.functions.len() == previous.selected_plan().functions.len();
-        let functions = selected
-            .selected_plan()
-            .functions
-            .iter()
-            .zip(&liveness.plan().functions)
-            .enumerate()
-            .map(|(function_index, (function, live))| {
-                if compatible
-                    && (previous.selected_plan().functions.shares_function_storage(
-                        &selected.selected_plan().functions,
-                        function_index,
-                    ) || previous.selected_plan().functions.get(function_index)
-                        == Some(function))
-                    && previous_liveness.plan().functions.get(function_index) == Some(live)
-                    && let Some(facts) = prior.functions.get(function_index)
-                {
-                    carried[function_index] = true;
-                    return Ok(facts.clone());
-                }
-                compute_function(function_index, function, live).map(Arc::new)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok((
-            LiveRangePlan {
-                selected: selected.selected_identity(),
-                liveness: liveness.receipt().identity(),
-                optimization_unit: selected.optimization_unit_identity(),
-                work_schedule: selected.work_schedule_identity(),
-                target: selected.selected_plan().target,
-                functions,
-            },
-            carried,
-        ))
-    }
 }
 pub(crate) mod validate {
 
@@ -1636,29 +1583,6 @@ pub fn analyze_live_ranges<S: SelectedProgramView>(
     validate::require_liveness_of(selected, liveness)?;
     let plan = compute::compute_terminal_live_ranges(selected, liveness)?;
     Ok(validate::admit(plan, &[], &[], &[]))
-}
-
-pub fn analyze_live_ranges_reusing(
-    previous: &impl SelectedProgramView,
-    previous_liveness: &ValidatedLiveness,
-    previous_ranges: &ValidatedLiveRanges,
-    selected: &impl SelectedProgramView,
-    liveness: &ValidatedLiveness,
-) -> Result<ValidatedLiveRanges, LiveRangeError> {
-    validate::require_liveness_of(selected, liveness)?;
-    let (plan, carried) = compute::compute_terminal_live_ranges_reusing(
-        previous,
-        previous_liveness,
-        previous_ranges,
-        selected,
-        liveness,
-    )?;
-    Ok(validate::admit(
-        plan,
-        &carried,
-        &previous_ranges.function_digests,
-        &previous_ranges.function_counts,
-    ))
 }
 
 mod staging {

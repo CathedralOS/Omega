@@ -202,11 +202,12 @@ impl PreparedTargetSupply {
         let mut met = Vec::<BoundaryMachineId>::new();
         let mut resolved = Vec::<(BoundaryMachineId, MachineId)>::new();
         let mut requirements = Vec::<DemandedRequirement>::new();
+        // The module does not change while the walk runs, so its machine
+        // catalog is read once; each round only adds the boundaries it resolved.
+        let mut graph =
+            terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
+                .map_err(defect)?;
         loop {
-            let graph =
-                terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
-                    .and_then(|graph| graph.with_boundary_calls(resolved.iter().copied()))
-                    .map_err(defect)?;
             let scalar_roots = graph
                 .scalar_evaluation_roots(&roots, target)
                 .map_err(defect)?;
@@ -338,6 +339,9 @@ impl PreparedTargetSupply {
             if resolved.len() == before {
                 break;
             }
+            graph = graph
+                .with_boundary_calls(resolved[before..].iter().copied())
+                .map_err(defect)?;
         }
         if !refusals.is_empty() {
             return Err(refusals);

@@ -33,11 +33,7 @@ pub(crate) fn construct_relocation_free_object_from_text(
     text: &RelocationFreeTextSectionPlacement,
     selections: OptimizationSelectionIdentity,
 ) -> Result<RelocationFreeObjectPlan, RelocationFreeObjectFromTextError> {
-    let policy = object_target_policy(text.target).ok_or(
-        RelocationFreeObjectFromTextError::InvalidObject(
-            RelocationFreeObjectError::NonCanonicalTarget,
-        ),
-    )?;
+    let policy = object_target_policy(text.target);
     let mut symbols = Vec::with_capacity(text.functions.len());
     let mut semantic_entry_symbol = None;
     for (index, function) in text.functions.iter().enumerate() {
@@ -183,8 +179,7 @@ mod tests {
             semantic_entry: machine,
             semantic_entry_offset: 0,
             policy: TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1,
-            section_alignment: crate::object_target_policy(target)
-                .map_or(4, |policy| policy.text_section_alignment),
+            section_alignment: crate::object_target_policy(target).text_section_alignment,
             byte_count: 4,
             bytes: vec![0x20, 0, 0, 0xb5],
             functions: vec![PlacedFunctionFragment {

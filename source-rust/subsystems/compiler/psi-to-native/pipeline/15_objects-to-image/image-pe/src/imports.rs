@@ -104,17 +104,6 @@ pub(crate) fn install_import_thunks(
     for (symbol_handle, import) in imports {
         let symbol = image.symbol_table.symbols.get(symbol_handle).name.clone();
         let (library, lookup) = match import {
-            FinalImageImportPlan::StringBackedBootstrap { library } => {
-                let library = if library.is_empty() {
-                    calling_conventions::windows_import_library(&symbol)
-                        .unwrap_or("KERNEL32.dll")
-                        .as_bytes()
-                        .to_vec()
-                } else {
-                    library.into_bytes()
-                };
-                (library, PeImportLookup::ByName(symbol.as_bytes().to_vec()))
-            }
             FinalImageImportPlan::Normalized(target::NormalizedImportLocator::Foreign(locator)) => {
                 if !locator.target().imports_through_pe()
                     || locator.target().native_target() != image.target
@@ -371,20 +360,30 @@ mod tests {
         image
     }
 
-    fn bootstrap_import_image(name: &str) -> FinalImage {
-        image_with_import(
-            name,
-            FinalImageImportPlan::StringBackedBootstrap {
-                library: "KERNEL32.dll".into(),
+    fn kernel32_locator(export: &str) -> target::NormalizedImportLocator {
+        normalize_foreign_locator(
+            ForeignLocatorCandidate::PeByName {
+                library: b"KERNEL32.dll".to_vec(),
+                export: export.as_bytes().to_vec(),
             },
+            TargetProfile::WindowsX64,
+        )
+        .expect("valid KERNEL32 locator")
+        .into()
+    }
+
+    fn kernel32_import_image(export: &str) -> FinalImage {
+        image_with_import(
+            export,
+            FinalImageImportPlan::Normalized(kernel32_locator(export)),
         )
     }
 
     #[test]
     fn installed_import_thunks_enter_the_executable_region_inventory() {
-        let mut image = bootstrap_import_image("ExitProcess");
+        let mut image = kernel32_import_image("ExitProcess");
 
-        let thunks = install_import_thunks(&mut image, 3).expect("valid bootstrap import");
+        let thunks = install_import_thunks(&mut image, 3).expect("valid KERNEL32 import");
         validate_import_thunk_footprints(&image, &thunks)
             .expect("installed PE thunk bytes should validate");
 
@@ -401,7 +400,7 @@ mod tests {
 
     #[test]
     fn image_writer_cannot_generate_or_substitute_an_import_body() {
-        let complete = bootstrap_import_image("ExitProcess");
+        let complete = kernel32_import_image("ExitProcess");
         let mut missing = complete.clone();
         missing.import_program.imports.clear();
         let error = install_import_thunks(&mut missing, 3).unwrap_err();
@@ -410,10 +409,9 @@ mod tests {
 
         let mut substituted = complete.clone();
         substituted.import_program.imports[0].identity =
-            machine_code::import_code::ImportCodeIdentity::StringBackedBootstrap {
-                library: "KERNEL32.dll".into(),
-                symbol: "GetLastError".into(),
-            };
+            machine_code::import_code::ImportCodeIdentity::Normalized(kernel32_locator(
+                "GetLastError",
+            ));
         assert!(
             install_import_thunks(&mut substituted, 3)
                 .unwrap_err()
@@ -437,8 +435,8 @@ mod tests {
 
     #[test]
     fn mutated_import_thunk_opcode_rejects_final_validation() {
-        let mut image = bootstrap_import_image("ExitProcess");
-        let thunks = install_import_thunks(&mut image, 3).expect("valid bootstrap import");
+        let mut image = kernel32_import_image("ExitProcess");
+        let thunks = install_import_thunks(&mut image, 3).expect("valid KERNEL32 import");
         image.memory.text[0] = 0x90;
 
         let diagnostic = validate_import_thunk_footprints(&image, &thunks)

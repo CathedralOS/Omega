@@ -61,7 +61,6 @@ pub(crate) fn rejoin_admitted_provider_execution(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn metadata_port_effect_custody(
-    pass: crate::physical::PhysicalEvidencePass,
     module: &terminal_psi::TerminalModule,
     object: &image_emission::ObjectArtifact,
     image: &[u8],
@@ -134,11 +133,10 @@ pub(crate) fn metadata_port_effect_custody(
     let machine_bytes = span(function.bytes(object), machine_span)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
     let final_image_bytes = span(image, object_span)?;
-    if pass.is_receiver()
-        && (target_x86_64::inspection::decode_immediate_port_write(machine_bytes)
-            != Some((effect.port, effect.value))
-            || machine_bytes != object_bytes
-            || object_bytes != final_image_bytes)
+    if target_x86_64::inspection::decode_immediate_port_write(machine_bytes)
+        != Some((effect.port, effect.value))
+        || machine_bytes != object_bytes
+        || object_bytes != final_image_bytes
     {
         return Err("metadata port D41 effect bytes changed across physical custody");
     }
@@ -155,7 +153,6 @@ pub(crate) fn metadata_port_effect_custody(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn direct_port_read_custody(
-    pass: crate::physical::PhysicalEvidencePass,
     object: &image_emission::ObjectArtifact,
     image: &[u8],
     occurrence: &OptimizedBoundaryOccurrence,
@@ -238,12 +235,10 @@ pub(crate) fn direct_port_read_custody(
     if return_attribution.text_offset != expected_return_object_offset {
         return Err("direct port-read D41 return moved away from its custody");
     }
-    if pass.is_receiver()
-        && (target_x86_64::inspection::decode_immediate_port_read_u8(bytes)
-            != Some(realization.port)
-            || function.bytes(object).get(return_offset) != Some(&0xc3)
-            || object.text_bytes().get(return_attribution.text_offset) != Some(&0xc3)
-            || image.get(return_attribution.text_offset) != Some(&0xc3))
+    if target_x86_64::inspection::decode_immediate_port_read_u8(bytes) != Some(realization.port)
+        || function.bytes(object).get(return_offset) != Some(&0xc3)
+        || object.text_bytes().get(return_attribution.text_offset) != Some(&0xc3)
+        || image.get(return_attribution.text_offset) != Some(&0xc3)
     {
         return Err("direct port-read D41 custody changed across physical custody");
     }

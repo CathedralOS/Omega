@@ -1,11 +1,11 @@
 # Native artifact custody
 
 Start at [native_artifact.rs](src/native_artifact.rs). `NativeArtifact` holds
-the canonical Terminal artifact, target object, executable image, selected
-provider records and replay evidence together.
+the canonical Terminal artifact, target object, executable image and selected
+provider records together.
 
 Its [requested-image construction](src/native_artifact.rs) takes
-`NativeArtifactEmissionParts<ExecutableImageEmissionRequest>`, emits the image,
+`NativeArtifactParts<ExecutableImageEmissionRequest>`, emits the image,
 and calls the Direct or the Dynamic-ELF constructor, which carry different
 authority. `RequestedNativeArtifact::emit` accepts only records that no longer
 reference source, and writes no files.
@@ -14,8 +14,7 @@ selection evidence into those records here in the backend. It keeps each
 plan's strong digest and exact closed list of requirements; specialized
 requirements replace template identities, as in provider admission. The
 compiler passes selection evidence through without building that list itself.
-The two image products share the emission-parts shape, not result type or
-replay.
+The two image products share the parts shape, not result type or replay.
 
 [Component publication](src/component_description.rs) writes the selected provider
 receipts, emitted stack demand and image identity into the component description.
@@ -23,10 +22,14 @@ The [component reader](../../../verification/component-description/description.r
 the verified export and authority rosters from the embedded Psi artifact.
 
 The rest of the lifecycle is in `native_artifact.rs`.
-`from_emitted_parts` derives physical evidence once and seals the artifact
-over the parts this compile produced, without replaying them.
+`from_emitted_parts` seals the artifact over the bytes this compile emitted.
+It derives no physical evidence and replays nothing: the
+[machine-state evidence spec](../../../../../../../wiki/spec/build/machine_state_evidence.md#native-emission-and-backend-testing)
+requires ordinary builds to publish those bytes directly, with an artifact
+identity that does not depend on a second pass over them.
 `from_replayed_parts` rebuilds an artifact from kept records, and `validate`
-replays the cross-checks before it can be returned. Checks of a receiver's
+replays the cross-checks, including a fresh physical evidence derivation,
+before it can be returned. Checks of a receiver's
 policy belong to explicit ecosystem admission, not to a default deny-all check
 on emission. Structural validation alone grants a receiver no authority;
 removing the mandatory producer check is tracked by
@@ -64,7 +67,10 @@ The image backend's `physical_entry` module implements the ABI bridge: it
 calls that ordinary source adapter and keeps its actual return value. The
 bridge does not invent semantic storage roots or replace the adapter's handoff.
 [physical/mod.rs](src/physical/mod.rs) rebuilds physical evidence
-independently and holds the records it keeps. In
+independently and holds the records it keeps. Only receivers and audits run
+it: `validate` derives it to reject contradictory custody, and
+`RetainedNativeArtifact::physical_evidence` returns it for an explicit audit.
+The artifact stores neither the evidence nor its gap. In
 [evidence.rs](src/physical/derivation/evidence.rs), derivation matches the
 surviving occurrences back to their sources and sends their boundary evidence
 to three files:
@@ -104,11 +110,11 @@ exact D29 records for supported compiler-intrinsic and checked-body operator
 applications; supported hosted byte input/output and process-exit settlements
 on Linux x86-64/AArch64 and macOS AArch64; and admitted-provider D41 records
 for supported normalized foreign calls. Each surviving physical occurrence has
-one replayable child bound to its D29 or D41 parent, and the scope is part of
-the artifact's identity. Unsupported D29/D41 roles and later optimization
-phases produce no D32 evidence, but the native artifact stays usable. A
-consumer that needs final-realization evidence must reject an artifact without
-it.
+one replayable child bound to its D29 or D41 parent. The scope is part of the
+artifact's identity; the derived evidence is not. Unsupported D29/D41 roles and
+later optimization phases produce no D32 evidence, but the native artifact
+stays usable. A consumer that needs final-realization evidence must call
+`physical_evidence` and reject an artifact whose derivation is not complete.
 
 `RequestedNativeArtifact::emit_admitted` builds the optimized scope,
 `ValidatedOptimizedProjection`, through

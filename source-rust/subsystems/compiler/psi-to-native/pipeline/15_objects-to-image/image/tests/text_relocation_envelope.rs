@@ -68,7 +68,6 @@ fn object_symbol(
         offset,
         size,
         kind,
-        import_library: String::new(),
     })
 }
 

@@ -83,6 +83,18 @@ trait, declaring trait and exact requirement, or its refusal. Typing uses that
 result instead of resolving the path again in another context.
 
 Both the continuation and fresh typing finish with `close_typed_cohort`.
+On a continuation, runtime call binding
+([runtime callables](src/expressions/runtime_callables.rs)) and static
+argument contexts for expression calls
+([operand owners](src/expressions/operand_owners.rs)) walk only the cohort's
+declarations. Each then checks that its walk reached every call created since
+the cohort began, and walks the whole program if it did not. Two passes still
+walk the whole program because typed trees has no cohort form of them: static
+argument contexts when a cohort machine has a statement call that needs one,
+and `prepare_applied_callable_signatures` when the cohort adds a declaration,
+scope or application that could need an applied signature. Either may rewrite
+retained declarations, so the second runtime call binding then walks the whole
+program too.
 Declaration identities, written contracts, progress premises, domain
 constraints and literals' concrete types stay typed data and judge no body.
 Requests that depended on the removed checker refuse with

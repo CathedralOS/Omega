@@ -152,6 +152,53 @@ pub fn parameter(
     Ok(parameter)
 }
 
+/// Whether every path through the body returns without running anything:
+/// no block has operations, each jump goes forward from the entry, and no
+/// cleanup invokes code. A jump may carry a fact-only application of a
+/// proof formal. Only then do the machine's `ensures` hold wherever its
+/// `requires` do; a body that runs code establishes them only once it
+/// returns, and may not return at all.
+fn returns_without_running(machine: &terminal_psi::TerminalMachine) -> bool {
+    use terminal_psi::TerminalAffineCleanupAction as Cleanup;
+    let passive = |actions: &[Cleanup]| {
+        actions
+            .iter()
+            .all(|action| !matches!(action, Cleanup::InvokeOwned(_)))
+    };
+    let position = |id| machine.blocks.iter().position(|block| block.id == id);
+    machine
+        .blocks
+        .first()
+        .is_some_and(|block| block.id == machine.entry)
+        && machine.blocks.iter().enumerate().all(|(at, block)| {
+            block.operations.is_empty()
+                && match &block.terminator {
+                    Terminator::Jump {
+                        target,
+                        cleanup_actions,
+                        ..
+                    } => {
+                        position(*target).is_some_and(|target| target > at)
+                            && passive(cleanup_actions)
+                    }
+                    Terminator::ReturnUnit {
+                        cleanup_actions, ..
+                    } => passive(cleanup_actions),
+                    _ => false,
+                }
+        })
+}
+
+/// One block with no operations that returns: the body does nothing and
+/// terminates, whatever termination the contract publishes.
+fn does_no_work(machine: &terminal_psi::TerminalMachine) -> bool {
+    matches!(machine.blocks.as_slice(), [block]
+        if block.id == machine.entry
+            && block.operations.is_empty()
+            && matches!(block.terminator, Terminator::ReturnUnit { ref cleanup_actions, .. }
+                if cleanup_actions.is_empty()))
+}
+
 /// The implication a named machine states, when the machine does no work:
 /// a citation of it is a fact-only invocation, which emits no call
 /// (contracts.md, "Citation and induction": "erase the call if fact-only").
@@ -189,14 +236,7 @@ pub fn named_contract(
         || !contract.membership_ensures.is_empty()
     {
         Some("named theorem application names a machine with a guarantee about its outcome")
-    } else if !matches!(machine.blocks.as_slice(), [block]
-        // One block with no operations that returns: the body does nothing
-        // and terminates, whatever termination the contract publishes.
-        if block.id == machine.entry
-            && block.operations.is_empty()
-            && matches!(block.terminator, Terminator::ReturnUnit { ref cleanup_actions, .. }
-                if cleanup_actions.is_empty()))
-    {
+    } else if !does_no_work(machine) {
         Some("named theorem application names a machine whose body does work")
     } else {
         None
@@ -383,7 +423,7 @@ pub fn substitute(
 pub fn citation_goals(
     module: &TerminalModule,
     expected: &TheoremContract,
-    supplied: &terminal_psi::MachineContract,
+    supplied: &terminal_psi::TerminalMachine,
     formals: &[&TheoremContract],
     instantiated: usize,
 ) -> Result<[Proposition; 3], &'static str> {
@@ -402,7 +442,7 @@ pub fn citation_goals(
 pub fn recorded_citation_goals(
     module: &TerminalModule,
     expected: &TheoremContract,
-    supplied: &terminal_psi::MachineContract,
+    supplied: &terminal_psi::TerminalMachine,
     formals: &[&TheoremContract],
     instantiated: usize,
 ) -> Result<[Proposition; 3], &'static str> {
@@ -419,11 +459,18 @@ pub fn recorded_citation_goals(
 fn citation_goals_with(
     module: &TerminalModule,
     expected: &TheoremContract,
-    supplied: &terminal_psi::MachineContract,
+    supplied: &terminal_psi::TerminalMachine,
     formals: &[&TheoremContract],
     instantiated: usize,
     check: impl Fn(&TheoremContract) -> Result<(), &'static str>,
 ) -> Result<[Proposition; 3], &'static str> {
+    // A citation runs nothing, so it may use the cited guarantee only where
+    // that guarantee holds without the body returning
+    // (OWNER_QUESTIONS.md#bundle-evidence-field-type).
+    if !returns_without_running(supplied) {
+        return Err("cited theorem's body does work, so its guarantee holds only after it returns");
+    }
+    let supplied = &supplied.contract;
     if supplied.erased_proof_formals.len() != formals.len()
         || supplied
             .erased_proof_formals
@@ -667,7 +714,7 @@ fn weaken_closed_proof(
 pub fn denote_citation(
     module: &TerminalModule,
     expected: &TheoremContract,
-    supplied: &terminal_psi::MachineContract,
+    supplied: &terminal_psi::TerminalMachine,
     formals: &[&TheoremContract],
     instantiated: usize,
     derivations: &[terminal_psi::CertificateEnvelope],

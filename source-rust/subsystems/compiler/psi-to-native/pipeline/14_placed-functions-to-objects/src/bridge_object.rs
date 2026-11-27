@@ -77,8 +77,7 @@ impl ForeignAdapterObject {
         } = placed.into_parts();
         let bridge = NativeBridgeObject::from_call_field(bridge);
         let target = bridge.request().target;
-        let policy = crate::object_target_policy(target)
-            .ok_or("foreign adapter object has an unsupported target")?;
+        let policy = crate::object_target_policy(target);
         let mut identity = ::wire::digest_encoder::DomainDigestEncoder::new(
             b"omega.native-foreign-frame-export.v1",
         );
@@ -109,7 +108,6 @@ impl ForeignAdapterObject {
             offset: 0,
             size: bridge.bytes().len(),
             kind: crate::SymbolKind::Function,
-            import_library: String::new(),
         });
         object.layout.entry_symbol = entry;
         let imported = object

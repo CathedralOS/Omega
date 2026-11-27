@@ -1,10 +1,10 @@
 # Owner Questions
 
 Only the two owners, Zac and Jarod, answer an entry. An owner's word in a
-session is the ruling. Only the owners write a ruling into the specification;
-agents never edit `wiki/spec/`. Once the specification states the ruling, an
-agent removes the entry and builds it. Otherwise agents add questions and may
-research existing ones, but do not settle a question themselves.
+session is the ruling. To close an answered question at the owner's direction,
+update the governing documentation or specification, point existing references
+there, and remove the question from this queue in the same PR. Track any
+remaining implementation work in the owning task.
 
 Only unresolved owner-level language or architecture decisions belong here.
 Settled decisions live in the specification and language guide; implementation
@@ -65,206 +65,95 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="returning-uefi-firmware-services"></a>
-### 1. Returning UEFI applications borrow their firmware console
+<a id="native-abstract-operations-phase"></a>
+### 1. Does native lowering keep an abstract-operations phase?
 
-**Owner ruling, 2026-11-27.** The adapter passes the returning application a
-typed borrow of this invocation’s console output protocol alongside the image
-and initial storage. Use a descriptive Omega parameter name such as
-`console_output`. Use `ConsoleOut` when naming the firmware field in Omega terms.
-UEFI spells the protocol pointer `EFI_SYSTEM_TABLE.ConOut`. The separate
-`ConsoleOutHandle` field is the device handle. The adapter lends the protocol
-for the duration of the call within the valid firmware phase.
+The optimization contract lists the phases a build selection projects into:
+"Psi, abstract operations, target operations/instruction selection,
+pre-allocation, allocation recovery, post-allocation, and resolved layout".
+No other specification page names an abstract-operations phase. The
+specification names no Rust type for either phase, and the Terminal Psi
+product contract places every Psi pass before publication.
+[Exact selection](wiki/spec/build/optimizations.md#exact-selection) ·
+[Optimization ordering](wiki/spec/terminal-psi/product.md#optimization-ordering)
 
-Proposed target-owned entry shape:
+No optimization belongs to the abstract-operations phase. Native Stage 03
+refuses any selection for it. The nine passes Stage 03 can run are Psi passes,
+and the native driver's post-Terminal selections cannot contain one, so in
+every build Stage 03 builds its optimization unit, runs nothing, and checks that
+the plan is unchanged. The `AbstractOperation` enum repeats 77 of its 94
+variant names from Terminal Psi's `OperationKind`. The target-operations phase
+owns two rewrites (`UnsignedPowerOfTwoRemainderMask`, `X86ScaledIndexedLoad`).
+Stage 05 instruction selection applies them. Stage 05 reads the legalized plan
+and never names Stage 04's `TargetOperationPlan`.
+[Stage 03 entry](source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/mod.rs) ·
+[Phase list](source-rust/subsystems/compiler/foundation/optimization-selections/src/lib.rs) ·
+[Stage 05 rewrites](source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/lib.rs)
 
-```omega
-public boundary trait UefiApplicationEntry {
-    machine enter(
-        image: Extent in Granted,
-        initial_storage: Extent in Granted,
-        console_output: @EfiTextOutputProtocol
-    ) reaches |process|::StandardOutput
-      crashes Trap crashes Abort;
-}
-```
+Native Stages 02 to 04 and the abstract-operations representation hold about
+132,000 lines of Rust, tests included. Nobody has measured how much a direct
+lowering would delete. Legalization and the target replay record that the
+requested object audit reads would have to move, not disappear.
 
-The adapter calls `UefiApplicationEntry::enter(image, initial_storage, console_output)`.
-The application can then call `TextOutput::output_string(console_output, @message)`.
-Build selects the protocol field to invoke. The borrow supplies the live receiver
-for that call. The OS handoff keeps its two memory grants.
-[Current physical-entry sample](samples/uefi/uefi_hello/main.omg)
+**Recommend retiring the abstract-operations phase:** drop it from the phase
+list and let the native compiler lower the target-bound program straight to
+the legalized plan Stage 05 reads, keeping the target-operations/instruction
+selection phase for its two rewrites. Deleting `TargetOperationPlan` is then
+implementation work. Alternatively, keep the phase as the place for future
+target-neutral native rewrites, and keep Stages 02 to 04 as they are. Which
+should the phase list say?
 
-**Specification follow-up for the owners.** The UEFI entry specification
-currently routes the adapter through `ProgramStorageEntry::enter` with exactly
-two extents. Specify the returning application's entry with the additional
-phase-scoped borrow and the reach needed for console output.
-[UEFI handoff](wiki/spec/build/uefi_entry.md#physical-arrival-and-semantic-roots) ·
-[Current two-extent declaration](source/library/core/extent.omg)
+<a id="stage-05-unselected-rewrites"></a>
+### 2. Are Stage 05 call inlining and vector promotion legalization or optimizations?
 
-<a id="review-unused-generic-native-binding"></a>
-### 2. How does package audit report an unused generic native binding?
+The optimization contract says no "compiler default, build mode, or broad
+`O1`/`O2`/`O3` level implicitly enables an optimization", and that "mandatory
+normalization, legalization, allocation, and realization remain necessary
+whether or not optional profitability rewrites are selected". It does not say
+which side of that line a given rewrite falls on.
+[Exact selection](wiki/spec/build/optimizations.md#exact-selection)
 
-**Owner ruling, 2026-11-27.** When Build binds a generic native import for
-the audited target and no caller supplies concrete arguments, `omega packages audit`
-reports the binding as unused. An otherwise valid package can finish the audit.
-The report records the generic declaration, target, supplying package, foreign
-symbol locator, calling policy and where Build selected the binding. Its
-parameters stay generic. Each distinct argument tuple that a caller later uses
-requires its own checked calling plan and review of the concrete supply before
-execution.
+Native Stage 05 runs two rewrites on every build, after instruction selection
+and with no selection, catalog entry or execution record.
+`selection_inlining.rs` (1,919 lines) inlines acyclic internal calls and merges
+fall-through blocks. `selection_vector_promotion.rs` (5,381 lines) moves packed
+memory operations into 128-bit vector registers, replaces single-block local
+slots with registers, merges adjacent 16-byte stores and deletes dead stores.
+Nobody has checked whether every program still compiles without them.
+[Call site](source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection.rs) ·
+[Inlining](source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection_inlining.rs) ·
+[Vector promotion](source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection_vector_promotion.rs)
 
-For example, the Windows filesystem provider binds a generic converter to
-`kernel32.dll!WideCharToMultiByte`. Its three callers supply concrete buffer
-capacities. An offline Windows x86-64 audit with all three callers removed
-currently fails. Under this ruling the report would list the unused converter
-with its input and output capacities still generic.
-See the [declaration](source/library/system/targets/windows_x86_64/windows_filesystem_path_query_native.omg)
-and [Build binding](source/library/system/build.omg).
+**Recommend making both optimizations:** give each a Stage 06
+`SelectedLowering` catalog entry with its own validator and leave it off by
+default, keeping in Stage 05 only the part a target needs to lower some program
+at all. Alternatively, classify both as mandatory legalization and keep them
+on in Stage 05. Which are they?
 
-[Package review](wiki/spec/packages/review.md#distinct-evidence-roles) currently
-keys every evaluated native binding to an exact requirement application and
-signature. The owner spec edit should allow the generic declaration to identify
-an unused binding and retain the exact application key for each concrete use.
-[Generic provider selection](wiki/spec/build/provider_selection.md#generic-selected-requirements)
-and [calling policy](wiki/spec/build/calling_plans.md#identity-and-selection)
-govern those concrete uses.
+<a id="windows-handle-release-replay"></a>
+### 3. Does the product offer receiver admission, or does the Windows handle release proof wait?
 
-<a id="package-review-empty-policy-sections"></a>
-### 3. What should package audit report by default?
+The permission contract says ordinary production requires no receiving policy,
+and "an explicitly requested deployment compatibility check applies the
+supplied policy". It also specifies the bounded proof that lets one Windows
+`CloseHandle` or `DuplicateHandle` call count as an ordinary release. The
+command-line contract defines no request that supplies a receiving policy.
+[Production versus receiver admission](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission) ·
+[Bounded release proof](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof) ·
+[Command line](wiki/spec/build/command_line.md)
 
-**Owner ruling, 2026-11-27.** `omega packages audit` should show what the
-consumer has to trust by default. Show the boundary trait that declares an
-API's promise, the promise itself, and the provider or external implementation
-the consumer relies on when one is selected. Include custom services that the
-consuming project marks critical and highlight which APIs can reach them.
-For example, if an update makes `read_status()` reach an already permitted
-`MotorControl`, highlight that change when the previous findings are available.
+The 15 `windows_handle_*.rs` files in provider admission (12,501 lines)
+implement that proof. `checked_calls` returns before doing any work unless a
+receiving policy is present. `psi_to_native.rs:131`, the only place that builds
+the native compile request, passes `terminal_authority_permission_policy:
+None`, so only tests reach the proof. Physical behavior exclusions also
+consume this classification, but they do not run the proof.
+[Proof entry](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_review/windows_handle_replay.rs) ·
+[Native request](source-rust/subsystems/compiler/psi-to-native/psi_to_native.rs) ·
+[Physical exclusions](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)
 
-The dependency's `max_reach` sets the ceiling for that use. The audit can
-highlight a change within the ceiling. With no previous findings, show the
-current reach and identify the change as unknown.
-[Dependency reach](wiki/spec/packages/staged_inputs.md#dependency-reach) ·
-[Staged updates](wiki/spec/packages/staged_inputs.md#installing-and-updating)
-
-Keep the report sections and fill them from checked facts. Package review
-already records custom critical services, derives dangerous capabilities, and
-identifies declared critical reach that a checked body leaves unused.
-The remaining work includes recording external supplies and which opaque
-representations the build provides and the package requires.
-[Policy construction](source-rust/subsystems/compiler/build/planning/package_review/policy.rs) ·
-[Service classification](source-rust/subsystems/package-manager/review/evidence/src/record/baseline.rs)
-
-**Specification follow-up for the owners.** Make this default explicit under
-[complete checked findings](wiki/spec/packages/review.md#complete-checked-findings)
-and [critical service audit policy](wiki/spec/packages/review.md#critical-service-audit-policy).
-CLI filters can be considered later.
-
-<a id="bundle-evidence-field-type"></a>
-### 4. Citing a machine stored in an ordinary callable field
-
-**Owner ruling, 2026-11-27.** Passing a machine through a callable field
-preserves the checked facts about that selection. The ordinary field spelling
-supports both invocation and theorem citation. The use site determines which
-checks apply.
-
-For a field declared `step: NonzeroIsPositive`, `laws.step(n)` invokes the
-selected machine under its callable contract. In `use_step::<laws.step>(n)`,
-the checker may use the selected machine's evidence for the complete aliased
-implication. It checks the proof's premises for the actual argument. Citing
-the field executes no callback. A guarantee that depends on normal return or
-on a change to storage keeps that condition.
-
-Storing a callable requires ordinary callable refinement. When a proof is
-requested, the evidence must cover every selection still possible at that
-point. Reassigning the field cannot carry a previous selection's proof over
-to its replacement. A callable can therefore remain valid to invoke even
-when a particular theorem citation is refused.
-
-**Specification follow-up for the owners.** The operation-record rule says
-that a structural callable field “requires that callable contract.” Keep that
-construction rule and state that projecting the selected machine in a proof
-argument may cite its checked logical evidence under the rules above. The
-compiler work is tracked under PROOF-KERNEL-CORE. [Operation records](wiki/spec/language/conformances.md#implementations-are-operation-records) · [Logical hypotheses](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) · [Callable storage and evidence](wiki/spec/language/machine_values.md#invocation-storage-and-evidence) · [Compiler tasks](TASKS.md)
-
-<a id="address-subject-lower-bound"></a>
-### 5. Numeric addresses have a lower bound of zero on every target
-
-**Owner ruling, 2026-11-27.** Every numeric `address` is zero or positive.
-The proof checker may use `0 <= n` for any value `n: address` before target
-selection. Zero is a valid address value. The upper bound depends on the
-selected target's address model. Numeric address facts grant no memory access
-authority. [Counts and addresses](wiki/spec/language/counts_and_addresses.md#separate-roles)
-
-For example, a machine with `requires n != 0` may conclude `n > 0`. Without
-that premise or other evidence excluding zero, strict positivity does not
-follow. The current compiler refuses the nonzero-to-positive example with
-“value has no bound.”
-
-**Specification follow-up for the owners.** Extend the scalar carrier-bound
-rule to accept `0 <= value` for a declared address value alongside its existing
-fixed-integer endpoint cases. The mathematical rule for a selected address
-width continues to apply. [Elementary certificate rules](wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules)
-The nonzero-to-positive example also needs the closed literal-order predicate
-denotation to decide two address literals, as it decides two fixed-integer
-literals: the `n < 0` arm meets `0 <= n` as `0 < 0`, whose denotation is
-`Falsehood`. The compiler now does both; the specification text still names
-only fixed integers. [Literal predicate denotations](wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules)
-
-<a id="fixed-extent-view-of-a-slice"></a>
-### 6. Explicit casts between slices and fixed-array references
-
-**Owner ruling, 2026-11-27.** Use ordinary checked `as` to convert between
-`@[T]` and `@[T; N]`. The author writes the conversion at the call site
-when the argument and parameter have different shapes. For example, given
-`block: @[u8; 16]` and a machine taking `@[u8]`, write
-`consume(block as @[u8])`. A bare `consume(block)` fails the type check.
-The slice covers all 16 elements of the same backing. Its length comes
-from the array type.
-
-In the other direction, `window as @[u8; 16]` requires proof that the
-whole window has exactly 16 elements. To load the first 16 bytes of a
-longer row, select that range explicitly:
-
-```omega
-let block: @[u8; 16] = @row[0..16] as @[u8; 16];
-|u8x16|::load(block)
-```
-
-The range requires at least 16 bytes in the row and yields a slice of
-exactly 16. Both casts preserve the borrowed storage, lifetime and access.
-A mutable result requires an exclusive mutable borrow of the selected
-elements, so a store through it updates the row in place.
-[SIMD load and store](source/library/system/simd/u8x16.omg)
-
-**Specification follow-up for the owners.** Describe the two casts under
-representation-compatible recasts. Existing explicit range borrows and array
-view adapters still form slices. An expected argument type alone performs no
-conversion. [Recasts](wiki/spec/layouts/recasts.md) · [Views of a fixed array](wiki/spec/language/expressions.md#views-of-a-fixed-array)
-
-<a id="generic-quotient-selection"></a>
-### 7. Generic quotients name the applied relation and its proof
-
-**Owner ruling, 2026-11-27.** A quotient can be declared once for every
-admitted type `T`. Write the generic arguments on the relation after `%`
-and on the named conformance after `as`. For example, sequences of a given
-element type can be identified when they have the same length.
-
-```omega
-data SequenceLength<T> = Seq<T> % same_length<T>
-    requires same_length<T> satisfies MereEquivalence<Seq<T>, same_length<T>>
-    as SameLength<T>;
-```
-
-For `SequenceLength<u8>`, the carrier is `Seq<u8>`, the relation is
-`same_length<u8>`, and `SameLength<u8>` must supply the full
-`MereEquivalence<Seq<u8>, same_length<u8>>` evidence. Its laws hold for
-arbitrary sequences of that element type. Reject an application if its
-named conformance does not close at the supplied arguments or proves the
-laws for a different carrier or relation.
-
-**Specification follow-up for the owners.** Extend the closed example in
-[quotient formation](wiki/spec/proofs/quotients.md#formation-and-representation)
-with this generic declaration. Each concrete application selects one closed
-conformance under the existing [relation laws](wiki/spec/proofs/quotients.md#families-relations-and-evidence)
-and [named conformance rules](wiki/spec/language/conformances.md#declaration-and-selection).
+**Recommend archiving the proof:** move `windows_handle_*.rs` to
+`_recycling/` and restore it with the request that first supplies a
+receiving policy. Alternatively, specify that request on the command line now
+and wire its policy through `psi_to_native`, which makes the proof reachable.
+Which should the product do?
