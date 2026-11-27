@@ -5,7 +5,9 @@
 //! recursor, and an Identity between two of them is the kernel's identity at
 //! that type.
 
-use super::{BoundedDenotationError, Denotation, Proposition, ScalarTerm, ScalarType, TermHandle};
+use super::{
+    BoundedDenotationError, Denotation, ProofError, Proposition, ScalarTerm, ScalarType, TermHandle,
+};
 use bignum::BigInt;
 use mathematical_kernel::{PlainData, PlainField};
 use semantic_vocabulary::{
@@ -174,19 +176,58 @@ impl Denotation {
         &mut self,
         place: PlaceId,
         motive: TermHandle,
-        mut body: impl FnMut(&mut Self, &PlainData, usize) -> Result<TermHandle, BoundedDenotationError>,
+        body: impl FnMut(&mut Self, &PlainData, usize) -> Result<TermHandle, BoundedDenotationError>,
     ) -> Result<TermHandle, BoundedDenotationError> {
         let (declared, subject) = self.declared(place).expect("a declared sum input");
         let (data, entry) = (declared.data.clone(), declared.entry);
+        let subject = self.constant(subject);
+        self.analyze_at(&data, entry, motive, body, subject)
+    }
+
+    /// The same analysis of `scrutinee`, any term of the sum. Each branch
+    /// body must be closed but for the case's own fields.
+    fn analyze_at(
+        &mut self,
+        data: &PlainData,
+        entry: u32,
+        motive: TermHandle,
+        mut body: impl FnMut(&mut Self, &PlainData, usize) -> Result<TermHandle, BoundedDenotationError>,
+        scrutinee: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
         let ty = self.constant(entry);
         let motive = self.lam(ty, motive);
         let mut branches = Vec::with_capacity(data.cases());
         for case in 0..data.cases() {
-            let value = body(self, &data, case)?;
+            let value = body(self, data, case)?;
             branches.push(data.branch(&mut self.arena, entry, motive, case, value));
         }
-        let subject = self.constant(subject);
-        Ok(data.induct(&mut self.arena, entry, motive, &branches, subject))
+        Ok(data.induct(&mut self.arena, entry, motive, &branches, scrutinee))
+    }
+
+    /// The test that `scrutinee` is in the case at `tested`: the identity
+    /// of its recursor, `0` exactly at that case, with `0`.
+    fn case_test_at(
+        &mut self,
+        data: &PlainData,
+        entry: u32,
+        tested: usize,
+        scrutinee: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        let two = self.two;
+        let test = self.analyze_at(
+            data,
+            entry,
+            two,
+            |s, _, case| {
+                Ok(if case == tested {
+                    s.two_zero
+                } else {
+                    s.two_one
+                })
+            },
+            scrutinee,
+        )?;
+        Ok(self.id(self.two, test, self.two_zero))
     }
 
     /// A case test of a whole sum input: its recursor is `0` exactly at the
@@ -198,7 +239,7 @@ impl Denotation {
         let Proposition::StructuralCaseMembership { subject, case } = prop else {
             return Ok(None);
         };
-        let Some((declared, _)) = self.declared(subject.root()) else {
+        let Some((declared, input)) = self.declared(subject.root()) else {
             return Ok(None);
         };
         if !subject.path().is_empty() {
@@ -207,15 +248,88 @@ impl Denotation {
             ));
         }
         let tested = Self::case_position(declared, *case)?;
-        let two = self.two;
-        let test = self.analyze(subject.root(), two, |s, _, case| {
-            Ok(if case == tested {
-                s.two_zero
+        let (data, entry) = (declared.data.clone(), declared.entry);
+        let input = self.constant(input);
+        self.case_test_at(&data, entry, tested, input).map(Some)
+    }
+
+    /// `c in S::A || c in S::B || ...`, each case of a sum input once and in
+    /// any order, by induction over `c`. The motive is that disjunction of
+    /// the tests at the bound value; at the value of each case, its own test
+    /// computes to `0 = 0` and the branch injects `refl` there. Nothing is
+    /// assumed: the recursor and the computing tests are the proof.
+    pub(super) fn data_case_exhaustion(
+        &mut self,
+        prop: &Proposition,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        let (place, cases) = crate::proof::case_exhaustion_cases(prop)
+            .map_err(BoundedDenotationError::Certificate)?;
+        let Some((declared, subject)) = self.declared(place) else {
+            return Err(BoundedDenotationError::Unsupported(
+                "a case exhaustion of other than a theorem's sum input",
+            ));
+        };
+        let tested = cases
+            .iter()
+            .map(|case| Self::case_position(declared, *case))
+            .collect::<Result<Vec<_>, _>>()?;
+        let (data, entry) = (declared.data.clone(), declared.entry);
+        if tested.len() != data.cases() {
+            return Err(BoundedDenotationError::Certificate(
+                ProofError::RuleConclusionMismatch("a case exhaustion that omits a case"),
+            ));
+        }
+        // Right-nested tagged sums bind one value each: the disjunct at `j`
+        // sits under `j + 1` of them, and the last beside the one before it.
+        let count = tested.len();
+        let mut leaves = Vec::with_capacity(count);
+        for (j, &case) in tested.iter().enumerate() {
+            let depth = if count == 1 {
+                0
             } else {
-                s.two_one
-            })
-        })?;
-        Ok(Some(self.id(self.two, test, self.two_zero)))
+                (j + 1).min(count - 1)
+            };
+            let scrutinee = self.var(depth as u32);
+            leaves.push(self.case_test_at(&data, entry, case, scrutinee)?);
+        }
+        let family = if count == 1 {
+            leaves[0]
+        } else {
+            self.disjunction_terms(leaves)
+        };
+        let ty = self.constant(entry);
+        let motive = self.lam(ty, family);
+        let mut branches = Vec::with_capacity(count);
+        for case in 0..count {
+            let index = tested
+                .iter()
+                .position(|&at| at == case)
+                .expect("every case is tested once");
+            let mut proof = self.refl(self.two, self.two_zero);
+            proof = self.inject(count, index, proof);
+            let value = data.case_value(&mut self.arena, entry, case, 0);
+            let at = self.app(motive, value);
+            let body = self.ascribe(at, proof);
+            branches.push(data.branch(&mut self.arena, entry, motive, case, body));
+        }
+        let subject = self.constant(subject);
+        Ok(data.induct(&mut self.arena, entry, motive, &branches, subject))
+    }
+
+    /// The injection of `proof` at disjunct `index` of `count`.
+    fn inject(&mut self, count: usize, index: usize, proof: TermHandle) -> TermHandle {
+        if count == 1 {
+            return proof;
+        }
+        // `index` ones lead to the disjunct, and a zero picks it unless it
+        // is the last.
+        let mut tags = vec![self.two_one; index];
+        if index + 1 < count {
+            tags.push(self.two_zero);
+        }
+        tags.into_iter()
+            .rev()
+            .fold(proof, |inner, tag| self.pair(tag, inner))
     }
 
     /// A payload read `Case(c), Field(f)` of a sum input: the field in its

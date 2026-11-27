@@ -1849,6 +1849,10 @@ retain an optional exact semantic formal for dispatch-only table use rather
 than the retired omitted-prefix count. Proof-system marker 9 separately
 records the integer-to-float representability rule and certificate tag 32,
 which the stored certificate decoder reads; it does not change the `PSICORE` envelope.
+Proof-system marker 10 adds certificate tag 33, `StructuralCaseExhaustion`:
+a leaf concluding that a theorem's sum input is in one of its cases. Readers
+reject a certificate under marker 9 or earlier, so a saved program with one
+must be rebuilt; the semantic format marker is unchanged.
 
 Native record `OMGNTI39` also retains the classified `IntegerAggregate` ABI
 case for Darwin non-HFA composites. It distinguishes their whole-eight-byte

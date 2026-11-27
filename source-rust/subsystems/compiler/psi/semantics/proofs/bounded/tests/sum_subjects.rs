@@ -470,3 +470,115 @@ fn a_payload_read_has_no_bound_inside_its_carrier() {
         "{refused}"
     );
 }
+
+/// `data Three { case A; case B(b: u8); case C(c: u8); }`
+fn three() -> DataSubjectShape {
+    DataSubjectShape {
+        structural_type: StructuralTypeId::new(9).unwrap(),
+        cases: vec![
+            (case(5), Vec::new()),
+            (case(6), vec![(field(4), DataFieldShape::Scalar(u8_type()))]),
+            (case(7), vec![(field(5), DataFieldShape::Scalar(u8_type()))]),
+        ],
+    }
+}
+
+/// `c in S::A || ...` over `tested`, by case exhaustion, from no premise.
+fn exhaust(shape: DataSubjectShape, tested: &[StructuralCaseId]) -> Result<(), String> {
+    let goal = match tested {
+        [one] => is_case(1, *one),
+        many => Proposition::Disjunction(many.iter().map(|at| is_case(1, *at)).collect()),
+    };
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::StructuralCaseExhaustion,
+    };
+    verify_bounded_theorem(
+        &[],
+        &[subject(1, shape)],
+        &[],
+        &goal,
+        &[],
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .map(drop)
+    .map_err(|error| format!("{error:?}"))
+}
+
+/// Every value of a sum is in one of its cases, in any order the disjuncts
+/// name them: the recursor's branch at each case proves its own test.
+#[test]
+fn a_sum_input_is_in_one_of_its_cases() {
+    exhaust(choice(u8_type()), &[case(1), case(2)]).unwrap();
+    exhaust(choice(u8_type()), &[case(2), case(1)]).unwrap();
+    exhaust(nat(), &[case(3), case(4)]).unwrap();
+    for order in [
+        [case(5), case(6), case(7)],
+        [case(7), case(5), case(6)],
+        [case(6), case(7), case(5)],
+    ] {
+        exhaust(three(), &order).unwrap_or_else(|error| panic!("{order:?}: {error}"));
+    }
+}
+
+#[test]
+fn a_sum_input_is_not_shown_in_fewer_than_all_of_its_cases() {
+    let error = exhaust(three(), &[case(5), case(7)]).unwrap_err();
+    assert!(
+        error.contains("a case exhaustion that omits a case"),
+        "{error}"
+    );
+    let error = exhaust(choice(u8_type()), &[case(1)]).unwrap_err();
+    assert!(
+        error.contains("a case exhaustion that omits a case"),
+        "{error}"
+    );
+    let error = exhaust(choice(u8_type()), &[case(1), case(1)]).unwrap_err();
+    assert!(error.contains("structural case exhaustion"), "{error}");
+    let error = exhaust(choice(u8_type()), &[case(1), case(3)]).unwrap_err();
+    assert!(
+        error.contains("names a case its declaration lacks"),
+        "{error}"
+    );
+}
+
+/// A sum of one case is in that case.
+#[test]
+fn a_sum_input_of_one_case_is_in_it() {
+    let single = DataSubjectShape {
+        structural_type: StructuralTypeId::new(10).unwrap(),
+        cases: vec![(case(8), vec![(field(6), DataFieldShape::Scalar(u8_type()))])],
+    };
+    exhaust(single.clone(), &[case(8)]).unwrap();
+    let error = exhaust(single, &[case(1)]).unwrap_err();
+    assert!(
+        error.contains("names a case its declaration lacks"),
+        "{error}"
+    );
+}
+
+/// Outside a theorem there is no declaration to derive it from.
+#[test]
+fn a_case_exhaustion_needs_its_sum_declaration() {
+    let goal = Proposition::Disjunction(vec![is_case(1, case(1)), is_case(1, case(2))]);
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::StructuralCaseExhaustion,
+    };
+    let context = semantic_vocabulary::PropositionContext::from_value_types_and_places(
+        [],
+        [(
+            place(1),
+            semantic_vocabulary::StructuralPlaceKind::Parameter { position: 0 },
+        )],
+    )
+    .unwrap();
+    let error = proof_admission::accept_certificate(&context, &goal, &[], &[], &proof).unwrap_err();
+    let shown = format!("{error:?}");
+    assert!(
+        shown.contains("a case exhaustion of other than a theorem's sum input"),
+        "{shown}"
+    );
+}

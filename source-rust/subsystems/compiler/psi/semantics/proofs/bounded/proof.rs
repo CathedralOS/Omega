@@ -12,10 +12,14 @@
 use std::collections::BTreeSet;
 pub use terminal_psi::{ProofNode, ProofRule};
 
-use semantic_vocabulary::{IntegerMathTerm, Proposition, PropositionContext, ScalarTerm, ValueId};
+use semantic_vocabulary::{
+    IntegerMathTerm, PlaceId, Proposition, PropositionContext, ScalarTerm, StructuralCaseId,
+    ValueId,
+};
 
 use crate::bounded_denotation::{
-    BoundedDenotationError, verify_bounded_certificate_with_machine_parameters,
+    BoundedDenotationError, DataSubject, verify_bounded_certificate_over_data,
+    verify_bounded_certificate_with_machine_parameters,
 };
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitnessError, IntegerCastBoundConversionError,
@@ -79,6 +83,8 @@ pub enum AcceptedProofRule {
     /// Checked finite-nonzero IEEE transport for exact conversion; provisional.
     FloatIntegerConversion,
     IntegerFloatExact,
+    /// A sum input is in one of its cases, derived through its recursor.
+    StructuralCaseExhaustion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -186,6 +192,35 @@ pub fn accept_certificate(
         &BTreeSet::new(),
         proof,
     )
+}
+
+/// A closed derivation over a theorem's subjects, its sum inputs bound to
+/// their declarations: a case exhaustion is checked only here.
+pub fn accept_certificate_over_data(
+    context: &PropositionContext,
+    goal: &Proposition,
+    data_subjects: &[DataSubject],
+    proof: &ProofNode,
+) -> Result<CertificateAcceptance, ProofError> {
+    #[cfg(test)]
+    crate::bounded_observations::record_admission();
+    context
+        .validate(goal)
+        .map_err(ProofError::MalformedProposition)?;
+    let mut acceptance = AcceptanceBuilder::default();
+    check_node(context, &[], &[], &BTreeSet::new(), proof, &mut acceptance)?;
+    if &proof.conclusion != goal {
+        return Err(ProofError::CertificateConclusionMismatch);
+    }
+    let denoted = verify_bounded_certificate_over_data(
+        context,
+        goal,
+        data_subjects,
+        proof,
+        &mut Budget::default(),
+    )
+    .map_err(|error| ProofError::MathematicalCore(Box::new(error)))?;
+    Ok(acceptance.finish(MathematicalCoreDecision::Judged(denoted.receipt())))
 }
 
 pub fn accept_certificate_with_machine_parameters(
@@ -2964,6 +2999,7 @@ mod traversal {
     ) -> Result<(), ProofError> {
         match &proof.rule {
             ProofRule::IntegerFloatExact
+            | ProofRule::StructuralCaseExhaustion
             | ProofRule::Primitive(_)
             | ProofRule::SemanticAxiom { .. }
             | ProofRule::Assumption { .. }
@@ -3142,6 +3178,34 @@ struct RuleScope<'a> {
     machine_parameter_values: &'a BTreeSet<ValueId>,
 }
 
+/// The subject and the case each disjunct of a case exhaustion tests: one
+/// whole input, each case named once. Whether these are all of its cases is
+/// the kernel's to decide, from the sum's declaration.
+pub fn case_exhaustion_cases(
+    conclusion: &Proposition,
+) -> Result<(PlaceId, Vec<StructuralCaseId>), ProofError> {
+    const MISMATCH: ProofError = ProofError::RuleConclusionMismatch("structural case exhaustion");
+    let disjuncts = match conclusion {
+        Proposition::Disjunction(disjuncts) => disjuncts.as_slice(),
+        membership => std::slice::from_ref(membership),
+    };
+    let mut root = None;
+    let mut cases = Vec::with_capacity(disjuncts.len());
+    for disjunct in disjuncts {
+        let Proposition::StructuralCaseMembership { subject, case } = disjunct else {
+            return Err(MISMATCH);
+        };
+        if !subject.path().is_empty()
+            || *root.get_or_insert(subject.root()) != subject.root()
+            || cases.contains(case)
+        {
+            return Err(MISMATCH);
+        }
+        cases.push(*case);
+    }
+    Ok((root.ok_or(MISMATCH)?, cases))
+}
+
 fn check_node_locally(
     context: &PropositionContext,
     assumptions: &[Proposition],
@@ -3157,6 +3221,13 @@ fn check_node_locally(
         machine_parameter_values,
     };
     match &proof.rule {
+        ProofRule::StructuralCaseExhaustion => {
+            case_exhaustion_cases(&proof.conclusion)?;
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::StructuralCaseExhaustion);
+            Ok(())
+        }
         ProofRule::IntegerFloatExact => {
             crate::check_integer_float_exact(context, &proof.conclusion)
                 .map_err(|error| ProofError::FloatIntegerConversion(Box::new(error)))?;

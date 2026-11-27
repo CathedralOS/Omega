@@ -1027,6 +1027,7 @@ mod tests {
             ProofRule::FloatMeaningNormalization(_) => 30,
             ProofRule::FloatIntegerConversion { .. } => 31,
             ProofRule::IntegerFloatExact => 32,
+            ProofRule::StructuralCaseExhaustion => 33,
         }
     }
 
@@ -1045,7 +1046,7 @@ mod tests {
         let mut tags = rules.iter().map(rule_tag).collect::<Vec<_>>();
         tags.sort_unstable();
         tags.dedup();
-        assert_eq!(tags, (0..=32).collect::<Vec<u8>>(), "a rule is missing");
+        assert_eq!(tags, (0..=33).collect::<Vec<u8>>(), "a rule is missing");
         let mut judgments = rules
             .iter()
             .filter_map(|rule| match rule {
@@ -1212,6 +1213,7 @@ mod tests {
                 computed: Some(child()),
             },
             ProofRule::IntegerFloatExact,
+            ProofRule::StructuralCaseExhaustion,
         ];
         assert_every_rule_and_judgment_is_listed(&rules);
         for rule in rules {
@@ -1413,6 +1415,7 @@ mod projection_tests {
                     )))),
                 }),
                 leaf(ProofRule::IntegerFloatExact),
+                leaf(ProofRule::StructuralCaseExhaustion),
             ]));
             seal.fingerprint = seal.recompute().unwrap();
         }

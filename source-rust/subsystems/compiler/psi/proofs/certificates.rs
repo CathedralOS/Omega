@@ -17,7 +17,7 @@ pub(crate) mod admission {
         }
 
         pub const fn get(self) -> u16 {
-            9
+            10
         }
     }
 
@@ -103,6 +103,11 @@ pub(crate) mod nodes {
         /// Exact integer representability, including complete-carrier
         /// embedding. Provisional until derived in the mathematical core.
         IntegerFloatExact,
+        /// `c in S::A || c in S::B || ...`: a sum input of a theorem is in
+        /// one of its cases, each named once. The kernel derives it by
+        /// induction over the sum's declaration, so it is checked only where
+        /// that declaration is bound.
+        StructuralCaseExhaustion,
         /// A checked exactness premise entails the converter's entry
         /// conditions. Alternatively, finite nonzero IEEE equality
         /// transports a separately checked computed goal.
