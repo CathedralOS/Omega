@@ -56,6 +56,7 @@ pub(in super::super) fn retain_evaluation_entries(
 fn deployment_targets<'scope>(
     program: &TypedTrees,
     scopes: &'scope [FixedLayoutTargetScope],
+    dependencies: &ComputationDependencyRows,
     constants: &[SymbolHandle],
 ) -> Result<Vec<Vec<&'scope FixedLayoutTargetScope>>, String> {
     let mut reached = vec![Vec::new(); constants.len()];
@@ -72,9 +73,8 @@ fn deployment_targets<'scope>(
     if ordered.is_empty() {
         return Ok(reached);
     }
-    let dependencies = ComputationDependencyRows::of(program);
     for scope in ordered {
-        let selection = scope.demanded_declarations(program, &dependencies)?;
+        let selection = scope.demanded_declarations(program, dependencies)?;
         for (position, constant) in constants.iter().enumerate() {
             let targets: &mut Vec<&FixedLayoutTargetScope> = &mut reached[position];
             if !selection.contains(*constant) {
@@ -122,9 +122,10 @@ impl<'scope> Initializers<'scope> {
     /// will judge. This discovers identities only; neither membership nor an
     /// empty dependency row admits an invocation or supplies its result.
     pub(in super::super) fn demanded(
-        program: &mut TypedTrees,
+        program: &TypedTrees,
         selected: &DeclarationSelection,
         scopes: &'scope [FixedLayoutTargetScope],
+        dependencies: &ComputationDependencyRows,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut demanded = program
             .const_declarations()
@@ -212,7 +213,7 @@ impl<'scope> Initializers<'scope> {
             .iter()
             .map(|(_, symbol, _)| *symbol)
             .collect::<Vec<_>>();
-        let deployments = deployment_targets(program, scopes, &symbols)
+        let deployments = deployment_targets(program, scopes, dependencies, &symbols)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let mut jobs = Vec::with_capacity(found.len());
         for ((handle, symbol, entry), deployments) in found.into_iter().zip(deployments) {
