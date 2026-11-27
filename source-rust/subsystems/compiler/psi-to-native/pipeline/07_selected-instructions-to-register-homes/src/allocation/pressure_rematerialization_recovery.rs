@@ -184,15 +184,17 @@ pub(crate) mod compute {
             candidate: &PressureRecoveryClassification,
             row: &RegisterInstructionConstraint,
             policy: PressureRematerializationPolicy,
-        ) -> Result<PressureRematerializationAction, PressureRematerializationError> {
+        ) -> Result<Option<PressureRematerializationAction>, PressureRematerializationError>
+        {
+            // A victim that is not an active-resident immediate, or whose future
+            // uses are not the count the policy rewrites, is not eligible: the
+            // function keeps its program and the rule records no action for it.
             let RecoveryVictimRole::ActiveResident {
                 current_view,
                 reclaimed_view,
             } = candidate.role
             else {
-                return Err(PressureRematerializationError::UnsupportedVictimRole {
-                    function: function_index,
-                });
+                return Ok(None);
             };
             let RecoveryClassification::ImmediateU64RematerializationCandidate {
                 defining_instruction,
@@ -202,16 +204,16 @@ pub(crate) mod compute {
                 future_uses,
             } = &candidate.classification
             else {
-                return Err(PressureRematerializationError::ClassificationNotAdmitted {
-                    function: function_index,
-                });
+                return Ok(None);
             };
-            let valid_arity = match policy {
+            let eligible_arity = match policy {
                 PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1 => future_uses.len() == 1,
                 PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1 => future_uses.len() >= 2,
             };
-            if !valid_arity
-                || future_uses.windows(2).any(|pair| pair[0] >= pair[1])
+            if !eligible_arity {
+                return Ok(None);
+            }
+            if future_uses.windows(2).any(|pair| pair[0] >= pair[1])
                 || future_uses.iter().any(|future| {
                     future.block != candidate.block || future.point <= candidate.point
                 })
@@ -311,7 +313,7 @@ pub(crate) mod compute {
                         function: function_index,
                     },
                 )?);
-            Ok(PressureRematerializationAction {
+            Ok(Some(PressureRematerializationAction {
                 block: candidate.block,
                 pressure_point: candidate.point,
                 victim: candidate.victim,
@@ -331,7 +333,7 @@ pub(crate) mod compute {
                 fresh_materialize: fresh_instruction,
                 result_virtual_register: fresh_register,
                 materialize_constraint: row.key,
-            })
+            }))
         }
     }
     pub(crate) mod function_plans {
@@ -382,14 +384,14 @@ pub(crate) mod compute {
                 selected_structure::validate_dense(index, source)?;
                 let action = match &recovery_function.classification {
                     None => None,
-                    Some(candidate) => Some(candidate_action::derive(
+                    Some(candidate) => candidate_action::derive(
                         index,
                         source,
                         range_function,
                         candidate,
                         row,
                         policy,
-                    )?),
+                    )?,
                 };
                 if let Some(action) = &action {
                     application::apply(index, &mut transformed.functions[index], action, row)?;
@@ -811,12 +813,6 @@ pub enum PressureRematerializationError {
         budget: OptimizationWorkBudget,
     },
     FunctionMismatch {
-        function: usize,
-    },
-    ClassificationNotAdmitted {
-        function: usize,
-    },
-    UnsupportedVictimRole {
         function: usize,
     },
     FutureUseMismatch {
