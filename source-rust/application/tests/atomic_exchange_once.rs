@@ -68,8 +68,9 @@ machine next(cells: @Cells) -> u32 {
     previous
 }
 machine attempt(cells: @Cells) -> bool {
-    let outcome: |layout|::AtomicCompareExchangeOnceOutcome<u32> =
-        cells.value.compare_exchange_once(next(cells), next(cells), ReceivePublish, Receive);
+    let mutable outcome: |layout|::AtomicCompareExchangeOnceOutcome<u32> =
+        |layout|::AtomicCompareExchangeOnceOutcome::Exchanged;
+    outcome = cells.value.compare_exchange_once(next(cells), next(cells), ReceivePublish, Receive);
     transition outcome {
         |layout|::AtomicCompareExchangeOnceOutcome::Exchanged -> (cells.value.load(NoOrdering) == 1),
         |layout|::AtomicCompareExchangeOnceOutcome::Mismatched { observed } -> (false),

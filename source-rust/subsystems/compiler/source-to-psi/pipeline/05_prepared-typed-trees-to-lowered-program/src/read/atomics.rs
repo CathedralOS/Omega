@@ -276,6 +276,7 @@ impl Program<'_> {
             ));
         };
         if atomic.result.is_valid()
+            || atomic.exchange_operands.is_some()
             || atomic.result_custody != AtomicExpressionResultCustody::Scalar
             || !ordering.valid_for_load()
         {
@@ -420,6 +421,7 @@ impl Program<'_> {
             ));
         };
         if atomic.result.is_valid()
+            || atomic.exchange_operands.is_some()
             || atomic.result_custody != AtomicExpressionResultCustody::Scalar
             || !ordering.valid_for_store()
         {
@@ -496,6 +498,7 @@ impl Program<'_> {
         let atomic = *atomic;
         let same_result = |handle| matches!(self.node(machine, handle), Ok(ExpressionNode::Name(path)) if path.resolved_symbol() == Some(local.symbol));
         if !atomic.result.is_valid()
+            || atomic.exchange_operands.is_some()
             || !same_result(atomic.result)
             || atomic.result_custody != AtomicExpressionResultCustody::Scalar
         {
