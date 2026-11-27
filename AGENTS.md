@@ -236,6 +236,20 @@ error), which records what the program asks of the compiler. Do not make a test 
 program: a different fact, a looser bound or a different operation turns it
 into a different test, and passing that one proves nothing about the original.
 
+Tests follow the spec, not the current code (owner ruling, 2026-11-27). A
+structural change is expected to break tests that pin internals: intermediate
+tables, stage-to-stage forms, helper APIs, exact wording the spec doesn't fix,
+or a mechanism the change deletes. Rewrite, merge or delete those tests in the
+same PR. Never keep a design alive because a test reaches into it. History
+keeps every old test if one is needed again. What a refactor must keep is the
+spec-required behavior those tests stood for. That means a sample's output and
+exit code, a refusal the spec names, native/Psi agreement and release-gate
+contracts. Re-prove each on the new code, through the public surface where the
+old test reached into internals. Name the tests rewritten or deleted, and why,
+in the PR's `Proof:` line. Choose the change with better quality and yield
+(less code, faster and leaner compiles, the same spec behavior), not the one
+that breaks the fewest tests.
+
 ### No `.omg` file bloat
 
 `samples/cli/facts/` is a **frozen finite set**, and `tests/omega/` is gone.
