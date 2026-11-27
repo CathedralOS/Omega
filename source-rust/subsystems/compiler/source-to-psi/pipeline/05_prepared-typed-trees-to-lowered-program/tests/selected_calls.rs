@@ -217,9 +217,10 @@ fn picks(main: &str) -> [(MachineId, MachineId, MachineId); 1] {
 fn qualified_and_imported_calls_keep_the_module_of_same_spelled_machines() {
     let caller = |qualified: &str, imported: &str| {
         format!(
-            "use {imported}\\pick;
-machine qualified(a: u8, b: u8) -> u8 {{ {qualified}\\pick(a, b) }}
-machine imported(a: u8, b: u8) -> u8 {{ pick(a, b) }}
+            "use {qualified}/pick.omg as chosen;
+use {imported}/pick.omg as other;
+machine qualified(a: u8, b: u8) -> u8 {{ |chosen|::pick(a, b) }}
+machine imported(a: u8, b: u8) -> u8 {{ |other|::pick(a, b) }}
 "
         )
     };

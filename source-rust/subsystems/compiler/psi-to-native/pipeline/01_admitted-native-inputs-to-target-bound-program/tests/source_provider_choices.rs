@@ -12,8 +12,17 @@ use terminal_psi::{TargetMachineCallable, TerminalModule};
 
 const TARGET: &str = "linux_x86_64";
 
+/// The saved programs are received bytes. Native planning and scalar
+/// completion need the host's trust in their producer, as a real host
+/// grants it before lowering.
 fn program(file_name: &str) -> Arc<CanonicalTerminalArtifact> {
-    Arc::new(programs::open(fixture_repository::root(), file_name))
+    let host = psi_authorization::HostProducerTrust::accept("provider choice fixtures");
+    let received = Arc::new(programs::open(fixture_repository::root(), file_name));
+    Arc::clone(
+        psi_authorization::authorize_terminal_artifact(received, Some(&host))
+            .expect("the saved program prepares for execution")
+            .shared_artifact(),
+    )
 }
 
 fn entry(module: &TerminalModule) -> semantic_vocabulary::MachineId {
