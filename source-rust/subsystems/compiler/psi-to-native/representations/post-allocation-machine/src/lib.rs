@@ -9,25 +9,24 @@ home or frame spill slot, instruction selection must resolve each selected
 instruction to its unique applicable `MachineAlternative` and materialize
 explicit physical register-unit footprints (`storage_units`, `read_units`,
 `write_units`, `implicit_unit_uses`, `implicit_unit_defs`, and `implicit_unit_clobbers`).
-We store that post-allocation machine program and its domain-separated content
-identity (`omega.terminal-postallocation-machine.v27`).
+We store that post-allocation machine program. Later stages share the plan
+through an `Arc` and compare it directly; the plan carries no content hash.
 */
 
-pub(crate) use ::wire::codec_bytes;
 pub(crate) use ::wire::digest_encoder;
 
 pub mod control_flow;
 pub mod evidence;
-pub mod identity;
 pub mod instructions;
 pub mod operands;
 pub mod program;
 pub mod program_validation;
+#[cfg(feature = "test-support")]
+pub mod test_support;
 pub use program::{PhysicalFunction, PostAllocationMachineProgram};
 
 pub use control_flow::{PostAllocationMachineBlock, PostAllocationMachineFunction};
-pub use evidence::{PostAllocationMachineOptimizationCustody, PostAllocationMachinePhaseReceipt};
-pub use identity::{PostAllocationMachineIdentity, post_allocation_machine_identity};
+pub use evidence::PostAllocationMachinePhaseReceipt;
 pub use instructions::{
     MachineAlternativeChoiceRule, PhysicalAddressOperation, PostAllocationMachineInstruction,
 };
@@ -47,7 +46,6 @@ use target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PostAllocationMachinePlan {
-    pub identity: PostAllocationMachineIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub effects: PreAllocationMachineEffectIdentity,
     pub ranges: LiveRangeIdentity,

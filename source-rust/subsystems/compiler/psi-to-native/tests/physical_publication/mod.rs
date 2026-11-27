@@ -113,11 +113,10 @@ fn emit_body_inspecting_physical<'execution>(
         }
     });
     inspect_physical(&physical);
+    // A physical program whose machine plan differs from the one the frame
+    // was planned for cannot take the installation resources.
     let mut other_physical = physical.stage.program().frame.instructions.clone();
-    let mut machine_identity = other_physical.machine.identity.bytes();
-    machine_identity[0] ^= 1;
-    Arc::make_mut(&mut other_physical.machine).identity =
-        post_allocation_machine::PostAllocationMachineIdentity::from_bytes(machine_identity);
+    Arc::make_mut(&mut other_physical.machine).functions.clear();
     assert_eq!(
         installation_admission::BoundInstallationAuthority::verify(
             &other_physical,

@@ -177,7 +177,7 @@ fn fixed_frame_manifest(
     let program = &layout_optimization.program;
     let machine = &program.context.machine;
     let encoding = &program.exit_requirements.encoding;
-    let baseline_roots = layout_optimization.baseline;
+    let baseline_roots = &layout_optimization.baseline;
     let frame = &program.frame;
     let protocol = &program.protocol;
     let facts = &program.context.publication;
@@ -198,23 +198,22 @@ fn fixed_frame_manifest(
     let post_allocation_run = program.context.phase;
     if post_allocation_run.complete_selection() != selections.identity()
         || post_allocation_run.phase_selections() != post_allocation.identity()
-        || post_allocation_run.result() != machine.identity
         || post.selected != selected
         || machine.post_allocation_manifest != post.identity
         || machine.selected != selected
         || encoding.selected != selected
-        || encoding.machine != machine.identity
+        || encoding.machine != machine.plan
         || baseline_roots.selected != selected
-        || baseline_roots.machine != machine.identity
+        || baseline_roots.machine != machine.plan
         || baseline_roots.pre_layout != encoding.identity
         || layout.selected() != selected
-        || layout.machine() != machine.identity
+        || *layout.machine() != machine.plan
         || layout.pre_layout() != encoding.identity
-        || frame.post_allocation_machine != machine.identity
+        || frame.post_allocation_machine != machine.plan
         || protocol.frame_layout != *frame
         || exit_contract.contract().selected != selected
         || exit_contract.contract().post_allocation_manifest != post.identity
-        || exit_contract.contract().post_allocation_machine != machine.identity
+        || exit_contract.contract().post_allocation_machine != machine.plan
         || exit_contract.contract().pre_layout != encoding.identity
         || exit_contract.contract().resolved_layout != program.layout
         || exit_contract.contract().layout_custody != layout_custody
@@ -250,13 +249,13 @@ fn validate_layout_optimization_manifest_roots(
     if layout.selections != phase {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
-    let baseline = layout.baseline;
+    let baseline = &layout.baseline;
     match (layout.relaxation, relaxation_trace) {
-        (None, None) if layout.layout().roots() == baseline => Ok(()),
+        (None, None) if layout.layout().roots() == *baseline => Ok(()),
         (Some(relaxation), Some(trace))
             if trace.identity() == relaxation
                 && trace.selected() == baseline.selected
-                && trace.machine() == baseline.machine
+                && *trace.machine() == baseline.machine
                 && trace.pre_layout() == baseline.pre_layout
                 && trace.layout == layout.program.layout =>
         {

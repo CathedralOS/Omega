@@ -7,7 +7,7 @@ pub fn prepare_layout_requirements(
 ) -> EncodedLayoutRequirements {
     EncodedLayoutRequirements {
         selected: program.machine.selected,
-        machine: program.machine.identity,
+        machine: std::sync::Arc::clone(&program.machine),
         target: program.target,
         functions: program
             .functions

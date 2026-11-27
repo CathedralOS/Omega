@@ -126,7 +126,7 @@ fn align_up_storage(
 /// overflow and frame-size rules while it places each function, so only a body
 /// that retains its stage inputs (`audit`) replays them through frame admission.
 pub(crate) fn stage_target_frame_layout(
-    machine: &PostAllocationMachinePlan,
+    machine: &Arc<PostAllocationMachinePlan>,
     requirements: &AllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -143,7 +143,7 @@ pub(crate) fn stage_target_frame_layout(
 }
 
 fn derive_frame_layout(
-    machine: &PostAllocationMachinePlan,
+    machine: &Arc<PostAllocationMachinePlan>,
     requirements: &AllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -219,7 +219,7 @@ fn derive_frame_layout(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(TargetFrameLayoutPlan {
-        post_allocation_machine: machine.identity,
+        post_allocation_machine: Arc::clone(machine),
         callee_saved_requirements: requirements.identity(),
         callee_save_storage: storage.receipt().identity(),
         register_environment: environment.identity(),

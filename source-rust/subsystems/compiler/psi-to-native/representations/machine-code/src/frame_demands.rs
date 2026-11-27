@@ -1,8 +1,9 @@
 //! Settled physical storage and preservation demands carried through encoding.
 //! Frame checking needs these resources, not the instructions which caused them.
+//! `plan` shares the machine plan so later records can be compared against it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFrameDemands {
-    pub identity: post_allocation_machine::PostAllocationMachineIdentity,
+    pub plan: std::sync::Arc<post_allocation_machine::PostAllocationMachinePlan>,
     pub selected: selected_instructions::SelectedInstructionPlanIdentity,
     pub homes: register_homes::RegisterHomeIdentity,
     pub post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,

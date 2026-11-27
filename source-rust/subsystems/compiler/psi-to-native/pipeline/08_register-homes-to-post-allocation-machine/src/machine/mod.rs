@@ -159,7 +159,6 @@ pub fn stage_optimized_post_allocation_machine_plan(
         phase: post_allocation_machine::PostAllocationMachinePhaseReceipt::from_parts(
             optimization.complete_selection(),
             optimization.phase_selections(),
-            optimization.result(),
         ),
         functions: allocation.selected.plan.functions.clone(),
         identity: [0; 32],
