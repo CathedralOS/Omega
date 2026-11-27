@@ -294,47 +294,32 @@ earlier encoding.
 Should the specification drop it?
 
 <a id="fixed-extent-view-of-a-slice"></a>
-### 8. How does code borrow a fixed-length run of a slice as `@[T; N]`?
+### 8. Explicit casts between slices and fixed-array references
 
-The SIMD library loads and stores fixed arrays: `u8x16::load(source: @[u8; 16])`
-and `u8x16::store(destination: @mutable [u8; 16], ..)`
-([u8x16](source/library/system/simd/u8x16.omg)). An image or video codec holds
-a row as a slice whose length is known only at run time, and its filter steps
-through that row 16 bytes at a time. omega-prism's PNG decoder is one such
-customer. It cannot pass `@row[i..i + 16]` to `load`, because a range access
-gives a view `@[u8]`. An array becomes a view only through an explicit range
-or `ArrayAccess::as_slice`, and no rule goes the other way
-([views of a fixed array](wiki/spec/language/expressions.md#views-of-a-fixed-array) ·
-[borrowed range access](wiki/spec/language/expressions.md#borrowed-range-access)).
-Range access also adds "no result-type-directed operator selection", so an
-expected `@[u8; 16]` cannot change what `row[i..i + 16]` means
-([indexing and ranges](wiki/spec/language/expressions.md#indexing-and-ranges)).
-The [core slice surface](source/library/core/slice.omg) offers only element
-reads and `slice_range`, and [SIMD memory](wiki/spec/language/simd.md#memory-and-realization)
-says each operation accesses its declared extent but not how a slice supplies
-one.
+**Owner ruling, 2026-11-27.** Use ordinary checked `as` to convert between
+`@[T]` and `@[T; N]`. The author writes the conversion at the call site
+when the argument and parameter have different shapes. For example, given
+`block: @[u8; 16]` and a machine taking `@[u8]`, write
+`consume(block as @[u8])`. A bare `consume(block)` fails the type check.
+The slice covers all 16 elements of the same backing. Its length comes
+from the array type.
 
-Ordinary Omega can already copy the bytes: 16 checked reads into a local
-`[u8; 16]`, then `load`, and 16 checked writes back after `store`. That costs
-two copies per vector and leaves the native compiler to rediscover one 16-byte
-access. It cannot hand an `@mutable [u8; 16]` into the row to a machine that
-writes in place.
-
-**Recommend a sealed core primitive beside `slice_range`:**
+In the other direction, `window as @[u8; 16]` requires proof that the
+whole window has exactly 16 elements. To load the first 16 bytes of a
+longer row, select that range explicitly:
 
 ```omega
-public machine slice_array<'backing, Element, const N: u64>(
-    items: @'backing [Element], start: u64
-) -> @'backing [Element; N]
-requires start <= items.length && N <= items.length - start
+let block: @[u8; 16] = @row[0..16] as @[u8; 16];
+|u8x16|::load(block)
 ```
 
-There would be a matching `slice_array_mut` over `@mutable [Element]`. The
-result borrows elements `start..start + N` of the same backing, with no copy,
-under the range access rules for backing, lifetime and loans. A caller writes
-`|u8x16|::load(slice_array::<u8, 16>(row, i))`. This is a named adapter, as
-`as_slice` is in the other direction, so no syntax changes. Alternatively,
-range access could produce `@[T; N]` when both endpoints differ by a constant,
-as in `row[i..i + 16]`. That reads naturally but makes a range's type depend
-on proving its width, which the current rules avoid. Which form should a
-fixed-length view of a slice take?
+The range requires at least 16 bytes in the row and yields a slice of
+exactly 16. Both casts preserve the borrowed storage, lifetime and access.
+A mutable result requires an exclusive mutable borrow of the selected
+elements, so a store through it updates the row in place.
+[SIMD load and store](source/library/system/simd/u8x16.omg)
+
+**Specification follow-up for the owners.** Describe the two casts under
+representation-compatible recasts. Existing explicit range borrows and array
+view adapters still form slices. An expected argument type alone performs no
+conversion. [Recasts](wiki/spec/layouts/recasts.md) · [Views of a fixed array](wiki/spec/language/expressions.md#views-of-a-fixed-array)
