@@ -152,6 +152,23 @@ fn judge_source_arrivals(source: &str, expected_private: &[&str]) -> RouteVerdic
 }
 
 #[test]
+fn a_swapped_private_call_publishes_the_negated_equality_it_inherits() {
+    let source = r"
+machine entry() { caller(true, false); }
+machine caller(first: bool, second: bool) requires first != second {
+    _ = receiver(second, first);
+}
+machine receiver(x: bool, y: bool) -> bool { x == y }
+";
+    let RouteVerdict::Accepted(accepted) = judge_source_arrivals(source, &["receiver"]) else {
+        panic!("the caller proves its Boolean arguments differ")
+    };
+    accepted
+        .publish_invocation()
+        .expect("the receiver's inferred inequality must encode in its own parameter order");
+}
+
+#[test]
 fn a_private_result_receipt_matches_its_actual_return_and_never_its_written_clause() {
     let source = r"
 machine entry() -> i32 { increment(7) }
