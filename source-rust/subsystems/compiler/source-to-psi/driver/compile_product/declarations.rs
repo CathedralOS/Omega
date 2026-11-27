@@ -3,7 +3,6 @@
 //! declaration. Admission checks that each executed audit can be retained
 //! as a declaration in the accepted Product source.
 
-use crate::WireCompatibilityDemand;
 use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::ExecutedProductSelection;
 use crate::declaration_selection::ProductDeclarationRequest;
@@ -17,7 +16,6 @@ use symbols::SymbolHandle;
 
 pub struct AdmittedProductDeclarations {
     pub service_audits: Vec<SymbolHandle>,
-    pub wire_demands: Vec<WireCompatibilityDemand>,
     pub test_groups: Vec<TestGroupRegistration>,
 }
 
@@ -58,7 +56,6 @@ pub fn admit(
     let test_groups = admit_test_groups(typed, activation, executed, &formations)?;
     Ok(AdmittedProductDeclarations {
         service_audits,
-        wire_demands: Vec::new(),
         test_groups,
     })
 }
@@ -423,4 +420,36 @@ fn build_requests_any(
         || executed
             .iter()
             .any(|event| operations.contains(&event.request.operation))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::admit;
+    use crate::declaration_selection::{BuildOperation, ProductDeclarationRequest};
+    use std::sync::Arc;
+
+    // The Product route has no wire compatibility checking yet, so Build's
+    // `require_wire_compatibility` request is refused here instead of being
+    // dropped on the way to preparation.
+    #[test]
+    fn a_wire_compatibility_request_is_refused() {
+        let request = Arc::new(ProductDeclarationRequest {
+            source_span: source_text::SourceSpan::default(),
+            operation: BuildOperation::WireCompatibilityRequest,
+            operands: Box::new([]),
+        });
+        let Err(refusal) = admit(
+            &crate::source_state::TypedTrees::default(),
+            None,
+            &[request],
+            &[],
+            &[],
+        ) else {
+            panic!("a wire compatibility request must not be admitted");
+        };
+        assert_eq!(
+            refusal[0].message,
+            "no product route yet: Build product declaration admission"
+        );
+    }
 }
