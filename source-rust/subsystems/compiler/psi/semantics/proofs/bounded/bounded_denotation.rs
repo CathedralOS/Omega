@@ -45,6 +45,8 @@ use crate::{
 
 const MAX_ELABORATION_NODES: u64 = 1 << 16;
 
+#[cfg(test)]
+mod law_arithmetic;
 mod theorems;
 pub use theorems::{
     BoundedImplicationType, BoundedTheorem, BoundedTheoremError, denote_bounded_implication_type,

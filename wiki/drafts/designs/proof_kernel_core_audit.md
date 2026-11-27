@@ -1666,7 +1666,12 @@ stages 03 and 04. What is built:
   three and the 39 older ones, are now listed with their statements
   in the [kernel metatheory](../../spec/proofs/kernel_metatheory.md#assumed-laws-of-the-integer-model);
   the [rule table](../../spec/proofs/classicality.md) lists only the rules a
-  certificate can cite, and none of these is one. A theorem may also rank
+  certificate can cite, and none of these is one. Since 2026-11-27 every
+  one of them, the older ones included, is evaluated as declared against
+  computed arithmetic with a wrong twin beside it
+  (`bounded_denotation/law_arithmetic.rs`); the ones the earlier tests named
+  for `DistributeAdd`, `ZeroRight` and `ZeroLeft` no longer exist on `main`,
+  and the new test covers those three as well. A theorem may also rank
   on its evidence (`terminates by evidence`), as the specification lets a
   proof "rank on mathematical structure". It then owes no arithmetic at its
   citations, because a step cites it only at a child of its case, a part of
