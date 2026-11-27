@@ -7838,6 +7838,10 @@ pub(crate) fn select_function(
         entry_block: SelectedBlockId(0),
         blocks: blocks.into(),
     };
+    crate::instruction_selection::selection::shared_parameters::share(
+        &mut selected,
+        &builder.edge_work,
+    );
     crate::instruction_selection::selection::edge_transfers::prepare(
         function,
         &mut selected,

@@ -27,6 +27,8 @@ mod selection_inputs;
 mod selection_interrupts;
 #[path = "selection/scalar_graph.rs"]
 mod selection_scalar_graph;
+#[path = "selection/shared_parameters.rs"]
+mod selection_shared_parameters;
 #[path = "selection/structural.rs"]
 mod selection_structural;
 mod selection_vector_promotion;

@@ -1,7 +1,6 @@
 //! Prepare internal-call publication facts while physical source is still owned.
 use InternalCallPlanError as Error;
 use calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement};
-use target_vocabulary::{LegalizedScalarArgument, NativeCallOrigin};
 use machine_code::internal_call_plans::*;
 use machine_code::{
     InternalUnitCallSource, InternalUnitScalarArgumentSourceRecord,
@@ -11,6 +10,7 @@ use machine_code::{
 use selected_instructions::{SelectedFunction, SelectedMemoryAccessRole};
 use semantic_vocabulary::{MachineId, PlaceId};
 use target_vocabulary::CallSiteOwner;
+use target_vocabulary::{LegalizedScalarArgument, NativeCallOrigin};
 
 struct PlanningSource<'a> {
     program: &'a post_allocation_machine::PostAllocationMachineProgram,
@@ -559,8 +559,8 @@ fn indirect_pointer_supports_copy(pointer: &IndirectPointerLocation) -> bool {
 #[cfg(test)]
 mod incoming_tests {
     use super::*;
-    use semantic_vocabulary::ScalarType;
     use calling_conventions::{MachineRegister, ValueShape};
+    use semantic_vocabulary::ScalarType;
     use terminal_psi::StructuralAccess;
 
     #[test]
@@ -768,13 +768,23 @@ mod established_views {
         {
             return Err(invalid());
         }
-        local_location(
-            source,
-            selected,
-            argument,
-            LocalStorageSlotId::StructuralBlockParameter { block, place },
-            selected_instructions::SelectedMemoryAccessOrigin::Block(block),
-        )
+        // A block parameter may share the slot of the parameter every incoming
+        // edge passes to it; its block entry addresses the slot it lives in.
+        let origin = selected_instructions::SelectedMemoryAccessOrigin::Block(block);
+        let mut homes = selected
+            .memory_accesses
+            .iter()
+            .filter_map(|access| match access.role {
+                SelectedMemoryAccessRole::AddressLocal {
+                    slot: slot @ LocalStorageSlotId::StructuralBlockParameter { .. },
+                } if access.origin == origin && access.place == place => Some(slot),
+                _ => None,
+            });
+        let slot = homes.next().ok_or_else(invalid)?;
+        if homes.next().is_some() {
+            return Err(invalid());
+        }
+        local_location(source, selected, argument, slot, origin)
     }
 
     fn local_location(
@@ -1233,9 +1243,7 @@ mod scalar_result {
         let abstracted = source::function_facts(source, selected.machine)?;
         let installed_boundary = match &contract.call.source {
             target_vocabulary::NativeCallOrigin::InstalledProvider { boundary, .. }
-            | target_vocabulary::NativeCallOrigin::ProgramEntry { boundary, .. } => {
-                Some(*boundary)
-            }
+            | target_vocabulary::NativeCallOrigin::ProgramEntry { boundary, .. } => Some(*boundary),
             target_vocabulary::NativeCallOrigin::Authored => None,
         };
         let mut operations = abstracted.scalar_call_results.iter().filter_map(|row| {
