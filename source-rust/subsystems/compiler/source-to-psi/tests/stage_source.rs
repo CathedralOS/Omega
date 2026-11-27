@@ -1078,10 +1078,10 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
         build_sources: [root].into(),
         pending_imports: missing
             .iter()
-            .map(|(name, span)| source_compiler::PendingBuildImport {
+            .map(|(name, import_span)| source_compiler::PendingBuildImport {
                 declarations: vec![span("build")],
                 source: root,
-                span: *span,
+                span: *import_span,
                 target: source_compiler::SourceImportTarget {
                     root: None,
                     path: format!("{name}.omg"),
@@ -1101,10 +1101,7 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
     };
     assert_eq!(errors.len(), missing.len());
     for (error, (name, span)) in errors.iter().zip(missing) {
-        assert_eq!(
-            error.message,
-            format!("no admitted logical file `{name}.omg`")
-        );
+        assert_eq!(error.message, format!("no admitted logical file `{name}.omg`"));
         assert_eq!(error.source_span, Some(SourceSpan::new(root, span)));
     }
 }
