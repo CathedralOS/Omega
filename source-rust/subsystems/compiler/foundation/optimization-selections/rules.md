@@ -68,9 +68,13 @@ is gone, so review any change against those sources by hand.
 
 ## Supported composition policy
 
-- The source vocabulary names nine Psi rules. All nine run after Terminal Psi,
-  in `PSI_PASS_CATALOG` in
-  `01_abstract-operations-to-abstract-operations/src/rules.rs`.
+- The source vocabulary names nine Psi rules. They run before Terminal
+  publication, in source stage 06
+  (`source-to-psi/pipeline/06_lowered-program-to-checked-program/src/publication/optimization.rs`).
+  Stage 06 implements `SparseConditionalConstantPropagation`; selecting any
+  other Psi rule is refused there as not supported yet. The former native
+  stage 03 implementations are parked in `_recycling/` for migration to
+  stage 06.
 - At most one allocation-recovery rule may run before the canonical frame and layout stages.
 - x86-64 branch relaxation runs in the resolved-layout phase.
 - The native pipeline rejects selected-lowering rules and retired

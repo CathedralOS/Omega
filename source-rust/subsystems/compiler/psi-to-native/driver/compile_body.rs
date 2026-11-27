@@ -26,11 +26,9 @@ pub fn plan_native_body(
     retain_original: bool,
 ) -> Result<NativeBodyPlan, NativeBodyPlanningError> {
     observation.enter(NativePipelineStage::AbstractOptimization);
-    let selections = selections.selections();
     let optimized = abstract_optimization::optimize_abstract_operations(
         input.into_optimization_input(),
-        selections,
-        &selections.project_psi(),
+        selections.selections(),
         budget,
     )
     .map_err(NativeBodyPlanningError::AbstractOptimization)?;

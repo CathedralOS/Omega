@@ -20,15 +20,10 @@ name = "abstract-operations-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "arena",
- "optimization",
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
- "psi-authorization",
  "semantic-vocabulary",
- "source-compiler",
- "target-bound-program-to-abstract-operations",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
@@ -1946,7 +1941,6 @@ name = "optimization-unit-semantics"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "arena",
  "optimization-core",
  "optimization-unit",
  "psi-declaration-encoding",
@@ -1954,7 +1948,6 @@ dependencies = [
  "structural-storage-queries",
  "terminal-psi",
  "terminal-semantics",
- "terminal-work",
 ]
 
 [[package]]

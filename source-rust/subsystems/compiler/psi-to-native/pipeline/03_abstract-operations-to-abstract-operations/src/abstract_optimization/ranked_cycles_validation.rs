@@ -686,9 +686,17 @@ pub(crate) mod graph {
     pub(crate) fn terminal_graph(machine: &terminal_psi::TerminalMachine) -> CanonicalControlGraph {
         let mut edges = Vec::new();
         for block in &machine.blocks {
-            edges.extend(block.terminator.successor_edges().into_iter().map(|(edge, target)| CycleComponentEdge {
-                edge, source: block.id, target,
-            }));
+            edges.extend(
+                block
+                    .terminator
+                    .successor_edges()
+                    .into_iter()
+                    .map(|(edge, target)| CycleComponentEdge {
+                        edge,
+                        source: block.id,
+                        target,
+                    }),
+            );
         }
         edges.sort_unstable();
         CanonicalControlGraph {
@@ -868,64 +876,14 @@ use optimization_unit::{
     OptimizerUnsignedMinusOneDescent, OptimizerUnsignedPositiveGuard,
 };
 
-pub(crate) struct RankedCycleAdmission {
-    pub(crate) snapshot: OptimizerCycleComponentSnapshot,
-    pub(crate) rankings: OptimizerRankingCertificateSnapshot,
-}
-
+/// Rederive the exact control-cycle components and their countdown ranking
+/// certificates from the module, refusing a unit whose cycles disagree.
 pub(crate) fn validate_exact_ranked_cycles(
     input: &verified_optimization_input::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
-) -> Result<RankedCycleAdmission, OptimizationUnitValidationError> {
+) -> Result<(), OptimizationUnitValidationError> {
     let snapshot =
         replay::rederive_exact_components(input.context().module(), &input.plan().functions, unit)?;
-    let rankings =
-        countdown_ranking::rederive_exact_certificates(input.context().module(), unit, &snapshot)?;
-    Ok(RankedCycleAdmission { snapshot, rankings })
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedOptimizerCycleComponents {
-    snapshot: OptimizerCycleComponentSnapshot,
-    rankings: ValidatedOptimizerRankingCertificates,
-}
-
-impl ValidatedOptimizerCycleComponents {
-    pub(crate) const fn new(
-        snapshot: OptimizerCycleComponentSnapshot,
-        rankings: ValidatedOptimizerRankingCertificates,
-    ) -> Self {
-        Self { snapshot, rankings }
-    }
-
-    pub const fn terminal_psi(&self) -> terminal_psi::TerminalPsiIdentity {
-        self.snapshot.terminal_psi
-    }
-
-    pub fn components(&self) -> &[OptimizerCycleComponent] {
-        &self.snapshot.components
-    }
-
-    pub const fn ranking_certificates(&self) -> &ValidatedOptimizerRankingCertificates {
-        &self.rankings
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedOptimizerRankingCertificates {
-    snapshot: OptimizerRankingCertificateSnapshot,
-}
-
-impl ValidatedOptimizerRankingCertificates {
-    pub(crate) const fn new(snapshot: OptimizerRankingCertificateSnapshot) -> Self {
-        Self { snapshot }
-    }
-
-    pub fn certificates(&self) -> &[OptimizerUnsignedCountdownRankingCertificate] {
-        &self.snapshot.certificates
-    }
-
-    pub const fn snapshot(&self) -> &OptimizerRankingCertificateSnapshot {
-        &self.snapshot
-    }
+    countdown_ranking::rederive_exact_certificates(input.context().module(), unit, &snapshot)?;
+    Ok(())
 }

@@ -1,19 +1,15 @@
 /*
-Custody-preserving publication (`publish_optimization_run`,
-`ValidatedOptimizedAbstractPlan`, `OptimizedAbstractProjectionError`) from a
-completed `OptimizationRun` to an executable `AbstractOperationPlan` and its
-sealed pre-physical optimization manifest.
+Publication (`publish_optimization_run`, `ValidatedOptimizedAbstractPlan`,
+`OptimizedAbstractProjectionError`) of the identity `OptimizationRun` as the
+input `AbstractOperationPlan` with its sealed projection and pre-physical
+optimization manifest.
 */
 
 pub(crate) mod error {
     use crate::abstract_optimization::validation::PrePhysicalOptimizationManifestError;
-    use semantic_vocabulary::MachineId;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum OptimizedAbstractProjectionError {
-        FunctionRosterMismatch,
-        InvalidFunctionParameter { machine: MachineId, position: usize },
-        InvalidBlockParameter { machine: MachineId, position: usize },
         PsiSelectionProjectionMismatch,
         PrePhysicalManifest(PrePhysicalOptimizationManifestError),
     }
@@ -23,159 +19,6 @@ pub(crate) mod error {
         "cannot project optimized abstract plan"
     );
 }
-pub(crate) mod source {
-    pub(crate) mod function {
-        use abstract_operations::{AbstractBlock, AbstractFunction};
-        use optimization_unit::{PsiOptimizationFunction, ValueDefinitionSite};
-
-        use super::project_parameter;
-        use crate::abstract_optimization::OptimizedAbstractProjectionError;
-
-        pub(crate) fn project(
-            unit: &PsiOptimizationFunction,
-        ) -> Result<AbstractFunction, OptimizedAbstractProjectionError> {
-            let parameters = unit
-                .parameters
-                .iter()
-                .enumerate()
-                .map(|(position, definition)| {
-                    project_parameter(
-                        definition,
-                        ValueDefinitionSite::FunctionParameter(u32::try_from(position).map_err(
-                            |_| OptimizedAbstractProjectionError::InvalidFunctionParameter {
-                                machine: unit.machine,
-                                position,
-                            },
-                        )?),
-                        OptimizedAbstractProjectionError::InvalidFunctionParameter {
-                            machine: unit.machine,
-                            position,
-                        },
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let mut blocks = Vec::with_capacity(unit.blocks.len());
-            for block in &unit.blocks {
-                let parameters = block
-                    .parameters
-                    .iter()
-                    .enumerate()
-                    .map(|(position, definition)| {
-                        project_parameter(
-                            definition,
-                            ValueDefinitionSite::BlockParameter {
-                                block: block.id,
-                                position: u32::try_from(position).map_err(|_| {
-                                    OptimizedAbstractProjectionError::InvalidBlockParameter {
-                                        machine: unit.machine,
-                                        position,
-                                    }
-                                })?,
-                            },
-                            OptimizedAbstractProjectionError::InvalidBlockParameter {
-                                machine: unit.machine,
-                                position,
-                            },
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                blocks.push(AbstractBlock {
-                    structural_parameters: block.structural_parameters.clone(),
-                    block: block.id,
-                    parameters,
-                    operations: block
-                        .nodes
-                        .iter()
-                        .map(|node| node.operation.clone())
-                        .collect(),
-                });
-            }
-            Ok(AbstractFunction {
-                machine: unit.machine,
-                attachment: unit.attachment,
-                entry: unit.entry,
-                parameters,
-                structural_parameters: unit.structural_parameters.clone(),
-                result: unit.result.clone(),
-                entry_claims: unit.entry_claim_declarations.clone(),
-                block_entry_claims: unit.block_entry_claims.clone(),
-                published_service_ceiling: unit.published_service_ceiling.clone(),
-                blocks,
-            })
-        }
-    }
-
-    use abstract_operations::{AbstractOperationPlan, AbstractParameter};
-    use optimization_unit::{PsiOptimizationUnit, ValueDefinition, ValueDefinitionSite};
-
-    use crate::abstract_optimization::OptimizedAbstractProjectionError;
-
-    pub(crate) fn project_plan(
-        source: &AbstractOperationPlan,
-        unit: &PsiOptimizationUnit,
-    ) -> Result<AbstractOperationPlan, OptimizedAbstractProjectionError> {
-        validate_function_roster(source, unit)?;
-        let functions = unit
-            .functions
-            .iter()
-            .map(function::project)
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(AbstractOperationPlan {
-            psi: unit.psi,
-            entry: unit.entry,
-            structural_types: unit.structural_types.clone(),
-            boundary_machines: unit.boundary_machines.clone(),
-            provider_candidates: unit.provider_candidates.clone(),
-            callables: unit.callables.clone(),
-            dynamic_dispatch: unit.dynamic_dispatch.clone(),
-            identities: unit.identities.clone(),
-            functions,
-        })
-    }
-
-    fn validate_function_roster(
-        source: &AbstractOperationPlan,
-        unit: &PsiOptimizationUnit,
-    ) -> Result<(), OptimizedAbstractProjectionError> {
-        if source.functions.len() != unit.functions.len() + unit.pruned_machines.len() {
-            return Err(OptimizedAbstractProjectionError::FunctionRosterMismatch);
-        }
-        let mut active = unit.functions.iter();
-        let mut next_active = active.next();
-        for (ordinal, source_function) in source.functions.iter().enumerate() {
-            if next_active.is_some_and(|function| function.machine == source_function.machine) {
-                next_active = active.next();
-                continue;
-            }
-            let ordinal = u32::try_from(ordinal)
-                .map_err(|_| OptimizedAbstractProjectionError::FunctionRosterMismatch)?;
-            if !unit.pruned_machines.iter().any(|custody| {
-                custody.source_ordinal == ordinal && custody.machine == source_function.machine
-            }) {
-                return Err(OptimizedAbstractProjectionError::FunctionRosterMismatch);
-            }
-        }
-        if next_active.is_some() {
-            return Err(OptimizedAbstractProjectionError::FunctionRosterMismatch);
-        }
-        Ok(())
-    }
-
-    pub(crate) fn project_parameter(
-        definition: &ValueDefinition,
-        expected_site: ValueDefinitionSite,
-        error: OptimizedAbstractProjectionError,
-    ) -> Result<AbstractParameter, OptimizedAbstractProjectionError> {
-        if definition.site != expected_site {
-            return Err(error);
-        }
-        Ok(AbstractParameter {
-            value: definition.value,
-            scalar_type: definition.scalar_type,
-        })
-    }
-}
-
 use crate::abstract_optimization::OptimizationRun;
 use optimization_core::OptimizationExecutionPhase;
 
@@ -200,7 +43,9 @@ pub(crate) fn publish_optimization_run(
     if run.psi_selections() != &run.selections().for_phase(OptimizationExecutionPhase::Psi) {
         return Err(OptimizedAbstractProjectionError::PsiSelectionProjectionMismatch);
     }
-    let plan = source::project_plan(run.session().input().plan(), run.session().unit())?;
+    // The identity run leaves the unit as stage 03 built it from this plan,
+    // so the input plan is the published plan.
+    let plan = run.session().input().plan().clone();
     let validation = seal_optimized_abstract_plan_projection(&run);
     let pre_physical_manifest =
         project_pre_physical_optimization_manifest(&run, initial, validation)
