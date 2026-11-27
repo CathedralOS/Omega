@@ -295,3 +295,22 @@ fn a_write_through_a_mutable_slice_drops_the_element_fact() {
         "{FIRST}machine stale(items: @mutable [i32]) requires items.length > 0, items[0] > 3i32 {{ items[0] = 0i32; needs(items); }}\n"
     ));
 }
+
+const LENGTH: &str = "machine needs(items: @[i32]) requires items.length == 2 {}
+";
+
+#[test]
+fn an_element_write_keeps_the_slice_length_fact() {
+    accepted(&format!(
+        "{LENGTH}machine fixed(items: @mutable [i32]) requires items.length == 2 {{ items[0] = 5i32; needs(items); }}
+machine runtime(items: @mutable [i32], at: u64) requires items.length == 2, at < 2 {{ items[at] = 5i32; needs(items); }}
+"
+    ));
+}
+
+#[test]
+fn an_element_write_does_not_prove_another_length() {
+    unproved(&format!(
+        "{LENGTH}machine fixed(items: @mutable [i32]) requires items.length == 3 {{ items[0] = 5i32; needs(items); }}\n"
+    ));
+}

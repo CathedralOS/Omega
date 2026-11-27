@@ -62,6 +62,9 @@ pub fn may_overlap(left: &[DescriptorPathSegment], right: &[DescriptorPathSegmen
         if left == right {
             continue;
         }
+        // A view's extent is metadata in its descriptor, and its elements
+        // are payload the descriptor permits access to: writing one never
+        // changes the other.
         return !matches!(
             (left, right),
             (
@@ -70,8 +73,44 @@ pub fn may_overlap(left: &[DescriptorPathSegment], right: &[DescriptorPathSegmen
             ) | (
                 DescriptorPathSegment::FixedIndex(_),
                 DescriptorPathSegment::FixedIndex(_)
+            ) | (
+                DescriptorPathSegment::Extent,
+                DescriptorPathSegment::FixedIndex(_) | DescriptorPathSegment::RuntimeIndex { .. }
+            ) | (
+                DescriptorPathSegment::FixedIndex(_) | DescriptorPathSegment::RuntimeIndex { .. },
+                DescriptorPathSegment::Extent
             )
         );
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::ValueId;
+
+    #[test]
+    fn an_extent_is_disjoint_from_the_elements_it_bounds() {
+        let runtime = DescriptorPathSegment::RuntimeIndex {
+            selector: ValueId::new(1).unwrap(),
+        };
+        let extent = [DescriptorPathSegment::Extent];
+        for element in [DescriptorPathSegment::FixedIndex(0), runtime] {
+            assert!(!may_overlap(&extent, std::slice::from_ref(&element)));
+            assert!(!may_overlap(std::slice::from_ref(&element), &extent));
+        }
+    }
+
+    #[test]
+    fn an_extent_overlaps_itself_and_the_descriptor_holding_it() {
+        let extent = [DescriptorPathSegment::Extent];
+        assert!(may_overlap(&extent, &extent));
+        assert!(may_overlap(&extent, &[]));
+        assert!(may_overlap(&[], &extent));
+        assert!(may_overlap(
+            &extent,
+            &[DescriptorPathSegment::UnknownContents]
+        ));
+    }
 }
