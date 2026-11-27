@@ -4,18 +4,16 @@
 
   Register-pressure recovery edits only a few blocks of one function; cloning
   that function must not duplicate every instruction and operand vector in
-  unrelated blocks or re-hash them. `SelectedBlocks` stores a vector of shared
-  `Arc<BlockEntry>` rows where each entry retains its `SelectedBlock` alongside
-  its lazy `OnceLock` canonical identity digest, pre-encoded instruction chunks
-  (`RetainedBlockEncoding`), mechanical bitset lookup (`BlockLookup`), and frame
-  slot event summary (`BlockSlotSummary`). Every mutable route detaches the
-  entry and clears its lazy derivations before handing out `&mut SelectedBlock`.
+  unrelated blocks. `SelectedBlocks` stores a vector of shared `Arc<BlockEntry>`
+  rows where each entry retains its `SelectedBlock` alongside its lazy
+  mechanical bitset lookup (`BlockLookup`) and frame slot event summary
+  (`BlockSlotSummary`). Every mutable route detaches the entry and clears its
+  lazy derivations before handing out `&mut SelectedBlock`.
 */
 
 use super::CopyAffinity;
 use super::SelectedInstructionKind::{Load64, MaterializeI64};
 use super::SelectedStructuralTransport::ScalarReference;
-use super::plan_identity::{RetainedBlockEncoding, selected_block_digest_with_encoding};
 use super::{
     SelectedBlock, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
     VirtualRegisterId,
@@ -31,9 +29,6 @@ pub struct SelectedBlocks(Vec<Arc<BlockEntry>>);
 
 pub struct BlockEntry {
     block: SelectedBlock,
-    digest: OnceLock<[u8; 32]>,
-    encoding: OnceLock<Arc<RetainedBlockEncoding>>,
-    previous_encoding: Option<(Arc<RetainedBlockEncoding>, usize, usize)>,
     lookup: OnceLock<BlockLookup>,
     slot_summary: OnceLock<BlockSlotSummary>,
 }
@@ -133,9 +128,6 @@ impl Clone for BlockEntry {
     fn clone(&self) -> Self {
         Self {
             block: self.block.clone(),
-            digest: OnceLock::new(),
-            encoding: OnceLock::new(),
-            previous_encoding: None,
             lookup: OnceLock::new(),
             slot_summary: OnceLock::new(),
         }
@@ -146,39 +138,8 @@ impl BlockEntry {
     fn new(block: SelectedBlock) -> Arc<Self> {
         Arc::new(Self {
             block,
-            digest: OnceLock::new(),
-            encoding: OnceLock::new(),
-            previous_encoding: None,
             lookup: OnceLock::new(),
             slot_summary: OnceLock::new(),
-        })
-    }
-
-    fn new_with_previous_encoding(
-        block: SelectedBlock,
-        previous_encoding: Option<(Arc<RetainedBlockEncoding>, usize, usize)>,
-    ) -> Arc<Self> {
-        Arc::new(Self {
-            block,
-            digest: OnceLock::new(),
-            encoding: OnceLock::new(),
-            previous_encoding,
-            lookup: OnceLock::new(),
-            slot_summary: OnceLock::new(),
-        })
-    }
-
-    fn digest(&self, scratch: &mut Vec<u8>) -> [u8; 32] {
-        *self.digest.get_or_init(|| {
-            let (digest, encoding) = selected_block_digest_with_encoding(
-                &self.block,
-                self.previous_encoding
-                    .as_ref()
-                    .map(|(enc, prefix, suffix)| (enc.as_ref(), *prefix, *suffix)),
-                scratch,
-            );
-            let _ = self.encoding.set(encoding);
-            digest
         })
     }
 
@@ -696,9 +657,6 @@ impl fmt::Debug for BlockEntry {
 
 fn detach(entry: &mut Arc<BlockEntry>) -> &mut SelectedBlock {
     let entry = Arc::make_mut(entry);
-    entry.digest.take();
-    entry.encoding.take();
-    entry.previous_encoding = None;
     entry.lookup.take();
     entry.slot_summary.take();
     &mut entry.block
@@ -797,28 +755,16 @@ impl SelectedBlocks {
         index: usize,
         instructions: Vec<SelectedInstruction>,
         terminator: SelectedTerminator,
-        unchanged_instruction_prefix: usize,
-        unchanged_instruction_suffix: usize,
     ) {
         let entry = &self.0[index];
         let id = entry.block.id;
         let origin = entry.block.origin;
-        let previous_encoding = entry.encoding.get().cloned().map(|enc| {
-            (
-                enc,
-                unchanged_instruction_prefix,
-                unchanged_instruction_suffix,
-            )
+        self.0[index] = BlockEntry::new(SelectedBlock {
+            id,
+            origin,
+            instructions,
+            terminator,
         });
-        self.0[index] = BlockEntry::new_with_previous_encoding(
-            SelectedBlock {
-                id,
-                origin,
-                instructions,
-                terminator,
-            },
-            previous_encoding,
-        );
     }
 
     pub fn instruction_block(&self, instruction: SelectedInstructionId) -> Option<usize> {
@@ -954,11 +900,6 @@ impl SelectedBlocks {
             .get(index)
             .zip(other.0.get(index))
             .is_some_and(|(left, right)| Arc::ptr_eq(left, right))
-    }
-
-    pub(crate) fn identity_digests(&self) -> impl ExactSizeIterator<Item = [u8; 32]> + '_ {
-        let mut scratch = Vec::new();
-        self.0.iter().map(move |entry| entry.digest(&mut scratch))
     }
 }
 

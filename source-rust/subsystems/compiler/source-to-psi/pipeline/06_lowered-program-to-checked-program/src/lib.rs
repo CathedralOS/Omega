@@ -3964,6 +3964,21 @@ pub fn derive_contract_obligation(
     declarations: &[(ValueId, ScalarType)],
     activity: &mut ProofSearchActivity,
 ) -> Checked<CertificateEnvelope> {
+    derive_theorem_obligation(site, context, obligation, goal, declarations, &[], activity)
+}
+
+/// The same, over a theorem whose sum subjects are bound to their
+/// declarations: its proof may split on their cases, and is checked with
+/// those declarations.
+pub(crate) fn derive_theorem_obligation(
+    site: terminal_check_tables::RefusalSite,
+    context: &PropositionContext,
+    obligation: ObligationId,
+    goal: &Proposition,
+    declarations: &[(ValueId, ScalarType)],
+    data_subjects: &[proof_admission::DataSubject],
+    activity: &mut ProofSearchActivity,
+) -> Checked<CertificateEnvelope> {
     let malformed = |detail| Refusal::at(RefusalReason::ForeignIdentity, site, detail);
     context
         .validate(goal)
@@ -3992,7 +4007,8 @@ pub fn derive_contract_obligation(
             .map_err(malformed)?,
     )
     .map_err(|_| malformed("contract formal identities are not a complete dense namespace"))?;
-    let mut prover = prove::Prover::new(context, &[], &[], &values, activity);
+    let mut prover =
+        prove::Prover::new(context, &[], &[], &values, activity).over_data(data_subjects);
     let proof = prover.prove(goal).map_err(|detail| {
         let cause = if prover.steps_exhausted() {
             UnprovedCause::GoalStepsExhausted {
@@ -4014,23 +4030,34 @@ pub fn derive_contract_obligation(
         proof_system_marker: ProofSystemMarker::CURRENT,
         proof,
     };
-    verify_obligation(
-        context,
-        &Obligation {
-            id: obligation,
-            proposition: goal.clone(),
-            class: ObligationClass::Derivable,
-        },
-        &[],
-        &[],
-        EvidenceRoute::CertificateDerived(certificate.as_ref()),
-    )
-    .map_err(|_| {
-        Refusal::at(
+    let checked = if data_subjects.is_empty() {
+        verify_obligation(
+            context,
+            &Obligation {
+                id: obligation,
+                proposition: goal.clone(),
+                class: ObligationClass::Derivable,
+            },
+            &[],
+            &[],
+            EvidenceRoute::CertificateDerived(certificate.as_ref()),
+        )
+        .is_ok()
+    } else {
+        proof_admission::accept_certificate_over_data(
+            context,
+            goal,
+            data_subjects,
+            &certificate.proof,
+        )
+        .is_ok()
+    };
+    if !checked {
+        return Err(Refusal::at(
             RefusalReason::Unproved(UnprovedCause::KernelRefused),
             site,
             "contract implication certificate was refused by the proof kernel",
-        )
-    })?;
+        ));
+    }
     Ok(certificate)
 }

@@ -8,6 +8,7 @@ re-executes each committed step with the producer to check determinism.
 pub(crate) use crate::selected_rewrites::rewrites::*;
 
 pub(crate) mod literal_folds {
+    use crate::selected_rewrites::StagedOptimizedAllocationLegality;
     use crate::selected_rewrites::{ValidatedSelectedAnalysis, resolve_selected_lowering_rules};
     use optimization_core::{
         Optimization, OptimizationSelectionIdentity, OptimizationSelections,
@@ -15,9 +16,6 @@ pub(crate) mod literal_folds {
         SelectedLoweringOptimizationCompletionIdentity,
     };
     use register_homes::{RecoveryClassificationPolicy, SpillChoicePolicy};
-    use selected_instructions::SelectedInstructionPlanIdentity;
-
-    use crate::selected_rewrites::StagedOptimizedAllocationLegality;
 
     pub(crate) mod accounting {
         use super::{
@@ -38,7 +36,6 @@ pub(crate) mod literal_folds {
             fold: &ValidatedLiteralFold,
         ) -> StagedOptimizedLiteralFoldAttemptReceipt {
             StagedOptimizedLiteralFoldAttemptReceipt {
-                source_selected: fold.receipt().source_selected(),
                 source_ranges: fold.receipt().ranges(),
                 source_legality: fold.receipt().legality(),
                 choices: choices.receipt().identity(),
@@ -51,7 +48,6 @@ pub(crate) mod literal_folds {
                 fold_policy: fold.receipt().policy(),
                 fold_usage: fold.receipt().usage(),
                 applied_count: fold.receipt().applied_count(),
-                transformed_selected: fold.receipt().transformed_selected(),
             }
         }
 
@@ -79,16 +75,13 @@ pub(crate) mod literal_folds {
             iteration_bound: usize,
             action_count: usize,
         ) -> StagedSelectedLoweringOptimizationCustodyReceipt {
-            let (final_selected, final_liveness, final_ranges, final_legality) = match steps.last()
-            {
+            let (final_liveness, final_ranges, final_legality) = match steps.last() {
                 Some(step) => (
-                    step.fold.receipt().transformed_selected(),
                     step.liveness.receipt().identity(),
                     step.ranges.receipt().identity(),
                     step.legality.receipt().identity(),
                 ),
                 None => (
-                    source.selected().identity(),
                     source.liveness().receipt().identity(),
                     source.ranges().receipt().identity(),
                     source.legality().receipt().identity(),
@@ -111,7 +104,6 @@ pub(crate) mod literal_folds {
                     .virtual_register_count(),
                 iterations: steps.iter().map(iteration_receipt).collect(),
                 attempt: fold_evidence(&attempt.choices, &attempt.recovery, &attempt.fold),
-                final_selected,
                 final_liveness,
                 final_ranges,
                 final_legality,
@@ -128,14 +120,13 @@ pub(crate) mod literal_folds {
             receipt: &StagedSelectedLoweringOptimizationCustodyReceipt,
         ) -> SelectedLoweringOptimizationCompletionIdentity {
             let mut canonical = Vec::new();
-            canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v5\0");
+            canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v6\0");
             let source = receipt.source;
             for identity in [
                 source.optimization().bytes(),
                 source.manifest().bytes(),
                 source.register_environment().bytes(),
                 source.allocator_availability().bytes(),
-                source.selected().bytes(),
                 source.liveness().bytes(),
                 source.ranges().bytes(),
                 source.legality().bytes(),
@@ -158,7 +149,6 @@ pub(crate) mod literal_folds {
                 encode_iteration_receipt(&mut canonical, *iteration);
             }
             encode_attempt_receipt(&mut canonical, receipt.attempt);
-            canonical.extend_from_slice(&receipt.final_selected.bytes());
             canonical.extend_from_slice(&receipt.final_liveness.bytes());
             canonical.extend_from_slice(&receipt.final_ranges.bytes());
             canonical.extend_from_slice(&receipt.final_legality.bytes());
@@ -170,7 +160,6 @@ pub(crate) mod literal_folds {
             canonical: &mut Vec<u8>,
             evidence: StagedOptimizedLiteralFoldAttemptReceipt,
         ) {
-            canonical.extend_from_slice(&evidence.source_selected().bytes());
             canonical.extend_from_slice(&evidence.source_ranges().bytes());
             canonical.extend_from_slice(&evidence.source_legality().bytes());
             canonical.extend_from_slice(&evidence.choices().bytes());
@@ -192,7 +181,6 @@ pub(crate) mod literal_folds {
             iteration: StagedOptimizedLiteralFoldIterationReceipt,
         ) {
             encode_fold_evidence(canonical, iteration.evidence);
-            canonical.extend_from_slice(&iteration.transformed_selected().bytes());
             canonical.extend_from_slice(&iteration.fresh_liveness().bytes());
             canonical.extend_from_slice(&iteration.fresh_ranges().bytes());
             canonical.extend_from_slice(&iteration.fresh_legality().bytes());
@@ -204,7 +192,6 @@ pub(crate) mod literal_folds {
         ) {
             encode_fold_evidence(canonical, attempt);
             encode_count(canonical, attempt.applied_count());
-            canonical.extend_from_slice(&attempt.transformed_selected().bytes());
         }
 
         pub(crate) fn spill_choice_policy_tag(policy: SpillChoicePolicy) -> u8 {
@@ -401,9 +388,7 @@ pub(crate) mod literal_folds {
                 usage = add_usage(usage, attempt_usage(&attempt)?)?;
                 ensure_selected_lowering_budget(usage, budget)?;
             }
-            if attempt.fold.receipt().source_selected()
-                != attempt.fold.receipt().transformed_selected()
-            {
+            if attempt.fold.plan().source_selected != attempt.fold.plan().transformed_selected {
                 return Err(OptimizedLiteralFoldCustodyError::TerminalAttemptApplied);
             }
 
@@ -513,8 +498,7 @@ pub(crate) mod literal_folds {
                 )?,
             };
             if terminal.fold.receipt().applied_count() != 0
-                || terminal.fold.receipt().source_selected()
-                    != terminal.fold.receipt().transformed_selected()
+                || terminal.fold.plan().source_selected != terminal.fold.plan().transformed_selected
             {
                 return Err(OptimizedLiteralFoldCustodyError::TerminalAttemptApplied);
             }
@@ -889,7 +873,6 @@ pub(crate) mod literal_folds {
         initial_virtual_register_count: usize,
         iterations: Vec<StagedOptimizedLiteralFoldIterationReceipt>,
         attempt: StagedOptimizedLiteralFoldAttemptReceipt,
-        final_selected: SelectedInstructionPlanIdentity,
         final_liveness: selected_instructions::LivenessIdentity,
         final_ranges: selected_instructions::LiveRangeIdentity,
         final_legality: register_homes::AllocationLegalityIdentity,
@@ -908,7 +891,6 @@ pub(crate) mod literal_folds {
             action_count: usize,
             initial_virtual_register_count: usize,
             attempt: StagedOptimizedLiteralFoldAttemptReceipt,
-            final_selected: SelectedInstructionPlanIdentity,
             final_liveness: selected_instructions::LivenessIdentity,
             final_ranges: selected_instructions::LiveRangeIdentity,
             final_legality: register_homes::AllocationLegalityIdentity,
@@ -922,7 +904,6 @@ pub(crate) mod literal_folds {
     copy_receipt! {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct StagedOptimizedLiteralFoldAttemptReceipt {
-            source_selected: SelectedInstructionPlanIdentity,
             source_ranges: selected_instructions::LiveRangeIdentity,
             source_legality: register_homes::AllocationLegalityIdentity,
             choices: register_homes::SpillChoiceIdentity,
@@ -935,7 +916,6 @@ pub(crate) mod literal_folds {
             fold_policy: LiteralFoldPolicy,
             fold_usage: OptimizationWorkUsage,
             applied_count: usize,
-            transformed_selected: SelectedInstructionPlanIdentity,
         }
     }
 
@@ -949,10 +929,8 @@ pub(crate) mod literal_folds {
 
     impl StagedOptimizedLiteralFoldIterationReceipt {
         receipt_accessor_rows!(nested StagedOptimizedLiteralFoldIterationReceipt, evidence {
-            source_selected: SelectedInstructionPlanIdentity,
             source_ranges: selected_instructions::LiveRangeIdentity,
             source_legality: register_homes::AllocationLegalityIdentity,
-            transformed_selected: SelectedInstructionPlanIdentity,
             choices: register_homes::SpillChoiceIdentity,
             choice_policy: SpillChoicePolicy,
             choice_usage: OptimizationWorkUsage,
@@ -2381,6 +2359,7 @@ pub(crate) mod selected_lowering {
                 TargetRegisterEnvironmentIdentity,
             };
             use selected_instructions::{PreparedMachineEffectCatalog, SelectedInstructionPlan};
+            use std::sync::Arc;
 
             use crate::selected_rewrites::{
                 LiteralFoldError, LiteralFoldPlan, LiteralFoldPolicy, ValidatedAllocationLegality,
@@ -2406,16 +2385,17 @@ pub(crate) mod selected_lowering {
                 effect_catalog: &PreparedMachineEffectCatalog,
                 policy: LiteralFoldPolicy,
                 budget: OptimizationWorkBudget,
-            ) -> Result<(LiteralFoldPlan, SelectedInstructionPlan), LiteralFoldError> {
+            ) -> Result<(LiteralFoldPlan, Arc<SelectedInstructionPlan>), LiteralFoldError>
+            {
                 let rows =
                     select_admitted_pairs(constraints, selected_keys, policy, effect_catalog)?;
                 let (functions, transformed) = derive_function_folds(selected, recovery, &rows)?;
                 let usage = fold_usage(selected, &functions, &rows)?;
                 ensure_budget(usage, budget)?;
 
-                let transformed_selected = selected_instruction_plan_identity(&transformed);
+                let transformed = Arc::new(transformed);
                 let plan = LiteralFoldPlan {
-                    source_selected: selected.selected_identity(),
+                    source_selected: selected.shared_selected_plan(),
                     spill_choices: spill_choices.receipt().identity(),
                     recovery_classifications: recovery.receipt().identity(),
                     ranges: ranges.receipt().identity(),
@@ -2429,11 +2409,10 @@ pub(crate) mod selected_lowering {
                     budget,
                     usage,
                     functions,
-                    transformed_selected,
+                    transformed_selected: Arc::clone(&transformed),
                 };
                 Ok((plan, transformed))
             }
-            use selected_instructions::selected_instruction_plan_identity;
         }
         pub(crate) mod pair_rule {
             use register_model::{
@@ -4017,7 +3996,8 @@ pub(crate) mod selected_lowering {
             }
         }
         pub(crate) mod receipt {
-            use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+            use selected_instructions::SelectedInstructionPlan;
+            use std::sync::Arc;
 
             use crate::selected_rewrites::rewrites::literal_fold_identity;
             use crate::selected_rewrites::{
@@ -4026,13 +4006,11 @@ pub(crate) mod selected_lowering {
 
             pub(crate) fn admit_literal_fold(
                 plan: LiteralFoldPlan,
-                transformed: SelectedInstructionPlan,
-                transformed_selected: SelectedInstructionPlanIdentity,
+                transformed: Arc<SelectedInstructionPlan>,
                 applied_count: usize,
             ) -> ValidatedLiteralFold {
                 let receipt = LiteralFoldValidationReceipt {
                     identity: literal_fold_identity(&plan),
-                    source_selected: plan.source_selected,
                     spill_choices: plan.spill_choices,
                     recovery_classifications: plan.recovery_classifications,
                     ranges: plan.ranges,
@@ -4042,7 +4020,6 @@ pub(crate) mod selected_lowering {
                     machine_effect_catalog: plan.machine_effect_catalog,
                     optimization_unit: plan.optimization_unit,
                     work_schedule: plan.work_schedule,
-                    transformed_selected,
                     policy: plan.policy,
                     usage: plan.usage,
                     function_count: transformed.functions.len(),
@@ -4050,7 +4027,7 @@ pub(crate) mod selected_lowering {
                 };
                 ValidatedLiteralFold {
                     plan,
-                    transformed: transformed.into(),
+                    transformed,
                     receipt,
                 }
             }
@@ -4073,7 +4050,6 @@ pub(crate) mod selected_lowering {
         pub use selected_instructions::LiteralFoldIdentity;
         use selected_instructions::{
             LiveRangeIdentity, MachineEffectCatalogIdentity, SelectedInstructionPlan,
-            SelectedInstructionPlanIdentity,
         };
         use semantic_vocabulary::WorkScheduleIdentity;
 
@@ -4110,11 +4086,9 @@ pub(crate) mod selected_lowering {
                 .iter()
                 .map(|function| function.actions.len())
                 .sum();
-            let transformed_selected = plan.transformed_selected;
             Ok(receipt::admit_literal_fold(
                 plan,
                 transformed,
-                transformed_selected,
                 applied_count,
             ))
         }
@@ -4122,7 +4096,6 @@ pub(crate) mod selected_lowering {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct LiteralFoldValidationReceipt {
             pub(crate) identity: LiteralFoldIdentity,
-            pub(crate) source_selected: SelectedInstructionPlanIdentity,
             pub(crate) spill_choices: SpillChoiceIdentity,
             pub(crate) recovery_classifications: RecoveryClassificationIdentity,
             pub(crate) ranges: LiveRangeIdentity,
@@ -4132,7 +4105,6 @@ pub(crate) mod selected_lowering {
             pub(crate) machine_effect_catalog: MachineEffectCatalogIdentity,
             pub(crate) optimization_unit: OptimizationUnitIdentity,
             pub(crate) work_schedule: WorkScheduleIdentity,
-            pub(crate) transformed_selected: SelectedInstructionPlanIdentity,
             pub(crate) policy: LiteralFoldPolicy,
             pub(crate) usage: OptimizationWorkUsage,
             pub(crate) function_count: usize,
@@ -4149,8 +4121,6 @@ pub(crate) mod selected_lowering {
                 usage: OptimizationWorkUsage,
                 function_count: usize,
                 applied_count: usize,
-                source_selected: SelectedInstructionPlanIdentity,
-                transformed_selected: SelectedInstructionPlanIdentity,
             });
             shared_analysis_identity_accessors!(pub);
         }

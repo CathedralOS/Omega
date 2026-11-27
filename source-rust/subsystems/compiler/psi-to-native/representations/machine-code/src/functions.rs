@@ -12,11 +12,9 @@ holds the machine plan, resolved layout and frame plan it was built from; checks
 plans, and the identity digest covers only the contract's own evidence and roots.
 */
 
-use optimization_core::Optimization;
 use register_model::{RegisterUnitId, RegisterViewId};
 use selected_instructions::{
-    MachineEncodedTrapBehavior, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionPlanIdentity, VirtualRegisterId,
+    MachineEncodedTrapBehavior, SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
 };
 use semantic_vocabulary::{EdgeId, MachineId};
 use target::NativeTarget;
@@ -73,10 +71,6 @@ pub enum WholeFunctionExitLayoutCustody {
     BaselineNearLayoutV1,
     X86RelaxConditionalBranchesToRel8V1 {
         relaxation: X86BranchRelaxationIdentity,
-    },
-    PostAllocationMachineOptimizationV1 {
-        optimization: Optimization,
-        artifact_identity: [u8; 32],
     },
 }
 
@@ -164,7 +158,6 @@ pub struct WholeFunctionExitEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WholeFunctionExitContract {
     pub identity: WholeFunctionExitContractIdentity,
-    pub selected: SelectedInstructionPlanIdentity,
     pub post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
     pub post_allocation_machine: std::sync::Arc<post_allocation_machine::PostAllocationMachinePlan>,
     pub register_environment: register_model::TargetRegisterEnvironmentIdentity,
@@ -197,13 +190,12 @@ impl WholeFunctionExitContract {
     }
 }
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v16\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v17\0";
 
 pub fn whole_function_exit_contract_identity(
     contract: &WholeFunctionExitContract,
 ) -> WholeFunctionExitContractIdentity {
     let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(CONTRACT_SCHEMA);
-    hasher.raw(&contract.selected.bytes());
     hasher.raw(&contract.post_allocation_manifest.bytes());
     hasher.raw(&contract.register_environment.bytes());
     hasher.raw(&contract.physical_register_model.bytes());
@@ -213,14 +205,6 @@ pub fn whole_function_exit_contract_identity(
         WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { relaxation } => {
             hasher.byte(2);
             hasher.raw(&relaxation.bytes());
-        }
-        WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
-            optimization,
-            artifact_identity,
-        } => {
-            hasher.byte(3);
-            hasher.byte(optimization as u8);
-            hasher.raw(&artifact_identity);
         }
     }
     hasher.raw(&contract.target.wire_identity_bytes());

@@ -39,15 +39,16 @@ use register_model::{
     TargetRegisterEnvironmentIdentity,
 };
 use selected_instructions::{
-    LiveRangeIdentity, MachineEffectCatalogIdentity, PreAllocationMachineEffectIdentity,
-    SelectedInstructionPlanIdentity,
+    LiveRangeIdentity, MachineEffectCatalogIdentity, SelectedInstructionPlan,
 };
+use std::sync::Arc;
 use target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PostAllocationMachinePlan {
-    pub selected: SelectedInstructionPlanIdentity,
-    pub effects: PreAllocationMachineEffectIdentity,
+    /// The final selected program this plan assigns machine choices to. Its
+    /// functions are the same shared rows the physical program keeps.
+    pub selected: Arc<SelectedInstructionPlan>,
     pub ranges: LiveRangeIdentity,
     pub legality: AllocationLegalityIdentity,
     pub homes: RegisterHomeIdentity,

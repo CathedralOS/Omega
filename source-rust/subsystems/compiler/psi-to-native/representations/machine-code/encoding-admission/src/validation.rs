@@ -91,9 +91,6 @@ pub(super) fn validate(
     if artifact.frame.as_deref() != frame {
         return Err(Error::ArtifactMismatch);
     }
-    if artifact.selected != machine.selected {
-        return Err(Error::SelectedRootMismatch);
-    }
     if machine.physical_register_model != physical.identity() {
         return Err(Error::PhysicalModelMismatch);
     }
@@ -1047,14 +1044,12 @@ mod tests {
     use machine_code::{
         SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
     };
-    use selected_instructions::SelectedInstructionPlanIdentity;
 
     use super::{Error, validate_aggregate};
 
     #[test]
     fn raw_encoding_rejects_reauthenticated_counts_and_stale_identity() {
         let mut program = SelectedFormEncoding {
-            selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
             machine: post_allocation_machine::test_support::placeholder_plan(),
             identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
             rows: vec![],

@@ -321,11 +321,17 @@ macro_rules! validated_transformed_receipt {
 macro_rules! receipt_selected_identities {
     ($name:ident) => {
         impl $name {
-            pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
-                self.source_selected
+            /// The program the rewrite read.
+            pub fn source_selected(
+                &self,
+            ) -> &std::sync::Arc<$crate::validated_selected_support::SelectedInstructionPlan> {
+                &self.source_selected
             }
-            pub const fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
-                self.transformed_selected
+            /// The program the rewrite produced.
+            pub fn transformed_selected(
+                &self,
+            ) -> &std::sync::Arc<$crate::validated_selected_support::SelectedInstructionPlan> {
+                &self.transformed_selected
             }
             pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
                 self.optimization_unit
@@ -346,8 +352,8 @@ macro_rules! rewrite_receipt {
     ) => {
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct $receipt {
-            source_selected: SelectedInstructionPlanIdentity,
-            transformed_selected: SelectedInstructionPlanIdentity,
+            source_selected: std::sync::Arc<$crate::validated_selected_support::SelectedInstructionPlan>,
+            transformed_selected: std::sync::Arc<$crate::validated_selected_support::SelectedInstructionPlan>,
             optimization_unit: OptimizationUnitIdentity,
             work_schedule: WorkScheduleIdentity,
             $($(#[$meta])* $field: $ty,)*
@@ -364,8 +370,8 @@ macro_rules! rewrite_receipt {
     ($receipt:ident) => {
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct $receipt {
-            source_selected: SelectedInstructionPlanIdentity,
-            transformed_selected: SelectedInstructionPlanIdentity,
+            source_selected: std::sync::Arc<$crate::validated_selected_support::SelectedInstructionPlan>,
+            transformed_selected: std::sync::Arc<$crate::validated_selected_support::SelectedInstructionPlan>,
             optimization_unit: OptimizationUnitIdentity,
             work_schedule: WorkScheduleIdentity,
         }
@@ -383,8 +389,6 @@ macro_rules! rewrite_receipt_identity {
         pub(crate) fn $function(receipt: &$receipt) -> $identity {
             $identity::from_canonical_bytes(&$crate::rewriting::rewrite_bytes(
                 $separator,
-                &receipt.source_selected.bytes(),
-                &receipt.transformed_selected.bytes(),
                 &receipt.optimization_unit.bytes(),
                 |bytes| {
                     $crate::codec_bytes::push_encoded(bytes, receipt.work_schedule.marker().to_le_bytes());
@@ -658,23 +662,18 @@ pub mod recovery_classification;
 pub mod register_writes;
 mod selected_input {
     use optimization_core::OptimizationUnitIdentity;
-    use selected_instructions::{
-        CurrentSelectedProgram, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
-        SelectedProgram,
-    };
+    use selected_instructions::{CurrentSelectedProgram, SelectedInstructionPlan, SelectedProgram};
     use semantic_vocabulary::WorkScheduleIdentity;
 
     pub trait SelectedProgramView {
         fn selected_plan(&self) -> &SelectedInstructionPlan;
         fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan>;
-        fn selected_identity(&self) -> SelectedInstructionPlanIdentity;
         fn optimization_unit_identity(&self) -> OptimizationUnitIdentity;
         fn work_schedule_identity(&self) -> WorkScheduleIdentity;
 
         fn current_program(&self) -> CurrentSelectedProgram<'_> {
             CurrentSelectedProgram {
                 plan: self.selected_plan(),
-                identity: self.selected_identity(),
                 optimization_unit: self.optimization_unit_identity(),
                 work_schedule: self.work_schedule_identity(),
             }
@@ -705,10 +704,6 @@ mod selected_input {
             self.program.selected_plan()
         }
 
-        fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-            self.program.selected_identity()
-        }
-
         fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
             self.program.optimization_unit_identity()
         }
@@ -727,10 +722,6 @@ mod selected_input {
             self.plan()
         }
 
-        fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-            self.identity()
-        }
-
         fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
             self.optimization_unit()
         }
@@ -743,7 +734,6 @@ mod selected_input {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct OwnedSelectedProgram {
         plan: std::sync::Arc<SelectedInstructionPlan>,
-        selected: SelectedInstructionPlanIdentity,
         optimization_unit: OptimizationUnitIdentity,
         work_schedule: WorkScheduleIdentity,
     }
@@ -752,7 +742,6 @@ mod selected_input {
         pub fn retain(source: &impl SelectedProgramView) -> Self {
             Self {
                 plan: source.shared_selected_plan(),
-                selected: source.selected_identity(),
                 optimization_unit: source.optimization_unit_identity(),
                 work_schedule: source.work_schedule_identity(),
             }
@@ -765,9 +754,6 @@ mod selected_input {
         }
         fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
             std::sync::Arc::clone(&self.plan)
-        }
-        fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-            self.selected
         }
         fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
             self.optimization_unit
@@ -797,7 +783,7 @@ mod selected_input {
 #[doc(hidden)]
 pub mod validated_selected_support {
     pub use optimization_core::OptimizationUnitIdentity;
-    pub use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+    pub use selected_instructions::SelectedInstructionPlan;
     pub use semantic_vocabulary::WorkScheduleIdentity;
 
     /// Keeps `ValidatedSelectedAnalysis` closed to the types the macro admits.
@@ -828,11 +814,6 @@ macro_rules! validated_selected_analysis {
                 &self,
             ) -> std::sync::Arc<$crate::validated_selected_support::SelectedInstructionPlan> {
                 self.shared_transformed()
-            }
-            fn selected_identity(
-                &self,
-            ) -> $crate::validated_selected_support::SelectedInstructionPlanIdentity {
-                self.receipt().transformed_selected()
             }
             fn optimization_unit_identity(
                 &self,
@@ -910,7 +891,7 @@ pub enum RecoveryReanalysisError {
 
 #[derive(Clone)]
 pub struct UnsealedRecoveryFacts {
-    selected: selected_instructions::SelectedInstructionPlanIdentity,
+    selected: Arc<selected_instructions::SelectedInstructionPlan>,
     availability: register_homes::AllocatorAvailabilityIdentity,
     liveness_functions: Vec<Arc<selected_instructions::FunctionLiveness>>,
     liveness_materialized: Vec<bool>,
@@ -926,7 +907,7 @@ impl UnsealedRecoveryFacts {
     ) -> Self {
         let count = liveness.plan().functions.len();
         Self {
-            selected: liveness.plan().selected,
+            selected: Arc::clone(&liveness.plan().selected),
             availability: legality.plan().allocator_availability,
             liveness_functions: liveness.plan().functions.clone(),
             liveness_materialized: vec![true; count],
@@ -989,7 +970,7 @@ impl UnsealedRecoveryFacts {
         let count = next_plan.functions.len();
         let availability_unchanged = self.availability == availability.receipt().identity();
         let mut next = Self {
-            selected: selected.selected_identity(),
+            selected: selected.shared_selected_plan(),
             availability: availability.receipt().identity(),
             liveness_functions: Vec::with_capacity(count),
             liveness_materialized: Vec::with_capacity(count),
@@ -1057,7 +1038,7 @@ impl UnsealedRecoveryFacts {
 
     fn belongs_to(&self, selected: &impl SelectedProgramView) -> bool {
         let count = selected.selected_plan().functions.len();
-        self.selected == selected.selected_identity()
+        *self.selected == *selected.selected_plan()
             && self.liveness_functions.len() == count
             && self.liveness_materialized.len() == count
             && self.range_functions.len() == count
@@ -1132,7 +1113,7 @@ impl UnsealedRecoveryFacts {
             })
             .collect();
         let liveness_plan = selected_instructions::LivenessPlan {
-            selected: selected.selected_identity(),
+            selected: selected.shared_selected_plan(),
             optimization_unit: selected.optimization_unit_identity(),
             work_schedule: selected.work_schedule_identity(),
             target: next_plan.target,
@@ -1144,7 +1125,7 @@ impl UnsealedRecoveryFacts {
             &anchor_liveness.function_digests,
         );
         let range_plan = selected_instructions::LiveRangePlan {
-            selected: selected.selected_identity(),
+            selected: selected.shared_selected_plan(),
             liveness: validated_liveness.receipt().identity(),
             optimization_unit: selected.optimization_unit_identity(),
             work_schedule: selected.work_schedule_identity(),
@@ -1284,7 +1265,6 @@ mod recovery_tests {
                 provenance: block.instructions[0].provenance.clone(),
             },
         );
-        selected.identity = selected_instructions::selected_instruction_plan_identity(plan);
         let liveness = analyze_liveness(&selected).unwrap();
         let ranges = analyze_live_ranges(&selected, &liveness).unwrap();
         let analyze = |availability: &ValidatedAllocatorAvailability| {
@@ -1387,7 +1367,6 @@ mod recovery_tests {
     fn reanalysis_tracks_added_and_removed_functions_and_seals_only_its_selection() {
         use register_environment::baseline_target_register_environment;
         use register_homes::AllocatorAvailabilityPolicy;
-        use selected_instructions::selected_instruction_plan_identity;
         use semantic_vocabulary::MachineId;
         use target::NativeTarget;
         use target_vocabulary::NativeCallTarget;
@@ -1416,7 +1395,6 @@ mod recovery_tests {
         let mut helper = plan.functions[0].clone();
         helper.machine = MachineId::new(2).unwrap();
         plan.functions.push(helper);
-        two.identity = selected_instruction_plan_identity(plan);
 
         let analyze = |selected: &selected_instructions::SelectedProgram| {
             let liveness = analyze_liveness(selected).unwrap();
@@ -1482,7 +1460,6 @@ mod recovery_tests {
     fn rewritten_function_reanalysis_equals_a_fresh_analysis_and_carries_the_rest() {
         use register_environment::baseline_target_register_environment;
         use register_homes::AllocatorAvailabilityPolicy;
-        use selected_instructions::selected_instruction_plan_identity;
         use semantic_vocabulary::MachineId;
         use target::NativeTarget;
         use target_vocabulary::NativeCallTarget;
@@ -1526,7 +1503,6 @@ mod recovery_tests {
         let mut helper = plan.functions[0].clone();
         helper.machine = MachineId::new(2).unwrap();
         plan.functions.push(helper);
-        original.identity = selected_instruction_plan_identity(plan);
         let mut rewritten = original.clone();
         let plan = Arc::make_mut(&mut rewritten.plan);
         let fence_constraint = register_model::find_register_constraint(
@@ -1548,7 +1524,6 @@ mod recovery_tests {
                 provenance: block.instructions[0].provenance.clone(),
             },
         );
-        rewritten.identity = selected_instruction_plan_identity(plan);
         assert!(
             original
                 .plan
@@ -1612,8 +1587,7 @@ mod report_counts_tests {
     use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
     use selected_instructions::{
         FunctionLiveRanges, LiveRangeFragment, LiveRangeIdentity, LiveRangePlan, LiveRangePoint,
-        LivenessIdentity, SelectedBlockId, SelectedInstructionPlanIdentity, VirtualLiveRange,
-        VirtualRegisterId,
+        LivenessIdentity, SelectedBlockId, VirtualLiveRange, VirtualRegisterId,
     };
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use std::sync::Arc;
@@ -1646,7 +1620,7 @@ mod report_counts_tests {
             })
         };
         let mut plan = LiveRangePlan {
-            selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"counts"),
+            selected: selected_instructions::test_support::placeholder_plan(1),
             liveness: LivenessIdentity::from_bytes([1; 32]),
             optimization_unit: optimization_core::OptimizationUnitIdentity::from_bytes([2; 32]),
             work_schedule: WorkScheduleIdentity::new(1).unwrap(),

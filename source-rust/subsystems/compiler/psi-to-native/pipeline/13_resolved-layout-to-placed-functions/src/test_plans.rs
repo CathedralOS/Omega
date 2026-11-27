@@ -26,7 +26,6 @@ pub(crate) fn frame_plan() -> Arc<TargetFrameLayoutPlan> {
 
 pub(crate) fn resolved_layout() -> Arc<ResolvedMachineLayout> {
     Arc::new(ResolvedMachineLayout {
-        selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([1; 32]),
         machine: post_allocation_machine::test_support::placeholder_plan(),
         pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([6; 32]),
         target: NativeTarget::linux_x64(),

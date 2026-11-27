@@ -110,6 +110,7 @@ pub fn denote_bounded_certificate(
     proof: &ProofNode,
 ) -> Result<BoundedDenotation, BoundedDenotationError> {
     denote_bounded_certificate_with_machine_parameters(
+        Denotation::new(),
         context,
         goal,
         assumptions,
@@ -119,7 +120,36 @@ pub fn denote_bounded_certificate(
     )
 }
 
+/// Check a closed derivation over a theorem's subjects with each sum input
+/// bound to its declaration, so that its case tests compute and a case
+/// exhaustion is derived by the sum's recursor.
+pub(crate) fn verify_bounded_certificate_over_data(
+    context: &PropositionContext,
+    goal: &Proposition,
+    data_subjects: &[DataSubject],
+    proof: &ProofNode,
+    budget: &mut Budget,
+) -> Result<BoundedDenotation, BoundedDenotationError> {
+    let mut denotation = Denotation::new();
+    for subject in data_subjects {
+        denotation.declare_data_subject(subject)?;
+    }
+    let mut denoted = denote_bounded_certificate_with_machine_parameters(
+        denotation,
+        context,
+        goal,
+        &[],
+        &[],
+        &BTreeSet::new(),
+        proof,
+    )?;
+    verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, budget)
+        .map_err(BoundedDenotationError::Kernel)?;
+    Ok(denoted)
+}
+
 fn denote_bounded_certificate_with_machine_parameters(
+    denotation: Denotation,
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
@@ -130,7 +160,7 @@ fn denote_bounded_certificate_with_machine_parameters(
     #[cfg(test)]
     crate::bounded_observations::record_denotation();
     let mut elab = Elaboration::new(
-        Denotation::new(),
+        denotation,
         context,
         goal,
         assumptions,
@@ -175,6 +205,7 @@ pub(crate) fn verify_bounded_certificate_with_machine_parameters(
     budget: &mut Budget,
 ) -> Result<BoundedDenotation, BoundedDenotationError> {
     let mut denoted = denote_bounded_certificate_with_machine_parameters(
+        Denotation::new(),
         context,
         goal,
         assumptions,
@@ -6690,6 +6721,7 @@ impl<'p> PartialNode<'p> {
         use ProofRule::*;
         let children = match &proof.rule {
             IntegerFloatExact
+            | StructuralCaseExhaustion
             | Primitive(_)
             | Assumption { .. }
             | SemanticAxiom { .. }
@@ -7159,6 +7191,12 @@ impl<'a> Elaboration<'a> {
         ops: &mut ChildEvidence<'_>,
     ) -> Result<TermHandle, BoundedDenotationError> {
         match &proof.rule {
+            ProofRule::StructuralCaseExhaustion => {
+                let term = self.denotation.data_case_exhaustion(&proof.conclusion)?;
+                self.rules
+                    .insert(AcceptedProofRule::StructuralCaseExhaustion);
+                Ok(term)
+            }
             ProofRule::IntegerFloatExact => {
                 crate::check_integer_float_exact(self.context, &proof.conclusion)
                     .map_err(|e| cert_err!(ProofError::FloatIntegerConversion(Box::new(e))))?;

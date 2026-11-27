@@ -20,7 +20,7 @@ use selected_instructions::{
     SelectedInstructionKind, SelectedInstructionPlan, SelectedLocalStorageSlot,
     SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedProgram,
     SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin, selected_instruction_plan_identity,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -147,7 +147,6 @@ fn program(
         functions: vec![function].into(),
     };
     SelectedProgram {
-        identity: selected_instruction_plan_identity(&plan),
         plan: Arc::new(plan),
         optimization_unit: OptimizationUnitIdentity::from_bytes([3; 32]),
         work_schedule: WorkScheduleIdentity::new(1).unwrap(),

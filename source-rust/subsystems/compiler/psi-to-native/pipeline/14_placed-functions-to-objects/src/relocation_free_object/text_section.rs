@@ -126,7 +126,7 @@ fn assemble_object(
     let object = RelocationFreeObjectPlan {
         psi: text.psi,
         work_schedule: text.work_schedule,
-        selected: text.selected,
+        selected: std::sync::Arc::clone(&text.selected),
         selections,
         target: text.target,
         text_section: RelocationFreeObjectTextSection {
@@ -161,7 +161,6 @@ mod tests {
         TextSectionPlacementPolicy, TextSectionRelocationRequirements,
     };
     use optimization_core::OptimizationSelectionIdentity;
-    use selected_instructions::SelectedInstructionPlanIdentity;
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use target::NativeTarget;
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
@@ -174,7 +173,7 @@ mod tests {
                 program_fingerprint: SemanticFingerprint::from_bytes([4; 32]),
             },
             work_schedule: WorkScheduleIdentity::new(1).unwrap(),
-            selected: SelectedInstructionPlanIdentity::from_bytes([5; 32]),
+            selected: selected_instructions::test_support::placeholder_plan(5),
             target,
             semantic_entry: machine,
             semantic_entry_offset: 0,

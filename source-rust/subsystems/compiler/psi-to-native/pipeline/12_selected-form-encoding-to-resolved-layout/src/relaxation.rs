@@ -44,7 +44,6 @@ fn revision_roots(
     target: NativeTarget,
 ) -> RevisionRoots {
     RevisionRoots {
-        selected: source.selected,
         pre_layout: source.pre_layout,
         target,
     }
@@ -57,8 +56,7 @@ fn validate_current_x86_branch_relaxation(
     artifact: &X86BranchRelaxationRecord,
 ) -> Result<(), OptimizedX86BranchRelaxationError> {
     ensure_x86_target(target, physical)?;
-    if artifact.selected != source.selected
-        || artifact.machine != source.machine
+    if artifact.machine != source.machine
         || artifact.pre_layout != source.pre_layout
         || artifact.target != target
         || artifact.policy != X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1
@@ -135,7 +133,6 @@ pub fn validate_current_layout_optimization(
     if current.selections != selections
         || current.budget != facts.budget()
         || current.relaxation != relaxation.map(X86BranchRelaxationRecord::identity)
-        || current.baseline.selected != program.context.machine.selected
         || current.baseline.machine != program.context.plan
         || current.baseline.pre_layout != program.encoding.identity()
     {
@@ -172,8 +169,7 @@ pub(super) fn validate_layout_transition(
     controls: &[machine_code::EncodedControlIndex],
 ) -> Result<(), OptimizedX86BranchRelaxationError> {
     let mismatch = OptimizedX86BranchRelaxationError::ArtifactMismatch;
-    if output.selected != baseline.selected
-        || output.machine != baseline.machine
+    if output.machine != baseline.machine
         || output.pre_layout != baseline.pre_layout
         || output.policy != baseline.policy
         || output.target != baseline.target

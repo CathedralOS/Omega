@@ -620,9 +620,9 @@ pub(crate) mod compute {
         let usage = work::required_usage(selected.selected_plan(), applied, rewritten_uses)?;
         work::ensure_budget(usage, budget)?;
 
-        let transformed_selected = selected_instruction_plan_identity(&transformed);
+        let transformed = std::sync::Arc::new(transformed);
         let plan = PressureRematerializationPlan {
-            source_selected: selected.selected_identity(),
+            source_selected: selected.shared_selected_plan(),
             spill_choices: spill_choices.receipt().identity(),
             recovery_classifications: recovery.receipt().identity(),
             ranges: ranges.receipt().identity(),
@@ -635,7 +635,7 @@ pub(crate) mod compute {
             budget,
             usage,
             functions,
-            transformed_selected,
+            transformed_selected: std::sync::Arc::clone(&transformed),
         };
         Ok(ComputedPressureRematerialization {
             plan,
@@ -644,11 +644,10 @@ pub(crate) mod compute {
             rewritten_uses,
         })
     }
-    use selected_instructions::selected_instruction_plan_identity;
 
     pub(crate) struct ComputedPressureRematerialization {
         pub(crate) plan: PressureRematerializationPlan,
-        pub(crate) transformed: selected_instructions::SelectedInstructionPlan,
+        pub(crate) transformed: std::sync::Arc<selected_instructions::SelectedInstructionPlan>,
         pub(crate) applied: usize,
         pub(crate) rewritten_uses: usize,
     }
@@ -659,14 +658,12 @@ pub(crate) mod receipt {
 
     pub(crate) fn bind(
         plan: &PressureRematerializationPlan,
-        transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
         function_count: usize,
         applied_count: usize,
         rewritten_use_count: usize,
     ) -> PressureRematerializationReceipt {
         PressureRematerializationReceipt {
             identity: pressure_rematerialization_identity(plan),
-            source_selected: plan.source_selected,
             spill_choices: plan.spill_choices,
             recovery_classifications: plan.recovery_classifications,
             ranges: plan.ranges,
@@ -675,7 +672,6 @@ pub(crate) mod receipt {
             allocator_availability: plan.allocator_availability,
             optimization_unit: plan.optimization_unit,
             work_schedule: plan.work_schedule,
-            transformed_selected,
             policy: plan.policy,
             usage: plan.usage,
             function_count,
@@ -696,7 +692,6 @@ pub use register_homes::{
 };
 use selected_instructions::{
     LiveRangeIdentity, PressureRematerializationIdentity, SelectedInstructionPlan,
-    SelectedInstructionPlanIdentity,
 };
 use semantic_vocabulary::WorkScheduleIdentity;
 
@@ -731,16 +726,10 @@ pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
         policy,
         budget,
     )?;
-    let receipt = receipt::bind(
-        &plan,
-        plan.transformed_selected,
-        transformed.functions.len(),
-        applied,
-        rewritten_uses,
-    );
+    let receipt = receipt::bind(&plan, transformed.functions.len(), applied, rewritten_uses);
     Ok(ValidatedPressureRematerialization {
         plan,
-        transformed: transformed.into(),
+        transformed,
         receipt,
     })
 }
@@ -748,7 +737,6 @@ pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PressureRematerializationReceipt {
     pub(crate) identity: PressureRematerializationIdentity,
-    pub(crate) source_selected: SelectedInstructionPlanIdentity,
     pub(crate) spill_choices: SpillChoiceIdentity,
     pub(crate) recovery_classifications: RecoveryClassificationIdentity,
     pub(crate) ranges: LiveRangeIdentity,
@@ -757,7 +745,6 @@ pub struct PressureRematerializationReceipt {
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,
     pub(crate) work_schedule: WorkScheduleIdentity,
-    pub(crate) transformed_selected: SelectedInstructionPlanIdentity,
     pub(crate) policy: PressureRematerializationPolicy,
     pub(crate) usage: OptimizationWorkUsage,
     pub(crate) function_count: usize,
@@ -775,8 +762,6 @@ impl PressureRematerializationReceipt {
         function_count: usize,
         applied_count: usize,
         rewritten_use_count: usize,
-        source_selected: SelectedInstructionPlanIdentity,
-        transformed_selected: SelectedInstructionPlanIdentity,
     });
     shared_analysis_identity_accessors!(pub);
 }

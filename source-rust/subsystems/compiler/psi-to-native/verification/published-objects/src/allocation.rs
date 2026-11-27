@@ -40,7 +40,7 @@ impl AllocationOriginals {
         let manifest = self.publication.record();
         if register_homes::register_home_identity(&self.homes) != self.homes_identity
             || manifest.recomputed_identity() != manifest.identity
-            || manifest.selected != self.selected.selected_identity()
+            || *manifest.selected != *self.selected.selected_plan()
             || manifest.homes != self.homes_identity
             || manifest.register_environment != self.environment.identity()
             || manifest.target != self.environment.target()
@@ -166,7 +166,7 @@ pub(crate) mod validation {
         current.validate_roots()?;
         let environment = &current.environment;
         let manifest = current.publication.record();
-        if candidate.selected != current.selected.selected_identity()
+        if *candidate.selected != *current.selected.selected_plan()
             || candidate.homes != current.homes_identity
             || candidate.post_allocation_manifest != manifest.identity
             || candidate.register_environment != environment.identity()

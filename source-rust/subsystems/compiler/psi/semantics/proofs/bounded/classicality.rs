@@ -36,7 +36,8 @@ impl AcceptedProofRule {
             | Self::IntegerOrderAntisymmetry
             | Self::IntegerLessOrEqualTransitivity
             | Self::IntegerStrictOrderTransitivity
-            | Self::IntegerOrderSubstitution => ProofRuleFoundation::Constructive,
+            | Self::IntegerOrderSubstitution
+            | Self::StructuralCaseExhaustion => ProofRuleFoundation::Constructive,
             Self::PredicateDenotation
             | Self::IeeeFloatOrderChain
             | Self::FloatMeaningNormalization
@@ -99,7 +100,7 @@ impl AcceptedProofRule {
 mod tests {
     use super::{AcceptedProofRule, ProofRuleFoundation};
 
-    const ALL: [AcceptedProofRule; 36] = [
+    const ALL: [AcceptedProofRule; 37] = [
         AcceptedProofRule::IeeeFloatOrderChain,
         AcceptedProofRule::FloatMeaningNormalization,
         AcceptedProofRule::FloatIntegerConversion,
@@ -136,6 +137,7 @@ mod tests {
         AcceptedProofRule::IntegerCastBound,
         AcceptedProofRule::IntegerCorrelatedForbiddenRoots,
         AcceptedProofRule::IntegerPowerOfTwoOrder,
+        AcceptedProofRule::StructuralCaseExhaustion,
     ];
 
     #[test]

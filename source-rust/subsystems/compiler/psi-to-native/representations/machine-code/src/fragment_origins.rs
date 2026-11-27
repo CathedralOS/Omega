@@ -2,7 +2,7 @@
 use crate::FunctionFragmentControlProvenance;
 use selected_instructions::{
     SelectedBlockId, SelectedImageAddressReference, SelectedInstructionId,
-    SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
+    SelectedInstructionProvenance,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId, WorkScheduleIdentity};
 
@@ -28,7 +28,7 @@ impl std::error::Error for ResolvedFragmentEmissionError {}
 pub struct FragmentOrigins {
     pub psi: terminal_psi::TerminalPsiIdentity,
     pub work_schedule: WorkScheduleIdentity,
-    pub selected: SelectedInstructionPlanIdentity,
+    pub selected: std::sync::Arc<selected_instructions::SelectedInstructionPlan>,
     pub target: target::NativeTarget,
     pub entry: MachineId,
     pub functions: Vec<FragmentFunctionOrigin>,

@@ -42,7 +42,6 @@ pub use validation::{admits_address_operation, validate_row, validate_size};
 pub enum OptimizedSelectedFormEncodingError {
     ExitRequirements(machine_code::exit_requirements::WholeFunctionExitContractError),
     CurrentProgram(post_allocation_machine::program_validation::PhysicalProgramValidationError),
-    SelectedRootMismatch,
     PhysicalModelMismatch,
     FunctionRosterMismatch,
     BlockRosterMismatch,
@@ -251,7 +250,6 @@ pub fn validate_encoded_integrity(
     if encoding.identity() != context.checked_encoding
         || encoding.recomputed_identity() != context.checked_encoding
         || *encoding.machine() != context.plan
-        || encoding.selected() != context.machine.selected
         || encoding.frame.as_deref() != Some(frame)
         || frame.post_allocation_machine != context.plan
         || frame.register_environment != context.environment.identity()
@@ -273,7 +271,6 @@ pub fn program_context(
         work_schedule: program.work_schedule,
         entry: program.entry,
         machine,
-        effects: program.machine.effects,
         environment: program.environment.clone(),
         preservation: program.preservation.clone(),
         publication: Arc::clone(&program.publication),

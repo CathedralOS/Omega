@@ -246,7 +246,6 @@ pub(crate) mod rematerialization {
                 rematerialization_policy: rematerialization.receipt().policy(),
                 rematerialization_usage: rematerialization.receipt().usage(),
                 budget: rematerialization.plan().budget,
-                transformed_selected: rematerialization.receipt().transformed_selected(),
                 liveness: liveness.receipt().identity(),
                 ranges: ranges.receipt().identity(),
                 legality: legality.receipt().identity(),
@@ -392,7 +391,6 @@ pub(crate) mod rematerialization {
         rematerialization_policy: PressureRematerializationPolicy,
         rematerialization_usage: optimization_core::OptimizationWorkUsage,
         budget: OptimizationWorkBudget,
-        transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
         liveness: LivenessIdentity,
         ranges: LiveRangeIdentity,
         legality: AllocationLegalityIdentity,
@@ -454,8 +452,7 @@ pub(crate) mod fixed_occurrences {
     use register_model::{RegisterClassId, RegisterInstructionConstraint, RegisterOperandAccess};
     use selected_instructions::{
         SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-        SelectedInstructionPlan, SelectedInstructionPlanIdentity, VirtualRegister,
-        VirtualRegisterId, VirtualRegisterOrigin,
+        SelectedInstructionPlan, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
     };
     use semantic_vocabulary::{ScalarType, WorkScheduleIdentity};
 
@@ -819,8 +816,6 @@ pub(crate) mod fixed_occurrences {
                     block_index,
                     new_instructions,
                     new_terminator,
-                    0,
-                    0,
                 );
             }
         }
@@ -1534,12 +1529,10 @@ pub(crate) mod fixed_view {
                 StagedOptimizedFixedViewCopyCustodyReceipt {
                     core: upstream.core(),
                     allocator_availability: upstream.allocator_availability(),
-                    source_selected: upstream.selected(),
                     source_liveness: upstream.liveness(),
                     source_ranges: upstream.ranges(),
                     source_legality: upstream.legality(),
                     transformation: copies.identity(),
-                    transformed_selected: copies.transformed_selected(),
                     policy: copies.policy(),
                     usage: copies.usage(),
                     function_count: copies.function_count(),
@@ -1562,7 +1555,7 @@ pub(crate) mod fixed_view {
             PrePhysicalOptimizationManifestIdentity,
         };
         use register_environment::ValidatedTargetRegisterEnvironment;
-        use selected_instructions::SelectedInstructionPlanIdentity;
+
         use selected_instructions::StagedOptimizedCustodyCore;
         use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
         use terminal_psi::TerminalPsiIdentity;
@@ -1609,12 +1602,10 @@ pub(crate) mod fixed_view {
         pub struct StagedOptimizedFixedViewCopyCustodyReceipt {
             core: StagedOptimizedCustodyCore,
             allocator_availability: register_homes::AllocatorAvailabilityIdentity,
-            source_selected: SelectedInstructionPlanIdentity,
             source_liveness: selected_instructions::LivenessIdentity,
             source_ranges: selected_instructions::LiveRangeIdentity,
             source_legality: register_homes::AllocationLegalityIdentity,
             transformation: FixedViewCopyIdentity,
-            transformed_selected: SelectedInstructionPlanIdentity,
             policy: FixedViewCopyPolicy,
             usage: OptimizationWorkUsage,
             function_count: usize,
@@ -1626,11 +1617,9 @@ pub(crate) mod fixed_view {
 
             receipt_accessor_rows!(StagedOptimizedFixedViewCopyCustodyReceipt {
                 allocator_availability: register_homes::AllocatorAvailabilityIdentity,
-                source_selected: SelectedInstructionPlanIdentity,
                 source_liveness: selected_instructions::LivenessIdentity,
                 source_ranges: selected_instructions::LiveRangeIdentity,
                 source_legality: register_homes::AllocationLegalityIdentity,
-                transformed_selected: SelectedInstructionPlanIdentity,
                 transformation: FixedViewCopyIdentity,
                 policy: FixedViewCopyPolicy,
                 usage: OptimizationWorkUsage,

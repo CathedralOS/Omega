@@ -186,7 +186,6 @@ pub(crate) mod baseline {
             StagedOptimizedRegisterHomeCustodyReceipt {
                 core: upstream.core(),
                 allocator_availability: upstream.allocator_availability(),
-                selected: upstream.selected(),
                 liveness: upstream.liveness(),
                 ranges: upstream.ranges(),
                 legality: upstream.legality(),
@@ -221,9 +220,7 @@ pub(crate) mod baseline {
         ValidatedLiveRanges, ValidatedLiveness,
     };
     use selected_instructions::StagedOptimizedCustodyCore;
-    use selected_instructions::{
-        LiveRangeIdentity, LivenessIdentity, SelectedInstructionPlanIdentity,
-    };
+    use selected_instructions::{LiveRangeIdentity, LivenessIdentity};
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use terminal_psi::TerminalPsiIdentity;
 
@@ -270,7 +267,6 @@ pub(crate) mod baseline {
     pub struct StagedOptimizedRegisterHomeCustodyReceipt {
         core: StagedOptimizedCustodyCore,
         allocator_availability: AllocatorAvailabilityIdentity,
-        selected: SelectedInstructionPlanIdentity,
         liveness: LivenessIdentity,
         ranges: LiveRangeIdentity,
         legality: AllocationLegalityIdentity,
@@ -285,7 +281,6 @@ pub(crate) mod baseline {
 
         receipt_accessor_rows!(StagedOptimizedRegisterHomeCustodyReceipt {
             allocator_availability: AllocatorAvailabilityIdentity,
-            selected: SelectedInstructionPlanIdentity,
             liveness: LivenessIdentity,
             ranges: LiveRangeIdentity,
             legality: AllocationLegalityIdentity,
@@ -391,61 +386,12 @@ pub(crate) mod post_allocation_manifest {
         ) -> Result<PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError>
         {
             let mut unique_transformations = BTreeSet::new();
+            // A rule rewrite's receipt appears once; runtime recovery rows carry
+            // only their kind and may repeat.
             if selected_transformations.iter().any(|transformation| {
-                let key = match transformation {
-                    PostAllocationSelectedTransformation::FixedViewCopy(identity) => {
-                        (1_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::LiteralFold(identity) => {
-                        (2_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::PressureRematerialization(identity) => {
-                        (3_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::RuntimeSpill(identity) => {
-                        (4_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::RuntimeRematerialization(identity) => {
-                        (5_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::CopyRemoval(identity) => {
-                        (6_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::RedundantExtension(identity) => {
-                        (7_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::AddressFold(identity) => {
-                        (8_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::ConstantBoolean(identity) => {
-                        (9_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::ConstantBranch(identity) => {
-                        (10_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::DeadCompare(identity) => {
-                        (11_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::RedundantCompare(identity) => {
-                        (12_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::EquivalentCompare(identity) => {
-                        (13_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::FixedOccurrences(identity) => {
-                        (17_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::RuntimeSplit(identity) => {
-                        (14_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::CopiedCallOperand(identity) => {
-                        (15_u8, identity.bytes())
-                    }
-                    PostAllocationSelectedTransformation::StoredLoadForwarding(identity) => {
-                        (16_u8, identity.bytes())
-                    }
-                };
-                !unique_transformations.insert(key)
+                transformation.identity_bytes().is_some_and(|identity| {
+                    !unique_transformations.insert((transformation.wire_tag(), identity))
+                })
             }) {
                 return Err(
                     PostAllocationOptimizationManifestError::NonCanonicalTransformationLedger,
@@ -501,7 +447,7 @@ pub(crate) mod post_allocation_manifest {
                 stage: PostAllocationManifestStage::RegisterHomes,
                 pre_physical,
                 target: ranges.plan().target,
-                selected: ranges.plan().selected,
+                selected: std::sync::Arc::clone(&ranges.plan().selected),
                 selected_lowering_completion,
                 pre_allocation_completion,
                 selected_transformations: selected_transformations.to_vec(),
@@ -514,7 +460,7 @@ pub(crate) mod post_allocation_manifest {
                 spills: if selected_transformations.iter().any(|transformation| {
                     matches!(
                         transformation,
-                        PostAllocationSelectedTransformation::RuntimeSpill(_)
+                        PostAllocationSelectedTransformation::RuntimeSpill
                     )
                 }) {
                     PostAllocationSpillStatus::RealizedInSelectedProgram
@@ -1900,8 +1846,7 @@ pub(crate) mod runtime_spill {
                     let Some((function, register)) =
                         select_roster_candidate(&failure, roster, domain.as_ref())
                     else {
-                        if selected.selected_identity()
-                            != analysis_source.selected().selected_identity()
+                        if *selected.selected_plan() != *analysis_source.selected().selected_plan()
                         {
                             drop(domain);
                             batch_indices.clear();
@@ -2568,21 +2513,11 @@ pub(crate) mod runtime_spill {
     impl RuntimeSpillStepRewrite {
         pub(crate) fn transformation(&self) -> PostAllocationSelectedTransformation {
             match self {
-                Self::FixedOccurrences(rewrite) => {
-                    PostAllocationSelectedTransformation::FixedOccurrences(
-                        rewrite.receipt().transformed_selected(),
-                    )
-                }
-                Self::Split(rewrite) => PostAllocationSelectedTransformation::RuntimeSplit(
-                    rewrite.receipt().transformed_selected(),
-                ),
-                Self::Spill(rewrite) => PostAllocationSelectedTransformation::RuntimeSpill(
-                    rewrite.receipt().transformed_selected(),
-                ),
-                Self::Rematerialization(rewrite) => {
-                    PostAllocationSelectedTransformation::RuntimeRematerialization(
-                        rewrite.receipt().transformed_selected(),
-                    )
+                Self::FixedOccurrences(_) => PostAllocationSelectedTransformation::FixedOccurrences,
+                Self::Split(_) => PostAllocationSelectedTransformation::RuntimeSplit,
+                Self::Spill(_) => PostAllocationSelectedTransformation::RuntimeSpill,
+                Self::Rematerialization(_) => {
+                    PostAllocationSelectedTransformation::RuntimeRematerialization
                 }
             }
         }

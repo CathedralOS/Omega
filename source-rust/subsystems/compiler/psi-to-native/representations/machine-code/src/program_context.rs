@@ -8,7 +8,6 @@ pub struct EncodedProgramContext {
     pub work_schedule: semantic_vocabulary::WorkScheduleIdentity,
     pub entry: semantic_vocabulary::MachineId,
     pub machine: Arc<crate::frame_demands::MachineFrameDemands>,
-    pub effects: selected_instructions::PreAllocationMachineEffectIdentity,
     pub environment: register_environment::ValidatedTargetRegisterEnvironment,
     pub preservation: register_homes::AllocatedCalleeSavedRequirements,
     pub publication: Arc<register_homes::AllocationPublicationFacts>,

@@ -14,7 +14,7 @@ pub mod text_section;
 use crate::object_target_policy;
 use machine_code::{NormalizedForeignCallResolutionKind, PlacedNormalizedForeignCallResolution};
 use optimization_core::OptimizationSelectionIdentity;
-use selected_instructions::SelectedInstructionPlanIdentity;
+use selected_instructions::SelectedInstructionPlan;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
@@ -101,7 +101,7 @@ pub struct RelocationFreeObjectUnresolvedForeignCall {
 pub struct RelocationFreeObjectPlan {
     pub psi: TerminalPsiIdentity,
     pub work_schedule: WorkScheduleIdentity,
-    pub selected: SelectedInstructionPlanIdentity,
+    pub selected: std::sync::Arc<SelectedInstructionPlan>,
     pub selections: OptimizationSelectionIdentity,
     pub target: NativeTarget,
     pub text_section: RelocationFreeObjectTextSection,
@@ -393,9 +393,8 @@ mod tests {
         RelocationFreeObjectRelocationRequirements, RelocationFreeObjectSymbolLinkage,
         RelocationFreeObjectSymbolPolicy, RelocationFreeObjectSymbolRole,
         RelocationFreeObjectTextSection, RelocationFreeObjectUnresolvedForeignCall,
-        SelectedInstructionPlanIdentity, TerminalPsiIdentity, WorkScheduleIdentity,
-        canonical_normalized_foreign_import_symbol_name, canonical_private_machine_symbol_name,
-        validate_relocation_free_object,
+        TerminalPsiIdentity, WorkScheduleIdentity, canonical_normalized_foreign_import_symbol_name,
+        canonical_private_machine_symbol_name, validate_relocation_free_object,
     };
 
     fn plan() -> RelocationFreeObjectPlan {
@@ -406,7 +405,7 @@ mod tests {
                 program_fingerprint: SemanticFingerprint::from_bytes([4; 32]),
             },
             work_schedule: WorkScheduleIdentity::new(1).unwrap(),
-            selected: SelectedInstructionPlanIdentity::from_bytes([5; 32]),
+            selected: selected_instructions::test_support::placeholder_plan(5),
             selections: OptimizationSelectionIdentity::from_bytes([6; 32]),
             target: NativeTarget::linux_arm64(),
             text_section: RelocationFreeObjectTextSection {

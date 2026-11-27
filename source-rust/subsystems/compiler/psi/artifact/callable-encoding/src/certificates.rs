@@ -219,6 +219,7 @@ impl TermEncoding for CertificateTable {
 fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecError> {
     match &node.rule {
         ProofRule::IntegerFloatExact => writer.u8(32),
+        ProofRule::StructuralCaseExhaustion => writer.u8(33),
         ProofRule::FloatIntegerConversion { computed, .. } => {
             writer.u8(31);
             writer.u8(u8::from(computed.is_some()));
@@ -702,6 +703,7 @@ fn read_proof_row(
             })
         }
         32 => read_node(reader, children, 0, |_| R::IntegerFloatExact),
+        33 => read_node(reader, children, 0, |_| R::StructuralCaseExhaustion),
         _ => Err(CodecError::NonCanonicalEncoding),
     }
 }

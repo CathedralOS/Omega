@@ -10,7 +10,6 @@ use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WholeFunctionExitContractError {
-    OptimizationCustodyMismatch,
     RootMismatch,
     UnsupportedTargetPolicy,
     MissingArchitecturalView(&'static str),
@@ -58,7 +57,6 @@ pub struct EncodedExitRequirements {
 /// encoder's declarations. The byte and footprint arenas are immutable and shared.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExitEncoding {
-    pub selected: selected_instructions::SelectedInstructionPlanIdentity,
     pub machine: std::sync::Arc<post_allocation_machine::PostAllocationMachinePlan>,
     pub identity: crate::SelectedFormEncodingIdentity,
     pub frame: Option<std::sync::Arc<crate::TargetFrameLayoutPlan>>,

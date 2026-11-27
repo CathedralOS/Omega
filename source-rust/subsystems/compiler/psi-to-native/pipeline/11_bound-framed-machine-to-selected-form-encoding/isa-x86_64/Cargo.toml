@@ -22,7 +22,6 @@ diagnostics = { path = "../../../../../../foundation/diagnostics" }
 layout-plans = { path = "../../../../psi/layouts/geometry" }
 
 [dev-dependencies]
-selected-instructions = { path = "../../../representations/selected-instructions", features = ["test-support"] }
 register-model = { path = "../../../targets/register-model", features = ["test-support"] }
 isa-conformance = { path = "../../../tests/isa-conformance" }
 normalized-foreign-call-plan = { path = "../../../representations/selected-instructions/foreign-calls", features = ["test-support"] }

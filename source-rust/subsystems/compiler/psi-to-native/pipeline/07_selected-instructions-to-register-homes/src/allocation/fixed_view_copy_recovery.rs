@@ -75,7 +75,7 @@ pub(crate) mod fixed_view_copy {
                 reservations: &ValidatedRegisterReservationProfile,
                 selected_keys: &TargetRegisterEnvironmentConstraintKeys,
             ) -> Result<(), FixedViewCopyError> {
-                if ranges.plan().selected != selected.identity()
+                if *ranges.plan().selected != *selected.plan()
                     || ranges.plan().optimization_unit != selected.optimization_unit()
                     || ranges.plan().work_schedule != selected.work_schedule()
                     || ranges.plan().target != selected.plan().target
@@ -694,7 +694,7 @@ pub(crate) mod fixed_view_copy {
             }
 
             Ok(FixedViewCopyPlan {
-                source_selected: selected.identity(),
+                source_selected: selected.shared_plan(),
                 source_ranges: ranges.receipt().identity(),
                 source_legality: legality.receipt().identity(),
                 register_environment,
@@ -1072,7 +1072,7 @@ pub(crate) mod fixed_view_copy {
     }
     pub(crate) mod receipt {
         pub(crate) mod seal {
-            use selected_instructions::{SelectedProgram, selected_instruction_plan_identity};
+            use selected_instructions::SelectedProgram;
 
             use crate::allocation::{
                 FixedViewCopyPlan, FixedViewCopyReceipt, MaterializedFixedViewCopies,
@@ -1085,12 +1085,10 @@ pub(crate) mod fixed_view_copy {
             ) -> MaterializedFixedViewCopies {
                 let receipt = FixedViewCopyReceipt {
                     identity: fixed_view_copy_identity(&plan),
-                    source_selected: plan.source_selected,
                     source_ranges: plan.source_ranges,
                     source_legality: plan.source_legality,
                     register_environment: plan.register_environment,
                     allocator_availability: plan.allocator_availability,
-                    transformed_selected: selected_instruction_plan_identity(&plan.transformed),
                     optimization_unit: selected.optimization_unit(),
                     work_schedule: selected.work_schedule(),
                     policy: plan.policy,
@@ -1274,9 +1272,7 @@ pub(crate) mod fixed_view_copy {
     };
 
     use crate::allocation::ValidatedFixedPrecoloredSplitRequirements;
-    use selected_instructions::{
-        FixedViewCopyIdentity, LiveRangeIdentity, SelectedInstructionPlanIdentity,
-    };
+    use selected_instructions::{FixedViewCopyIdentity, LiveRangeIdentity};
 
     pub(crate) fn materialize_fixed_view_copies(
         selected: &SelectedProgram,
@@ -1312,12 +1308,10 @@ pub(crate) mod fixed_view_copy {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct FixedViewCopyReceipt {
         pub(crate) identity: FixedViewCopyIdentity,
-        pub(crate) source_selected: SelectedInstructionPlanIdentity,
         pub(crate) source_ranges: LiveRangeIdentity,
         pub(crate) source_legality: AllocationLegalityIdentity,
         pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
         pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
-        pub(crate) transformed_selected: SelectedInstructionPlanIdentity,
         pub(crate) optimization_unit: optimization_core::OptimizationUnitIdentity,
         pub(crate) work_schedule: semantic_vocabulary::WorkScheduleIdentity,
         pub(crate) policy: FixedViewCopyPolicy,
@@ -1329,7 +1323,6 @@ pub(crate) mod fixed_view_copy {
     impl FixedViewCopyReceipt {
         receipt_accessor_rows!(FixedViewCopyReceipt {
             identity: FixedViewCopyIdentity,
-            transformed_selected: SelectedInstructionPlanIdentity,
             optimization_unit: optimization_core::OptimizationUnitIdentity,
             work_schedule: semantic_vocabulary::WorkScheduleIdentity,
             policy: FixedViewCopyPolicy,

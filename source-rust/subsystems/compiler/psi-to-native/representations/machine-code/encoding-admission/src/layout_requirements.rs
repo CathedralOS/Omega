@@ -6,7 +6,6 @@ pub fn prepare_layout_requirements(
     program: &PostAllocationMachineProgram,
 ) -> EncodedLayoutRequirements {
     EncodedLayoutRequirements {
-        selected: program.machine.selected,
         machine: std::sync::Arc::clone(&program.machine),
         target: program.target,
         functions: program

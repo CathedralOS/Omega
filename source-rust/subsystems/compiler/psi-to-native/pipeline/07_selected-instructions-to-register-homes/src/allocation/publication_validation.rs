@@ -113,9 +113,7 @@ mod tests {
     };
     use register_model::TargetRegisterEnvironmentIdentity;
     use selected_instruction_analyses::SelectedOptimizationRecord;
-    use selected_instructions::{
-        LiveRangeIdentity, LivenessIdentity, SelectedInstructionPlanIdentity,
-    };
+    use selected_instructions::{LiveRangeIdentity, LivenessIdentity};
 
     fn record() -> PostAllocationOptimizationManifest {
         let mut post = PostAllocationOptimizationManifest {
@@ -123,7 +121,7 @@ mod tests {
             stage: PostAllocationManifestStage::RegisterHomes,
             pre_physical: PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"pre"),
             target: target::NativeTarget::linux_x64(),
-            selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"selected"),
+            selected: selected_instructions::test_support::placeholder_plan(1),
             selected_lowering_completion: None,
             pre_allocation_completion: None,
             selected_transformations: Vec::new(),
@@ -182,9 +180,7 @@ mod tests {
         let first = PostAllocationSelectedTransformation::LiteralFold(
             selected_instructions::LiteralFoldIdentity::from_canonical_bytes(b"fold"),
         );
-        let later = PostAllocationSelectedTransformation::RuntimeSpill(
-            SelectedInstructionPlanIdentity::from_canonical_bytes(b"spill"),
-        );
+        let later = PostAllocationSelectedTransformation::RuntimeSpill;
         let history = SelectedOptimizationRecord {
             transformations: vec![first],
             ..Default::default()

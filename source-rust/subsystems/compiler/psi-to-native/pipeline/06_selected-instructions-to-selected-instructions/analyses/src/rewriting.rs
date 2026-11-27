@@ -383,8 +383,8 @@ pub fn plan_function<'source, E>(
 macro_rules! receipt {
     ($receipt:ident, $source:expr, $proposed:expr $(, $field:ident : $value:expr)* $(,)?) => {
         $receipt {
-            source_selected: $source.selected_identity(),
-            transformed_selected: selected_instructions::selected_instruction_plan_identity(&$proposed),
+            source_selected: $source.shared_selected_plan(),
+            transformed_selected: std::sync::Arc::clone(&$proposed),
             optimization_unit: $source.optimization_unit_identity(),
             work_schedule: $source.work_schedule_identity(),
             $($field: $value,)*
@@ -394,11 +394,13 @@ macro_rules! receipt {
 
 #[macro_export]
 macro_rules! sealed {
-    ($validated:ident, $receipt:ident, $source:expr, $proposed:expr $(, $field:ident : $value:expr)* $(,)?) => {
+    ($validated:ident, $receipt:ident, $source:expr, $proposed:expr $(, $field:ident : $value:expr)* $(,)?) => {{
+        let transformed = std::sync::Arc::new($proposed);
         $validated {
-            receipt: $crate::receipt!($receipt, $source, $proposed $(, $field : $value)*),
-            transformed: std::sync::Arc::new($proposed)}
-    };
+            receipt: $crate::receipt!($receipt, $source, transformed $(, $field : $value)*),
+            transformed,
+        }
+    }};
 }
 
 pub fn instruction(
@@ -489,17 +491,15 @@ pub fn register_occurs_once(
     occurrences == 1
 }
 
+/// Receipt digest bytes: the rewrite's tag, unit and coordinates. The receipt
+/// shares the programs it read and produced; checks compare those directly.
 pub fn rewrite_bytes(
     tag: &'static [u8],
-    source_selected: impl AsRef<[u8]>,
-    transformed_selected: impl AsRef<[u8]>,
     optimization_unit: impl AsRef<[u8]>,
     tail: impl FnOnce(&mut Vec<u8>),
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(tag);
-    bytes.extend_from_slice(source_selected.as_ref());
-    bytes.extend_from_slice(transformed_selected.as_ref());
     bytes.extend_from_slice(optimization_unit.as_ref());
     tail(&mut bytes);
     bytes

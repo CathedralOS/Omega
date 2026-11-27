@@ -13,8 +13,7 @@ and image-address fixups.
 use operation_evidence::provenance::WorkSettlement;
 use operation_operands::values::ValueBinding;
 use selected_instructions::{
-    MachineAlternativeKey, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
-    SelectedInstructionProvenance,
+    MachineAlternativeKey, SelectedBlockId, SelectedInstructionId, SelectedInstructionProvenance,
 };
 use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId, MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
@@ -30,7 +29,7 @@ use crate::{SelectedFormInternalMachineFixupKind, SelectedFormNormalizedForeignC
 pub struct FunctionFragmentEmissionPlan {
     pub psi: TerminalPsiIdentity,
     pub work_schedule: WorkScheduleIdentity,
-    pub selected: SelectedInstructionPlanIdentity,
+    pub selected: std::sync::Arc<selected_instructions::SelectedInstructionPlan>,
     pub target: NativeTarget,
     pub entry: MachineId,
     pub functions: Vec<FunctionFragment>,

@@ -52,7 +52,7 @@ pub fn contract_type(
 }
 
 /// Each sum subject with its sum's declaration.
-fn contract_data_subjects(
+pub fn contract_data_subjects(
     contract: &TheoremContract,
     sums: &SumShapes<'_>,
 ) -> Result<Vec<proof_admission::DataSubject>, &'static str> {
@@ -876,6 +876,7 @@ fn weaken_closed_proof(
                 pending.push(order);
             }
             R::IntegerFloatExact
+            | R::StructuralCaseExhaustion
             | R::Primitive(_)
             | R::SemanticAxiom { .. }
             | R::IntegerCorrelatedForbiddenRoots { .. } => {}
@@ -903,6 +904,8 @@ pub fn denote_citation(
         .map(|formal| (formal.id, formal.scalar_type))
         .collect();
     let context = contract_context(expected)?;
+    let sums = module_sums(module);
+    let data = contract_data_subjects(expected, &sums)?;
     if derivations.len() != goals.len() {
         return Err("theorem citation lost a complete derivation");
     }
@@ -912,7 +915,7 @@ pub fn denote_citation(
         {
             return Err("theorem derivation has another role or proof system");
         }
-        proof_admission::accept_certificate(&context, goal, &[], &[], &derivation.proof)
+        proof_admission::accept_certificate_over_data(&context, goal, &data, &derivation.proof)
             .map_err(|_| "cited theorem implication was refused by the proof kernel")?;
     }
     let [actual, entry, refinement]: [ProofNode; 3] = derivations
@@ -945,8 +948,6 @@ pub fn denote_citation(
     let ensures = apply(actual, requires)?;
     let refinement = apply(refinement, aliases)?;
     let proof = apply(refinement, ensures)?;
-    let sums = module_sums(module);
-    let data = contract_data_subjects(expected, &sums)?;
     let hypotheses = hypothesis_types(expected, &sums, budget)?;
     proof_admission::verify_bounded_theorem(
         &subjects,

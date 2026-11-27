@@ -1215,16 +1215,7 @@ pub mod ordinary {
         ValueCopy,
     }
 
-    impl OutgoingArgumentSlotId {
-        pub fn encode_identity(self, bytes: &mut Vec<u8>) {
-            self.invocation_site.encode_identity(bytes);
-            crate::codec_bytes::push_encoded(bytes, self.argument_index.to_le_bytes());
-            bytes.push(match self.role {
-                OutgoingArgumentSlotRole::Argument => 0,
-                OutgoingArgumentSlotRole::ValueCopy => 1,
-            });
-        }
-    }
+    impl OutgoingArgumentSlotId {}
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum LocalStorageSlotId {
@@ -1529,17 +1520,7 @@ pub mod ordinary {
         Block(BlockId),
     }
 
-    impl SelectedMemoryAccessOrigin {
-        pub fn encode_identity(self, bytes: &mut Vec<u8>) {
-            let (tag, identity) = match self {
-                Self::Operation(identity) => (0, identity.get()),
-                Self::Edge(identity) => (1, identity.get()),
-                Self::Block(identity) => (2, identity.get()),
-            };
-            bytes.push(tag);
-            crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
-        }
-    }
+    impl SelectedMemoryAccessOrigin {}
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct SelectedBoundarySettlement {

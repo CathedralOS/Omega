@@ -50,7 +50,7 @@ mod selected_input {
     };
     use optimization_core::OptimizationUnitIdentity;
     use selected_instruction_analyses::{SelectedProgramView, validated_selected_analysis};
-    use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+    use selected_instructions::SelectedInstructionPlan;
     use semantic_vocabulary::WorkScheduleIdentity;
 
     validated_selected_analysis!(ValidatedAddressFold);
@@ -72,9 +72,6 @@ mod selected_input {
         }
         fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
             self.shared_transformed()
-        }
-        fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-            self.transformed_selected()
         }
         fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
             self.optimization_unit()

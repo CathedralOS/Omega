@@ -1934,11 +1934,9 @@ pub(crate) mod pre_allocation {
                     .checked_add(refusals)
                     .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
             }
-            let source_selected = current.selected_identity();
             Ok((
                 steps,
                 StagedOptimizedPreAllocationAttempt {
-                    source_selected,
                     candidates,
                     declined,
                 },
@@ -2048,23 +2046,20 @@ pub(crate) mod pre_allocation {
             usage: OptimizationWorkUsage,
             iteration_bound: usize,
         ) -> StagedPreAllocationOptimizationCustodyReceipt {
-            let (final_selected, final_liveness, final_ranges, final_legality, final_vregs) =
-                match steps.last() {
-                    Some(step) => (
-                        step.transformation.transformed_selected(),
-                        step.liveness.receipt().identity(),
-                        step.ranges.receipt().identity(),
-                        step.legality.receipt().identity(),
-                        step.legality.receipt().virtual_register_count(),
-                    ),
-                    None => (
-                        source.selected().identity(),
-                        source.liveness().receipt().identity(),
-                        source.ranges().receipt().identity(),
-                        source.legality().receipt().identity(),
-                        source.legality().receipt().virtual_register_count(),
-                    ),
-                };
+            let (final_liveness, final_ranges, final_legality, final_vregs) = match steps.last() {
+                Some(step) => (
+                    step.liveness.receipt().identity(),
+                    step.ranges.receipt().identity(),
+                    step.legality.receipt().identity(),
+                    step.legality.receipt().virtual_register_count(),
+                ),
+                None => (
+                    source.liveness().receipt().identity(),
+                    source.ranges().receipt().identity(),
+                    source.legality().receipt().identity(),
+                    source.legality().receipt().virtual_register_count(),
+                ),
+            };
             let mut receipt = StagedPreAllocationOptimizationCustodyReceipt {
                 identity: PreAllocationOptimizationCompletionIdentity::from_canonical_bytes(
                     b"pending",
@@ -2083,7 +2078,6 @@ pub(crate) mod pre_allocation {
                     .virtual_register_count(),
                 iterations: steps.iter().map(iteration_receipt).collect(),
                 attempt: attempt_receipt(attempt),
-                final_selected,
                 final_liveness,
                 final_ranges,
                 final_legality,
@@ -2097,11 +2091,9 @@ pub(crate) mod pre_allocation {
             step: &StagedOptimizedPreAllocationStep,
         ) -> StagedOptimizedPreAllocationIterationReceipt {
             StagedOptimizedPreAllocationIterationReceipt {
-                source_selected: step.transformation.source_selected(),
                 transformation: step.transformation.identity(),
                 function_index: step.transformation.function_index(),
                 instruction: step.transformation.instruction(),
-                transformed_selected: step.transformation.transformed_selected(),
                 fresh_liveness: step.liveness.receipt().identity(),
                 fresh_ranges: step.ranges.receipt().identity(),
                 fresh_legality: step.legality.receipt().identity(),
@@ -2114,7 +2106,6 @@ pub(crate) mod pre_allocation {
             attempt: &StagedOptimizedPreAllocationAttempt,
         ) -> StagedOptimizedPreAllocationAttemptReceipt {
             StagedOptimizedPreAllocationAttemptReceipt {
-                source_selected: attempt.source_selected,
                 candidates: attempt.candidates,
                 declined: attempt.declined,
             }
@@ -2124,14 +2115,13 @@ pub(crate) mod pre_allocation {
             receipt: &StagedPreAllocationOptimizationCustodyReceipt,
         ) -> PreAllocationOptimizationCompletionIdentity {
             let mut canonical = Vec::new();
-            canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v6\0");
+            canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v7\0");
             let source = receipt.source;
             for identity in [
                 source.optimization().bytes(),
                 source.manifest().bytes(),
                 source.register_environment().bytes(),
                 source.allocator_availability().bytes(),
-                source.selected().bytes(),
                 source.liveness().bytes(),
                 source.ranges().bytes(),
                 source.legality().bytes(),
@@ -2167,7 +2157,6 @@ pub(crate) mod pre_allocation {
                 };
             }
             for iteration in &receipt.iterations {
-                canonical.extend_from_slice(&iteration.source_selected().bytes());
                 encode_transformations!(canonical, iteration.transformation();
                     CopyRemoval, 1, RedundantExtension, 2, AddressFold, 3, ConstantBoolean, 4,
                     ConstantBranch, 5, DeadCompare, 6, RedundantCompare, 7, EquivalentCompare, 8,
@@ -2177,17 +2166,14 @@ pub(crate) mod pre_allocation {
                     &mut canonical,
                     iteration.instruction().0.to_le_bytes(),
                 );
-                canonical.extend_from_slice(&iteration.transformed_selected().bytes());
                 canonical.extend_from_slice(&iteration.fresh_liveness().bytes());
                 canonical.extend_from_slice(&iteration.fresh_ranges().bytes());
                 canonical.extend_from_slice(&iteration.fresh_legality().bytes());
                 encode_count(&mut canonical, iteration.declined());
                 encode_count(&mut canonical, iteration.evaluated());
             }
-            canonical.extend_from_slice(&receipt.attempt.source_selected().bytes());
             encode_count(&mut canonical, receipt.attempt.candidates());
             encode_count(&mut canonical, receipt.attempt.declined());
-            canonical.extend_from_slice(&receipt.final_selected.bytes());
             canonical.extend_from_slice(&receipt.final_liveness.bytes());
             canonical.extend_from_slice(&receipt.final_ranges.bytes());
             canonical.extend_from_slice(&receipt.final_legality.bytes());
@@ -2228,7 +2214,7 @@ pub(crate) mod pre_allocation {
             CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity,
             EquivalentCompareIdentity, LiveRangeIdentity, LivenessIdentity,
             RedundantCompareIdentity, RedundantExtensionIdentity, SelectedInstructionId,
-            SelectedInstructionPlan, SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity,
+            SelectedInstructionPlan, StoredLoadForwardingIdentity,
         };
 
         pub use selected_instruction_analyses::rewriting::PreAllocationPolicy;
@@ -2272,8 +2258,6 @@ pub(crate) mod pre_allocation {
             transformation_accessors! {
                 transformed : transformed -> &SelectedInstructionPlan;
                 shared_transformed : shared_transformed -> Arc<SelectedInstructionPlan>;
-                source_selected : receipt . source_selected -> SelectedInstructionPlanIdentity;
-                transformed_selected : receipt . transformed_selected -> SelectedInstructionPlanIdentity;
                 optimization_unit : receipt . optimization_unit -> optimization_core::OptimizationUnitIdentity;
                 work_schedule : receipt . work_schedule -> semantic_vocabulary::WorkScheduleIdentity;
                 function_index : receipt . function_index -> usize;
@@ -2384,14 +2368,12 @@ pub(crate) mod pre_allocation {
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct StagedOptimizedPreAllocationAttempt {
-            pub(crate) source_selected: SelectedInstructionPlanIdentity,
             pub(crate) candidates: usize,
             pub(crate) declined: usize,
         }
 
         impl StagedOptimizedPreAllocationAttempt {
             receipt_accessor_rows!(ref StagedOptimizedPreAllocationAttempt {
-                    source_selected: SelectedInstructionPlanIdentity,
                     candidates: usize,
                     declined: usize,
             });
@@ -2506,7 +2488,6 @@ pub(crate) mod pre_allocation {
             pub(crate) initial_virtual_register_count: usize,
             pub(crate) iterations: Vec<StagedOptimizedPreAllocationIterationReceipt>,
             pub(crate) attempt: StagedOptimizedPreAllocationAttemptReceipt,
-            pub(crate) final_selected: SelectedInstructionPlanIdentity,
             pub(crate) final_liveness: LivenessIdentity,
             pub(crate) final_ranges: LiveRangeIdentity,
             pub(crate) final_legality: register_homes::AllocationLegalityIdentity,
@@ -2527,7 +2508,6 @@ pub(crate) mod pre_allocation {
                     initial_virtual_register_count: usize,
                     attempt: StagedOptimizedPreAllocationAttemptReceipt,
                     final_virtual_register_count: usize,
-                    final_selected: SelectedInstructionPlanIdentity,
                     final_liveness: LivenessIdentity,
                     final_ranges: LiveRangeIdentity,
                     final_legality: register_homes::AllocationLegalityIdentity,
@@ -2540,11 +2520,9 @@ pub(crate) mod pre_allocation {
         copy_receipt! {
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
             pub struct StagedOptimizedPreAllocationIterationReceipt {
-                pub(crate) source_selected: SelectedInstructionPlanIdentity,
                 pub(crate) transformation: PreAllocationTransformationIdentity,
                 pub(crate) function_index: usize,
                 pub(crate) instruction: SelectedInstructionId,
-                pub(crate) transformed_selected: SelectedInstructionPlanIdentity,
                 pub(crate) fresh_liveness: LivenessIdentity,
                 pub(crate) fresh_ranges: LiveRangeIdentity,
                 pub(crate) fresh_legality: register_homes::AllocationLegalityIdentity,
@@ -2555,14 +2533,12 @@ pub(crate) mod pre_allocation {
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct StagedOptimizedPreAllocationAttemptReceipt {
-            pub(crate) source_selected: SelectedInstructionPlanIdentity,
             pub(crate) candidates: usize,
             pub(crate) declined: usize,
         }
 
         impl StagedOptimizedPreAllocationAttemptReceipt {
             receipt_accessor_rows!(StagedOptimizedPreAllocationAttemptReceipt {
-                source_selected: SelectedInstructionPlanIdentity,
                 candidates: usize,
                 declined: usize,
             });
