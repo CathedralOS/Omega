@@ -385,7 +385,7 @@ pub fn verify_retained_target_operations(
 }
 
 /// The native planning output retained beside this object, joined to it: the current
-/// allocation must name the pre-physical manifest that output carried.
+/// allocation must name the unit, selections and budget that output was lowered under.
 fn retained_target<'replay>(
     replay: &'replay FragmentReplay,
     audit: &str,
@@ -398,15 +398,15 @@ fn retained_target<'replay>(
         .frame_application_for_audit()
         .source()
         .source();
+    let optimized = original.target_for_correspondence().optimized();
+    let allocation = current.post_allocation_manifest().record();
     if !original.belongs_to(&replay.fragment_source().emission_facts().semantic)
-        || current.post_allocation_manifest().record().pre_physical
-            != original
-                .target_for_correspondence()
-                .optimized()
-                .pre_physical_manifest()
+        || allocation.optimization_unit != optimized.unit().identity
+        || allocation.selection != optimized.selections().identity()
+        || allocation.budget_per_pass != optimized.budget_per_pass()
     {
         return Err(diagnostics::Diagnostic::error(format!(
-            "{audit} audit: retained target operations name another pre-physical manifest"
+            "{audit} audit: retained target operations name another unit, selection or budget"
         )));
     }
     Ok(original)

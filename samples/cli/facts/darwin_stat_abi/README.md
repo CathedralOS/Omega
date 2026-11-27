@@ -36,7 +36,7 @@ controls and all four corpus native/Terminal programs at exit 0 against SDK 15.5
 The corpus stages of the [focused run](https://github.com/CathedralOS/Omega/actions/runs/41335219379)
 passed; its ordinary public reviews exceeded the former 180-second allowance.
 The same retained compiler then completed all four ordinary public package
-reviews and `omega run --both` executions at exit 0, including canonical Terminal
+reviews and the native/Psi comparison executions at exit 0, including canonical Terminal
 inspection, with a measured 600-second allowance for each review phase.
 
 

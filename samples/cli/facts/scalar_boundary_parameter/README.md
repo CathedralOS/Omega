@@ -36,7 +36,7 @@ body](target_body/main.omg). Each place has an `invalid/main.omg`. Recorded at
 twins carry the `99 >= 100` structural rejection. 0 keys lost, 0 timeout rows.
 
 Each positive binds all four hosted targets and expects native and Terminal
-exit zero. Run `omega run --both <place>/main.omg`; check its twin with
+exit zero. Run `mbx xtask sample-gate --filter samples/cli/facts/scalar_boundary_parameter/<place>`; check its twin with
 `omega --check <place>/invalid/main.omg`.
 
 Requirements and limits:

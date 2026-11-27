@@ -100,11 +100,11 @@ pub(crate) mod literal_folds {
             receipt: &StagedSelectedLoweringOptimizationCustodyReceipt,
         ) -> SelectedLoweringOptimizationCompletionIdentity {
             let mut canonical = Vec::new();
-            canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v7\0");
+            canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v8\0");
             let source = receipt.source;
             for identity in [
-                source.optimization().bytes(),
-                source.manifest().bytes(),
+                source.optimization_unit().bytes(),
+                source.selection().bytes(),
                 source.register_environment().bytes(),
                 source.allocator_availability().bytes(),
                 receipt.selections.bytes(),
@@ -112,6 +112,7 @@ pub(crate) mod literal_folds {
             ] {
                 canonical.extend_from_slice(&identity);
             }
+            canonical.extend_from_slice(&source.budget_per_pass().encode());
             canonical.extend_from_slice(&receipt.budget.encode());
             canonical.extend_from_slice(&receipt.usage.encode());
             for count in [
@@ -948,18 +949,23 @@ pub(crate) mod selected_lowering {
 
         use super::super::RegisterAllocationRuleTargetApplicability;
         use super::{LiteralFoldPolicy, SelectedInstructionPairRule};
+        use crate::selected_rewrites::structural_rewrites::StructuralRewrite;
 
+        /// A pair-rule row names its literal folds; a structural row names the
+        /// whole-program rewrite that runs before them and has no pairs.
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub(crate) struct SelectedLoweringRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability,
             policy: LiteralFoldPolicy,
             pairs: &'static [SelectedInstructionPairRule],
+            structural: Option<StructuralRewrite>,
         }
 
         impl SelectedLoweringRuleCatalogPayload {
             receipt_accessor_rows!(SelectedLoweringRuleCatalogPayload {
                 policy: LiteralFoldPolicy,
                 pairs: &'static [SelectedInstructionPairRule],
+                structural: Option<StructuralRewrite>,
             });
         }
 
@@ -977,11 +983,39 @@ pub(crate) mod selected_lowering {
                     target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
                     policy,
                     pairs,
+                    structural: None,
                 },
             )
         }
 
-        pub(crate) const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 23] = [
+        /// Target applicability of a structural row is the rewrite's own
+        /// (`StructuralRewrite::supports`), checked before dispatch.
+        const fn structural_row(
+            optimization: Optimization,
+            rewrite: StructuralRewrite,
+        ) -> SelectedLoweringRuleCatalogEntry {
+            SelectedLoweringRuleCatalogEntry::new(
+                optimization,
+                SelectedLoweringRuleCatalogPayload {
+                    target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+                    policy: LiteralFoldPolicy::empty(),
+                    pairs: &[],
+                    structural: Some(rewrite),
+                },
+            )
+        }
+
+        /// Catalog order is execution order: the structural rewrites run first,
+        /// inlining before promotion, then the pair rules fold to a fixed point.
+        pub(crate) const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 25] = [
+            structural_row(
+                Optimization::SelectedAcyclicCallInliningV1,
+                StructuralRewrite::AcyclicCallInlining,
+            ),
+            structural_row(
+                Optimization::SelectedPackedVectorPromotionV1,
+                StructuralRewrite::PackedVectorPromotion,
+            ),
             row(
                 Optimization::SelectedIncomingU12ExactAddImmediate,
                 LiteralFoldPolicy::EXACT_ADD_V1,

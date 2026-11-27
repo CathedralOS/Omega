@@ -133,7 +133,8 @@ fn a_required_case_is_owed_at_the_call() {
             if detail == UNPROVED_BOOLEAN),
         "{left:?}"
     );
-    // A guaranteed `Bad` shows the requirement false.
+    // A guaranteed `Bad` makes the result's `Bad` name true, which does not
+    // make its `Good` name true.
     let source = stated(
         "ensures result in Outcome::Good { Outcome::Good }",
         "ensures result in Outcome::Bad { Outcome::Bad }",
@@ -141,7 +142,7 @@ fn a_required_case_is_owed_at_the_call() {
     let left = unproved(&source);
     assert!(
         matches!(left.as_slice(), [(ObligationKind::CallRequirement { .. }, detail)]
-            if detail == "the goal is false"),
+            if detail == UNPROVED_BOOLEAN),
         "{left:?}"
     );
 }

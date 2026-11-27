@@ -219,7 +219,7 @@ impl std::fmt::Display for TerminalRuntimeError {
             Self::ComponentBinding(error) => {
                 write!(formatter, "component binding rejected: {error}")
             }
-            Self::Execution(error) => write!(formatter, "runtime execution failed: {error:?}"),
+            Self::Execution(error) => write!(formatter, "runtime execution failed: {error}"),
         }
     }
 }

@@ -33,7 +33,7 @@ The exit code 0 discriminates the cleanup. The tally starts at 0. `drop_mark` re
 
 Host: Linux x86_64. Producer: `target/debug/omega`, dev profile, `opt-level` 1, compiler sources at `c2e06b875ba2f6a205dd49b408d937536833b190` (this change adds no Rust). Windows, macOS, and QEMU were not run.
 
-`omega run --both` reported `native exit 0` and `interp exit: 0` for the root and all nine places. Each reject twin exited 1 from `omega --check` with `hosted ProgramEntry exposes no arrival parameters, but start declares unprovided`. The first `other_state` spelling nested `state done` inside `state finish`; the parser rejected it with `expected ;, found identifier done`. The place was rewritten to the sibling-state shape already used by other facts, with the same code 7, the same tally, and the same cleanup. That form then agreed on both engines.
+the native/Psi comparison reported `native exit 0` and `interp exit: 0` for the root and all nine places. Each reject twin exited 1 from `omega --check` with `hosted ProgramEntry exposes no arrival parameters, but start declares unprovided`. The first `other_state` spelling nested `state done` inside `state finish`; the parser rejected it with `expected ;, found identifier done`. The place was rewritten to the sibling-state shape already used by other facts, with the same code 7, the same tally, and the same cleanup. That form then agreed on both engines.
 
 ## Reject twins
 

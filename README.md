@@ -16,7 +16,7 @@ Its first major application is **[Cathedral](https://github.com/CathedralOS/Cath
 
 Additionally, Omega can serve as a native language, interpreted language, or embeded scripted language:
 - `omega build <target.omg>` to build a native application
-- `omega run <target.omg>` to run interpreted
+- `omega run <target.omg>` to lower the Product to Psi and interpret it
 - Pull in Omega as a package to embed it as a scripting language
 
 **Pre-Alpha.** The Rust compiler is under active development. The language

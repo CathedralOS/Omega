@@ -1339,25 +1339,35 @@ case "$1" in
       *) exit 92;;
     esac
     ;;
-  run)
+  --build-dir|run)
     if [ -f "${0%/*}/build.omg" ]; then expected=build.omg; else expected=main.omg; fi
     if [ "$previous" != "${0%/*}/$expected" ]; then
       echo "expected the gate to launch $expected, got $previous" >&2
       exit 93
     fi
-    [ "$2" = --engine ] && [ "$4" = --outputs ] || exit 94
-    mkdir "$5" || exit 95
-    [ ! -e guest-state ] || exit 98
-    if [ "$3" != psi ] || [ ! -f "${0%/*}/omit-file" ]; then touch guest-state; fi
-    cat > "$5/stdout"
-    printf 'spoofed status -- native exit 9\377' > "$5/stderr"
-    case "$3" in
-      native) printf 'native\texit\t0\tother\tprocess-exit-excluded\n' > "$5/termination.tsv";;
-      psi) printf 'psi\treturn\n' > "$5/termination.tsv";;
-      *) exit 96;;
-    esac
-    if [ "$3" = psi ] && [ -e "${0%/*}/diverge" ]; then
-      printf '!' >> "$5/stderr"
+    if [ "$1" = --build-dir ]; then
+      [ "$3" = --report-file ] || exit 94
+      mkdir "$2" || exit 95
+      cat > "$2/program" <<'GUEST'
+#!/bin/sh
+[ ! -e guest-state ] || exit 98
+touch guest-state
+cat
+printf 'spoofed status -- native exit 9\377' >&2
+GUEST
+      chmod +x "$2/program"
+      printf 'published native output to %s/program\nprocess-exit-excluded\ntrap-presentation: signal 4\n' "$2" > "$4"
+    else
+      [ "$2" = --outputs ] || exit 94
+      mkdir "$3" || exit 95
+      [ ! -e guest-state ] || exit 98
+      if [ ! -f "${0%/*}/omit-file" ]; then touch guest-state; fi
+      cat > "$3/stdout"
+      printf 'spoofed status -- native exit 9\377' > "$3/stderr"
+      printf 'psi\treturn\n' > "$3/termination.tsv"
+      if [ -e "${0%/*}/diverge" ]; then
+        printf '!' >> "$3/stderr"
+      fi
     fi
     exit 0
     ;;

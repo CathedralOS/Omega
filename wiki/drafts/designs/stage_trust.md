@@ -44,8 +44,8 @@ position reports that absence rather than guessing a nearby declaration.
 
 ## What execution comparisons establish
 
-`omega run --both` compares one Psi program through interpreted and native
-execution. Agreement is evidence for the inputs, paths and observations that
+`omega build --compare-tests` compares registered test observations from
+interpretation and execution of compiled artifacts. Agreement is evidence for the inputs, paths and observations that
 actually ran. Both routes can share an upstream source-meaning error.
 
 A semantic repair therefore needs its own expected-result and rejection tests,

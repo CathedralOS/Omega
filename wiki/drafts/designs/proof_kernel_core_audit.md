@@ -1760,6 +1760,23 @@ same_sign> as SameSign;` is read into the mathematical signature when
   `Real` quotient's relation needs this, and the
   [boxed squash of its relation](../../spec/proofs/quotients.md#set-quotient-foundation).
   Tests: `tests::for_every`.
+- **Box and Squash in source (2026-11-27).** A proposition's formula may
+  apply the foundation's `|proof|::Squash::<P>` and `|proof|::Box::<S>`,
+  as in `proposition close(a: D, b: D) = |proof|::Box::<|proof|::Squash::<same(a, b)>>`.
+  Each is `Proposition::Squash` or `Proposition::Boxed` (wire tags 26 and
+  27) over the proposition written as its static argument, and the
+  signature states it as the kernel's `Squash` or `Box`; the kernel
+  refuses a box of a relevant proposition (`NonStrictBoxDomain`). A box
+  is proved by `BoxIntro` of a proof of what it boxes. A squash goal is
+  proved by a citation of that type, or else by opening the first strict
+  citation, a squash by `SquashElim` and a box by `BoxElim`, both toward
+  the squash goal, or else by `SquashIntro` of a proof of the
+  proposition. Nothing opens a strict citation toward a relevant goal, so
+  a boxed squash never yields its witness. Tests: `tests::boxed`. A
+  quotient's relation may be a boxed squash: its `IsMere` row is proved by
+  `QUOTIENT_BOX_PROP` at the boxed type's strict level, so the relation of a
+  mathematical quotient need not be a set's Identity. Test:
+  `a_quotient_by_a_boxed_squash_relates_its_classes`.
 - **Not done:**
   - A lifted operation is a definition only where the kernel's `lift`
     gives one (2026-11-27): one or two classes in, a class or plain data out (the
@@ -2097,8 +2114,7 @@ Recorded questions and where each stands:
   controls. Results for duplicate parameters, duplicate declarations, a
   type-argument count and a Boolean statement are in
   [the table of rules not found](#what-todays-compiler-does-with-the-old-rules).
-  The duplicate-parameter program was also run with `omega run --engine
-  psi` (Psi exit 0); it was not run natively.
+  The duplicate-parameter program was also interpreted (Psi exit 0).
 - Second round of probes (2026-11-23), same binary, 24 more programs, each
   checked with `omega --check --target linux_x86_64`. The qualification
   probes: a pass-through and a forged cast as controls (accepted, refused);
@@ -2109,7 +2125,7 @@ Recorded questions and where each stands:
   shows the machine was judged); an unused forging machine (refused, which
   shows unused machines are judged). The vacant-storage probes: eight programs,
   most with one call between the move and the restoring store. The process-exit probes were
-  run with `omega run build.omg` on both engines: Psi exit 7 and native
+  tested by interpretation and by executing their native images: Psi exit 7 and native
   exit 7 for the honest provider, Psi exit 0 and native exit 0 for the one
   that passes 0. The view probe is a pair that differs in one call. Only
   `linux_x86_64` was tried. A program rooted at `main.omg` does not read

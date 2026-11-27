@@ -192,15 +192,15 @@ Group entry: 17 `#[test]` functions covering `ratchets.rs`, `board_and_tasks.rs`
 
 ## src/samples.rs (1-1556)
 
-1. **Purpose.** `sample-gate`: discovers sample programs (a folder with `build.omg` or `sample.json`), classifies each, and checks it through the built CLI: negatives must be refused for their pinned reason, positives must run with `omega run --both` and native and Psi exits must agree.
+1. **Purpose.** `sample-gate`: discovered sample programs (a folder with `build.omg` or `sample.json`), classified each, and checked it through the built CLI. It required the pinned refusal for negatives and equal native and interpreted exit statuses for positives.
 2. **Shape.** `SampleProject` (`:21`: `directory, rel_path, entry, role, source_inputs, rejection, rejection_any, rejection_casefold, native_rejection`), `project_at` (`:73`), `discover_samples` (`:281`), `verify_sample` (`:662`), `judge_rejection` (`:617`), `settle_review` (`:384`), `parse_header_oracle` (`:520`), `bound_targets` (`:551`), `write_results` (`:844`), `run` (`:898`).
-3. **Inputs/outputs.** Reads `sample.json`, `build.omg`, `main.omg`, `expected*.txt`, `input.txt`, `omega.lock`, `build/package-manager/review-<target>.txt`. Runs `omega packages update`, `--check`, `--target`, `run --both`. Writes evidence folders under `build/sample-gate-runs`, optional `--out` JSON (`:879-883`).
+3. **Inputs/outputs.** Reads `sample.json`, `build.omg`, `main.omg`, `expected*.txt`, `input.txt`, `omega.lock`, `build/package-manager/review-<target>.txt`. Ran package updates, checks, target builds and host comparisons. Writes evidence folders under `build/sample-gate-runs`, optional `--out` JSON (`:879-883`).
 4. **How it decides.**
    - Negative (role `intended-invalid`): folder name `invalid`, `intended_invalid`, `out_of_bounds`, or starts `invalid_`; any path part equal to `fail`; or an expected-diagnostic file present and any path part `controls` (`:116-119`). Keyed on directory spelling.
    - Role otherwise: path starts `source/library` or build text contains `Build::package` is `library`; no `ProgramEntry` text is `check-only`; `Build::application` is `program`; else `example` (`:121-131`). Keyed on text search of comment-stripped `build.omg`.
    - Target eligibility: `bound_targets` splits the stripped `build.omg` on commas and takes slots of the form `<target>\ProgramEntry` (`:551-567`). `samples/uefi/` is hard-coded `not-host-runnable` (`:692`).
    - Header oracle: lines `// Expected exit:` and `// Expected output contains:` (`:528-545`).
-   - Native/Psi: reads stderr lines `native exit ` and `interp exit: ` (`:793-803`), requires equal exits and the CLI's own exit to equal both (`:810-822`).
+   - Native/Psi: read stderr lines `native exit ` and `interp exit: ` (`:793-803`), required equal exits and the CLI's own exit to equal both (`:810-822`).
    - `judge_rejection`: exit must be exactly 1 (`:623`), no diagnostic line may start `not supported yet`/`no product route yet` or contain `the checker does not support this construct yet` (`:602-611`, `:630`), then every `rejection` fragment and one of `rejection_any` must be a substring (case-folded if requested) (`:641-658`). Keyed on error text.
    - `settle_review`: rewrites `decision row <id> pending` to `... accept` in the review file and resumes the update (`:325-345`, `:406-418`). The gate therefore accepts every pending package-review decision for the sample.
 5. **Cases by shape.** `no-oracle` is returned for a program with no `Expected` header and no `input.txt` when the path has a `probes` part (`:751-753`); other no-oracle programs are built natively only (`:754-772`). Ten fixed outcome words: `rejected`, `native-rejected`, `checked`, `no-oracle`, `not-host-runnable`, `pass (...)`.

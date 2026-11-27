@@ -43,6 +43,12 @@ pub mod calls {
             pub installation_bound: bool,
         }
 
+        impl source_symbol_table::owner_rows::OwnedRow for AuthoredServiceReachRow {
+            fn row_owner(&self) -> SymbolHandle {
+                self.owner
+            }
+        }
+
         #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
         pub enum AuthoredInvocationTarget {
             /// Typing found no target, but the source this row was written

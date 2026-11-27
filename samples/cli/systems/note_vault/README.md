@@ -3,9 +3,11 @@
 The vault exercises the portable filesystem and host clock. It creates a note, appends two entries, checks the file's size and modification time, reads back its contents, truncates and copies the file, enumerates its directory, and removes the tree. Completing the workflow returns 14. The program uses `omega_vault/` under its working directory. Run from a directory where that name is free.
 
 ```
-omega run --engine native samples/cli/systems/note_vault/build.omg
-omega run --engine psi samples/cli/systems/note_vault/build.omg
+omega run samples/cli/systems/note_vault/build.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/systems/note_vault` from the repository root.
 
 The first Build admits `system` into the next Build's source scope with an empty service ceiling. The second Build can then import the clock service that `system_time_now` reaches. It grants that service, the six filesystem authorities and process exit to the application's `system` dependency, and binds the application's entry on each supported target.
 

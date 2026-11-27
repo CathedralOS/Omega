@@ -1,6 +1,6 @@
 # Owned generic outcomes
 
-Run `omega run --both samples/cli/owned_outcome/main.omg` after normal package
+Run `mbx xtask sample-gate --filter samples/cli/probes/owned_outcome` after normal package
 review. Expected exit: 0 in native and Terminal execution. The program observes
 29 from the present case, 0 from the empty case, and 41 through two nested
 applications of the same record template.

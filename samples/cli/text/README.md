@@ -22,8 +22,7 @@ mbx run -p omega -- run samples/cli/text/parse_int/main.omg
 
 Substitute the sample directory below for `parse_int`. Use Cargo when `mbx`
 is unavailable. The commands also work in PowerShell. For other hosts select
-`windows_x86_64`, `linux_x86_64`, or `linux_arm64` during update, then omit
-`--target` from `run` so the program actually executes.
+`windows_x86_64`, `linux_x86_64`, or `linux_arm64` during update. `omega run` interprets for the host target by default.
 
 | Sample | Computed result | Native / CLI exit | Stdout bytes |
 | --- | --- | --- | --- |

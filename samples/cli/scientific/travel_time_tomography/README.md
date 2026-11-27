@@ -72,11 +72,11 @@ exit codes are checked exactly. The verification script never rewrites oracles.
 From the repository root, with a matching compiler/library:
 
 ```sh
-omega packages update --project samples/cli/independent/travel_time_tomography --target linux_x86_64
+omega packages update --project samples/cli/scientific/travel_time_tomography --target linux_x86_64
 # Inspect the generated review and accept only decisions authorized for this
 # local system dependency, then use the documented update --resume workflow.
-omega --check samples/cli/independent/travel_time_tomography/main.omg
-omega run samples/cli/independent/travel_time_tomography/main.omg < samples/cli/independent/travel_time_tomography/data/exact.txt
+omega --check samples/cli/scientific/travel_time_tomography/main.omg
+omega run samples/cli/scientific/travel_time_tomography/main.omg < samples/cli/scientific/travel_time_tomography/data/exact.txt
 # Run an already published executable through all fixtures without recompilation:
 ```
 
@@ -97,9 +97,7 @@ native product. It never accepts packages, replays source, supplies expected
 result callbacks, or substitutes a checked-tree interpreter. The application
 and all tomography algorithms remain Omega.
 
-Only Linux x86_64 is selected in the current build metadata. The CLI runs native and Psi on
-the same artifact and compares termination, stdout and
-stderr. The verifier separately checks the forwarded native output.
+Only Linux x86_64 is selected in the current build metadata. The earlier comparison ran the published program and interpreted its Psi, then checked termination, stdout and stderr. The verifier separately checks the forwarded native output.
 An unsupported Terminal comparison must be reported as DECLINED, never agreement.
 
 The separate complete intended-invalid project is

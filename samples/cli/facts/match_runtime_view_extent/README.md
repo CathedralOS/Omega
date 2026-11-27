@@ -80,7 +80,7 @@ parameter.
 | Omega 00–09 | macOS AArch64 native images read the runtime length from the descriptor and store at the selected array's last element. |
 
 Evidence, 2026-11-01, host macOS AArch64: candidate compiler built from base
-`c79bb826816` plus the two changes above. `omega run --both` exits 0 with
+`c79bb826816` plus the two changes above. The native/Psi comparison exits 0 with
 native and interpreter agreeing for all nine positives; `omega --check` rejects
 all nine twins with the fragment above. The generation producer at the base
 refuses all nine positives with `match arms produce incompatible values`.

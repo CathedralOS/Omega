@@ -30,7 +30,7 @@ reject for the unproved requirement, independently of suspension acknowledgement
 The match join executes two different implementation tables and both branches;
 the first result remains live across the second suspension-capable call.
 
-Run each positive with `omega run --both <place>/main.omg` and each twin with
+Run each positive with `mbx xtask sample-gate --filter samples/cli/facts/dynamic_suspension/<place>` and each twin with
 `omega --check <place>/invalid/main.omg`.
 
 ## Evidence and remaining acceptance
@@ -104,7 +104,7 @@ unproved requirement in both implementations.
 
 Observed with an optimized dev-profile producer built at
 `90f3fe11ae75eb63246767979fe483cfe0c312f8` on Linux x86-64: the old place
-passed `omega run --both` (native exit 0, Terminal exit 0); the first migrated
+passed the native/Psi comparison (native exit 0, Terminal exit 0); the first migrated
 draft was refused because the entry wrapper called the suspending `main`
 without acknowledging suspension (`call to main has operational envelope
 suspend but acknowledges neither suspension nor blocking`), a source fix

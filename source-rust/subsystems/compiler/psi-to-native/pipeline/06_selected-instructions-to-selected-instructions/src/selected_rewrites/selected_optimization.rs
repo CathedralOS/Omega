@@ -1,10 +1,11 @@
 /*
-We admit selected-instruction optimization compositions, stage liveness,
-live-range, and frameless-leaf allocation legality prerequisites, run the one
-selected catalog slice (`SelectedLowering` or `PreAllocation`), and hand
-register allocation one `SelectedAllocationInput`. It carries the current
-program, its validated analyses and the record of its rewrites. The same
-input type carries an identity run when no phase is selected.
+We admit selected-instruction optimization compositions, run any selected
+whole-program `SelectedLowering` rewrites (`structural_rewrites.rs`), stage
+liveness, live-range, and frameless-leaf allocation legality prerequisites,
+run the one selected catalog slice (`SelectedLowering` or `PreAllocation`),
+and hand register allocation one `SelectedAllocationInput`. It carries the
+current program, its validated analyses and the record of its rewrites. The
+same input type carries an identity run when no phase is selected.
 
 Ordinary compilation drops the completed run after producing the allocation
 input. The driver can keep it as `SelectedOptimizationReplay` with
@@ -14,16 +15,19 @@ It cannot establish rewrite correctness independently of that producer.
 */
 
 pub(crate) mod optimization_output {
+    use crate::selected_rewrites::structural_rewrites::{
+        StructuralRewriteError, StructuralRewriteRun, StructuralRewriteValidationError,
+        selected_structural_rewrites, validate_structural_rewrites,
+    };
     use crate::selected_rewrites::{
         OptimizedAllocationLegalityCustodyError, OptimizedLiteralFoldCustodyError,
         OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
-        OptimizedPreAllocationCustodyError, StagedPreAllocationOptimizationRun,
-        StagedSelectedLoweringOptimizationRun, validate_pre_allocation_optimization_custody,
+        OptimizedPreAllocationCustodyError, SelectedProgramView, StagedOptimizedAllocationLegality,
+        StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
+        validate_pre_allocation_optimization_custody,
         validate_selected_lowering_optimization_custody,
     };
-    use selected_instruction_analyses::{
-        SelectedAllocationInput, SelectedOptimizationRecord, SelectedProgramRef,
-    };
+    use selected_instruction_analyses::{SelectedAllocationInput, SelectedOptimizationRecord};
 
     /// The input to register allocation and the completed rewrite run when
     /// an optimization phase ran.
@@ -32,6 +36,7 @@ pub(crate) mod optimization_output {
         body: std::sync::Arc<physical_program::NativeBodyFacts>,
         allocation: SelectedAllocationInput,
         run: Option<CompletedRun>,
+        structural: Option<StructuralRewriteRun>,
     }
 
     impl SelectedInstructionOptimizationOutput {
@@ -43,11 +48,13 @@ pub(crate) mod optimization_output {
             body: std::sync::Arc<physical_program::NativeBodyFacts>,
             allocation: SelectedAllocationInput,
             run: Option<CompletedRun>,
+            structural: Option<StructuralRewriteRun>,
         ) -> Self {
             Self {
                 body,
                 allocation,
                 run,
+                structural,
             }
         }
 
@@ -57,15 +64,16 @@ pub(crate) mod optimization_output {
             self.allocation
         }
 
-        /// The input for register allocation, keeping the completed run for an
+        /// The input for register allocation, keeping the completed runs for an
         /// explicitly requested validator. An identity run has no replay.
         pub fn retain_replay_for_validation(
             self,
         ) -> (SelectedAllocationInput, Option<SelectedOptimizationReplay>) {
-            (
-                self.allocation,
-                self.run.map(|run| SelectedOptimizationReplay { run }),
-            )
+            let replay = match (self.run, self.structural) {
+                (None, None) => None,
+                (run, structural) => Some(SelectedOptimizationReplay { run, structural }),
+            };
+            (self.allocation, replay)
         }
     }
 
@@ -75,33 +83,46 @@ pub(crate) mod optimization_output {
         PreAllocation(StagedPreAllocationOptimizationRun),
     }
 
-    /// One completed selected-instruction rewrite run, kept for an explicit
-    /// validator. It is evidence beside the allocated program, never input to
-    /// a later stage.
+    /// The completed selected-instruction rewrite runs of one compile, kept
+    /// for an explicit validator: the structural rewrites, the catalog slice
+    /// that followed them, or both. It is evidence beside the allocated
+    /// program, never input to a later stage.
     #[derive(Debug)]
     pub struct SelectedOptimizationReplay {
-        run: CompletedRun,
+        run: Option<CompletedRun>,
+        structural: Option<StructuralRewriteRun>,
     }
 
     impl SelectedOptimizationReplay {
-        /// The program the run ended with.
-        pub fn output(&self) -> SelectedProgramRef<'_> {
-            match &self.run {
-                CompletedRun::SelectedLowering(run) => run.current().selected,
-                CompletedRun::PreAllocation(run) => run.current(),
-            }
-        }
-
         /// Re-execute every step with the producer from the run's own input,
         /// and require `record` (what an allocated program says produced it)
         /// to name exactly this run's completion and transformations. This
-        /// establishes determinism and custody, not independent correctness.
+        /// establishes determinism and custody, not independent correctness;
+        /// the selected structural rewrites also check their own
+        /// postconditions.
         pub fn validate(
             &self,
             record: &SelectedOptimizationRecord,
         ) -> Result<(), SelectedOptimizationReplayError> {
+            if let Some(structural) = &self.structural {
+                validate_structural_rewrites(structural)
+                    .map_err(SelectedOptimizationReplayError::StructuralRewrite)?;
+            }
             match &self.run {
-                CompletedRun::SelectedLowering(run) => {
+                None => {
+                    let named =
+                        self.structural
+                            .as_ref()
+                            .map(|structural| SelectedOptimizationRecord {
+                                selected_lowering_completion: Some(structural.completion()),
+                                ..SelectedOptimizationRecord::default()
+                            });
+                    if named.as_ref() != Some(record) {
+                        return Err(SelectedOptimizationReplayError::OtherProgram);
+                    }
+                }
+                Some(CompletedRun::SelectedLowering(run)) => {
+                    self.validate_structural_source(run.source_legality_stage())?;
                     if record.selected_lowering_completion != Some(run.custody().identity())
                         || record.pre_allocation_completion
                             != run
@@ -115,7 +136,8 @@ pub(crate) mod optimization_output {
                     validate_selected_lowering_optimization_custody(run)
                         .map_err(SelectedOptimizationReplayError::SelectedLowering)?;
                 }
-                CompletedRun::PreAllocation(run) => {
+                Some(CompletedRun::PreAllocation(run)) => {
+                    self.validate_structural_source(run.source_legality_stage())?;
                     if record.pre_allocation_completion != Some(run.custody().identity())
                         || record.selected_lowering_completion
                             != run
@@ -132,6 +154,38 @@ pub(crate) mod optimization_output {
             }
             Ok(())
         }
+
+        /// A catalog slice that followed the structural rewrites must start
+        /// from the program they produced, under the same selection, with a
+        /// source record that names them. Without them it must start from a
+        /// selection naming none.
+        fn validate_structural_source(
+            &self,
+            source: &StagedOptimizedAllocationLegality,
+        ) -> Result<(), SelectedOptimizationReplayError> {
+            let named = source.record().selected_lowering_completion;
+            match &self.structural {
+                None if named.is_none()
+                    && selected_structural_rewrites(source.selections()).is_empty() =>
+                {
+                    Ok(())
+                }
+                None => Err(SelectedOptimizationReplayError::StructuralRewrite(
+                    StructuralRewriteValidationError::SelectionMismatch,
+                )),
+                Some(structural) => {
+                    let start = source.selected().shared_selected_plan();
+                    if named != Some(structural.completion())
+                        || structural.selections() != source.selections()
+                        || !std::sync::Arc::ptr_eq(structural.output(), &start)
+                            && **structural.output() != *start
+                    {
+                        return Err(SelectedOptimizationReplayError::OtherProgram);
+                    }
+                    Ok(())
+                }
+            }
+        }
     }
 
     /// Why a retained rewrite run failed its determinism and custody check.
@@ -141,6 +195,7 @@ pub(crate) mod optimization_output {
         OtherProgram,
         SelectedLowering(OptimizedLiteralFoldCustodyError),
         PreAllocation(OptimizedPreAllocationCustodyError),
+        StructuralRewrite(StructuralRewriteValidationError),
     }
 
     failed_display!(
@@ -155,6 +210,7 @@ pub(crate) mod optimization_output {
         Legality(OptimizedAllocationLegalityCustodyError),
         Rewrite(OptimizedLiteralFoldCustodyError),
         PreAllocation(OptimizedPreAllocationCustodyError),
+        StructuralRewrite(StructuralRewriteError),
         UnsupportedComposition,
     }
 
@@ -171,13 +227,17 @@ pub(crate) mod optimization_output {
             match self {
                 Self::Rewrite(OptimizedLiteralFoldCustodyError::Fold(
                     LiteralFoldError::UnsupportedTarget { optimization },
-                )) => Some(*optimization),
+                ))
+                | Self::StructuralRewrite(StructuralRewriteError::UnsupportedTarget {
+                    optimization,
+                }) => Some(*optimization),
                 _ => None,
             }
         }
     }
 }
 
+use crate::selected_rewrites::structural_rewrites::{is_structural, run_structural_rewrites};
 use crate::selected_rewrites::{
     SELECTED_STAGE_RULE_CATALOG, SelectedInstructionOptimizationError,
     SelectedInstructionOptimizationOutput, SelectedOptimizationInput, SelectedProgramView,
@@ -208,16 +268,28 @@ pub fn optimize_selected_instructions(
     let program = selected.selected_program();
     let custody = selected.custody().core();
     let (register_environment, selections, budget_per_pass) = selected.into_optimization_settings();
+    let structural = run_structural_rewrites(&program, custody, &register_environment, &selections)
+        .map_err(SelectedInstructionOptimizationError::StructuralRewrite)?;
+    let (program, record) = match &structural {
+        Some(run) => (
+            run.output_program(&program),
+            SelectedOptimizationRecord {
+                selected_lowering_completion: Some(run.completion()),
+                ..SelectedOptimizationRecord::default()
+            },
+        ),
+        None => (program, SelectedOptimizationRecord::default()),
+    };
     let input = SelectedOptimizationInput {
         program,
         custody,
         register_environment,
         selections,
         budget_per_pass,
-        record: SelectedOptimizationRecord::default(),
+        record,
     };
-    let liveness = stage_optimized_liveness(input)
-        .map_err(SelectedInstructionOptimizationError::Liveness)?;
+    let liveness =
+        stage_optimized_liveness(input).map_err(SelectedInstructionOptimizationError::Liveness)?;
     let ranges = stage_optimized_live_ranges(liveness)
         .map_err(SelectedInstructionOptimizationError::LiveRanges)?;
     let selections = ranges.selections();
@@ -226,13 +298,13 @@ pub fn optimize_selected_instructions(
             body,
             SelectedAllocationInput::with_live_ranges(ranges),
             None,
+            structural,
         ));
     }
     if unexecutable_catalog_composition(selections).is_some() {
         return Err(SelectedInstructionOptimizationError::UnsupportedComposition);
     }
-    let mut executed =
-        executed_slice_phases().filter(|phase| !selections.for_phase(*phase).is_empty());
+    let mut executed = executed_slice_phases().filter(|phase| slice_selected(selections, *phase));
     let phase = executed
         .next()
         .expect("executed selections exist past the identity check");
@@ -267,6 +339,7 @@ pub fn optimize_selected_instructions(
         body,
         SelectedAllocationInput::with_legality(current),
         Some(run),
+        structural,
     ))
 }
 
@@ -328,8 +401,18 @@ pub(crate) fn executed_slice_phases() -> impl Iterator<Item = OptimizationExecut
         .map(|slice| slice.phase())
 }
 
+/// Whether the selection names a rule of this catalog slice. The structural
+/// rewrites ran already and do not start the `SelectedLowering` fixed point.
+fn slice_selected(selections: &OptimizationSelections, phase: OptimizationExecutionPhase) -> bool {
+    selections
+        .for_phase(phase)
+        .as_slice()
+        .iter()
+        .any(|optimization| !is_structural(*optimization))
+}
+
 fn has_executed_selections(selections: &OptimizationSelections) -> bool {
-    executed_slice_phases().any(|phase| !selections.for_phase(phase).is_empty())
+    executed_slice_phases().any(|phase| slice_selected(selections, phase))
 }
 
 fn unexecutable_catalog_composition(

@@ -898,8 +898,10 @@ any prefix retires these facts".
 Every operation and terminator is judged for each `Case` step on the path of
 each place it names: a payload read, a copy out of a payload, a store into
 one, a case test or dispatch on a sum inside one. The walk asks which case
-the sum before that step holds on every path to the use, and the use is
-accepted only when the answer is that one case. Going back from the use:
+the sum before that step holds on every path to the use. The use is
+accepted when the answer is that one case, or when the answer is a storage
+boundary's name of that case and the name is proved true at the use (below).
+Going back from the use:
 
 - A write to the sum or to a place above it ends the path. A construction
   (`EstablishScalarCase`, `EstablishStructuralCase`) on exactly the sum
@@ -913,43 +915,42 @@ accepted only when the answer is that one case. Going back from the use:
   `StructuralCaseMembership` on exactly this sum supplies the tested case,
   when the test stands in the branching block and no write to the sum or a
   place above it follows the test there.
-- The machine's entry supplies the case the machine's own `requires` states
-  outright of that formal (`requires outcome in Outcome::Good`), which every
-  caller proved at its call.
-- A call's result holds the case the callee's `ensures` states outright of
-  it (`ensures result in Result::Ok`), which the callee proved where it
-  returns.
+- The machine's entry, and the normal return of the call that wrote the
+  sum, supply that boundary's names of its cases (below).
 
-"Outright" means the test is a conjunct of the clause. A test beside an
-alternative (`(x in S::C) || flag`) may be false while the clause holds, so
-it supplies no case (`stated_case_tests` in `places.rs`).
+Structure alone never says which case a formal holds at entry or a call's
+result holds after the call. Stage 05 names the case of each sum an input
+formal or a call result holds, one Boolean per declared case, at the
+boundaries where it names a scalar leaf's contents: at entry and at the
+normal return of the call that wrote it (`ValueOrigin::StorageCase`). When
+the walk reaches such a boundary, it answers with that boundary
+(`Reached::NamedCase`), and a clause's test of the case is the proposition
+`name == true` (`CaseAnswer::Named`). So `requires outcome in Outcome::Good`
+is assumed at entry as that name being true, `requires (outcome in
+Outcome::Good) || flag` as a disjunction over it, a callee's `ensures result
+in Result::Ok` after the call over the call's name, and a requirement is
+owed as a goal over the name where the argument still holds what it held
+there. Three kinds of knowledge relate the names to the program: at each
+boundary exactly one of a sum's names is true (`case_name_premises`), and a
+`StructuralCaseMembership` of a sum that still holds its boundary case
+computes that name (`membership_equation`), so a branch on the test decides
+the name on both edges.
+
+A payload access whose answer is a name is accepted where that name is
+proved true from what is known before the access (`CaseGoal`, decided by
+`decide_case_goal` in `lib.rs` with the same proof search and kernel check
+an obligation gets). This is the spec's "Otherwise the case holds when every
+other declared case of that sum is refuted": the false edge of a test of
+`Outcome::Bad` makes `Bad`'s name false, and the exactly-one premise makes
+`Good`'s true. One answer serves a stated case, a disjunction and a test
+alike. A write to the sum or a place above it ends the walk before the
+boundary, so a name says nothing of the storage after it. A block formal's
+case has no name yet, so a clause over it stays refused.
 
 So the accepted shapes are a dominating dispatch edge, a dominating true edge
-of a membership test, a construction that is every reaching write, a case the
-machine requires of a formal, and a case a callee guarantees of its result. The false edge of a test supplies nothing: "Otherwise the case holds
-when every other declared case of that sum is refuted" needs proof about the
-other cases and is refused here, not guessed. A refusal has reason
+of a membership test, a construction that is every reaching write, and a
+boundary's name of the case proved true at the access. A refusal has reason
 `Unestablished` and concerns the access.
-
-A contract clause can still test a case that none of these decides. Stage
-05 names the case of each sum an input formal or a call result holds, one
-Boolean per declared case, at the boundaries where it names a scalar leaf's
-contents: at entry and at the normal return of the call that wrote it
-(`ValueOrigin::StorageCase`). When the walk reaches such a boundary with no
-structural answer, it answers with that boundary (`Reached::NamedCase`), and
-the clause's test is the proposition `name == true`
-(`CaseAnswer::Named`). So `requires (outcome in Outcome::Good) || flag` is
-assumed at entry as a disjunction over the entry name, a callee's `ensures
-(result in Outcome::Good) || flag` is assumed after the call over the
-call's name, and a requirement is owed as a goal over the name where the
-argument still holds what it held there. Three kinds of knowledge relate
-the names to the program: at each boundary exactly one of a sum's names is
-true (`case_name_premises`), and a `StructuralCaseMembership` of a sum that
-still holds its boundary case computes that name (`membership_equation`),
-so a branch on the test decides the name on both edges. A payload read
-still needs one of the structural shapes above; a name proved true does not
-open a payload. A block formal's case has no name yet, so a clause over it
-stays refused.
 
 A `StructuralCase` terminator is one more use, named by its block. Its
 subject must be established, and its roster must list every declared case

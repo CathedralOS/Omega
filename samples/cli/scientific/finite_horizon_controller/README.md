@@ -48,14 +48,13 @@ must fail compilation because it calls a 1..5 horizon contract with 6.
 From the repository root, with a verified Omega binary and matching library:
 
 ```text
-omega packages update --project samples/cli/independent/finite_horizon_controller/reproduction --target linux_x86_64
-omega packages update --resume --project samples/cli/independent/finite_horizon_controller/reproduction
-omega packages update --project samples/cli/independent/finite_horizon_controller --target linux_x86_64
-omega packages update --resume --project samples/cli/independent/finite_horizon_controller
-omega --check samples/cli/independent/finite_horizon_controller/main.omg
-omega --check samples/cli/independent/finite_horizon_controller/invalid/main.omg
-omega run --engine native samples/cli/scientific/finite_horizon_controller/main.omg < samples/cli/scientific/finite_horizon_controller/data/0.stdin
-omega run --engine psi samples/cli/scientific/finite_horizon_controller/main.omg < samples/cli/scientific/finite_horizon_controller/data/0.stdin
+omega packages update --project samples/cli/scientific/finite_horizon_controller/reproduction --target linux_x86_64
+omega packages update --resume --project samples/cli/scientific/finite_horizon_controller/reproduction
+omega packages update --project samples/cli/scientific/finite_horizon_controller --target linux_x86_64
+omega packages update --resume --project samples/cli/scientific/finite_horizon_controller
+omega --check samples/cli/scientific/finite_horizon_controller/main.omg
+omega --check samples/cli/scientific/finite_horizon_controller/invalid/main.omg
+omega run samples/cli/scientific/finite_horizon_controller/main.omg < samples/cli/scientific/finite_horizon_controller/data/0.stdin
 ```
 
 Refresh the nested positive control first and the controller last: the nested
@@ -68,7 +67,7 @@ once and executes the retained native artifact for all 12 inputs, recording its
 SHA-256. It runs one Omega process at a time: 16 Omega invocations and 12 direct
 native executions make 28 sequential commands. It captures every command, stdout,
 stderr and exit under `build/validation/`, checks byte-exact native output and
-recomputes every emitted transition and cost independently. `omega run --both` compares
+recomputes every emitted transition and cost independently. The comparison checks
 termination and the exact stdout and stderr bytes from
 both engines.
 

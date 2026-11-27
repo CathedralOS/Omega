@@ -9,9 +9,11 @@ retain its contents.
 After ordinary package review:
 
 ```sh
-omega run --engine native samples/cli/collections/indexed_scan_windows/main.omg
-omega run --engine psi samples/cli/collections/indexed_scan_windows/main.omg
+omega run samples/cli/collections/indexed_scan_windows/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/indexed_scan_windows` from the repository root.
 
 The program requires native and Terminal exit 0. The companion corpus fixtures
 exercise helper forwarding and implicit reborrowing of a padded descriptor with

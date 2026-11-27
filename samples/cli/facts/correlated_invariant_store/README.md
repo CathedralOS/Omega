@@ -24,7 +24,7 @@ Each folder contains an executable `main.omg`, a four-hosted-target
 | other_machine | An ordinary call forwards the coupled values. |
 | target_body | Four separately checked target bodies perform the same store. |
 
-Run any positive with `omega run --both <place>/main.omg`.
+Run any positive with `mbx xtask sample-gate --filter samples/cli/facts/correlated_invariant_store/<place>`.
 The oracle checks an interior sum (30 + 40), the upper endpoint (300 + 20),
 zero increment at capacity and a full-capacity increment from zero.
 The match additionally checks its distinct alternative at total 30.

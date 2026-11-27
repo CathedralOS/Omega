@@ -22,4 +22,4 @@ original byte, preserving both sentinels and the replacement array. Moving or
 retiring the descriptor must leave that backing live. An empty byte window
 takes the non-writing branch.
 
-Run `omega run --both samples/cli/memory/captured_store_destination/main.omg`.
+Run `mbx xtask sample-gate --filter samples/cli/probes/captured_store_destination`.

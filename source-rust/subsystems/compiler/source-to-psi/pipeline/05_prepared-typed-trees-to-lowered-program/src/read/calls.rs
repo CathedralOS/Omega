@@ -2444,6 +2444,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<CallBinding<'t>> {
         let invocation = self.static_invocation(call);
+        self.requirement_callbacks(id, invocation.target, invocation.application)?;
         if let Some(application) = self.theorem_application(id, slots, call, invocation, source)? {
             return Ok(CallBinding::Generic(application));
         }

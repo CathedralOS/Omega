@@ -47,7 +47,7 @@ The target-body variant checks the same repair body for all four hosted targets.
 7. **Omega 03–06:** native calls preserve the alias and sibling home while the
    detached token/result homes have independent lifetimes.
 8. **Omega 07–09 and emission:** the native executable's storage observations
-   must agree with actual Terminal interpretation through `omega run --both`.
+   must agree with actual Terminal interpretation through the native/Psi comparison.
 
 The canonical contracts are [source ownership windows](../../../../wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
 and [Terminal restoration](../../../../wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration).

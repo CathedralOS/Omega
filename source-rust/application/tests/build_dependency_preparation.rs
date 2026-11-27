@@ -25,7 +25,7 @@ machine build(plan: @mutable BuildPlan) suspends {{
             ("dep/build.omg", dep),
             ("dep/main.omg", "public machine v() -> i32 { 7 }\n"),
         ],
-        &["run", "--engine", "psi", "build.omg"],
+        &["run", "build.omg"],
     )
 }
 

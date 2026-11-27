@@ -1,7 +1,7 @@
 //! A right shift is two `>` that touch, and the same two `>` close two nested
-//! generic argument lists (wiki/spec/language/expressions.md). The run
-//! program uses both and runs in both engines; its twin puts a space between
-//! the two `>` of the shift and is refused at the second one.
+//! generic argument lists (wiki/spec/language/expressions.md). The program
+//! uses both forms. Its twin puts a space between the two `>` of the shift
+//! and is refused at the second one.
 
 #[path = "support/program.rs"]
 mod program;
@@ -17,7 +17,7 @@ fn fixture(tier: &str) -> PathBuf {
 }
 
 #[test]
-fn touching_greater_tokens_shift_and_close_nested_lists_in_both_engines() {
+fn touching_greater_tokens_shift_and_close_nested_lists_when_interpreted_and_built() {
     program::assert_fixture_silent_return(&fixture("run"));
 }
 

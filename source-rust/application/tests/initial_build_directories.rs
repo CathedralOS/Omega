@@ -231,8 +231,6 @@ machine build(plan: @mutable BuildPlan) {{
     );
     let _ = invoke(&[
         "run",
-        "--engine",
-        "psi",
         "--build-directories-readwrite",
         &mapping,
         "build.omg",

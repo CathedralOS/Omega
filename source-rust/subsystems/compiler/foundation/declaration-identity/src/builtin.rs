@@ -287,10 +287,12 @@ pub enum FixedCoreDeclaration {
     Squash,
     /// `core::Identity::<T>(left, right)` — proof-relevant kernel identity.
     Identity,
+    /* `core::Box` — the relevant type of a strict proposition. */
+    Box,
 }
 
 impl FixedCoreDeclaration {
-    pub const COUNT: usize = 5;
+    pub const COUNT: usize = 6;
 
     /// The fixed vocabulary in root-child order: every member's
     /// [`ordinal`](Self::ordinal) is its index here.
@@ -300,6 +302,7 @@ impl FixedCoreDeclaration {
         Self::Strict,
         Self::Squash,
         Self::Identity,
+        Self::Box,
     ];
 
     /// The internal label used for the kernel slot and diagnostics.
@@ -310,6 +313,7 @@ impl FixedCoreDeclaration {
             Self::Strict => "core::Strict",
             Self::Squash => "core::Squash",
             Self::Identity => "core::Identity",
+            Self::Box => "core::Box",
         }
     }
 

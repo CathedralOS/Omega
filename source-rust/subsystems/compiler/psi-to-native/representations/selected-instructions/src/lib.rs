@@ -53,6 +53,7 @@ pub(crate) use ::wire::digest_encoder;
 mod atomic;
 mod blocks;
 pub mod calls;
+pub mod compaction;
 pub mod constraints;
 pub mod control_flow;
 pub mod effects;
@@ -209,9 +210,8 @@ pub struct StagedOptimizedCustodyCore {
     pub psi: terminal_psi::TerminalPsiIdentity, // Terminal Psi identity of the staged upstream result.
     pub target: target::NativeTarget,           // Native target of the staged upstream result.
     pub entry: semantic_vocabulary::MachineId,  // Entry machine the staged result lowers.
-    pub optimization: optimization_core::OptimizationIdentityBundleIdentity, // Optimization identity bundle of the staged result.
-    pub projection: optimization_core::OptimizedAbstractPlanProjectionIdentity, // Optimized-plan projection identity of the staged result.
-    pub manifest: optimization_core::PrePhysicalOptimizationManifestIdentity, // Pre-physical manifest identity of the staged result.
+    pub selection: optimization_core::OptimizationSelectionIdentity, // Optimization selections the staged result was lowered under.
+    pub budget_per_pass: optimization_core::OptimizationWorkBudget, // Per-pass work budget the staged result was lowered under.
     pub optimization_unit: optimization_core::OptimizationUnitIdentity, // Optimization-unit identity of the staged result.
     pub work_schedule: semantic_vocabulary::WorkScheduleIdentity, // Work-schedule identity of the staged result.
     pub register_environment: register_model::TargetRegisterEnvironmentIdentity, // Validated target-register-environment identity of the staged result.
@@ -232,16 +232,12 @@ macro_rules! staging_custody_core_accessors {
             self.core.entry
         }
 
-        pub const fn optimization(self) -> OptimizationIdentityBundleIdentity {
-            self.core.optimization
+        pub const fn selection(self) -> OptimizationSelectionIdentity {
+            self.core.selection
         }
 
-        pub const fn projection(self) -> OptimizedAbstractPlanProjectionIdentity {
-            self.core.projection
-        }
-
-        pub const fn manifest(self) -> PrePhysicalOptimizationManifestIdentity {
-            self.core.manifest
+        pub const fn budget_per_pass(self) -> OptimizationWorkBudget {
+            self.core.budget_per_pass
         }
 
         pub const fn optimization_unit(self) -> OptimizationUnitIdentity {

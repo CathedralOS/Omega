@@ -54,14 +54,13 @@ complete baseline; later identity refreshes must preserve all accepted meanings.
 From the repository root, using a verified compiler and matching standard library:
 
 ```
-omega packages update --project samples/cli/independent/fatigue_cycle_audit --target linux_x86_64
+omega packages update --project samples/cli/scientific/fatigue_cycle_audit --target linux_x86_64
 # Inspect any pending review and obtain its required authorization before acceptance.
 # A consumer prepares its own transaction; evidence locks are not transplanted.
-omega --check --target linux_x86_64 samples/cli/independent/fatigue_cycle_audit/main.omg
-omega --target linux_x86_64 --build-dir build/fatigue-audit samples/cli/independent/fatigue_cycle_audit/main.omg
-omega run --engine native --keep samples/cli/scientific/fatigue_cycle_audit/main.omg < samples/cli/scientific/fatigue_cycle_audit/data/nested.stdin
-omega run --engine psi --keep samples/cli/scientific/fatigue_cycle_audit/main.omg < samples/cli/scientific/fatigue_cycle_audit/data/nested.stdin
-omega --check --target linux_x86_64 samples/cli/independent/fatigue_cycle_audit/controls/unguarded_index/main.omg
+omega --check --target linux_x86_64 samples/cli/scientific/fatigue_cycle_audit/main.omg
+omega --target linux_x86_64 --build-dir build/fatigue-audit samples/cli/scientific/fatigue_cycle_audit/main.omg
+omega run --keep samples/cli/scientific/fatigue_cycle_audit/main.omg < samples/cli/scientific/fatigue_cycle_audit/data/nested.stdin
+omega --check --target linux_x86_64 samples/cli/scientific/fatigue_cycle_audit/controls/unguarded_index/main.omg
 # The last command must exit 1 with the sole expected bounds diagnostic.
 ```
 

@@ -1231,6 +1231,7 @@ dependencies = [
  "prepared-typed-trees-to-lowered-program",
  "proof-admission",
  "psi-authorization",
+ "psi-provider-selections",
  "rayon",
  "semantic-vocabulary",
  "service-surface",
@@ -1712,14 +1713,12 @@ name = "omega"
 version = "0.1.0"
 dependencies = [
  "artifacts",
- "bounded-process",
  "build-declarations",
  "build-execution",
  "build-program-launch",
  "compiler",
  "diagnostics",
  "installation-conditions",
- "libc",
  "mimalloc",
  "native-provider-sponsor",
  "omega-source",
@@ -1731,6 +1730,7 @@ dependencies = [
  "project-build",
  "psi-authorization",
  "psi-entry-memory",
+ "psi-provider-selections",
  "retained-image-runtime",
  "runtime-abi",
  "semantic-vocabulary",
@@ -1738,10 +1738,11 @@ dependencies = [
  "source-acquisition",
  "target",
  "terminal-codec",
+ "terminal-interpreter",
  "terminal-psi",
  "terminal-runtime",
  "terminal-semantics",
- "windows-sys 0.61.2",
+ "terminal-work",
  "worker-budget",
 ]
 
@@ -2747,7 +2748,9 @@ dependencies = [
 name = "selected-instructions-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
+ "calling-conventions",
  "operation-evidence",
+ "operation-operands",
  "optimization-core",
  "physical-program",
  "register-environment",

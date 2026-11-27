@@ -179,6 +179,9 @@ impl<'m> Frame<'m> {
             return Some(());
         }
         match &op.kind {
+            // Selecting code alone cannot touch any of this activation's cells.
+            // The callable flow supplies the selected body at its invocation.
+            OperationKind::SelectMachine { .. } => {}
             OperationKind::EstablishZeroedStructural {}
             | OperationKind::EstablishStructuralLocal {} => {
                 let value = if matches!(op.kind, OperationKind::EstablishZeroedStructural {}) {
@@ -186,8 +189,8 @@ impl<'m> Frame<'m> {
                         .structural_type(op.result.structural()?.structural_type)?
                         .shape;
                     match shape.cases().first() {
-                        Some(first) => Stored::Zero.select_case(first.id),
-                        None => Stored::Zero,
+                        Some(first) => Stored::ZERO.select_case(first.id),
+                        None => Stored::ZERO,
                     }
                 } else {
                     Stored::Unknown
@@ -343,6 +346,21 @@ impl<'m> Frame<'m> {
                     | AtomicAccessEvent::Swap { value, .. } => {
                         bindings.values.get(value).copied().into()
                     }
+                    AtomicAccessEvent::ReadModifyWrite {
+                        operation, operand, ..
+                    } => {
+                        let ty = op.result.scalar()?.scalar_type;
+                        let operand = bindings.values.get(operand).copied();
+                        memory.get(&location).map_scalars(ty, |prior| {
+                            let (ScalarFact::Literal(prior), Some(ScalarFact::Literal(operand))) =
+                                (prior, operand)
+                            else {
+                                return None;
+                            };
+                            crate::atomic_read_modify_write(*operation, prior, operand)
+                                .map(ScalarFact::Literal)
+                        })
+                    }
                     AtomicAccessEvent::CompareExchange {
                         expected,
                         replacement,
@@ -353,10 +371,7 @@ impl<'m> Frame<'m> {
                         match (expect, proposal) {
                             (Some(expected), _) if observed == Some(expected) => proposal.into(),
                             (Some(expected), _) if proposal == Some(expected) => return Some(()),
-                            (
-                                Some(ScalarFact::Literal(expected)),
-                                Some(ScalarFact::Literal(replacement)),
-                            ) => memory
+                            (Some(expected), Some(replacement)) => memory
                                 .get(&location)
                                 .after_update(CellUpdate::CompareExchange {
                                     expected,

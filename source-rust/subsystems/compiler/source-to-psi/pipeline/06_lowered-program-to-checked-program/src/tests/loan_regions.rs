@@ -270,10 +270,10 @@ machine build_entry(cell: @Cell) {{
     assert_eq!(verdict(&source.replacen("@local", "cell", 1)), "accepted");
 }
 
-/// A return still needs a result contract naming its possible input
-/// lenders. Local writes use the borrow that arrived on the chosen edge.
+/// Returning the carrier keeps both possible input loans. At execution the
+/// write follows the chosen one, as for a selection inside the caller.
 #[test]
-fn a_reference_backed_by_either_of_two_inputs_is_refused_by_name_when_returned() {
+fn a_returned_reference_can_borrow_either_of_two_inputs() {
     let returned = run(&format!(
         r#"{CELLS}{SELECTED}
 machine journey(left: @mutable Cell, right: @mutable Cell, first: bool) {{
@@ -284,7 +284,9 @@ machine journey(left: @mutable Cell, right: @mutable Cell, first: bool) {{
     ));
     assert_eq!(
         returned,
-        Err("call reference result has alternatives from different input roots".to_owned())
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
     );
     let joined = run(&format!(
         r#"{CELLS}
@@ -303,6 +305,23 @@ machine journey(left: @mutable Cell, right: @mutable Cell, first: bool) {{
             terminal_interpreter::TerminalExecutionResult::Unit
         ))
     );
+}
+
+#[test]
+fn neither_candidate_can_be_written_behind_its_live_returned_borrow() {
+    for competing in ["left", "right"] {
+        let source = format!(
+            r#"{CELLS}{SELECTED}
+machine journey(left: @mutable Cell, right: @mutable Cell, first: bool) {{
+    let mutable carrier: Carrier = selected(left, right, first);
+    {competing}.value = 19;
+    carrier.cell.value = 73;
+}}
+{ENTRY}"#
+        );
+        let refused = run(&source).expect_err("both possible lenders must stay borrowed");
+        assert!(refused.contains("ChangeWhileBorrowed"), "{refused}");
+    }
 }
 
 #[test]
@@ -341,7 +360,10 @@ machine entry() crashes Trap {
             "    change(@mutable level, true);",
             "    let held: @Room = @level.rooms[1];\n    change(@mutable level, true);",
         )
-        .replace("let changed: bool = level.rooms[1].value", "let changed: bool = held.value");
+        .replace(
+            "let changed: bool = level.rooms[1].value",
+            "let changed: bool = held.value",
+        );
     let refused = run(&conflict).unwrap_err();
     assert!(refused.contains("ChangeWhileBorrowed"), "{refused}");
 }

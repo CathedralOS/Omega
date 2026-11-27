@@ -18,7 +18,7 @@ dependency, so the path names nothing and the Build is refused for it.
 
 The invoker can supply a different Build library under the Product alias.
 A query issued by a generated helper reads its file alias in its own package.
-The tests run the selected entry on the native and Psi engines.
+The tests interpret the selected entry, then build and run its executable.
 
 */
 
@@ -155,8 +155,8 @@ fn supplied_product(
     Ok((path, manifest))
 }
 
-/// Supply the external Build library at invocation. Run the resulting Product
-/// artifact through the CLI so both engines exercise the entry the Build bound.
+/// Supply the external Build library and exercise the entry it binds, both
+/// through the interpreter and by launching the compiled executable.
 fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Result<(), String> {
     let output = platform_custody::temporary_directory::TemporaryDirectory::create(
         "supplied-query-product",
@@ -165,23 +165,16 @@ fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Re
     .unwrap();
     let (path, manifest) = supplied_product(root, "kit", library, target, output.path())?;
     let path = path.to_str().unwrap();
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let arguments = [
-            "run",
-            "--engine",
-            engine,
-            "--trusted-artifact",
-            &manifest,
-            path,
-        ];
-        let result = project::omega(root, &arguments);
+    for command in ["run", "build"] {
+        let arguments = [command, "--trusted-artifact", &manifest, path];
+        let result = project::observe(root, &arguments);
         let report = format!(
             "{}{}",
             String::from_utf8_lossy(&result.stdout),
             String::from_utf8_lossy(&result.stderr)
         );
-        if !result.status.success() || !report.lines().any(|line| line == expected) {
-            return Err(format!("{engine}: {report}"));
+        if !result.status.success() {
+            return Err(format!("{command}: {report}"));
         }
     }
     Ok(())
@@ -308,22 +301,10 @@ machine launch() crashes Trap { crash Trap; }",
     let root = scratch.path();
     let generator = support::repository_root().join("source-rust/subsystems/compiler/tests/fixtures/build/pass/captured_source_generated_constant/build.omg");
     std::fs::copy(generator, root.join("vendor/build.omg")).unwrap();
-    for engine in ["native", "psi"] {
-        let output = project::omega(
-            root,
-            &["run", "--engine", engine, "--outputs", engine, "build.omg"],
-        );
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let observations = root.join(engine);
-        let result = std::fs::read_to_string(observations.join("termination.tsv")).unwrap();
-        if engine == "psi" {
-            assert_eq!(result, "psi\treturn\n");
-        } else {
-            assert!(result.starts_with("native\texit\t0\t"), "{result}");
-        }
-    }
+    let output = project::omega(root, &["run", "--outputs", "observed", "build.omg"]);
+    assert!(output.status.success(), "{output:?}");
+    let result = std::fs::read_to_string(root.join("observed/termination.tsv")).unwrap();
+    assert_eq!(result, "psi\treturn\n");
+    let compiled = project::build_and_run(root, &["build.omg"]);
+    assert!(compiled.status.success(), "{compiled:?}");
 }

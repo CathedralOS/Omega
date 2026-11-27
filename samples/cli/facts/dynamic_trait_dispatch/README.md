@@ -72,7 +72,7 @@ Each of the five target rows in [build.omg](target_body/build.omg) selects
 `HostedCombine` for `SelectedCombine`. Its `probe` passes the callback, both
 numbers and the output reference to `invoke_selected`, which calls the
 function it received. From the target example's directory, run
-`omega run --both build.omg` to exercise this selection.
+`mbx xtask sample-gate --filter samples/cli/facts/dynamic_trait_dispatch` to exercise this selection.
 
 This follows [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
 and [multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation).

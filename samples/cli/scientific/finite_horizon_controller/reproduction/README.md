@@ -5,6 +5,5 @@ uses this same ordinary operation without changing storage to evade the gap.
 
 ```text
 omega packages update --project samples/cli/independent/finite_horizon_controller/reproduction --target linux_x86_64
-omega run --engine native samples/cli/scientific/finite_horizon_controller/reproduction/main.omg < samples/cli/scientific/finite_horizon_controller/reproduction/input.txt
-omega run --engine psi samples/cli/scientific/finite_horizon_controller/reproduction/main.omg < samples/cli/scientific/finite_horizon_controller/reproduction/input.txt
+omega run samples/cli/scientific/finite_horizon_controller/reproduction/main.omg < samples/cli/scientific/finite_horizon_controller/reproduction/input.txt
 ```

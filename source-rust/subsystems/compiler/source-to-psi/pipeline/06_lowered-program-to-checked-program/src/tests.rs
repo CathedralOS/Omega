@@ -20,9 +20,7 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 
-use crate::{
-    Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge,
-};
+use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
 mod address_bounds;
@@ -34,6 +32,7 @@ mod arrays;
 mod atomic_wake;
 mod borrowed_restoration;
 mod boundary_calls;
+mod boxed;
 mod branch_warnings;
 mod build_purpose;
 mod byte_domains;
@@ -65,7 +64,6 @@ mod hosted_primitives;
 mod indexed_contracts;
 mod indexed_family;
 mod inferred_bounds;
-mod typed_locals;
 mod law_premise;
 mod layout_queries;
 mod lifetime_elision;
@@ -122,6 +120,7 @@ mod sum_hypothesis;
 mod synchronization;
 mod termination;
 mod type_parameters;
+mod typed_locals;
 mod uninhabited_results;
 mod value_indexed_data;
 mod value_parameters;
@@ -1351,12 +1350,10 @@ fn the_prover_has_rules_for_integer_goals_and_not_for_other_forms() {
         ScalarTerm::boolean(false),
     )));
     // One uncovered part leaves the whole goal without a rule.
-    assert!(!crate::has_rules_for(&Proposition::Conjunction(
-        vec![
-            at_most(1, 10),
-            Proposition::Equal(flag, ScalarTerm::boolean(true)),
-        ]
-    )));
+    assert!(!crate::has_rules_for(&Proposition::Conjunction(vec![
+        at_most(1, 10),
+        Proposition::Equal(flag, ScalarTerm::boolean(true)),
+    ])));
     // A clause may state a Wrapping or Saturating operation directly
     // (`requires left +% right == 3`). The rules say nothing of what one
     // computes, at any depth of the compared term, so a goal over one has no
@@ -3471,7 +3468,14 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
 }
 
 fn case_of(case: usize, fields: Vec<(usize, Expression)>) -> Expression {
-    of_type(ExpressionKind::Case { case, fields, erased: Vec::new() }, shape())
+    of_type(
+        ExpressionKind::Case {
+            case,
+            fields,
+            erased: Vec::new(),
+        },
+        shape(),
+    )
 }
 
 /// The `u32` payload field `field` of case `case` of the sum `base` names.
@@ -3670,10 +3674,7 @@ fn payloads_of_two_cases_under_one_sum_overlap() {
     let of = |place| crate::places::lineage(id(1), &places, place).unwrap();
     let may = |left, right| {
         let forward = crate::places::overlap(&of(left), &of(right));
-        assert_eq!(
-            forward,
-            crate::places::overlap(&of(right), &of(left))
-        );
+        assert_eq!(forward, crate::places::overlap(&of(right), &of(left)));
         forward
     };
     assert!(may(at, l));
@@ -6443,9 +6444,7 @@ mod generic_bodies {
     //     { Selected::apply(start) + 1 }
     use super::*;
     use crate::ProofSearchActivity;
-    use crate::{
-        Carried, CarriedForm, Selection, discharge_carrying, reverify_specialization,
-    };
+    use crate::{Carried, CarriedForm, Selection, discharge_carrying, reverify_specialization};
 
     /// The result pseudo-value of a machine with one scalar formal.
     fn result_at_most(value: u128) -> Proposition {
@@ -6604,6 +6603,7 @@ mod generic_bodies {
         specializations.push(Some(template));
         specializations.push(None);
         TerminalCompilation::Prepared(PreparedCompilation {
+            root_purpose: terminal_check_tables::RootPurpose::Execution,
             arrivals: Vec::new(),
             closure: Ok(closure),
             further: Vec::new(),
@@ -6629,8 +6629,7 @@ mod generic_bodies {
                 prepared_refinement(selections, double(), lower(vec![witness(), double()]));
             let mut activity = crate::ProofSearchActivity::default();
             let before = activity.started();
-            let verdicts =
-                crate::verdict::judge_compilation_with_activity(prepared, &mut activity);
+            let verdicts = crate::verdict::judge_compilation_with_activity(prepared, &mut activity);
             assert_eq!(verdicts.len(), 3);
             assert!(
                 verdicts
@@ -6660,8 +6659,7 @@ mod generic_bodies {
             detail: "refinement unavailable".to_owned(),
             obligation: None,
         };
-        let verdicts =
-            crate::judge_compilation(prepared_refinement(2, double(), Err(refused)));
+        let verdicts = crate::judge_compilation(prepared_refinement(2, double(), Err(refused)));
         assert_eq!(verdicts.len(), 3);
         assert!(matches!(
             &verdicts[2],

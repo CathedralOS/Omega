@@ -2,18 +2,27 @@
 //! borrow preserves the selection. Another choice over the same homes can
 //! independently select a different one.
 
+use semantic_vocabulary::PlaceId;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use terminal_psi::StructuralPathSegment as Segment;
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(super) enum Allocation {
+    Private(usize),
+    ExclusiveInput(usize),
+    SharedInput(PlaceId),
+}
+
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Home {
-    pub allocation: usize,
+    pub allocation: Allocation,
     pub path: Vec<Segment>,
 }
 
 #[derive(Clone)]
 enum Root {
-    Allocation(usize),
+    Allocation(Allocation),
     Choice(Rc<[Home]>),
 }
 
@@ -28,25 +37,47 @@ impl PartialEq for Root {
 }
 impl Eq for Root {}
 
-#[derive(Clone, PartialEq, Eq)]
+// A copied choice denotes the same selection; another selection over the
+// same candidates can pick differently. Hash the same identity that Eq uses.
+impl Hash for Root {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        match self {
+            Self::Allocation(home) => home.hash(state),
+            Self::Choice(homes) => Rc::as_ptr(homes).cast::<Home>().hash(state),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(in super::super) struct Location {
     root: Root,
     pub(super) path: Vec<Segment>,
 }
 
 impl Location {
-    pub(super) fn allocation(id: usize) -> Self {
+    pub(super) fn allocation(id: Allocation) -> Self {
         Self {
             root: Root::Allocation(id),
             path: Vec::new(),
         }
     }
 
+    pub(in super::super) fn input(place: PlaceId) -> Self {
+        Self::allocation(Allocation::SharedInput(place))
+    }
+
+    pub(in super::super) fn includes_shared(&self) -> bool {
+        let mut shared = false;
+        self.each_home(|home, _| shared |= matches!(home, Allocation::SharedInput(_)));
+        shared
+    }
+
     pub(super) fn is_choice(&self) -> bool {
         matches!(self.root, Root::Choice(_))
     }
 
-    pub(super) fn each_home(&self, mut visit: impl FnMut(usize, &[Segment])) {
+    pub(super) fn each_home(&self, mut visit: impl FnMut(Allocation, &[Segment])) {
         match &self.root {
             Root::Allocation(n) => visit(*n, &self.path),
             Root::Choice(homes) => {

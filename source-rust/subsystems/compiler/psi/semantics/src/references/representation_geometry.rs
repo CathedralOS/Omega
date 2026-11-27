@@ -104,40 +104,11 @@ pub fn reference_view_compatible(
     if *access != terminal_psi::StructuralAccess::SharedBorrow && !total(source)? {
         return Err("writable reference view cannot preserve the source's validity");
     }
-    let mut pending = vec![source, *referent];
-    let mut visited = Vec::new();
-    let mut applications = Vec::<&TargetLayoutApplication>::new();
-    while let Some(carrier) = pending.pop() {
-        match visited.binary_search(&carrier) {
-            Ok(_) => continue,
-            Err(at) => visited.insert(at, carrier),
-        }
-        let declaration = module
-            .structural_type(carrier)
-            .ok_or("reference geometry lost its declaration")?;
-        match &declaration.shape {
-            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-            StructuralTypeShape::Reference { referent, .. } => pending.push(*referent),
-            StructuralTypeShape::Record { fields, storage } => {
-                if let StructuralRecordStorage::TargetLayout(id) = storage {
-                    let application = module
-                        .layouts.target_layout_applications
-                        .iter()
-                        .find(|row| row.id == *id && row.record == carrier)
-                        .ok_or("reference geometry lost its exact layout application")?;
-                    applications.push(application);
-                }
-                pending.extend(
-                    fields
-                        .iter()
-                        .filter(|field| !field.relevance.is_erased())
-                        .filter_map(|field| field.field_type.as_structural()),
-                );
-            }
-            _ => {}
-        }
-    }
-    let Some(first) = applications.first() else {
+    let ViewLayouts {
+        inputs,
+        applications,
+    } = view_layouts(module, source, *referent)?;
+    let Some(inputs) = inputs else {
         return Ok(
             ReferenceStorageGeometry::new(module.types.structural_types.iter(), |application| {
                 Err(StorageGeometryError::UnresolvedExtent(application))
@@ -145,14 +116,19 @@ pub fn reference_view_compatible(
             .view_source_compatible(source, path, reference, stored),
         );
     };
-    if first.target_inputs.is_empty()
-        || applications
-            .iter()
-            .any(|row| row.target_inputs != first.target_inputs)
-    {
-        return Err("reference geometry has no common complete layout input roster");
-    }
-    for input in &first.target_inputs {
+    for input in inputs {
+        let records = RetainedLayout { module, input };
+        for application in &applications {
+            if !application.target_inputs.contains(input)
+                || records
+                    .realization(application.record, application.id)
+                    .is_err()
+            {
+                return Err(
+                    "reference view lacks a matching target realization for a required record layout",
+                );
+            }
+        }
         // The source's enclosing record can contain sums or descriptors beside
         // the projected field. Their geometry belongs to this same retained
         // target, even when only the viewed record has a selected layout.
@@ -163,12 +139,92 @@ pub fn reference_view_compatible(
                 Err(StorageGeometryError::UnresolvedExtent(application))
             })
             .with_target_carriers(Some(carriers))
-            .with_record_storage(RetainedLayout { module, input });
+            .with_record_storage(records);
         if !geometry.view_source_compatible(source, path, reference, stored) {
             return Ok(false);
         }
     }
     Ok(true)
+}
+
+struct ViewLayouts<'a> {
+    inputs: Option<&'a [TargetLayoutInput]>,
+    applications: Vec<&'a TargetLayoutApplication>,
+}
+
+/// The outermost policies on either side establish the targets for this view.
+/// A nested record can also appear independently on another target; every
+/// nested policy must cover the outer targets in full.
+fn view_layouts(
+    module: &TerminalModule,
+    source: StructuralTypeId,
+    referent: StructuralTypeId,
+) -> Result<ViewLayouts<'_>, &'static str> {
+    let mut pending = vec![(source, true), (referent, true)];
+    let mut visited = Vec::new();
+    let mut inputs: Option<&[TargetLayoutInput]> = None;
+    let mut applications = Vec::new();
+    while let Some((carrier, mut outer)) = pending.pop() {
+        match visited.binary_search(&(carrier, outer)) {
+            Ok(_) => continue,
+            Err(at) => visited.insert(at, (carrier, outer)),
+        }
+        let declaration = module
+            .structural_type(carrier)
+            .ok_or("reference geometry lost its declaration")?;
+        let (fields, cases) = match &declaration.shape {
+            StructuralTypeShape::FixedArray { element, .. } => {
+                pending.push((*element, outer));
+                continue;
+            }
+            StructuralTypeShape::Reference { referent, .. } => {
+                pending.push((*referent, outer));
+                continue;
+            }
+            StructuralTypeShape::Record { fields, storage } => {
+                if let StructuralRecordStorage::TargetLayout(id) = storage {
+                    let application = module
+                        .layouts
+                        .target_layout_applications
+                        .iter()
+                        .find(|row| row.id == *id && row.record == carrier)
+                        .ok_or("reference geometry lost its exact layout application")?;
+                    if application.target_inputs.is_empty() {
+                        return Err(
+                            "reference view requires target facts for a deferred record layout",
+                        );
+                    }
+                    if outer {
+                        let targets = application.target_inputs.as_slice();
+                        if inputs.is_some_and(|expected| expected != targets) {
+                            return Err(
+                                "reference view layouts were prepared for different target inputs",
+                            );
+                        }
+                        inputs = Some(targets);
+                        outer = false;
+                    }
+                    applications.push(application);
+                }
+                (fields.as_slice(), &[][..])
+            }
+            StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),
+            StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases.as_slice()),
+            _ => continue,
+        };
+        pending.extend(
+            fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| &case.fields))
+                .filter(|field| !field.relevance.is_erased())
+                .filter_map(|field| field.field_type.as_structural())
+                .map(|child| (child, outer)),
+        );
+    }
+    Ok(ViewLayouts {
+        inputs,
+        applications,
+    })
 }
 
 struct RetainedLayout<'module> {
@@ -564,6 +620,79 @@ mod tests {
         assert_eq!(
             reference_view_compatible(&module, ty(3), &[], ty(5), None),
             Err("reference view requires target validity not established by its source bits")
+        );
+    }
+
+    #[test]
+    fn nested_layouts_must_cover_each_outer_target_with_its_exact_geometry() {
+        let mut module = two_target_record_module();
+        let StructuralTypeShape::Record { fields, .. } =
+            &mut module.types.structural_types[2].shape
+        else {
+            unreachable!()
+        };
+        let mut nested_field = fields[0].clone();
+        nested_field.id = StructuralFieldId::new(3).unwrap();
+        nested_field.identity = TerminalIdentityIndex(3);
+        let nested_field_id = nested_field.id;
+        fields[0].field_type = StructuralFieldType::Structural(ty(6));
+        let nested_id = LayoutApplicationId(2);
+        module.types.structural_types.push(declaration(
+            6,
+            StructuralTypeShape::Record {
+                fields: vec![nested_field],
+                storage: StructuralRecordStorage::TargetLayout(nested_id),
+            },
+        ));
+        let outer = &mut module.layouts.target_layout_applications[0];
+        let mut nested = outer.clone();
+        nested.record = ty(6);
+        nested.schema = ty(6);
+        nested.id = nested_id;
+        for realization in &mut nested.realizations {
+            realization.storage.byte_size = 8;
+            realization.fields.truncate(1);
+            realization.fields[0].field = nested_field_id;
+            realization.fields[0].storage = AuthoredFieldStorage::Direct { byte_offset: 0 };
+        }
+        outer.target_inputs.truncate(1);
+        outer.realizations.truncate(1);
+        module.layouts.target_layout_applications.push(nested);
+        // The second deployment selects the nested record independently.
+        assert_eq!(
+            reference_view_compatible(&module, ty(3), &[], ty(5), None),
+            Ok(true)
+        );
+        // The same nested record as a separate outer operand owes its own
+        // target set. The intersection of the two sets cannot establish it.
+        assert!(matches!(
+            view_layouts(&module, ty(3), ty(6)),
+            Err("reference view layouts were prepared for different target inputs")
+        ));
+
+        let nested = &mut module.layouts.target_layout_applications[1];
+        nested.realizations[0].pointer_alignment = 4;
+        assert_eq!(
+            reference_view_compatible(&module, ty(3), &[], ty(5), None),
+            Err("reference view lacks a matching target realization for a required record layout")
+        );
+        let nested = &mut module.layouts.target_layout_applications[1];
+        nested.target_inputs.remove(0);
+        assert_eq!(
+            reference_view_compatible(&module, ty(3), &[], ty(5), None),
+            Err("reference view lacks a matching target realization for a required record layout")
+        );
+    }
+
+    #[test]
+    fn a_deferred_record_layout_cannot_establish_a_byte_view() {
+        let mut module = two_target_record_module();
+        let layout = &mut module.layouts.target_layout_applications[0];
+        layout.target_inputs.clear();
+        layout.realizations.clear();
+        assert_eq!(
+            reference_view_compatible(&module, ty(3), &[], ty(5), None),
+            Err("reference view requires target facts for a deferred record layout"),
         );
     }
 

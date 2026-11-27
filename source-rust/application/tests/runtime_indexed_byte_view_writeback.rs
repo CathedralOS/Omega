@@ -2,7 +2,7 @@
 mod project;
 mod support;
 
-use project::omega;
+use project::{build_and_run, omega};
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -19,26 +19,19 @@ fn report(output: &process::Output) -> String {
 }
 
 fn run_and_reopen(project: &Path) -> String {
-    let interpreted = omega(project, &["run", "--engine", "psi", "build.omg"]);
+    let interpreted = omega(project, &["run", "--keep", "build.omg"]);
     let psi = report(&interpreted);
     assert!(
         interpreted.status.success() && psi.lines().any(|line| line == "Psi exit 0"),
         "{psi}"
     );
-    let output = omega(
-        project,
-        &["run", "--engine", "native", "--keep", "build.omg"],
-    );
-    let run = report(&output);
-    assert!(
-        output.status.success() && run.lines().any(|line| line == "native exit 0"),
-        "{run}"
-    );
+    let compiled = build_and_run(project, &["build.omg"]);
+    assert!(compiled.status.success(), "{}", report(&compiled));
 
-    let kept = run
+    let kept = psi
         .lines()
         .find_map(|line| line.strip_prefix("build dir kept: "))
-        .expect("the native run keeps the product containing its input Psi");
+        .expect("run --keep saves the interpreted Psi");
     let artifact = Path::new(kept).join("program.oterm");
     let output = omega(
         project,

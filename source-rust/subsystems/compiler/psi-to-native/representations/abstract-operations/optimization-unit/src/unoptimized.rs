@@ -3,14 +3,13 @@ Target lowering receives the abstract program Stage 02 lowered, unchanged: the
 receiving native lowerer does not rerun Psi passes
 (`wiki/spec/terminal-psi/product.md#optimization-ordering`), and no optimization
 runs on abstract operations. `OptimizedAbstractProgram::unoptimized` pairs the
-plan with its unit and issues the three identities stages 04 to 08 and image
-emission compare: the optimization identity, the plan projection and the
-pre-physical manifest identity.
+plan with its unit, the build's selections and the per-pass budget.
 
-Each identity digests only what it binds, because nothing runs between the
-unit and target lowering: the selections, the Terminal program and the unit,
-and the per-pass budget. The archived native optimizer that issued them from a
-rule set, decision log and transformation ledger is under
+Later stages compare those inputs directly: the unit identity, which already
+digests the Terminal program and its work schedule, the selection identity and
+the budget. The archived native optimizer, which issued separate optimization,
+projection and manifest identities from a rule set, decision log and
+transformation ledger, is under
 `_recycling/source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/`.
 */
 
@@ -18,9 +17,7 @@ use std::sync::Arc;
 
 use abstract_operations::AbstractOperationPlan;
 use optimization_core::{
-    OptimizationExecutionPhase, OptimizationIdentityBundleIdentity, OptimizationSelections,
-    OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
-    PrePhysicalOptimizationManifestIdentity,
+    OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
 };
 
 use crate::{OptimizedAbstractProgram, PsiOptimizationUnit};
@@ -60,46 +57,11 @@ impl OptimizedAbstractProgram {
         if unit.psi != plan.psi || unit.entry != plan.entry {
             return Err(UnoptimizedAbstractProgramError::UnitDetachedFromPlan);
         }
-        let optimization = OptimizationIdentityBundleIdentity::from_canonical_bytes(
-            &selections.identity().bytes(),
-        );
-        let projection = projection_identity(&unit, &selections);
-        let pre_physical_manifest = manifest_identity(projection, &selections, budget_per_pass);
         Ok(Self {
             plan,
             unit,
             selections,
             budget_per_pass,
-            optimization,
-            projection,
-            pre_physical_manifest,
         })
     }
-}
-
-/// The projection binds the Terminal program, its work schedule and the unit
-/// target lowering reads to the selections it was lowered under.
-fn projection_identity(
-    unit: &PsiOptimizationUnit,
-    selections: &OptimizationSelections,
-) -> OptimizedAbstractPlanProjectionIdentity {
-    let mut canonical = Vec::with_capacity(102);
-    canonical.extend_from_slice(&unit.psi.vocabulary_marker.get().to_le_bytes());
-    canonical.extend_from_slice(unit.psi.program_fingerprint.as_bytes());
-    canonical.extend_from_slice(&unit.work_schedule.marker().to_le_bytes());
-    canonical.extend_from_slice(&unit.identity.bytes());
-    canonical.extend_from_slice(&selections.identity().bytes());
-    OptimizedAbstractPlanProjectionIdentity::from_canonical_bytes(&canonical)
-}
-
-fn manifest_identity(
-    projection: OptimizedAbstractPlanProjectionIdentity,
-    selections: &OptimizationSelections,
-    budget_per_pass: OptimizationWorkBudget,
-) -> PrePhysicalOptimizationManifestIdentity {
-    let mut canonical = Vec::with_capacity(96);
-    canonical.extend_from_slice(&projection.bytes());
-    canonical.extend_from_slice(&selections.identity().bytes());
-    canonical.extend_from_slice(&budget_per_pass.encode());
-    PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(&canonical)
 }

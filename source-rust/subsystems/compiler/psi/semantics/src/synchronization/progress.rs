@@ -10,6 +10,14 @@ use semantic_vocabulary::{
 };
 use terminal_psi::ValueDeclaration;
 
+/// An independent export can leave facts about storage received from its
+/// caller open. An executable must establish them before entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgressScope {
+    OpenInterface,
+    Executable,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgressFailure {
     /// Every retry observes a value that keeps the wait blocked.
@@ -17,6 +25,34 @@ pub enum ProgressFailure {
     /// A private cell has no other writer and its first observation could
     /// block. No available fact excludes the retry.
     Unproved,
+    /// The activation borrows this resource and has no admitted enabler.
+    UnprovedExternal,
+    /// This receiving call did not establish the selected supplier's progress condition.
+    UnprovedImport,
+    /// A preceding opaque call left the inputs of a reachable wait unproved.
+    UnprovedContinuation,
+}
+
+impl ProgressFailure {
+    pub fn detail(self) -> &'static str {
+        match self {
+            Self::Deadlock => {
+                "the wait keeps retrying on unchanged private atomic storage and no other participant can release it"
+            }
+            Self::Unproved => {
+                "the observed values may keep the wait blocked and no other participant can change the deciding private storage"
+            }
+            Self::UnprovedContinuation => {
+                "a preceding provider call leaves the later wait without checked storage or enabling evidence"
+            }
+            Self::UnprovedImport => {
+                "the receiving call has no checked discharge of the selected supplier's progress condition"
+            }
+            Self::UnprovedExternal => {
+                "the wait depends on supplied storage and no checked or admitted action establishes progress"
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +62,25 @@ pub struct PrivateWaitFailure {
     pub cause: ProgressFailure,
 }
 
+impl std::fmt::Display for PrivateWaitFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let header = match self.cause {
+            ProgressFailure::Deadlock => "synchronization deadlock",
+            ProgressFailure::Unproved
+            | ProgressFailure::UnprovedExternal
+            | ProgressFailure::UnprovedImport
+            | ProgressFailure::UnprovedContinuation => "cannot prove synchronization progress",
+        };
+        write!(
+            f,
+            "{header} in machine {} at operation {}: {}",
+            self.machine.get(),
+            self.operation.get(),
+            self.cause.detail()
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ScalarFact {
     Literal(Scalar),
@@ -33,6 +88,13 @@ pub(super) enum ScalarFact {
 }
 
 impl ScalarFact {
+    pub(super) fn literal(self) -> Option<Scalar> {
+        match self {
+            Self::Literal(value) => Some(value),
+            Self::EntryInput(_) => None,
+        }
+    }
+
     pub fn ty(self) -> ScalarType {
         match self {
             Self::Literal(value) => value.scalar_type(),
@@ -122,25 +184,38 @@ impl SpinCondition {
     pub(super) fn failure(
         self,
         initial: Option<ScalarFact>,
-        update: CellUpdate,
+        pivot_input: Option<ValueDeclaration>,
+        update: Option<CellUpdate<ScalarFact>>,
         requires: &[Proposition],
     ) -> Option<ProgressFailure> {
-        if let Some(ScalarFact::Literal(value)) = initial
-            && let Some(blocked) = self.matches(value)
+        // An entry argument is equal to itself even when its bits are unknown.
+        let blocks = |value| match value {
+            ScalarFact::Literal(value) => self.matches(value),
+            ScalarFact::EntryInput(input)
+                if Some(input) == pivot_input && self.comparison.mask.is_none() =>
+            {
+                Some(self.accepts(std::cmp::Ordering::Equal))
+            }
+            _ => None,
+        };
+        if let Some(initial) = initial
+            && let Some(first) = blocks(initial)
         {
-            if !blocked {
+            if !first {
                 return None;
             }
-            if let Some(retries) = self.matches(update.apply(value)) {
+            if let Some(retries) = update.and_then(|u| u.next(initial)).and_then(blocks) {
                 return retries.then_some(ProgressFailure::Deadlock);
             }
         }
-        // If the test blocks only on one word, the first update determines
-        // the next observation even when the starting value is unknown.
-        let only_blocked = self.sole_blocked_value();
+        // A unique blocked word allows the first retry to determine the next
+        // observation even when the resident at entry is unknown.
+        let only_blocked = self.sole_blocked_value().map(ScalarFact::Literal);
         if self.excludes_every_word()
-            || only_blocked.is_some_and(|value| self.matches(update.apply(value)) == Some(false))
-            || matches!(update, CellUpdate::Replace(value) if self.matches(value) == Some(false))
+            || only_blocked.is_some_and(|prior| {
+                update.and_then(|u| u.next(prior)).and_then(blocks) == Some(false)
+            })
+            || matches!(update, Some(CellUpdate::Replace(value)) if blocks(value) == Some(false))
             || matches!(initial, Some(ScalarFact::EntryInput(input)) if self.input_enabled(input, requires))
         {
             return None;

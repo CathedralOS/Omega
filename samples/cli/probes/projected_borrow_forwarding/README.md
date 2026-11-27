@@ -8,9 +8,11 @@ disjoint borrows must preserve each element's independent permission.
 After ordinary package review, run:
 
 ```sh
-omega run --engine native samples/cli/collections/projected_borrow_forwarding/main.omg
-omega run --engine psi samples/cli/collections/projected_borrow_forwarding/main.omg
+omega run samples/cli/collections/projected_borrow_forwarding/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/projected_borrow_forwarding` from the repository root.
 
 The native and Terminal runs both return 0 on macOS ARM64. The regression
 fixtures also put extraction directly in a stateful entry, transfer nested rows

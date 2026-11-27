@@ -54,13 +54,13 @@ innovation and variance. Output is an artifact suitable for redirection:
 
 ```sh
 OMEGA=/absolute/path/to/omega
-SAMPLE=samples/cli/independent/bounded_state_estimation
+SAMPLE=samples/cli/scientific/bounded_state_estimation
 "$OMEGA" update --project "$SAMPLE" --target linux_x86_64
 # Read the produced package review, accept its entry binding, then:
 "$OMEGA" update --project "$SAMPLE" --resume
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/main.omg"
 "$OMEGA" run --keep "$SAMPLE/main.omg" < "$SAMPLE/data/missing_middle.txt" > trace.txt
-"$OMEGA" run --both --keep "$SAMPLE/main.omg" < "$SAMPLE/data/velocity_correction.txt"
+"$OMEGA" run --keep "$SAMPLE/main.omg" < "$SAMPLE/data/velocity_correction.txt"
 "$OMEGA" --check "$SAMPLE/intended_invalid/invalid_index.omg"
 ```
 
@@ -68,7 +68,7 @@ The last command must reject an out-of-bounds covariance index, independently of
 runtime errors. This is a complete separately built intended-invalid project.
 Validation retains commands, exits, stdout, stderr and binary/oracle hashes in
 `build/validation/`. Both native and Terminal comparisons are run sequentially.
-The documented `--both` interface checks termination agreement; it does not
+The documented the native/Psi comparison interface checks termination agreement; it does not
 compare interpreter trace bytes.
 
 `expected.json` was frozen before Omega execution. Validation never regenerates

@@ -11,9 +11,11 @@ write capability, not an allocator implementation or complete Squalr port.
 
 ```sh
 omega packages update --project samples/cli/collections/partitioned_scan_output --target macos_arm64 --offline --dangerously-accept-all
-omega run --engine native samples/cli/collections/partitioned_scan_output/main.omg
-omega run --engine psi samples/cli/collections/partitioned_scan_output/main.omg
+omega run samples/cli/collections/partitioned_scan_output/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/partitioned_scan_output` from the repository root.
 
 The stored count's exact increment follows from
 `partitions[selected].count < partitions[selected].values.length`. Writing one

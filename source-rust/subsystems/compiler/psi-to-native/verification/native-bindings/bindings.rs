@@ -262,12 +262,42 @@ impl<'input> CheckedNativeBinding<'input> {
         if identities.text(origin.requirement_identity) != Some(callable) {
             return Err("receipt designates another exact requirement".into());
         }
-        let mut methods = row
-            .schema
-            .declaration
-            .methods
-            .iter()
-            .filter(|method| row.schema.identity_text(method.requirement_identity) == callable);
+        let schema_callable = match &declaration.source.specialization {
+            Some(application) => {
+                if application.capture.is_some()
+                    || application.template != application.template_entry
+                    || declaration.method_arguments.is_empty()
+                {
+                    return Err("specialized native requirement lost its closed application".into());
+                }
+                let abi = module.calling_abi_identity(row.boundary)?;
+                if !declaration.matches_calling_abi(&module.identities, &abi)? {
+                    return Err(
+                        "specialized native requirement does not match its template ABI".into(),
+                    );
+                }
+                module
+                    .identities
+                    .text(application.template_callable)
+                    .filter(|text| !text.is_empty())
+                    .ok_or_else(|| {
+                        "specialized native requirement lost its template callable identity"
+                            .to_owned()
+                    })?
+            }
+            None => {
+                if !declaration.method_arguments.is_empty() {
+                    return Err(
+                        "unspecialized native requirement carried unexpected static arguments"
+                            .into(),
+                    );
+                }
+                callable
+            }
+        };
+        let mut methods = row.schema.declaration.methods.iter().filter(|method| {
+            row.schema.identity_text(method.requirement_identity) == schema_callable
+        });
         let method = methods
             .next()
             .filter(|_| methods.next().is_none())
@@ -287,13 +317,24 @@ impl<'input> CheckedNativeBinding<'input> {
         if method.may_block != declaration.source.published_may_block {
             return Err("native requirement changes its declared blocking behavior".into());
         }
-        validate_native_declared_types(
-            method,
-            &declaration.source.parameter_types,
-            declaration.source.result_type,
-            &boundary.result,
-            &module.identities,
-        )?;
+        if declaration.source.specialization.is_some() {
+            validate_specialized_native_declared_types(
+                &row.schema,
+                method,
+                &declaration.source.parameter_types,
+                declaration.source.result_type,
+                &boundary.result,
+                &module.identities,
+            )?;
+        } else {
+            validate_native_declared_types(
+                method,
+                &declaration.source.parameter_types,
+                declaration.source.result_type,
+                &boundary.result,
+                &module.identities,
+            )?;
+        }
         Ok(Self {
             caller_stack_bytes: method.admitted_same_stack_bytes,
             row,
@@ -329,15 +370,58 @@ fn validate_native_declared_types(
                 .ok_or_else(|| format!("native parameter {ordinal} lost its exact declared type"))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let result = identities
+    let result_text = identities
         .text(result_type)
         .filter(|identity| !identity.is_empty())
         .ok_or("native result lost its exact declared type")?;
-    let signature = service_surface::declared_type_signature(parameters.iter().copied(), result)?;
+    let signature =
+        service_surface::declared_type_signature(parameters.iter().copied(), result_text)?;
     if method.declared_type_signature == [0; 32] || method.declared_type_signature != signature {
         return Err(format!(
-            "native declared types differ from their authenticated service signature (parameters {parameters:?}, result `{result}`)"
+            "native declared types differ from their authenticated service signature (parameters {parameters:?}, result `{result_text}`)"
         ));
+    }
+    Ok(())
+}
+
+fn validate_specialized_native_declared_types(
+    schema: &ServiceSchema,
+    method: &build_providers::plans::ServiceMethod,
+    parameter_types: &[terminal_psi::TerminalIdentityIndex],
+    result_type: terminal_psi::TerminalIdentityIndex,
+    result: &terminal_psi::BoundaryMachineResult,
+    identities: &TerminalIdentityTable,
+) -> Result<(), String> {
+    if method.parameter_count != parameter_types.len()
+        || method.parameter_type_identities.len() != method.parameter_count
+    {
+        return Err("native requirement changes its declared parameter roster".into());
+    }
+    if !method.has_result && (!result.is_unit() || method.result_type_identity.is_valid()) {
+        return Err("native requirement with an omitted result must retain exact Unit".into());
+    }
+    for (ordinal, identity) in parameter_types.iter().enumerate() {
+        identities
+            .text(*identity)
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| format!("native parameter {ordinal} lost its exact declared type"))?;
+    }
+    identities
+        .text(result_type)
+        .filter(|identity| !identity.is_empty())
+        .ok_or("native result lost its exact declared type")?;
+    for (ordinal, &identity) in method.parameter_type_identities.iter().enumerate() {
+        if schema.identity_text(identity).is_empty() {
+            return Err(format!(
+                "specialized native parameter {ordinal} lost its template type"
+            ));
+        }
+    }
+    if method.has_result && schema.identity_text(method.result_type_identity).is_empty() {
+        return Err("specialized native result lost its template type".into());
+    }
+    if method.declared_type_signature == [0; 32] {
+        return Err("specialized native template lost its authenticated service signature".into());
     }
     Ok(())
 }
@@ -362,7 +446,8 @@ fn validate_native_calling(
     let abi = module.calling_abi_identity(row.boundary)?;
     if application.abi != abi
         || application.target != profile.native_target()
-        || (application.dispatch_only_formal.is_some() && !matches!(row.binding, EvaluatedNativeBinding::FunctionField(_)))
+        || (application.dispatch_only_formal.is_some()
+            && !matches!(row.binding, EvaluatedNativeBinding::FunctionField(_)))
     {
         return Err("calling application changed its exact ABI, target or dispatch".into());
     }
@@ -473,15 +558,28 @@ pub fn validate_native_binding_realization(
         (
             EvaluatedNativeBinding::FunctionField(field),
             target_vocabulary::NormalizedForeignCallMechanism::Table {
-                target, byte_offset, table_operand, dispatch_only,
-                source: target_vocabulary::TableBindingSource::BuildBinding { stack, receipt, requirement_identity },
+                target,
+                byte_offset,
+                table_operand,
+                dispatch_only,
+                source:
+                    target_vocabulary::TableBindingSource::BuildBinding {
+                        stack,
+                        receipt,
+                        requirement_identity,
+                    },
             },
         ) => {
-            let boundary = module.boundary_machine(row.boundary).ok_or("function field lost its exact declaration")?;
+            let boundary = module
+                .boundary_machine(row.boundary)
+                .ok_or("function field lost its exact declaration")?;
             let dispatch = function_field_dispatch(module, boundary, field, application)?;
-            *stack == contract.caller_stack(execution)? && *target == profile && *receipt == execution.receipt()
+            *stack == contract.caller_stack(execution)?
+                && *target == profile
+                && *receipt == execution.receipt()
                 && module.identities.text(boundary.identity) == Some(requirement_identity.as_str())
-                && *byte_offset == dispatch.byte_offset && *table_operand == dispatch.table_operand
+                && *byte_offset == dispatch.byte_offset
+                && *table_operand == dispatch.table_operand
                 && *dispatch_only == dispatch.dispatch_only
         }
         (
@@ -567,9 +665,10 @@ fn validate_native_geometry(
             .shapes
             .get(usize::from(root))
             .ok_or("native descriptor has no retained value shape")?;
-        let geometry =
-            calling_conventions::terminal_layout::NativeGeometry::new(&module.types.structural_types)
-                .map_err(|error| format!("native type catalog: {error:?}"))?;
+        let geometry = calling_conventions::terminal_layout::NativeGeometry::new(
+            &module.types.structural_types,
+        )
+        .map_err(|error| format!("native type catalog: {error:?}"))?;
         let referent = match shape.shape {
             terminal_psi::StructuralTypeShape::Reference { referent, .. } => module
                 .structural_type(referent)
@@ -1044,5 +1143,75 @@ mod tests {
             }
             assert!(validate_schema_declaration(&changed, checked).is_err());
         }
+    }
+
+    #[test]
+    fn specialized_native_declared_types_check_template_roster_and_signature() {
+        let mut surface = ServiceSurface::default();
+        let u64_template = surface.identities.intern("u64");
+        let array_template = surface.identities.intern("@[u8; $T0]");
+        let mut method = ServiceMethod {
+            parameter_count: 2,
+            parameter_type_identities: vec![u64_template, array_template],
+            has_result: true,
+            result_type_identity: u64_template,
+            declared_type_signature: service_surface::declared_type_signature(
+                ["u64", "@[u8; $T0]"].into_iter(),
+                "u64",
+            )
+            .unwrap(),
+            ..Default::default()
+        };
+        let schema = ServiceSchema::from_declaration(Arc::new(surface));
+        let mut identities = TerminalIdentityTableBuilder::default();
+        let u64_applied = identities.intern("u64");
+        let array_applied = identities.intern("@[u8; 16]");
+        let result = terminal_psi::BoundaryMachineResult::Scalar(
+            semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .unwrap(),
+            )
+            .into(),
+        );
+        validate_specialized_native_declared_types(
+            &schema,
+            &method,
+            &[u64_applied, array_applied],
+            u64_applied,
+            &result,
+            identities.as_table(),
+        )
+        .unwrap();
+        // Zero signature must be rejected.
+        method.declared_type_signature = [0; 32];
+        assert!(
+            validate_specialized_native_declared_types(
+                &schema,
+                &method,
+                &[u64_applied, array_applied],
+                u64_applied,
+                &result,
+                identities.as_table(),
+            )
+            .unwrap_err()
+            .contains("authenticated service signature")
+        );
+        // Parameter count mismatch must be rejected.
+        method.declared_type_signature = [1; 32];
+        assert!(
+            validate_specialized_native_declared_types(
+                &schema,
+                &method,
+                &[u64_applied],
+                u64_applied,
+                &result,
+                identities.as_table(),
+            )
+            .unwrap_err()
+            .contains("parameter roster")
+        );
     }
 }

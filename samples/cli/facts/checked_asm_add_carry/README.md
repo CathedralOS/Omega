@@ -57,7 +57,7 @@ four-hosted-target form.
   The row does not claim hardware-effect retirement.
 - **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the addition lowers to
   ordinary wrapping addition plus the width-total flag image. Terminal
-  execution consumes those operations. `omega run --both` reports native exit
+  execution consumes those operations. The native/Psi comparison reports native exit
   0 and interp exit 0 on every positive place.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
   hosted x86-64 `ProgramEntry` rows select the body. The snapshot is an
@@ -79,7 +79,7 @@ grew an addition contract. The source and the 85-under-2261 oracle were frozen
 first.
 
 After the repair, on Linux 6.12.94+ x86_64, the root and all nine places
-completed `omega run --both` with native exit 0 and interp exit 0. All ten
+completed the native/Psi comparison with native exit 0 and interp exit 0. All ten
 reject twins, including the root, failed `omega --check` with `cannot prove`
 on the broken image. The producer was the optimized dev build of this repair.
 

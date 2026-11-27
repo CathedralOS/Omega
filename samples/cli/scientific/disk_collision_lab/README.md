@@ -56,13 +56,13 @@ frozen output oracle can check both. Fixtures are actual stdin byte files.
 From the repository root, with a current compiler `OMEGA`:
 
 ```sh
-"$OMEGA" update --project samples/cli/independent/disk_collision_lab --target linux_x86_64
+"$OMEGA" update --project samples/cli/scientific/disk_collision_lab --target linux_x86_64
 # Read and accept the exact pending package decisions through the documented
 # review workflow, then use update --resume. Do not bypass denied acceptance.
-"$OMEGA" --check --target linux_x86_64 samples/cli/independent/disk_collision_lab/main.omg
-"$OMEGA" --target linux_x86_64 samples/cli/independent/disk_collision_lab/main.omg
-"$OMEGA" run --both samples/cli/independent/disk_collision_lab/main.omg < samples/cli/independent/disk_collision_lab/data/case_0.stdin
-"$OMEGA" --check samples/cli/independent/disk_collision_lab/controls/intended_invalid/main.omg
+"$OMEGA" --check --target linux_x86_64 samples/cli/scientific/disk_collision_lab/main.omg
+"$OMEGA" --target linux_x86_64 samples/cli/scientific/disk_collision_lab/main.omg
+"$OMEGA" run samples/cli/scientific/disk_collision_lab/main.omg < samples/cli/scientific/disk_collision_lab/data/case_0.stdin
+"$OMEGA" --check samples/cli/scientific/disk_collision_lab/controls/intended_invalid/main.omg
 ```
 
 The separate complete intended-invalid source writes a two-entry contact ledger
@@ -78,8 +78,8 @@ See `VALIDATION.md` for exact measured commands, revisions and remaining limits.
 For a host-local replay of all fifteen frozen inputs with one compilation per engine:
 
 ```sh
-omega run --engine native --inputs samples/cli/scientific/disk_collision_lab/data --outputs build/disk-collision-results-native samples/cli/scientific/disk_collision_lab/main.omg
-omega run --engine psi --inputs samples/cli/scientific/disk_collision_lab/data --outputs build/disk-collision-results-psi samples/cli/scientific/disk_collision_lab/main.omg
+omega run --inputs samples/cli/scientific/disk_collision_lab/data --outputs build/disk-collision-results-native samples/cli/scientific/disk_collision_lab/main.omg
+omega run --inputs samples/cli/scientific/disk_collision_lab/data --outputs build/disk-collision-results-psi samples/cli/scientific/disk_collision_lab/main.omg
 ```
 
 Malformed-input cases must return 2 with the exact invalid-input message. Generated child

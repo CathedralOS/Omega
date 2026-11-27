@@ -217,18 +217,37 @@ mod tests {
     // This metadata-only fixture declares one entry and no calls; it grants no
     // source admission or executable authority.
     fn execution(entry: MachineId) -> Option<target_vocabulary::NativeExecutionFacts> {
-        Some(target_vocabulary::NativeExecutionFacts::seal(target_vocabulary::NativeExecutionRoots {
-            psi: terminal_psi::TerminalPsiIdentity {
-                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
-                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
-            },
-            optimization_unit: optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"metadata fixture unit"),
-            work_schedule: semantic_vocabulary::WorkScheduleIdentity::new(1).unwrap(),
-            pre_physical: optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"metadata fixture prephysical"),
-            entry,
-        }, Arc::new(target_vocabulary::execution_facts::ReachableCallableInvocations {
-            roots: vec![entry], reached_machines: vec![entry], invocations: Vec::new(), inputs: Vec::new(),
-        }), Vec::new()).unwrap())
+        Some(
+            target_vocabulary::NativeExecutionFacts::seal(
+                target_vocabulary::NativeExecutionRoots {
+                    psi: terminal_psi::TerminalPsiIdentity {
+                        program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
+                        vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                    },
+                    optimization_unit:
+                        optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
+                            b"metadata fixture unit",
+                        ),
+                    work_schedule: semantic_vocabulary::WorkScheduleIdentity::new(1).unwrap(),
+                    selection: optimization_core::OptimizationSelectionIdentity::from_bytes(
+                        [3; 32],
+                    ),
+                    budget_per_pass: optimization_core::OptimizationWorkBudget::new(1, 1, 1, 1, 1)
+                        .unwrap(),
+                    entry,
+                },
+                Arc::new(
+                    target_vocabulary::execution_facts::ReachableCallableInvocations {
+                        roots: vec![entry],
+                        reached_machines: vec![entry],
+                        invocations: Vec::new(),
+                        inputs: Vec::new(),
+                    },
+                ),
+                Vec::new(),
+            )
+            .unwrap(),
+        )
     }
 
     #[test]
@@ -268,10 +287,7 @@ mod tests {
         let mut context = original.clone();
         let old = context.execution.as_ref().unwrap();
         let mut roots = old.roots();
-        roots.pre_physical =
-            optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
-                b"other preparation",
-            );
+        roots.selection = optimization_core::OptimizationSelectionIdentity::from_bytes([4; 32]);
         context.execution = Some(
             target_vocabulary::NativeExecutionFacts::seal(
                 roots,

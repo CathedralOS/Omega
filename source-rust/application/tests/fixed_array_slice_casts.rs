@@ -10,8 +10,7 @@
 
 #[path = "support/observations.rs"]
 mod observations;
-#[path = "support/project.rs"]
-mod project;
+use observations::project;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 
@@ -62,7 +61,7 @@ public machine main() {
 }
 ";
     let scratch = stage("bare-array-argument", main);
-    let (output, report) = observations::run(&scratch, &["run", "--engine", "psi"], &["build.omg"]);
+    let (output, report) = observations::run(&scratch, &["run"], &["build.omg"]);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("a reference to a fixed array is not a byte view"),
@@ -121,8 +120,7 @@ public machine main() {{
 "
         );
         let scratch = stage(name, &main);
-        let (output, report) =
-            observations::run(&scratch, &["run", "--engine", "psi"], &["build.omg"]);
+        let (output, report) = observations::run(&scratch, &["run"], &["build.omg"]);
         assert!(!output.status.success(), "{name}: {report}");
         assert!(
             report.contains("cannot prove operation safety"),

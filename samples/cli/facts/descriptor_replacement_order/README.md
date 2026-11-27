@@ -24,7 +24,7 @@ checks the original source but refuses native publication:
     replace::entry, statement 0:
     statement sequence: assignment: structural destination window
 
-Acceptance is `omega run --both <place>/main.omg` with authored exit 0.
+Acceptance is `mbx xtask sample-gate --filter samples/cli/facts/descriptor_replacement_order/<place>` with authored exit 0.
 Every place changes the first descriptor from backing 17 through an RHS write
 to backing 31, then installs the returned reference to 41. The untouched second
 descriptor still reads 19. The caller does not reconstruct this identity with
