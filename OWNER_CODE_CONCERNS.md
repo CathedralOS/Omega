@@ -83,14 +83,6 @@ framework or a list of unimplemented features.
 - Cost: each stage record carries three 32-byte fields and their comparisons, and a reader has to learn identities that no optimization run produces. A repair has stages 05–15 compare the selection identity, unit identity and budget directly and deletes the three identity types, or brings them back with a native optimization phase that changes the plan.
 - Reported: 2026-11-27, Claude Code, while archiving native stage 03; narrowed the same day after the empty optimizer records were deleted
 
-<a id="flattened-asm-regions-drop-their-target"></a>
-### Straight-line asm regions of place instructions lose their x86-64 requirement
-- Category: 6. A verdict with nothing behind it
-- Where: [`desugar` flattening](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/declarations/assembly/mod.rs#L315) and the [native reachability review](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_review/reachability.rs)
-- Saw: an `asm` region holding only `mov`/`ldr`/`str` or packed instructions over typed places becomes ordinary statements in stage 02, so the machine's `assembly_target_requirement` stays `Any`. The native reachability review now refuses packed integer operations on non-x86-64 targets by operation kind, but `--check --target linux_arm64` still accepts them and a flattened `mov` region keeps no target at all.
-- Cost: the catalog's target is enforced for packed instructions only at native admission, by a second rule beside the catalog.
-- Reported: 2026-11-26, Claude Code, while moving the SIMD library onto checked asm instructions.
-
 <a id="resuming-a-typing-from-retained-source-costs-more-than-typing-afresh"></a>
 ### Resuming a typing from retained source costs more than typing afresh
 - Category: 4. Re-deriving

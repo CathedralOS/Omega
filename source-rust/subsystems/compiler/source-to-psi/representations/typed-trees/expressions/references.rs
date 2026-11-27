@@ -2586,9 +2586,10 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
 }
 
 /// Machine-owned rows found by owner symbol. Specialization receipts carry
-/// their own instance index ([`crate::source_state::MachineSpecializations`]).
+/// their own instance index ([`crate::source_state::MachineSpecializations`]),
+/// and authored service ceilings are sorted by owner in their own table.
+#[derive(Default)]
 pub struct MachineSidecarIndex {
-    service_reaches: Vec<(SymbolHandle, u32)>,
     requirement_invocations: std::sync::OnceLock<
         Vec<(
             SymbolHandle,
@@ -2616,20 +2617,6 @@ fn sidecar_symbol_rows<Row>(
 }
 
 impl MachineSidecarIndex {
-    pub fn build(program: &TypedTrees) -> Self {
-        let mut service_reaches: Vec<(SymbolHandle, u32)> = program
-            .authored_service_reach_rows
-            .iter()
-            .enumerate()
-            .map(|(index, row)| (row.owner, index as u32))
-            .collect();
-        service_reaches.sort_by_key(|(symbol, _)| sidecar_symbol_key(*symbol));
-        Self {
-            service_reaches,
-            requirement_invocations: Default::default(),
-        }
-    }
-
     pub(crate) fn requirement_invocation_signatures<'program>(
         &'program self,
         program: &'program TypedTrees,
@@ -2657,7 +2644,7 @@ pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
     let mut sidecars = None;
     for machine in program.machines() {
         if roots.declaration(machine.symbol) {
-            let sidecars = sidecars.get_or_insert_with(|| MachineSidecarIndex::build(program));
+            let sidecars = sidecars.get_or_insert_with(MachineSidecarIndex::default);
             visit_machine_with_sidecars(program, roots, machine, Some(sidecars));
         }
     }
@@ -4527,12 +4514,8 @@ fn visit_machine_with_sidecars(
         for specialization in program.machine_specializations.for_instance(machine.symbol) {
             visit_specialization(specialization);
         }
-        if body && !program.ranking_expression_custody.is_empty() {
-            for custody in program
-                .ranking_expression_custody
-                .iter()
-                .filter(|row| row.machine == machine.symbol)
-            {
+        if body {
+            for custody in program.ranking_expression_custody.owned_by(machine.symbol) {
                 for subject in &custody.subjects {
                     visit_expression(program, retained, *subject);
                 }
@@ -4586,29 +4569,14 @@ fn visit_machine_with_sidecars(
     }
 
     if retained.derived_declaration_references() {
-        if let Some(sidecars) = sidecars {
-            for &(_, index) in sidecar_symbol_rows(&sidecars.service_reaches, from) {
-                for target in &program.authored_service_reach_rows[index as usize].targets {
-                    match target.service {
-                        crate::source_state::signature::ReachSubject::Static(symbol) => {
-                            visit_symbol(retained, symbol)
-                        }
-                        crate::source_state::signature::ReachSubject::Service(id) => {
-                            visit_service_reach(program, retained, id)
-                        }
+        for row in program.authored_service_reach_rows_for(from) {
+            for target in &row.targets {
+                match target.service {
+                    crate::source_state::signature::ReachSubject::Static(symbol) => {
+                        visit_symbol(retained, symbol)
                     }
-                }
-            }
-        } else if !program.authored_service_reach_rows.is_empty() {
-            for row in program.authored_service_reach_rows_for(from) {
-                for target in &row.targets {
-                    match target.service {
-                        crate::source_state::signature::ReachSubject::Static(symbol) => {
-                            visit_symbol(retained, symbol)
-                        }
-                        crate::source_state::signature::ReachSubject::Service(id) => {
-                            visit_service_reach(program, retained, id)
-                        }
+                    crate::source_state::signature::ReachSubject::Service(id) => {
+                        visit_service_reach(program, retained, id)
                     }
                 }
             }

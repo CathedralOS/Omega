@@ -8308,7 +8308,7 @@ mod invocation_owner_walk_tests {
                     },
                 });
         }
-        let index = MachineSidecarIndex::build(&program);
+        let index = MachineSidecarIndex::default();
         for (owner, expected) in [
             (inside, vec![types[0], types[1], types[0]]),
             (outside, vec![types[2]]),
