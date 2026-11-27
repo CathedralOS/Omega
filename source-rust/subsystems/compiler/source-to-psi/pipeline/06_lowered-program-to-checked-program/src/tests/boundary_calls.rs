@@ -109,23 +109,8 @@ fn boundary(reach: &str, actual: u32) -> Checked<crate::lowering::Elaboration> {
     invocation(typed)
 }
 
-#[test]
-fn a_boundary_call_selects_its_structural_const_by_value() {
-    let source = r#"
-        data Storage [copy] { case Fixed; case Split; }
-        const fixed_plan: Storage = Storage::Fixed;
-        boundary trait Runtime {
-            machine register<T, machine Worker, const Plan: Storage>(value: T) -> T
-            requires machine Worker(value: T) -> T reaches none crashes none;
-            ensures true reaches none crashes none;
-        }
-        machine worker(value: u32) -> u32 reaches none crashes none { value }
-        machine entry() -> u32 reaches Runtime invokes Runtime crashes none {
-            let first: u32 = Runtime::register::<u32, worker, Storage::Fixed>(3u32);
-            let second: u32 = Runtime::register::<u32, worker, fixed_plan>(first);
-            Runtime::register::<u32, worker, Storage::Split>(second)
-        }
-    "#;
+/// Judge the exported entry and every declaration owned by the same package.
+fn judge_boundary_package(source: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xbc; 32]).unwrap();
     let trees = try_typed_in_package(source, Some(package)).unwrap();
     let entry = entry(&trees);
@@ -146,7 +131,27 @@ fn a_boundary_call_selects_its_structural_const_by_value() {
         terminal_codec::TerminalPublication::Portable,
     )
     .unwrap();
-    let mut verdicts = crate::judge_compilation(lowered.program).into_iter();
+    crate::judge_compilation(lowered.program)
+}
+
+#[test]
+fn a_boundary_call_selects_its_structural_const_by_value() {
+    let source = r#"
+        data Storage [copy] { case Fixed; case Split; }
+        const fixed_plan: Storage = Storage::Fixed;
+        boundary trait Runtime {
+            machine register<T, machine Worker, const Plan: Storage>(value: T) -> T
+            requires machine Worker(value: T) -> T reaches none crashes none;
+            ensures true reaches none crashes none;
+        }
+        machine worker(value: u32) -> u32 reaches none crashes none { value }
+        machine entry() -> u32 reaches Runtime invokes Runtime crashes none {
+            let first: u32 = Runtime::register::<u32, worker, Storage::Fixed>(3u32);
+            let second: u32 = Runtime::register::<u32, worker, fixed_plan>(first);
+            Runtime::register::<u32, worker, Storage::Split>(second)
+        }
+    "#;
+    let mut verdicts = judge_boundary_package(source).into_iter();
     let Ok(RouteVerdict::Accepted(accepted)) = verdicts.next().unwrap() else {
         panic!("closed boundary calls must type-check");
     };
@@ -199,6 +204,63 @@ fn a_boundary_call_selects_its_structural_const_by_value() {
     };
     assert_eq!(direct, alias);
     assert_ne!(direct, alternate);
+}
+
+#[test]
+fn a_generic_boundary_caller_forwards_its_plan_and_checks_the_worker() {
+    let source = r#"
+        data Storage [copy] { case Fixed; case Split; }
+        boundary trait Runtime {
+            machine register<T, machine Worker, const Plan: Storage>(value: T) -> T
+            requires machine Worker(value: T) -> T reaches none crashes none;
+            ensures true reaches none crashes none;
+        }
+        machine worker(value: u32) -> u32 reaches none crashes none { value }
+        machine schedule<T, machine Candidate, const Plan: Storage>(value: T) -> T
+        requires machine Candidate(value: T) -> T reaches none crashes none;
+        reaches Runtime invokes Runtime crashes none {
+            Runtime::register::<T, Candidate, Plan>(value)
+        }
+        machine entry() -> u32 reaches Runtime invokes Runtime crashes none {
+            let first: u32 = schedule::<u32, worker, Storage::Fixed>(3u32);
+            schedule::<u32, worker, Storage::Split>(first)
+        }
+    "#;
+    let verdicts = judge_boundary_package(source);
+    assert!(
+        verdicts.len() >= 3,
+        "caller, wrapper, and boundary declaration"
+    );
+    for verdict in verdicts {
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "{verdict:?}"
+        );
+    }
+
+    // An unused generic wrapper still owes the required callback contract.
+    let negative = source.split("machine schedule").next().unwrap().replace(
+        "machine worker(value: u32) -> u32 reaches none",
+        "machine worker(value: u32) -> u32 requires value == 3 reaches none",
+    ) + r#"
+        machine schedule<const Plan: Storage>(value: u32) -> u32
+        reaches Runtime invokes Runtime crashes none {
+            Runtime::register::<u32, worker, Plan>(value)
+        }
+        machine entry() -> u32 reaches none crashes none { 0u32 }
+    "#;
+    let verdicts = judge_boundary_package(&negative);
+    assert!(matches!(
+        verdicts.first(),
+        Some(Ok(RouteVerdict::Accepted(_)))
+    ));
+    assert!(
+        verdicts.iter().any(|verdict| matches!(verdict,
+            Err(crate::CompilationRefusal::Elaboration(refusal))
+            if refusal.detail.contains("cannot prove the input precondition of `worker`")
+        )),
+        "{verdicts:?}"
+    );
 }
 
 #[test]

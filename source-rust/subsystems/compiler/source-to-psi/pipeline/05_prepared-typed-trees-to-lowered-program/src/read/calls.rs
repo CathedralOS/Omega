@@ -2241,6 +2241,7 @@ impl<'t> Program<'t> {
                             TypeParameterKind::Type
                                 | TypeParameterKind::Const { .. }
                                 | TypeParameterKind::Value { .. }
+                                | TypeParameterKind::Machine { .. }
                         )
                     })
             {
@@ -2298,6 +2299,7 @@ impl<'t> Program<'t> {
             call.authored_arguments,
         )?;
         let callee = if let Some((owner, requirement)) = boundary {
+            self.require_ordinary_boundary_call(id, requirement.symbol)?;
             self.visible_to(id, target)?;
             self.declared_service(id, owner)?;
             self.require_closed_callable(id, requirement, "boundary requirement")?;

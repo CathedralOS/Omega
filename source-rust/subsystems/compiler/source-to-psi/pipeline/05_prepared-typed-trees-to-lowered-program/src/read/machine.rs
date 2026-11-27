@@ -1335,8 +1335,14 @@ impl<'t> Program<'t> {
         std::sync::Arc::make_mut(&mut self.source_scope)
             .rigid_parameters
             .extend(parameters.iter().map(|parameter| parameter.symbol));
+        self.rigid_requirement_header(declared)
+    }
+
+    /// Static callables are checked in the receiving type scope in both an
+    /// open declaration and a generic caller's application of that declaration.
+    fn rigid_requirement_header(&mut self, declared: &StateSignature) -> Checked<MachineId> {
         let context = self.next_identity()?;
-        for parameter in parameters {
+        for parameter in self.typed.state_signature_type_parameters(declared) {
             if let crate::source_state::data::TypeParameterKind::Machine { contract } =
                 &parameter.kind
             {
@@ -1388,11 +1394,7 @@ impl<'t> Program<'t> {
         let source = self.extended_source_scope(type_sources);
         let outer_source = std::mem::replace(&mut self.source_scope, source);
         let outer = std::mem::replace(&mut self.scope, binders.into_iter().zip(types).collect());
-        let header = self.requirement_form(
-            RequirementHeaderOrigin::Declared(declared.symbol),
-            declared,
-            RequirementValues::Rigid,
-        );
+        let header = self.rigid_requirement_header(declared);
         self.scope = outer;
         self.source_scope = outer_source;
         header
