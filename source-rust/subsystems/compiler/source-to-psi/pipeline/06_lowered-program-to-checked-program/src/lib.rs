@@ -521,7 +521,7 @@ pub(crate) struct ElaborationView<'a> {
     pub(crate) domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
     pub(crate) sources: &'a IdTable<MachineId, terminal_check_tables::program::MachineSources>,
     pub(crate) requirements: &'a [MachineId],
-    pub(crate) nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
+    pub(crate) nominal_calls: &'a [terminal_psi::generic_calls::NominalCallType],
     pub(crate) schemas: &'a [terminal_check_tables::contracts::StaticSchemaQuestion],
     pub(crate) domain_sources: &'a IdTable<
         semantic_vocabulary::DomainSemanticId,

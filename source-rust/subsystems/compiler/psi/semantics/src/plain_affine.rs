@@ -1095,7 +1095,7 @@ pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> R
 /// An affine walk's descriptor graph has no nominal calls. Its rows can share
 /// a module's summaries only with a table built from this same slice, which
 /// `ModuleSummaries` checks by address.
-static NO_NOMINAL_CALLS: [terminal_psi::generic_calls::NominalCallArgument; 0] = [];
+static NO_NOMINAL_CALLS: [terminal_psi::generic_calls::NominalCallType; 0] = [];
 
 /// The callee summaries that every affine walk over one module replays. Each
 /// walk builds its machine's borrowed-storage graph without nominal calls,

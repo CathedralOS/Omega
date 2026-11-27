@@ -13,7 +13,7 @@ use std::mem::{Discriminant, discriminant};
 use terminal_psi::StructuralTypeShape;
 
 // One slice, so the table and every analysis name the same nominal calls.
-static NOMINAL: &[NominalCallArgument] = &[];
+static NOMINAL: &[NominalCallType] = &[];
 
 const TOP: u64 = 1;
 const MIDDLE: u64 = 2;

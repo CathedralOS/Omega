@@ -9,6 +9,7 @@ use crate::source_state::types::TypeReferenceHandle;
 use crate::source_state::{SourceTypeApplication, SourceTypeScope};
 use std::sync::Arc;
 use symbols::SymbolHandle;
+use terminal_psi::generic_calls::CallTypePosition;
 
 impl Program<'_> {
     pub(super) fn nominal_argument_identity(
@@ -50,9 +51,9 @@ use crate::{SourceOrigin, Unserved, refuse};
 use semantic_vocabulary::{MachineId, ScalarTerm, StructuralTypeId, ValueId};
 use terminal_check_tables::{Checked, Construct};
 
-pub(super) struct NominalArgumentSource {
+pub(super) struct NominalTypeSource {
     callee: MachineId,
-    argument: u32,
+    position: CallTypePosition,
     actual: StructuralTypeId,
     expected: StructuralTypeId,
     actual_constructor: StructuralTypeId,
@@ -65,7 +66,7 @@ pub(super) struct NominalArgumentSource {
 pub(super) struct NominalCallSource {
     pub caller: MachineId,
     pub source: SourceOrigin,
-    pub arguments: Vec<NominalArgumentSource>,
+    pub types: Vec<NominalTypeSource>,
 }
 
 impl Program<'_> {
@@ -184,17 +185,57 @@ impl Program<'_> {
         Some(used)
     }
 
-    pub(super) fn nominal_call_argument(
+    /// Read the callee's declared nominal result at this invocation's actual
+    /// consts, allocating its storage and invariants in the caller's SSA scope.
+    pub(super) fn instantiated_nominal_result(
+        &mut self,
+        caller: MachineId,
+        callee: &CallTarget,
+        declared: ValueType,
+        const_sources: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Checked<Option<ValueType>> {
+        let (CallTarget::Machine(callee), ValueType::Record(storage, qualification, regions)) =
+            (callee, declared)
+        else {
+            return Ok(None);
+        };
+        let Some(source) = self
+            .record_sources
+            .get(storage)
+            .filter(|row| row.constant_input_owner == Some(*callee))
+            .and_then(|row| row.application.as_ref())
+            .cloned()
+        else {
+            return Ok(None);
+        };
+        let scope = Arc::new(SourceTypeScope {
+            parent: Some(source.scope),
+            substitutions: const_sources.to_vec(),
+            rigid_parameters: Vec::new(),
+        });
+        let saved = std::mem::replace(&mut self.source_scope, scope);
+        let result = self.record_at(caller, source.reference);
+        self.source_scope = saved;
+        let ValueType::Record(storage, ..) = result? else {
+            return Err(refuse_at(
+                caller,
+                Unserved::Call("instantiated nominal result has no record"),
+            ));
+        };
+        Ok(Some(ValueType::Record(storage, qualification, regions)))
+    }
+
+    pub(super) fn nominal_call_type(
         &self,
         caller: MachineId,
         callee: &CallTarget,
-        argument: u32,
+        position: CallTypePosition,
         actual: Option<ValueType>,
         expected: ValueType,
         values: &[Expression],
         const_sources: &[(SymbolHandle, TypeReferenceHandle)],
         slots: &[super::Slot],
-    ) -> Checked<Option<NominalArgumentSource>> {
+    ) -> Checked<Option<NominalTypeSource>> {
         let CallTarget::Machine(callee) = callee else {
             return Ok(None);
         };
@@ -290,9 +331,9 @@ impl Program<'_> {
             };
             const_arguments.push((input.value, term));
         }
-        Ok(Some(NominalArgumentSource {
+        Ok(Some(NominalTypeSource {
             callee: *callee,
-            argument,
+            position,
             actual: actual_type,
             expected: expected_type,
             actual_constructor,
@@ -328,8 +369,8 @@ impl Program<'_> {
         &self,
         calls: &[crate::source_state::SourceCallCorrespondence],
         module: &mut terminal_psi::TerminalModule,
-    ) -> Checked<Vec<terminal_psi::generic_calls::NominalCallArgument>> {
-        use terminal_psi::generic_calls::{NominalCallArgument, NominalConstArgument};
+    ) -> Checked<Vec<terminal_psi::generic_calls::NominalCallType>> {
+        use terminal_psi::generic_calls::{NominalCallType, NominalConstArgument};
         if self.nominal_calls.is_empty() {
             return Ok(Vec::new());
         }
@@ -392,10 +433,10 @@ impl Program<'_> {
                     return Err(fault("nominal call changed its callee kind"));
                 };
                 for (_, (position, source)) in &sources[first..last] {
-                    if source.arguments.iter().all(|input| input.callee == callee) {
+                    if source.types.iter().all(|input| input.callee == callee) {
                         consumed[*position] = true;
                     }
-                    for input in &source.arguments {
+                    for input in &source.types {
                         if input.callee != callee {
                             continue;
                         }
@@ -438,11 +479,11 @@ impl Program<'_> {
                                 })
                             })
                             .collect::<Checked<Vec<_>>>()?;
-                        result.push(NominalCallArgument {
+                        result.push(NominalCallType {
                             caller: call.machine,
                             operation: operation.id,
                             callee: callee.id,
-                            argument: input.argument,
+                            position: input.position,
                             actual: input.actual,
                             expected: input.expected,
                             actual_constructor: input.actual_constructor,
@@ -477,10 +518,10 @@ impl Program<'_> {
                 )
                 .with_source_span(source.source.span()));
             }
-            result.sort_unstable_by_key(|row| (row.caller, row.operation, row.argument));
+            result.sort_unstable_by_key(|row| (row.caller, row.operation, row.position));
             if result.windows(2).any(|pair| {
-                (pair[0].caller, pair[0].operation, pair[0].argument)
-                    == (pair[1].caller, pair[1].operation, pair[1].argument)
+                (pair[0].caller, pair[0].operation, pair[0].position)
+                    == (pair[1].caller, pair[1].operation, pair[1].position)
             }) {
                 let row = &result[0];
                 return Err(refuse(
@@ -496,7 +537,7 @@ impl Program<'_> {
     }
 }
 
-impl NominalArgumentSource {
+impl NominalTypeSource {
     pub(super) fn agrees(&self) -> bool {
         self.actual_application == self.expected_application
     }
@@ -506,7 +547,7 @@ impl Program<'_> {
     pub(crate) fn nominal_type_inputs(&self) -> Vec<(MachineId, StructuralTypeId)> {
         let mut result = Vec::new();
         for (owner, signature) in self.signatures.iter() {
-            for formal in &signature.parameters {
+            for formal in signature.parameters.iter().chain(signature.result.iter()) {
                 if let ValueType::Record(storage, ..) = formal
                     && self.nominal_constructor(*storage).is_some()
                     && let Some(source) = self

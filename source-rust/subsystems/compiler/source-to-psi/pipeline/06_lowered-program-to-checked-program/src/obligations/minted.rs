@@ -193,9 +193,16 @@ pub(crate) fn width_questions_are_minted(
             {
                 if elaboration
                     .nominal_calls
-                    .binary_search_by_key(&(caller.id, operation.id, ordinal as u32), |row| {
-                        (row.caller, row.operation, row.argument)
-                    })
+                    .binary_search_by_key(
+                        &(
+                            caller.id,
+                            operation.id,
+                            terminal_psi::generic_calls::CallTypePosition::Parameter(
+                                ordinal as u32,
+                            ),
+                        ),
+                        |row| (row.caller, row.operation, row.position),
+                    )
                     .is_ok()
                 {
                     continue;

@@ -15,7 +15,7 @@ use terminal_semantics::descriptor_results::{
 /// `terminal_borrowed_storage_graph_from`: none. `ModuleSummaries` checks a
 /// graph's nominal calls by address, so a table and the analyses sharing it
 /// name this one slice.
-static NO_NOMINAL_CALLS: [terminal_psi::generic_calls::NominalCallArgument; 0] = [];
+static NO_NOMINAL_CALLS: [terminal_psi::generic_calls::NominalCallType; 0] = [];
 
 /// One module's callee summaries for the per-machine analyses of graphs this
 /// stage builds without nominal calls. Each analysis takes a summary only
@@ -552,7 +552,7 @@ fn capture_argument(
 fn publish_results(
     module: &mut TerminalModule,
     selections: &[crate::Selected],
-    nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    nominal_calls: &[terminal_psi::generic_calls::NominalCallType],
     schemas: &[terminal_check_tables::contracts::StaticSchemaQuestion],
 ) -> Checked<()> {
     let selected: Vec<_> = module

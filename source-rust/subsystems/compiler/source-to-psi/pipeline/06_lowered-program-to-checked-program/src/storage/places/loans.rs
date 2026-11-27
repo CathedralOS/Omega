@@ -272,7 +272,7 @@ pub(crate) fn reference_graph(
 pub(crate) fn reference_graph_with_generic_calls(
     module: &terminal_psi::TerminalModule,
     machine: semantic_vocabulary::MachineId,
-    nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    nominal_calls: &[terminal_psi::generic_calls::NominalCallType],
     schemas: &[terminal_check_tables::contracts::StaticSchemaQuestion],
 ) -> Checked<Vec<terminal_semantics::descriptor_results::DescriptorMachine>> {
     let lowered = module.machine(machine).ok_or_else(|| {
