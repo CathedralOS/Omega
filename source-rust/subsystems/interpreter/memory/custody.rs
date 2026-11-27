@@ -24,10 +24,12 @@ pub(crate) mod complete_values {
                 return Err(malformed());
             }
             let types = self.structural_types();
-            let claim_types = terminal_semantics::owned_structure::ClaimTypes::new(types.values())
-                .map_err(
-                    |reason| TerminalInterpretError::VerifiedOperationContractInvalid { reason },
-                )?;
+            let roster = self.program.claim_roster().map_err(|reason| {
+                TerminalInterpretError::VerifiedOperationContractInvalid { reason }
+            })?;
+            let lookup = |identity| types.get(&identity);
+            let claim_types =
+                terminal_semantics::owned_structure::ClaimTypes::prepared(&lookup, &roster);
             // A complete pattern leaves each component in the same storage.
             // Check the live component covering this projection; its ended
             // wrapper no longer supplies a whole-value claim.
@@ -520,6 +522,7 @@ pub(crate) fn require_owned_value_claims<'claims>(
         '_,
         StructuralTypeDeclaration,
     >,
+    roster: Result<&terminal_semantics::owned_structure::ClaimRoster, &'static str>,
     live_claims: impl Iterator<Item = &'claims LiveClaim> + Clone,
     root_type: StructuralTypeId,
     argument: &StructuralArgument,
@@ -548,9 +551,9 @@ pub(crate) fn require_owned_value_claims<'claims>(
             "owned value claim has no exact linear multiplicity",
         ));
     }
-    let claim_types =
-        terminal_semantics::owned_structure::ClaimTypes::new(structural_types.values())
-            .map_err(refusal)?;
+    let roster = roster.map_err(refusal)?;
+    let lookup = |identity| structural_types.get(&identity);
+    let claim_types = terminal_semantics::owned_structure::ClaimTypes::prepared(&lookup, roster);
     terminal_semantics::owned_structure::validate_owned_claim_frontier(
         &claim_types,
         selected,
@@ -594,7 +597,7 @@ impl crate::engine::execution::TerminalExecution<'_> {
             return Ok(());
         }
         let selected = terminal_semantics::runtime_structural_path_tip(
-            self.structural_types().values(),
+            self.structural_types(),
             root_type,
             &argument.path,
         )
@@ -627,8 +630,10 @@ impl crate::engine::execution::TerminalExecution<'_> {
                 other => other,
             })?;
         }
+        let roster = self.program.claim_roster();
         require_owned_value_claims(
             &self.structural_types(),
+            roster.as_deref().map_err(|reason| *reason),
             self.live_claims.values(),
             root_type,
             argument,
@@ -1924,7 +1929,7 @@ pub(crate) fn resolve_structural_path_shape<'types>(
             carrier,
         )));
     }
-    terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, path)
+    terminal_semantics::runtime_structural_path_tip(structural_types, root, path)
         .map(|declaration| std::borrow::Cow::Borrowed(&declaration.shape))
         .ok_or_else(
             || TerminalInterpretError::AffineProjectionNotRepresentable {
@@ -1965,7 +1970,7 @@ pub(crate) fn resolve_structural_path_type_with_leaf(
             },
         );
     }
-    terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, path)
+    terminal_semantics::runtime_structural_path_tip(structural_types, root, path)
         .map(|declaration| declaration.id)
         .ok_or_else(
             || TerminalInterpretError::AffineProjectionNotRepresentable {
@@ -1985,7 +1990,7 @@ pub(crate) fn inline_structural_field<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a terminal_psi::StructuralFieldDeclaration> {
-    terminal_semantics::runtime_structural_field(structural_types.values(), root, path)
+    terminal_semantics::runtime_structural_field(structural_types, root, path)
 }
 
 pub(crate) fn bind_entry_claims(

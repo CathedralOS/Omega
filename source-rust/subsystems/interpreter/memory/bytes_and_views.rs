@@ -1740,12 +1740,9 @@ pub(crate) mod byte_sequences {
             ) -> Result<Option<ByteSequenceView>, TerminalInterpretError> {
                 let root = self.live_structural_type(source.place)?;
                 let types = self.structural_types();
-                let selected = terminal_semantics::runtime_structural_path_tip(
-                    types.values(),
-                    root,
-                    &source.path,
-                )
-                .ok_or(malformed())?;
+                let selected =
+                    terminal_semantics::runtime_structural_path_tip(types, root, &source.path)
+                        .ok_or(malformed())?;
                 if !matches!(selected.shape, StructuralTypeShape::FixedArray { .. })
                     || terminal_semantics::fixed_byte_extent(types.values(), selected.id).is_none()
                 {
@@ -3743,7 +3740,7 @@ pub(crate) mod element_views {
             };
             let (depth, place, root) = home.storage.scalar_array_frame();
             let selected =
-                terminal_semantics::runtime_structural_path_tip(types.values(), root, &home.path)?;
+                terminal_semantics::runtime_structural_path_tip(types, root, &home.path)?;
             let StructuralTypeShape::FixedArray {
                 length: terminal_psi::ArrayExtent::Literal(length),
                 ..

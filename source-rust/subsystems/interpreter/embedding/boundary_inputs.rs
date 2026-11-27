@@ -1021,7 +1021,7 @@ pub(crate) mod byte_arrays {
         structural_type: StructuralTypeId,
         path: &[StructuralPathSegment],
     ) -> Option<StructuralTypeId> {
-        terminal_semantics::runtime_structural_path_tip(types.values(), structural_type, path)
+        terminal_semantics::runtime_structural_path_tip(types, structural_type, path)
             .map(|declaration| declaration.id)
     }
 

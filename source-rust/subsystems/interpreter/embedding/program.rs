@@ -1750,6 +1750,39 @@ pub(crate) mod program {
             }
         }
 
+        impl<'storage> terminal_semantics::StructuralDeclarations<'storage>
+            for &ProgramDeclarations<'storage, StructuralTypeDeclaration>
+        {
+            fn unique(
+                &self,
+                id: semantic_vocabulary::StructuralTypeId,
+            ) -> Option<&'storage StructuralTypeDeclaration> {
+                (**self).unique(id)
+            }
+
+            fn representation_view(
+                &self,
+                view: semantic_vocabulary::StructuralTypeId,
+                stored: Option<semantic_vocabulary::ScalarType>,
+            ) -> Option<&'storage StructuralTypeDeclaration> {
+                (**self).representation_view(view, stored)
+            }
+
+            fn inline_carrier(
+                &self,
+                field: &terminal_psi::StructuralFieldDeclaration,
+            ) -> Option<&'storage StructuralTypeDeclaration> {
+                (**self).inline_carrier(field)
+            }
+
+            fn leaf_declaration(
+                &self,
+                field_type: &terminal_psi::StructuralFieldType,
+            ) -> Option<&'storage StructuralTypeDeclaration> {
+                (**self).leaf_declaration(field_type)
+            }
+        }
+
         impl ProgramDeclaration for TerminalMachine {
             type Identity = semantic_vocabulary::MachineId;
             fn identity(&self) -> &Self::Identity {
@@ -1795,6 +1828,11 @@ pub(crate) mod program {
         /// The declaration-dependent part of every primitive store, prepared
         /// for the whole program the first time one runs.
         primitive_stores: std::sync::OnceLock<Vec<PreparedPrimitiveStore>>,
+        /// Which declared types hold claims, prepared for this exact view the
+        /// first time an owned value's claims are checked.
+        claim_roster: std::sync::OnceLock<
+            Result<terminal_semantics::owned_structure::ClaimRoster, &'static str>,
+        >,
     }
 
     /// One `WriteOnlyPrimitiveStore` of this program, by machine and
@@ -1877,6 +1915,7 @@ pub(crate) mod program {
                 scalar_geometry,
                 memberships: std::sync::OnceLock::new(),
                 primitive_stores: std::sync::OnceLock::new(),
+                claim_roster: std::sync::OnceLock::new(),
             }
         }
 
@@ -1900,6 +1939,30 @@ pub(crate) mod program {
                 return std::borrow::Cow::Owned(self.prepare_memberships());
             }
             std::borrow::Cow::Borrowed(self.memberships.get_or_init(|| self.prepare_memberships()))
+        }
+
+        /// The claim roster of this program's declaration view, or why the
+        /// view has none. An engine fixture prepares on each request.
+        pub(crate) fn claim_roster(
+            &self,
+        ) -> Result<
+            std::borrow::Cow<'_, terminal_semantics::owned_structure::ClaimRoster>,
+            &'static str,
+        > {
+            let prepare = || {
+                terminal_semantics::owned_structure::ClaimRoster::prepare(
+                    self.structural_types().values(),
+                )
+            };
+            #[cfg(test)]
+            if matches!(*self.catalogs, ProgramStorage::Fixture(_)) {
+                return prepare().map(std::borrow::Cow::Owned);
+            }
+            self.claim_roster
+                .get_or_init(prepare)
+                .as_ref()
+                .map(std::borrow::Cow::Borrowed)
+                .map_err(|reason| *reason)
         }
 
         fn prepare_primitive_stores(&self) -> Vec<PreparedPrimitiveStore> {
@@ -3140,7 +3203,7 @@ pub(crate) mod program {
         use super::*;
 
         #[test]
-        fn an_admitted_program_prepares_its_membership_plan_once() {
+        fn an_admitted_program_prepares_its_declaration_plans_once() {
             let bytes = std::fs::read(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
@@ -3167,6 +3230,20 @@ pub(crate) mod program {
                     admitted.structural_types().values(),
                     admitted.catalogs.types.structural_domains.iter(),
                 )
+            );
+            let std::borrow::Cow::Borrowed(roster) = admitted.claim_roster().unwrap() else {
+                panic!("an admitted program keeps the claim roster it prepared");
+            };
+            let std::borrow::Cow::Borrowed(again) = admitted.claim_roster().unwrap() else {
+                panic!("an admitted program keeps the claim roster it prepared");
+            };
+            assert!(std::ptr::eq(roster, again));
+            assert_eq!(
+                Ok(roster),
+                terminal_semantics::owned_structure::ClaimRoster::prepare(
+                    admitted.structural_types().values()
+                )
+                .as_ref()
             );
             // An execution with no other layout or geometry reuses the same
             // prepared program rather than preparing again.

@@ -46,7 +46,7 @@ fn claim_scratch_follows_declared_rows_with_sparse_identities() {
     // Unsorted, widely separated IDs still get exactly two slots.
     let mut declarations = [child, root];
     let types = ClaimTypes::new(&declarations).unwrap();
-    assert_eq!(types.states.len(), 2);
+    assert_eq!(types.roster.present.len(), 2);
     assert!(!contains_claim(declarations[0].id, &types).unwrap());
     assert!(contains_claim(declarations[1].id, &types).unwrap());
     super::super::validate_intrinsic_claim_roots(&declarations).unwrap();
@@ -56,6 +56,22 @@ fn claim_scratch_follows_declared_rows_with_sparse_identities() {
     );
     let paths = super::super::claim_catalogue(&types, declarations[1].id, 1).unwrap();
     assert_eq!(paths, BTreeSet::from([Vec::new()]));
+    // A roster prepared once and read through another lookup over the same
+    // declarations answers exactly as a freshly built one.
+    let roster = ClaimRoster::prepare(&declarations).unwrap();
+    let lookup = |identity| declarations.iter().find(|row| row.id == identity);
+    let prepared = ClaimTypes::prepared(&lookup, &roster);
+    for row in &declarations {
+        assert_eq!(
+            contains_claim(row.id, &prepared),
+            contains_claim(row.id, &types)
+        );
+    }
+    assert_eq!(
+        super::super::claim_catalogue(&prepared, declarations[1].id, 1),
+        Ok(paths.clone())
+    );
+    assert!(contains_claim(StructuralTypeId::new(99).unwrap(), &prepared).is_err());
     validate_complete_claim_frontier(
         &types,
         declarations[1].id,

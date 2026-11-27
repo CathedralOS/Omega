@@ -98,8 +98,10 @@ declaration-dependent restrictions and descriptor lookups out of repeated
 dispatch. An admitted program prepares, once and only when first needed, which
 declared scalar restrictions confer which whole-scalar domains
 (`AdmittedTerminalProgram::intrinsic_memberships`, used by reference paths and
-boundary qualifications) and each primitive store's declared restriction and
-UTF-8 obligation (`primitive_store_plan`). Both are keyed by the program's
+boundary qualifications), each primitive store's declared restriction and
+UTF-8 obligation (`primitive_store_plan`), and which declared types hold claims
+(`claim_roster`). Path walks read declarations through `ProgramDeclarations`'
+binary search rather than a scan. All are keyed by the program's
 exact declaration view, so a layout or scalar-geometry replacement prepares its
 own. Prepared plans keep the checks of predicates on actual values and the
 safety of concrete operations. Acceptance measures startup and steady-state
@@ -157,8 +159,8 @@ liveness, access permissions, operand safety and admitted resource limits").
 | `embedding/boundary_inputs.rs:78` `validate_access_view_referent` | A host-supplied access-view establishment names a referent type, path and canonical qualifications that the module declares. | No. The referent comes from the host's entry inputs, not from the program. | Yes: host input. It runs once per instantiation in `establish_access_view_inputs`, not per operation. | Keep. It is already admission of host input. |
 | `instructions/structural.rs:981` `validate_vacant_structural_local` | An `EstablishStructuralLocal` result names one declared storage type, carries no claims or establishments, and declares only memberships its shape allows. | Bytes route: yes, `validate_establish_structural_local` (`foundation_validation.rs:10429`) runs the same function against the base type catalog. In-process route: only the checker. Execution checks against `structural_types()`, which may substitute target-layout or scalar-geometry records. | No. It reads only the operation and the type catalog. | Move to preparation: run once per operation against the selected catalog, then delete the per-operation call. |
 | `instructions/structural.rs:1247` `content_transformations::validate_memberships` | A `TransformContent` result's memberships follow from its derivations and from the memberships the source value actually carries. | No. | Yes: the inherited memberships come from the staged runtime value. | Keep the comparison with the value's memberships. The derivation-only part could move to preparation if a later change splits the function. |
-| `memory/custody.rs:48` `validate_complete_claim_frontier` | A whole-value claim is complete over the live linear claims and stored cases under one place. | No. | Yes: live claims, the live affine frontier and stored cases. | Keep. Its `ClaimTypes::new` (line 27) moves to preparation (see below). |
-| `memory/custody.rs:554` `ClaimTypes::new` + `validate_owned_claim_frontier` | `ClaimTypes::new` sorts and classifies every structural type on every owned argument. The validator checks that the live claims under an owned argument form an exact frontier. | `ClaimTypes::new` on the base catalog: yes, `validate_intrinsic_claim_roots` (`psi/semantics/src/structural/owned_structure.rs:141`) builds it during `validate_storage_foundation`, after `StorageTypeGraph::validate_acyclic`. | `ClaimTypes::new`: no. The frontier: yes, live claims. | Build `ClaimTypes` once per admitted program over `structural_types()` and refuse there. Keep the frontier check. The same rebuild sits in `records_and_arrays.rs:445` (`stage_constructor_claims`). |
+| `memory/custody.rs:48` `validate_complete_claim_frontier` | A whole-value claim is complete over the live linear claims and stored cases under one place. | No. | Yes: live claims, the live affine frontier and stored cases. | Keep. Its claim roster is now prepared once per program (see below). |
+| `memory/custody.rs:554` `ClaimTypes::new` + `validate_owned_claim_frontier` | `ClaimTypes::new` sorts and classifies every structural type on every owned argument. The validator checks that the live claims under an owned argument form an exact frontier. | `ClaimTypes::new` on the base catalog: yes, `validate_intrinsic_claim_roots` (`psi/semantics/src/structural/owned_structure.rs:141`) builds it during `validate_storage_foundation`, after `StorageTypeGraph::validate_acyclic`. | `ClaimTypes::new`: no. The frontier: yes, live claims. | Done: `AdmittedTerminalProgram::claim_roster` prepares the `ClaimRoster` once over `structural_types()`, and each check reads it through `ClaimTypes::prepared`, including `stage_constructor_claims` in `records_and_arrays.rs`. A roster error is still refused where the check runs. Keep the frontier check. |
 | `memory/references.rs:1047` `validate_access_view_content` | A view lifecycle plan's content agrees with the module's declarations. | Bytes route: yes, `validate_access_lifecycle_plans` (`psi/semantics/src/access/access_lifecycles.rs:242`, called from `foundation_validation.rs:11758`) runs it on every plan. `admit_target_layouts` (`psi/execution-inputs/target-layouts/admission.rs:155`) only filters and clones those plans. In-process route: only the checker. | No. | Move to preparation once per plan, then delete. The neighbouring `access_result_contract` call is static in the same way. |
 
 ### `VerifiedOperationContractInvalid`
@@ -167,8 +169,8 @@ liveness, access permissions, operand safety and admitted resource limits").
 | --- | --- | --- |
 | `instructions/calls.rs:3096`, `:3122` | `CallStructural` and `CallStructuralWithScalarArguments` have a structural result. | Bytes route: yes, `validate_call_structural` (`foundation_validation.rs:576`) refuses a structural call without one. In-process route: only the checker. Static, so it moves to the preparation pass for family 2 below, then both sites go. |
 | `instructions/structural.rs:985` | The vacant-local re-check above. | Move to preparation. |
-| `memory/custody.rs:29`, `:64` | `ClaimTypes::new` failure, and the complete-claim frontier. | Prepared `ClaimTypes`; keep the frontier check. |
-| `memory/records_and_arrays.rs:449` | `ClaimTypes::new` failure. | Prepared `ClaimTypes`. |
+| `memory/custody.rs:29`, `:64` | Claim roster failure, and the complete-claim frontier. | Roster prepared once per program; keep the frontier check. |
+| `memory/records_and_arrays.rs:449` | Claim roster failure. | Roster prepared once per program. |
 
 The `VerifiedOperationContractInvalid` variant itself is still used by the
 frontier check; deleting it comes after the other six sites move.
@@ -191,8 +193,9 @@ site. Each later change confirms the verdict for the sites it moves.
 | 8. Host and provider input (625) | Values, storage, effects and results that the host or a provider supplies (`embedding/boundary_*.rs`, `memory/providers.rs`, `embedding/instance/storage_observation`). | No. | Yes. | Keep. Host adapters must enforce what they rely on. Declaration-dependent parts of a boundary's signature can move to preparation with family 3. |
 | 9. Operand and stored type agreement (449) | Operand types agree with each other and with the result; a stored field cell has the scalar type the operation names; element counts match. | Not on the bytes route; the checker types every operation. | Mostly no. Stored cell type is static for checked programs. | Same as family 2: one typing pass in preparation, then delete. A few of these sites compare actual stored contents and stay; each change names them. |
 
-Order of work: prepared `ClaimTypes` and the two re-checks the decoder
-already runs come first, because they need no new admission logic. Families 1
+Order of work: the claim roster is prepared once per program. The two
+re-checks the decoder already runs come next, because they need no new
+admission logic. Families 1
 and 3 follow, then the typing pass for families 2 and 9. Family 4 waits for
 the trust witness or a definition-before-use pass.
 

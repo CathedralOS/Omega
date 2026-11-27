@@ -2727,7 +2727,7 @@ pub(crate) mod primitive_storage {
                                 // stored carrier; the loan reads and writes through the
                                 // admitted representation view of that storage.
                                 let stored = terminal_semantics::runtime_structural_field(
-                                    self.structural_types().values(),
+                                    self.structural_types(),
                                     carrier.structural_type,
                                     field_path,
                                 )
@@ -2797,12 +2797,12 @@ pub(crate) mod primitive_storage {
             };
             let types = self.structural_types();
             let root = self.live_structural_type(argument.place)?;
-            if !terminal_semantics::runtime_structural_path_tip(types.values(), root, prefix)
-                .is_some_and(|row| {
+            if !terminal_semantics::runtime_structural_path_tip(types, root, prefix).is_some_and(
+                |row| {
                     row.shape.is_borrowed_byte_carrier()
                         || row.shape.is_bounded_owned_byte_sequence()
-                })
-            {
+                },
+            ) {
                 return Ok(None);
             }
             let source = StructuralArgument {
@@ -3317,7 +3317,7 @@ pub(crate) mod primitive_storage {
                     continue;
                 };
                 let Some(descriptor) = terminal_semantics::runtime_structural_path_tip(
-                    types.values(),
+                    types,
                     home.structural_type,
                     &path[..position],
                 ) else {
@@ -3892,9 +3892,8 @@ pub(crate) mod primitive_storage {
             let endpoint = if let Some((StructuralPathSegment::Field(identity), prefix)) =
                 path.split_last()
             {
-                let field =
-                    terminal_semantics::runtime_structural_field(types.values(), declared, path)
-                        .ok_or(malformed())?;
+                let field = terminal_semantics::runtime_structural_field(types, declared, path)
+                    .ok_or(malformed())?;
                 if field.identity != *identity || field.field_type.atomic_cell_type() != Some(cell)
                 {
                     return Err(malformed());
@@ -4126,7 +4125,7 @@ pub(crate) mod primitive_storage {
                 Some(_) => return Err(malformed()),
             };
             let Some(field) = terminal_semantics::runtime_structural_field(
-                self.structural_types().values(),
+                self.structural_types(),
                 carrier.structural_type,
                 field_path,
             ) else {
@@ -4528,7 +4527,7 @@ pub(crate) mod primitive_storage {
                 return Err(malformed());
             };
             let declaration = terminal_semantics::runtime_structural_path_tip(
-                self.structural_types().values(),
+                self.structural_types(),
                 root,
                 array_path,
             )
@@ -6325,7 +6324,7 @@ pub(crate) mod storage_addresses {
                         .to_vec();
                     if let Some(field) = field {
                         let owner = terminal_semantics::runtime_structural_path_tip(
-                            types.values(),
+                            types,
                             allocation.structural_type,
                             &path,
                         )
