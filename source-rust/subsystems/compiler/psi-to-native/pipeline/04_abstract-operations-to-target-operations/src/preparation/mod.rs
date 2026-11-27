@@ -166,4 +166,4 @@ pub use legalization::{
 pub use native_geometry::accepted_types;
 
 #[cfg(test)]
-mod sum_layout_selection;
+mod retained_row_projection;

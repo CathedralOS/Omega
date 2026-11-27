@@ -4,6 +4,10 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[features]
+# Hand-built fixture builders that stage 05's selection tests share.
+test-support = []
+
 [dependencies]
 operation-evidence = { path = "../../representations/operation-evidence" }
 compiler-check-site = { path = "../../../foundation/check-site" }
@@ -11,7 +15,6 @@ abstract-operations = { path = "../../representations/abstract-operations" }
 application-identity = { path = "../../../psi/identities/applications" }
 arena = { path = "../../../../../foundation/arena" }
 calling-conventions = { path = "../../targets/calling-conventions" }
-diagnostics = { path = "../../../../../foundation/diagnostics" }
 function-identity = { path = "../../representations/function-identity" }
 language-core = { path = "../../../foundation/language-core" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
@@ -31,8 +34,3 @@ terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
 terminal-work = { path = "../../../psi/semantics/work" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
-
-[dev-dependencies]
-instruction-selection = { package = "target-operations-to-selected-instructions", path = "../05_target-operations-to-selected-instructions", features = ["test-support"] }
-register-environment = { path = "../../targets/register-environment" }
-selected-instructions = { path = "../../representations/selected-instructions" }

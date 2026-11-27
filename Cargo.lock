@@ -24,7 +24,6 @@ dependencies = [
  "arena",
  "calling-conventions",
  "compiler-check-site",
- "diagnostics",
  "function-identity",
  "language-core",
  "legalized-operations",
@@ -33,15 +32,12 @@ dependencies = [
  "optimization-unit",
  "optimization-unit-semantics",
  "provider-admission",
- "register-environment",
  "runtime-abi",
- "selected-instructions",
  "semantic-vocabulary",
  "structural-storage",
  "structural-storage-queries",
  "target",
  "target-operations",
- "target-operations-to-selected-instructions",
  "target-vocabulary",
  "terminal-codec",
  "terminal-psi",
@@ -3351,6 +3347,7 @@ dependencies = [
 name = "target-operations-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
+ "abstract-operations",
  "abstract-operations-to-target-operations",
  "access-admission",
  "access-vocabulary",
@@ -3365,6 +3362,8 @@ dependencies = [
  "operation-evidence",
  "operation-operands",
  "optimization-core",
+ "optimization-unit",
+ "optimization-unit-semantics",
  "physical-program",
  "provider-admission",
  "register-environment",
@@ -3375,9 +3374,12 @@ dependencies = [
  "structural-storage",
  "structural-storage-queries",
  "target",
+ "target-operations",
+ "target-operations-to-selected-instructions",
  "target-vocabulary",
  "terminal-psi",
  "terminal-semantics",
+ "verified-optimization-input",
 ]
 
 [[package]]

@@ -8233,12 +8233,42 @@ impl Builder<'_> {
             ) {
                 continue;
             }
-            if let VirtualRegisterOrigin::InstructionScratch {
-                instruction: definition,
-                ..
-            } = &mut self.registers[operand.virtual_register.0 as usize].origin
-            {
-                *definition = id;
+            // A register's origin names the instruction that defines it;
+            // later passes delete a register whose origin instruction they
+            // delete. Transport registers are often allocated before the
+            // instructions that compute them, so bind them to their first
+            // definition here instead of to the next instruction at allocation.
+            match &mut self.registers[operand.virtual_register.0 as usize].origin {
+                VirtualRegisterOrigin::InstructionScratch {
+                    instruction: definition,
+                    ..
+                } => *definition = id,
+                VirtualRegisterOrigin::AbiTransport {
+                    instruction: definition,
+                    ..
+                }
+                | VirtualRegisterOrigin::StructuralObservation {
+                    instruction: definition,
+                    ..
+                } => {
+                    let defined_earlier =
+                        self.instructions
+                            .get(definition.0 as usize)
+                            .is_some_and(|earlier| {
+                                earlier.operands.iter().any(|earlier_operand| {
+                                    earlier_operand.virtual_register == operand.virtual_register
+                                        && matches!(
+                                            earlier_operand.access,
+                                            RegisterOperandAccess::Def
+                                                | RegisterOperandAccess::UseDef
+                                        )
+                                })
+                            });
+                    if !defined_earlier {
+                        *definition = id;
+                    }
+                }
+                _ => {}
             }
             let Some(position) = self
                 .pending_result_origins

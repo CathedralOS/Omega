@@ -10,6 +10,8 @@ mod descriptor_input;
 mod emission_facts;
 mod preparation;
 mod target_lowering;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 pub use abstract_input::{AbstractInputError, admit_abstract_body};
 pub use target_lowering::{LoweringError, OptimizedTargetLoweringRequest, lower_native_body};
 pub mod replay {
