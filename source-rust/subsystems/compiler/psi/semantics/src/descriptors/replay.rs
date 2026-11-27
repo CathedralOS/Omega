@@ -300,12 +300,12 @@ pub(crate) fn result_origins(
     replay
         .summary(identity, 0)?
         .result
-        .into_slots()?
-        .into_iter()
+        .slots_without_contents()?
+        .iter()
         .find(|slot| slot.path.is_empty())?
         .origins
-        .into_iter()
-        .map(|origin| result_origin(types, machine, origin))
+        .iter()
+        .map(|origin| result_origin(types, machine, origin.clone()))
         .collect()
 }
 pub(crate) fn return_slots_have_external_backing(

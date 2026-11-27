@@ -81,7 +81,7 @@ impl StorageQueries {
 }
 
 pub struct DescriptorAnalysis<'a> {
-    replay: Replay<'a>,
+    pub(super) replay: Replay<'a>,
     storage_queries: StorageQueries,
     flows: Vec<(
         MachineId,
@@ -213,6 +213,21 @@ impl<'a> DescriptorAnalysis<'a> {
     ) -> Self {
         Self {
             replay: Replay::new(types, machines),
+            storage_queries: StorageQueries::default(),
+            flows: Vec::new(),
+        }
+    }
+
+    /// An analysis that reads a type index built elsewhere over `types`,
+    /// such as a `ModuleAnalyses` bundle's, instead of building its own.
+    pub(crate) fn with_type_index(
+        types: &'a [StructuralTypeDeclaration],
+        type_index: &'a crate::descriptors::descriptor_lifetimes::StructuralTypeIndex<'a>,
+        machines: crate::module_analyses::DescriptorRowView<'a>,
+        slot_kind: DescriptorSlotKind,
+    ) -> Self {
+        Self {
+            replay: Replay::with_type_index(types, type_index, machines, slot_kind),
             storage_queries: StorageQueries::default(),
             flows: Vec::new(),
         }
@@ -1139,7 +1154,11 @@ impl<'a> DescriptorAnalysis<'a> {
         self.replay.storage_projection(machine, &actual)
     }
     pub fn result_slots(&mut self, identity: MachineId) -> Option<Vec<DescriptorResultSlot>> {
-        self.replay.summary(identity, 0)?.result.into_slots()
+        self.replay
+            .summary(identity, 0)?
+            .result
+            .slots_without_contents()
+            .cloned()
     }
 
     /// Keep a failed storage replay available to callers that report
@@ -1157,15 +1176,15 @@ impl<'a> DescriptorAnalysis<'a> {
             slots,
             contents,
             unknown,
-        } = summary.result
+        } = &summary.result
         else {
             return None;
         };
         Some(DescriptorResultContents {
-            slots: slots?,
-            unknown_contents: contents,
-            unresolved_slots: unknown,
-            case_facts: summary.result_cases,
+            slots: slots.clone()?,
+            unknown_contents: contents.clone(),
+            unresolved_slots: unknown.clone(),
+            case_facts: summary.result_cases.clone(),
         })
     }
 
@@ -1291,7 +1310,7 @@ impl<'a> DescriptorAnalysis<'a> {
         if summary.invalidates_contents {
             return None;
         }
-        summary.effects.into_observed()
+        summary.effects.observed().cloned()
     }
     pub fn call_stored_effects(
         &mut self,

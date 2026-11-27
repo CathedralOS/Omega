@@ -9,11 +9,15 @@
 //! entry keeps the callees its replay asked for and the deepest nested
 //! replay below it, so a caller adopts the entry only where its own replay
 //! would have reached the same answer (`Replay::adopted_summary`).
+//!
+//! An entry holds its summary behind an `Arc`, so a replay that adopts it
+//! takes another reference rather than copying the summary.
 
 use super::engine::Summary;
 use crate::descriptors::descriptor_results::DescriptorSlotKind;
+use crate::module_analyses::{DescriptorRowView, RowFamilyIdentity};
 use semantic_vocabulary::MachineId;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use terminal_psi::generic_calls::NominalCallType;
 use terminal_psi::{OperationKind, StructuralTypeDeclaration, TerminalModule};
 
@@ -25,9 +29,17 @@ use terminal_psi::{OperationKind, StructuralTypeDeclaration, TerminalModule};
 /// nominal calls (`terminal_borrowed_storage_graph_with_nominal_calls`),
 /// unedited. `DescriptorAnalysis::share_summaries` checks what the rows and
 /// arguments show of that.
+///
+/// A `ModuleAnalyses` bundle keeps one table for its borrowed-storage row
+/// family. That table serves only rows the family shares: the bundle adapted
+/// them from the module it borrows, which nothing can edit while the bundle
+/// exists.
 pub struct ModuleSummaries<'m> {
     types: &'m [StructuralTypeDeclaration],
     nominal_calls: &'m [NominalCallType],
+    /// The bundle row family this table serves, or `None` for a table that
+    /// serves caller-built rows.
+    family: Option<RowFamilyIdentity>,
     /// Sorted, unique: an entry's index is its machine's rank here.
     machines: Vec<MachineId>,
     /// Sorted: machines whose bodies make a dynamic call.
@@ -36,8 +48,9 @@ pub struct ModuleSummaries<'m> {
 }
 
 pub(crate) struct PublishedSummary {
-    /// As first replayed, before any storage frame was attached.
-    pub(crate) summary: Summary,
+    /// As first replayed, before any storage frame was attached. A replay
+    /// that adopts it and later attaches a frame copies it first.
+    pub(crate) summary: Arc<Summary>,
     /// The summaries its state replay asked for, sorted and unique. Empty
     /// when the summary needed no state replay.
     pub(crate) callees: Box<[MachineId]>,
@@ -83,9 +96,19 @@ impl<'m> ModuleSummaries<'m> {
         Self {
             types,
             nominal_calls,
+            family: None,
             machines,
             dynamic,
             published,
+        }
+    }
+
+    /// The table for a bundle's borrowed-storage row family, which adapts
+    /// its rows with no nominal calls.
+    pub(crate) fn for_family(module: &'m TerminalModule, family: RowFamilyIdentity) -> Self {
+        Self {
+            family: Some(family),
+            ..Self::borrowed_storage(module, &[])
         }
     }
 
@@ -93,16 +116,26 @@ impl<'m> ModuleSummaries<'m> {
     /// table's entries were replayed from. A closure with a dynamic call
     /// adapts every body against that closure's own rows, so its rows can
     /// differ from another closure's rows for the same machine.
+    ///
+    /// A bundle's table serves rows its own family shares, whatever their
+    /// closure: every such row was adapted once from the bundle's module. A
+    /// caller-built table compares the declarations and nominal calls it was
+    /// built with by address.
     pub(crate) fn serves(
         &self,
         types: &[StructuralTypeDeclaration],
         slot_kind: DescriptorSlotKind,
-        rows: crate::module_analyses::DescriptorRowView<'_>,
+        rows: DescriptorRowView<'_>,
         nominal_calls: &[NominalCallType],
     ) -> bool {
+        let same_rows = match self.family {
+            Some(family) => rows.family() == Some(family),
+            None => {
+                std::ptr::eq(types, self.types) && std::ptr::eq(nominal_calls, self.nominal_calls)
+            }
+        };
         slot_kind == DescriptorSlotKind::BorrowedStorage
-            && std::ptr::eq(types, self.types)
-            && std::ptr::eq(nominal_calls, self.nominal_calls)
+            && same_rows
             && rows.iter().all(|row| {
                 self.rank(row.id).is_some() && self.dynamic.binary_search(&row.id).is_err()
             })
@@ -125,5 +158,7 @@ impl<'m> ModuleSummaries<'m> {
     }
 }
 
+#[cfg(test)]
+mod bundle_tests;
 #[cfg(test)]
 mod tests;

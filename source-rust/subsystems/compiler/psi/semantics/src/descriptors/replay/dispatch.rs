@@ -1,7 +1,8 @@
 use super::engine::{EffectObservations, Summary, UnobservedWrite};
 use super::*;
+use std::sync::Arc;
 
-pub(crate) fn join(mut joined: Summary, summaries: &[Summary]) -> Summary {
+pub(crate) fn join(mut joined: Summary, summaries: &[Arc<Summary>]) -> Summary {
     joined.invalidates_contents |= summaries.iter().any(|summary| summary.invalidates_contents);
     if let super::engine::ResultObservations::Observed {
         unknown,
@@ -35,12 +36,12 @@ pub(crate) fn join(mut joined: Summary, summaries: &[Summary]) -> Summary {
         }
     }
     let has_unobserved = std::iter::once(&joined)
-        .chain(summaries)
+        .chain(summaries.iter().map(Arc::as_ref))
         .any(|summary| matches!(summary.effects, EffectObservations::Incomplete { .. }));
     if has_unobserved {
         let mut writes = Vec::new();
         let mut located = true;
-        for summary in std::iter::once(&joined).chain(summaries) {
+        for summary in std::iter::once(&joined).chain(summaries.iter().map(Arc::as_ref)) {
             if let EffectObservations::Incomplete { unobserved, .. } = &summary.effects {
                 let Some(unknown) = unobserved else {
                     located = false;
