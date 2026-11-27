@@ -295,37 +295,6 @@ pub struct PreparationEvidence<'input> {
     pub accepted_obligation_facts: &'input [optimization_unit::AcceptedObligationFact],
 }
 
-#[cfg(test)]
-pub(crate) fn legalize_target_operations(
-    target: &TargetOperationPlan,
-    _abstract_plan: &AbstractOperationPlan,
-    unit: &optimization_unit::PsiOptimizationUnit,
-    origins: crate::preparation::BoundaryOriginFacts<'_>,
-    callable_bindings: &verified_optimization_input::NativeCallableBindings,
-    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    types: &crate::preparation::native_geometry::ModuleTypes,
-) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
-    let callable_invocations =
-        crate::preparation::PreparedCallableInvocations::new(unit, callable_bindings)
-            .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
-    prepare_execution_plan(
-        target,
-        PreparationEvidence {
-            optimization_unit: unit.identity,
-            work_schedule: unit.work_schedule,
-            accepted_obligation_facts: &unit.accepted_obligation_facts,
-        },
-        origins,
-        &callable_invocations,
-        installed_interrupts,
-        types,
-        // These raw-plan unit controls do not model an optimization run.
-        optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
-            b"standalone native-preparation fixture",
-        ),
-    )
-}
-
 /// The interrupt installations still present after lowering, in the order
 /// the plan records them.
 fn surviving_installations(

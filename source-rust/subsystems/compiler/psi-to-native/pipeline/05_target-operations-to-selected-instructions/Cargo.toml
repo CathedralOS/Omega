@@ -35,3 +35,12 @@ calling-conventions = { path = "../../targets/calling-conventions" }
 terminal-psi = { path = "../../../psi" }
 structural-storage = { path = "../../representations/structural-storage" }
 structural-storage-queries = { path = "../../representations/structural-storage/queries" }
+
+[dev-dependencies]
+abstract-operations = { path = "../../representations/abstract-operations" }
+optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
+target-lowering = { package = "abstract-operations-to-target-operations", path = "../04_abstract-operations-to-target-operations", features = ["test-support"] }
+target-operations = { path = "../../representations/target-operations" }
+target-operations-to-selected-instructions = { path = ".", features = ["test-support"] }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
