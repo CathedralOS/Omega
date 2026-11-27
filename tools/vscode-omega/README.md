@@ -19,8 +19,8 @@ With Node.js 20 or newer and VS Code installed, run from this directory on
 Windows, macOS or Linux:
 
 ```sh
-npx --yes @vscode/vsce@4.0.0 package --no-dependencies --out omega-syntax-0.4.0.vsix
-code --install-extension omega-syntax-0.4.0.vsix
+npx --yes @vscode/vsce@4.0.0 package --no-dependencies --out omega-syntax-0.4.1.vsix
+code --install-extension omega-syntax-0.4.1.vsix
 ```
 
 With Bun instead of Node.js, replace `npx --yes` with `bun x`. On PowerShell,

@@ -47,13 +47,19 @@ class Location {
   }
 }
 
+const EndOfLine = { LF: 1, CRLF: 2 };
+
 class TextEdit {
-  constructor(range, newText) {
+  constructor(range, newText, newEol) {
     this.range = range;
     this.newText = newText;
+    this.newEol = newEol;
   }
   static replace(range, newText) {
-    return new TextEdit(range, newText);
+    return new TextEdit(range, newText, undefined);
+  }
+  static setEndOfLine(eol) {
+    return new TextEdit(null, '', eol);
   }
 }
 
@@ -64,6 +70,7 @@ class TextDocument {
     this.uri = uri;
     this.text = text;
     this.version = 1;
+    this.eol = text.includes('\r\n') ? EndOfLine.CRLF : EndOfLine.LF;
     this._lines = text.split('\n');
     this.lineCount = this._lines.length;
   }
@@ -100,6 +107,7 @@ function createVscode(workspaceRoots) {
     Position,
     Range,
     Location,
+    EndOfLine,
     TextEdit,
     FileType,
     TextDocument,
@@ -206,11 +214,17 @@ function loadExtension(workspaceRoots) {
 
 function applyEdits(document, edits) {
   let out = document.getText();
+  let targetEol = document.eol;
   for (const edit of [...edits].reverse()) {
+    if (edit.newEol !== undefined) {
+      targetEol = edit.newEol;
+      continue;
+    }
     const start = document.offsetAt(edit.range.start);
     const end = document.offsetAt(edit.range.end);
     out = out.slice(0, start) + edit.newText + out.slice(end);
   }
+  if (targetEol === EndOfLine.LF) out = out.replace(/\r\n/g, '\n');
   return out;
 }
 

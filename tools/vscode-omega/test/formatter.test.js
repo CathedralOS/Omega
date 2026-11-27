@@ -77,6 +77,48 @@ test('preserves use paths, import aliases, lifetimes, borrows and generics', () 
   assert.equal(formatDocument(expected), expected);
 });
 
+test('formats postfix as-casts and operator declarations per the spec', () => {
+  const input = [
+    'public machine + Km::add_wrapping(',
+    'left: i32 in Km & Wrapping, right: i32 in Km & Wrapping',
+    ') -> i32 in Km & Wrapping {',
+    '((left as - Km - Wrapping) +% (right as -Km -Wrapping)) as + Km + Wrapping',
+    '}',
+    '',
+    'machine [] read<Element [copy]>(items: @[Element], index: u64) -> Element',
+    'requires index < items.length;',
+    '',
+    'machine casts(x: u32, a: bool, b: bool) {',
+    'let w: u32 in Wrapping = x as + Wrapping;',
+    'let k: u32 in Km = x as u32 + Km - Old = Kept;',
+    'let d: u64 in |units|::u64::Distance = sum as + |units|::u64::Distance;',
+    'let c: u32 = a + !b;',
+    '}',
+  ].join('\n');
+
+  const expected = [
+    'public machine + Km::add_wrapping(',
+    '    left: i32 in Km & Wrapping, right: i32 in Km & Wrapping',
+    ') -> i32 in Km & Wrapping {',
+    '    ((left as -Km -Wrapping) +% (right as -Km -Wrapping)) as +Km +Wrapping',
+    '}',
+    '',
+    'machine [] read<Element [copy]>(items: @[Element], index: u64) -> Element',
+    'requires index < items.length;',
+    '',
+    'machine casts(x: u32, a: bool, b: bool) {',
+    '    let w: u32 in Wrapping = x as +Wrapping;',
+    '    let k: u32 in Km = x as u32 +Km -Old =Kept;',
+    '    let d: u64 in |units|::u64::Distance = sum as + |units|::u64::Distance;',
+    '    let c: u32 = a + !b;',
+    '}',
+    '',
+  ].join('\n');
+
+  assert.equal(formatDocument(input), expected);
+  assert.equal(formatDocument(expected), expected);
+});
+
 test('aligns contract clauses and indents continuation lines', () => {
   const input = [
     'boundary trait ArrayAccess {',
@@ -159,10 +201,10 @@ test('preserves line comments, nested block comments and collapses extra blank l
   assert.equal(formatDocument(expected), expected);
 });
 
-test('respects tabSize, insertSpaces and CRLF line endings', () => {
+test('respects tabSize and insertSpaces, and normalizes CRLF to canonical LF', () => {
   const input = 'machine f() {\r\nlet x:u64=1;\r\n}\r\n';
-  assert.equal(formatDocument(input, { tabSize: 2, insertSpaces: true }), 'machine f() {\r\n  let x: u64 = 1;\r\n}\r\n');
-  assert.equal(formatDocument(input, { tabSize: 4, insertSpaces: false }), 'machine f() {\r\n\tlet x: u64 = 1;\r\n}\r\n');
+  assert.equal(formatDocument(input, { tabSize: 2, insertSpaces: true }), 'machine f() {\n  let x: u64 = 1;\n}\n');
+  assert.equal(formatDocument(input, { tabSize: 4, insertSpaces: false }), 'machine f() {\n\tlet x: u64 = 1;\n}\n');
 });
 
 test('formats a selected line range using surrounding indentation context', () => {
@@ -184,6 +226,7 @@ test('VS Code document and range formatting providers work via extension activat
   const clean = 'machine f() {\n    let x: u64 = 1 + 2;\n}\n';
   assert.equal(workspace.format(messy), clean);
   assert.equal(workspace.format(clean), clean);
+  assert.equal(workspace.format('machine f() {\r\n    let x: u64 = 1 + 2;\r\n}\r\n'), clean);
   assert.equal(
     workspace.formatRange('machine f() {\nlet a:u64=1;\nlet b:u64=2;\n}\n', 2, 2),
     'machine f() {\nlet a:u64=1;\n    let b: u64 = 2;\n}\n',
