@@ -7715,6 +7715,35 @@ struct TheoremSubjects<'t, 's, 'a> {
 }
 
 impl TheoremSubjects<'_, '_, '_> {
+    fn is_formal(&self, place: PlaceId) -> bool {
+        self.held
+            .callee_formals
+            .iter()
+            .any(|formal| formal.place == place)
+    }
+
+    /// The place at `path` beneath a sum this machine establishes, read in
+    /// place as a record it establishes is.
+    fn established(
+        &self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<Lineage, crate::Unbound> {
+        let storage = self.held.storage;
+        let concerns = self.held.concerns;
+        let base = Lineage {
+            root,
+            segments: Vec::new(),
+        };
+        let established =
+            storage
+                .projection_type(&base, concerns)
+                .ok_or(crate::Unbound::Unsupported(
+                    "logical sum subject has no type",
+                ))?;
+        storage.actual_projection(&base, established, path, concerns)
+    }
+
     fn sum(&self, root: PlaceId) -> Result<PlaceId, crate::Unbound> {
         self.sums
             .iter()
@@ -7790,10 +7819,14 @@ impl crate::Bindings for TheoremSubjects<'_, '_, '_> {
         }
     }
 
-    // A sum subject's case and payloads are those of the sum formal the
-    // application gives it, held where the edge leaves.
+    // A sum subject's case and payloads are those of the sum the application
+    // gives it, held where the edge leaves: a formal's through the call-site
+    // bindings, and an established sum's read in place.
     fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, crate::Unbound> {
         let actual = self.sum(root)?;
+        if !self.is_formal(actual) {
+            return Ok(actual);
+        }
         crate::Bindings::whole_input(&mut self.held, actual)
     }
 
@@ -7805,7 +7838,11 @@ impl crate::Bindings for TheoremSubjects<'_, '_, '_> {
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::Unbound> {
         let actual = self.sum(root)?;
-        crate::Bindings::field(&mut self.held, version, actual, path, scalar_type)
+        if self.is_formal(actual) {
+            return crate::Bindings::field(&mut self.held, version, actual, path, scalar_type);
+        }
+        let place = self.established(actual, path)?;
+        self.held.held_at(&place).observation(&place, scalar_type)
     }
 
     fn case(
@@ -7817,7 +7854,17 @@ impl crate::Bindings for TheoremSubjects<'_, '_, '_> {
         let actual = self
             .sum(root)
             .map_err(|_| crate::Unbound::Unsupported("a logical contract's clause tests a case"))?;
-        crate::Bindings::case(&mut self.held, actual, path, case)
+        if self.is_formal(actual) {
+            return crate::Bindings::case(&mut self.held, actual, path, case);
+        }
+        let place = self.established(actual, path)?;
+        self.held
+            .held_at(&place)
+            .case_at(&place, case)
+            .map_err(crate::Unbound::Refused)?
+            .ok_or(crate::Unbound::Unproved(
+                "nothing says which case the sum a theorem is applied to holds there",
+            ))
     }
 }
 

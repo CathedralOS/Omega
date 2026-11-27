@@ -47,6 +47,44 @@ pub(crate) fn validate(
     {
         terminal_semantics::theorems::application(module, machine, application)
             .map_err(|reason| invalid(application.edge, reason))?;
+        // A sum subject a formal does not give is established by an
+        // operation of this machine before the application; its case and
+        // payloads are what it holds where the edge leaves.
+        for place in &application.data_arguments {
+            let formal = terminal_psi::StructuralParameterDeclaration::find_by_place(
+                &machine.contract.structural_parameters,
+                *place,
+            )
+            .is_some();
+            let established = || {
+                machine
+                    .structural_places
+                    .iter()
+                    .find(|declared| declared.id == *place)
+                    .and_then(|declared| match declared.kind {
+                        semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                            producer,
+                            ..
+                        } => Some(producer),
+                        _ => None,
+                    })
+                    .is_some_and(|producer| {
+                        matches!(
+                            graph.dominates(
+                                ProgramPoint::AfterOperation(producer),
+                                ProgramPoint::Edge(application.edge),
+                            ),
+                            Ok(true)
+                        )
+                    })
+            };
+            if tables.roots.get(*place).is_none() || !(formal || established()) {
+                return Err(invalid(
+                    application.edge,
+                    "logical sum subject is not a sum formal of its machine or a sum it establishes before the application",
+                ));
+            }
+        }
         for argument in &application.arguments {
             // A field subject reads a record formal of this machine, whose
             // root place every point of the body has, or a record an

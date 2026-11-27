@@ -2721,16 +2721,17 @@ impl<'t> Program<'t> {
                     arguments.push(expression);
                     fields.push(Vec::new());
                 }
-                // A sum subject is one whole value: a sum formal of this
-                // machine, whose case and payloads are read at the edge.
+                // A sum subject is one whole value: a named sum of this
+                // machine, a formal or one it establishes, whose case and
+                // payloads are read at the edge.
                 TheoremInput::Sum(sum) => {
                     let expression = self.expression(id, slots, *argument, None)?;
-                    let formal = matches!(expression.result, Some(ValueType::Record(own, Qualification::NONE, _)) if own == sum)
+                    let named = matches!(expression.result, Some(ValueType::Record(own, Qualification::NONE, _)) if own == sum)
                         && matches!(expression.kind, ExpressionKind::Slot(slot)
                             if slots.get(slot).is_some_and(|held| !held.erased && held.borrowed.is_none()));
-                    if !formal {
+                    if !named {
                         return Err(unavailable(
-                            "logical sum subject is not a sum formal of the applying machine",
+                            "logical sum subject is not a named sum of the applying machine",
                         ));
                     }
                     sums.push(expression);
