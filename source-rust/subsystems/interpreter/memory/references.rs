@@ -413,7 +413,7 @@ pub(crate) mod entry_returns {
     use super::ReferenceBacking;
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::engine::execution::TerminalExecution;
-    use evaluation_accounting::EvaluationStorageLease;
+    use build_model::accounting::EvaluationStorageLease;
 
     #[derive(Default)]
     pub(crate) struct EntryReferenceBackings {

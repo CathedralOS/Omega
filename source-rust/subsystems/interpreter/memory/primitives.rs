@@ -74,7 +74,7 @@ pub(crate) mod activation_storage {
         binding::{ByteOwnerHome, ByteSequenceBinding},
     };
     use crate::storage::runtime_rows::RuntimeRows;
-    use evaluation_accounting::EvaluationInvocationAccount;
+    use build_model::accounting::EvaluationInvocationAccount;
     use extent_contracts::ActivationClaimSiteId;
     use resource_bounds::ActivationClaimBranch;
     use semantic_vocabulary::{MachineId, OperationId};
@@ -83,7 +83,7 @@ pub(crate) mod activation_storage {
     pub(crate) mod ledger {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
         use crate::extents::{ActivationClaimId, ActivationClaimLedger, ActivationClaimRequest};
-        use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+        use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 
         pub(crate) struct RuntimeActivationLedger {
             ledger: ActivationClaimLedger,
@@ -4893,8 +4893,8 @@ pub(crate) mod runtime_indexes {
 
 pub(crate) mod runtime_rows {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
-    use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-    use evaluation_contracts::EvaluationAccountingError;
+    use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+    use build_model::contracts::EvaluationAccountingError;
     use std::collections::{BTreeMap, btree_map};
 
     fn reserve_row(
@@ -5120,8 +5120,8 @@ pub(crate) mod runtime_rows {
     #[cfg(test)]
     mod tests {
         use super::RuntimeRows;
-        use evaluation_accounting::BuildEvaluationSponsor;
-        use evaluation_contracts::{
+        use build_model::accounting::BuildEvaluationSponsor;
+        use build_model::contracts::{
             BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
             TerminalStorageScheduleIdentity,
         };
@@ -5289,7 +5289,7 @@ pub(crate) mod scalar_storage {
         boundary::values::TerminalScalarValue,
         storage::runtime_rows::RuntimeRows,
     };
-    use evaluation_accounting::EvaluationInvocationAccount;
+    use build_model::accounting::EvaluationInvocationAccount;
     use semantic_vocabulary::ScalarType;
     use std::{collections::BTreeMap, rc::Rc};
 

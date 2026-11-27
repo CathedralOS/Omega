@@ -8,7 +8,7 @@ version.workspace = true
 path = "exclusions.rs"
 
 [dependencies]
-behavior-exclusion-requests = { path = "../../../build/settings/behavior-exclusions" }
+build-model = { path = "../../../build/model" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 provider-plans = { path = "../../../build/providers/plans" }
 selected-provider-plans = { path = "../../../build/providers/selections" }

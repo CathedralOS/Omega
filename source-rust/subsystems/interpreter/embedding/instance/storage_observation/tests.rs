@@ -170,7 +170,7 @@ fn projected_instance(
 fn projected_accounted_instance(
     program: &TerminalProgram<'static>,
     atoms: &[crate::TerminalProjectedHostAtom],
-    account: Option<evaluation_accounting::EvaluationInvocationAccount>,
+    account: Option<build_model::accounting::EvaluationInvocationAccount>,
 ) -> Result<TerminalInstance<'static, 'static>, TerminalInterpretError> {
     let entry = program
         .program
@@ -304,9 +304,9 @@ fn continuation_fixture(
     (program, atom)
 }
 
-fn continuation_sponsor() -> evaluation_accounting::BuildEvaluationSponsor {
-    use evaluation_accounting::BuildEvaluationSponsor;
-    use evaluation_contracts::{
+fn continuation_sponsor() -> build_model::accounting::BuildEvaluationSponsor {
+    use build_model::accounting::BuildEvaluationSponsor;
+    use build_model::contracts::{
         BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
         TerminalStorageScheduleIdentity,
     };

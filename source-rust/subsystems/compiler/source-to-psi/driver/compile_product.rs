@@ -94,7 +94,7 @@ pub(crate) struct CompletedProductSource {
     pub program: Arc<crate::source_state::FrozenTypedTrees>,
     pub grants: Vec<symbols::root_grants::AuthoredRootGrant>,
     pub declarations: crate::compile_product::declarations::AdmittedProductDeclarations,
-    pub exclusions: Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
+    pub exclusions: Vec<build_model::behavior_exclusions::AuthoredBehaviorExclusion>,
     pub(crate) terminal_publication: Arc<judge_lowered_source::SourcePublication>,
     review_package: bool,
     deployments: Vec<String>,

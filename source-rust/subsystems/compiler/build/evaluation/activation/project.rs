@@ -3,7 +3,7 @@ use build_declarations::{
     ApplicationDeclaration, BuildDeclaration, BuildEntryPath, BuildRequest, PackageDeclaration,
     ProjectName, WorkspaceDeclaration,
 };
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use package_compilation::build_execution::SelectedBuildMachine;
 use terminal_interpreter::{TerminalInstance, TerminalObservationRoot};
 

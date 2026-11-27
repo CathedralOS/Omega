@@ -1,6 +1,6 @@
 # Evaluation accounting
 
-This crate holds source-neutral resource accounts, movable storage leases and
+This module holds source-neutral resource accounts, movable storage leases and
 tagged measurement records for compile-time evaluation. It has no interpreter, source admission, Build execution
 or filesystem code.
 

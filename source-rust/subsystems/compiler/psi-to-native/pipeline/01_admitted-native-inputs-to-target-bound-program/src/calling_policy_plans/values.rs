@@ -1,5 +1,5 @@
 //! Input and result shapes for an executed native calling policy.
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_interpreter::{TerminalInstance, TerminalProgram, TerminalStructuralContents};
 

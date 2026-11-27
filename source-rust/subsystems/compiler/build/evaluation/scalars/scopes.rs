@@ -28,7 +28,7 @@ pub struct ScalarApplicationCompletion {
     primary: Option<String>,
     completed: psi_scalar_applications::AdmittedScalarApplications,
     scopes: Vec<ScalarScopeEvaluation>,
-    sponsor: Option<evaluation_accounting::EvaluationInvocationAccount>,
+    sponsor: Option<build_model::accounting::EvaluationInvocationAccount>,
 }
 
 impl ScalarApplicationCompletion {
@@ -106,7 +106,7 @@ pub fn prepare_scalar_applications<'scope>(
     primary: impl Into<Option<&'scope str>>,
     deployment_scopes: Option<&[String]>,
     requested: &[ScalarApplicationId],
-    sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    sponsor: Option<&build_model::accounting::EvaluationInvocationAccount>,
     accounting: &mut impl Extend<CanonicalScalarEvaluationReceipt>,
     mut select: impl FnMut(Option<&str>) -> Result<ScalarScopeEvaluation, String>,
 ) -> Result<ScalarApplicationCompletion, String> {
@@ -139,7 +139,7 @@ fn complete_scopes(
     primary: Option<&str>,
     deployment_scopes: Option<&[String]>,
     requested: &[ScalarApplicationId],
-    sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    sponsor: Option<&build_model::accounting::EvaluationInvocationAccount>,
     records: &mut Vec<CanonicalScalarEvaluationReceipt>,
     completed_scopes: &mut Vec<ScalarScopeEvaluation>,
     previous: Option<&psi_scalar_applications::AdmittedScalarApplications>,

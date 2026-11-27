@@ -4,7 +4,7 @@
 use crate::calling_policy_plans::CallingProgram;
 use crate::target_supply::{NormalizedNativeSupply, SelectedProviderRealization};
 use diagnostics::Diagnostic;
-use evaluation_receipts::NativeBindingMaterialization;
+use build_model::receipts::NativeBindingMaterialization;
 use provider_demand::PackageReviewRequirements;
 use semantic_vocabulary::BoundaryMachineId;
 use terminal_psi::TerminalModule;

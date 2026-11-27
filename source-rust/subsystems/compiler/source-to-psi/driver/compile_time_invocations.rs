@@ -2,7 +2,7 @@
 //! observations and operands. Nested invocations use the same typed caller,
 //! checking path and interpreter, then return their value to the waiting stage.
 pub(crate) use crate::compile_product::source_targets::FixedLayoutTargetScope;
-pub(crate) use build_time_values::BuildTimeValue;
+pub(crate) use build_model::values::BuildTimeValue;
 pub use source_completion_accounting::{PureEvaluationRecord, SourceCompletionAccounting};
 pub(crate) use source_completion_accounting::{
     PureTerminalEvaluationOutcome, PureTerminalEvaluationReceipt,

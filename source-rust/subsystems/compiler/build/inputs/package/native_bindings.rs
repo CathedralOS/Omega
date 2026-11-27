@@ -66,7 +66,7 @@ impl PackageBuildHandoff {
     pub fn append_native_bindings(
         &self,
         profile: target::TargetProfile,
-        bindings: &mut Vec<evaluation_receipts::NativeBindingMaterialization>,
+        bindings: &mut Vec<build_model::receipts::NativeBindingMaterialization>,
     ) -> Result<(), String> {
         if self.target() != profile {
             return Err("installed package belongs to a different target".into());
@@ -82,7 +82,7 @@ impl PackageBuildHandoff {
             let evaluation = self
                 .native_evaluation()
                 .ok_or("installed native binding lost its completed Build evaluation")?;
-            bindings.push(evaluation_receipts::NativeBindingMaterialization {
+            bindings.push(build_model::receipts::NativeBindingMaterialization {
                 requirement_identity: declaration.requirement_identity.clone(),
                 service_declaration: declaration.service_declaration,
                 target: profile.target_name().to_owned(),

@@ -7,7 +7,7 @@
 use build_output::BuildStagedOutputTree;
 pub use build_output::{BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory};
 
-pub use evaluation_contracts::BuildEvaluationUsage;
+pub use build_model::contracts::BuildEvaluationUsage;
 pub use filesystem_authority::{
     FilesystemGrantAccess as BuildFilesystemGrantAccess,
     FilesystemGrantRefusal as BuildFilesystemGrantRefusal,

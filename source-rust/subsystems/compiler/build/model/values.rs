@@ -23,8 +23,6 @@ host authority; source-bound callers join actual declaration handles before
 admitting or executing these values.
 */
 
-#![forbid(unsafe_code)]
-
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
 
 #[derive(Debug, Clone, PartialEq, record_storage::Record)]

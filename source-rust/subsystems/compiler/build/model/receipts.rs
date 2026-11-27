@@ -2,8 +2,6 @@
 //!
 //! A record identifies the accepted code, observations and actual invocation
 //! charges. It carries no package resolver, source tree or execution capability.
-#![forbid(unsafe_code)]
-
 mod dependencies;
 #[cfg(test)]
 mod tests;
@@ -20,7 +18,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBuildEvaluation {
     pub terminal_code: psi_program_identity::TerminalPsiIdentity,
-    pub usage: evaluation_contracts::BuildEvaluationUsage,
+    pub usage: crate::contracts::BuildEvaluationUsage,
     pub observation_digest: [u8; 32],
     pub dependency_preparations: Arc<DependencyPreparations>,
 }
@@ -28,7 +26,7 @@ pub struct NativeBuildEvaluation {
 impl NativeBuildEvaluation {
     pub fn from_observation_digest(
         terminal_code: psi_program_identity::TerminalPsiIdentity,
-        usage: evaluation_contracts::BuildEvaluationUsage,
+        usage: crate::contracts::BuildEvaluationUsage,
         observation_digest: [u8; 32],
     ) -> Result<Self, String> {
         Self::from_execution(terminal_code, Arc::default(), usage, observation_digest)
@@ -37,7 +35,7 @@ impl NativeBuildEvaluation {
     pub fn from_execution(
         terminal_code: psi_program_identity::TerminalPsiIdentity,
         dependency_preparations: Arc<DependencyPreparations>,
-        usage: evaluation_contracts::BuildEvaluationUsage,
+        usage: crate::contracts::BuildEvaluationUsage,
         observation_digest: [u8; 32],
     ) -> Result<Self, String> {
         let receipt = Self {
@@ -65,7 +63,7 @@ impl NativeBuildEvaluation {
         let usage = &self.usage;
         digest.raw(&usage.usage_schema_version.to_le_bytes());
         digest.raw(&usage.step_schedule_marker.to_le_bytes());
-        let evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi {
+        let crate::contracts::EvaluationMeasurementIdentity::TerminalPsi {
             work_schedule,
             storage_schedule,
         } = usage.measurement;
@@ -113,7 +111,7 @@ impl Record for NativeBuildEvaluation {
             if u32::read(input)? != EVALUATION_RECORD_TAG {
                 return Err(input.error("unrecognized Build evaluation receipt"));
             }
-            let usage = evaluation_contracts::BuildEvaluationUsage::read(input)?;
+            let usage = crate::contracts::BuildEvaluationUsage::read(input)?;
             let observations = <[u8; 32]>::read(input)?;
             let preparations = Arc::<DependencyPreparations>::read(input)?;
             Self::from_execution(code, preparations, usage, observations)

@@ -1,5 +1,5 @@
 //! Normalized Build choices, their accepted source and the observations of this execution.
-use behavior_exclusion_requests::AuthoredBehaviorExclusion;
+use build_model::behavior_exclusions::AuthoredBehaviorExclusion;
 use checked_program_to_psi::provider_choice_inputs::{NativeBuildSupply, ProviderSelection};
 use normalized_build_settings::EvaluatedBuildSettings;
 use source_declarations::source_selections::{
@@ -16,7 +16,7 @@ pub struct BuildConfig {
     pub default_provider_selections: Vec<ProviderSelection>,
     pub native_bindings: Vec<NativeBuildSupply>,
     pub native_binding_evaluation:
-        Option<std::sync::Arc<evaluation_receipts::NativeBuildEvaluation>>,
+        Option<std::sync::Arc<build_model::receipts::NativeBuildEvaluation>>,
     pub opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     pub wire_compatibility_demands: Vec<WireCompatibilityDemand>,
     pub root_bindings: Vec<RootBinding>,
@@ -54,7 +54,7 @@ pub struct ComputedBuildConfig {
     /// contracts without keeping the compiler's source trees alive.
     pub accepted_builds: Vec<terminal_codec::RetainedTerminalCode>,
     /// The dependencies this checked Build activation waited for, in execution order.
-    pub dependency_preparations: std::sync::Arc<evaluation_receipts::DependencyPreparations>,
+    pub dependency_preparations: std::sync::Arc<build_model::receipts::DependencyPreparations>,
     pub config: BuildConfig,
     pub root_binding_requests: Vec<source_declarations::declaration_selection::ProductEntryBinding>,
     pub declared_product_selections:
@@ -68,7 +68,7 @@ pub struct ComputedBuildConfig {
         Vec<source_declarations::declaration_selection::ExecutedEnumExclusion>,
     pub project_declaration: Option<build_declarations::BuildDeclaration>,
     pub optimization_report_request: optimization_requests::OptimizationReportRequest,
-    pub evaluation_usage: Option<evaluation_contracts::BuildEvaluationUsage>,
+    pub evaluation_usage: Option<build_model::contracts::BuildEvaluationUsage>,
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,
     /// Exact declaration of the machine whose checked invocation returned this Build.
     pub executed_entry: Option<ExecutedBuildEntry>,

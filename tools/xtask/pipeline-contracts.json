@@ -4054,7 +4054,7 @@
       "kind": "producer",
       "meaning": "Admit the schema, validate both arrival requirements, evaluate the selected calling policy and bind its physical adapter.",
       "producer": "target-bound program planning",
-      "signature": "cb5836b5a20d7687643ca915b9d111c6810e55e59794aacfbcfd4a1de6962a18"
+      "signature": "0d72471f63629f04b8f7b3d67b81b8c12d152b79ce348ff6ad211b47000d0ca0"
     },
     {
       "consumers": [
@@ -15492,11 +15492,11 @@
         "package policy projection and canonical review encoding"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/package_review.rs",
-      "item": "use:evaluation_receipts :: NativeBindingMaterialization#1",
+      "item": "use:build_model :: receipts :: NativeBindingMaterialization#1",
       "kind": "definition",
       "meaning": "Uses the completed native Build invocation, its supplier, locator and source occurrence as evidence of the binding it produced.",
       "producer": "Build native binding evaluation",
-      "signature": "67ba23b74d7a5c86613f0be8caaa6c3452977c86ff0dad7394040a1e5119119b"
+      "signature": "c69e9e79baa2bf5e1d7bca0a388ef04a606a35671aa54e8cfcb7981fff59740f"
     },
     {
       "consumers": [
@@ -15519,7 +15519,7 @@
       "kind": "carried_record",
       "meaning": "The completed native Build bindings offered by the host for its target.",
       "producer": "receiving host package installation",
-      "signature": "6b7de8776f475f5a344184bf4bc092651053ecd65b6f9662bcb37de80e9f08dd"
+      "signature": "c3c9955f8d2840bd4c94d835db6e871e4b64f30e94e046b34fbe8f0c7ec5f6f3"
     },
     {
       "consumers": [
@@ -15661,7 +15661,7 @@
       "kind": "definition",
       "meaning": "Carry the established native binding or its original diagnostic at the provider entrance.",
       "producer": "Omega provider demand admission",
-      "signature": "2b47bf267218579f1cf574e483dbe460c71e2ecd2e7174cdc017307f1a0254d8"
+      "signature": "491ba52f549f276586d86527a2ba979f906933424c7f8cafc57c9cb04e6f44c8"
     },
     {
       "consumers": [
@@ -15673,7 +15673,7 @@
       "kind": "definition",
       "meaning": "Keep the host package installation independent of the program it receives.",
       "producer": "receiving host package installation",
-      "signature": "ec954a28a259e37122ebdef6706130653b198a1fc6843d849325fb5b4584b5c7"
+      "signature": "2ef8831683abe532ea98a64d40b0a00cc5ceebd1ef00745accd46ba3499adb99"
     },
     {
       "consumers": [
@@ -15697,7 +15697,7 @@
       "kind": "producer",
       "meaning": "Collect reviewed target bindings and separately issued grants before receiving a program.",
       "producer": "receiving host package installation",
-      "signature": "57f3574c0915b5d54e01c45fc49063467da3fe7c5a75355a8b1975d0e9e49bb8"
+      "signature": "ddb16b4e706d85f9ab192c72b92c252943281acac8c4a474bdafd25faca35b22"
     },
     {
       "consumers": [
@@ -15817,7 +15817,7 @@
       "kind": "carried_record",
       "meaning": "Evaluated target bindings, declaration permissions and role grants that one host can supply to several programs.",
       "producer": "receiving host package installation",
-      "signature": "ed44c316698d0fa09497bcc9d35161cb8121daff9c7a8a790bcd0baa01be90b8"
+      "signature": "c1d5da201519487eefaa1ce39be37077a4d09dce7834edf4b68ef8065ffe35c8"
     },
     {
       "consumers": [
@@ -20294,7 +20294,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "NativeBindingMaterialization::field:evaluation#1",
       "kind": "carried_record",
       "meaning": "The shared evaluation receipt for the Build that issued this binding.",
@@ -20306,7 +20306,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "NativeBindingMaterialization::field:locator#1",
       "kind": "carried_record",
       "meaning": "Foreign import or system call chosen for this target.",
@@ -20318,7 +20318,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "NativeBindingMaterialization::field:producer_identity#1",
       "kind": "carried_record",
       "meaning": "Checked callable in the supplying package that produced this binding.",
@@ -20330,7 +20330,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "NativeBindingMaterialization::field:requirement_identity#1",
       "kind": "carried_record",
       "meaning": "Package-qualified callable identity, including its closed static operands.",
@@ -20342,7 +20342,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "NativeBindingMaterialization::field:service_declaration#1",
       "kind": "carried_record",
       "meaning": "Commitment to the checked contract of the service declaring the callable.",
@@ -20354,7 +20354,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "NativeBindingMaterialization::field:source_occurrence_digest#1",
       "kind": "carried_record",
       "meaning": "Commitment to the checked source occurrence that formed the binding.",
@@ -20366,7 +20366,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "NativeBindingMaterialization::field:supplier_package#1",
       "kind": "carried_record",
       "meaning": "Exact package identity of the Build that offered the binding.",
@@ -20378,7 +20378,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "NativeBindingMaterialization::field:target#1",
       "kind": "carried_record",
       "meaning": "Canonical target name for the evaluated binding.",
@@ -20390,7 +20390,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "NativeBuildEvaluation::field:dependency_preparations#1",
       "kind": "carried_record",
       "meaning": "Retain the dependencies this invocation prepared, in order.",
@@ -20402,7 +20402,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "NativeBuildEvaluation::field:observation_digest#1",
       "kind": "carried_record",
       "meaning": "Commitment to the Build invocation’s observed inputs.",
@@ -20414,7 +20414,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "NativeBuildEvaluation::field:terminal_code#1",
       "kind": "carried_record",
       "meaning": "Identify the single checked program executed by this activation.",
@@ -20426,19 +20426,19 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "NativeBuildEvaluation::field:usage#1",
       "kind": "carried_record",
       "meaning": "The work and resources charged to the completed Build invocation.",
       "producer": "native binding Build evaluation",
-      "signature": "e622e643adae0c15de07b274bb148923b9874665cf706f3952e122f72a89b5f0"
+      "signature": "a1c63a08dd861c97b1132dbf2d828a367c1bfd796ecbad38383cdefbc0bd885a"
     },
     {
       "consumers": [
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "const:EVALUATION_RECORD_TAG#1",
       "kind": "definition",
       "meaning": "Identify the receipt layout before reading measured usage and preparation records.",
@@ -20450,55 +20450,55 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "impl:NativeBuildEvaluation::implementation#1",
       "kind": "definition",
       "meaning": "Construct and validate a measured Build receipt and compute its identity from the recorded execution.",
       "producer": "native binding Build evaluation",
-      "signature": "32e567c6c4f37d4fce992d1c0ece2dfccb447897fdda9b453961aa88247fe2d5"
+      "signature": "1126a7605d16e254fbdf38e749b05673a4fdd6f372591d6633b4964bf68c9947"
     },
     {
       "consumers": [
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "impl:NativeBuildEvaluation::method:from_execution#1",
       "kind": "producer",
       "meaning": "Construct the receipt with its checked program, measured charges, observations and ordered preparations.",
       "producer": "native binding Build evaluation",
-      "signature": "aa8f77672474af2627fe3f62d75c7c06eaf800191c9ec6cbc463ca0439f6fed9"
+      "signature": "1897098dd1cf111493ca4cfe8b6801a96b2de7063a29421c1d58ac2bfc8a072b"
     },
     {
       "consumers": [
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "impl:NativeBuildEvaluation::method:from_observation_digest#1",
       "kind": "producer",
       "meaning": "Construct a receipt for an invocation that requested no dependency preparation.",
       "producer": "native binding Build evaluation",
-      "signature": "d4869c14ce75bfef5089b8cf28c250fd15aeb315656ca2b75e95a0f2fd5fd2bd"
+      "signature": "35d8d960c1d46bd41bd6cd61dff866c23160c52e4067f0c06a1fcaa60a6ba3e8"
     },
     {
       "consumers": [
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "impl:NativeBuildEvaluation::method:identity_digest#1",
       "kind": "producer",
       "meaning": "Commit to the checked program, its usage, the observed effects and the dependencies prepared in order.",
       "producer": "native binding Build evaluation",
-      "signature": "0f5f786a9faf3dfc9bb4537dea7f28f72dc912e45fe0168285a6ae4ccd233009"
+      "signature": "c70c1b97e42ecc5014e42e602405959b01fca9d8a7d0b2178e358e8a3306bb78"
     },
     {
       "consumers": [
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "impl:NativeBuildEvaluation::method:validate#1",
       "kind": "checker",
       "meaning": "Validate the usage recorded for this completed activation.",
@@ -20510,29 +20510,29 @@
         "package lock writer",
         "package lock reader"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "impl:Record for NativeBuildEvaluation::implementation#1",
       "kind": "definition",
       "meaning": "Store one fixed receipt layout for every completed Build.",
       "producer": "Build receipt codec",
-      "signature": "ecffec3d3e6f2e935162b7c5dfe9b95260cdab2f2d31152400a423882de96385"
+      "signature": "4a434d4f898b7c0c5530cde1e10e63b055a9810c1a0b8c3017d59e56b9c01599"
     },
     {
       "consumers": [
         "package lock reader"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "impl:Record for NativeBuildEvaluation::method:read#1",
       "kind": "checker",
       "meaning": "Require the current layout and validate invocation usage before returning the receipt.",
       "producer": "Build receipt codec",
-      "signature": "6ad626d3af7717912c2f2ca77756302074ca7ea76e0ad117c9c09bbe9f24154d"
+      "signature": "e5ed5bba88276641f3c4ac43ed8065b55c6eb30cceea97ceb0afa5b879ff9de2"
     },
     {
       "consumers": [
         "package lock writer"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "impl:Record for NativeBuildEvaluation::method:write#1",
       "kind": "producer",
       "meaning": "Store checked code, layout tag, usage, observations and preparations in that order.",
@@ -20544,7 +20544,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "module:dependencies#1",
       "kind": "definition",
       "meaning": "Own the ordered dependency preparations observed by one checked Build.",
@@ -20556,7 +20556,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "module:tests#1",
       "kind": "definition",
       "meaning": "Exercise receipt storage, validation and identity against a recorded invocation.",
@@ -20568,7 +20568,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "struct:NativeBindingMaterialization#1",
       "kind": "carried_record",
       "meaning": "The complete result of one evaluated native binding with its supplier, requirement and target.",
@@ -20580,19 +20580,19 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "struct:NativeBuildEvaluation#1",
       "kind": "carried_record",
       "meaning": "Carry the checked program, ordered dependency preparations, measured usage and observed input digest of one completed Build.",
       "producer": "native binding Build evaluation",
-      "signature": "d74e95e49c9a92a419d10560f826739d1854d9124e0c86456227f04102e6ac5b"
+      "signature": "e2a02e7f0265f54c4ca21825ceaa083407ff5866fe81526187b2268ea314f68d"
     },
     {
       "consumers": [
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "use:dependencies :: DependencyPreparations#1",
       "kind": "definition",
       "meaning": "Expose the ordered preparations carried with an evaluated Build.",
@@ -20604,7 +20604,7 @@
         "package lock writer",
         "package lock reader"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "use:record_storage :: Record#1",
       "kind": "definition",
       "meaning": "Read and write a completed Build using the package record format.",
@@ -20616,7 +20616,7 @@
         "package review",
         "target provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "item": "use:std :: sync :: Arc#1",
       "kind": "definition",
       "meaning": "Share immutable dependency preparations between a completed Build and its native binding receipts.",
@@ -20628,7 +20628,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "DependencyPreparation::field:child_build_source#1",
       "kind": "carried_record",
       "meaning": "Record the evaluated child Build's source consumption commitment when available.",
@@ -20640,7 +20640,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "DependencyPreparation::field:handoff#1",
       "kind": "carried_record",
       "meaning": "Record the prepared package's optional Build handoff commitment alongside its acquired inputs.",
@@ -20652,7 +20652,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "DependencyPreparation::field:inputs#1",
       "kind": "carried_record",
       "meaning": "Commit to the acquired dependency's package review inputs using the package compiler's review-cache digest.",
@@ -20664,7 +20664,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "DependencyPreparation::field:package#1",
       "kind": "carried_record",
       "meaning": "Retain the package key that satisfied the awaited registration.",
@@ -20676,7 +20676,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "DependencyPreparation::field:purpose#1",
       "kind": "carried_record",
       "meaning": "Identify whether the prepared registration belongs to the Build or Product dependency scope.",
@@ -20688,7 +20688,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "DependencyPreparation::field:request_ordinal#1",
       "kind": "carried_record",
       "meaning": "Identify the registration within its dependency scope that the running Build awaited.",
@@ -20700,7 +20700,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "DependencyPreparations::field:preparations#1",
       "kind": "carried_record",
       "meaning": "Preserve the order of dependency waits observed by this activation.",
@@ -20712,7 +20712,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "impl:DependencyPreparations::implementation#1",
       "kind": "definition",
       "meaning": "Record the completion of waits and contribute their identity to the receipt.",
@@ -20724,7 +20724,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "impl:DependencyPreparations::method:prepared#1",
       "kind": "producer",
       "meaning": "Append the completed dependency request with its purpose, ordinal, package and available source and handoff commitments.",
@@ -20736,7 +20736,7 @@
         "package native output codec",
         "native binding receipt identity"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "impl:DependencyPreparations::method:write_identity#1",
       "kind": "producer",
       "meaning": "Commit to every preparation in order, including the presence and content of optional child receipts and handoffs.",
@@ -20748,7 +20748,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "struct:DependencyPreparation#1",
       "kind": "carried_record",
       "meaning": "Identify a completed dependency preparation and commit to its immutable inputs and optional outputs.",
@@ -20760,7 +20760,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "struct:DependencyPreparations#1",
       "kind": "carried_record",
       "meaning": "Retain the ordered preparations made by one checked Build.",
@@ -20772,7 +20772,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "use:semantic_vocabulary :: PackageKeyIdentity#1",
       "kind": "definition",
       "meaning": "Carry the exact resolved package selected by the registration.",
@@ -20784,7 +20784,7 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "use:source_provenance :: DependencyScope#1",
       "kind": "definition",
       "meaning": "Use the same Build and Product dependency purposes that source admission applied to the registration.",
@@ -20796,7 +20796,7 @@
         "package native output codec",
         "native binding receipt identity"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "file": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "item": "use:wire :: digest_encoder :: DomainDigestEncoder#1",
       "kind": "definition",
       "meaning": "Frame dependency preparation fields for the evaluation identity.",
@@ -21381,11 +21381,11 @@
         "target-specific package review"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/representations/published-target-providers/publication.rs",
-      "item": "use:evaluation_receipts :: NativeBindingMaterialization#1",
+      "item": "use:build_model :: receipts :: NativeBindingMaterialization#1",
       "kind": "definition",
       "meaning": "Carry the completed Build evaluation behind each authored native binding.",
       "producer": "source provider publication",
-      "signature": "67ba23b74d7a5c86613f0be8caaa6c3452977c86ff0dad7394040a1e5119119b"
+      "signature": "c69e9e79baa2bf5e1d7bca0a388ef04a606a35671aa54e8cfcb7981fff59740f"
     },
     {
       "consumers": [
@@ -22848,7 +22848,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "path": "source-rust/subsystems/compiler/build/model/receipts.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",
@@ -22857,7 +22857,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "path": "source-rust/subsystems/compiler/build/model/receipts/dependencies.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",

@@ -8,11 +8,8 @@ version.workspace = true
 path = "invocation.rs"
 
 [dependencies]
-evaluation-work = { path = "../accounting/work" }
-build-time-values = { path = "../values" }
+build-model = { path = "../../model" }
 build-value-projection = { path = "../values/projection" }
-evaluation-accounting = { path = "../accounting" }
-evaluation-admission = { path = "../authority/admission" }
 layout-plans = { path = "../../../psi/layouts/geometry" }
 psi-scalar-applications = { path = "../../../psi/execution-inputs/scalar-applications" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }

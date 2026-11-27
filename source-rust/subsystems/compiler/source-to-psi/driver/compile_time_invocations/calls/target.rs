@@ -1,6 +1,6 @@
+use build_model::work::EvaluationWorkMeter;
 use psi_scalar_applications::{ScalarApplicationClosure, ScalarApplicationObservations};
 use semantic_vocabulary::ScalarApplicationId;
-use evaluation_work::EvaluationWorkMeter;
 
 /// The deployment target one build-time invocation runs under.
 ///

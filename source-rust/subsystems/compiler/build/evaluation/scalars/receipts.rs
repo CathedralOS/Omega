@@ -1,5 +1,5 @@
 //! Preserve the artifact, exact scope and measured work of each scalar evaluation.
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use terminal_interpreter::TerminalExecutionResult;
 
 pub const PURE_PSI_WORK_BUDGET: u64 = 100_000;
@@ -13,7 +13,7 @@ pub enum PureTerminalEvaluationOutcome {
     // completed instance, with the storage measurement of that invocation.
     Materialized {
         value: BuildTimeValue,
-        usage: evaluation_contracts::BuildEvaluationUsage,
+        usage: build_model::contracts::BuildEvaluationUsage,
     },
     Failed {
         reason: String,

@@ -10,7 +10,7 @@
 // to bind AArch64 targets alongside x86 targets without conflict.
 
 use super::optimization;
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use normalized_build_settings::{
     ElfInterpreterSelections, EvaluatedBuildSettings, X86DeploymentClaim,
 };

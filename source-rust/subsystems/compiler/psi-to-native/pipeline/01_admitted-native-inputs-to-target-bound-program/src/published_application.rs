@@ -17,7 +17,7 @@ struct PublishedApplicationInputs<'a, Publisher> {
     package_permissions: Option<&'a declaration_scope::ProductDeclarationScope>,
     application: target::NativeApplicationMetadata,
     optimizations: &'a optimization_core::OptimizationSelections,
-    behavior_exclusions: &'a [behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    behavior_exclusions: &'a [build_model::behavior_exclusions::AuthoredBehaviorExclusion],
     x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
@@ -168,7 +168,7 @@ pub fn bind_component_export<Publisher>(
     execution: &PublishedSelection<Publisher, SelectedExecution>,
     selected: &psi_provider_selections::AdmittedComponentProvider,
     settings: NativeApplicationSettings<'_>,
-    exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    exclusions: &[build_model::behavior_exclusions::AuthoredBehaviorExclusion],
 ) -> Result<(RetainedTerminalArtifact, TerminalAuthorityPermissionPolicy), Vec<Diagnostic>> {
     let artifact = execution.published_authorization().shared_artifact();
     if selected.provider() != artifact.view().identity() {
@@ -204,7 +204,7 @@ fn project_root<Publisher>(
     root: verified_optimization_input::NativeRootNomination<'_>,
     roots: Vec<terminal_psi::ProofDeclarationId>,
     settings: NativeApplicationSettings<'_>,
-    exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    exclusions: &[build_model::behavior_exclusions::AuthoredBehaviorExclusion],
 ) -> Result<(RetainedTerminalArtifact, TerminalAuthorityPermissionPolicy), Vec<Diagnostic>> {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
     let realization = execution.realization();
@@ -335,7 +335,7 @@ pub fn bind_published_application<Publisher>(
         semantic_vocabulary::PackageKeyIdentity,
         Arc<component_description::VerifiedComponent>,
     >,
-    behavior_exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    behavior_exclusions: &[build_model::behavior_exclusions::AuthoredBehaviorExclusion],
 ) -> Result<(RetainedTerminalArtifact, TerminalAuthorityPermissionPolicy), Vec<Diagnostic>> {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
     let provider_demand::ProviderDemandInputs::Target { origins, .. } = admitted.inputs() else {

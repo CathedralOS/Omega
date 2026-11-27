@@ -8,10 +8,7 @@ version.workspace = true
 path = "scalar_evaluation.rs"
 
 [dependencies]
-evaluation-work = { path = "../accounting/work" }
-build-time-values = { path = "../values" }
-evaluation-accounting = { path = "../accounting" }
-evaluation-contracts = { path = "../accounting/contracts" }
+build-model = { path = "../../model" }
 psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 psi-scalar-applications = { path = "../../../psi/execution-inputs/scalar-applications" }
 psi-target-layouts = { path = "../../../psi/execution-inputs/target-layouts" }

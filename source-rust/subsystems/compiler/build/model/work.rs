@@ -1,6 +1,6 @@
 //! Bind the Psi work meter to the account that pays for one Build evaluation.
-use evaluation_accounting::EvaluationInvocationAccount;
-use evaluation_contracts::{EvaluationAccountingError, EvaluationMeasurementIdentity};
+use crate::accounting::EvaluationInvocationAccount;
+use crate::contracts::{EvaluationAccountingError, EvaluationMeasurementIdentity};
 use terminal_work::{WorkMeter, WorkPayment, WorkSchedule};
 
 #[derive(Debug, Clone)]
