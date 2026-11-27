@@ -7,17 +7,17 @@ mod control;
 mod opaque_calls;
 mod storage;
 mod successor;
+mod wait;
 
 use super::progress::{PrivateWaitFailure, ProgressFailure, entry_scalars};
 use super::selected::Summaries;
-use super::spin::{CellUpdate, SpinWait};
+use super::spin::SpinWait;
 use activation::{Bindings, Destination, Frame, ScalarArguments};
 use control::{Execution, Frontier};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use storage::Storage;
 use terminal_psi::{
-    StructuralAccess, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
-    Terminator,
+    TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule, Terminator,
 };
 
 /// Find a call which can only retry on a permanently unchanged private cell.
@@ -135,7 +135,8 @@ fn advance<'m>(
                 TargetMachineCallable::Boundary(id) => match boundary(id) {
                     Some(summary) => summary,
                     None => {
-                        let always_returns = opaque_calls::returns_without_storage(module, id, op, &call)?;
+                        let always_returns =
+                            opaque_calls::returns_without_storage(module, id, op, &call)?;
                         if !always_returns {
                             path.coverage = control::Coverage::Partial;
                         }
@@ -143,43 +144,22 @@ fn advance<'m>(
                     }
                 },
             };
-            let actual = call.structural_arguments.get(spin.parameter)?;
-            if actual.access != StructuralAccess::SharedBorrow {
-                return None;
-            }
-            let base = memory.locate(&frame.bindings.places, actual.place, &actual.path)?;
-            let location = memory.project(base, &spin.path)?;
-            let mut all_block = true;
-            let mut can_block = false;
-            let mut observe = |initial| {
-                let failure = spin.while_value.failure(initial, spin.update, requirements);
-                all_block &= failure == Some(ProgressFailure::Deadlock);
-                can_block |= failure.is_some();
-            };
-            if memory
-                .get(&location)
-                .visit_scalars(spin.while_value.comparison.pivot.scalar_type(), |value| {
-                    observe(Some(value))
-                })
-                .is_none()
-            {
-                observe(None);
-            }
-            if can_block {
-                let cause = if all_block && certain {
-                    ProgressFailure::Deadlock
-                } else {
-                    ProgressFailure::Unproved
-                };
+            let progress = wait::apply(
+                &spin,
+                &frame.bindings,
+                memory,
+                call.structural_arguments,
+                requirements,
+            )?;
+            if let Err(mut cause) = progress {
+                if !certain && cause == ProgressFailure::Deadlock {
+                    cause = ProgressFailure::Unproved;
+                }
                 return Some(Advance::Blocked(PrivateWaitFailure {
                     machine: frame.machine.id,
                     operation: op.id,
                     cause,
                 }));
-            }
-            if spin.update != CellUpdate::Observe {
-                let next = memory.get(&location).after_update(spin.update);
-                memory.set(&location, next);
             }
             continue;
         }

@@ -1,12 +1,13 @@
-//! Derive a retry contract from one observed atomic cell. Follow both outcomes
-//! of its test in the lowered control flow. The waiting path must revisit the
-//! access, the other must return, and neither may have any unaccounted effect.
+//! Derive the condition under which a checked activation must retry. A single
+//! cell can change as part of the observation. Read-only waits may combine
+//! several observations along different paths to the retry edge.
 
 mod cases;
 mod condition;
+mod observations;
 use condition::Comparison;
 pub(super) use condition::SpinCondition;
-use std::cmp::Ordering;
+pub(super) use observations::Observation;
 
 use super::facts::Facts;
 use cases::CaseValue;
@@ -19,7 +20,16 @@ use terminal_psi::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SpinWait {
+pub struct SpinWait(pub(super) WaitRule);
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum WaitRule {
+    Cell(CellWait),
+    Observations(observations::Predicate),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct CellWait {
     pub(super) parameter: usize,
     pub(super) path: Vec<StructuralPathSegment>,
     pub(super) while_value: SpinCondition,
@@ -92,7 +102,7 @@ impl Word {
         };
         match self {
             Self::Observed => Some(Self::Test(condition)),
-            Self::Test(mut test) if comparison.order == Ordering::Equal => {
+            Self::Test(mut test) if comparison.order.is_eq() => {
                 let Scalar::Boolean(value) = comparison.pivot else {
                     return None;
                 };
@@ -109,10 +119,10 @@ impl Word {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
-struct Subject {
-    parameter: usize,
-    path: Vec<StructuralPathSegment>,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Subject {
+    pub(super) parameter: usize,
+    pub(super) path: Vec<StructuralPathSegment>,
 }
 
 pub(super) struct ForwardedWait {
@@ -121,13 +131,24 @@ pub(super) struct ForwardedWait {
 }
 
 impl ForwardedWait {
-    /// Restate the callee's cell over the caller's exact borrowed argument.
+    /// Substitute the actual borrowed argument for each formal in the predicate.
     pub(super) fn apply(&self, mut spin: SpinWait) -> Option<SpinWait> {
-        let supplied = self.borrowed.get(spin.parameter)?;
-        let mut path = supplied.path.clone();
-        path.append(&mut spin.path);
-        spin.parameter = supplied.parameter;
-        spin.path = path;
+        let substitute = |parameter: &mut usize, path: &mut Vec<StructuralPathSegment>| {
+            let supplied = self.borrowed.get(*parameter)?;
+            let mut projected = supplied.path.clone();
+            projected.append(path);
+            *path = projected;
+            *parameter = supplied.parameter;
+            Some(())
+        };
+        match &mut spin.0 {
+            WaitRule::Cell(cell) => substitute(&mut cell.parameter, &mut cell.path)?,
+            WaitRule::Observations(predicate) => {
+                for subject in predicate.inputs() {
+                    substitute(&mut subject.parameter, &mut subject.path)?;
+                }
+            }
+        }
         Some(spin)
     }
 }
@@ -142,8 +163,7 @@ struct Read {
 #[derive(Default)]
 struct Trace {
     cases: Facts<PlaceId, CaseValue>,
-    places: Facts<PlaceId, Subject>,
-    borrows: Facts<PlaceId, Subject>,
+    subjects: Subjects,
     forwarded: Option<ForwardedWait>,
     values: Facts<ValueId, Word>,
     read: Option<Read>,
@@ -160,7 +180,33 @@ fn bind<K: Ord, V: Eq>(bindings: &mut Facts<K, V>, key: K, value: V) -> Option<(
     Some(())
 }
 
-impl Trace {
+#[derive(Default)]
+struct Subjects {
+    places: Facts<PlaceId, Subject>,
+    borrows: Facts<PlaceId, Subject>,
+}
+
+impl Subjects {
+    fn at_entry(machine: &TerminalMachine) -> Self {
+        let mut state = Self::default();
+        for (parameter, formal) in machine.structural_parameters.iter().enumerate() {
+            // A borrowed machine formal already denotes the caller's referent.
+            // Its first Field projects that storage; a Referent would follow a
+            // pointer stored inside it.
+            if !matches!(formal.access, terminal_psi::reading_borrow_pair_pattern!()) {
+                continue;
+            }
+            state.places.insert(
+                formal.place,
+                Subject {
+                    parameter,
+                    path: Vec::new(),
+                },
+            );
+        }
+        state
+    }
+
     fn subject(&self, place: PlaceId, path: &[StructuralPathSegment]) -> Option<Subject> {
         let (mut subject, path) = if let Some(borrow) = self.borrows.get(&place) {
             let [StructuralPathSegment::Referent, rest @ ..] = path else {
@@ -183,7 +229,34 @@ impl Trace {
         subject.path.extend_from_slice(path);
         Some(subject)
     }
+}
 
+/// Only a checked empty unit entry can disappear from a wait predicate.
+fn inert_unit_call(module: &TerminalModule, operation: &Operation) -> bool {
+    let Some(call) = operation.declared_invocation() else {
+        return false;
+    };
+    if !matches!(operation.result, OperationResult::Unit)
+        || !call.claim_transfers.is_empty()
+        || !call.completion_receipts.is_empty()
+        || !call.crash_continuations.is_empty()
+    {
+        return false;
+    }
+    if let TargetMachineCallable::Machine(callee) = call.callee
+        && call.structural_arguments.is_empty()
+        && call.arguments.is_empty()
+        && let Some(callee) = module.machine(callee)
+        && let Some(entry) = callee.block(&callee.entry)
+        && entry.operations.is_empty()
+        && matches!(&entry.terminator, Terminator::ReturnUnit { cleanup_actions, .. } if cleanup_actions.is_empty())
+    {
+        return true;
+    }
+    false
+}
+
+impl Trace {
     fn scalar(&self, value: ValueId) -> Option<Word> {
         self.values.get(&value).copied()
     }
@@ -197,16 +270,7 @@ impl Trace {
             {
                 return None;
             }
-            // A completion arm can end by calling a local unit machine. Inspect
-            // its selected executable entry before treating this call as inert.
-            if let TargetMachineCallable::Machine(callee) = call.callee
-                && call.structural_arguments.is_empty()
-                && call.arguments.is_empty()
-                && let Some(callee) = module.machine(callee)
-                && let Some(entry) = callee.block(&callee.entry)
-                && entry.operations.is_empty()
-                && matches!(&entry.terminator, Terminator::ReturnUnit { cleanup_actions, .. } if cleanup_actions.is_empty())
-            {
+            if inert_unit_call(module, operation) {
                 return Some(false);
             }
             if self.forwarded.is_some() {
@@ -219,7 +283,7 @@ impl Trace {
                     if !matches!(actual.access, terminal_psi::reading_borrow_pair_pattern!()) {
                         return None;
                     }
-                    self.subject(actual.place, &actual.path)
+                    self.subjects.subject(actual.place, &actual.path)
                 })
                 .collect::<Option<_>>()?;
             self.forwarded = Some(ForwardedWait {
@@ -233,16 +297,16 @@ impl Trace {
                 source,
                 storage: None,
             } => {
-                let supplied = self.subject(source.place, &source.path)?;
+                let supplied = self.subjects.subject(source.place, &source.path)?;
                 bind(
-                    &mut self.borrows,
+                    &mut self.subjects.borrows,
                     operation.result.as_structural()?.place,
                     supplied,
                 )?;
                 return Some(false);
             }
             OperationKind::ReleaseReference { source, path } if path.is_empty() => {
-                self.borrows.remove(source)?;
+                self.subjects.borrows.remove(source)?;
                 return Some(false);
             }
             _ => {}
@@ -286,7 +350,7 @@ impl Trace {
                     };
                     let read = Read {
                         site: operation.id,
-                        cell: self.subject(*place, path)?,
+                        cell: self.subjects.subject(*place, path)?,
                         update,
                     };
                     if self.read.as_ref().is_some_and(|seen| seen != &read) {
@@ -308,11 +372,7 @@ impl Trace {
                 | OperationKind::BooleanEqual { left, right }
                 | OperationKind::IntegerLessThan { left, right }
                 | OperationKind::IntegerLessOrEqual { left, right } => {
-                    let (order, positive) = match operation.kind {
-                        OperationKind::IntegerLessThan { .. } => (Ordering::Less, true),
-                        OperationKind::IntegerLessOrEqual { .. } => (Ordering::Greater, false),
-                        _ => (Ordering::Equal, true),
-                    };
+                    let (_, _, order, positive) = Comparison::operands(&operation.kind)?;
                     let left = self.scalar(*left)?;
                     let right = self.scalar(*right)?;
                     if let Some(pivot) = right.literal() {
@@ -383,8 +443,8 @@ impl Trace {
             {
                 return None;
             }
-            let supplied = self.subject(actual.place, &actual.path)?;
-            bind(&mut self.places, formal.place, supplied)?;
+            let supplied = self.subjects.subject(actual.place, &actual.path)?;
+            bind(&mut self.subjects.places, formal.place, supplied)?;
         }
         Some(())
     }
@@ -401,22 +461,10 @@ fn trace(
     machine: &TerminalMachine,
     equal_case: bool,
 ) -> Option<(Trace, Completion)> {
-    let mut state = Trace::default();
-    for (parameter, formal) in machine.structural_parameters.iter().enumerate() {
-        // A borrowed machine formal already denotes the caller's referent.
-        // Its first Field projects that storage; a Referent would follow a
-        // pointer stored inside it.
-        if !matches!(formal.access, terminal_psi::reading_borrow_pair_pattern!()) {
-            continue;
-        }
-        state.places.insert(
-            formal.place,
-            Subject {
-                parameter,
-                path: Vec::new(),
-            },
-        );
-    }
+    let mut state = Trace {
+        subjects: Subjects::at_entry(machine),
+        ..Trace::default()
+    };
     let mut seen = Facts::<BlockId, usize>::default();
     let mut block = machine.block(&machine.entry)?;
     let mut observations = 0;
@@ -494,6 +542,13 @@ pub fn spin_wait(module: &TerminalModule, machine: &TerminalMachine) -> Option<S
     {
         return None;
     }
+    single_cell_wait(module, machine)
+        .map(WaitRule::Cell)
+        .or_else(|| observations::derive(module, machine).map(WaitRule::Observations))
+        .map(SpinWait)
+}
+
+fn single_cell_wait(module: &TerminalModule, machine: &TerminalMachine) -> Option<CellWait> {
     let (equal_trace, equal) = trace(module, machine, true)?;
     let (different_trace, different) = trace(module, machine, false)?;
     if equal_trace.forwarded.is_some()
@@ -506,7 +561,7 @@ pub fn spin_wait(module: &TerminalModule, machine: &TerminalMachine) -> Option<S
     }
     let read = equal_trace.read?;
     let comparison = equal_trace.tested?;
-    Some(SpinWait {
+    Some(CellWait {
         parameter: read.cell.parameter,
         path: read.cell.path,
         update: read.update,
