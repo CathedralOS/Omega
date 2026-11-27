@@ -86,9 +86,8 @@ for stage 06 to compare. A conformance whose every row is proved by a
 machine over mathematical data states laws only, and the ordinary reader
 skips it. A quotient of data that has storage is run by the ordinary
 reader, and a law equating its classes is refused by name: the signature
-states no record with a fixed-width field. Generic quotient data is refused:
-the source has no spelling yet for the relation application and conformance a
-generic quotient selects ([owner question](../../../../../../OWNER_QUESTIONS.md#generic-quotient-selection)).
+states no record with a fixed-width field. The reader still refuses generic quotient data. The
+[owner ruling](../../../../../../OWNER_QUESTIONS.md#generic-quotient-selection) specifies explicit arguments for the relation and its named conformance.
 
 An operation on a quotient is a machine whose whole body is
 `Quotient::lift::<op, respects>(..)`, `Quotient::lift::<op, respects,
