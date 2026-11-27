@@ -29,12 +29,10 @@ An operation that is none of these, reads no storage and has no scalar
 semantics is refused as `Unsupported`: it may store somewhere, and an
 operation left out here would be a store nothing reaches.
 
-Elaboration's tables stay honest records of the same facts, so they are
-compared and a difference is a `ForeignIdentity` refusal, which `judge`
-returns as `Err`:
+The walk reads only this derived log; nothing else states what storage
+holds. Two tables elaboration still hands over are checked, and a difference
+is a `ForeignIdentity` refusal, which `judge` returns as `Err`:
 
-- the write log must list, per operation and in order, exactly the stores
-  derived here (`Storage::log_is_stated`);
 - the place table must hold one place per path, since a place identity
   stands for its path wherever a table names one
   (`places_are_interned`);
@@ -45,13 +43,13 @@ returns as `Err`:
 
 use arena::IdTable;
 use semantic_vocabulary::{BlockId, MachineId, OperationId, ScalarType, StructuralCaseId, ValueId};
-use terminal_check_tables::bindings::{Content, PlaceOrigin, Segment};
-use terminal_check_tables::{Checked, Construct, MachineTables, ProgramPoint};
+use terminal_check_tables::bindings::{PlaceOrigin, Segment};
+use terminal_check_tables::{Checked, Construct, MachineTables};
 use terminal_psi::{
     Operation, OperationKind, RecordFieldValue, StructuralAccess, StructuralTypeShape,
 };
 
-use super::{Backing, Lineage, Shape, Storage, StorageAddresses, index, lineage};
+use super::{Backing, Lineage, Shape, Storage, StorageAddresses, index};
 use crate::refusal;
 use terminal_check_tables::RefusalReason;
 
@@ -80,23 +78,6 @@ pub(super) enum Stored {
         receiving: Backing,
         contents: terminal_semantics::descriptor_results::UnknownDescriptorContents,
     },
-}
-
-impl Stored {
-    /// The same store as a write-log row can say it. `Content` has no form
-    /// for a source place, a case or a call, so those are all "new contents".
-    fn content(&self) -> Content {
-        match self {
-            Self::Vacated => Content::Vacated,
-            Self::Value(value) => Content::Value(*value),
-            Self::ErasedScalar(_)
-            | Self::Moved(_)
-            | Self::Case(_)
-            | Self::Zeroed
-            | Self::Established
-            | Self::UnknownPayloadWrite { .. } => Content::Overwritten,
-        }
-    }
 }
 
 /// One store, located in the graph.
@@ -141,15 +122,6 @@ pub(super) fn places_are_interned(machine: MachineId, tables: &MachineTables) ->
                 machine,
                 Construct::Place(*exact),
                 "a root place's row is not its own",
-            ));
-        }
-    }
-    for row in tables.writes.values() {
-        if tables.places.get(row.place).is_none() {
-            return Err(foreign(
-                machine,
-                Construct::Place(row.place),
-                "a write row names a place past the end of this machine",
             ));
         }
     }
@@ -796,65 +768,5 @@ impl<'a> Storage<'a> {
             .copied()
             .chain(all.rev())
             .map(|log_index| (log_index, &self.log[log_index]))
-    }
-
-    /// Refuses a write log that is not, operation by operation and in
-    /// order, the stores derived from the lowered form.
-    pub(super) fn log_is_stated(&self, tables: &MachineTables) -> Checked<()> {
-        // The log's rows at each operation, by `OperationId - 1`, in log
-        // order.
-        let mut stated: Vec<Vec<(Lineage, Content)>> = Vec::new();
-        for (_, row) in tables.writes.iter() {
-            if matches!(row.at, ProgramPoint::AfterCleanup { .. }) {
-                continue;
-            }
-            let ProgramPoint::AfterOperation(operation) = row.at else {
-                return Err(self.foreign(
-                    Construct::Place(row.place),
-                    "a write row is not at the normal continuation of an operation",
-                ));
-            };
-            let slot = index(operation.get());
-            if slot >= self.graph.operation_count() {
-                return Err(self.foreign(
-                    Construct::Operation(operation),
-                    "a write row states a store its operation does not make",
-                ));
-            }
-            if stated.len() <= slot {
-                stated.resize_with(slot + 1, Vec::new);
-            }
-            stated[slot].push((
-                lineage(self.machine, &tables.places, row.place)?,
-                row.content,
-            ));
-        }
-        let mut matched = vec![0; stated.len()];
-        for store in &self.log {
-            if matches!(store.stored, Stored::ErasedScalar(_)) {
-                continue;
-            }
-            let concerns = Construct::Operation(store.operation);
-            let slot = index(store.operation.get());
-            let row = stated
-                .get(slot)
-                .and_then(|rows| rows.get(matched[slot]))
-                .ok_or_else(|| self.foreign(concerns, "an operation's store has no write row"))?;
-            if row.0 != store.destination || row.1 != store.stored.content() {
-                return Err(self.foreign(concerns, "a write row is not what its operation stores"));
-            }
-            matched[slot] += 1;
-        }
-        for (slot, (rows, matched)) in stated.iter().zip(&matched).enumerate() {
-            if rows.len() != *matched {
-                let concerns = OperationId::new(slot as u64 + 1)
-                    .map_or(Construct::Machine, Construct::Operation);
-                return Err(self.foreign(
-                    concerns,
-                    "a write row states a store its operation does not make",
-                ));
-            }
-        }
-        Ok(())
     }
 }

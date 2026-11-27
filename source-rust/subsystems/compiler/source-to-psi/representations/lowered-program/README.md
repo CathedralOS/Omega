@@ -29,7 +29,7 @@ lookup is one index.
 | `propositions` | `PropositionId` | The proposition each knowledge row states. Machine-local, minted by `push`: Terminal Psi keeps contract propositions inline and has no proposition table. |
 | `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value, descriptor extent metadata), with its sorted children and the writes to it. |
 | `roots` | `PlaceId` | The `ExactPlaceId` of each root place. |
-| `writes` | `WriteId` | The forward write log: a value, unknown contents, or a hole. |
+| `writes` | `WriteId` | Elaboration's forward write log: a value, unknown contents, or a hole. Lowering scratch; the checker derives its own log from the operations and never reads this one. |
 | `obligations` | `ObligationId` | Claims, loans, windows and debts (conserved across edges) and proof questions (discharged at one site). |
 | `edges` | `EdgeId` | Source, destination, and the fate of every conserved obligation crossing the edge. |
 | `invocations` | `InvocationId` | The one entry operation of ordinary and terminal calls: callee, ordered actuals, one requirement obligation per callee clause. |
@@ -245,8 +245,7 @@ A lane met each, reported it, and read the fact from the lowered form instead.
   is a knowledge row justified as `Justification::DispatchBinding`.
 - **A domain debt on a data type's `requires`.** `ObligationKind::DomainDebt`
   names its domain by a `DomainSemanticId`; a data `requires` clause has no such
-  identity (its clauses are stored in `Elaboration::domains`, by type and
-  position). An invariant window on one is therefore the opening write's
+  identity (its clauses live in the type's declaration, by position). An invariant window on one is therefore the opening write's
   `DataDomain` row, which `terminal-psi-to-terminal-psi` follows to its
   consumption points, not a conserved row here.
 

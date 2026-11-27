@@ -187,45 +187,6 @@ impl<'a> Storage<'a> {
         }))
     }
 
-    pub(super) fn cleanup_log_is_stated(&self, tables: &MachineTables) -> Checked<()> {
-        let mut stated =
-            std::collections::BTreeMap::<(EdgeId, u32), Vec<(Lineage, Content)>>::new();
-        for row in tables.writes.values() {
-            if let ProgramPoint::AfterCleanup {
-                edge,
-                action_ordinal,
-            } = row.at
-            {
-                self.graph.locate(row.at)?;
-                stated.entry((edge, action_ordinal)).or_default().push((
-                    lineage(self.machine, &tables.places, row.place)?,
-                    row.content,
-                ));
-            }
-        }
-        let mut expected =
-            std::collections::BTreeMap::<(EdgeId, u32), Vec<(Lineage, Content)>>::new();
-        for write in &self.cleanup_writes {
-            expected
-                .entry((write.edge, write.action_ordinal))
-                .or_default()
-                .push((
-                    Lineage {
-                        root: write.captured.root,
-                        segments: write.captured.path.clone(),
-                    },
-                    write.content,
-                ));
-        }
-        if stated != expected {
-            return Err(self.foreign(
-                Construct::Machine,
-                "cleanup write rows differ from their exact action effects",
-            ));
-        }
-        Ok(())
-    }
-
     /// A write on any selected arrival prevents old operation contents from
     /// answering a later read. The normal callee establishes valid storage,
     /// but a new scalar identity requires an actual read or postcondition.

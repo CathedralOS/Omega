@@ -313,13 +313,18 @@ impl<'a> Storage<'a> {
                 });
         let element_admitted = match erased_element {
             Some(element) => {
-                self.domains.get(element).is_some_and(Vec::is_empty)
-                    && self.declaration(element, concerns)?.scalar_restriction.is_none()
+                self.declared_requires(element).is_some_and(<[_]>::is_empty)
+                    && self
+                        .declaration(element, concerns)?
+                        .scalar_restriction
+                        .is_none()
             }
             None => true,
         };
         if !unclaimed
-            || !self.domains.get(selected.id).is_some_and(Vec::is_empty)
+            || !self
+                .declared_requires(selected.id)
+                .is_some_and(<[_]>::is_empty)
             || !element_admitted
         {
             return Err(self.unsupported(
@@ -389,9 +394,8 @@ impl<'a> Storage<'a> {
             || !result.additional_input_qualifications.is_empty()
             || !result.claims.is_empty()
             || !self
-                .domains
-                .get(result.structural_type)
-                .is_some_and(Vec::is_empty)
+                .declared_requires(result.structural_type)
+                .is_some_and(<[_]>::is_empty)
             || self
                 .declaration(result.structural_type, concerns)?
                 .scalar_restriction
@@ -445,13 +449,18 @@ impl<'a> Storage<'a> {
                 })?;
         // The element's own defaults follow its declared identity through a
         // typed view. A byte descriptor exposes a different account of storage.
-        let keeps_element = typed && matches!(
-            selected.shape,
-            StructuralTypeShape::ElementView { element: actual, .. }
-                | StructuralTypeShape::FixedArray { element: actual, .. } if element == actual
-        );
-        let actual =
-            self.collection_backing_source(source, 0, (!keeps_element).then_some(element), concerns)?;
+        let keeps_element = typed
+            && matches!(
+                selected.shape,
+                StructuralTypeShape::ElementView { element: actual, .. }
+                    | StructuralTypeShape::FixedArray { element: actual, .. } if element == actual
+            );
+        let actual = self.collection_backing_source(
+            source,
+            0,
+            (!keeps_element).then_some(element),
+            concerns,
+        )?;
         let (whole, projected) = StructuralPathQualification::select_restorable(
             &actual.qualifications,
             &actual.projected_qualifications,
@@ -661,7 +670,9 @@ impl<'a> Storage<'a> {
             return Err(self.foreign(concerns, "a byte view re-views elements that are not bytes"));
         }
         let actual = self.collection_backing_source(source, 0, Some(source_element), concerns)?;
-        if !self.domains.get(*element).is_some_and(Vec::is_empty)
+        if !self
+            .declared_requires(*element)
+            .is_some_and(<[_]>::is_empty)
             || self
                 .declaration(*element, concerns)?
                 .scalar_restriction
@@ -957,9 +968,8 @@ impl<'a> Storage<'a> {
             || !source.projected_qualifications.is_empty()
             || !source.additional_input_qualifications.is_empty()
             || !self
-                .domains
-                .get(source.structural_type)
-                .is_some_and(Vec::is_empty)
+                .declared_requires(source.structural_type)
+                .is_some_and(<[_]>::is_empty)
         {
             return Err(self.unsupported(
                 concerns,
