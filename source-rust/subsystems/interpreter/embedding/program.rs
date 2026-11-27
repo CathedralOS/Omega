@@ -996,6 +996,7 @@ pub(crate) mod instance {
         bindings: BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
         storage_resolver: Option<std::rc::Rc<dyn crate::TerminalProviderStorageResolver + 'host>>,
         components: ComponentBindings<'host, 'artifact>,
+        checked_progress: Option<psi_provider_selections::ProgressScope>,
         invoked: bool,
         closed: bool,
         discard: Option<discard::DiscardCustody>,
@@ -1018,6 +1019,7 @@ pub(crate) mod instance {
                 bindings: BTreeMap::new(),
                 storage_resolver: None,
                 components: BTreeMap::new(),
+                checked_progress: None,
                 invoked: false,
                 closed: false,
                 discard: None,
@@ -1207,6 +1209,7 @@ pub(crate) mod instance {
             binding.require_ready()?;
             execution.boundary_supplies.insert(boundary, expected);
             self.components.insert(boundary, binding);
+            self.checked_progress = None;
             Ok(())
         }
 
@@ -1355,8 +1358,8 @@ pub(crate) mod instance {
                 .execution
                 .as_mut()
                 .ok_or(TerminalInstanceError::Closed)?;
-            if !self.invoked
-                && let Some(failure) = psi_provider_selections::invocation_progress_failure(
+            if self.checked_progress != Some(scope) {
+                if let Some(failure) = psi_provider_selections::invocation_progress_failure(
                     self.program
                         .program
                         .catalogs
@@ -1373,7 +1376,9 @@ pub(crate) mod instance {
                     },
                 )
             {
-                return Err(TerminalInstanceError::Synchronization(failure));
+                    return Err(TerminalInstanceError::Synchronization(failure));
+                }
+                self.checked_progress = Some(scope);
             }
             self.invoked = true;
             let status = execution
