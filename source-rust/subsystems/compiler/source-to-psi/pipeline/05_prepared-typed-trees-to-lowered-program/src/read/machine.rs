@@ -2093,10 +2093,12 @@ impl<'t> Program<'t> {
             // Dependent integer carriers are read after their width inputs
             // have been prepared, as before. Array extents currently require
             // a closed carrier, so only direct scalar binders enter this map.
-            if !matches!(
-                typed.type_reference_table.type_reference(*type_reference),
-                TypeReferenceNode::Named { .. }
-            ) {
+            if !shapes[formals.len() + position].declared
+                || !matches!(
+                    typed.type_reference_table.type_reference(*type_reference),
+                    TypeReferenceNode::Named { .. }
+                )
+            {
                 continue;
             }
             let scalar_type = self.scalar_type(id, *type_reference)?;
@@ -2156,21 +2158,26 @@ impl<'t> Program<'t> {
                 // As `prepare_const_scope` leaves it out.
                 continue;
             }
-            let scalar_type = self.scalar_type(id, type_reference)?;
+            let value_type = self.value_type(id, type_reference)?;
             if !matches!(
-                scalar_type,
-                semantic_vocabulary::ScalarType::Integer(_)
-                    | semantic_vocabulary::ScalarType::Boolean
+                value_type.scalar(),
+                Some(
+                    semantic_vocabulary::ScalarType::Integer(_)
+                        | semantic_vocabulary::ScalarType::Boolean
+                )
+            ) && !crate::source_state::canonical_const_carrier_is_supported(
+                self.typed,
+                type_reference,
             ) {
                 return Err(refuse_at(
                     id,
-                    Unserved::Parameter("value parameter that is not an integer or a Boolean"),
+                    Unserved::Parameter("value parameter without a supported static carrier"),
                 ));
             }
             binders.push(ValueBinder {
                 symbol: parameter.symbol,
                 name: parameter.name.as_str().to_owned(),
-                scalar_type,
+                value_type,
             });
         }
         Ok(binders)
@@ -3333,7 +3340,7 @@ impl<'t> Program<'t> {
                 rigid.push(ValueBinder {
                     symbol: parameter.symbol,
                     name: program.typed.symbols.name(parameter.symbol).to_owned(),
-                    scalar_type,
+                    value_type: ValueType::Scalar(scalar_type, Qualification::NONE),
                 });
             }
             let elision = std::mem::replace(
@@ -3615,7 +3622,7 @@ impl<'t> Program<'t> {
                 .map(|(symbol, scalar_type)| ValueBinder {
                     symbol,
                     name: self.typed.symbols.name(symbol).to_owned(),
-                    scalar_type,
+                    value_type: ValueType::Scalar(scalar_type, Qualification::NONE),
                 })
                 .collect::<Vec<_>>()
         } else {
@@ -3868,7 +3875,7 @@ impl<'t> Program<'t> {
                     .map(|(symbol, scalar_type)| ValueBinder {
                         symbol: *symbol,
                         name: self.typed.symbols.name(*symbol).to_owned(),
-                        scalar_type: *scalar_type,
+                        value_type: ValueType::Scalar(*scalar_type, Qualification::NONE),
                     })
                     .collect(),
                 Vec::new(),
@@ -3999,7 +4006,7 @@ impl<'t> Program<'t> {
             });
         }
         for binder in binders {
-            let value_type = ValueType::Scalar(binder.scalar_type, Qualification::NONE);
+            let value_type = binder.value_type;
             parameters.push(value_type);
             slots.push(Slot {
                 symbol: binder.symbol,
@@ -5370,7 +5377,7 @@ impl PreparedFormalValues {
 pub(super) struct ValueBinder {
     pub(super) symbol: SymbolHandle,
     pub(super) name: String,
-    pub(super) scalar_type: semantic_vocabulary::ScalarType,
+    pub(super) value_type: ValueType,
 }
 
 /// One machine's rows in every machine table, from its read signature

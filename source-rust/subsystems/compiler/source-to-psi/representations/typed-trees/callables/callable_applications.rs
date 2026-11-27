@@ -288,11 +288,44 @@ impl crate::source_state::TypedTrees {
         declared_type: crate::source_state::types::TypeReferenceHandle,
         argument: &crate::source_state::expression::StaticMachineArgument,
     ) -> Result<application_identity::const_value::CanonicalConstValue, &'static str> {
+        if !self.contains_type_reference(declared_type) {
+            return Err("a static aggregate has no declared carrier");
+        }
         if argument.application.is_some()
             || argument.evidence_projection.is_some()
             || argument.const_literal.is_some()
         {
             return Err("a static aggregate needs its exact closed value operand");
+        }
+        if let Some((owner, case)) = self.variant_owner(argument.symbol) {
+            use application_identity::const_value::{
+                CanonicalConstValue, DecodedCanonicalConstValue,
+            };
+            if self.type_reference_node(declared_type).as_named_symbol() != Some(owner.symbol)
+                || !crate::source_state::canonical_const_carrier_is_supported(self, declared_type)
+                || !owner.type_parameters.is_empty()
+            {
+                return Err("a static case has another or uninstantiated carrier");
+            }
+            if !case.payload.is_empty()
+                || !case.requires_facts.is_empty()
+                || !owner.requires_facts.is_empty()
+            {
+                return Err(
+                    "a static case with fields or requirements needs a checked constructor value",
+                );
+            }
+            let name = owner.name.as_str();
+            let case_name = case.name.as_str();
+            return CanonicalConstValue::from_decoded(
+                &DecodedCanonicalConstValue::Variant {
+                    type_name: name.to_owned(),
+                    case_name: case_name.to_owned(),
+                    fields: Vec::new(),
+                },
+                format!("{name}::{case_name}"),
+            )
+            .ok_or("a static case has no canonical value");
         }
         let declaration = self
             .const_declaration_by_symbol(argument.symbol)
@@ -5727,6 +5760,19 @@ pub(crate) mod selected_operands {
                             let initializer = declaration.materialized_initializer;
                             return Ok(program.expression_table.insert_copy(initializer));
                         }
+                    } else if program.variant_owner(symbol).is_some() {
+                        let argument = expression::StaticMachineArgument {
+                            symbol,
+                            ..Default::default()
+                        };
+                        let value = program.canonical_aggregate_argument(carrier, &argument)?;
+                        let decoded = value
+                            .decode_encoding()
+                            .ok_or("a static case lost its canonical value")?;
+                        let node = program
+                            .materialize_canonical_const_value(carrier, &decoded)
+                            .ok_or("a static case cannot be constructed at the selected carrier")?;
+                        return Ok(program.expression_table.insert(node));
                     } else if let Some(record) = program.conformance_by_symbol(symbol) {
                         if !record.lifetime_parameters.is_empty()
                             || !program.conformance_type_parameters(record).is_empty()

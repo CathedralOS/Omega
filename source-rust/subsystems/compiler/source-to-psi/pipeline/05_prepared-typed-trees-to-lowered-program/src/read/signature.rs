@@ -202,6 +202,7 @@ impl Program<'_> {
             bound_values: Vec::new(),
             generic_premises: Vec::new(),
             held: Vec::new(),
+            pointwise_laws: Vec::new(),
             stating_premises: false,
             integers: None,
             families: Vec::new(),
@@ -775,6 +776,9 @@ struct Converter<'p, 't> {
     /// The premises of the machine being read that are read so far, as
     /// terms under its formals: what a clause of it may rest a call on.
     held: Vec<TermHandle>,
+    /// Each theorem law sealed as pointwise, with the entry of the statement
+    /// it was sealed to (`pointwise`): the statement its users cite.
+    pointwise_laws: Vec<(u32, u32)>,
     /// Set while a called machine's premises are stated at a call's
     /// arguments: what those premises themselves call was owed where that
     /// machine was declared.
@@ -1528,9 +1532,11 @@ impl<'p> Converter<'p, '_> {
             };
             let ty = self.constant(carrier);
             let stated = &self.signature.laws[law as usize];
-            if stated.formals.len() != count as usize
-                || !stated
-                    .formals
+            // A row may also take the binders of the relation's arrow, after
+            // the values it relates (`pointwise`).
+            let binders = stated.formals.len().checked_sub(count as usize);
+            if binders.is_none()
+                || !stated.formals[..count as usize]
                     .iter()
                     .all(|&formal| self.signature.arena.structurally_equal(formal, ty))
             {
@@ -1539,6 +1545,7 @@ impl<'p> Converter<'p, '_> {
                     "row of a quotient's equivalence over other than values of its carrier",
                 ));
             }
+            let binders = binders.unwrap_or(0) as u32;
             entries[slot] = stated.statement;
             let related = self.constant(relation);
             let holds = |converter: &mut Self, left: u32, right: u32| {
@@ -1584,6 +1591,11 @@ impl<'p> Converter<'p, '_> {
                 self.name(quotient.declaration),
                 quotient.relation_name,
             );
+            if binders > 0 {
+                entries[slot] =
+                    self.pointwise(id, law, vec![ty; count as usize], premises, goal, binders)?;
+                continue;
+            }
             self.signature.laws[law as usize].declared = Some(DeclaredLaw {
                 premises,
                 goal,
@@ -1591,6 +1603,63 @@ impl<'p> Converter<'p, '_> {
             });
         }
         Ok(entries)
+    }
+
+    /// The statement a declaration needs, as a law of its own proved from
+    /// the row law `row`, which takes the binders of the needed
+    /// conclusion's arrow as its last `binders` formals
+    /// (`wiki/spec/proofs/mathematical_bindings.md`, "Pointwise theorem
+    /// citations"). Returns the new statement's entry. The kernel checks
+    /// the proof, so a row that proves something else fails it.
+    fn pointwise(
+        &mut self,
+        id: MachineId,
+        row: u32,
+        formals: Vec<TermHandle>,
+        premises: Vec<TermHandle>,
+        goal: TermHandle,
+        binders: u32,
+    ) -> Checked<u32> {
+        let law = index(id, self.signature.laws.len())?;
+        index(id, self.signature.declarations.len() + 1)?;
+        let mut statement = self.implication(&premises, goal);
+        for &domain in formals.iter().rev() {
+            statement = self.signature.arena.insert(Term::Pi {
+                domain,
+                codomain: statement,
+            });
+        }
+        let cited = &self.signature.laws[row as usize];
+        let (machine, clause, row_statement) = (cited.machine, cited.clause, cited.statement);
+        let (formal_names, machine_name, text, source) = (
+            cited.formal_names[..formals.len()].to_vec(),
+            cited.machine_name.clone(),
+            cited.text.clone(),
+            cited.source,
+        );
+        let entry = self.push(
+            Declaration::assumption(0, statement),
+            SignatureEntryKind::Statement { law },
+            machine_name.clone(),
+        );
+        self.signature.laws.push(Law {
+            machine,
+            clause,
+            statement: entry,
+            formals,
+            premises,
+            goal,
+            declared: None,
+            proof: LawProof::Pointwise {
+                row: row_statement,
+                binders,
+            },
+            formal_names,
+            machine_name,
+            text,
+            source,
+        });
+        Ok(entry)
     }
 
     /// Judges a machine whose body is one `Quotient::lift` or
@@ -1754,14 +1823,19 @@ impl<'p> Converter<'p, '_> {
             ));
         };
         let stated = &self.signature.laws[law as usize];
-        if stated.premises.len() != paired {
+        let pointwise = self
+            .pointwise_laws
+            .iter()
+            .find(|&&(known, _)| known == law)
+            .map(|&(_, entry)| entry);
+        if pointwise.is_none() && stated.premises.len() != paired {
             return Err(unserved(
                 congruence,
                 "congruence theorem of a quotient operation that requires more than related \
                  representatives",
             ));
         }
-        let statement = stated.statement;
+        let statement = pointwise.unwrap_or(stated.statement);
         if let &[first, second] = taken.as_slice() {
             let term = self.lifted_pair(
                 id,
@@ -2652,7 +2726,9 @@ impl<'p> Converter<'p, '_> {
         refusal: String,
     ) -> Checked<()> {
         let stated = &self.signature.laws[law as usize];
-        if stated.formals.len() != binders.len()
+        // A theorem may also take the binders of the needed conclusion's
+        // arrow after these (`pointwise`).
+        if stated.formals.len() < binders.len()
             || !stated
                 .formals
                 .iter()
@@ -2663,6 +2739,21 @@ impl<'p> Converter<'p, '_> {
                 machine,
                 "theorem of a quotient operation over other than two representatives of each class and one value of each other argument",
             ));
+        }
+        let extra = (stated.formals.len() - binders.len()) as u32;
+        if extra > 0 {
+            if self.pointwise_laws.iter().all(|&(known, _)| known != law) {
+                let entry = self.pointwise(
+                    machine,
+                    law,
+                    binders.to_vec(),
+                    premises.to_vec(),
+                    goal,
+                    extra,
+                )?;
+                self.pointwise_laws.push((law, entry));
+            }
+            return Ok(());
         }
         let arena = &self.signature.arena;
         if stated.declared.as_ref().is_some_and(|known| {

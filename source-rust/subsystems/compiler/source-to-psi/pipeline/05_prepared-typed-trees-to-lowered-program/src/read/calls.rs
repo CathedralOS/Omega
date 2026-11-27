@@ -2337,7 +2337,7 @@ impl<'t> Program<'t> {
             if arguments
                 .values
                 .iter()
-                .all(|term| !matches!(term, semantic_vocabulary::ScalarTerm::Value { .. }))
+                .all(|term| matches!(term, super::applications::ValueArgument::Scalar(value) if !matches!(value, semantic_vocabulary::ScalarTerm::Value { .. })))
             {
                 return Ok(None);
             }
@@ -2386,12 +2386,35 @@ impl<'t> Program<'t> {
         &self,
         id: MachineId,
         slots: &[Slot],
-        values: &[semantic_vocabulary::ScalarTerm],
+        values: &[super::applications::ValueArgument],
         source: SourceOrigin,
     ) -> Checked<Vec<Expression>> {
         use semantic_vocabulary::ScalarTerm;
         let mut operands = Vec::with_capacity(values.len());
-        for value in values {
+        for argument in values {
+            let value = match argument {
+                super::applications::ValueArgument::Scalar(value) => value,
+                super::applications::ValueArgument::Structural { formal, carrier } => {
+                    let index = slots
+                        .iter()
+                        .position(|slot| slot.symbol == *formal && slot.value_type == *carrier)
+                        .ok_or_else(|| {
+                            refuse_at(
+                                id,
+                                Unserved::Call(
+                                    "structural static argument has no matching caller slot",
+                                ),
+                            )
+                        })?;
+                    operands.push(Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Slot(index),
+                        result: Some(*carrier),
+                        source,
+                    });
+                    continue;
+                }
+            };
             let scalar_type = value.scalar_type();
             let kind = match value {
                 ScalarTerm::Value { id: value, .. } => {
@@ -2534,7 +2557,17 @@ impl<'t> Program<'t> {
                         Unserved::Call("packed operation received unexpected generic arguments"),
                     ));
                 }
-                application.values
+                application
+                    .values
+                    .into_iter()
+                    .map(|argument| match argument {
+                        super::applications::ValueArgument::Scalar(term) => Ok(term),
+                        super::applications::ValueArgument::Structural { .. } => Err(refuse_at(
+                            id,
+                            Unserved::Call("packed operation immediate must be a scalar"),
+                        )),
+                    })
+                    .collect::<Checked<Vec<_>>>()?
             };
             let expr = self.packed_integer(
                 id,
