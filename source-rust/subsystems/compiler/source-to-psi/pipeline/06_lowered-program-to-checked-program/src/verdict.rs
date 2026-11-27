@@ -1593,7 +1593,7 @@ fn conclude(
                 RootPurpose::Execution => ProgressScope::Executable,
                 RootPurpose::Inspection => ProgressScope::OpenInterface,
             },
-            |_| None,
+            |_| Some(terminal_semantics::synchronization::SelectedCall::PendingProvider),
         )
     {
         use terminal_semantics::synchronization::ProgressFailure;
@@ -1611,7 +1611,8 @@ fn conclude(
             }
             ProgressFailure::Unproved
             | ProgressFailure::UnprovedExternal
-            | ProgressFailure::UnprovedImport => {
+            | ProgressFailure::UnprovedImport
+            | ProgressFailure::UnprovedContinuation => {
                 let sources =
                     terminal_check_tables::row(&elaboration.sources, machine, machine, at)?;
                 unproved.push(UnprovedObligation {

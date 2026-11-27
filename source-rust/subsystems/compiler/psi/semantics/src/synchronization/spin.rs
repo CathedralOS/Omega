@@ -25,6 +25,24 @@ use terminal_psi::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SpinWait(pub(super) WaitRule);
 
+impl SpinWait {
+    /// A retry can release itself even when the caller has no storage facts.
+    pub(super) fn can_block_without_inputs(&self) -> bool {
+        match &self.0 {
+            WaitRule::Cell(cell) => {
+                let update = cell
+                    .update
+                    .try_map(|operand| operand.literal().map(super::progress::ScalarFact::Literal));
+                cell.while_value.failure(None, None, update, &[]).is_some()
+            }
+            WaitRule::Observations(predicate) => {
+                predicate.evaluate(|_, _| (Observation::Unproved, None::<((), SpinCondition)>))
+                    != Observation::Known(false)
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum WaitRule {
     Cell(CellWait),

@@ -189,8 +189,8 @@ impl<'m> Frame<'m> {
                         .structural_type(op.result.structural()?.structural_type)?
                         .shape;
                     match shape.cases().first() {
-                        Some(first) => Stored::Zero.select_case(first.id),
-                        None => Stored::Zero,
+                        Some(first) => Stored::ZERO.select_case(first.id),
+                        None => Stored::ZERO,
                     }
                 } else {
                     Stored::Unknown

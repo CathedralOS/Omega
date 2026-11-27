@@ -9,6 +9,8 @@ use terminal_psi::{TargetMachineCallable, TerminalModule};
 /// Body reached by a concrete invocation after its provider choices are bound.
 pub enum SelectedCall {
     Local(MachineId),
+    /// Source judgment precedes target-specific provider installation.
+    PendingProvider,
     ImportedWait(SpinWait),
     /// The supplier has an input obligation that has no checked caller-side projection.
     UnresolvedImport,
@@ -62,7 +64,9 @@ impl Summaries {
             match SelectedCall::resolve(callee, boundary) {
                 Some(SelectedCall::Local(id)) => current = id,
                 Some(SelectedCall::ImportedWait(wait)) => break Some(wait),
-                Some(SelectedCall::UnresolvedImport) | None => break None,
+                Some(SelectedCall::UnresolvedImport | SelectedCall::PendingProvider) | None => {
+                    break None;
+                }
             }
         };
         for (caller, forward) in chain.into_iter().rev() {

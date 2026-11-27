@@ -29,6 +29,8 @@ pub enum ProgressFailure {
     UnprovedExternal,
     /// This receiving call did not establish the selected supplier's progress condition.
     UnprovedImport,
+    /// A preceding opaque call left the inputs of a reachable wait unproved.
+    UnprovedContinuation,
 }
 
 impl ProgressFailure {
@@ -39,6 +41,9 @@ impl ProgressFailure {
             }
             Self::Unproved => {
                 "the observed values may keep the wait blocked and no other participant can change the deciding private storage"
+            }
+            Self::UnprovedContinuation => {
+                "a preceding provider call leaves the later wait without checked storage or enabling evidence"
             }
             Self::UnprovedImport => {
                 "the receiving call has no checked discharge of the selected supplier's progress condition"
@@ -63,7 +68,8 @@ impl std::fmt::Display for PrivateWaitFailure {
             ProgressFailure::Deadlock => "synchronization deadlock",
             ProgressFailure::Unproved
             | ProgressFailure::UnprovedExternal
-            | ProgressFailure::UnprovedImport => "cannot prove synchronization progress",
+            | ProgressFailure::UnprovedImport
+            | ProgressFailure::UnprovedContinuation => "cannot prove synchronization progress",
         };
         write!(
             f,

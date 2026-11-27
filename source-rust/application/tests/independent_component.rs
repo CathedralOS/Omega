@@ -562,16 +562,16 @@ machine dispatch(signal: @|signals|::Signal) reaches |signals|::Wait invokes |si
                 [&admitted],
                 |_| None,
             );
-            if provider.ends_with("::TwoWaits")
-                || (provider.ends_with("::ObservedWait") && lend_before_wait)
-            {
+            if provider.ends_with("::TwoWaits") {
                 let failure =
                     failure.expect("an unprojected or unvisited input obligation stays open");
                 assert_eq!(failure.cause, ProgressFailure::UnprovedImport);
                 if !use_descriptor {
                     assert_eq!(failure.machine, entry);
                 }
-            } else if provider.ends_with("::ObservedWait") && requires.is_empty() {
+            } else if provider.ends_with("::ObservedWait")
+                && (requires.is_empty() || lend_before_wait)
+            {
                 let failure =
                     failure.expect("the installed provider may never see an enabled value");
                 assert_eq!(failure.cause, ProgressFailure::Unproved);
