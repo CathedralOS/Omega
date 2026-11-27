@@ -1526,35 +1526,147 @@ fn a_theorem_concluding_less_about_the_payload_cannot_supply_the_alias() {
     );
 }
 
+/// A sum with a float payload is a subject too: `Two(y: f32)` is part of the
+/// declaration the alias and the cited machine are read over.
 #[test]
-fn a_theorem_over_a_sum_with_a_float_payload_is_refused_by_name() {
+fn a_theorem_over_a_sum_with_a_float_payload_supplies_its_alias() {
     let source = ONE_IS_POSITIVE.replace("case Two(y: u8);", "case Two(y: f32);");
     assert!(source.contains("case Two(y: f32);"), "{source}");
     let verdict = stored(&source);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_over_a_sum_with_a_float_payload_needing_another_case_is_refused() {
+    let source = ONE_IS_POSITIVE
+        .replace("case Two(y: u8);", "case Two(y: f32);")
+        .replace(
+            "machine one_is_positive(c: Choice)\nrequires c in Choice::One && c.x != 0u8",
+            "machine one_is_positive(c: Choice)\nrequires c in Choice::Two && c.x != 0u8",
+        );
+    assert!(source.contains("requires c in Choice::Two"), "{source}");
+    let verdict = stored(&source);
     let shown = format!("{verdict:?}");
     assert!(
-        shown.contains("logical contract has no well-formed mathematical implication"),
+        shown.contains("explicit proof argument does not establish the complete aliased contract"),
         "{shown}"
     );
 }
 
 /// Applying a theorem over a sum needs the case known at the edge, which is
 /// not yet checked.
+/// `Step(c)` applies the theorem to a sum formal of the applying machine:
+/// its premises are owed of `c` where the edge leaves, and its conclusion
+/// is known of `c` after it.
+fn applied_to_a_sum(premise: &str, ensures: &str, argument: &str) -> String {
+    ONE_IS_POSITIVE
+        .replace(
+            "machine use_step<Step: OneIsPositive>() {\n}",
+            &format!(
+                "machine use_step<Step: OneIsPositive>(c: Choice)\nrequires {premise}\nensures {ensures}\n{{\n    Step({argument});\n}}"
+            ),
+        )
+        .replace(
+            "use_step::<one_is_positive>();",
+            "use_step::<one_is_positive>(Choice::One { x: 7u8 });",
+        )
+}
+
 #[test]
-fn applying_a_theorem_over_a_sum_is_refused_by_name() {
-    let source = ONE_IS_POSITIVE.replace(
-        "machine use_step<Step: OneIsPositive>() {\n}",
-        "machine use_step<Step: OneIsPositive>(c: Choice)\nrequires c in Choice::One && c.x != 0u8\n{\n    Step(c);\n}",
-    )
-    .replace(
-        "use_step::<one_is_positive>();",
-        "use_step::<one_is_positive>(Choice::One { x: 7u8 });",
-    );
+fn a_theorem_over_a_sum_applies_to_a_sum_formal() {
+    let source = applied_to_a_sum("c in Choice::One && c.x != 0u8", "c.x > 0u8", "c");
     assert!(source.contains("    Step(c);"), "{source}");
+    let verdict = stored(&source);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+/// The premise `c.x != 0u8` is owed where `Step(c)` is applied; knowing only
+/// the case does not establish it.
+#[test]
+fn an_applied_sum_theorem_owes_its_payload_premise() {
+    let source = applied_to_a_sum("c in Choice::One", "true", "c");
+    assert!(
+        source.contains("requires c in Choice::One\nensures true"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    // Nothing reaching the application's edge establishes the premise.
+    let shown = format!("{verdict:?}");
+    assert!(shown.contains("Unproved(NoDerivation)"), "{shown}");
+}
+
+/// The premise `c in Choice::One` is owed too: knowing case `Two` does not
+/// establish it.
+#[test]
+fn an_applied_sum_theorem_owes_its_case_premise() {
+    let source = applied_to_a_sum("c in Choice::Two", "true", "c");
+    assert!(
+        source.contains("requires c in Choice::Two\nensures true"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    // Nothing reaching the application's edge establishes the premise.
+    let shown = format!("{verdict:?}");
+    assert!(shown.contains("Unproved(NoDerivation)"), "{shown}");
+}
+
+/// The conclusion known after `Step(c)` is the contract's, `c.x > 0u8`, and
+/// no more.
+#[test]
+fn an_applied_sum_theorem_concludes_only_its_guarantee() {
+    let source = applied_to_a_sum("c in Choice::One && c.x != 0u8", "c.x > 1u8", "c");
+    assert!(source.contains("ensures c.x > 1u8"), "{source}");
+    let verdict = stored(&source);
+    assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+/// A sum the applying machine establishes before the application is a
+/// subject too: what it holds where the edge leaves.
+fn applied_to_a_built_sum(payload: &str) -> String {
+    applied_to_a_sum("true", "true", "c").replace(
+        "machine use_step<Step: OneIsPositive>(c: Choice)\nrequires true\nensures true\n{\n    Step(c);",
+        &format!(
+            "machine use_step<Step: OneIsPositive>(d: Choice)\nrequires true\nensures true\n{{\n    let c: Choice = Choice::One {{ x: {payload} }};\n    Step(c);"
+        ),
+    )
+}
+
+#[test]
+fn a_theorem_over_a_sum_applies_to_a_sum_the_machine_builds() {
+    let source = applied_to_a_built_sum("7u8");
+    assert!(
+        source.contains("let c: Choice = Choice::One { x: 7u8 };"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+/// The built sum's payload is zero, so the premise `c.x != 0u8` fails.
+#[test]
+fn a_built_sum_that_fails_the_premise_is_not_a_subject() {
+    let source = applied_to_a_built_sum("0u8");
+    assert!(
+        source.contains("let c: Choice = Choice::One { x: 0u8 };"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    let shown = format!("{verdict:?}");
+    assert!(shown.contains("TheoremRequirement"), "{shown}");
+}
+
+/// A constructed value with no name is not a subject.
+#[test]
+fn applying_a_theorem_to_an_unnamed_sum_is_refused_by_name() {
+    let source = applied_to_a_sum("true", "true", "Choice::One { x: 7u8 }");
+    assert!(
+        source.contains("    Step(Choice::One { x: 7u8 });"),
+        "{source}"
+    );
     let verdict = stored(&source);
     let shown = format!("{verdict:?}");
     assert!(
-        shown.contains("logical application of a theorem over a sum is not yet checked"),
+        shown.contains("logical sum subject is not a named sum of the applying machine"),
         "{shown}"
     );
 }

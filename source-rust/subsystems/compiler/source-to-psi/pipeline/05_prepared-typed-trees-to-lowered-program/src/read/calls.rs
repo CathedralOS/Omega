@@ -2700,6 +2700,7 @@ impl<'t> Program<'t> {
         // record formal it names, read at each field's path.
         let mut arguments = Vec::new();
         let mut fields = Vec::new();
+        let mut sums = Vec::new();
         for (argument, input) in invocation.arguments.iter().zip(inputs) {
             match input {
                 TheoremInput::Scalar(scalar) => {
@@ -2720,10 +2721,20 @@ impl<'t> Program<'t> {
                     arguments.push(expression);
                     fields.push(Vec::new());
                 }
-                TheoremInput::Sum(_) => {
-                    return Err(unavailable(
-                        "logical application of a theorem over a sum is not yet checked",
-                    ));
+                // A sum subject is one whole value: a named sum of this
+                // machine, a formal or one it establishes, whose case and
+                // payloads are read at the edge.
+                TheoremInput::Sum(sum) => {
+                    let expression = self.expression(id, slots, *argument, None)?;
+                    let named = matches!(expression.result, Some(ValueType::Record(own, Qualification::NONE, _)) if own == sum)
+                        && matches!(expression.kind, ExpressionKind::Slot(slot)
+                            if slots.get(slot).is_some_and(|held| !held.erased && held.borrowed.is_none()));
+                    if !named {
+                        return Err(unavailable(
+                            "logical sum subject is not a named sum of the applying machine",
+                        ));
+                    }
+                    sums.push(expression);
                 }
                 TheoremInput::Record { record, leaves } => {
                     let expression = self.expression(id, slots, *argument, None)?;
@@ -2762,6 +2773,7 @@ impl<'t> Program<'t> {
                 source: terminal_psi::TheoremSource::Formal(proof_position),
                 arguments,
                 fields,
+                sums,
                 instantiation,
             },
             result: None,

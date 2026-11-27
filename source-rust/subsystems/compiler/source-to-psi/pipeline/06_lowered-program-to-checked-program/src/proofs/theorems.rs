@@ -47,6 +47,44 @@ pub(crate) fn validate(
     {
         terminal_semantics::theorems::application(module, machine, application)
             .map_err(|reason| invalid(application.edge, reason))?;
+        // A sum subject a formal does not give is established by an
+        // operation of this machine before the application; its case and
+        // payloads are what it holds where the edge leaves.
+        for place in &application.data_arguments {
+            let formal = terminal_psi::StructuralParameterDeclaration::find_by_place(
+                &machine.contract.structural_parameters,
+                *place,
+            )
+            .is_some();
+            let established = || {
+                machine
+                    .structural_places
+                    .iter()
+                    .find(|declared| declared.id == *place)
+                    .and_then(|declared| match declared.kind {
+                        semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                            producer,
+                            ..
+                        } => Some(producer),
+                        _ => None,
+                    })
+                    .is_some_and(|producer| {
+                        matches!(
+                            graph.dominates(
+                                ProgramPoint::AfterOperation(producer),
+                                ProgramPoint::Edge(application.edge),
+                            ),
+                            Ok(true)
+                        )
+                    })
+            };
+            if tables.roots.get(*place).is_none() || !(formal || established()) {
+                return Err(invalid(
+                    application.edge,
+                    "logical sum subject is not a sum formal of its machine or a sum it establishes before the application",
+                ));
+            }
+        }
         for argument in &application.arguments {
             // A field subject reads a record formal of this machine, whose
             // root place every point of the body has, or a record an
@@ -156,14 +194,20 @@ pub(crate) fn goal<'a>(
         .ok_or_else(|| invalid("logical application has no such premise"))?;
     // The stored subjects name the clause's formals; the goal reads each
     // one where the edge leaves.
-    terminal_semantics::theorems::substitute(&contract, &application.arguments, clause)
-        .map_err(invalid)?;
+    terminal_semantics::theorems::substitute(
+        &contract,
+        &application.arguments,
+        &application.data_arguments,
+        clause,
+    )
+    .map_err(invalid)?;
     let (storage, references) = context;
     storage.theorem_clause(
         references,
         tables,
         edge,
         &application.arguments,
+        &sums(&contract, application),
         clause,
         Construct::Edge(edge),
     )
@@ -198,6 +242,7 @@ pub(crate) fn fill<'a>(
             terminal_semantics::theorems::substitute(
                 &contract,
                 &application.arguments,
+                &application.data_arguments,
                 proposition,
             )
             .map_err(invalid)?;
@@ -206,6 +251,7 @@ pub(crate) fn fill<'a>(
                 tables,
                 application.edge,
                 &application.arguments,
+                &sums(&contract, application),
                 proposition,
                 Construct::Edge(application.edge),
             )?;
@@ -221,6 +267,20 @@ pub(crate) fn fill<'a>(
         }
     }
     Ok(())
+}
+
+/// Each sum subject's place in the applied contract, with the sum formal
+/// the application gives it.
+fn sums(
+    contract: &terminal_psi::TheoremContract,
+    application: &TheoremApplication,
+) -> Vec<(semantic_vocabulary::PlaceId, semantic_vocabulary::PlaceId)> {
+    contract
+        .data_subjects
+        .iter()
+        .map(|subject| subject.place)
+        .zip(application.data_arguments.iter().copied())
+        .collect()
 }
 
 fn lookup(

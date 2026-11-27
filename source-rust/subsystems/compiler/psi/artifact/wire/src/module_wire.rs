@@ -157,6 +157,7 @@ mod theorem_parameter_wire {
             successor: Id,
             source: Source,
             arguments: List<ScalarTermField>,
+            data_arguments: List<Id>,
             requirements: List<Id>,
             instantiation: List<Instantiation>,
         }

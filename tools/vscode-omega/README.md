@@ -1,11 +1,12 @@
 # Omega for VS Code
 
-Local VS Code support for `.omg` files: syntax highlighting, and Go to
-Definition (Ctrl+click or F12) on machines, data, cases, fields, traits,
-domains, constants and local bindings. Go to Definition matches names by
-reading source text, not by asking the compiler, so it can offer several
-declarations that share a spelling. There is no language server, compiler
-dependency or background process.
+Local VS Code support for `.omg` files: syntax highlighting, document/selection
+formatting (`Format Document` / `Format Selection`), and Go to Definition
+(Ctrl+click or F12) on machines, data, cases, fields, traits, domains,
+constants and local bindings. Go to Definition matches names by reading source
+text, not by asking the compiler, so it can offer several declarations that
+share a spelling. There is no language server, compiler dependency or
+background process.
 
 Highlighting covers keywords and contract clauses, machine/state names, types,
 lifetimes, `@` borrows, `|alias|::` imports, constants, numbers,
@@ -18,8 +19,8 @@ With Node.js 20 or newer and VS Code installed, run from this directory on
 Windows, macOS or Linux:
 
 ```sh
-npx --yes @vscode/vsce@4.0.0 package --no-dependencies --out omega-syntax-0.3.0.vsix
-code --install-extension omega-syntax-0.3.0.vsix
+npx --yes @vscode/vsce@4.0.0 package --no-dependencies --out omega-syntax-0.4.1.vsix
+code --install-extension omega-syntax-0.4.1.vsix
 ```
 
 With Bun instead of Node.js, replace `npx --yes` with `bun x`. On PowerShell,
@@ -62,8 +63,9 @@ declaration with that qualifier, owner or file name. Searches skip `.git`,
 reaches the whole-workspace search, which takes several seconds in the full
 repository before VS Code reports no definition.
 
-[declarations.js](src/declarations.js) does the text scan and has no VS Code
-dependency. To test both files, run `bun test` (or `node --test`) here;
+[declarations.js](src/declarations.js) does the text scan and
+[formatter.js](src/formatter.js) formats source text; neither has a VS Code
+dependency. To test all modules, run `bun test` (or `node --test`) here;
 [fake-vscode.js](test/fake-vscode.js) stands in for the editor API.
 
 The word lists follow the compiler, not a separate vocabulary. The lexer

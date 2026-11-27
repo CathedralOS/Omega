@@ -9,8 +9,9 @@ use super::{BoundedDenotationError, Denotation, Proposition, ScalarTerm, ScalarT
 use bignum::BigInt;
 use mathematical_kernel::{PlainData, PlainField};
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, IntegerCarrier,
-    PlaceId, ScalarReadProjection, StructuralCaseId, StructuralFieldId, StructuralTypeId,
+    CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, IeeeFloatFormat,
+    IeeeFloatValue, IntegerCarrier, PlaceId, ScalarReadProjection, StructuralCaseId,
+    StructuralFieldId, StructuralTypeId,
 };
 
 /// One field of a case of a theorem's sum input.
@@ -70,7 +71,7 @@ impl DataSubjectTables {
 }
 
 const UNSUPPORTED_PAYLOAD: &str =
-    "a sum input's payload is not a closed-width integer, a Boolean or the sum itself";
+    "a sum input's payload is not a closed-width integer, a Boolean, a float or the sum itself";
 
 impl Denotation {
     /// Declare the subject's sum, once for each declaration, and the subject
@@ -131,10 +132,12 @@ impl Denotation {
     }
 
     /// The carrier of a payload: the integers a fixed-width integer denotes
-    /// into, as a scalar subject does, or `Two`.
+    /// into, as a scalar subject does, `Two`, or a float format's carrier,
+    /// as a float subject has.
     fn payload(&mut self, scalar: ScalarType) -> Result<TermHandle, BoundedDenotationError> {
         match scalar {
             ScalarType::Boolean => Ok(self.two),
+            ScalarType::IeeeFloat(_) => self.carrier(scalar),
             ScalarType::Integer(integer)
                 if integer.carrier() == IntegerCarrier::Fixed
                     && !integer.is_address()
@@ -257,6 +260,14 @@ impl Denotation {
         let carrier = self.payload(*scalar_type)?;
         let zero = match scalar_type {
             ScalarType::Boolean => self.two_zero,
+            // Positive zero, the literal a float subject's `0.0` denotes.
+            ScalarType::IeeeFloat(format) => {
+                let zero = match format {
+                    IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0),
+                    IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0),
+                };
+                self.scalar_term(&ScalarTerm::IeeeFloatLiteral(zero))?
+            }
             _ => self.math_literal(BigInt::from(0))?,
         };
         let value = self.analyze(*root, carrier, |s, data, case| {
