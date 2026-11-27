@@ -4,6 +4,25 @@ This crate runs Terminal Psi. Start at [interpreter.rs](interpreter.rs). Executi
 [calls and outcomes](../../../wiki/spec/terminal-psi/calls_and_outcomes.md)
 and [structural ownership](../../../wiki/spec/terminal-psi/ownership.md) rules.
 
+The crate also owns the live storage ledgers under `memory/`: the
+[extent ledger](memory/extents/) (`extents`), the
+[live access checks](memory/storage-access/) (`storage_access`) and the
+[layout materializer](memory/materialization/mod.rs) (`storage_materialization`).
+The host runtime reaches the first two as `terminal_interpreter::extents` and
+`terminal_interpreter::storage_access`.
+
+Three crates under `host/` and `numeric-imports/` stay separate because
+`mbx xtask check-boundary` requires it:
+- `retained-image-runtime` is the only runtime package allowed to read the
+  completed native image (`native-artifact`); the host runtime may not.
+- `native-provider-sponsor` uses native image emission. The host runtime may
+  not depend on a native stage, and the source compiler, which depends on
+  this crate, may not reach native code.
+- `interpreter-numeric-imports` combines this crate with the native
+  `target-vocabulary`. The source compiler depends on this crate and may not
+  reach native code, and native stage 00 uses the numeric imports without
+  the host runtime.
+
 The product compiles a program before running it. The engine depends on its
 input representation and semantic checks, not on the compiler coordinator, so
 compile-time evaluation creates no dependency cycle.

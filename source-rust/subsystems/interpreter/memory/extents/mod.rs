@@ -95,10 +95,10 @@ macro_rules! conserved_error {
         $(#[$meta])*
         pub struct $name $(<$lt>)? {
             $field: $ty,
-            diagnostic: crate::extent::diagnostic::ExtentDiagnostic,
+            diagnostic: crate::extents::extent::diagnostic::ExtentDiagnostic,
         }
         impl $(<$lt>)? $name $(<$lt>)? {
-            pub const fn diagnostic(&self) -> &crate::extent::diagnostic::ExtentDiagnostic {
+            pub const fn diagnostic(&self) -> &crate::extents::extent::diagnostic::ExtentDiagnostic {
                 &self.diagnostic
             }
             pub fn $into_fn(self) -> $ty {
@@ -117,10 +117,10 @@ macro_rules! conserved_error {
         pub struct $name $(<$lt>)? {
             $f1: $t1,
             $f2: $t2,
-            diagnostic: crate::extent::diagnostic::ExtentDiagnostic,
+            diagnostic: crate::extents::extent::diagnostic::ExtentDiagnostic,
         }
         impl $(<$lt>)? $name $(<$lt>)? {
-            pub const fn diagnostic(&self) -> &crate::extent::diagnostic::ExtentDiagnostic {
+            pub const fn diagnostic(&self) -> &crate::extents::extent::diagnostic::ExtentDiagnostic {
                 &self.diagnostic
             }
             pub fn $into_fn(self) -> ($t1, $t2) {
@@ -143,9 +143,9 @@ use loans_and_claims::{activation_claims, external_loans, ordering_events};
 mod extent;
 
 mod loans {
-    use crate::extent::Extent;
-    use crate::extent::diagnostic::ExtentDiagnostic;
-    use crate::roots::root_origins::{
+    use crate::extents::extent::Extent;
+    use crate::extents::extent::diagnostic::ExtentDiagnostic;
+    use crate::extents::roots::root_origins::{
         ExtentProgramLocalOrigin, ExtentProviderIssuance, ExtentRootOrigin,
     };
     use extent_contracts::{
@@ -276,9 +276,9 @@ mod loans {
 mod mapping;
 mod roots {
     pub(crate) mod root_grants {
-        use crate::extent::diagnostic::{ExtentDiagnostic, validate_range};
-        use crate::extent::{Extent, ExtentSharingMode, Lineage};
-        use crate::roots::root_origins::{
+        use crate::extents::extent::diagnostic::{ExtentDiagnostic, validate_range};
+        use crate::extents::extent::{Extent, ExtentSharingMode, Lineage};
+        use crate::extents::roots::root_origins::{
             ExtentProgramLocalOrigin, ExtentProviderIssuance, ExtentRootOrigin,
         };
         use extent_contracts::{
@@ -501,7 +501,7 @@ mod roots {
     }
 
     pub(crate) mod root_origins {
-        use crate::extent::diagnostic::{ExtentDiagnostic, nonzero_identity};
+        use crate::extents::extent::diagnostic::{ExtentDiagnostic, nonzero_identity};
         use extent_contracts::{
             ExtentAliasClassId, ExtentBackingId, ExtentCapacityId, ExtentCustodyRootId,
             ExtentEstablishmentRouteId, ExtentIssuanceId, ExtentLiveIssuancePremiseId,
@@ -763,7 +763,7 @@ mod tests {
             grant, id, local_root_grant, program_local_origin, provider_issuance, rights,
             root_grant,
         };
-        use crate::{
+        use crate::extents::{
             AddressSpaceId, Extent, ExtentLineageId, ExtentProvenanceId, ExtentRootGrant,
             MappingEraId, ValidatedExtentGeometry,
         };
@@ -962,7 +962,7 @@ mod tests {
     }
     mod existing_content {
         use super::{id, local_root_grant, root_grant};
-        use crate::{
+        use crate::extents::{
             ExtentContentCustodyReceiptId, ExtentContentInterpretation,
             ExtentContentInterpretationId, ExtentContentValidityReceiptId, ResidentClaimId,
         };
@@ -1025,7 +1025,7 @@ mod tests {
     }
     mod loans {
         use super::{grant, provider_issuance, root_grant};
-        use crate::{ExtentSharingMode, LoanPolarity};
+        use crate::extents::{ExtentSharingMode, LoanPolarity};
 
         #[test]
         fn loans_are_bounded_and_derive_parent_borrow_polarity() {
@@ -1094,7 +1094,7 @@ mod tests {
         }
     }
 
-    use crate::{
+    use crate::extents::{
         AddressSpaceId, Extent, ExtentDiagnostic, ExtentLineageId, ExtentProgramLocalOrigin,
         ExtentProvenanceId, ExtentProviderIssuance, ExtentRightId, ExtentRights, ExtentRootGrant,
         MappingEraId,

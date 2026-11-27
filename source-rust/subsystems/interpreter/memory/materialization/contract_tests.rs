@@ -16,7 +16,7 @@ mod conventional_materializations {
         entry, layout_field_entry, layout_report, numbered_layout_field_entry,
         post_handoff_context, split_layout,
     };
-    use crate::{
+    use crate::storage_materialization::{
         decode_scalar_layout, derive_symbolic_materialization, materialize_aggregate_layout_into,
         materialize_scalar_layout_into,
     };
@@ -1146,7 +1146,7 @@ mod symbolic_materializations {
         numbered_layout_field_entry, post_handoff_context, post_handoff_context_with,
         record_interior, record_layout, repeated_layout, split_layout, sym_path,
     };
-    use crate::derive_symbolic_materialization;
+    use crate::storage_materialization::derive_symbolic_materialization;
     use layout_plans::{
         ByteOrder, ConsumptionInstant, IntegerInterpretation, LayoutPlacementReport,
         LayoutPlanReport, MaterializationAction, MaterializationContext, PlacementAddressRange,
@@ -1522,7 +1522,7 @@ mod symbolic_sum_materializations {
         recursive_record_array_report, recursive_sum_report, sum_array_layout, sum_field_layout,
         sum_layout, sym_path, symbolic_path, writer_field_offsets,
     };
-    use crate::{
+    use crate::storage_materialization::{
         derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,
     };
     use layout_plans::{
@@ -2110,7 +2110,7 @@ mod symbolic_sum_materializations {
 
 mod writer_fragments {
     use super::{entry, post_handoff_context, split_layout, stored_integer_layout};
-    use crate::derive_symbolic_materialization;
+    use crate::storage_materialization::derive_symbolic_materialization;
     use layout_plans::test_support::post_handoff_context_with;
     use layout_plans::{
         ArtifactInstallationScopeId, ByteOrder, ConsumptionInstant, MachineRegimeId,
@@ -2176,7 +2176,8 @@ mod writer_fragments {
             })
             .expect("fixed-address fragments constant-fold");
         let mut bytes = [0_u8; 16];
-        crate::materialize_resolved_into(&plan, &mut bytes).expect("all writes resolved");
+        crate::storage_materialization::materialize_resolved_into(&plan, &mut bytes)
+            .expect("all writes resolved");
 
         assert_eq!(&bytes[0..4], &[0x88, 0x77, 0x66, 0x55]);
         assert_eq!(&bytes[8..12], &[0x44, 0x33, 0x22, 0x11]);
@@ -2202,12 +2203,13 @@ mod writer_fragments {
             panic!("resolved derivation must retain a resolved write")
         };
         *source_value = 1_u64 << 32;
-        let error = crate::materialize_resolved_into(&tampered, &mut bytes)
-            .expect_err("resolved execution must replay retained stored-integer fit evidence");
+        let error =
+            crate::storage_materialization::materialize_resolved_into(&tampered, &mut bytes)
+                .expect_err("resolved execution must replay retained stored-integer fit evidence");
         assert!(error.0.contains("does not fit"), "{}", error.0);
         assert_eq!(bytes, [0xa5; 4]);
 
-        crate::materialize_resolved_into(&plan, &mut bytes)
+        crate::storage_materialization::materialize_resolved_into(&plan, &mut bytes)
             .expect("the resolved value should use the exact stored width");
         assert_eq!(bytes, [0x78, 0x56, 0x34, 0x12]);
 
@@ -2251,7 +2253,9 @@ mod writer_fragments {
     fn unresolved_action_cannot_partially_materialize() {
         let plan = post_handoff_split_writer_plan();
         let mut bytes = [0xa5_u8; 16];
-        assert!(crate::materialize_resolved_into(&plan, &mut bytes).is_err());
+        assert!(
+            crate::storage_materialization::materialize_resolved_into(&plan, &mut bytes).is_err()
+        );
         assert_eq!(bytes, [0xa5; 16]);
     }
 
@@ -2399,7 +2403,7 @@ pub(super) fn assert_reject_inner(
     symbolic_fields: &[SymbolicFieldValue],
     expected: &str,
 ) {
-    let error = crate::derive_symbolic_materialization_with_inner_layouts(
+    let error = crate::storage_materialization::derive_symbolic_materialization_with_inner_layouts(
         layout,
         inner_layouts,
         symbolic_fields,

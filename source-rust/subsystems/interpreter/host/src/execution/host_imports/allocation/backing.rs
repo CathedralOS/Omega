@@ -15,9 +15,9 @@ use access_vocabulary::StableCapability;
 use extent_contracts::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights, MappingEraId,
 };
-use extents::{ExtentProviderIssuance, ExtentRootGrant};
 use std::sync::{Arc, Mutex};
-use storage_access::ResourceProfileGrant;
+use terminal_interpreter::extents::{ExtentProviderIssuance, ExtentRootGrant};
+use terminal_interpreter::storage_access::ResourceProfileGrant;
 use terminal_interpreter::{
     TerminalEffectRejection, TerminalProviderStorageRequest, TerminalProviderStorageResolver,
     TerminalProviderStorageSupply,

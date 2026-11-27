@@ -5,12 +5,12 @@ receipts (`PeerWriteRevocationReceipt`), and authority conservation across
 mapped and unmapped extents.
 */
 
-use crate::extent::Extent;
-use crate::extent::diagnostic::ExtentDiagnostic;
+use crate::extents::extent::Extent;
+use crate::extents::extent::diagnostic::ExtentDiagnostic;
 
-use crate::loans::ExtentLoan;
-use crate::roots::root_grants::ValidatedExtentGeometry;
-use crate::roots::root_origins::ExtentRootOrigin;
+use crate::extents::loans::ExtentLoan;
+use crate::extents::roots::root_grants::ValidatedExtentGeometry;
+use crate::extents::roots::root_origins::ExtentRootOrigin;
 use arena::NormalizedIdentitySet;
 use extent_contracts::LoanPolarity;
 use extent_contracts::MappingGrantId;
@@ -721,8 +721,8 @@ mod tests {
         TranslationCompletionFactId, TranslationInstallObligations, TranslationReleaseObligations,
         TranslationReleaseReceipt, map_borrowed, map_owned,
     };
-    use crate::ExtentRootGrant;
-    use crate::tests::{
+    use crate::extents::ExtentRootGrant;
+    use crate::extents::tests::{
         id, program_local_origin, provider_issuance, provider_issuance_for_invocation, rights,
     };
 

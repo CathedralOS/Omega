@@ -13,7 +13,7 @@ mod field_regions {
     };
     use layout_plans::LayoutPlacementReport;
     use layout_plans::test_support::{layout_field_entry, layout_report};
-    use storage_access::AccessAuthorization;
+    use terminal_interpreter::storage_access::AccessAuthorization;
 
     fn page_plan(read: bool, write: bool, byte_length: u64) -> ValidatedPlacement {
         region_plan(FieldAccess::Region {
@@ -306,7 +306,7 @@ mod field_regions {
 
     #[test]
     fn projected_transfer_keeps_parent_range_permissions_and_source_borrow() {
-        use BorrowPolarity::{Exclusive, Shared};
+        use extent_contracts::LoanPolarity::{Exclusive, Shared};
         let plan = page_plan(true, true, 4096);
         let key = plan.access().plan().key_at(0).expect("parent field");
         for offset in [8, 4096] {
@@ -447,7 +447,7 @@ mod plan_validation {
     };
     use layout_plans::test_support::{layout_field_entry, layout_report};
     use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
-    use storage_access::AccessAuthorization;
+    use terminal_interpreter::storage_access::AccessAuthorization;
 
     #[test]
     fn inaccessible_seed_has_exact_canonical_schema_cardinality() {
@@ -644,7 +644,7 @@ mod plan_validation {
 
     #[test]
     fn uart_access_plan_validates_geometry_and_borrow_polarity() {
-        use BorrowPolarity::{Exclusive, Shared};
+        use extent_contracts::LoanPolarity::{Exclusive, Shared};
         let plan = uart_access_fields();
 
         let status = plan
@@ -722,7 +722,7 @@ mod plan_validation {
 
     #[test]
     fn stable_compound_mutation_is_derived_from_permissions_and_borrow() {
-        use BorrowPolarity::{Exclusive, Shared};
+        use extent_contracts::LoanPolarity::{Exclusive, Shared};
         let layout = uart_layout();
         let plan = validate_access_fields(
             access_plan(

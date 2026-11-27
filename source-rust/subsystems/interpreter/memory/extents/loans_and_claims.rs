@@ -218,8 +218,8 @@ pub(crate) mod activation_claims {
         }
     }
 
-    use crate::extent::diagnostic::ExtentDiagnostic;
-    use crate::extent::{Lineage, SplitBranch};
+    use crate::extents::extent::diagnostic::ExtentDiagnostic;
+    use crate::extents::extent::{Lineage, SplitBranch};
     use extent_contracts::ExtentLineageId;
     use resource_bounds::{
         ActivationClaimBranch, ClaimBoundRow, aligned_claim_bound, compose_claim_bounds,
@@ -501,8 +501,8 @@ pub(crate) mod activation_claims {
 }
 
 pub(crate) mod external_loans {
-    use crate::extent::diagnostic::ExtentDiagnostic;
-    use crate::loans::ExtentLoan;
+    use crate::extents::extent::diagnostic::ExtentDiagnostic;
+    use crate::extents::loans::ExtentLoan;
     use arena::NormalizedIdentitySet;
     use extent_contracts::{
         AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, ExternalBorrowerId,
@@ -839,8 +839,8 @@ pub(crate) mod external_loans {
             ExternalReachMechanism, ExternalReachReceipt, ExternalReachReceiptId,
             begin_external_loan,
         };
-        use crate::tests::{grant, id, rights};
-        use crate::{AddressSpaceId, ExtentLoan, ExtentProvenanceId};
+        use crate::extents::tests::{grant, id, rights};
+        use crate::extents::{AddressSpaceId, ExtentLoan, ExtentProvenanceId};
 
         fn external_grant(
             direction: ExternalLoanDirection,
@@ -1039,7 +1039,7 @@ pub(crate) mod external_loans {
 pub(crate) mod ordering_events {
     use std::collections::{BTreeMap, BTreeSet};
 
-    use crate::extent::diagnostic::{ExtentDiagnostic, validate_range};
+    use crate::extents::extent::diagnostic::{ExtentDiagnostic, validate_range};
     use extent_contracts::{
         AddressSpaceId, DeviceInstanceId, ExtentLineageId, ExtentProvenanceId, ExternalLoanId,
         MappingEraId, MappingId, OrderingEventId, RuntimeScopeId,
@@ -1263,7 +1263,7 @@ pub(crate) mod ordering_events {
             OrderingCoordinateKind, OrderingCoverageRequirement, OrderingEvent, OrderingEventId,
             OrderingRange, RuntimeScopeId, admit_acquisition_after_completion, admit_role_coverage,
         };
-        use crate::extent::diagnostic::ExtentDiagnostic;
+        use crate::extents::extent::diagnostic::ExtentDiagnostic;
 
         fn authority() -> OrderingAuthority {
             OrderingAuthority {

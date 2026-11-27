@@ -8,9 +8,9 @@ fn extent_id<T>(
     constructor(identity).expect("normalized extent identity")
 }
 
-fn provider_issuance(seed: u64) -> extents::ExtentProviderIssuance {
+fn provider_issuance(seed: u64) -> crate::extents::ExtentProviderIssuance {
     let base = seed * 16;
-    extents::ExtentProviderIssuance::from_normalized_identities(std::array::from_fn(
+    crate::extents::ExtentProviderIssuance::from_normalized_identities(std::array::from_fn(
         |identity_index| base + (identity_index as u64 + 1),
     ))
     .expect("normalized provider issuance")
@@ -25,21 +25,26 @@ fn extent_rights(identities: &[u64]) -> ExtentRights {
     }))
 }
 
-fn uart_extent(base: u64, length: u64) -> extents::Extent {
+fn uart_extent(base: u64, length: u64) -> crate::extents::Extent {
     uart_extent_with_lineage(base, length, 1)
 }
 
-fn uart_extent_with_lineage(base: u64, length: u64, lineage: u64) -> extents::Extent {
+fn uart_extent_with_lineage(base: u64, length: u64, lineage: u64) -> crate::extents::Extent {
     uart_extent_with_root(base, length, 1, lineage)
 }
 
-fn uart_extent_with_root(base: u64, length: u64, provider: u64, lineage: u64) -> extents::Extent {
+fn uart_extent_with_root(
+    base: u64,
+    length: u64,
+    provider: u64,
+    lineage: u64,
+) -> crate::extents::Extent {
     uart_root_grant(provider, lineage)
         .mint(base, length)
         .expect("UART extent")
 }
 
-fn uart_root_grant(provider: u64, lineage: u64) -> extents::ExtentRootGrant {
+fn uart_root_grant(provider: u64, lineage: u64) -> crate::extents::ExtentRootGrant {
     uart_root_grant_with_mapping(provider, lineage, 5, 6)
 }
 
@@ -48,8 +53,8 @@ fn uart_root_grant_with_mapping(
     lineage: u64,
     provenance: u64,
     era: u64,
-) -> extents::ExtentRootGrant {
-    extents::ExtentRootGrant::from_admitted_provider(
+) -> crate::extents::ExtentRootGrant {
+    crate::extents::ExtentRootGrant::from_admitted_provider(
         provider_issuance(provider),
         extent_id(
             lineage,
@@ -112,12 +117,12 @@ fn validated_profile(
 
 fn admit_extent_profile(
     receipt: u64,
-    extent: &extents::Extent,
+    extent: &crate::extents::Extent,
     required_rights: &[u64],
     permitted_reach: access_vocabulary::BoundaryReach,
     profile: access_vocabulary::ResourceProfile,
-) -> crate::AdmittedResourceProfile {
-    crate::ResourceProfileGrant::from_admitted_provider(
+) -> crate::storage_access::AdmittedResourceProfile {
+    crate::storage_access::ResourceProfileGrant::from_admitted_provider(
         access_vocabulary::ResourceProfileReceiptId::from_normalized_identity(receipt)
             .expect("profile receipt"),
         extent,
@@ -361,7 +366,7 @@ mod initialization_resources {
         assert!(error.0.contains("requests Stable read=true"));
     }
 
-    fn admitted(extent: &extents::Extent) -> crate::AdmittedResourceProfile {
+    fn admitted(extent: &crate::extents::Extent) -> crate::storage_access::AdmittedResourceProfile {
         admit_extent_profile(
             41,
             extent,
@@ -449,7 +454,7 @@ mod resource_profiles {
         uart_extent_with_root, uart_layout, uart_reach, uart_resource_profile_data,
         validated_profile,
     };
-    use crate::ResourceProfileGrant;
+    use crate::storage_access::ResourceProfileGrant;
     use access_admission::{
         EffectiveSupplyKind, validate_access_resources, validate_placement,
         validate_resource_profile,

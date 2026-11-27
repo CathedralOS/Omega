@@ -1,10 +1,10 @@
 //! Bind physical resource profiles to the exact admitted live extent and loan.
 //! Failures return the grant; restriction conserves its scope, lineage and rights.
 #![forbid(unsafe_code)]
+use crate::extents::{Extent, ExtentLoan, ExtentRootOrigin};
 use extent_contracts::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
 };
-use extents::{Extent, ExtentLoan, ExtentRootOrigin};
 
 use access_admission::ValidatedResourceProfile;
 use access_admission::validate_resource_profile;

@@ -29,9 +29,9 @@ pub(crate) mod diagnostic {
     pub(crate) use extent_contracts::ExtentDiagnostic;
 }
 
-use crate::extent::diagnostic::ExtentDiagnostic;
-use crate::loans::ExtentLoan;
-use crate::roots::root_origins::{
+use crate::extents::extent::diagnostic::ExtentDiagnostic;
+use crate::extents::loans::ExtentLoan;
+use crate::extents::roots::root_origins::{
     ExtentProgramLocalOrigin, ExtentProviderIssuance, ExtentRootOrigin,
 };
 use extent_contracts::{

@@ -9,12 +9,12 @@
 
 use crate::boundary::errors::{TerminalInterpretError, malformed};
 use crate::engine::execution::TerminalExecution;
+use crate::extents::Extent;
 use crate::storage::record::owned_value::StagedOwnedValue;
 use crate::storage::runtime_rows::RuntimeRows;
+use crate::storage_access::AdmittedResourceProfile;
 use access_admission::InitializationResourceCompatibility;
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-use extents::Extent;
-use storage_access::AdmittedResourceProfile;
 use terminal_psi::TerminalAccessLifecyclePlan;
 
 pub(crate) mod backing {
@@ -201,9 +201,9 @@ pub(crate) mod entry {
     };
     use crate::engine::custody::project_structural_value;
     use crate::engine::execution::TerminalExecution;
-    use extents::Extent;
+    use crate::extents::Extent;
+    use crate::storage_access::AdmittedResourceProfile;
     use std::iter::once;
-    use storage_access::AdmittedResourceProfile;
     use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
 
     #[derive(Debug)]
@@ -641,10 +641,10 @@ pub(crate) mod supply {
     };
     use crate::boundary::values::StructuralRuntimePlace;
     use crate::engine::execution::TerminalExecution;
+    use crate::extents::Extent;
+    use crate::storage_access::AdmittedResourceProfile;
     use crate::{TerminalEffectRejection, TerminalInterpretError};
-    use extents::Extent;
     use semantic_vocabulary::{BoundaryMachineId, MachineId};
-    use storage_access::AdmittedResourceProfile;
 
     pub struct TerminalProviderStorageRequest {
         pub(crate) base: u64,
@@ -1260,6 +1260,7 @@ pub(crate) mod field_access {
     use crate::boundary::values::{StructuralRuntimePlace, TerminalScalarValue};
     use crate::engine::execution::TerminalExecution;
     use crate::storage::byte_sequences::storage::ByteSequenceStorage;
+    use crate::storage_access::AccessAuthorization;
     use access_admission::EffectiveSupplyKind;
     use access_vocabulary::AccessOperation;
     use access_vocabulary::BorrowPolarity;
@@ -1267,7 +1268,6 @@ pub(crate) mod field_access {
     use layout_plans::{
         AggregateFieldSchema, ByteOrder, LayoutPlacementReport, LayoutPlanReport, ScalarFieldValue,
     };
-    use storage_access::AccessAuthorization;
     use terminal_psi::{
         StructuralAccess, StructuralPathSegment, StructuralTypeShape, TerminalAccessFieldPlan,
         TerminalAccessViewPlan, TerminalAccessorKind,
@@ -1539,7 +1539,7 @@ pub(crate) mod field_access {
                     None => ScalarFieldValue::new(entry.field(), u16::from(width) * 8, bits),
                 }
                 .map_err(TerminalInterpretError::ValueImage)?;
-                storage_materialization::stage_scalar_field(
+                crate::storage_materialization::stage_scalar_field(
                     &layout,
                     &value,
                     ByteOrder::LittleEndian,
@@ -1557,7 +1557,7 @@ pub(crate) mod field_access {
                 .map_err(TerminalInterpretError::ValueImage)?;
                 let mut encoded = [0_u8; 16];
                 let decoded = encoded.get_mut(..usize::from(width)).ok_or(malformed())?;
-                storage_materialization::decode_aggregate_field_into(
+                crate::storage_materialization::decode_aggregate_field_into(
                     &layout,
                     &schema,
                     ByteOrder::LittleEndian,
@@ -3257,7 +3257,7 @@ pub(crate) mod value_image {
                     layout_entry.member_identity,
                 )?;
                 let mut bytes = zeroed(schema.byte_size, execution.account.as_ref())?;
-                storage_materialization::decode_aggregate_field_into(
+                crate::storage_materialization::decode_aggregate_field_into(
                     plan.placement.layout(),
                     &schema,
                     ByteOrder::LittleEndian,
@@ -3410,7 +3410,7 @@ pub(crate) mod value_image {
                                 field_schema(self.execution, &self.geometry, field, &name, None)?;
                             let mut contents =
                                 zeroed(schema.byte_size, self.execution.account.as_ref())?;
-                            storage_materialization::decode_aggregate_field_into(
+                            crate::storage_materialization::decode_aggregate_field_into(
                                 &layout,
                                 &schema,
                                 ByteOrder::LittleEndian,
@@ -4132,7 +4132,7 @@ pub(crate) mod value_image {
         account: Option<&EvaluationInvocationAccount>,
     ) -> Result<ByteSequenceStorage, TerminalInterpretError> {
         let mut bytes = zeroed(layout.size.ok_or(malformed())?, account)?;
-        storage_materialization::stage_aggregate_layout(
+        crate::storage_materialization::stage_aggregate_layout(
             layout,
             schemas,
             values,
