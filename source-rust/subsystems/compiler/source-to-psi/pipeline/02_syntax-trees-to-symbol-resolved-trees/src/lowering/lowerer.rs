@@ -106,7 +106,6 @@ pub(crate) enum ConstResolutionMode {
     #[default]
     Complete,
     ArgumentSelection,
-    InitializerSelection,
 }
 pub(crate) struct Lowerer {
     pub(crate) runtime_callable_scopes:

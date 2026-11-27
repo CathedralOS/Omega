@@ -68,8 +68,6 @@ pub(crate) use declaration_values::{
     evaluated_declaration_value, retain_const_initializer, selected_expression_constant,
     validate_const_definition,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use initializer_leaves::PendingConstInitializerLeaf;
 pub(crate) use initializer_leaves::pending_const_initializer_leaves;
 pub(crate) use normalized_expressions::{
     normalization_requires_expression, validate_normalized_const_argument,
