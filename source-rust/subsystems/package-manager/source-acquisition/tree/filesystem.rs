@@ -23,8 +23,8 @@ use cap_std::{
 };
 
 use crate::SourceResolveError;
+use crate::capture::read_accounting::record_source_file_read;
 use crate::error::local_source_changed;
-use source_capture::read_accounting::record_source_file_read;
 
 pub(crate) fn open_canonical_source_root(
     canonical_root: &Path,

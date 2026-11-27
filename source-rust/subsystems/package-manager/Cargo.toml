@@ -19,7 +19,6 @@ declaration-scope = { path = "../compiler/foundation/declaration-scope" }
 record-storage = { path = "../../foundation/record-storage" }
 evaluation-receipts = { path = "../compiler/build/evaluation/receipts" }
 evaluation-contracts = { path = "../compiler/build/evaluation/accounting/contracts" }
-source-capture = { path = "source-acquisition/capture" }
 source-admission = { path = "../compiler/source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../foundation/source-text" }
 wire = { path = "../../foundation/wire" }

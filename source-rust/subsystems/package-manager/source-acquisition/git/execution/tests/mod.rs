@@ -1,7 +1,7 @@
 // Test harness and fixtures for `ResolverExecutionBackend`.
 
 use super::ResolverExecutionBackend;
-use crate::ResolverExecutionPhase;
+use crate::git::execution::ResolverExecutionPhase;
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]

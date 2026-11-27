@@ -1,9 +1,9 @@
 //! Acquire one requested source frontier before source settlement parses it.
-use source_provenance::DependencyScope;
-use diagnostics::Diagnostic;
-use source_admission::SourceContents;
-use source_capture::SourceFileSystem;
 use artifacts::compile_timings::{CompileTimings, source as stages};
+use diagnostics::Diagnostic;
+use source_acquisition::capture::SourceFileSystem;
+use source_admission::SourceContents;
+use source_provenance::DependencyScope;
 use std::path::PathBuf;
 
 pub(crate) fn load_source_files(
@@ -35,10 +35,10 @@ pub(crate) fn load_source_files(
 
 #[cfg(test)]
 mod tests {
-    use super::load_source_files;
-    use source_provenance::DependencyScope;
-    use source_capture::SourceFileSystem;
     use super::CompileTimings;
+    use super::load_source_files;
+    use source_acquisition::capture::SourceFileSystem;
+    use source_provenance::DependencyScope;
     use std::io::Write;
     use std::path::PathBuf;
 
@@ -98,7 +98,10 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(timings.phases().len(), 1);
-        assert_eq!(timings.phases()[0].phase, "Source acquisition: SourcePaths -> SourceFiles");
+        assert_eq!(
+            timings.phases()[0].phase,
+            "Source acquisition: SourcePaths -> SourceFiles"
+        );
         assert_eq!(errors.len(), 1);
         assert!(
             errors[0]

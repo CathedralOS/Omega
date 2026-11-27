@@ -1,7 +1,7 @@
 //! Convert the returned Build's issued directory into one complete immutable source acquisition.
 use crate::CapturedLocalSource;
 use build_output::{BuildStagedOutputTree, CapturedBuildSourceInput, CapturedSourceEntry};
-use source_capture::CapturedSourceNode;
+use source_acquisition::capture::CapturedSourceNode;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone)]
@@ -91,7 +91,7 @@ fn logical_path(bytes: &[u8]) -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use source_capture::CapturedSourceTree;
+    use source_acquisition::capture::CapturedSourceTree;
 
     #[test]
     fn a_captured_directory_shares_only_its_own_entries() {

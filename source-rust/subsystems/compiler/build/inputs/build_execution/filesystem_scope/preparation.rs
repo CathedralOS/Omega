@@ -211,7 +211,9 @@ pub fn prepare_filesystem_scope(
             .with_named_inputs(build_snapshot.inputs())
             .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
         build_machine_filesystem_scope.directories = build_snapshot.directories().clone();
-        build_machine_filesystem_scope.product_source_directory = build_snapshot.product_source_directory().map(<[u8]>::to_vec);
+        build_machine_filesystem_scope.product_source_directory = build_snapshot
+            .product_source_directory()
+            .map(<[u8]>::to_vec);
     }
     Ok(build_machine_filesystem_scope)
 }
@@ -220,7 +222,7 @@ fn required_source_members(
     entry: &Path,
     root: &Path,
     sources: &source_compiler::representations::source_inputs::SourceMap,
-    filesystem: Option<&source_capture::SourceFileSystem>,
+    filesystem: Option<&source_acquisition::capture::SourceFileSystem>,
 ) -> Result<std::collections::BTreeSet<std::path::PathBuf>, Vec<Diagnostic>> {
     let authored = sources.selected_files().filter(|file| {
         file.origin == source_admission::SourceOrigin::User

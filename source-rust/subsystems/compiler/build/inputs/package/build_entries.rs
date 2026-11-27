@@ -1,6 +1,6 @@
 //! Dependency Build entries belong to the acquisition that actually entered them.
+use source_acquisition::capture::CapturedSourceTree;
 use source_admission::{RetainedDeclaration, SourceOrigin};
-use source_capture::CapturedSourceTree;
 use source_text::Span;
 use std::collections::BTreeMap;
 use std::path::Path;

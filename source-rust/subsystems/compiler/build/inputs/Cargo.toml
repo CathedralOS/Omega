@@ -16,13 +16,11 @@ build-consent = { path = "../evaluation/authority/consent" }
 normalized-build-settings = { path = "../settings/normalized" }
 provider-acceptance = { path = "../providers/acceptance" }
 build-time-values = { path = "../evaluation/values" }
-source-selection = { path = "../../../package-manager/source-acquisition/capture/selection" }
 language-core = { path = "../../foundation/language-core" }
 declaration-scope = { path = "../../foundation/declaration-scope" }
 source-provenance = { path = "../../foundation/source-provenance" }
 optimization-requests = { path = "../settings/optimizations" }
 evaluation-contracts = { path = "../evaluation/accounting/contracts" }
-source-capture = { path = "../../../package-manager/source-acquisition/capture" }
 source-admission = { path = "../../source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../../../foundation/source-text" }
 evaluation-receipts = { path = "../evaluation/receipts" }
