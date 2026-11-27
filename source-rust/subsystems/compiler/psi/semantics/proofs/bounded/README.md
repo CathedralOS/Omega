@@ -22,6 +22,13 @@ between open terms. A false closed relation can establish
 `relation => Falsehood`. Contradiction search retains that certificate and
 the exact value equalities that closed its operands.
 
+A raw `Identity<f32>` or `Identity<f64>` of two float literals denotes
+equality of their exact bits, in admission and in the
+[closed guard](../../closed-predicates/guard.rs) alike: one NaN encoding is
+identical to itself, while other NaN payloads or signs and the two zeros are
+not ([float equality and source identity](../../../../../../../wiki/spec/terminal-psi/mathematical_values.md#float-equality-and-source-identity)).
+IEEE comparison and `FloatMeaning` identity keep their own rules.
+
 One evaluator per invocation shares limits across operands and repeated
 comparisons: 8,192 visited nodes, depth 128, 65,536 result bits,
 262,144 cumulative allocation-limb units, and 1,048,576 estimated limb-work

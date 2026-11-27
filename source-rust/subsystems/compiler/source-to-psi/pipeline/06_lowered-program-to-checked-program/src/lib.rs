@@ -2433,7 +2433,7 @@ pub(crate) use terminal_semantics::substitution::clauses::{
 /// Express a machine input contract in the same vocabulary when assuming it
 /// at entry and when proving it is forwarded intact. An observable field has
 /// an SSA identity. An unread field still names its original entry snapshot.
-fn entry_snapshot_conjuncts(
+pub(crate) fn entry_snapshot_conjuncts(
     clause: &Proposition,
     bindings: &mut dyn Bindings<Error = Unbound>,
 ) -> Result<Vec<Proposition>, Unbound> {

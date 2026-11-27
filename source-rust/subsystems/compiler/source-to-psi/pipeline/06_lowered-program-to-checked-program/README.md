@@ -31,7 +31,13 @@ An abstract algebra can cite a law of its supplied record to prove identity of
 two operation results. The checker instantiates the law's signature and records
 the kernel-checked proof of the requested identity. For a concrete record determined by its fields, the
 [automatic discharge rule](../../../../../../wiki/spec/proofs/contracts.md#record-identity-from-field-identities)
-requires a kernel proof built from their identities.
+requires a kernel proof built from their identities. A raw float field's
+identity is one of them: an entry `Identity<f64>(a.x, b.x)` is known over the
+values the fields held, and a float defined as a literal or as another value
+is that literal's or value's exact bits, so `0.0f64` is identical to itself
+and not to `-0.0f64`. A float computed by arithmetic stays opaque, and IEEE
+`==` is neither evidence of raw identity nor proved by it
+([float equality and source identity](../../../../../../wiki/spec/terminal-psi/mathematical_values.md#float-equality-and-source-identity)).
 
 A law over data that contains itself is judged apart from every machine.
 Stage 05 hands this crate one

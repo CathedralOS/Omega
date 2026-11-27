@@ -70,6 +70,26 @@ impl ClauseIdentity {
         })
     }
 
+    /// Whether the two sides are identical, for an Identity whose sides are
+    /// both float literals at one raw IEEE carrier. Raw float identity is
+    /// equality of the exact same-format representation: one NaN encoding is
+    /// identical to itself, NaNs with different payloads or signs are not, and
+    /// neither are positive and negative zero (wiki/spec/terminal-psi/mathematical_values.md,
+    /// "Float equality and source identity": "Raw float identity compares
+    /// exact same-format representations, preserving all bits observable by
+    /// a legal bit operation").
+    pub fn raw_float_literal_identity(&self) -> Option<bool> {
+        let literal = |index: u32| match self.values.get(index as usize)? {
+            ClauseValue {
+                carrier: ClauseCarrier::Scalar(ScalarType::IeeeFloat(format)),
+                operand: ClauseOperand::Scalar(ScalarTerm::IeeeFloatLiteral(value)),
+            } if value.format() == *format => Some(*value),
+            _ => None,
+        };
+        let (left, right) = (literal(self.left)?, literal(self.right)?);
+        (left.format() == right.format()).then_some(left == right)
+    }
+
     pub fn validate(&self) -> Result<(), crate::PropositionError> {
         let invalid = || crate::PropositionError::InvalidClauseIdentity;
         // A FloatMeaning Identity is entirely float meanings, under their own

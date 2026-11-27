@@ -166,4 +166,49 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn raw_identity_compares_exact_bits_unlike_ieee_equality() {
+        use semantic_vocabulary::{ClauseCarrier, ClauseOperand, ClauseValue, ScalarType};
+        let identity = |left: IeeeFloatValue, right: IeeeFloatValue| {
+            let value = |literal: IeeeFloatValue| ClauseValue {
+                carrier: ClauseCarrier::Scalar(ScalarType::IeeeFloat(literal.format())),
+                operand: ClauseOperand::Scalar(ScalarTerm::IeeeFloatLiteral(literal)),
+            };
+            Proposition::DeclarationIdentity(ClauseIdentity {
+                values: vec![value(left), value(right)],
+                left: 0,
+                right: 1,
+            })
+        };
+        let single = IeeeFloatValue::Binary32;
+        let double = IeeeFloatValue::Binary64;
+        let mut integers = crate::ClosedIntegerEvaluator::default();
+        for (left, right, identical) in [
+            // One NaN encoding is identical to itself, though IEEE `==` is false.
+            (single(0x7fc0_0001), single(0x7fc0_0001), true),
+            (
+                double(0x7ff8_0000_0000_0001),
+                double(0x7ff8_0000_0000_0001),
+                true,
+            ),
+            // Different payloads and signs are different representations.
+            (single(0x7fc0_0001), single(0x7fc0_0002), false),
+            (single(0x7fc0_0000), single(0xffc0_0000), false),
+            // Signed zeros are IEEE-equal but not identical.
+            (single(0), single(0x8000_0000), false),
+            (double(0), double(0x8000_0000_0000_0000), false),
+            (
+                double(0x3ff0_0000_0000_0000),
+                double(0x3ff0_0000_0000_0000),
+                true,
+            ),
+        ] {
+            assert_eq!(
+                crate::closed_guard(&identity(left, right), &mut integers),
+                Ok(Some(identical)),
+                "{left:?} {right:?}"
+            );
+        }
+    }
 }
