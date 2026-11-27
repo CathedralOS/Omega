@@ -22,8 +22,14 @@
 //! Rows shared through a family use the default inputs: no selected boundary
 //! calls and no generic-call types. Rows for other inputs are adapted for the
 //! one closure that asks, as before.
+//!
+//! The bundle also keeps the borrowed-storage replay summaries of its
+//! machines (`ModuleSummaries`). An analysis the bundle builds over rows its
+//! borrowed-storage family shares takes callee summaries other analyses of
+//! the bundle completed, under the adoption rules of `Replay::adopted_summary`.
 
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use semantic_vocabulary::{MachineId, PlaceId, StructuralCaseId, StructuralTypeId};
 use terminal_psi::{OperationKind, StructuralTypeDeclaration, TerminalMachine, TerminalModule};
@@ -32,8 +38,8 @@ use crate::descriptors::descriptor_lifetimes::{
     DescriptorLocation, DescriptorPathSegment, StructuralTypeIndex,
 };
 use crate::descriptors::descriptor_results::{
-    DescriptorCasePredicate, DescriptorGraphError, DescriptorInvocationTarget, DescriptorMachine,
-    DescriptorSlotKind, GenericCallInputs, terminal_flow,
+    DescriptorAnalysis, DescriptorCasePredicate, DescriptorGraphError, DescriptorInvocationTarget,
+    DescriptorMachine, DescriptorSlotKind, GenericCallInputs, ModuleSummaries, terminal_flow,
 };
 
 #[cfg(test)]
@@ -188,9 +194,22 @@ impl<'m> ZeroedCases<'m> {
     }
 }
 
+/// Names one row family for the life of the process, so a replay summary
+/// table can tell rows of its own family from rows built anywhere else.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RowFamilyIdentity(u64);
+
+impl RowFamilyIdentity {
+    fn next() -> Self {
+        static NEXT_FAMILY: AtomicU64 = AtomicU64::new(1);
+        Self(NEXT_FAMILY.fetch_add(1, Ordering::Relaxed))
+    }
+}
+
 /// The descriptor rows of one slot kind, one per machine, each adapted on
 /// first use with the default inputs.
 pub struct DescriptorRowFamily {
+    identity: RowFamilyIdentity,
     by_slot: Box<[OnceLock<RowResult>]>,
     /// Every machine's row adapted against the whole module's rows. Filled
     /// only for a module whose rows include a body with a dynamic call.
@@ -200,6 +219,7 @@ pub struct DescriptorRowFamily {
 impl DescriptorRowFamily {
     fn new(machines: usize) -> Self {
         Self {
+            identity: RowFamilyIdentity::next(),
             by_slot: (0..machines).map(|_| OnceLock::new()).collect(),
             module_rows: OnceLock::new(),
         }
@@ -310,6 +330,22 @@ impl<'a> DescriptorRowView<'a> {
 
     pub fn is_empty(self) -> bool {
         self.len() == 0
+    }
+
+    /// The caller's rows, when a caller passed them as a slice.
+    pub(crate) fn as_slice(self) -> Option<&'a [DescriptorMachine]> {
+        match self.rows {
+            ViewRows::Slice(rows) => Some(rows),
+            ViewRows::Shared { .. } => None,
+        }
+    }
+
+    /// The bundle row family these rows come from, if a bundle shares them.
+    pub(crate) fn family(self) -> Option<RowFamilyIdentity> {
+        match self.rows {
+            ViewRows::Slice(_) => None,
+            ViewRows::Shared { family, .. } => Some(family.identity),
+        }
     }
 
     /// The first row for `machine`, as `descriptor_machine` finds it.
@@ -429,6 +465,10 @@ pub struct ModuleAnalyses<'m> {
     /// Positions of bodies that contain a dynamic call, ascending.
     dynamic_slots: OnceLock<Box<[usize]>>,
     rows: [OnceLock<DescriptorRowFamily>; SLOT_KINDS],
+    /// Borrowed-storage replay summaries, shared by the analyses this bundle
+    /// builds over its borrowed-storage family. Built on the first such
+    /// analysis.
+    replays: OnceLock<ModuleSummaries<'m>>,
 }
 
 impl<'m> ModuleAnalyses<'m> {
@@ -447,6 +487,7 @@ impl<'m> ModuleAnalyses<'m> {
             zeroed_cases: ZeroedCases::new(&module.types.structural_types),
             dynamic_slots: OnceLock::new(),
             rows: Default::default(),
+            replays: OnceLock::new(),
         })
     }
 
@@ -559,6 +600,33 @@ impl<'m> ModuleAnalyses<'m> {
                     .into_iter()
                     .flat_map(|rows| rows.iter().map(|row| row.as_ref().map_err(|error| *error))),
             )
+    }
+
+    /// A descriptor analysis of one closure's rows that reads this bundle's
+    /// type index.
+    ///
+    /// A borrowed-storage analysis over rows this bundle's family shares
+    /// takes callee summaries other such analyses completed and publishes
+    /// its own. Rows the family does not share, such as the rows of a
+    /// closure with a dynamic call, keep their summaries to themselves.
+    pub fn analysis<'s>(
+        &'s self,
+        kind: DescriptorSlotKind,
+        rows: &'s DescriptorRows<'_>,
+    ) -> DescriptorAnalysis<'s> {
+        let mut analysis = DescriptorAnalysis::with_type_index(
+            &self.module.types.structural_types,
+            self.types(),
+            rows.view(),
+            kind,
+        );
+        if kind == DescriptorSlotKind::BorrowedStorage {
+            let replays = self.replays.get_or_init(|| {
+                ModuleSummaries::for_family(self.module, self.family(kind).identity)
+            });
+            analysis.share_summaries(replays, &[]);
+        }
+        analysis
     }
 
     /// Rows of the closure of `roots` built for these inputs alone. Each
