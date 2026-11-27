@@ -5001,7 +5001,9 @@ impl<'t> Program<'t> {
                     crate::lower::operational::boundary(&mut expression);
                     match (last, signature.result) {
                         (true, Some(result)) => {
-                            if !self.agrees(expression.result, Some(result)) {
+                            if !expression.diverges()
+                                && !self.agrees(expression.result, Some(result))
+                            {
                                 return Err(self.mistyped(
                                     id,
                                     expression.source,

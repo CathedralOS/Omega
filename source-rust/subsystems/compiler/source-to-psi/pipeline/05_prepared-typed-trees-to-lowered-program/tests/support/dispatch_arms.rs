@@ -65,6 +65,67 @@ machine gap(a: u32, b: u32) -> u32 {
     match { a > b -> a - b, _ -> 0 }
 }";
 
+/// Block-valued arms holding `crash` and `transition`:
+/// `guarded_crash` crashes only when `code == 0`, so `crashes Trap code == 0`
+/// covers it; `early_exit` builds an owned record in the enclosing machine and
+/// another in the block arm, then leaves the enclosing machine via `transition`.
+pub const CONTROL_FLOW: &str = r"data Counter { value: u32; }
+machine read(counter: @Counter) -> u32 { counter.value }
+machine guarded_crash(code: u32) -> u32
+crashes Trap code == 0
+{
+    let seen: u32 = match code {
+        0 -> { let made: Counter = Counter { value: 3 }; crash Trap; },
+        _ -> 7,
+    };
+    seen
+}
+machine early_exit(code: u32, inner: u32) -> u32 {
+    let outer: Counter = Counter { value: 10 };
+    let seen: u32 = match code {
+        0 -> {
+            let made: Counter = Counter { value: inner };
+            transition made.value {
+                0 -> 41,
+                _ -> 42,
+            }
+        },
+        _ -> 7,
+    };
+    read(@outer) + seen
+}";
+
+pub const UNCOVERED_CRASH: &str = r"data Counter { value: u32; }
+machine uncovered_crash(code: u32) -> u32
+crashes none
+{
+    let seen: u32 = match code {
+        0 -> { let made: Counter = Counter { value: 3 }; crash Trap; },
+        _ -> 7,
+    };
+    seen
+}";
+
+pub const WRONG_GUARD_CRASH: &str = r"data Counter { value: u32; }
+machine wrong_guard_crash(code: u32) -> u32
+crashes Trap code == 1
+{
+    let seen: u32 = match code {
+        0 -> { let made: Counter = Counter { value: 3 }; crash Trap; },
+        _ -> 7,
+    };
+    seen
+}";
+
+pub const TRAILING_AFTER_CRASH: &str = r"machine trailing(code: u32) -> u32
+crashes Trap code == 0
+{
+    match code {
+        0 -> { crash Trap; 5 },
+        _ -> 7,
+    }
+}";
+
 const PACKAGE: [u8; 32] = [0x42; 32];
 
 /// The typed trees of `MAIN`, after the lexer, parser, resolver and typer.

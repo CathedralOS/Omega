@@ -162,7 +162,7 @@ pub(super) fn expression_contains(
                     statement.visit_operands(expressions, |operand| operands.push(operand));
                     operands.into_iter().any(contains)
                 })
-                || contains(block.tail)
+                || (block.tail.is_valid() && contains(block.tail))
         }
         ExpressionNode::Match(dispatch) => {
             contains(dispatch.subject)

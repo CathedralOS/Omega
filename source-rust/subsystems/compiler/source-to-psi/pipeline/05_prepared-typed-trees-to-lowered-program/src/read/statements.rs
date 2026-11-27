@@ -205,7 +205,7 @@ impl Program<'_> {
                     )?;
                     self.authorized(id, referent, Access::Replace)?;
                     let value = self.expression(id, slots, assignment.value, Some(referent))?;
-                    if !self.agrees(value.result, Some(referent)) {
+                    if !value.diverges() && !self.agrees(value.result, Some(referent)) {
                         return Err(assigned(self, &value, referent));
                     }
                     return Ok(Statement::Store {
@@ -226,7 +226,7 @@ impl Program<'_> {
                 // The value's type first: a value that is not the place's
                 // type is wrong whoever may write the place.
                 let value = self.expression(id, slots, assignment.value, Some(value_type))?;
-                if !self.agrees(value.result, Some(value_type)) {
+                if !value.diverges() && !self.agrees(value.result, Some(value_type)) {
                     return Err(assigned(self, &value, value_type));
                 }
                 self.authorized(id, value_type, Access::Replace)?;
@@ -359,7 +359,7 @@ impl Program<'_> {
                 }
                 self.written_through(id, storage)?;
                 let value = self.expression(id, slots, assignment.value, Some(stored))?;
-                if !self.agrees(value.result, Some(stored)) {
+                if !value.diverges() && !self.agrees(value.result, Some(stored)) {
                     return Err(assigned(self, &value, stored));
                 }
                 self.authorized(id, stored, Access::Replace)?;
@@ -579,7 +579,10 @@ impl Program<'_> {
         if !local.is_operand_capture {
             crate::lower::operational::boundary(&mut value);
         }
-        let Some(value_type) = value.result else {
+        let Some(value_type) = value
+            .result
+            .or_else(|| value.diverges().then_some(declared).flatten())
+        else {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -723,14 +726,56 @@ impl Program<'_> {
         expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<crate::Expression> {
+        use crate::body::ArmGuard;
+        use crate::publication::selection_questions::TransitionRead;
+
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Statement(what));
         let typed = self.typed;
-        let mut statements = Vec::new();
-        for (handle, statement) in block
-            .statements
-            .handles()
-            .zip(typed.statement_table.statements(block.statements))
-        {
+        let machine_symbol =
+            *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+        let machine_result =
+            terminal_check_tables::row(&self.signatures, id, id, Construct::Machine)?.result;
+        let block_statements = typed.statement_table.statements(block.statements);
+        let mut statements = Vec::with_capacity(block_statements.len());
+        let mut completed = false;
+        let mut statically_completed = false;
+        let static_truths_len = self.static_truths.len();
+        let mut position = 0;
+        while let Some(statement) = block_statements.get(position) {
+            let handle = block.statements.handle_at(
+                u32::try_from(position)
+                    .map_err(|_| unserved("statement position exceeds its source arena"))?,
+            );
+            if statically_completed && let StatementNode::Transition(transition) = statement {
+                let read = match transition.guard {
+                    crate::source_state::statement::TransitionGuardNode::When(guard)
+                        if matches!(
+                            self.read_static_truth(
+                                id,
+                                machine_symbol,
+                                guard,
+                                super::types::Reading::Value,
+                            )?,
+                            Some(super::types::TypeTruth::Known(_))
+                        ) =>
+                    {
+                        TransitionRead::Guard
+                    }
+                    _ => TransitionRead::None,
+                };
+                self.completed_operators
+                    .record_transition(machine_symbol, handle, read);
+                position += 1;
+                continue;
+            }
+            if completed {
+                self.static_truths.truncate(static_truths_len);
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Completion("statement after an unconditional arm"),
+                ));
+            }
             let read = match statement {
                 StatementNode::Assignment(assignment) => self.assignment(id, scope, assignment)?,
                 StatementNode::Call(call) => Statement::Evaluate {
@@ -749,40 +794,114 @@ impl Program<'_> {
                 {
                     match self.record_pattern(id, scope, local)? {
                         Some(statement) => statement,
-                        None => continue,
+                        None => {
+                            position += 1;
+                            continue;
+                        }
                     }
                 }
                 StatementNode::LocalData(local)
                     if local.role == language_core::LocalBindingRole::AtomicObservedResult =>
                 {
+                    self.static_truths.truncate(static_truths_len);
                     return Err(unserved("an atomic observed result inside a block value"));
                 }
                 StatementNode::LocalData(local) => {
                     let (slot, statement) = self.local(id, scope, local).map_err(|refusal| {
                         self.read_failure_at(refusal, local.symbol, "the local binding")
                     })?;
+                    if !local.is_mutable
+                        && let Some(truth) = self.static_truth(local.initial_value)
+                    {
+                        self.static_truths.push((local.symbol, truth));
+                    }
                     self.adopt_block_slots(scope);
                     scope.push(slot.clone());
                     self.block_slots
                         .push((slot, local.name.as_str().to_owned()));
                     statement
                 }
-                StatementNode::Transition(_)
-                | StatementNode::Assembly(_)
-                | StatementNode::AssemblyFact(_) => {
-                    return Err(unserved(
-                        "a transition or assembly statement inside a block value",
-                    ));
+                StatementNode::Transition(transition) if self.case_arm(transition) => {
+                    let (dispatch, taken) = self.dispatch(
+                        id,
+                        scope,
+                        block.statements.handles().skip(position),
+                        machine_result,
+                    )?;
+                    for arm in block.statements.handles().skip(position).take(taken) {
+                        self.completed_operators.record_transition(
+                            machine_symbol,
+                            arm,
+                            TransitionRead::GuardAndTarget,
+                        );
+                    }
+                    completed = true;
+                    position += taken.saturating_sub(1);
+                    dispatch
+                }
+                StatementNode::Transition(transition) => {
+                    let decided = match transition.guard {
+                        crate::source_state::statement::TransitionGuardNode::When(guard) => {
+                            self.static_truth(guard)
+                        }
+                        crate::source_state::statement::TransitionGuardNode::Always => None,
+                    };
+                    self.completed_operators.record_transition(
+                        machine_symbol,
+                        handle,
+                        if decided == Some(false) {
+                            TransitionRead::Guard
+                        } else {
+                            TransitionRead::GuardAndTarget
+                        },
+                    );
+                    if decided == Some(false) {
+                        self.transition_predicate(id, scope, transition)?;
+                        position += 1;
+                        continue;
+                    }
+                    let (guard, target) = self.transition(id, scope, handle, machine_result)?;
+                    let guard = match (decided, guard) {
+                        (Some(true), _) => {
+                            statically_completed = true;
+                            ArmGuard::Always
+                        }
+                        (_, None) => ArmGuard::Always,
+                        (_, Some(condition)) if transition.ends_dispatch => {
+                            ArmGuard::Final(condition)
+                        }
+                        (_, Some(condition)) => ArmGuard::When(condition),
+                    };
+                    completed = guard.closes_dispatch();
+                    Statement::Arm {
+                        guard,
+                        target,
+                        source: SourceOrigin::of(transition.source_span),
+                    }
+                }
+                StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {
+                    self.static_truths.truncate(static_truths_len);
+                    return Err(unserved("an assembly statement inside a block value"));
                 }
             };
             self.adopt_block_slots(scope);
             statements.push(read);
+            position += 1;
         }
         let value = if self.typed.expression_table.expression_is_valid(block.tail) {
+            if completed {
+                self.static_truths.truncate(static_truths_len);
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Completion("statement after an unconditional arm"),
+                ));
+            }
             Some(Box::new(self.expression(id, scope, block.tail, expected)?))
         } else {
             None
         };
+        self.static_truths.truncate(static_truths_len);
         Ok(crate::Expression {
             call_context: None,
             result: value.as_ref().and_then(|value| value.result),
