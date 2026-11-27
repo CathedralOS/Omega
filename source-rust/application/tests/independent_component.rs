@@ -324,3 +324,94 @@ machine main() crashes Trap {
     ];
     project::write(root, &sources);
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn independent_wait_uses_the_selected_export_and_the_callers_private_cell() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/synchronization/run/independent_wait");
+    let read = |name: &str| fs::read_to_string(fixture.join(name)).unwrap();
+    let supplier_build = read("supplier/build.omg");
+    let supplier = read("supplier/main.omg");
+    let build = read("application/build.omg");
+    let main = read("application/main.omg");
+    for (provider, value, stuck) in [
+        ("ObservedWait", "1", true),
+        ("ObservedWait", "0", false),
+        ("ImmediateWait", "1", false),
+    ] {
+        let scratch = project::stage(
+            "independent-atomic-wait",
+            &[
+                ("supplier/build.omg", &supplier_build),
+                ("supplier/main.omg", &supplier),
+                (
+                    "application/build.omg",
+                    &build.replace("ObservedWait", provider),
+                ),
+                (
+                    "application/main.omg",
+                    &main.replace("store(0", &format!("store({value}")),
+                ),
+            ],
+        );
+        let application = scratch.path().join("application");
+        let (built, diagnostic) = project::status(&project::omega(
+            &application,
+            &[
+                "--target",
+                "linux_x86_64",
+                "--build-dir",
+                "out",
+                "build.omg",
+            ],
+        ));
+        assert_eq!(built, !stuck, "{provider}, {value}: {diagnostic}");
+        if stuck {
+            let (ran, psi_diagnostic) = project::status(&project::omega(
+                &application,
+                &[
+                    "run",
+                    "--engine",
+                    "psi",
+                    "--target",
+                    "linux_x86_64",
+                    "--psi-work-budget",
+                    "10000",
+                    "build.omg",
+                ],
+            ));
+            assert!(!ran, "{psi_diagnostic}");
+            for report in [&diagnostic, &psi_diagnostic] {
+                assert!(
+                    report.contains("synchronization deadlock")
+                        && report.contains("the call retries on an unchanged private atomic cell"),
+                    "{report}"
+                );
+            }
+        } else {
+            let suppliers =
+                fs::read_to_string(application.join("out/omega-components.tsv")).unwrap();
+            assert!(
+                suppliers.contains(".so"),
+                "expected an independent native supplier: {suppliers}"
+            );
+            let mut native = Command::new(application.join("out/omega-program"))
+                .spawn()
+                .unwrap();
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+            loop {
+                if let Some(status) = native.try_wait().unwrap() {
+                    assert!(status.success(), "{provider}, {value}: {status}");
+                    break;
+                }
+                if std::time::Instant::now() >= deadline {
+                    native.kill().unwrap();
+                    native.wait().unwrap();
+                    panic!("{provider}, {value}: the selected native supplier did not return");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        }
+    }
+}
