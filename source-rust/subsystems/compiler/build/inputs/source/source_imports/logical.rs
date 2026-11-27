@@ -64,7 +64,7 @@ impl LogicalSourceDiscovery for Vec<RegisteredPackageRoot> {
             .iter()
             .any(|owner| owner.root == root && owner.build_files.contains(source));
         let inventory = owner_inventory(self, root, filesystem, excluded_paths)?;
-        if !selected_build && !inventory.units.iter().any(|unit| unit.path == source) {
+        if !selected_build && inventory.retained(source).is_none() {
             return Ok(Vec::new());
         }
         Ok(inventory

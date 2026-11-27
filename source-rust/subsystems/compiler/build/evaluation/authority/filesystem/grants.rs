@@ -329,14 +329,6 @@ impl FilesystemMetadataLayout {
         self.record_size
     }
 
-    pub fn field_layout(&self, field: FilesystemMetadataField) -> FilesystemMetadataFieldLayout {
-        *self
-            .fields
-            .iter()
-            .find(|layout| layout.field == field)
-            .expect("validated metadata layout contains every field")
-    }
-
     pub(crate) fn host() -> Self {
         let fields = if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
             vec![

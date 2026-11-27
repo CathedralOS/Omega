@@ -146,13 +146,6 @@ impl AssembledSyntax {
             entry: selection.entry(),
         })
     }
-
-    pub fn build_scope_stage_source(
-        &self,
-    ) -> Result<source_compiler::BuildStageSource, Vec<Diagnostic>> {
-        self.build_scope_stage_inputs()?
-            .prepare(&mut CompileTimings::default())
-    }
 }
 
 /// Build-scope-only source inputs extracted from an assembled stage, ready to
