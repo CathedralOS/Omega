@@ -32,6 +32,23 @@ impl<'t> Program<'t> {
             .runtime_callable_contract_identity(source, &[])
             .map_err(|reason| unavailable(machine, reason.to_string()))?;
         let signature = &typed.runtime_callable_contract(source).signature;
+        // A signature with its own proof parameters is a logical contract
+        // only; no executable callable has that type. Read it as one. Any
+        // executable use still reads it below and refuses the proof binder.
+        if typed
+            .data_type_parameters
+            .span_or_empty(signature.type_parameters)
+            .iter()
+            .any(|parameter| {
+                matches!(
+                    parameter.kind,
+                    crate::source_state::data::TypeParameterKind::Proof { .. }
+                )
+            })
+        {
+            self.theorem_contract(machine, signature)?;
+            return Ok(());
+        }
         self.declared_requirement_signature(machine, signature, &[])?;
         Ok(())
     }

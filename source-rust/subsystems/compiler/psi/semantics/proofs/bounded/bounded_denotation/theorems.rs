@@ -34,6 +34,8 @@ pub enum BoundedTheoremError {
     DuplicateSubject(ValueId),
     UnsupportedSubject(ScalarType),
     UnboundSubject,
+    /// A hypothesis's type is not closed over its own declarations.
+    OpenHypothesis,
 }
 
 crate::debug_display!(BoundedTheoremError);
@@ -96,11 +98,120 @@ fn prepare_subjects(
     Ok((selected, carrier_bounds))
 }
 
+/// Append each closed hypothesis type, with the declarations it names, to the
+/// end of `declarations`, and return its type in `arena`. Each hypothesis's
+/// declarations name only each other, so they keep their meaning as a block.
+/// Both the expected type and a proof of it append them at the same point,
+/// right after their subjects, so both name the same declarations.
+fn append_hypotheses(
+    arena: &mut TermArena,
+    declarations: &mut Vec<Declaration>,
+    hypotheses: &[BoundedImplicationType],
+) -> Result<Vec<TermHandle>, BoundedTheoremError> {
+    let mut types = Vec::with_capacity(hypotheses.len());
+    for hypothesis in hypotheses {
+        let offset =
+            u32::try_from(declarations.len()).map_err(|_| BoundedTheoremError::OpenHypothesis)?;
+        // Each source slot's copy, indexed by the slot.
+        let mut copied = vec![None; hypothesis.arena.len() + 1];
+        for declaration in &hypothesis.signature {
+            let ty = copy_term(
+                &hypothesis.arena,
+                declaration.ty,
+                arena,
+                offset,
+                &mut copied,
+            )?;
+            let body = declaration
+                .body
+                .map(|body| copy_term(&hypothesis.arena, body, arena, offset, &mut copied))
+                .transpose()?;
+            declarations.push(Declaration {
+                level_arity: declaration.level_arity,
+                ty,
+                body,
+                kind: declaration.kind.clone(),
+            });
+        }
+        types.push(copy_term(
+            &hypothesis.arena,
+            hypothesis.ty,
+            arena,
+            offset,
+            &mut copied,
+        )?);
+        let end =
+            u32::try_from(declarations.len()).map_err(|_| BoundedTheoremError::OpenHypothesis)?;
+        // The copies may name only the block they arrived with.
+        if copied.iter().flatten().any(|&handle| {
+            matches!(arena.get(handle), Term::Constant { declaration, .. }
+                if declaration < offset || declaration >= end)
+        }) {
+            return Err(BoundedTheoremError::OpenHypothesis);
+        }
+    }
+    Ok(types)
+}
+
+/// The same term in another arena, each constant moved `offset` places later.
+fn copy_term(
+    source: &TermArena,
+    root: TermHandle,
+    target: &mut TermArena,
+    offset: u32,
+    copied: &mut [Option<TermHandle>],
+) -> Result<TermHandle, BoundedTheoremError> {
+    let slot = |handle: TermHandle| handle.arena_index() as usize;
+    let mut pending = vec![(root, false)];
+    while let Some((handle, finished)) = pending.pop() {
+        if copied
+            .get(slot(handle))
+            .ok_or(BoundedTheoremError::OpenHypothesis)?
+            .is_some()
+        {
+            continue;
+        }
+        let node = source.get(handle);
+        if !finished {
+            pending.push((handle, true));
+            pending.extend(node.children().map(|child| (child, false)));
+            continue;
+        }
+        let node = match node {
+            Term::Constant {
+                declaration,
+                levels,
+            } => Term::Constant {
+                declaration: declaration
+                    .checked_add(offset)
+                    .ok_or(BoundedTheoremError::OpenHypothesis)?,
+                levels,
+            },
+            Term::Dummy => return Err(BoundedTheoremError::OpenHypothesis),
+            other => {
+                let children = other
+                    .children()
+                    .map(|child| copied[slot(child)].ok_or(BoundedTheoremError::OpenHypothesis))
+                    .collect::<Result<Vec<_>, _>>()?;
+                other.rebuilt(&children)
+            }
+        };
+        copied[slot(handle)] = Some(target.insert(node));
+    }
+    copied[slot(root)].ok_or(BoundedTheoremError::OpenHypothesis)
+}
+
 /// Form the complete expected implication independently of a supplied proof.
 /// Even an uninhabited conclusion has a type; accepting its evidence remains
 /// the certificate checker's separate job.
+///
+/// Each of `hypotheses` is a closed implication the theorem receives before
+/// its premises, such as the proof `Inner` given to a contract declared as
+/// `machine<Inner: NonzeroIsPositive>(n: u8)`. The type is then
+/// `Π subjects. Π hypotheses. Π premises. conclusion`.
 pub fn denote_bounded_implication_type(
     subjects: &[(ValueId, ScalarType)],
+    hypotheses: &[BoundedImplicationType],
     premises: &[Proposition],
     conclusion: &Proposition,
     budget: &mut Budget,
@@ -120,12 +231,18 @@ pub fn denote_bounded_implication_type(
     let ty = denotation.denote(conclusion)?;
     let ty = denotation.arena.insert(Term::Squash { ty });
     let (selected, _) = prepare_subjects(&mut denotation, subjects)?;
+    let mut context = append_hypotheses(
+        &mut denotation.arena,
+        &mut denotation.declarations,
+        hypotheses,
+    )?;
+    context.extend(bindings);
     let abstracted = abstract_judgment_type(
         &mut denotation.arena,
         MathematicalJudgmentType {
             signature: &denotation.declarations,
             level_arity: 0,
-            context: &bindings,
+            context: &context,
             ty,
         },
         &selected,
@@ -143,8 +260,12 @@ pub fn denote_bounded_implication_type(
 /// Every premise remains explicit, including premises unused by this proof.
 /// This operation checks evidence; it neither searches for a missing proof nor
 /// grants any retained signature assumption to the eventual receiver.
+///
+/// `hypotheses` are bound as in `denote_bounded_implication_type`. The proof
+/// does not use them: it establishes the conclusion from the premises alone.
 pub fn verify_bounded_theorem(
     subjects: &[(ValueId, ScalarType)],
+    hypotheses: &[BoundedImplicationType],
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
@@ -161,6 +282,11 @@ pub fn verify_bounded_theorem(
         &machine_parameters,
     )?;
     let (selected, carrier_bounds) = prepare_subjects(&mut elaboration.denotation, subjects)?;
+    let hypotheses = append_hypotheses(
+        &mut elaboration.denotation.arena,
+        &mut elaboration.denotation.declarations,
+        hypotheses,
+    )?;
     let term = elaboration.node(proof)?;
     if proof.conclusion != *goal {
         return Err(BoundedDenotationError::Certificate(
@@ -184,8 +310,12 @@ pub fn verify_bounded_theorem(
         denotation.declarations[decision as usize].body = Some(evidence);
     }
     let mut denotation = elaboration.finish(term);
-    let strict = strict_certificate_context(&mut denotation.arena, &denotation.certificate, budget)
-        .map_err(BoundedTheoremError::Strict)?;
+    let mut strict =
+        strict_certificate_context(&mut denotation.arena, &denotation.certificate, budget)
+            .map_err(BoundedTheoremError::Strict)?;
+    // The hypotheses bind outside the premises, so the proof's own references
+    // to its premises keep their indices.
+    strict.context.splice(0..0, hypotheses);
     let abstracted =
         abstract_certificate_assumptions(&mut denotation.arena, &strict, &selected, budget)
             .map_err(BoundedTheoremError::Abstraction)?;

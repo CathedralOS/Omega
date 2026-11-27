@@ -103,6 +103,7 @@ impl Program<'_> {
             called.kind = ExpressionKind::TheoremApplication {
                 source: terminal_psi::TheoremSource::Named(*callee),
                 arguments: std::mem::take(arguments),
+                instantiation: Vec::new(),
             };
         }
     }
