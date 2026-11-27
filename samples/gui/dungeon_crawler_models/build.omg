@@ -6,8 +6,7 @@ use {omega}/language/core/process_exit.omg as process;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "dungeon_models" };
     let engine_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../dungeon_crawler/engine" }));
-    let allowed: [BoundaryServiceReference; 3] = [
-        Build::service::<|streams|::StandardInput>(builder),
+    let allowed: [BoundaryServiceReference; 2] = [
         Build::service::<|streams|::StandardOutput>(builder),
         Build::service::<|process|::ProcessExit>(builder)
     ];
