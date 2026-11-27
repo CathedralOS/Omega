@@ -58,8 +58,7 @@ enum ClaimRows<'types> {
 /// The declarations a prepared classification was computed over, looked up
 /// by identity without collecting them again.
 pub trait ClaimDeclarations {
-    fn claim_declaration(&self, identity: StructuralTypeId)
-    -> Option<&StructuralTypeDeclaration>;
+    fn claim_declaration(&self, identity: StructuralTypeId) -> Option<&StructuralTypeDeclaration>;
 }
 
 /// An owned classification, kept beside the declarations it describes.

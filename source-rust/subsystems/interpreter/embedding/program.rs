@@ -1779,8 +1779,8 @@ pub(crate) mod program {
             let types = self.structural_types();
             // Classifying the roster also refuses a repeated type identity,
             // so each lookup below names at most one declaration.
-            let claims = terminal_semantics::owned_structure::ClaimTypes::new(types.values())?
-                .roster();
+            let claims =
+                terminal_semantics::owned_structure::ClaimTypes::new(types.values())?.roster();
             for machine in self.machines().values() {
                 for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
                     if !matches!(
