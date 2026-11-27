@@ -10,6 +10,10 @@ use terminal_psi::{
     TerminalDeclarationEnvelope, TerminalMachineResult,
 };
 
+fn receive(module: &TerminalModule) -> Result<TerminalModule, CodecError> {
+    crate::decode_module(&crate::module_wire::encode_raw(module).unwrap())
+}
+
 #[test]
 fn bodyless_contract_observations_resolve_against_the_input_and_result_declarations() {
     let mut module = TerminalModule::declarations();
@@ -101,7 +105,6 @@ fn bodyless_contract_observations_resolve_against_the_input_and_result_declarati
             },
         });
     module.execution.declaration_contracts.push(contract);
-    let receive = |module| crate::decode_module(&crate::module_wire::encode_raw(module).unwrap());
     assert_eq!(receive(&module).unwrap(), module);
     let nonexistent_field = vec![
         ScalarReadProjection::Static(CanonicalStructuralPathSegment::Field(

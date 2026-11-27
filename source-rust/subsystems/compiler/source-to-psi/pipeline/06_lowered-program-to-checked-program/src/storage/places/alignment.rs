@@ -41,7 +41,10 @@ impl Storage<'_> {
             .shape(actual, concerns)
             .map_err(crate::Unbound::Refused)?
         {
-            Shape::Typed(current) => current == formal.structural_type,
+            Shape::Typed(current) => {
+                current == formal.structural_type
+                    || self.reads_as_lent_view(current, formal.structural_type)
+            }
             Shape::Scalar(current) => matches!(
                 self.declaration(formal.structural_type, concerns).map_err(crate::Unbound::Refused)?.shape,
                 StructuralTypeShape::PrimitiveScalar(carrier) if carrier == current
@@ -135,13 +138,13 @@ impl Storage<'_> {
     ) -> Checked<Option<ScalarTerm>> {
         let concerns = Construct::Machine;
         let kind = self.root_kind(actual.root, concerns)?;
-        let shared_input = match kind {
+        let input_access = match kind {
             StructuralPlaceKind::Parameter { .. } => {
                 terminal_psi::StructuralParameterDeclaration::find_by_place(
                     &self.lowered.structural_parameters,
                     actual.root,
                 )
-                .is_some_and(|input| input.access == StructuralAccess::SharedBorrow)
+                .map(|input| input.access)
             }
             // A new iteration can establish the same local name at a new location.
             StructuralPlaceKind::OperationResult { producer, .. } => {
@@ -149,10 +152,10 @@ impl Storage<'_> {
                 if self.graph.in_cycle(block)? {
                     return Ok(None);
                 }
-                false
+                None
             }
             StructuralPlaceKind::BlockParameter { block, .. } if !self.graph.in_cycle(block)? => {
-                false
+                None
             }
             _ => return Ok(None),
         };
@@ -178,7 +181,8 @@ impl Storage<'_> {
         observed.push(Projection::Alignment);
         let root_type = self.root_type(actual.root, concerns)?;
         let mut view_elements = Vec::new();
-        let scalar_type = terminal_semantics::structural_read_type_with_extents(
+        let mut references = Vec::new();
+        let scalar_type = terminal_semantics::structural_read_type_with_crossings(
             self.types.iter(),
             root_type,
             &observed,
@@ -187,10 +191,26 @@ impl Storage<'_> {
                     view_elements.push(position);
                 }
             },
+            |position, access| references.push((position, access)),
         );
-        let indirect = !view_elements.is_empty() || observed.contains(&Projection::Referent);
-        if scalar_type != Some(ty) || (indirect && !shared_input) {
+        if scalar_type != Some(ty) {
             return Ok(None);
+        }
+        let crossings = view_elements.len() + references.len();
+        if crossings != 0 && input_access != Some(StructuralAccess::SharedBorrow) {
+            // A write anywhere that may reach this mutable input can replace a
+            // descriptor. If the first descriptor leads into exclusive storage,
+            // bytes beyond that crossing may also contain a replaceable descriptor.
+            let behind_shared_reference = references.first().is_some_and(|(position, access)| {
+                *access == StructuralAccess::SharedBorrow
+                    && view_elements.first().is_none_or(|first| position < first)
+            });
+            if input_access != Some(StructuralAccess::MutableBorrow)
+                || (crossings > 1 && !behind_shared_reference)
+                || self.storage_ever_written(actual.root)
+            {
+                return Ok(None);
+            }
         }
         // Element views start a new geometry region at the selected element.
         // A captured literal zero therefore has the same cap as a first-element

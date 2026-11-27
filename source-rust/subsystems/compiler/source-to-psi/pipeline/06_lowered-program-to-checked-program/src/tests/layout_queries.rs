@@ -67,9 +67,22 @@ fn slice_alignment_contracts_require_a_live_first_element() {
     assert!(matches!(guarded, RouteVerdict::Accepted(_)), "{guarded:?}");
     let unguarded = super::entryless::judged(&program.replace("GUARD", ""), false);
     assert!(
-        matches!(unguarded, RouteVerdict::Rejected { .. }),
+        matches!(&unguarded, RouteVerdict::Rejected { violations, .. }
+            if violations.iter().any(|row| row.statement.contains("contract index is not proved within its collection extent"))),
         "{unguarded:?}"
     );
+}
+
+#[test]
+fn an_unwritten_mutable_view_keeps_its_alignment_when_lent_for_reading() {
+    let program = "machine needs(values: @[u64])
+        requires values.length > 0u64, align_of(values) >= 8u64 {}
+        machine forward(values: @mutable [u64])
+        requires values.length > 0u64, align_of(values) >= 8u64 {
+            needs(values);
+        }";
+    let verdict = super::entryless::judged(program, false);
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
 
 #[test]

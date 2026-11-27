@@ -426,7 +426,10 @@ impl crate::known::ProofValues for Facts {
 
 enum BindingError {
     Unsupported(&'static str),
-    Unproved(Refusal),
+    Unproved {
+        error: Refusal,
+        requirement: &'static str,
+    },
 }
 
 impl From<&'static str> for BindingError {
@@ -551,6 +554,18 @@ impl Scope<'_, '_> {
     }
 
     fn prove(&mut self, goal: &Proposition) -> Result<(), BindingError> {
+        self.prove_requirement(
+            goal,
+            "contract arithmetic is not proved total before its condition",
+        )
+    }
+
+    fn prove_requirement(
+        &mut self,
+        goal: &Proposition,
+        requirement: &'static str,
+    ) -> Result<(), BindingError> {
+        let unproved = |error| BindingError::Unproved { error, requirement };
         let context =
             PropositionContext::from_value_types(self.facts.values.iter().enumerate().map(
                 |(index, value)| (ValueId::new(index as u64 + 1).expect("nonzero"), value.ty),
@@ -570,7 +585,7 @@ impl Scope<'_, '_> {
             &[],
             self.activity,
         )
-        .map_err(BindingError::Unproved)?;
+        .map_err(unproved)?;
         crate::verify_certificate(
             &context,
             self.diagnostic,
@@ -580,7 +595,7 @@ impl Scope<'_, '_> {
             &self.facts.equations,
             &certificate,
         )
-        .map_err(BindingError::Unproved)?;
+        .map_err(unproved)?;
         Ok(())
     }
 
@@ -606,7 +621,7 @@ impl Scope<'_, '_> {
                 Construct::Machine,
                 &format!("{owner}: contract term formation: {detail}"),
             ),
-            BindingError::Unproved(error) => {
+            BindingError::Unproved { error, requirement } => {
                 let reason = match error.reason {
                     RefusalReason::Unproved(
                         terminal_check_tables::UnprovedCause::NoRuleForGoalForm,
@@ -617,10 +632,7 @@ impl Scope<'_, '_> {
                     reason,
                     self.diagnostic,
                     Construct::Machine,
-                    &format!(
-                        "{owner}: contract arithmetic is not proved total before its condition: {}",
-                        error.detail
-                    ),
+                    &format!("{owner}: {requirement}: {}", error.detail),
                 )
             }
         }
@@ -851,9 +863,10 @@ impl ClauseBindings for Scope<'_, '_> {
                     self.descriptor_extent(root_index, root, descriptor, count)?
                 }
             };
-            self.prove(
+            self.prove_requirement(
                 &terminal_semantics::scalar_index_bound(index, length)
                     .ok_or("contract index has no integer count bound")?,
+                "contract index is not proved within its collection extent",
             )?;
         }
         let live = root.access != StructuralAccess::Owned
