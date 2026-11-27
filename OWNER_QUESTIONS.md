@@ -66,36 +66,41 @@ it instantiates. A reviewer verifies those citations before the framing.
 ## Open questions
 
 <a id="returning-uefi-firmware-services"></a>
-### 1. How does a returning UEFI application receive its firmware console?
+### 1. Returning UEFI applications borrow their firmware console
 
-The firmware gives the physical adapter a system table. To display text, the
-application needs that invocation’s live `ConOut` protocol. The existing sample
-uses the old physical entry directly. Under the current profile the Build-bound
-application receives exactly two owned extents, for its image and initial
-storage. Neither carries a firmware protocol. The adapter must keep any retained
-bootstrap state outside both ranges.
-[UEFI entry and firmware handoff](wiki/spec/build/uefi_entry.md#physical-arrival-and-semantic-roots) ·
-[Current sample](samples/uefi/uefi_hello/main.omg)
+**Owner ruling, 2026-11-27.** The adapter passes the returning application a
+typed borrow of this invocation’s console output protocol alongside the image
+and initial storage. Use a descriptive Omega parameter name such as
+`console_output`. Use `ConsoleOut` when naming the firmware field in Omega terms.
+UEFI spells the protocol pointer `EFI_SYSTEM_TABLE.ConOut`. The separate
+`ConsoleOutHandle` field is the device handle. The adapter lends the protocol
+for the duration of the call within the valid firmware phase.
 
-The UEFI contract says to install lifecycle-scoped providers. Build can select
-the code for a provider, but a static slot has no hidden receiver. A runtime
-provider also needs an actual value passed to its caller. The ordinary console
-write takes only text. A package cannot save the firmware pointer in a globally
-nameable mutable object. An extent containing the same address bits would still
-lack the firmware’s authority over that table.
-[Provider slots and era entry](wiki/spec/build/component_publication.md#provider-slots-and-era-entry) ·
-[Constants and storage](wiki/spec/language/constants.md) ·
-[Initial-call authority](wiki/spec/resources/authority.md#initial-call-authority) ·
-[Standard streams](wiki/spec/build/platform_services.md#standard-streams)
+Proposed target-owned entry shape:
 
-**Recommend an explicit firmware-services borrow on the returning application’s
-target-owned entry contract.** The adapter would supply only the qualified
-operations it obtained for that boot-services phase. Application code could
-then pass the console handle to a source-authored firmware output operation.
-The OS handoff could retain its existing two-root contract. Another choice is
-to keep the two-root returning entry and specify how the adapter lends an
-actual service instance to calls made by that continuation, including nested
-or concurrent invocations. Which contract should returning applications use?
+```omega
+public boundary trait UefiApplicationEntry {
+    machine enter(
+        image: Extent in Granted,
+        initial_storage: Extent in Granted,
+        console_output: @EfiTextOutputProtocol
+    ) reaches |process|::StandardOutput
+      crashes Trap crashes Abort;
+}
+```
+
+The adapter calls `UefiApplicationEntry::enter(image, initial_storage, console_output)`.
+The application can then call `TextOutput::output_string(console_output, @message)`.
+Build selects the protocol field to invoke. The borrow supplies the live receiver
+for that call. The OS handoff keeps its two memory grants.
+[Current physical-entry sample](samples/uefi/uefi_hello/main.omg)
+
+**Specification follow-up for the owners.** The UEFI entry specification
+currently routes the adapter through `ProgramStorageEntry::enter` with exactly
+two extents. Specify the returning application's entry with the additional
+phase-scoped borrow and the reach needed for console output.
+[UEFI handoff](wiki/spec/build/uefi_entry.md#physical-arrival-and-semantic-roots) ·
+[Current two-extent declaration](source/library/core/extent.omg)
 
 <a id="review-unused-generic-native-binding"></a>
 ### 2. How does package audit report an unused generic native binding?
