@@ -324,15 +324,28 @@ mod types {
             self.type_parameters(definition.type_parameters)?;
             self.type_arguments(definition.arguments)?;
             for row in &definition.rows {
-                let machine =
-                    crate::resolution::names::owned_conformance_realization(self.program, row)?;
-                if crate::resolution::names::owned_conformance_namespace(self.program, machine)?
-                    != symbol
-                {
-                    return Err(
-                        "constant dependency implementation member lost its exact owner".into(),
-                    );
-                }
+                let machine = if row.source.owns_realization() {
+                    let machine =
+                        crate::resolution::names::owned_conformance_realization(self.program, row)?;
+                    if crate::resolution::names::owned_conformance_namespace(self.program, machine)?
+                        != symbol
+                    {
+                        return Err(
+                            "constant dependency implementation member lost its exact owner".into(),
+                        );
+                    }
+                    machine
+                } else {
+                    let machine = row.realization_machine;
+                    if !machine.is_valid()
+                        || self.program.machines.unique_by_symbol(machine).is_none()
+                    {
+                        return Err(
+                            "constant dependency reference row lost its selected machine".into(),
+                        );
+                    }
+                    machine
+                };
                 self.machines.push(machine);
             }
             Ok(())

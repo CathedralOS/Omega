@@ -2168,6 +2168,17 @@ impl<'t> Program<'t> {
         if !authored_arguments.is_empty() && authored_arguments != arguments {
             return unserved("requirement call whose static arguments differ from its application");
         }
+        if binders.is_empty()
+            && self
+                .typed
+                .closed_requirement_application(declaration)
+                .is_some()
+        {
+            self.typed
+                .require_closed_requirement_call_application(declaration, application_handle)
+                .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?;
+            return Ok(Vec::new());
+        }
         if arguments.len() != binders.len() || bindings.len() != binders.len() {
             return unserved("requirement call with static arguments");
         }

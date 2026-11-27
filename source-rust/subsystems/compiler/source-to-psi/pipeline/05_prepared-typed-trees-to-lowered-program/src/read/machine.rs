@@ -748,6 +748,10 @@ impl<'t> Program<'t> {
                 self.implementation_body = Some(id);
             }
             Ok(id)
+        } else if self.rigid && matches!(reading, Reading::Implementation) {
+            let id = self.read_machine(id, symbol, reading)?;
+            self.implementation_body = Some(id);
+            Ok(id)
         } else {
             self.machine(symbol)
         }
@@ -1135,6 +1139,7 @@ impl<'t> Program<'t> {
             .is_some_and(|owner| {
                 !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty()
             })
+            || (!self.rigid && !declared.type_parameters.is_empty())
         {
             // A body a reference row selects (`Render::paint = red;`) owns
             // no map, so the requirement it refines is the one the selecting
