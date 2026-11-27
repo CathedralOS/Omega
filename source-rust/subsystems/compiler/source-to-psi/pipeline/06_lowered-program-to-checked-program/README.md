@@ -518,6 +518,21 @@ does not make would be a premise nothing established. An edge row must have
 the source and destination of its terminator's edge, because dominance is
 computed from the edge table.
 
+A call's claim transfers must also be the claims the machine holds at that
+call. The ownership walk reconstructs those claims
+(`MachineAffine::verify_claims` in Psi semantics). In a judged closure it
+runs once per machine, after inference has finished editing the module.
+`examine` ([verdict.rs](src/verdict.rs)) builds one `ModuleAnalyses` over the
+settled module. The affine check (`affine_plan`) walks each machine once for
+its reference ends and once more with claims (`verify_with_claims`), and that
+second walk answers both the verified cleanup schedule and the claim rows. The machine checks share
+the same analyses, and `follow_the_lowered_form` reads the claim rows the
+affine check received. Inference (result summaries, input conditions,
+crash routes) replays a machine on a copy of its tables while the module is
+still changing. It checks the same rows but walks no claims
+(`ClaimRows::Deferred`): it reads no claim row, and the machine check of the
+settled module checks every machine's rows again, claims included.
+
 The data `requires` clauses are the goal of every `DataDomain` row and the
 premise a read of an arrived value learns from its type. The checker reads
 them from the module's own type declarations

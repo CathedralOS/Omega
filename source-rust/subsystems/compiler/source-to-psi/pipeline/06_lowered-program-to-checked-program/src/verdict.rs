@@ -1272,8 +1272,9 @@ fn plan_affine_machines(
 /// The affine plan of `machine`: its dead stored references each have an
 /// explicit last-use disposition, and its owned values are used affinely.
 /// Beside it, what the claim receiver (`minted::follow_the_lowered_form`)
-/// reads from `MachineAffine::verify_claims` on this same module. All the
-/// walks read `machine`'s borrowed-storage closure from the shared analyses.
+/// reads from `MachineAffine::verify_claims` on this same module. Two walks
+/// answer all three: the reference-end walk and `verify_with_claims`. Both
+/// read `machine`'s borrowed-storage closure from the shared analyses.
 fn affine_plan(
     analyses: &terminal_semantics::ModuleAnalyses<'_>,
     machine: MachineId,
@@ -1307,25 +1308,12 @@ fn affine_plan(
             "a dead stored reference has no explicit last-use disposition",
         ))));
     }
-    let mut plan = walks
-        .verify()
+    // One walk with claims answers both the verified schedule and the claim
+    // rows the receiver reads, on the graph the walk above built.
+    let (plan, received) = walks
+        .verify_with_claims()
         .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
-    // `verify` walks in claim-verifying mode exactly when the machine has an
-    // owned cleanup, and only that mode yields claim rows. That walk is the
-    // one `verify_claims` runs, over the same module and summaries, so its
-    // answer is read here instead of walked again: the first unavailable
-    // place refuses, else the claim rows stand. Any other machine walks
-    // `verify_claims` itself, on the graph the walks above built.
-    let received = match plan.claims.take() {
-        Some(claims) => match plan.unavailable.first() {
-            Some(unavailable) => Err(terminal_semantics::plain_affine::Error::Unavailable(
-                unavailable.clone(),
-            )),
-            None => Ok(claims),
-        },
-        None => walks.verify_claims(),
-    }
-    .map_err(|error| crate::minted::affine_refusal(machine, error));
+    let received = received.map_err(|error| crate::minted::affine_refusal(machine, error));
     Ok((plan, received))
 }
 
