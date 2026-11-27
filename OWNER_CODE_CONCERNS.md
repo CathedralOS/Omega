@@ -128,14 +128,6 @@ framework or a list of unimplemented features.
 - Cost: two answers to "which case does this formal hold at entry" that must agree; a fix to one does not reach the other.
 - Reported: 2026-11-25, Claude Code, while naming a sum's case at storage boundaries.
 
-<a id="the-changed-line-format-check-reports-enums-it-did-not-change"></a>
-### The changed-line format check reports enums it did not change
-- Category: 10. Verifying costs more than writing
-- Where: `tools/xtask/src/fmt/changed.rs` (`--file-lines` ranges passed to the pinned rustfmt 1.10.0-nightly)
-- Saw: any range inside `ValueOrigin` (`representations/lowered-program/tables/values.rs`) or stage 06's `Reached` (`places.rs`), even one unchanged line (`--file-lines '[{"file":..,"range":[60,60]}]'`), makes rustfmt propose joining the enum's opening line with its first variant's doc comment (`pub enum ValueOrigin {    /// An invocation formal..`). `mbx xtask fmt --check --base origin/main` therefore fails on every change that adds a variant to such an enum.
-- Cost: a check agents are told to run before pushing fails on correctly formatted code, so its other findings are easy to dismiss.
-- Reported: 2026-11-25, Claude Code, while adding `ValueOrigin::StorageCase`.
-
 <a id="stage-03-rebuilds-the-whole-program-operand-owner-table-in-each-pass"></a>
 ### Stage 03 rebuilds the whole-program operand-owner table in each pass
 - Category: 4. Re-deriving
