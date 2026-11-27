@@ -3,7 +3,7 @@
 //! across calls; an unrelated machine's local value number is never evidence.
 
 use super::facts::Facts;
-use super::spin::SpinCondition;
+use super::spin::{CellUpdate, SpinCondition};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use semantic_vocabulary::{
     IntegerValue, MachineId, OperationId, Proposition, ScalarTerm, ScalarType,
@@ -117,20 +117,28 @@ impl SpinCondition {
     pub(super) fn failure(
         self,
         initial: Option<ScalarFact>,
-        replacement: Option<Scalar>,
+        update: CellUpdate,
         requires: &[Proposition],
     ) -> Option<ProgressFailure> {
-        // A write that enables the next iteration guarantees return for
-        // every initial value, including an unknown value.
-        if replacement.is_some_and(|next| !self.matches(next)) {
+        if let Some(ScalarFact::Literal(value)) = initial {
+            return (self.matches(value) && self.matches(update.apply(value)))
+                .then_some(ProgressFailure::Deadlock);
+        }
+        // If the test blocks only on one word, the first update determines
+        // the next observation even when the starting value is unknown.
+        let only_blocked = if self.matches(self.value) {
+            Some(self.value)
+        } else if let Scalar::Boolean(value) = self.value {
+            Some(Scalar::Boolean(!value))
+        } else {
+            None
+        };
+        if only_blocked.is_some_and(|value| !self.matches(update.apply(value)))
+            || matches!(update, CellUpdate::Replace(value) if !self.matches(value))
+            || matches!(initial, Some(ScalarFact::EntryInput(input)) if self.input_enabled(input, requires))
+        {
             return None;
         }
-        match initial {
-            Some(ScalarFact::Literal(value)) => {
-                self.matches(value).then_some(ProgressFailure::Deadlock)
-            }
-            Some(ScalarFact::EntryInput(input)) if self.input_enabled(input, requires) => None,
-            _ => Some(ProgressFailure::Unproved),
-        }
+        Some(ProgressFailure::Unproved)
     }
 }

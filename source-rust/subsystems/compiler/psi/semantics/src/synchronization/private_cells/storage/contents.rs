@@ -4,6 +4,7 @@
 use super::Location;
 use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::progress::ScalarFact;
+use crate::synchronization::spin::CellUpdate;
 use semantic_vocabulary::ScalarType;
 use std::sync::Arc;
 use terminal_psi::StructuralPathSegment as Segment;
@@ -145,6 +146,32 @@ impl Stored {
             }
             _ => *self = Self::Unknown,
         }
+    }
+
+    /// Apply the instruction's transfer independently to every admitted
+    /// resident. A mismatch preserves the actual observed word.
+    pub(in super::super::super) fn after_update(&self, update: CellUpdate) -> Self {
+        let expected = match update {
+            CellUpdate::Observe => return self.clone(),
+            CellUpdate::Replace(value) => return Self::Scalar(ScalarFact::Literal(value)),
+            CellUpdate::CompareExchange { expected, replacement } if expected == replacement => {
+                return self.clone();
+            }
+            CellUpdate::CompareExchange { expected, .. } => expected,
+        };
+        let mut result: Option<Self> = None;
+        let mapped = self.visit_scalars(expected.scalar_type(), |prior| {
+            let value = match prior {
+                ScalarFact::Literal(bits) => Self::Scalar(ScalarFact::Literal(update.apply(bits))),
+                ScalarFact::EntryInput(_) => Self::Unknown,
+            };
+            if let Some(existing) = &mut result {
+                existing.join(&value);
+            } else {
+                result = Some(value);
+            }
+        });
+        mapped.and(result).unwrap_or_default()
     }
 
     pub(in super::super) fn visit_scalars(

@@ -7,12 +7,12 @@ mod storage;
 
 use super::progress::{PrivateWaitFailure, ProgressFailure, ScalarFact, entry_scalars};
 use super::selected::Summaries;
-use super::spin::SpinWait;
+use super::spin::{CellUpdate, SpinWait};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use activation::{Bindings, Destination, Frame};
 use control::{Execution, Frontier};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
-use storage::{Storage, Stored};
+use storage::Storage;
 use terminal_psi::{
     StructuralAccess, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
     Terminator,
@@ -145,7 +145,7 @@ fn advance<'m>(
             let mut all_block = true;
             let mut can_block = false;
             let mut observe = |initial| {
-                let failure = spin.while_value.failure(initial, spin.writes, requirements);
+                let failure = spin.while_value.failure(initial, spin.update, requirements);
                 all_block &= failure == Some(ProgressFailure::Deadlock);
                 can_block |= failure.is_some();
             };
@@ -170,8 +170,9 @@ fn advance<'m>(
                     cause,
                 }));
             }
-            if let Some(value) = spin.writes {
-                memory.set(&location, Stored::Scalar(ScalarFact::Literal(value)));
+            if spin.update != CellUpdate::Observe {
+                let next = memory.get(&location).after_update(spin.update);
+                memory.set(&location, next);
             }
             continue;
         }
