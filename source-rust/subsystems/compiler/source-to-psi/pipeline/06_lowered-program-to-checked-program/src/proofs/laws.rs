@@ -1073,6 +1073,32 @@ impl Proving<'_> {
             prop,
             &mut Budget::new(SEARCH_COMPUTING),
         )?;
+        // Any two boxes of one strict type are equal (`QUOTIENT_BOX_PROP`,
+        // from the quotient scheme, which every signature with a quotient
+        // carries), so a boxed squash relation is a mere proposition.
+        if let Term::Box { ty: strict } = self.arena.get(prop) {
+            if !self
+                .entries
+                .iter()
+                .any(|entry| matches!(entry.kind, SignatureEntryKind::Quotient { .. }))
+            {
+                return Ok(None);
+            }
+            let sort = proof_admission::infer_type(
+                self.arena,
+                context,
+                strict,
+                &mut Budget::new(SEARCH_COMPUTING),
+            )?;
+            let Term::Sort(Sort::Strict(level)) = self.arena.get(sort) else {
+                return Ok(None);
+            };
+            let mere = self.arena.insert(Term::Constant {
+                declaration: proof_admission::QUOTIENT_BOX_PROP,
+                levels: vec![level],
+            });
+            return Ok(Some(self.arena.apply_arguments(mere, &[strict])));
+        }
         let Term::Id { ty, left, right } = self.arena.get(prop) else {
             return Ok(None);
         };
