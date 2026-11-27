@@ -722,3 +722,43 @@ fn decoding_keeps_the_proof_an_application_gives_its_contract_and_its_check() {
         terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap()).is_err()
     );
 }
+const ONE_IS_NONZERO: &str = "data OneIsNonzero = machine(n: u8)
+    requires n == 1u8
+    ensures n != 0u8;
+
+machine one_is_nonzero(n: u8)
+requires n == 1u8
+ensures n != 0u8
+{
+}
+
+machine use_step<Step: OneIsNonzero>(n: u8)
+requires n == 1u8
+ensures n != 0u8
+{
+    Step(n);
+}
+
+machine entry() -> u8 {
+    use_step::<one_is_nonzero>(1u8);
+    0u8
+}
+";
+
+#[test]
+fn a_theorem_proved_from_an_equality_supplies_the_alias() {
+    let verdict = Program::of(ONE_IS_NONZERO).judged(|_| {});
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_proved_from_another_equality_cannot_supply_the_alias() {
+    let source = ONE_IS_NONZERO.replacen(
+        "machine one_is_nonzero(n: u8)\nrequires n == 1u8",
+        "machine one_is_nonzero(n: u8)\nrequires n == 2u8",
+        1,
+    );
+    assert_ne!(source, ONE_IS_NONZERO);
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
