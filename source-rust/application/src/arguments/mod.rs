@@ -184,6 +184,15 @@ fn parse_command(arguments: &mut Arguments) -> Result<Invocation, UsageError> {
     .map_err(UsageError::from)
 }
 
+fn parse_byte_limit(arguments: &mut Arguments, flag: &str, slot: &mut Option<u64>) -> Result<(), String> {
+    set_once(slot, flag, || {
+        let value = take_text(arguments, flag)?;
+        value.parse::<u64>().map_err(|_| {
+            format!("{flag} requires a nonnegative integer byte count")
+        })
+    })
+}
+
 fn parse_trusted_artifact(
     arguments: &mut Arguments,
     slot: &mut Option<String>,
@@ -587,7 +596,7 @@ mod tests {
             _ => panic!("source inspection did not parse"),
         }
         match parse_slice(&["psi", "inspect", "--artifact", "program.psi"]).unwrap() {
-            Invocation::InspectTerminal(InspectTerminalArguments::Artifact { path }) => {
+            Invocation::InspectTerminal(InspectTerminalArguments::Artifact { path, .. }) => {
                 assert_eq!(path, std::path::PathBuf::from("program.psi"));
             }
             _ => panic!("artifact inspection did not parse"),

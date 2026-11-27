@@ -15,12 +15,13 @@ pub(crate) struct RunArguments {
     pub(crate) input_files: Vec<std::path::PathBuf>, // Explicit case files (--input, repeatable), named by file stem.
     pub(crate) outputs: Option<std::path::PathBuf>, // Where each case's streams and results.tsv are written.
     pub(crate) trusted_artifact: Option<String>,
+    pub(crate) max_psi_input_bytes: Option<u64>,
     pub(crate) main_path: std::path::PathBuf,
 }
 
 macro_rules! run_help {
     (synopsis) => {
-        "omega run [--engine <native|psi>] [--build-directories-readonly <host::/guest>]... [--build-directories-readwrite <host::/guest>]... [--run-directories-readonly <host::/guest>]... [--run-directories-readwrite <host::/guest>]... [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name>] [--inputs <dir> | --input <file>...] [--outputs <dir>] [--trusted-artifact <manifest-id>] <root.omg|program.psi>"
+        "omega run [--engine <native|psi>] [--build-directories-readonly <host::/guest>]... [--build-directories-readwrite <host::/guest>]... [--run-directories-readonly <host::/guest>]... [--run-directories-readwrite <host::/guest>]... [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name>] [--inputs <dir> | --input <file>...] [--outputs <dir>] [--trusted-artifact <manifest-id>] [--max-psi-input-bytes <bytes>] <root.omg|program.psi>"
     };
     (host_packages) => {
         "For saved Psi, OMEGA_HOST_PACKAGE_LOCK selects an absolute path to the host's reviewed omega.lock. Set OMEGA_HOST_PACKAGE_LOCK_SHA256 to its approved SHA-256 digest."
@@ -58,6 +59,7 @@ pub(super) fn parse_arguments(
     let mut outputs = None;
     let mut main_path = None;
     let mut trusted_artifact = None;
+    let mut max_psi_input_bytes = None;
     while let Some(argument) = arguments.next_argument() {
         match argument.to_str() {
             Some(flag @ ("--build-directories-readonly" | "--build-directories-readwrite")) => {
@@ -138,6 +140,7 @@ pub(super) fn parse_arguments(
                 private_entry_ram
                     .push(psi_entry_memory::PrivateEntryRamInitialization { position, contents });
             }
+            Some("--max-psi-input-bytes") => super::parse_byte_limit(arguments, "--max-psi-input-bytes", &mut max_psi_input_bytes)?,
             Some("--trusted-artifact") => {
                 super::parse_trusted_artifact(arguments, &mut trusted_artifact)?
             }
@@ -210,22 +213,19 @@ pub(super) fn parse_arguments(
             build_inputs,
         )?)
     };
-    if !build_directories.is_empty()
-        && main_path
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
-    {
+    let saved = main_path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("psi"));
+    if !build_directories.is_empty() && saved {
         return Err("Build directory mappings require a source Build".into());
     }
-    if trusted_artifact.is_some()
-        && !main_path
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
-    {
+    if trusted_artifact.is_some() && !saved {
         return Err("--trusted-artifact applies to a saved .psi program".into());
+    }
+    if max_psi_input_bytes.is_some() && !saved {
+        return Err("--max-psi-input-bytes applies to a saved .psi program".into());
     }
     Ok(Some(RunArguments {
         trusted_artifact,
+        max_psi_input_bytes,
         build_inputs,
         build_directories,
         run_directories,

@@ -22,6 +22,8 @@ pub(crate) struct CompileArguments {
     pub(crate) compare_tests: bool,
     pub(crate) emit_psi: Option<PathBuf>,
     pub(crate) trusted_artifact: Option<String>,
+    pub(crate) max_psi_input_bytes: Option<u64>,
+    pub(crate) max_psi_output_bytes: Option<u64>,
     pub(crate) offline: bool,
     pub(crate) timings: bool,
     pub(crate) report_file: Option<PathBuf>,
@@ -35,9 +37,9 @@ pub(crate) struct CompileArguments {
 
 pub(super) const USAGE: &str = concat!(
     "usage: omega --check [<root.omg>]\n       omega [--check] [--verify] [--offline] [--timings] [--report-file <path>] [--bootstrap-assumptions <review-record>] [--interrupt-delivery-assumptions <review-record>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... [--validator <ExactName>]... [--every-validator] <root.omg>\n       ",
-    "omega build [--build-directories-readonly <host::/guest>]... [--build-directories-readwrite <host::/guest>]... [--allow ProgramLaunch] [--program <identity> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <ms>]]... [--compare-tests] <root.omg>\n       omega --emit-psi <program.psi> [--target <name>]... <root.omg>\n       omega --trusted-artifact <manifest-id> [--target <name>] [--build-dir <dir>] <program.psi>\n       ",
+    "omega build [--build-directories-readonly <host::/guest>]... [--build-directories-readwrite <host::/guest>]... [--allow ProgramLaunch] [--program <identity> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <ms>]]... [--compare-tests] <root.omg>\n       omega --emit-psi <program.psi> [--max-psi-output-bytes <bytes>] [--target <name>]... <root.omg>\n       omega --trusted-artifact <manifest-id> [--max-psi-input-bytes <bytes>] [--target <name>] [--build-dir <dir>] <program.psi>\n       ",
     super::run::run_help!(synopsis),
-    "\n       omega psi inspect --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega psi inspect --artifact <file>\n       omega source parse [--] <file>\n       omega source rewrite <ExactRule>... [--check] <root.omg>\n       omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages <install|update> --resume [--project <dir>] [--offline]\n       omega packages <install|update> --discard-review [--project <dir>] [--offline]\n       omega --version\n--compare-tests runs every enabled registered test on both engines and compares their observations.\n--verify requires --check. Source checking re-verifies the captured package sources under their locked pins.\n--offline disables package source network acquisition for this invocation.\nrun and psi inspect do not support --offline.\nFor omega run, an explicit --target makes the native engine emit artifacts without running the program, even for this host.\nWith --engine psi, --target selects the target environment for Psi execution.\n",
+    "\n       omega psi inspect --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega psi inspect --artifact <file> [--max-psi-input-bytes <bytes>]\n       omega source parse [--] <file>\n       omega source rewrite <ExactRule>... [--check] <root.omg>\n       omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages <install|update> --resume [--project <dir>] [--offline]\n       omega packages <install|update> --discard-review [--project <dir>] [--offline]\n       omega --version\n--compare-tests runs every enabled registered test on both engines and compares their observations.\n--verify requires --check. Source checking re-verifies the captured package sources under their locked pins.\n--offline disables package source network acquisition for this invocation.\nrun and psi inspect do not support --offline.\nFor omega run, an explicit --target makes the native engine emit artifacts without running the program, even for this host.\nWith --engine psi, --target selects the target environment for Psi execution.\n",
     super::run::run_help!(work_budget),
     "\n",
     super::run::run_help!(host_packages),
@@ -55,6 +57,8 @@ pub(super) fn parse_arguments(
     let mut compare_tests = false;
     let mut emit_psi = None;
     let mut trusted_artifact = None;
+    let mut max_psi_input_bytes = None;
+    let mut max_psi_output_bytes = None;
     let mut disabled_optimizations = Vec::new();
     let mut help = false;
     let mut offline = false;
@@ -160,6 +164,14 @@ pub(super) fn parse_arguments(
                 }
                 Ok(path)
             })?;
+            continue;
+        }
+        if argument == "--max-psi-output-bytes" {
+            super::parse_byte_limit(arguments, "--max-psi-output-bytes", &mut max_psi_output_bytes)?;
+            continue;
+        }
+        if argument == "--max-psi-input-bytes" {
+            super::parse_byte_limit(arguments, "--max-psi-input-bytes", &mut max_psi_input_bytes)?;
             continue;
         }
         if argument == "--trusted-artifact" {
@@ -282,6 +294,12 @@ pub(super) fn parse_arguments(
             "--compare-tests requires a source build that runs its registered tests".into(),
         );
     }
+    if max_psi_output_bytes.is_some() && emit_psi.is_none() {
+        return Err("--max-psi-output-bytes requires --emit-psi".into());
+    }
+    if max_psi_input_bytes.is_some() && !saved {
+        return Err("--max-psi-input-bytes applies to a saved .psi program".into());
+    }
     if trusted_artifact.is_some() && !saved {
         return Err("--trusted-artifact applies to a saved .psi program".into());
     }
@@ -300,7 +318,7 @@ pub(super) fn parse_arguments(
             || delivery_assumptions.is_some())
     {
         return Err(
-            "saved Psi compilation accepts --trusted-artifact, --target and --build-dir".into(),
+            "saved Psi compilation accepts --trusted-artifact, --max-psi-input-bytes, --target and --build-dir".into(),
         );
     }
     if emit_psi.is_some()
@@ -319,6 +337,8 @@ pub(super) fn parse_arguments(
         programs,
         emit_psi,
         trusted_artifact,
+        max_psi_input_bytes,
+        max_psi_output_bytes,
         build_dir,
         build_inputs,
         build_directories,

@@ -1,18 +1,25 @@
 //! Read saved Psi and bind execution to the manifest pinned by the receiving host.
 use diagnostics::Diagnostic;
 
-const MAX_ARTIFACT_BYTES: u64 = 64 * 1024 * 1024;
-
-pub(crate) fn read_artifact(path: &std::path::Path) -> std::io::Result<Vec<u8>> {
-    use std::io::Read;
-    let file = std::fs::File::open(path)?;
+/// The receiving host may bound the encoded bytes before any Psi decoding.
+pub(crate) fn read_artifact(path: &std::path::Path, max_bytes: Option<u64>) -> std::io::Result<Vec<u8>> {
+    use std::io::{Error, ErrorKind, Read};
+    let mut file = std::fs::File::open(path)?;
     let mut bytes = Vec::new();
-    file.take(MAX_ARTIFACT_BYTES + 1).read_to_end(&mut bytes)?;
-    if bytes.len() as u64 > MAX_ARTIFACT_BYTES {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "Psi artifact exceeds 64 MiB",
+    if let Some(limit) = max_bytes {
+        let exceeded = || Error::new(ErrorKind::FileTooLarge, format!(
+            "saved Psi exceeds the host input limit of {limit} bytes"
         ));
+        if file.metadata()?.len() > limit {
+            return Err(exceeded());
+        }
+        // The file can grow after metadata was read. A stream may report no length.
+        file.take(limit.saturating_add(1)).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > limit {
+            return Err(exceeded());
+        }
+    } else {
+        file.read_to_end(&mut bytes)?;
     }
     Ok(bytes)
 }
@@ -20,9 +27,10 @@ pub(crate) fn read_artifact(path: &std::path::Path) -> std::io::Result<Vec<u8>> 
 pub(crate) fn open_trusted_program(
     path: &std::path::Path,
     trusted_artifact: Option<&str>,
+    max_input_bytes: Option<u64>,
 ) -> Result<psi_authorization::AuthorizedTerminalArtifact, Vec<Diagnostic>> {
     let expected = trusted_artifact.ok_or_else(|| vec![Diagnostic::error("saved Psi execution requires --trusted-artifact with the manifest identity supplied by the trusted producer")])?;
-    let bytes = read_artifact(path).map_err(|error| {
+    let bytes = read_artifact(path, max_input_bytes).map_err(|error| {
         vec![Diagnostic::error(format!(
             "cannot read Psi artifact {}: {error}",
             path.display()
