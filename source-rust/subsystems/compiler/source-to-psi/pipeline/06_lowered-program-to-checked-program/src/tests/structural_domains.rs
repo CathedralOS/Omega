@@ -51,6 +51,19 @@ fn refused(elaboration: crate::lowering::Elaboration, expected: &str) {
     assert!(refusal.detail.contains(expected), "{refusal:?}");
 }
 
+/// Invocation code closes as a semantic module but never as a portable
+/// artifact. Inspection of its received bytes keeps canonical structure;
+/// the checker judgments execution relies on run when the host prepares it
+/// (`terminal_codec::sealing::prepare_received_execution`).
+fn refused_only_for_execution(module: &terminal_psi::TerminalModule) -> terminal_codec::CodecError {
+    let closed = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    let received =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+            .expect("inspection checks canonical structure, not execution judgments");
+    terminal_codec::sealing::prepare_received_execution(received.module())
+        .expect_err("preparation for execution must refuse it")
+}
+
 #[test]
 fn a_persistent_reference_carries_the_exact_referent_domain() {
     use terminal_interpreter::{
@@ -95,11 +108,10 @@ machine entry() -> u32 {
         }]
     );
     result.projected_qualifications.clear();
-    let encoded = terminal_codec::ClosedTerminalModule::new(elaboration.module.clone()).unwrap();
     let detail = "a reference does not keep its referent's exact domains";
     assert!(matches!(
-        terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes()),
-        Err(terminal_codec::CodecError::MalformedStructuralFoundation(reason)) if reason == detail
+        refused_only_for_execution(&elaboration.module),
+        terminal_codec::CodecError::MalformedStructuralFoundation(reason) if reason == detail
     ));
     refused(elaboration, detail);
     let verdict = judge(invocation(source)).unwrap();
@@ -447,12 +459,11 @@ fn an_unprepared_issuer_set_does_not_blame_the_source_cast() {
 fn a_denied_cast_names_its_domain_and_exact_source_without_weakening_artifact_checks() {
     let source = STAMPED.replace("established by stamp;", "established by holder;");
     let elaboration = invocation(&source).unwrap();
-    let encoded = terminal_codec::ClosedTerminalModule::new(elaboration.module.clone()).unwrap();
     assert!(matches!(
-        terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes()),
-        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+        refused_only_for_execution(&elaboration.module),
+        terminal_codec::CodecError::MalformedStructuralFoundation(
             "a structural cast lacks both an existing membership and an authorized issuer route"
-        ))
+        )
     ));
     let RouteVerdict::Rejected { violations, .. } = judge(Ok(elaboration)).unwrap() else {
         panic!("the unauthorized cast is a rejection of the source program")

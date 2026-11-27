@@ -139,9 +139,7 @@ fn valid_text_is_stored_and_invalid_bytes_are_rejected() {
         refused.detail.contains("complete primitive byte domain"),
         "{refused:?}"
     );
-    let refused =
-        terminal_codec::decode_module(&terminal_codec::encode_module(&incomplete).unwrap())
-            .expect_err("receiving must reject the same incomplete establishment");
+    let refused = super::refused_only_for_execution(&incomplete);
     assert!(
         format!("{refused:?}").contains("complete primitive byte domain"),
         "{refused:?}"
@@ -522,8 +520,7 @@ machine build_entry() {
         .iter()
         .map(terminal_psi::UnoptimizedMachineBehavior::capture)
         .collect();
-    let refused = terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
-        .expect_err("the receiving boundary must rejoin actual primitive bytes");
+    let refused = super::refused_only_for_execution(&forged);
     assert!(
         matches!(
             refused,
@@ -1232,8 +1229,8 @@ machine build_entry() {
             predicate.proposition = Proposition::Falsehood;
         }
     }
-    terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
-        .expect_err("a changed domain theory cannot reuse the original cast proof");
+    // A changed domain theory cannot reuse the original cast proof.
+    super::refused_only_for_execution(&forged);
     accepted.publish().unwrap();
     let wrong_length = source.replace("\"room\" as +FourBytes", "\"rooms\" as +FourBytes");
     match judge_build(&wrong_length) {
