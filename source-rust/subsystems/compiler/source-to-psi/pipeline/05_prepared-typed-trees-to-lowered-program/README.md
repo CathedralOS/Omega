@@ -135,11 +135,17 @@ recursor per member (`PlainData::block`). A machine by cases over one member
 that calls machines over the others is read with every machine of its group
 (`mutual_group`, one per member) as one application of its member's recursor,
 whose motives are the group's results; a call must be at a field of the
-callee's member. Each machine of a group takes the one value it dispatches
-on. Laws by induction over members are proved the same way: a law over one
-member and the laws it cites at fields of other members, which cite it back,
-are one group (`mutual_laws`), each one equality about one value with no
-premise. A member no machine or law of the group is about gets a motive into
+callee's member. Each machine of a group dispatches on a value of its member
+at any position among its formals (`mutual_member`); its motive is a
+function of its other formals, as for one data type, so a call may pass them
+other values, and each branch has the machine's premises at its values,
+which every call there owes. Laws by induction over members are proved the
+same way: a law over one member and the laws it cites at fields of other
+members, which cite it back, are one group (`mutual_laws`), each one equality
+of its own. Its motive binds its other formals and a proof of each premise
+again, so a citation of a law of the group at a field names the other
+formals' values and owes its premises there. A generic machine in a group is
+refused. A member no machine or law of the group is about gets a motive into
 `Two` whose branches ignore their fields. A dispatch inside a value, and a
 law's split of a field, is a case analysis of one member: the block's
 recursor with motives into `Two` at the others (`analysis_motives`). A

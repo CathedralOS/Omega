@@ -490,6 +490,9 @@ struct Cited<'c> {
     held: Vec<TermHandle>,
     /// The induction hypothesis for a field, when the case has one.
     hypothesis: &'c dyn Fn(u32) -> Option<TermHandle>,
+    /// The machine whose law each field's hypothesis is, when it is not
+    /// `law` (`Frame::companions`).
+    companions: &'c [Option<symbols::SymbolHandle>],
 }
 
 impl Cited<'_> {
@@ -523,8 +526,18 @@ impl Cited<'_> {
                     // The law at a field: the field in the dispatched
                     // formal's place, the citation's arguments in the others'.
                     // At a field holding a function to the data, the law at
-                    // the child `at` names: the field applied there.
-                    let LawProof::Cases { formal, .. } = &self.law.proof else {
+                    // the child `at` names: the field applied there. In a
+                    // mutual block's induction it is the law of the member
+                    // the field holds.
+                    let cited = match self.companions.get(field as usize).copied().flatten() {
+                        Some(machine) => self
+                            .laws
+                            .iter()
+                            .find(|law| law.machine == machine)
+                            .ok_or(Uncited::Search(SearchError::NoProof))?,
+                        None => self.law,
+                    };
+                    let LawProof::Cases { formal, .. } = &cited.proof else {
                         return Err(Uncited::Search(SearchError::NoProof));
                     };
                     let count = self.law.formals.len();
@@ -541,7 +554,7 @@ impl Cited<'_> {
                                 None => value,
                             });
                     let mut others = arguments.iter().copied();
-                    let actuals: Vec<_> = (0..count)
+                    let actuals: Vec<_> = (0..cited.formals.len())
                         .map(|position| {
                             if position == *formal as usize {
                                 child
@@ -559,7 +572,7 @@ impl Cited<'_> {
                             argument,
                         });
                     }
-                    (hypothesis, self.law.premises.as_slice(), actuals)
+                    (hypothesis, cited.premises.as_slice(), actuals)
                 }
                 // The law with one unit of fuel less, at any arguments. The
                 // case with no fuel left has no such hypothesis: the goal
@@ -654,6 +667,10 @@ struct Frame {
     /// The law at each field of the induction's case that holds the data
     /// itself, by field; `None` at a payload field and empty outside one.
     hypotheses: Vec<Option<TermHandle>>,
+    /// In a mutual block's induction, the machine whose law each field's
+    /// hypothesis is: the law of the member the field holds. Empty when
+    /// every hypothesis is the law's own.
+    companions: Vec<Option<symbols::SymbolHandle>>,
 }
 
 /// What a split is for.
@@ -703,6 +720,7 @@ impl Proving<'_> {
             names: &frame.names,
             held: frame.evidence.clone(),
             hypothesis: &|field| hypotheses.get(field as usize).copied().flatten(),
+            companions: &frame.companions,
         }
         .evidence(&script.citations)
         .map_err(|error| error.failure(reported))?;
@@ -1124,6 +1142,7 @@ impl Proving<'_> {
                 .iter()
                 .map(|held| held.map(|held| shift(self.arena, held, 0, 2)))
                 .collect(),
+            companions: frame.companions,
             telescope,
         };
         let mut proof = self.split(inner, count, data, cases, Split::Cases, reported)?;
@@ -1189,27 +1208,13 @@ impl Proving<'_> {
         }
         let kept = if induction { 0 } else { place };
         let others: Vec<usize> = (kept..count).filter(|&entry| entry != place).collect();
-        // The first `upto` variables of the frame as the new binders name
-        // them. `between` binders stand between the frame and the variables
-        // bound again: the motive's one, or a case's fields and hypotheses.
-        // The subject is `value`, which is told how many of the variables
-        // bound again are beneath it; each of those is its own new binder;
-        // a variable kept is itself, further out.
+        // The variables of the frame as the new binders name them (`rename`).
         let renamed = |arena: &mut TermArena,
                        upto: usize,
                        between: usize,
                        value: &dyn Fn(&mut TermArena, u32) -> TermHandle|
          -> Vec<TermHandle> {
-            let inner = others.iter().filter(|&&other| other < upto).count();
-            (0..upto)
-                .map(
-                    |entry| match others.iter().position(|&other| other == entry) {
-                        Some(position) => variable(arena, inner - 1 - position),
-                        None if entry == place => value(arena, inner as u32),
-                        None => variable(arena, inner + between + count - 1 - entry),
-                    },
-                )
-                .collect()
+            rename(arena, &others, count, place, upto, between, value)
         };
         let bound = |arena: &mut TermArena, inner: u32| variable(arena, inner as usize);
         let actuals = renamed(self.arena, count, 1, &bound);
@@ -1280,6 +1285,11 @@ impl Proving<'_> {
                     .map(|&held| instantiate(self.arena, held, &actuals))
                     .collect(),
                 hypotheses,
+                companions: if induction {
+                    Vec::new()
+                } else {
+                    frame.companions.clone()
+                },
                 telescope,
             };
             let bound_again = inner.telescope[fields..].to_vec();
@@ -1305,11 +1315,11 @@ impl Proving<'_> {
     /// block's induction. Its recursor takes a motive per member: the goal
     /// of the law of the group about that member (`LawProof::Cases`'s
     /// `mutual`), or, for a member no law is about, `Two`, whose branches
-    /// ignore their fields. Every case of every member is a branch, proved
-    /// by its law's own script, in which the hypothesis at a field of a
-    /// member is that member's law there. Each law of the group has one
-    /// formal, the value it dispatches on, and no premise, so its motive is
-    /// its goal and its frame is the case alone.
+    /// ignore their fields. As in `split`, a law's motive binds its other
+    /// formals and a proof of each premise again, so the hypothesis at a
+    /// field holds for every value of them. Every case of every member is a
+    /// branch, proved by its law's own script, in which the hypothesis at a
+    /// field of a member is that member's law there (`Frame::companions`).
     fn mutual_induction(
         &mut self,
         frame: Frame,
@@ -1319,14 +1329,17 @@ impl Proving<'_> {
         cases: &[LawCase],
         reported: Option<usize>,
     ) -> Result<TermHandle, Failure> {
+        struct Framed {
+            frame: Frame,
+            place: usize,
+            others: Vec<usize>,
+        }
         let unproved = || failure(reported, SearchError::NoProof);
         let LawProof::Cases { mutual, .. } = &self.law.proof else {
             return Err(unproved());
         };
         let own = shape.member();
-        if frame.telescope.len() != 1
-            || place != 0
-            || mutual.len() != shape.members() as usize
+        if mutual.len() != shape.members() as usize
             || mutual[own as usize] != Some(self.law.machine)
         {
             return Err(unproved());
@@ -1345,31 +1358,79 @@ impl Proving<'_> {
                     .ok_or_else(unproved),
             })
             .collect::<Result<_, _>>()?;
-        if laws.iter().flatten().any(|law| {
-            law.formals.len() != 1
-                || !law.premises.is_empty()
-                || !matches!(law.proof, LawProof::Cases { .. })
-        }) {
-            return Err(unproved());
+        // Each law's frame, the formal it dispatches on and its others.
+        let mut own_frame = Some((frame, place));
+        let mut framed = Vec::with_capacity(laws.len());
+        for (member, law) in laws.iter().enumerate() {
+            let Some(law) = law else {
+                framed.push(None);
+                continue;
+            };
+            let (frame, place) = if member as u32 == own {
+                own_frame.take().ok_or_else(unproved)?
+            } else {
+                let LawProof::Cases { formal, .. } = &law.proof else {
+                    return Err(unproved());
+                };
+                (law_frame(self.arena, law), *formal as usize)
+            };
+            let count = frame.telescope.len();
+            if place >= count {
+                return Err(unproved());
+            }
+            let others = (0..count).filter(|&entry| entry != place).collect();
+            framed.push(Some(Framed {
+                frame,
+                place,
+                others,
+            }));
         }
         let first = shape.member_entry(data, 0);
         let two = self.arena.insert(Term::Two);
-        let motives: Vec<TermHandle> = laws
-            .iter()
-            .enumerate()
-            .map(|(member, law)| {
+        let bound = |arena: &mut TermArena, inner: u32| variable(arena, inner as usize);
+        let mut motives = Vec::with_capacity(framed.len());
+        for (member, framed) in framed.iter().enumerate() {
+            let Some(Framed {
+                frame,
+                place,
+                others,
+            }) = framed
+            else {
                 let domain = constant(self.arena, first + member as u32);
-                let body = law.map_or(two, |law| law.goal);
-                self.arena.insert(Term::Lambda { domain, body })
-            })
-            .collect();
+                motives.push(self.arena.insert(Term::Lambda { domain, body: two }));
+                continue;
+            };
+            let count = frame.telescope.len();
+            let actuals = rename(self.arena, others, count, *place, count, 1, &bound);
+            let mut landing = instantiate(self.arena, frame.goal, &actuals);
+            for &other in others.iter().rev() {
+                let actuals = rename(self.arena, others, count, *place, other, 1, &bound);
+                let domain = instantiate(self.arena, frame.telescope[other], &actuals);
+                landing = self.arena.insert(Term::Pi {
+                    domain,
+                    codomain: landing,
+                });
+            }
+            motives.push(self.arena.insert(Term::Lambda {
+                domain: frame.telescope[*place],
+                body: landing,
+            }));
+        }
         let mut branches = Vec::new();
         for (member, law) in laws.iter().enumerate() {
             let at = shape
                 .at_member(member as u32)
                 .expect("a member of the block");
             let entry = first + member as u32;
-            let Some(law) = law else {
+            let (
+                Some(law),
+                Some(Framed {
+                    frame,
+                    place,
+                    others,
+                }),
+            ) = (law, &framed[member])
+            else {
                 for case in 0..at.cases() {
                     let ignored = self.arena.insert(Term::TwoZero);
                     branches.push(at.branch_in(self.arena, entry, &motives, case, ignored));
@@ -1383,24 +1444,49 @@ impl Proving<'_> {
             if scripts.len() != at.cases() {
                 return Err(unproved());
             }
+            let count = frame.telescope.len();
+            let rest = others.len() as u32;
             for (case, script) in scripts.iter().enumerate() {
-                let telescope = at.case_binders_in(self.arena, entry, &motives, case);
-                let value = at.case_value(self.arena, entry, case, 0);
-                let goal = instantiate(self.arena, law.goal, &[value]);
-                let mut names = vec![value];
+                let value =
+                    |arena: &mut TermArena, inner: u32| at.case_value(arena, entry, case, inner);
+                let mut telescope = at.case_binders_in(self.arena, entry, &motives, case);
+                let between = telescope.len();
+                let fields = telescope.len();
+                for &other in others {
+                    let actuals = rename(self.arena, others, count, *place, other, between, &value);
+                    telescope.push(instantiate(self.arena, frame.telescope[other], &actuals));
+                }
+                let actuals = rename(self.arena, others, count, *place, count, between, &value);
+                let mut names: Vec<_> = frame
+                    .names
+                    .iter()
+                    .map(|&name| instantiate(self.arena, name, &actuals))
+                    .collect();
                 for field in 0..at.arity(case) {
-                    names.push(at.field(self.arena, case, field, 0));
+                    names.push(at.field(self.arena, case, field, rest));
                 }
                 let hypotheses = (0..at.arity(case))
-                    .map(|field| at.hypothesis(self.arena, case, field, 0))
+                    .map(|field| at.hypothesis(self.arena, case, field, rest))
+                    .collect();
+                let companions = (0..at.arity(case))
+                    .map(|field| {
+                        at.field_member(case, field)
+                            .and_then(|of| mutual.get(of as usize).copied().flatten())
+                    })
                     .collect();
                 let inner = Frame {
-                    telescope,
-                    goal,
+                    goal: instantiate(self.arena, frame.goal, &actuals),
                     names,
-                    evidence: Vec::new(),
+                    evidence: frame
+                        .evidence
+                        .iter()
+                        .map(|&held| instantiate(self.arena, held, &actuals))
+                        .collect(),
                     hypotheses,
+                    companions,
+                    telescope,
                 };
+                let bound_again = inner.telescope[fields..].to_vec();
                 // A case of another member is reported as its own law's.
                 let reported = if member as u32 == own {
                     reported.or(Some(case))
@@ -1416,19 +1502,36 @@ impl Proving<'_> {
                     laws: self.laws,
                     law,
                 };
-                let body = proving.case(inner, script, reported)?;
+                let mut body = proving.case(inner, script, reported)?;
+                for &domain in bound_again.iter().rev() {
+                    body = self.arena.insert(Term::Lambda { domain, body });
+                }
                 branches.push(at.branch_in(self.arena, entry, &motives, case, body));
             }
         }
-        let subject = variable(self.arena, 0);
-        Ok(shape.induct_in(
+        let Some(Some(Framed {
+            frame,
+            place,
+            others,
+        })) = framed.get(own as usize)
+        else {
+            return Err(unproved());
+        };
+        let count = frame.telescope.len();
+        let subject = variable(self.arena, count - 1 - place);
+        let induction = shape.induct_in(
             self.arena,
             data,
             Level::Constant(0),
             &motives,
             &branches,
             subject,
-        ))
+        );
+        let arguments: Vec<_> = others
+            .iter()
+            .map(|&other| variable(self.arena, count - 1 - other))
+            .collect();
+        Ok(self.arena.apply_arguments(induction, &arguments))
     }
 }
 
@@ -1767,6 +1870,56 @@ struct Extras<'s> {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// The first `upto` variables of a frame of `count` as an induction's new
+/// binders name them. `between` binders stand between the frame and the
+/// variables bound again (`others`): the motive's one, or a case's fields
+/// and hypotheses. The subject, at `place`, is `value`, which is told how
+/// many of the variables bound again are beneath it; each of those is its
+/// own new binder; a variable kept is itself, further out.
+fn rename(
+    arena: &mut TermArena,
+    others: &[usize],
+    count: usize,
+    place: usize,
+    upto: usize,
+    between: usize,
+    value: &dyn Fn(&mut TermArena, u32) -> TermHandle,
+) -> Vec<TermHandle> {
+    let inner = others.iter().filter(|&&other| other < upto).count();
+    (0..upto)
+        .map(
+            |entry| match others.iter().position(|&other| other == entry) {
+                Some(position) => variable(arena, inner - 1 - position),
+                None if entry == place => value(arena, inner as u32),
+                None => variable(arena, inner + between + count - 1 - entry),
+            },
+        )
+        .collect()
+}
+
+/// Where a law's proof starts: under its formals and a proof of each
+/// premise, bound after the formals, innermost last.
+fn law_frame(arena: &mut TermArena, law: &Law) -> Frame {
+    let count = law.formals.len();
+    let held = law.premises.len() as u32;
+    let mut telescope = law.formals.clone();
+    for (position, &premise) in law.premises.iter().enumerate() {
+        telescope.push(shift(arena, premise, 0, position as u32));
+    }
+    Frame {
+        goal: shift(arena, law.goal, 0, held),
+        names: (0..count)
+            .map(|formal| variable(arena, count - 1 - formal + held as usize))
+            .collect(),
+        evidence: (0..held)
+            .map(|premise| variable(arena, (held - 1 - premise) as usize))
+            .collect(),
+        hypotheses: Vec::new(),
+        companions: Vec::new(),
+        telescope,
+    }
+}
+
 fn prove_law(
     arena: &mut TermArena,
     checked_signature: &Signature,
@@ -1788,23 +1941,8 @@ fn prove_law(
     let closed = Context::empty().with_signature(checked_signature.prefix(law.statement as usize));
     let statement = declarations[law.statement as usize].ty;
     let count = law.formals.len();
-    // A proof of each premise is bound after the formals, innermost last.
     let held = law.premises.len() as u32;
-    let mut telescope = law.formals.clone();
-    for (position, &premise) in law.premises.iter().enumerate() {
-        telescope.push(shift(arena, premise, 0, position as u32));
-    }
-    let frame = Frame {
-        goal: shift(arena, law.goal, 0, held),
-        names: (0..count)
-            .map(|formal| variable(arena, count - 1 - formal + held as usize))
-            .collect(),
-        evidence: (0..held)
-            .map(|premise| variable(arena, (held - 1 - premise) as usize))
-            .collect(),
-        hypotheses: Vec::new(),
-        telescope,
-    };
+    let frame = law_frame(arena, law);
     let mut proving = Proving {
         arena,
         closed: &closed,

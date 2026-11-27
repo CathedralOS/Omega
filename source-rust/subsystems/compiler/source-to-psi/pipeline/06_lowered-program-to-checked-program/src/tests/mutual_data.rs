@@ -471,3 +471,255 @@ fn false_laws_over_data_with_a_callable_to_itself_are_refused() {
         assert_eq!(law.machine, machine, "{law:?}");
     }
 }
+
+/// Mutual machines with another formal, which each recursive call passes a
+/// different value, at different positions in the two machines, and laws
+/// about them proved together, each citing the other at another value of
+/// that formal.
+const SHIFTED: &str = "
+machine plus_even(e: Even, n: Nat) -> Nat
+terminates by e
+{
+    transition e {
+        Even::Zero -> (n),
+        Even::Next { odd } -> plus_odd(Nat::Succ { prev: n }, odd)
+    }
+}
+
+machine plus_odd(n: Nat, o: Odd) -> Nat
+terminates by o
+{
+    transition o {
+        Odd::Next { even } -> plus_even(even, Nat::Succ { prev: n })
+    }
+}
+
+machine plus_two()
+ensures
+    |proof|::Identity::<Nat>(
+        plus_even(Even::Next { odd: Odd::Next { even: Even::Zero } }, Nat::Zero),
+        Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }
+    )
+{
+}
+
+machine plus_even_succ(e: Even, n: Nat) -> Nat
+terminates by e
+ensures
+    |proof|::Identity::<Nat>(
+        plus_even(e, Nat::Succ { prev: n }),
+        Nat::Succ { prev: plus_even(e, n) }
+    )
+{
+    transition e {
+        Even::Zero -> Nat::Zero,
+        Even::Next { odd } -> plus_odd_succ(Nat::Succ { prev: n }, odd)
+    }
+}
+
+machine plus_odd_succ(n: Nat, o: Odd) -> Nat
+terminates by o
+ensures
+    |proof|::Identity::<Nat>(
+        plus_odd(Nat::Succ { prev: n }, o),
+        Nat::Succ { prev: plus_odd(n, o) }
+    )
+{
+    transition o {
+        Odd::Next { even } -> plus_even_succ(even, Nat::Succ { prev: n })
+    }
+}
+";
+
+/// Laws about `plus_even` and `plus_odd` that require how their two `Nat`
+/// formals relate, cited at values that meet that premise.
+const PREMISED: &str = "
+machine plus_even_at(e: Even, n: Nat, m: Nat) -> Nat
+terminates by e
+requires
+    |proof|::Identity::<Nat>(m, Nat::Succ { prev: n })
+ensures
+    |proof|::Identity::<Nat>(plus_even(e, m), Nat::Succ { prev: plus_even(e, n) })
+{
+    transition e {
+        Even::Zero -> Nat::Zero,
+        Even::Next { odd } -> plus_odd_at(Nat::Succ { prev: n }, Nat::Succ { prev: m }, odd)
+    }
+}
+
+machine plus_odd_at(n: Nat, m: Nat, o: Odd) -> Nat
+terminates by o
+requires
+    |proof|::Identity::<Nat>(m, Nat::Succ { prev: n })
+ensures
+    |proof|::Identity::<Nat>(plus_odd(m, o), Nat::Succ { prev: plus_odd(n, o) })
+{
+    transition o {
+        Odd::Next { even } -> plus_even_at(even, Nat::Succ { prev: n }, Nat::Succ { prev: m })
+    }
+}
+";
+
+/// Every one of `machines` is judged.
+fn all_judged(verdicts: &[RouteVerdict], machines: &[&str]) {
+    let judgment = signature(verdicts);
+    for machine in machines {
+        let law = judgment
+            .laws
+            .iter()
+            .find(|law| law.machine == *machine)
+            .unwrap_or_else(|| panic!("`{machine}` is judged: {judgment:?}"));
+        assert!(
+            matches!(law.decision, MathematicalCoreDecision::Judged(_)),
+            "{law:?}"
+        );
+    }
+}
+
+/// The machines of the unproved laws, sorted; none may be accepted.
+fn unproved_machines(verdicts: &[RouteVerdict]) -> Vec<&str> {
+    let mut refused: Vec<_> = verdicts
+        .iter()
+        .flat_map(|verdict| match verdict {
+            RouteVerdict::UnprovedLaws(laws) => {
+                laws.iter().map(|law| law.machine.as_str()).collect()
+            }
+            RouteVerdict::Laws(judgment) => panic!("the laws must not be accepted: {judgment:?}"),
+            _ => Vec::new(),
+        })
+        .collect();
+    refused.sort_unstable();
+    refused
+}
+
+#[test]
+fn mutual_machines_and_laws_with_other_formals_are_judged() {
+    let verdicts = judged(&program(&format!("{MUTUAL}{SHIFTED}")));
+    all_judged(&verdicts, &["plus_two", "plus_even_succ", "plus_odd_succ"]);
+}
+
+#[test]
+fn false_mutual_laws_with_other_formals_are_refused() {
+    let source = program(&format!("{MUTUAL}{SHIFTED}"));
+    // A closed law with the wrong value.
+    let wrong = source.replace(
+        "Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }\n    )",
+        "Nat::Succ { prev: Nat::Zero }\n    )",
+    );
+    assert_ne!(wrong, source, "the closed law is changed");
+    assert_eq!(unproved_machines(&judged(&wrong)), ["plus_two"]);
+    // The companion cited at the formal's own value, not the one the
+    // recursion passes: its hypothesis is about another value.
+    let unshifted = source.replace(
+        "Even::Next { odd } -> plus_odd_succ(Nat::Succ { prev: n }, odd)",
+        "Even::Next { odd } -> plus_odd_succ(n, odd)",
+    );
+    assert_ne!(unshifted, source, "the citation is changed");
+    assert_eq!(
+        unproved_machines(&judged(&unshifted)),
+        ["plus_even_succ", "plus_odd_succ"]
+    );
+}
+
+#[test]
+fn mutual_laws_with_premises_are_judged() {
+    let verdicts = judged(&program(&format!("{MUTUAL}{SHIFTED}{PREMISED}")));
+    all_judged(&verdicts, &["plus_even_at", "plus_odd_at"]);
+}
+
+#[test]
+fn a_mutual_law_cited_where_its_premise_fails_is_refused() {
+    let source = program(&format!("{MUTUAL}{SHIFTED}{PREMISED}"));
+    // At `m` instead of `Succ(m)` the companion's premise would be
+    // `m = Succ(Succ(n))`, which `m = Succ(n)` refutes.
+    let unmet = source.replace(
+        "plus_odd_at(Nat::Succ { prev: n }, Nat::Succ { prev: m }, odd)",
+        "plus_odd_at(Nat::Succ { prev: n }, m, odd)",
+    );
+    assert_ne!(unmet, source, "the citation is changed");
+    assert_eq!(
+        unproved_machines(&judged(&unmet)),
+        ["plus_even_at", "plus_odd_at"]
+    );
+}
+
+/// Mutual machines with a premise, which each recursive call meets, and
+/// laws about them under the same premise.
+const DROPPED: &str = "
+machine drop_even(e: Even, n: Nat) -> Nat
+terminates by e
+requires
+    |proof|::Identity::<Nat>(n, Nat::Zero)
+{
+    transition e {
+        Even::Zero -> (n),
+        Even::Next { odd } -> drop_odd(odd, n)
+    }
+}
+
+machine drop_odd(o: Odd, n: Nat) -> Nat
+terminates by o
+requires
+    |proof|::Identity::<Nat>(n, Nat::Zero)
+{
+    transition o {
+        Odd::Next { even } -> drop_even(even, n)
+    }
+}
+
+machine drop_zero(e: Even, n: Nat) -> Nat
+terminates by e
+requires
+    |proof|::Identity::<Nat>(n, Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(drop_even(e, n), Nat::Zero)
+{
+    transition e {
+        Even::Zero -> Nat::Zero,
+        Even::Next { odd } -> drop_odd_zero(odd, n)
+    }
+}
+
+machine drop_odd_zero(o: Odd, n: Nat) -> Nat
+terminates by o
+requires
+    |proof|::Identity::<Nat>(n, Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(drop_odd(o, n), Nat::Zero)
+{
+    transition o {
+        Odd::Next { even } -> drop_zero(even, n)
+    }
+}
+";
+
+#[test]
+fn mutual_machines_with_premises_are_judged() {
+    let verdicts = judged(&program(&format!("{MUTUAL}{DROPPED}")));
+    all_judged(&verdicts, &["drop_zero", "drop_odd_zero"]);
+}
+
+#[test]
+fn a_mutual_machine_calling_where_its_premise_fails_is_refused() {
+    let source = program(&format!("{MUTUAL}{DROPPED}")).replace(
+        "Even::Next { odd } -> drop_odd(odd, n)",
+        "Even::Next { odd } -> drop_odd(odd, Nat::Succ { prev: n })",
+    );
+    // The call owes `Succ(n) = Zero`, which the branch's premise `n = Zero`
+    // does not give.
+    let verdicts = judged(&source);
+    let owed = verdicts
+        .iter()
+        .flat_map(|verdict| match verdict {
+            RouteVerdict::UnprovedLaws(laws) => laws.iter().collect(),
+            RouteVerdict::Laws(judgment) => panic!("the laws must not be accepted: {judgment:?}"),
+            _ => Vec::new(),
+        })
+        .find(|law| law.machine == "drop_even")
+        .unwrap_or_else(|| panic!("`drop_even` owes its call's premise: {verdicts:?}"));
+    assert!(
+        owed.statement
+            .contains("the premise of `drop_odd` at its call"),
+        "{owed:?}"
+    );
+}
