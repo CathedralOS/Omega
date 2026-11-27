@@ -63,8 +63,8 @@ pub(crate) fn parse_const_definition<'tokens, 'source>(
 ///
 /// A wholly anonymous initializer such as `2 + 3` names no type, and the spec
 /// refuses it at the initializer. An initializer whose type only typing can
-/// find, such as a call or another constant's name, is refused as not yet
-/// supported rather than guessed.
+/// find, such as a call, another constant, a typed operand or a domain cast,
+/// leaves `type_reference` invalid so typing infers it from the initializer.
 fn initializer_shown_type(
     syntax_trees: &mut SyntaxTrees,
     initializer: ExpressionHandle,
@@ -81,12 +81,7 @@ fn initializer_shown_type(
                 span,
             ));
         }
-        ShownType::NeedsTyping => {
-            return Err(ParseError::at_source_span(
-                "not supported yet: a constant without a type annotation whose initializer is not a suffixed literal, a cast or `true`/`false`; annotate the constant's type",
-                span,
-            ));
-        }
+        ShownType::NeedsTyping => return Ok(TypeReferenceHandle::invalid()),
     };
     Ok(syntax_trees
         .type_references

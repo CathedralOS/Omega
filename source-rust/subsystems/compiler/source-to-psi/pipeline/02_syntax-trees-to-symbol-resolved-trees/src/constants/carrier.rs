@@ -19,7 +19,9 @@ pub(super) fn retain_declared_carrier(
     let declaration = program
         .const_declaration(declaration_symbol)
         .ok_or_else(|| Diagnostic::error("constant substitution lost its declared carrier"))?;
-    let declared_type = declaration.declared_type.clone();
+    let Some(declared_type) = declaration.declared_type.clone() else {
+        return Ok(());
+    };
     retain_value_carrier(program, expression, &declared_type, reference)
 }
 

@@ -215,6 +215,9 @@ pub(in crate::resolution::declarations::generic_data) fn canonicalize_selected_c
     selection: Option<&ConstantSelection>,
     substitution: &GenericApplicationSubstitution,
 ) -> Result<CanonicalConstValue, String> {
+    if !definition.type_reference.is_valid() {
+        return Err("unannotated constant type is inferred during typing".to_owned());
+    }
     let declared = syntax_type_identity(syntax, definition.type_reference)?;
     let required = substituted_type_label(syntax, parameter_type, substitution, selection)?;
     if !same_carrier_in_application(
@@ -973,6 +976,9 @@ pub(in crate::resolution::declarations::generic_data) fn canonicalize_selected_d
     selection: Option<&ConstantSelection>,
     admission: ConstPredicateAdmission,
 ) -> Result<CanonicalConstValue, String> {
+    if !definition.type_reference.is_valid() {
+        return Err("unannotated constant type is inferred during typing".to_owned());
+    }
     let substitution = GenericApplicationSubstitution::new();
     validate_selected_const_type(
         syntax,
@@ -1046,6 +1052,11 @@ fn declared_fixed_array_length(
                 .ok_or_else(|| {
                     "array extent requires an exact selected constant declaration".to_owned()
                 })?;
+            if !definition.type_reference.is_valid() {
+                return Err(
+                    "array extent constant has no declared carrier before typing".to_owned(),
+                );
+            }
             let mut carrier = definition.type_reference;
             while let TypeReferenceNode::Constrained { base_type, .. } =
                 syntax.type_references.type_reference(carrier)
