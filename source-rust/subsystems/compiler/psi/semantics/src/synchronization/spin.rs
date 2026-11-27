@@ -5,6 +5,8 @@
 mod cases;
 mod condition;
 mod observations;
+mod orbit;
+pub(super) use orbit::{Orbit, Trip};
 mod subject;
 use subject::Subjects;
 pub(super) use subject::{Subject, fixed_extent, type_path};
@@ -38,6 +40,10 @@ impl SpinWait {
                     .try_map(|operand| operand.literal().map(super::progress::ScalarFact::Literal));
                 cell.while_value.failure(None, None, update, &[]).is_some()
             }
+            WaitRule::Periodic(cell) => cell
+                .while_value
+                .failure(None, None, Some(CellUpdate::Observe), &[])
+                .is_some(),
             WaitRule::Observations(predicate) => {
                 predicate.evaluate(|_, _| (Observation::Unproved, None::<((), SpinCondition)>))
                     != Observation::Known(false)
@@ -49,14 +55,15 @@ impl SpinWait {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum WaitRule {
     Cell(CellWait),
+    Periodic(CellWait<Orbit<Operand>>),
     Observations(observations::Predicate),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct CellWait {
+pub(super) struct CellWait<U = CellUpdate<Operand>> {
     pub(super) subject: Subject,
     pub(super) while_value: SpinCondition,
-    pub(super) update: CellUpdate<Operand>,
+    pub(super) update: U,
 }
 
 pub(super) fn constant(operation: &Operation) -> Option<Scalar> {
@@ -153,6 +160,7 @@ impl SpinWait {
     ) -> Option<Self> {
         match &mut self.0 {
             WaitRule::Cell(cell) => map(&mut cell.subject)?,
+            WaitRule::Periodic(cell) => map(&mut cell.subject)?,
             WaitRule::Observations(predicate) => {
                 for (subject, _) in predicate.inputs() {
                     map(subject)?;
@@ -183,6 +191,10 @@ impl ForwardedWait {
                 cell.while_value.comparison.substitute(remap)?;
                 cell.update = cell.update.try_map(remap)?;
             }
+            WaitRule::Periodic(cell) => {
+                cell.while_value.comparison.substitute(remap)?;
+                cell.update = cell.update.try_map(remap)?;
+            }
             WaitRule::Observations(predicate) => {
                 for (_, test) in predicate.inputs() {
                     test.comparison.substitute(remap)?;
@@ -197,10 +209,16 @@ impl ForwardedWait {
 }
 
 #[derive(Clone, PartialEq, Eq)]
+enum RepeatedUpdate {
+    Stable(CellUpdate<Operand>),
+    Periodic(Orbit<Operand>),
+}
+
+#[derive(Clone, PartialEq, Eq)]
 struct Read {
     site: OperationId,
     cell: Subject,
-    update: CellUpdate<Operand>,
+    update: RepeatedUpdate,
 }
 
 #[derive(Default)]
@@ -348,32 +366,40 @@ impl Trace {
                     resident_obligation: None,
                 } => {
                     let update = match event {
-                        AtomicAccessEvent::Load { .. } => CellUpdate::Observe,
-                        AtomicAccessEvent::Swap { value, .. } => {
-                            CellUpdate::Replace(self.scalar(*value)?.operand()?)
+                        AtomicAccessEvent::Load { .. } => {
+                            RepeatedUpdate::Stable(CellUpdate::Observe)
                         }
+                        AtomicAccessEvent::Swap { value, .. } => RepeatedUpdate::Stable(
+                            CellUpdate::Replace(self.scalar(*value)?.operand()?),
+                        ),
                         AtomicAccessEvent::ReadModifyWrite {
                             operation, operand, ..
                         } => {
-                            let mask = self.scalar(*operand)?.operand()?;
+                            use terminal_psi::AtomicReadModifyWrite as Rmw;
+                            let value = self.scalar(*operand)?.operand()?;
                             match operation {
-                                terminal_psi::AtomicReadModifyWrite::FetchAnd => {
-                                    CellUpdate::BitwiseAnd(mask)
+                                Rmw::FetchAnd => {
+                                    RepeatedUpdate::Stable(CellUpdate::BitwiseAnd(value))
                                 }
-                                terminal_psi::AtomicReadModifyWrite::FetchOr => {
-                                    CellUpdate::BitwiseOr(mask)
+                                Rmw::FetchOr => {
+                                    RepeatedUpdate::Stable(CellUpdate::BitwiseOr(value))
                                 }
-                                _ => return None,
+                                Rmw::FetchAdd | Rmw::FetchSub | Rmw::FetchXor => {
+                                    RepeatedUpdate::Periodic(Orbit {
+                                        operation: *operation,
+                                        operand: value,
+                                    })
+                                }
                             }
                         }
                         AtomicAccessEvent::CompareExchange {
                             expected,
                             replacement,
                             ..
-                        } => CellUpdate::CompareExchange {
+                        } => RepeatedUpdate::Stable(CellUpdate::CompareExchange {
                             expected: self.scalar(*expected)?.operand()?,
                             replacement: self.scalar(*replacement)?.operand()?,
-                        },
+                        }),
                         _ => return None,
                     };
                     let read = Read {
@@ -594,7 +620,7 @@ pub(super) fn spin_observation(
         return None;
     }
     single_cell_wait(module, machine)
-        .map(|(site, cell)| (site, SpinWait(WaitRule::Cell(cell))))
+        .map(|(site, rule)| (site, SpinWait(rule)))
         .or_else(|| {
             observations::derive(module, machine)
                 .map(|(site, predicate)| (site, SpinWait(WaitRule::Observations(predicate))))
@@ -604,7 +630,7 @@ pub(super) fn spin_observation(
 fn single_cell_wait(
     module: &TerminalModule,
     machine: &TerminalMachine,
-) -> Option<(OperationId, CellWait)> {
+) -> Option<(OperationId, WaitRule)> {
     let (equal_trace, equal) = trace(module, machine, true)?;
     let (different_trace, different) = trace(module, machine, false)?;
     if equal_trace.forwarded.is_some()
@@ -617,17 +643,24 @@ fn single_cell_wait(
     }
     let read = equal_trace.read?;
     let comparison = equal_trace.tested?;
-    Some((
-        read.site,
-        CellWait {
-            subject: read.cell,
-            update: read.update,
-            while_value: SpinCondition {
-                comparison,
-                positive: equal == Completion::Retries,
-            },
-        },
-    ))
+    let subject = read.cell;
+    let while_value = SpinCondition {
+        comparison,
+        positive: equal == Completion::Retries,
+    };
+    let rule = match read.update {
+        RepeatedUpdate::Stable(update) => WaitRule::Cell(CellWait {
+            subject,
+            while_value,
+            update,
+        }),
+        RepeatedUpdate::Periodic(update) => WaitRule::Periodic(CellWait {
+            subject,
+            while_value,
+            update,
+        }),
+    };
+    Some((read.site, rule))
 }
 
 /// A transparent unit wrapper lends its own arguments to one named machine and
