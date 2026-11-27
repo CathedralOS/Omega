@@ -1778,10 +1778,14 @@ impl<'a> Storage<'a> {
             StructuralAccess::MutableBorrow => contents == EntryContents::Unwritten,
             StructuralAccess::Owned | StructuralAccess::WriteOnlyBorrow => false,
         };
+        // A referent reached through a stored reference is stable only
+        // behind a shared input loan: nothing reachable from it can be
+        // written in the body or by a callee it lends to, whatever access
+        // the stored reference itself carries.
+        let crosses = path.contains(&Projection::Referent);
         if !held
-            || path
-                .iter()
-                .any(|step| matches!(step, Projection::Referent | Projection::Extent))
+            || (crosses && input.access != StructuralAccess::SharedBorrow)
+            || path.contains(&Projection::Extent)
         {
             return None;
         }

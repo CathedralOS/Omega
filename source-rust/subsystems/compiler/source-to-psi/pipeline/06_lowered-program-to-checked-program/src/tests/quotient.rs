@@ -589,6 +589,57 @@ fn an_operation_lifted_with_a_repeated_class_computes_at_a_class() {
     assert_eq!(law.cause, UnprovedCause::NoDerivation);
 }
 
+/// `both_classes` passes `both` two classes, one to each parameter: the
+/// kernel's `lift` out of the first class of a `lift` out of the second.
+const BOTH_CLASSES: &str = r"
+machine both_classes(value: Sign, other: Sign) -> Sign {
+    Quotient::lift::<both, both_respects>(value, other)
+}
+";
+
+#[test]
+fn an_operation_lifted_with_two_classes_computes_at_both() {
+    let law = |claim: &str| {
+        format!(
+            "{}{BOTH}{BOTH_CLASSES}\nmachine uses_the_operation(a: Representative, b: Representative)\n\
+             ensures {claim}\n{{\n}}\n",
+            proofs(CLASS)
+        )
+    };
+    // At the classes of `a` and `b`, the class of `both(a, b)`: the outer
+    // `lift` computes at `a`, and the inner one it computes to at `b`.
+    let verdicts = judged(&law(
+        "|proof|::Identity::<Sign>(both_classes(a as Sign, b as Sign), both(a, b) as Sign)",
+    ));
+    let judgment = signature(&verdicts);
+    assert!(
+        matches!(judged_laws(judgment, "uses_the_operation").as_slice(), [_]),
+        "{judgment:?}"
+    );
+    assert!(judged_laws(judgment, "both_classes").is_empty());
+    // The twin swaps the classes the two parameters take.
+    let verdicts = judged(&law(
+        "|proof|::Identity::<Sign>(both_classes(a as Sign, b as Sign), both(b, a) as Sign)",
+    ));
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "uses_the_operation");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+}
+
+#[test]
+fn an_operation_lifted_with_two_classes_needs_a_congruence_for_each() {
+    // The congruence relates only the first pair: the definition's proof
+    // that its inner operation respects the second class has nothing to
+    // cite, and the theorem itself is not proved.
+    let source = format!("{}{BOTH}{BOTH_CLASSES}", proofs(CLASS)).replace(
+        "requires same_sign(left, right), same_sign(other_left, other_right)",
+        "requires same_sign(left, right)",
+    );
+    let verdicts = judged(&source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "both_respects");
+}
+
 #[test]
 fn a_repeated_class_needs_a_congruence_for_each_pair() {
     // The congruence relates only the first pair, so nothing relates the

@@ -1012,3 +1012,773 @@ ensures
 {
     |nat|::add_zero_right(n);
 }
+
+// ============================================================================
+// PRODUCTS OF CLOSE VALUES
+// ============================================================================
+//
+// `rat_bounded(p, bound) == Zero` says |p| <= bound. A product of close values
+// is close: |pq - p2q2| <= |p| |q - q2| + |q2| |p - p2|, so with both factors
+// bounded by c and c2 the tolerance scales by c + c2 (`rat_within_mul`).
+//
+// A regular sequence is bounded by K = |x_1.num| + 2 at every index
+// (`regular_bounded_at`). The product of two regular sequences is sampled at
+// a = 2Kn with K = Kx + Ky, which keeps it regular (`regular_mul_at`). Two
+// related products stay related at n through the common index
+// c = 5(K + K2)n (`related_mul_at`): the three steps through c add up to
+// at most 4/n.
+
+// The cross-multiplied difference of two products, regrouped as
+// p.num*p2.den*(q - q2) + q2.num*q.den*(p - p2): the positive coordinates
+// of the gap plus the negative coordinates of the two parts equal the
+// reverse sum, so both have one gap.
+machine rat_mul_gap_regroup(p: Rat, p2: Rat, q: Rat, q2: Rat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(
+            |nat|::add(
+                |nat|::mul((rat_mul(p, q)).num.pos, (rat_mul(p2, q2)).den),
+                |nat|::mul((rat_mul(p2, q2)).num.neg, (rat_mul(p, q)).den)
+            ),
+            |nat|::add(
+                |nat|::add(
+                    |nat|::mul(|nat|::mul(p.num.pos, p2.den), |nat|::add(|nat|::mul(q.num.neg, q2.den), |nat|::mul(q2.num.pos, q.den))),
+                    |nat|::mul(|nat|::mul(p.num.neg, p2.den), |nat|::add(|nat|::mul(q.num.pos, q2.den), |nat|::mul(q2.num.neg, q.den)))
+                ),
+                |nat|::add(
+                    |nat|::mul(|nat|::mul(q2.num.pos, q.den), |nat|::add(|nat|::mul(p.num.neg, p2.den), |nat|::mul(p2.num.pos, p.den))),
+                    |nat|::mul(|nat|::mul(q2.num.neg, q.den), |nat|::add(|nat|::mul(p.num.pos, p2.den), |nat|::mul(p2.num.neg, p.den)))
+                )
+            )
+        ),
+        |nat|::add(
+            |nat|::add(
+                |nat|::add(
+                    |nat|::mul(|nat|::mul(p.num.pos, p2.den), |nat|::add(|nat|::mul(q.num.pos, q2.den), |nat|::mul(q2.num.neg, q.den))),
+                    |nat|::mul(|nat|::mul(p.num.neg, p2.den), |nat|::add(|nat|::mul(q.num.neg, q2.den), |nat|::mul(q2.num.pos, q.den)))
+                ),
+                |nat|::add(
+                    |nat|::mul(|nat|::mul(q2.num.pos, q.den), |nat|::add(|nat|::mul(p.num.pos, p2.den), |nat|::mul(p2.num.neg, p.den))),
+                    |nat|::mul(|nat|::mul(q2.num.neg, q.den), |nat|::add(|nat|::mul(p.num.neg, p2.den), |nat|::mul(p2.num.pos, p.den)))
+                )
+            ),
+            |nat|::add(
+                |nat|::mul((rat_mul(p, q)).num.neg, (rat_mul(p2, q2)).den),
+                |nat|::mul((rat_mul(p2, q2)).num.pos, (rat_mul(p, q)).den)
+            )
+        )
+    )
+{
+}
+
+// |pq - p2q2| <= |p| |q - q2| + |q2| |p - p2|, cross-multiplied: the gap
+// between two products is at most |p.num| * p2.den * gap(q, q2) plus
+// |q2.num| * q.den * gap(p, p2).
+machine rat_mul_gap_bound(p: Rat, p2: Rat, q: Rat, q2: Rat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            rat_gap(rat_mul(p, q), rat_mul(p2, q2)),
+            |nat|::add(
+                |nat|::mul(|nat|::mul(|nat_metric|::nat_gap(p.num.pos, p.num.neg), p2.den), rat_gap(q, q2)),
+                |nat|::mul(|nat|::mul(|nat_metric|::nat_gap(q2.num.pos, q2.num.neg), q.den), rat_gap(p, p2))
+            )
+        ),
+        |nat|::Nat::Zero
+    )
+{
+    let u_pos: |nat|::Nat = |nat|::mul(p.num.pos, p2.den);
+    let u_neg: |nat|::Nat = |nat|::mul(p.num.neg, p2.den);
+    let w_pos: |nat|::Nat = |nat|::add(|nat|::mul(q.num.pos, q2.den), |nat|::mul(q2.num.neg, q.den));
+    let w_neg: |nat|::Nat = |nat|::add(|nat|::mul(q.num.neg, q2.den), |nat|::mul(q2.num.pos, q.den));
+    let v_pos: |nat|::Nat = |nat|::mul(q2.num.pos, q.den);
+    let v_neg: |nat|::Nat = |nat|::mul(q2.num.neg, q.den);
+    let z_pos: |nat|::Nat = |nat|::add(|nat|::mul(p.num.pos, p2.den), |nat|::mul(p2.num.neg, p.den));
+    let z_neg: |nat|::Nat = |nat|::add(|nat|::mul(p.num.neg, p2.den), |nat|::mul(p2.num.pos, p.den));
+    let a_pos: |nat|::Nat = |nat|::add(|nat|::mul(u_pos, w_pos), |nat|::mul(u_neg, w_neg));
+    let a_neg: |nat|::Nat = |nat|::add(|nat|::mul(u_pos, w_neg), |nat|::mul(u_neg, w_pos));
+    let b_pos: |nat|::Nat = |nat|::add(|nat|::mul(v_pos, z_pos), |nat|::mul(v_neg, z_neg));
+    let b_neg: |nat|::Nat = |nat|::add(|nat|::mul(v_pos, z_neg), |nat|::mul(v_neg, z_pos));
+    let positive: |nat|::Nat = |nat|::add(
+        |nat|::mul((rat_mul(p, q)).num.pos, (rat_mul(p2, q2)).den),
+        |nat|::mul((rat_mul(p2, q2)).num.neg, (rat_mul(p, q)).den)
+    );
+    let negative: |nat|::Nat = |nat|::add(
+        |nat|::mul((rat_mul(p, q)).num.neg, (rat_mul(p2, q2)).den),
+        |nat|::mul((rat_mul(p2, q2)).num.pos, (rat_mul(p, q)).den)
+    );
+    rat_mul_gap_regroup(p, p2, q, q2);
+    |nat_metric|::nat_gap_of_equal_difference(positive, negative, |nat|::add(a_pos, b_pos), |nat|::add(a_neg, b_neg));
+    |nat_metric|::nat_gap_add_add(a_pos, a_neg, b_pos, b_neg);
+    _ = |nat_metric|::nat_gap_cross_mul(u_pos, u_neg, w_pos, w_neg);
+    _ = |nat_metric|::nat_gap_cross_mul(v_pos, v_neg, z_pos, z_neg);
+    _ = |nat_metric|::nat_gap_mul_right(p.num.pos, p.num.neg, p2.den);
+    _ = |nat_metric|::nat_gap_mul_right(q2.num.pos, q2.num.neg, q.den);
+}
+
+// `rat_bounded(p, bound) == Zero` means |p| <= bound: |p.num| <= bound * p.den.
+machine rat_bounded(p: Rat, bound: |nat|::Nat) -> |nat|::Nat {
+    transition { _ -> (|nat|::saturating_sub(|nat_metric|::nat_gap(p.num.pos, p.num.neg), |nat|::mul(bound, p.den))) }
+}
+
+// Products of close bounded values are close: |p|, |q2| <= K, |q-q2| <= c/e
+// and |p-p2| <= c2/e give |pq - p2q2| <= K(c+c2)/e.
+machine rat_within_mul(
+    p: Rat,
+    p2: Rat,
+    q: Rat,
+    q2: Rat,
+    bound: |nat|::Nat,
+    c: |nat|::Nat,
+    c2: |nat|::Nat,
+    precision: |nat|::Nat
+)
+requires
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(p, bound), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(q2, bound), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_within(q, q2, c, precision), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_within(p, p2, c2, precision), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        rat_within(rat_mul(p, q), rat_mul(p2, q2), |nat|::mul(bound, |nat|::add(c, c2)), precision),
+        |nat|::Nat::Zero
+    )
+{
+    let p_size: |nat|::Nat = |nat|::mul(|nat_metric|::nat_gap(p.num.pos, p.num.neg), p2.den);
+    let q_size: |nat|::Nat = |nat|::mul(|nat_metric|::nat_gap(q2.num.pos, q2.num.neg), q.den);
+    let p_size_bound: |nat|::Nat = |nat|::mul(|nat|::mul(bound, p.den), p2.den);
+    let q_size_bound: |nat|::Nat = |nat|::mul(|nat|::mul(bound, q2.den), q.den);
+    let q_scaled: |nat|::Nat = |nat|::mul(precision, rat_gap(q, q2));
+    let p_scaled: |nat|::Nat = |nat|::mul(precision, rat_gap(p, p2));
+    let q_allowed: |nat|::Nat = |nat|::mul(c, |nat|::mul(q.den, q2.den));
+    let p_allowed: |nat|::Nat = |nat|::mul(c2, |nat|::mul(p.den, p2.den));
+    let product_gap: |nat|::Nat = rat_gap(rat_mul(p, q), rat_mul(p2, q2));
+    let gap_bound: |nat|::Nat = |nat|::add(
+        |nat|::mul(p_size, rat_gap(q, q2)),
+        |nat|::mul(q_size, rat_gap(p, p2))
+    );
+    let lower: |nat|::Nat = |nat|::add(|nat|::mul(p_size, q_scaled), |nat|::mul(q_size, p_scaled));
+    let upper: |nat|::Nat = |nat|::add(|nat|::mul(p_size_bound, q_allowed), |nat|::mul(q_size_bound, p_allowed));
+    rat_mul_gap_bound(p, p2, q, q2);
+    rat_within_mul_factorization(p, p2, q, q2, bound, c, c2, precision);
+    _ = |nat_metric|::mul_le_mul_right(product_gap, gap_bound, precision);
+    _ = |nat_metric|::mul_le_mul_right(|nat_metric|::nat_gap(p.num.pos, p.num.neg), |nat|::mul(bound, p.den), p2.den);
+    _ = |nat_metric|::mul_le_mul_right(|nat_metric|::nat_gap(q2.num.pos, q2.num.neg), |nat|::mul(bound, q2.den), q.den);
+    |nat_metric|::mul_le_mul(p_size, p_size_bound, q_scaled, q_allowed);
+    |nat_metric|::mul_le_mul(q_size, q_size_bound, p_scaled, p_allowed);
+    |nat_metric|::add_le_add(|nat|::mul(p_size, q_scaled), |nat|::mul(p_size_bound, q_allowed), |nat|::mul(q_size, p_scaled), |nat|::mul(q_size_bound, p_allowed));
+    _ = |nat_metric|::le_trans(|nat|::mul(precision, product_gap), lower, upper);
+}
+
+machine rat_within_mul_factorization(
+    p: Rat,
+    p2: Rat,
+    q: Rat,
+    q2: Rat,
+    bound: |nat|::Nat,
+    c: |nat|::Nat,
+    c2: |nat|::Nat,
+    precision: |nat|::Nat
+)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(precision, rat_gap(rat_mul(p, q), rat_mul(p2, q2))),
+        |nat|::mul(rat_gap(rat_mul(p, q), rat_mul(p2, q2)), precision)
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(
+            |nat|::add(
+                |nat|::mul(|nat|::mul(|nat_metric|::nat_gap(p.num.pos, p.num.neg), p2.den), rat_gap(q, q2)),
+                |nat|::mul(|nat|::mul(|nat_metric|::nat_gap(q2.num.pos, q2.num.neg), q.den), rat_gap(p, p2))
+            ),
+            precision
+        ),
+        |nat|::add(
+            |nat|::mul(|nat|::mul(|nat_metric|::nat_gap(p.num.pos, p.num.neg), p2.den), |nat|::mul(precision, rat_gap(q, q2))),
+            |nat|::mul(|nat|::mul(|nat_metric|::nat_gap(q2.num.pos, q2.num.neg), q.den), |nat|::mul(precision, rat_gap(p, p2)))
+        )
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(
+            |nat|::mul(|nat|::mul(|nat|::mul(bound, p.den), p2.den), |nat|::mul(c, |nat|::mul(q.den, q2.den))),
+            |nat|::mul(|nat|::mul(|nat|::mul(bound, q2.den), q.den), |nat|::mul(c2, |nat|::mul(p.den, p2.den)))
+        ),
+        |nat|::mul(|nat|::mul(bound, |nat|::add(c, c2)), |nat|::mul((rat_mul(p, q)).den, (rat_mul(p2, q2)).den))
+    )
+{
+}
+
+// A tolerance compares as fractions: |p-q| <= bound/precision and
+// bound/precision <= larger/coarser (bound * coarser <= larger * precision)
+// give |p-q| <= larger/coarser. The finer precision must be positive.
+machine rat_within_compare(
+    p: Rat,
+    q: Rat,
+    bound: |nat|::Nat,
+    precision: |nat|::Nat,
+    larger: |nat|::Nat,
+    coarser: |nat|::Nat
+)
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, precision), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::mul(bound, coarser), |nat|::mul(larger, precision)), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_within(p, q, bound, precision), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(rat_within(p, q, larger, coarser), |nat|::Nat::Zero)
+{
+    let gap: |nat|::Nat = rat_gap(p, q);
+    let denominator: |nat|::Nat = |nat|::mul(p.den, q.den);
+    let scaled: |nat|::Nat = |nat|::mul(precision, gap);
+    let allowed: |nat|::Nat = |nat|::mul(bound, denominator);
+    rat_within_compare_factorization(gap, denominator, bound, precision, larger, coarser);
+    _ = |nat_metric|::mul_le_mul_right(scaled, allowed, coarser);
+    _ = |nat_metric|::mul_le_mul_right(|nat|::mul(bound, coarser), |nat|::mul(larger, precision), denominator);
+    _ = |nat_metric|::le_trans(
+        |nat|::mul(scaled, coarser),
+        |nat|::mul(allowed, coarser),
+        |nat|::mul(|nat|::mul(larger, precision), denominator)
+    );
+    _ = |nat_metric|::mul_le_cancel_right(|nat|::mul(coarser, gap), |nat|::mul(larger, denominator), precision);
+}
+
+machine rat_within_compare_factorization(
+    gap: |nat|::Nat,
+    denominator: |nat|::Nat,
+    bound: |nat|::Nat,
+    precision: |nat|::Nat,
+    larger: |nat|::Nat,
+    coarser: |nat|::Nat
+)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::mul(precision, gap), coarser),
+        |nat|::mul(|nat|::mul(coarser, gap), precision)
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::mul(bound, denominator), coarser),
+        |nat|::mul(|nat|::mul(bound, coarser), denominator)
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::mul(larger, precision), denominator),
+        |nat|::mul(|nat|::mul(larger, denominator), precision)
+    )
+{
+}
+
+// |p| <= |q| + |p - q|, cross-multiplied: |p.num| * q.den is at most
+// |q.num| * p.den plus their gap.
+machine rat_magnitude_triangle(p: Rat, q: Rat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            |nat|::mul(|nat_metric|::nat_gap(p.num.pos, p.num.neg), q.den),
+            |nat|::add(rat_gap(p, q), |nat|::mul(|nat_metric|::nat_gap(q.num.pos, q.num.neg), p.den))
+        ),
+        |nat|::Nat::Zero
+    )
+{
+    |nat_metric|::nat_gap_sub_part(|nat|::mul(p.num.pos, q.den), |nat|::mul(p.num.neg, q.den), |nat|::mul(q.num.neg, p.den), |nat|::mul(q.num.pos, p.den));
+    _ = |nat_metric|::nat_gap_mul_right(p.num.pos, p.num.neg, q.den);
+    _ = |nat_metric|::nat_gap_mul_right(q.num.pos, q.num.neg, p.den);
+    |nat_metric|::nat_gap_symmetric(|nat|::mul(q.num.pos, p.den), |nat|::mul(q.num.neg, p.den));
+}
+
+// A value within c of one bounded by B is bounded by B + c.
+machine rat_bounded_near(p: Rat, q: Rat, bound: |nat|::Nat, distance: |nat|::Nat)
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, q.den), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(q, bound), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_within(p, q, distance, |nat|::Nat::Succ { prev: |nat|::Nat::Zero }), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(p, |nat|::add(bound, distance)), |nat|::Nat::Zero)
+{
+    let gap: |nat|::Nat = rat_gap(p, q);
+    let q_size: |nat|::Nat = |nat|::mul(|nat_metric|::nat_gap(q.num.pos, q.num.neg), p.den);
+    let q_size_bound: |nat|::Nat = |nat|::mul(|nat|::mul(bound, q.den), p.den);
+    let gap_bound: |nat|::Nat = |nat|::mul(distance, |nat|::mul(p.den, q.den));
+    rat_magnitude_triangle(p, q);
+    rat_within_one(p, q, distance);
+    _ = |nat_metric|::mul_le_mul_right(|nat_metric|::nat_gap(q.num.pos, q.num.neg), |nat|::mul(bound, q.den), p.den);
+    |nat_metric|::add_le_add(gap, gap_bound, q_size, q_size_bound);
+    rat_bounded_near_factorization(p, q, bound, distance);
+    _ = |nat_metric|::le_trans(
+        |nat|::mul(|nat_metric|::nat_gap(p.num.pos, p.num.neg), q.den),
+        |nat|::add(gap, q_size),
+        |nat|::add(gap_bound, q_size_bound)
+    );
+    _ = |nat_metric|::mul_le_cancel_right(
+        |nat_metric|::nat_gap(p.num.pos, p.num.neg),
+        |nat|::mul(|nat|::add(bound, distance), p.den),
+        q.den
+    );
+}
+
+machine rat_bounded_near_factorization(p: Rat, q: Rat, bound: |nat|::Nat, distance: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(|nat|::mul(distance, |nat|::mul(p.den, q.den)), |nat|::mul(|nat|::mul(bound, q.den), p.den)),
+        |nat|::mul(|nat|::mul(|nat|::add(bound, distance), p.den), q.den)
+    )
+{
+}
+
+// At precision one a tolerance bounds the cross-multiplied gap itself.
+machine rat_within_one(p: Rat, q: Rat, distance: |nat|::Nat)
+requires
+    |proof|::Identity::<|nat|::Nat>(rat_within(p, q, distance, |nat|::Nat::Succ { prev: |nat|::Nat::Zero }), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(rat_gap(p, q), |nat|::mul(distance, |nat|::mul(p.den, q.den))), |nat|::Nat::Zero)
+{
+    let gap: |nat|::Nat = rat_gap(p, q);
+    let allowed: |nat|::Nat = |nat|::mul(distance, |nat|::mul(p.den, q.den));
+    _ = |nat|::mul_one_left(gap);
+    _ = |nat_metric|::le_trans(gap, |nat|::mul(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, gap), allowed);
+    _ = |nat|::sub_self(gap);
+}
+
+// A rational is bounded by its numerator's magnitude once its denominator
+// is positive.
+machine rat_bounded_by_numerator(p: Rat)
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, p.den), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(p, |nat_metric|::nat_gap(p.num.pos, p.num.neg)), |nat|::Nat::Zero)
+{
+    let size: |nat|::Nat = |nat_metric|::nat_gap(p.num.pos, p.num.neg);
+    _ = |nat|::sub_self(size);
+    |nat_metric|::mul_le_mul(size, size, |nat|::Nat::Succ { prev: |nat|::Nat::Zero }, p.den);
+    _ = |nat|::mul_one_right(size);
+    _ = |nat_metric|::le_trans(size, |nat|::mul(size, |nat|::Nat::Succ { prev: |nat|::Nat::Zero }), |nat|::mul(size, p.den));
+}
+
+// n + 1 <= 2n once n >= 1.
+machine succ_le_double(n: |nat|::Nat)
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, n), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            |nat|::mul(|nat|::add(n, |nat|::Nat::Succ { prev: |nat|::Nat::Zero }), |nat|::Nat::Succ { prev: |nat|::Nat::Zero }),
+            |nat|::mul(|nat|::two(), |nat|::mul(n, |nat|::Nat::Succ { prev: |nat|::Nat::Zero }))
+        ),
+        |nat|::Nat::Zero
+    )
+{
+    _ = |nat_metric|::add_le_add_right(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, n, n);
+    |nat|::add_comm(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, n);
+    succ_le_double_factorization(n);
+}
+
+machine succ_le_double_factorization(n: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::add(n, |nat|::Nat::Succ { prev: |nat|::Nat::Zero }), |nat|::Nat::Succ { prev: |nat|::Nat::Zero }),
+        |nat|::add(n, |nat|::Nat::Succ { prev: |nat|::Nat::Zero })
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::two(), |nat|::mul(n, |nat|::Nat::Succ { prev: |nat|::Nat::Zero })),
+        |nat|::add(n, n)
+    )
+{
+    _ = |nat|::mul_one_left(|nat|::add(n, |nat|::Nat::Succ { prev: |nat|::Nat::Zero }));
+    _ = |nat|::mul_one_right(n);
+    |nat|::add_zero_right(n);
+}
+
+// Every sample of a regular sequence is bounded by its first sample's
+// numerator magnitude plus two: |x_n - x_1| <= 1/n + 1 <= 2.
+machine regular_bounded_at(at_n: Rat, first: Rat, n: |nat|::Nat)
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, n), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, first.den), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(
+        rat_within(
+            at_n,
+            first,
+            |nat|::add(n, |nat|::Nat::Succ { prev: |nat|::Nat::Zero }),
+            |nat|::mul(n, |nat|::Nat::Succ { prev: |nat|::Nat::Zero })
+        ),
+        |nat|::Nat::Zero
+    )
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        rat_bounded(at_n, |nat|::add(|nat_metric|::nat_gap(first.num.pos, first.num.neg), |nat|::two())),
+        |nat|::Nat::Zero
+    )
+{
+    let one: |nat|::Nat = |nat|::Nat::Succ { prev: |nat|::Nat::Zero };
+    _ = |nat|::mul_one_right(n);
+    succ_le_double(n);
+    rat_within_compare(at_n, first, |nat|::add(n, one), |nat|::mul(n, one), |nat|::two(), one);
+    rat_bounded_by_numerator(first);
+    rat_bounded_near(at_n, first, |nat_metric|::nat_gap(first.num.pos, first.num.neg), |nat|::two());
+}
+
+// Regularity of a product at one pair of indices. Both factors are sampled
+// at 2Km and 2Kn, where K bounds every sample of both, so each factor moves
+// by at most 1/(2Km) + 1/(2Kn) and the product by at most 1/m + 1/n.
+machine regular_mul_at(
+    left_at_m: Rat,
+    left_at_n: Rat,
+    right_at_m: Rat,
+    right_at_n: Rat,
+    bound: |nat|::Nat,
+    m: |nat|::Nat,
+    n: |nat|::Nat
+)
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, bound), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, m), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, n), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(left_at_m, bound), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(right_at_n, bound), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(
+        rat_within(
+            left_at_m,
+            left_at_n,
+            |nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, m)), |nat|::mul(|nat|::two(), |nat|::mul(bound, n))),
+            |nat|::mul(|nat|::mul(|nat|::two(), |nat|::mul(bound, m)), |nat|::mul(|nat|::two(), |nat|::mul(bound, n)))
+        ),
+        |nat|::Nat::Zero
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        rat_within(
+            right_at_m,
+            right_at_n,
+            |nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, m)), |nat|::mul(|nat|::two(), |nat|::mul(bound, n))),
+            |nat|::mul(|nat|::mul(|nat|::two(), |nat|::mul(bound, m)), |nat|::mul(|nat|::two(), |nat|::mul(bound, n)))
+        ),
+        |nat|::Nat::Zero
+    )
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        rat_within(rat_mul(left_at_m, right_at_m), rat_mul(left_at_n, right_at_n), |nat|::add(m, n), |nat|::mul(m, n)),
+        |nat|::Nat::Zero
+    )
+{
+    let a: |nat|::Nat = |nat|::mul(|nat|::two(), |nat|::mul(bound, m));
+    let b: |nat|::Nat = |nat|::mul(|nat|::two(), |nat|::mul(bound, n));
+    let step: |nat|::Nat = |nat|::add(a, b);
+    let common: |nat|::Nat = |nat|::mul(a, b);
+    rat_within_mul(left_at_m, left_at_n, right_at_m, right_at_n, bound, step, step, common);
+    |nat_metric|::one_le_mul(bound, m);
+    |nat_metric|::one_le_mul(bound, n);
+    _ = |nat_metric|::le_add_right_self(|nat|::mul(bound, m), |nat|::add(|nat|::mul(bound, m), |nat|::Nat::Zero));
+    _ = |nat_metric|::le_trans(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::mul(bound, m), a);
+    _ = |nat_metric|::le_add_right_self(|nat|::mul(bound, n), |nat|::add(|nat|::mul(bound, n), |nat|::Nat::Zero));
+    _ = |nat_metric|::le_trans(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::mul(bound, n), b);
+    |nat_metric|::one_le_mul(a, b);
+    regular_mul_at_factorization(bound, m, n);
+    _ = |nat|::sub_self(|nat|::mul(|nat|::add(m, n), common));
+    rat_within_compare(
+        rat_mul(left_at_m, right_at_m),
+        rat_mul(left_at_n, right_at_n),
+        |nat|::mul(bound, |nat|::add(step, step)),
+        common,
+        |nat|::add(m, n),
+        |nat|::mul(m, n)
+    );
+}
+
+machine regular_mul_at_factorization(bound: |nat|::Nat, m: |nat|::Nat, n: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::two(), |nat|::mul(bound, m)),
+        |nat|::add(|nat|::mul(bound, m), |nat|::add(|nat|::mul(bound, m), |nat|::Nat::Zero))
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::two(), |nat|::mul(bound, n)),
+        |nat|::add(|nat|::mul(bound, n), |nat|::add(|nat|::mul(bound, n), |nat|::Nat::Zero))
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(
+            |nat|::mul(bound, |nat|::add(
+                |nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, m)), |nat|::mul(|nat|::two(), |nat|::mul(bound, n))),
+                |nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, m)), |nat|::mul(|nat|::two(), |nat|::mul(bound, n)))
+            )),
+            |nat|::mul(m, n)
+        ),
+        |nat|::mul(
+            |nat|::add(m, n),
+            |nat|::mul(|nat|::mul(|nat|::two(), |nat|::mul(bound, m)), |nat|::mul(|nat|::two(), |nat|::mul(bound, n)))
+        )
+    )
+{
+    |nat|::add_zero_right(|nat|::mul(bound, m));
+    |nat|::add_zero_right(|nat|::mul(bound, n));
+}
+
+// Products of related sequences are related at one index n. The left
+// product samples both factors at a = 2Kn and the right one at a2 = 2K2n,
+// where K and K2 bound every sample of their factors. Through the index
+// c = 5(K + K2)n: moving each product to c costs 1/n + 2K/c (and
+// 1/n + 2K2/c), and crossing at c costs 8(K + K2)/c, which totals 4/n.
+machine related_mul_at(
+    left_at_a: Rat,
+    right_at_a: Rat,
+    left_at_c: Rat,
+    right_at_c: Rat,
+    left2_at_c: Rat,
+    right2_at_c: Rat,
+    left2_at_a2: Rat,
+    right2_at_a2: Rat,
+    bound: |nat|::Nat,
+    bound2: |nat|::Nat,
+    n: |nat|::Nat
+)
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, bound), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, bound2), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, n), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, left_at_c.den), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, right_at_c.den), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, left2_at_c.den), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, right2_at_c.den), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(left_at_a, bound), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(right_at_c, bound), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(left_at_c, |nat|::add(bound, bound2)), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(right2_at_c, |nat|::add(bound, bound2)), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(left2_at_c, bound2), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_bounded(right2_at_a2, bound2), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_within(right_at_a, right_at_c, |nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::mul(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_within(left_at_a, left_at_c, |nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::mul(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_within(right_at_c, right2_at_c, |nat|::four(), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_within(left_at_c, left2_at_c, |nat|::four(), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_within(right2_at_c, right2_at_a2, |nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))), |nat|::mul(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n)))), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_within(left2_at_c, left2_at_a2, |nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))), |nat|::mul(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n)))), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(rat_within(rat_mul(left_at_a, right_at_a), rat_mul(left2_at_a2, right2_at_a2), |nat|::four(), n), |nat|::Nat::Zero)
+{
+    let large: |nat|::Nat = |nat|::add(bound, bound2);
+    let a: |nat|::Nat = |nat|::mul(|nat|::two(), |nat|::mul(bound, n));
+    let a2: |nat|::Nat = |nat|::mul(|nat|::two(), |nat|::mul(bound2, n));
+    let c: |nat|::Nat = |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n));
+    let common: |nat|::Nat = |nat|::mul(n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)));
+    rat_within_mul(left_at_a, left_at_c, right_at_a, right_at_c, bound, |nat|::add(a, c), |nat|::add(a, c), |nat|::mul(a, c));
+    rat_within_mul(left_at_c, left2_at_c, right_at_c, right2_at_c, large, |nat|::four(), |nat|::four(), c);
+    rat_within_mul(left2_at_c, left2_at_a2, right2_at_c, right2_at_a2, bound2, |nat|::add(c, a2), |nat|::add(c, a2), |nat|::mul(c, a2));
+    related_mul_at_positive(bound, bound2, n);
+    related_mul_at_factorization(bound, bound2, n);
+    rat_within_compare(rat_mul(left_at_a, right_at_a), rat_mul(left_at_c, right_at_c), |nat|::mul(bound, |nat|::add(|nat|::add(a, c), |nat|::add(a, c))), |nat|::mul(a, c), |nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), common);
+    rat_within_compare(rat_mul(left_at_c, right_at_c), rat_mul(left2_at_c, right2_at_c), |nat|::mul(large, |nat|::add(|nat|::four(), |nat|::four())), c, |nat|::mul(|nat|::mul(|nat|::add(bound, bound2), |nat|::add(|nat|::four(), |nat|::four())), n), common);
+    rat_within_compare(rat_mul(left2_at_c, right2_at_c), rat_mul(left2_at_a2, right2_at_a2), |nat|::mul(bound2, |nat|::add(|nat|::add(c, a2), |nat|::add(c, a2))), |nat|::mul(c, a2), |nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))), common);
+    |nat_metric|::one_le_mul(left_at_c.den, right_at_c.den);
+    |nat_metric|::one_le_mul(left2_at_c.den, right2_at_c.den);
+    rat_within_triangle(rat_mul(left_at_a, right_at_a), rat_mul(left_at_c, right_at_c), rat_mul(left2_at_c, right2_at_c), |nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::mul(|nat|::mul(|nat|::add(bound, bound2), |nat|::add(|nat|::four(), |nat|::four())), n), common);
+    rat_within_triangle(rat_mul(left_at_a, right_at_a), rat_mul(left2_at_c, right2_at_c), rat_mul(left2_at_a2, right2_at_a2), |nat|::add(|nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::mul(|nat|::mul(|nat|::add(bound, bound2), |nat|::add(|nat|::four(), |nat|::four())), n)), |nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))), common);
+    rat_within_compare(rat_mul(left_at_a, right_at_a), rat_mul(left2_at_a2, right2_at_a2), |nat|::add(|nat|::add(|nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::mul(|nat|::mul(|nat|::add(bound, bound2), |nat|::add(|nat|::four(), |nat|::four())), n)), |nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n)))), common, |nat|::four(), n);
+}
+
+// The positive quantities related_mul_at divides by.
+machine related_mul_at_positive(bound: |nat|::Nat, bound2: |nat|::Nat, n: |nat|::Nat)
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, bound), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, bound2), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, n), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::mul(|nat|::two(), |nat|::mul(bound, n))), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::mul(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::mul(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n)))), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::mul(n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))), |nat|::Nat::Zero)
+{
+    let large: |nat|::Nat = |nat|::add(bound, bound2);
+    |nat_metric|::one_le_mul(bound, n);
+    |nat_metric|::one_le_mul(bound2, n);
+    _ = |nat_metric|::le_add_right_self(bound, bound2);
+    _ = |nat_metric|::le_trans(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, bound, large);
+    |nat_metric|::one_le_mul(large, n);
+    _ = |nat_metric|::le_add_right_self(|nat|::mul(bound, n), |nat|::add(|nat|::mul(bound, n), |nat|::Nat::Zero));
+    _ = |nat_metric|::le_trans(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::mul(bound, n), |nat|::mul(|nat|::two(), |nat|::mul(bound, n)));
+    _ = |nat_metric|::le_add_right_self(|nat|::mul(bound2, n), |nat|::add(|nat|::mul(bound2, n), |nat|::Nat::Zero));
+    _ = |nat_metric|::le_trans(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::mul(bound2, n), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n)));
+    _ = |nat_metric|::le_add_right_self(|nat|::mul(large, n), |nat|::mul(|nat|::four(), |nat|::mul(large, n)));
+    _ = |nat_metric|::le_trans(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::mul(large, n), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)));
+    |nat_metric|::one_le_mul(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)));
+    |nat_metric|::one_le_mul(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n)));
+    |nat_metric|::one_le_mul(n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)));
+}
+
+machine related_mul_at_factorization(bound: |nat|::Nat, bound2: |nat|::Nat, n: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            |nat|::mul(|nat|::mul(bound, |nat|::add(|nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))))), |nat|::mul(n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))),
+            |nat|::mul(|nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::mul(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))))
+        ),
+        |nat|::Nat::Zero
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            |nat|::mul(|nat|::mul(|nat|::add(bound, bound2), |nat|::add(|nat|::four(), |nat|::four())), |nat|::mul(n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))),
+            |nat|::mul(|nat|::mul(|nat|::mul(|nat|::add(bound, bound2), |nat|::add(|nat|::four(), |nat|::four())), n), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))
+        ),
+        |nat|::Nat::Zero
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            |nat|::mul(|nat|::mul(bound2, |nat|::add(|nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))), |nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))))), |nat|::mul(n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))),
+            |nat|::mul(|nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))), |nat|::mul(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))))
+        ),
+        |nat|::Nat::Zero
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            |nat|::mul(|nat|::add(|nat|::add(|nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::mul(|nat|::mul(|nat|::add(bound, bound2), |nat|::add(|nat|::four(), |nat|::four())), n)), |nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n)))), n),
+            |nat|::mul(|nat|::four(), |nat|::mul(n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))))
+        ),
+        |nat|::Nat::Zero
+    )
+{
+    related_mul_at_equations(bound, bound2, n);
+    _ = |nat|::sub_self(|nat|::mul(|nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::mul(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))));
+    _ = |nat|::sub_self(|nat|::mul(|nat|::mul(|nat|::mul(|nat|::add(bound, bound2), |nat|::add(|nat|::four(), |nat|::four())), n), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))));
+    _ = |nat|::sub_self(|nat|::mul(|nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))), |nat|::mul(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n)))));
+    _ = |nat|::sub_self(|nat|::mul(|nat|::four(), |nat|::mul(n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))));
+}
+
+// Two times a value is that value added to itself.
+machine two_mul_double(x: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(|nat|::mul(|nat|::two(), x), |nat|::add(x, x))
+{
+    |nat|::add_zero_right(x);
+}
+
+machine double_sum_regroup_added(factor: |nat|::Nat, n: |nat|::Nat, c: |nat|::Nat, s: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::mul(factor, |nat|::add(s, s)), |nat|::mul(n, c)),
+        |nat|::mul(s, |nat|::mul(|nat|::add(|nat|::mul(factor, n), |nat|::mul(factor, n)), c))
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::mul(factor, |nat|::add(s, s)), |nat|::mul(n, c)),
+        |nat|::mul(s, |nat|::mul(c, |nat|::add(|nat|::mul(factor, n), |nat|::mul(factor, n))))
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(factor, |nat|::mul(n, c)),
+        |nat|::mul(|nat|::mul(factor, n), c)
+    )
+{
+}
+
+// Doubling regroup over an opaque sum: K(s+s)(nc) = s((2(Kn))c).
+machine double_sum_regroup(factor: |nat|::Nat, n: |nat|::Nat, c: |nat|::Nat, s: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::mul(factor, |nat|::add(s, s)), |nat|::mul(n, c)),
+        |nat|::mul(s, |nat|::mul(|nat|::mul(|nat|::two(), |nat|::mul(factor, n)), c))
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::mul(factor, |nat|::add(s, s)), |nat|::mul(n, c)),
+        |nat|::mul(s, |nat|::mul(c, |nat|::mul(|nat|::two(), |nat|::mul(factor, n))))
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(factor, |nat|::mul(n, c)),
+        |nat|::mul(|nat|::mul(factor, n), c)
+    )
+{
+    two_mul_double(|nat|::mul(factor, n));
+    double_sum_regroup_added(factor, n, c, s);
+}
+
+// 2x + 2y = 2(x+y)
+machine double_sum_split(x: |nat|::Nat, y: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(|nat|::add(|nat|::mul(|nat|::two(), x), |nat|::mul(|nat|::two(), y)), |nat|::mul(|nat|::two(), |nat|::add(x, y)))
+{
+    |nat|::add_zero_right(x);
+    |nat|::add_zero_right(y);
+    |nat|::add_zero_right(|nat|::add(x, y));
+}
+
+// regroup over opaque p, q, w
+machine index_sum_regroup(p: |nat|::Nat, q: |nat|::Nat, f: |nat|::Nat, e: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(|nat|::add(|nat|::add(p, f), e), |nat|::add(f, q)),
+        |nat|::add(|nat|::add(p, q), |nat|::add(|nat|::add(f, f), e))
+    )
+{
+}
+
+// 2w + (5w + 5w + 8w) = 4(5w)
+machine index_sum_twenty(w: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(|nat|::mul(|nat|::two(), w), |nat|::add(|nat|::add(|nat|::mul(|nat|::five(), w), |nat|::mul(|nat|::five(), w)), |nat|::mul(|nat|::add(|nat|::four(), |nat|::four()), w))),
+        |nat|::mul(|nat|::four(), |nat|::mul(|nat|::five(), w))
+    )
+{
+    |nat|::add_zero_right(w);
+}
+
+machine four_mul_regroup(n: |nat|::Nat, v: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::mul(|nat|::four(), v), n),
+        |nat|::mul(|nat|::four(), |nat|::mul(n, v))
+    )
+{
+    |nat|::add_zero_right(v);
+    |nat|::add_zero_right(|nat|::mul(n, v));
+}
+
+// The product-congruence index sum, over the two halves x = Kn, y = K2n:
+// (2x + 5(x+y) + 8(x+y) + 5(x+y) + 2y) n = 4 (n (5(x+y))).
+machine product_index_sum(x: |nat|::Nat, y: |nat|::Nat, n: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::add(|nat|::add(|nat|::add(|nat|::mul(|nat|::two(), x), |nat|::mul(|nat|::five(), |nat|::add(x, y))), |nat|::mul(|nat|::add(|nat|::four(), |nat|::four()), |nat|::add(x, y))), |nat|::add(|nat|::mul(|nat|::five(), |nat|::add(x, y)), |nat|::mul(|nat|::two(), y))), n),
+        |nat|::mul(|nat|::four(), |nat|::mul(n, |nat|::mul(|nat|::five(), |nat|::add(x, y))))
+    )
+{
+    index_sum_regroup(|nat|::mul(|nat|::two(), x), |nat|::mul(|nat|::two(), y), |nat|::mul(|nat|::five(), |nat|::add(x, y)), |nat|::mul(|nat|::add(|nat|::four(), |nat|::four()), |nat|::add(x, y)));
+    double_sum_split(x, y);
+    index_sum_twenty(|nat|::add(x, y));
+    four_mul_regroup(n, |nat|::mul(|nat|::five(), |nat|::add(x, y)));
+}
+
+machine mul_regroup_scaled(bound: |nat|::Nat, scale: |nat|::Nat, bound2: |nat|::Nat, n: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::mul(|nat|::add(bound, bound2), scale), n),
+        |nat|::mul(scale, |nat|::add(|nat|::mul(bound, n), |nat|::mul(bound2, n)))
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::add(bound, bound2), n),
+        |nat|::add(|nat|::mul(bound, n), |nat|::mul(bound2, n))
+    )
+{
+}
+
+machine related_mul_at_equations(bound: |nat|::Nat, bound2: |nat|::Nat, n: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::mul(bound, |nat|::add(|nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))))), |nat|::mul(n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))),
+        |nat|::mul(|nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::mul(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))))
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::mul(|nat|::add(bound, bound2), |nat|::add(|nat|::four(), |nat|::four())), |nat|::mul(n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))),
+        |nat|::mul(|nat|::mul(|nat|::mul(|nat|::add(bound, bound2), |nat|::add(|nat|::four(), |nat|::four())), n), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::mul(bound2, |nat|::add(|nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))), |nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))))), |nat|::mul(n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)))),
+        |nat|::mul(|nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))), |nat|::mul(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))))
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(|nat|::add(|nat|::add(|nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))), |nat|::mul(|nat|::mul(|nat|::add(bound, bound2), |nat|::add(|nat|::four(), |nat|::four())), n)), |nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n)))), n),
+        |nat|::mul(|nat|::four(), |nat|::mul(n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))))
+    )
+{
+    double_sum_regroup(bound, n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::add(|nat|::mul(|nat|::two(), |nat|::mul(bound, n)), |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n))));
+    double_sum_regroup(bound2, n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::add(|nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), |nat|::mul(|nat|::two(), |nat|::mul(bound2, n))));
+    double_sum_regroup(|nat|::mul(|nat|::add(bound, bound2), |nat|::add(|nat|::four(), |nat|::four())), n, |nat|::mul(|nat|::five(), |nat|::mul(|nat|::add(bound, bound2), n)), n);
+    product_index_sum(|nat|::mul(bound, n), |nat|::mul(bound2, n), n);
+    mul_regroup_scaled(bound, |nat|::add(|nat|::four(), |nat|::four()), bound2, n);
+    |nat|::add_zero_right(|nat|::mul(bound, n));
+    |nat|::add_zero_right(|nat|::mul(bound2, n));
+    |nat|::add_zero_right(|nat|::mul(|nat|::add(bound, bound2), n));
+    |nat|::add_zero_right(|nat|::add(bound, bound2));
+}

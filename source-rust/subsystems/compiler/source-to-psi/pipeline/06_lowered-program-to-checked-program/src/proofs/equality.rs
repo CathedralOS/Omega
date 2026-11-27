@@ -295,7 +295,8 @@ impl Definitions {
                     | SignatureEntryKind::Scheme
                     | SignatureEntryKind::GenericData { .. }
                     | SignatureEntryKind::Quotient { .. }
-                    | SignatureEntryKind::Statement { .. } => Definition::Opaque,
+                    | SignatureEntryKind::Statement { .. }
+                    | SignatureEntryKind::Proof { .. } => Definition::Opaque,
                     SignatureEntryKind::Constructor { data, case } => match shape(*data) {
                         Some(shape) => Definition::Constructor {
                             data: *data,
