@@ -72,6 +72,38 @@ public machine main() crashes Trap {
     observations::assert_silent_return(|| project_source(source), &["build.omg"]);
 }
 
+/// A packed sum computed in a helper machine survives when the helper is
+/// inlined and the sum is copied through more than one stack slot before it
+/// is stored and read.
+#[test]
+fn u8x16_wrapping_addition_in_a_helper_reaches_its_caller() {
+    let source = r#"
+use {system}/simd/simd.omg as simd;
+use {system}/simd/u8x16.omg as u8x16;
+
+machine sum() -> u64 {
+    let x: [u8; 16] = [1u8, 2u8, 3u8, 4u8, 5u8, 6u8, 7u8, 8u8, 9u8, 10u8, 11u8, 12u8, 13u8, 14u8, 15u8, 16u8];
+    let y: [u8; 16] = [17u8, 18u8, 19u8, 20u8, 21u8, 22u8, 23u8, 24u8, 25u8, 26u8, 27u8, 28u8, 29u8, 30u8, 31u8, 32u8];
+    let a: |simd|::Lanes<u8, 16> = |u8x16|::load(@x);
+    let b: |simd|::Lanes<u8, 16> = |u8x16|::load(@y);
+    let s: |simd|::Lanes<u8, 16> = |u8x16|::wrapping_add(@a, @b);
+    let mutable out: [u8; 16];
+    |u8x16|::store(@mutable out, @s);
+    (out[0] as u64) + (out[15] as u64)
+}
+
+public machine main() crashes Trap {
+    transition sum() == 66u64 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#;
+    observations::assert_silent_return(|| project_source(source), &["build.omg"]);
+}
+
 #[test]
 fn i16x8_abs_min_cmpgt_and_bitops_match_psi_and_native() {
     let source = r#"
