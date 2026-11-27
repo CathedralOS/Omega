@@ -96,8 +96,8 @@ mod tests {
     use register_model::validate_physical_register_model;
     use target::{Architecture, ObjectFormat};
 
-    fn model() -> ValidatedPhysicalRegisterModel {
-        validate_physical_register_model(aarch64_physical_register_model()).unwrap()
+    fn model() -> &'static ValidatedPhysicalRegisterModel {
+        crate::validated_aarch64_physical_register_model()
     }
 
     fn assert_exact_groups(catalog: &ValidatedPreservationStorageCatalog) {
@@ -126,9 +126,9 @@ mod tests {
     fn aapcs_and_darwin_have_exact_distinct_catalogs() {
         let model = model();
         let aapcs =
-            aarch64_preservation_storage_catalog(&model, NativeTarget::linux_arm64()).unwrap();
+            aarch64_preservation_storage_catalog(model, NativeTarget::linux_arm64()).unwrap();
         let darwin =
-            aarch64_preservation_storage_catalog(&model, NativeTarget::macos_arm64()).unwrap();
+            aarch64_preservation_storage_catalog(model, NativeTarget::macos_arm64()).unwrap();
         assert_exact_groups(&aapcs);
         assert_exact_groups(&darwin);
         assert_eq!(aapcs.catalog().convention, "aapcs64");
@@ -141,7 +141,7 @@ mod tests {
     fn vector_preservation_uses_only_d8_through_d15_low_halves() {
         let model = model();
         let catalog =
-            aarch64_preservation_storage_catalog(&model, NativeTarget::linux_arm64()).unwrap();
+            aarch64_preservation_storage_catalog(model, NativeTarget::linux_arm64()).unwrap();
         for group in &catalog.catalog().groups[11..] {
             let index = group.name.trim_start_matches('d');
             let q = model.model().view_named(&format!("q{index}")).unwrap();
@@ -169,12 +169,12 @@ mod tests {
     fn exact_target_and_canonical_model_are_mandatory() {
         let model = model();
         assert_eq!(
-            aarch64_preservation_storage_catalog(&model, NativeTarget::linux_x64()),
+            aarch64_preservation_storage_catalog(model, NativeTarget::linux_x64()),
             Err(Aarch64PreservationStorageCatalogError::UnsupportedTarget)
         );
         assert_eq!(
             aarch64_preservation_storage_catalog(
-                &model,
+                model,
                 NativeTarget {
                     architecture: Architecture::Aarch64,
                     object_format: ObjectFormat::Elf,

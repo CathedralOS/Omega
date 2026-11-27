@@ -1755,15 +1755,12 @@ mod float_scalar_calls {
     #[cfg(test)]
     mod tests {
         use super::super::{
-            validate_x86_64_register_constraint_catalog, x86_64_physical_register_model,
-            x86_64_register_constraint_catalog,
+            validate_x86_64_register_constraint_catalog, x86_64_register_constraint_catalog,
         };
 
         #[test]
         fn floating_return_uses_ordinary_return_bytes_and_exact_home() {
-            let physical =
-                register_model::validate_physical_register_model(x86_64_physical_register_model())
-                    .unwrap();
+            let physical = crate::validated_x86_64_physical_register_model();
             let home = physical.model().view_named("xmm0").unwrap().id;
             let wrong = physical.model().view_named("xmm1").unwrap().id;
             let kind = selected_instructions::SelectedInstructionKind::ReturnScalar;
@@ -1772,10 +1769,10 @@ mod float_scalar_calls {
                 variant: 0,
             };
             let encoded =
-                isa_x86_64::encode_x86_64_selected_form(&physical, kind, alternative, &[home])
+                isa_x86_64::encode_x86_64_selected_form(physical, kind, alternative, &[home])
                     .expect("floating return");
             isa_x86_64::validate_x86_64_selected_form_encoding(
-                &physical,
+                physical,
                 kind,
                 alternative,
                 &[home],
@@ -1784,7 +1781,7 @@ mod float_scalar_calls {
             .unwrap();
             assert!(
                 isa_x86_64::validate_x86_64_selected_form_encoding(
-                    &physical,
+                    physical,
                     kind,
                     alternative,
                     &[wrong],
@@ -1796,12 +1793,10 @@ mod float_scalar_calls {
 
         #[test]
         fn scalar_float_roster_is_complete_and_binds_result_home_and_clobbers() {
-            let physical =
-                register_model::validate_physical_register_model(x86_64_physical_register_model())
-                    .expect("physical model");
+            let physical = crate::validated_x86_64_physical_register_model();
             register_model::test_support::assert_float_scalar_call_rows(
-                &physical,
-                &x86_64_register_constraint_catalog(&physical),
+                physical,
+                &x86_64_register_constraint_catalog(physical),
                 &super::rosters(),
                 ["xmm0", "xmm1"],
                 |catalog, model| {
@@ -1815,15 +1810,13 @@ mod float_scalar_calls {
 mod float_transport_tests {
     use super::{
         X86_64_FLOAT32_TO_BITS, validate_x86_64_register_constraint_catalog,
-        x86_64_physical_register_model, x86_64_register_constraint_catalog,
-        x86_64_system_v_mixed_unit_call_keys,
+        x86_64_register_constraint_catalog, x86_64_system_v_mixed_unit_call_keys,
     };
     use crate::register_model::physical_model::GPR64;
-    use register_model::validate_physical_register_model;
     #[test]
     fn transport_and_mixed_call_constraints_reject_forged_classes_and_clobbers() {
-        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let catalog = x86_64_register_constraint_catalog(&physical);
+        let physical = crate::validated_x86_64_physical_register_model();
+        let catalog = x86_64_register_constraint_catalog(physical);
         let mut wrong_transport = catalog.clone();
         let transport = register_model::find_register_constraint_mut(
             &mut wrong_transport.constraints,
@@ -1831,14 +1824,14 @@ mod float_transport_tests {
         )
         .unwrap();
         transport.operands[0].class = GPR64;
-        assert!(validate_x86_64_register_constraint_catalog(wrong_transport, &physical).is_err());
+        assert!(validate_x86_64_register_constraint_catalog(wrong_transport, physical).is_err());
         let mut wrong_call = catalog;
         let call_key = x86_64_system_v_mixed_unit_call_keys()[0];
         let call =
             register_model::find_register_constraint_mut(&mut wrong_call.constraints, call_key)
                 .unwrap();
         assert!(call.clobbers.pop().is_some());
-        assert!(validate_x86_64_register_constraint_catalog(wrong_call, &physical).is_err());
+        assert!(validate_x86_64_register_constraint_catalog(wrong_call, physical).is_err());
     }
 }
 mod indirect_results {
@@ -1975,20 +1968,18 @@ mod mixed_aggregate_calls {
     mod tests {
         use super::super::{
             validate_x86_64_register_constraint_catalog, x86_64_microsoft_register_unit_call_keys,
-            x86_64_physical_register_model, x86_64_register_constraint_catalog,
-            x86_64_system_v_register_unit_call_keys,
+            x86_64_register_constraint_catalog, x86_64_system_v_register_unit_call_keys,
         };
         use super::{
             RegisterOperandAccess, x86_64_microsoft_mixed_aggregate_call_keys,
             x86_64_system_v_mixed_aggregate_call_keys,
         };
-        use register_model::validate_physical_register_model;
 
         #[test]
         fn mixed_aggregate_rows_preserve_banks_results_and_other_call_effects() {
-            let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-            let catalog = x86_64_register_constraint_catalog(&model);
-            validate_x86_64_register_constraint_catalog(catalog.clone(), &model).unwrap();
+            let model = crate::validated_x86_64_physical_register_model();
+            let catalog = x86_64_register_constraint_catalog(model);
+            validate_x86_64_register_constraint_catalog(catalog.clone(), model).unwrap();
             let mut expected_rows = Vec::new();
             for fragments in 1..=2 {
                 for general_count in 0..=6 {
@@ -2090,7 +2081,7 @@ mod mixed_aggregate_calls {
                         }
                     }
                     assert!(
-                        validate_x86_64_register_constraint_catalog(changed, &model).is_err(),
+                        validate_x86_64_register_constraint_catalog(changed, model).is_err(),
                         "{key:?} mutation {mutation}"
                     );
                 }
@@ -2742,11 +2733,15 @@ mod physical_model {
         model.model().view_named(name).map(|view| view.id)
     }
 
+    // The validated canonical model holds the only process-wide copy; the raw
+    // view borrows it so the table is built and validated exactly once.
     pub fn x86_64_physical_register_model_ref() -> &'static PhysicalRegisterModel {
-        static MODEL: std::sync::OnceLock<PhysicalRegisterModel> = std::sync::OnceLock::new();
-        MODEL.get_or_init(build_x86_64_physical_register_model)
+        validated_x86_64_physical_register_model().model()
     }
 
+    /// A deep copy of the canonical model, for tests that change a table to
+    /// forge invalid input. Readers borrow `x86_64_physical_register_model_ref`
+    /// or `validated_x86_64_physical_register_model` instead.
     pub fn x86_64_physical_register_model() -> PhysicalRegisterModel {
         x86_64_physical_register_model_ref().clone()
     }
@@ -2992,7 +2987,7 @@ mod physical_model {
         static CANONICAL: std::sync::OnceLock<ValidatedPhysicalRegisterModel> =
             std::sync::OnceLock::new();
         CANONICAL.get_or_init(|| {
-            validate_physical_register_model(x86_64_physical_register_model()).unwrap_or_else(
+            validate_physical_register_model(build_x86_64_physical_register_model()).unwrap_or_else(
                 |error| panic!("canonical x86-64 physical register model must validate: {error}"),
             )
         })
@@ -3096,10 +3091,10 @@ mod tests {
 
     #[test]
     fn aggregate_result_fragments_are_definitions_not_unknown_clobbers() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let catalog = x86_64_register_constraint_catalog(&model);
+        let model = crate::validated_x86_64_physical_register_model();
+        let catalog = x86_64_register_constraint_catalog(model);
         assert_aggregate_fragments_are_definitions(
-            &model,
+            model,
             &catalog,
             &AggregateFragmentRoster {
                 keys: x86_64_system_v_aggregate_call_keys(),
@@ -3113,21 +3108,21 @@ mod tests {
 
     #[test]
     fn fixed_machine_register_views_are_target_owned() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         assert_eq!(
-            x86_64_fixed_register_view(&model, MachineRegister::X86Rdi),
+            x86_64_fixed_register_view(model, MachineRegister::X86Rdi),
             model.model().view_named("rdi").map(|view| view.id)
         );
         assert_eq!(
-            x86_64_fixed_register_view(&model, MachineRegister::Aarch64X(0)),
+            x86_64_fixed_register_view(model, MachineRegister::Aarch64X(0)),
             None
         );
     }
 
     #[test]
     fn microsoft_direct_aggregate_rows_preserve_positional_arguments_and_volatile_units() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let catalog = x86_64_register_constraint_catalog(&model);
+        let model = crate::validated_x86_64_physical_register_model();
+        let catalog = x86_64_register_constraint_catalog(model);
         let rax = model.model().view_named("rax").unwrap();
         let rdx = model.model().view_named("rdx").unwrap();
         let rsi = model.model().view_named("rsi").unwrap();
@@ -3174,7 +3169,7 @@ mod tests {
                 .last_mut()
                 .unwrap()
                 .fixed_view = Some(rdx.id);
-            assert!(validate_x86_64_register_constraint_catalog(changed, &model).is_err());
+            assert!(validate_x86_64_register_constraint_catalog(changed, model).is_err());
         }
         let returns = x86_64_microsoft_aggregate_return_keys();
         assert_eq!(returns.len(), 1);
@@ -3187,25 +3182,24 @@ mod tests {
 
     #[test]
     fn preservation_convention_is_selected_by_exact_target_policy() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         let system_v =
-            x86_64_preservation_convention_for_target(&model, NativeTarget::linux_x64()).unwrap();
+            x86_64_preservation_convention_for_target(model, NativeTarget::linux_x64()).unwrap();
         let microsoft =
-            x86_64_preservation_convention_for_target(&model, NativeTarget::windows_x64()).unwrap();
+            x86_64_preservation_convention_for_target(model, NativeTarget::windows_x64()).unwrap();
         assert_eq!(system_v.name, "system-v-amd64");
         assert_eq!(microsoft.name, "microsoft-x64");
         let rsi = model.model().view_named("rsi").unwrap().units[0];
         assert!(!system_v.callee_saved.contains(&rsi));
         assert!(microsoft.callee_saved.contains(&rsi));
         assert!(
-            x86_64_preservation_convention_for_target(&model, NativeTarget::macos_arm64())
-                .is_none()
+            x86_64_preservation_convention_for_target(model, NativeTarget::macos_arm64()).is_none()
         );
     }
 
     #[test]
     fn model_validates_and_partial_register_aliases_are_exact() {
-        let validated = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let validated = crate::validated_x86_64_physical_register_model();
         let model = validated.model();
         let view = |name| model.view_named(name).unwrap().id;
         assert!(model.aliases(view("rax"), view("eax")));
@@ -3222,10 +3216,10 @@ mod tests {
 
     #[test]
     fn register_constraint_catalog_closes_the_required_x86_64_inventory() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         let validated = validate_x86_64_register_constraint_catalog(
-            x86_64_register_constraint_catalog(&model),
-            &model,
+            x86_64_register_constraint_catalog(model),
+            model,
         )
         .unwrap();
         let catalog = validated.catalog();
@@ -3442,8 +3436,8 @@ mod tests {
 
     #[test]
     fn signed_remainder_row_keeps_the_divisor_out_of_rdx() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let catalog = x86_64_register_constraint_catalog(&model);
+        let model = crate::validated_x86_64_physical_register_model();
+        let catalog = x86_64_register_constraint_catalog(model);
         let rax = model.model().view_named("rax").unwrap().id;
         let rcx = model.model().view_named("rcx").unwrap().id;
         let rdx = model.model().view_named("rdx").unwrap();
@@ -3472,12 +3466,12 @@ mod tests {
             model.model().view_named("condition_flags").unwrap().units
         );
 
-        let mut changed = x86_64_register_constraint_catalog(&model);
+        let mut changed = x86_64_register_constraint_catalog(model);
         let operand = &mut row_mut(&mut changed, X86_64_REMAINDER_I64).operands[3];
         operand.early_clobber = true;
         mismatch!(changed, &model, X86_64_REMAINDER_I64);
 
-        let mut changed = x86_64_register_constraint_catalog(&model);
+        let mut changed = x86_64_register_constraint_catalog(model);
         let operand = &mut row_mut(&mut changed, X86_64_REMAINDER_I64).operands[1];
         operand.fixed_view = None;
         mismatch!(changed, &model, X86_64_REMAINDER_I64);
@@ -3485,8 +3479,8 @@ mod tests {
 
     #[test]
     fn no_fixed_view_operand_is_early_clobber() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let catalog = x86_64_register_constraint_catalog(&model);
+        let model = crate::validated_x86_64_physical_register_model();
+        let catalog = x86_64_register_constraint_catalog(model);
         for constraint in &catalog.constraints {
             for operand in &constraint.operands {
                 assert!(
@@ -3502,8 +3496,8 @@ mod tests {
 
     #[test]
     fn missing_required_x86_64_constraint_rejects() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let mut catalog = x86_64_register_constraint_catalog(&model);
+        let model = crate::validated_x86_64_physical_register_model();
+        let mut catalog = x86_64_register_constraint_catalog(model);
         catalog
             .constraints
             .retain(|constraint| constraint.key != X86_64_MICROSOFT_RETURN);
@@ -3511,7 +3505,7 @@ mod tests {
             constraint.id = RegisterConstraintId(u16::try_from(id).unwrap());
         }
         assert_eq!(
-            validate_x86_64_register_constraint_catalog(catalog, &model),
+            validate_x86_64_register_constraint_catalog(catalog, model),
             Err(X86_64RegisterConstraintCatalogValidationError::Structural(
                 RegisterConstraintCatalogValidationError::MissingRequiredConstraint(
                     X86_64_MICROSOFT_RETURN,
@@ -3522,8 +3516,8 @@ mod tests {
 
     #[test]
     fn target_inventory_cannot_erase_a_required_key_and_its_row_together() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let mut catalog = x86_64_register_constraint_catalog(&model);
+        let model = crate::validated_x86_64_physical_register_model();
+        let mut catalog = x86_64_register_constraint_catalog(model);
         catalog
             .required
             .retain(|key| *key != X86_64_MICROSOFT_RETURN);
@@ -3538,12 +3532,12 @@ mod tests {
 
     #[test]
     fn x86_64_constraint_semantic_corruption_rejects() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let mut wrong_class = x86_64_register_constraint_catalog(&model);
+        let model = crate::validated_x86_64_physical_register_model();
+        let mut wrong_class = x86_64_register_constraint_catalog(model);
         let call_id = row(&wrong_class, X86_64_SYSTEM_V_CALL).id;
         row_mut(&mut wrong_class, X86_64_SYSTEM_V_CALL).operands[6].class = VECTOR128;
         assert_eq!(
-            validate_x86_64_register_constraint_catalog(wrong_class, &model),
+            validate_x86_64_register_constraint_catalog(wrong_class, model),
             Err(X86_64RegisterConstraintCatalogValidationError::Structural(
                 RegisterConstraintCatalogValidationError::FixedViewClassMismatch {
                     constraint: call_id,
@@ -3552,7 +3546,7 @@ mod tests {
             )),
         );
 
-        let mut contradictory_post_state = x86_64_register_constraint_catalog(&model);
+        let mut contradictory_post_state = x86_64_register_constraint_catalog(model);
         let unit = row_mut(&mut contradictory_post_state, X86_64_SYSTEM_V_CALL).implicit_defs[0];
         row_mut(&mut contradictory_post_state, X86_64_SYSTEM_V_CALL)
             .clobbers
@@ -3561,7 +3555,7 @@ mod tests {
             .clobbers
             .sort_unstable();
         assert_eq!(
-            validate_x86_64_register_constraint_catalog(contradictory_post_state, &model),
+            validate_x86_64_register_constraint_catalog(contradictory_post_state, model),
             Err(X86_64RegisterConstraintCatalogValidationError::Structural(
                 RegisterConstraintCatalogValidationError::DefClobberOverlap {
                     constraint: call_id,
@@ -3573,20 +3567,20 @@ mod tests {
 
     #[test]
     fn x86_64_target_semantics_reject_compatible_substitution_and_missing_clobbers() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let mut wrong_syscall_register = x86_64_register_constraint_catalog(&model);
+        let model = crate::validated_x86_64_physical_register_model();
+        let mut wrong_syscall_register = x86_64_register_constraint_catalog(model);
         row_mut(&mut wrong_syscall_register, X86_64_LINUX_SYSTEM_CALL).operands[4].fixed_view =
             Some(model.model().view_named("r11").unwrap().id);
         mismatch!(wrong_syscall_register, &model, X86_64_LINUX_SYSTEM_CALL);
 
         for clobber in ["rcx", "r11", "rflags"] {
-            let mut missing_clobber = x86_64_register_constraint_catalog(&model);
+            let mut missing_clobber = x86_64_register_constraint_catalog(model);
             let omitted = model.model().view_named(clobber).unwrap().units[0];
             row_mut(&mut missing_clobber, X86_64_LINUX_SYSTEM_CALL)
                 .clobbers
                 .retain(|unit| *unit != omitted);
             assert_eq!(
-                validate_x86_64_register_constraint_catalog(missing_clobber, &model),
+                validate_x86_64_register_constraint_catalog(missing_clobber, model),
                 Err(
                     X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
                         X86_64_LINUX_SYSTEM_CALL,
@@ -3596,22 +3590,22 @@ mod tests {
             );
         }
 
-        let mut wrong_add_role = x86_64_register_constraint_catalog(&model);
+        let mut wrong_add_role = x86_64_register_constraint_catalog(model);
         row_mut(&mut wrong_add_role, X86_64_ADD_I64).operands[1].access =
             RegisterOperandAccess::Def;
         mismatch!(wrong_add_role, &model, X86_64_ADD_I64);
 
-        let mut wrong_immediate_role = x86_64_register_constraint_catalog(&model);
+        let mut wrong_immediate_role = x86_64_register_constraint_catalog(model);
         row_mut(&mut wrong_immediate_role, X86_64_ADD_I64_IMMEDIATE).operands[0].access =
             RegisterOperandAccess::Def;
         mismatch!(wrong_immediate_role, &model, X86_64_ADD_I64_IMMEDIATE);
 
-        let mut wrong_subtract_role = x86_64_register_constraint_catalog(&model);
+        let mut wrong_subtract_role = x86_64_register_constraint_catalog(model);
         row_mut(&mut wrong_subtract_role, X86_64_SUBTRACT_I64).operands[1].access =
             RegisterOperandAccess::Def;
         mismatch!(wrong_subtract_role, &model, X86_64_SUBTRACT_I64);
 
-        let mut missing_subtract_flags = x86_64_register_constraint_catalog(&model);
+        let mut missing_subtract_flags = x86_64_register_constraint_catalog(model);
         row_mut(&mut missing_subtract_flags, X86_64_SUBTRACT_I64)
             .clobbers
             .clear();
@@ -3620,8 +3614,8 @@ mod tests {
 
     #[test]
     fn x86_64_branch_rejects_one_field_missing_flags_use() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let mut catalog = x86_64_register_constraint_catalog(&model);
+        let model = crate::validated_x86_64_physical_register_model();
+        let mut catalog = x86_64_register_constraint_catalog(model);
         let flags = model.model().view_named("condition_flags").unwrap().units[0];
         row_mut(&mut catalog, X86_64_CONDITIONAL_BRANCH)
             .implicit_uses
@@ -3631,8 +3625,8 @@ mod tests {
 
     #[test]
     fn x86_64_catalog_validation_rejects_same_architecture_forged_physical_model() {
-        let canonical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let catalog = x86_64_register_constraint_catalog(&canonical);
+        let canonical = crate::validated_x86_64_physical_register_model();
+        let catalog = x86_64_register_constraint_catalog(canonical);
         let mut forged = x86_64_physical_register_model();
         forged.views[0].name = "forged.rax".into();
         let forged = validate_physical_register_model(forged).unwrap();
@@ -3692,17 +3686,17 @@ mod tests {
 
     #[test]
     fn normalized_foreign_templates_retain_complete_target_call_effects() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let catalog = x86_64_register_constraint_catalog(&model);
+        let model = crate::validated_x86_64_physical_register_model();
+        let catalog = x86_64_register_constraint_catalog(model);
         assert_templates_retain_call_effects(&catalog, &x86_64_foreign_template_roster());
     }
 
     #[test]
     fn normalized_foreign_templates_reject_signature_rows_and_changed_effects() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let catalog = x86_64_register_constraint_catalog(&model);
+        let model = crate::validated_x86_64_physical_register_model();
+        let catalog = x86_64_register_constraint_catalog(model);
         assert_templates_reject_changed_effects(
-            &model,
+            model,
             &catalog,
             &x86_64_foreign_template_roster(),
             |catalog, model| validate_x86_64_register_constraint_catalog(catalog, model).is_ok(),
@@ -3711,8 +3705,8 @@ mod tests {
 
     #[test]
     fn frame_spills_preserve_control_flags_but_interfere_with_live_conditions() {
-        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-        let catalog = x86_64_register_constraint_catalog(&model);
+        let model = crate::validated_x86_64_physical_register_model();
+        let catalog = x86_64_register_constraint_catalog(model);
         let units = |name| &model.model().view_named(name).unwrap().units;
         let conditions = units("condition_flags");
         let controls = units("control_flags");

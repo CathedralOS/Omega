@@ -537,7 +537,6 @@ mod tests {
     use calling_conventions::frame_unwind::{
         EncodedFrameProtocol, FrameProtocolEffect, FrameProtocolStep,
     };
-    use register_model::validate_physical_register_model;
 
     const NO_PROBE: X86_64StackProbe = X86_64StackProbe {
         interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
@@ -546,27 +545,25 @@ mod tests {
 
     #[test]
     fn full_vector_frame_transfer_uses_unaligned_128_bit_moves() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         let vector = model.model().view_named("xmm15").unwrap().id;
         for (load, opcode) in [(false, 0x11), (true, 0x10)] {
             assert_eq!(
-                super::encode_x86_64_frame_memory(&model, vector, 8, 16, load).unwrap(),
+                super::encode_x86_64_frame_memory(model, vector, 8, 16, load).unwrap(),
                 vec![0x44, 0x0f, opcode, 0xbc, 0x24, 8, 0, 0, 0]
             );
         }
         let integer = model.model().view_named("r15").unwrap().id;
-        assert!(super::encode_x86_64_frame_memory(&model, integer, 8, 16, false).is_err());
+        assert!(super::encode_x86_64_frame_memory(model, integer, 8, 16, false).is_err());
     }
 
     #[test]
     fn frame_transfer_reports_the_unsupported_width_for_each_register_class() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         for name in ["rsi", "xmm8"] {
             let view = model.model().view_named(name).unwrap().id;
             assert_eq!(
-                super::encode_x86_64_frame_memory(&model, view, 0, 3, true),
+                super::encode_x86_64_frame_memory(model, view, 0, 3, true),
                 Err(super::X86_64FrameProtocolError::UnsupportedTransferWidth(3))
             );
         }
@@ -574,8 +571,7 @@ mod tests {
 
     #[test]
     fn physical_frame_transfers_keep_byte_and_float_store_extents() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         for (name, offset, width, load, expected) in [
             ("rsi", 3, 1, false, vec![0x40, 0x88, 0xb4, 0x24, 3, 0, 0, 0]),
             (
@@ -595,7 +591,7 @@ mod tests {
         ] {
             let view = model.model().view_named(name).unwrap().id;
             assert_eq!(
-                super::encode_x86_64_frame_memory(&model, view, offset, width, load).unwrap(),
+                super::encode_x86_64_frame_memory(model, view, offset, width, load).unwrap(),
                 expected
             );
         }
@@ -603,8 +599,7 @@ mod tests {
 
     #[test]
     fn pointer_transfers_encode_extended_base_and_exact_tail_width() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         for (value, base, offset, width, load, expected) in [
             (
                 "r11",
@@ -634,7 +629,7 @@ mod tests {
             let value = model.model().view_named(value).unwrap().id;
             let base = model.model().view_named(base).unwrap().id;
             assert_eq!(
-                super::encode_x86_64_pointer_memory(&model, value, base, offset, width, load)
+                super::encode_x86_64_pointer_memory(model, value, base, offset, width, load)
                     .unwrap(),
                 expected
             );
@@ -643,14 +638,13 @@ mod tests {
 
     #[test]
     fn canonical_frame_encodes_adjust_save_restore_and_inverse_adjust() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         let rbx = model.model().view_named("rbx").unwrap().id;
         let r12 = model.model().view_named("r12").unwrap().id;
         let EncodedFrameProtocol {
             prologue, epilogue, ..
         } = encode_system_v_amd64_frame_protocol(
-            &model,
+            model,
             24,
             NO_PROBE,
             &[
@@ -674,30 +668,28 @@ mod tests {
 
     #[test]
     fn frame_release_never_sign_extends_past_i32() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         let probe = |frame_size: u64| X86_64StackProbe {
             interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
             touches: u32::try_from(frame_size.div_ceil(X86_64_STACK_PROBE_INTERVAL_BYTES)).unwrap(),
         };
         let EncodedFrameProtocol { epilogue, .. } =
-            encode_system_v_amd64_frame_protocol(&model, 0x7fff_f000, probe(0x7fff_f000), &[])
+            encode_system_v_amd64_frame_protocol(model, 0x7fff_f000, probe(0x7fff_f000), &[])
                 .unwrap();
         assert_eq!(epilogue, [0x48, 0x81, 0xc4, 0x00, 0xf0, 0xff, 0x7f]);
         assert_eq!(
-            encode_system_v_amd64_frame_protocol(&model, 0x8000_0000, probe(0x8000_0000), &[]),
+            encode_system_v_amd64_frame_protocol(model, 0x8000_0000, probe(0x8000_0000), &[]),
             Err(X86_64FrameProtocolError::InvalidFrameSize)
         );
     }
 
     #[test]
     fn out_of_frame_slot_rejects() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         let rbx = model.model().view_named("rbx").unwrap().id;
         assert_eq!(
             encode_system_v_amd64_frame_protocol(
-                &model,
+                model,
                 8,
                 NO_PROBE,
                 &[X86_64FrameSlot {
@@ -712,8 +704,7 @@ mod tests {
 
     #[test]
     fn probed_frame_commits_one_granule_per_touch_then_saves() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         let rbx = model.model().view_named("rbx").unwrap().id;
         let probe = X86_64StackProbe {
             interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
@@ -722,7 +713,7 @@ mod tests {
         let EncodedFrameProtocol {
             prologue, epilogue, ..
         } = encode_system_v_amd64_frame_protocol(
-            &model,
+            model,
             8_192,
             probe,
             &[X86_64FrameSlot {
@@ -747,8 +738,7 @@ mod tests {
 
     #[test]
     fn steps_name_each_instruction_and_what_it_does_to_the_frame() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         let rbx = model.model().view_named("rbx").unwrap().id;
         let r12 = model.model().view_named("r12").unwrap().id;
         let probe = X86_64StackProbe {
@@ -761,7 +751,7 @@ mod tests {
             size_bytes: 8,
         };
         let encoded = encode_system_v_amd64_frame_protocol(
-            &model,
+            model,
             8_192,
             probe,
             &[slot(rbx, 0), slot(r12, 8)],
@@ -798,14 +788,13 @@ mod tests {
 
     #[test]
     fn probed_frame_touches_the_partial_tail_chunk() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         let probe = X86_64StackProbe {
             interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
             touches: 2,
         };
         let EncodedFrameProtocol { prologue, .. } =
-            encode_system_v_amd64_frame_protocol(&model, 4_097, probe, &[]).unwrap();
+            encode_system_v_amd64_frame_protocol(model, 4_097, probe, &[]).unwrap();
         assert_eq!(
             &prologue,
             &[
@@ -817,24 +806,22 @@ mod tests {
 
     #[test]
     fn frame_inside_one_granule_emits_no_probe() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         let EncodedFrameProtocol { prologue, .. } =
-            encode_system_v_amd64_frame_protocol(&model, 4_096, NO_PROBE, &[]).unwrap();
+            encode_system_v_amd64_frame_protocol(model, 4_096, NO_PROBE, &[]).unwrap();
         assert_eq!(&prologue, &[0x48, 0x81, 0xec, 0x00, 0x10, 0x00, 0x00]);
     }
 
     #[test]
     fn probe_roster_must_match_the_committed_frame() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         for (frame_size, touches) in [(8_192_u64, 0), (8_192, 1), (8_192, 3), (4_096, 1), (24, 1)] {
             let probe = X86_64StackProbe {
                 interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
                 touches,
             };
             assert_eq!(
-                encode_system_v_amd64_frame_protocol(&model, frame_size, probe, &[]),
+                encode_system_v_amd64_frame_protocol(model, frame_size, probe, &[]),
                 Err(X86_64FrameProtocolError::NonCanonicalProbe),
                 "size {frame_size} touches {touches}"
             );
@@ -844,20 +831,19 @@ mod tests {
             touches: 1,
         };
         assert_eq!(
-            encode_system_v_amd64_frame_protocol(&model, 8_192, foreign_interval, &[]),
+            encode_system_v_amd64_frame_protocol(model, 8_192, foreign_interval, &[]),
             Err(X86_64FrameProtocolError::NonCanonicalProbe)
         );
     }
 
     #[test]
     fn encodes_xmm_callee_save_slots_and_unwind_effects() {
-        let model =
-            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let model = crate::validated_x86_64_physical_register_model();
         let rbx = model.model().view_named("rbx").unwrap().id;
         let xmm6 = model.model().view_named("xmm6").unwrap().id;
         let xmm12 = model.model().view_named("xmm12").unwrap().id;
         let encoded = encode_system_v_amd64_frame_protocol(
-            &model,
+            model,
             64,
             NO_PROBE,
             &[

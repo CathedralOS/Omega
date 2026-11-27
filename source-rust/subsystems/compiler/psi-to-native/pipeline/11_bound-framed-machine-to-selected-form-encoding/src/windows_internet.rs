@@ -8,17 +8,14 @@ fn encode(
     program: PlannedAuxiliaryExport,
 ) -> Result<machine_code::EncodedAuxiliaryExport, &'static str> {
     let (steps, effects) = program.into_parts();
-    let model = register_model::validate_physical_register_model(
-        isa_x86_64::x86_64_physical_register_model(),
-    )
-    .map_err(|_| "invalid helper register model")?;
+    let model = isa_x86_64::validated_x86_64_physical_register_model();
     let mut bytes = Vec::new();
     let mut labels = [None; 4];
     let mut fixups = Vec::new();
     for step in steps {
         match step {
             Step::Instruction(operation) => {
-                encode_operation(Architecture::X86_64, &model, &operation, &mut bytes)
+                encode_operation(Architecture::X86_64, model, &operation, &mut bytes)
                     .map_err(|_| "helper instruction encoding failed")?
             }
             Step::Label(label) => {

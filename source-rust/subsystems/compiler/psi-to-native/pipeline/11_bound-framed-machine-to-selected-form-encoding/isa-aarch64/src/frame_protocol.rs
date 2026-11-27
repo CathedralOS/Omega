@@ -380,7 +380,6 @@ mod tests {
     use calling_conventions::frame_unwind::{
         EncodedFrameProtocol, FrameProtocolEffect, FrameProtocolStep,
     };
-    use register_model::validate_physical_register_model;
 
     const NO_PROBE: Aarch64StackProbe = Aarch64StackProbe {
         interval_bytes: 4_096,
@@ -405,8 +404,7 @@ mod tests {
 
     #[test]
     fn physical_frame_transfers_encode_exact_scalar_widths() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let scratch = model.model().view_named("x17").unwrap().id;
         for (name, offset, width, load, expected) in [
             ("x0", 3, 1, false, 0x3900_0fe0_u32),
@@ -417,7 +415,7 @@ mod tests {
         ] {
             let view = model.model().view_named(name).unwrap().id;
             assert_eq!(
-                super::encode_aarch64_frame_memory(&model, view, offset, width, load, scratch)
+                super::encode_aarch64_frame_memory(model, view, offset, width, load, scratch)
                     .unwrap(),
                 expected.to_le_bytes()
             );
@@ -426,81 +424,75 @@ mod tests {
 
     #[test]
     fn unaligned_scalar_frame_and_pointer_transfers_preserve_exact_byte_addresses() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let value = model.model().view_named("x0").unwrap().id;
         let scratch = model.model().view_named("x17").unwrap().id;
         for (load, opcode) in [(false, 0xb900_0220_u32), (true, 0xb940_0220)] {
             assert_eq!(
-                super::encode_aarch64_frame_memory(&model, value, 2, 4, load, scratch).unwrap(),
+                super::encode_aarch64_frame_memory(model, value, 2, 4, load, scratch).unwrap(),
                 [0x9100_0bf1_u32, opcode]
                     .into_iter()
                     .flat_map(u32::to_le_bytes)
                     .collect::<Vec<_>>()
             );
             assert_eq!(
-                super::encode_aarch64_pointer_memory(&model, value, scratch, 2, 4, load).unwrap(),
+                super::encode_aarch64_pointer_memory(model, value, scratch, 2, 4, load).unwrap(),
                 [0x9100_0a31_u32, opcode]
                     .into_iter()
                     .flat_map(u32::to_le_bytes)
                     .collect::<Vec<_>>()
             );
         }
-        assert!(super::encode_aarch64_frame_memory(&model, scratch, 2, 4, false, scratch).is_err());
-        assert!(
-            super::encode_aarch64_pointer_memory(&model, scratch, scratch, 2, 4, true).is_err()
-        );
+        assert!(super::encode_aarch64_frame_memory(model, scratch, 2, 4, false, scratch).is_err());
+        assert!(super::encode_aarch64_pointer_memory(model, scratch, scratch, 2, 4, true).is_err());
         // The reserved address scratch may also receive a frame load after
         // its address has been consumed; a store must preserve its input.
-        assert!(super::encode_aarch64_frame_memory(&model, scratch, 2, 4, true, scratch).is_ok());
+        assert!(super::encode_aarch64_frame_memory(model, scratch, 2, 4, true, scratch).is_ok());
     }
 
     #[test]
     fn pointer_transfers_keep_base_and_large_offset_steps_explicit() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let value = model.model().view_named("x16").unwrap().id;
         let base = model.model().view_named("x17").unwrap().id;
         assert_eq!(
-            super::encode_aarch64_pointer_memory(&model, value, base, 24, 8, false).unwrap(),
+            super::encode_aarch64_pointer_memory(model, value, base, 24, 8, false).unwrap(),
             0xf900_0e30_u32.to_le_bytes()
         );
         assert_eq!(
-            super::encode_aarch64_pointer_memory(&model, value, base, 65_536, 8, true).unwrap(),
+            super::encode_aarch64_pointer_memory(model, value, base, 65_536, 8, true).unwrap(),
             [0x9140_4231_u32, 0xf940_0230]
                 .into_iter()
                 .flat_map(u32::to_le_bytes)
                 .collect::<Vec<_>>()
         );
-        assert!(super::encode_aarch64_pointer_memory(&model, base, base, 0, 8, false).is_err());
+        assert!(super::encode_aarch64_pointer_memory(model, base, base, 0, 8, false).is_err());
     }
 
     #[test]
     fn full_vector_frame_transfer_retains_both_lanes() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let vector = model.model().view_named("q16").unwrap().id;
         let scratch = model.model().view_named("x17").unwrap().id;
         for (load, expected) in [(false, 0x3d80_07f0_u32), (true, 0x3dc0_07f0)] {
             assert_eq!(
-                super::encode_aarch64_frame_memory(&model, vector, 16, 16, load, scratch).unwrap(),
+                super::encode_aarch64_frame_memory(model, vector, 16, 16, load, scratch).unwrap(),
                 expected.to_le_bytes()
             );
         }
-        assert!(super::encode_aarch64_frame_memory(&model, vector, 8, 16, false, scratch).is_err());
-        assert!(super::encode_aarch64_frame_memory(&model, vector, 16, 8, false, scratch).is_err());
+        assert!(super::encode_aarch64_frame_memory(model, vector, 8, 16, false, scratch).is_err());
+        assert!(super::encode_aarch64_frame_memory(model, vector, 16, 8, false, scratch).is_err());
     }
 
     #[test]
     fn canonical_frame_encodes_sp_adjustment_and_link_custody() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let x19 = model.model().view_named("x19").unwrap().id;
         let x30 = model.model().view_named("x30").unwrap().id;
         let EncodedFrameProtocol {
             prologue, epilogue, ..
         } = encode_aapcs64_frame_protocol(
-            &model,
+            model,
             16,
             NO_PROBE,
             &[frame_slot(x19, 0, 8), frame_slot(x30, 8, 8)],
@@ -515,22 +507,20 @@ mod tests {
 
     #[test]
     fn unaligned_frame_rejects() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let x19 = model.model().view_named("x19").unwrap().id;
         assert_eq!(
-            encode_aapcs64_frame_protocol(&model, 8, NO_PROBE, &[frame_slot(x19, 0, 8)],),
+            encode_aapcs64_frame_protocol(model, 8, NO_PROBE, &[frame_slot(x19, 0, 8)],),
             Err(Aarch64FrameProtocolError::InvalidFrameSize)
         );
     }
 
     #[test]
     fn frame_past_one_instruction_uses_shifted_then_unshifted_adjust() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let EncodedFrameProtocol {
             prologue, epilogue, ..
-        } = encode_aapcs64_frame_protocol(&model, 4_208, DARWIN_PROBE, &[]).unwrap();
+        } = encode_aapcs64_frame_protocol(model, 4_208, DARWIN_PROBE, &[]).unwrap();
         assert_eq!(
             &prologue,
             &[0xd140_07ff_u32.to_le_bytes(), 0xd101_c3ff_u32.to_le_bytes()].concat()
@@ -543,8 +533,7 @@ mod tests {
 
     #[test]
     fn probed_frame_commits_one_granule_per_touch_then_saves() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let x19 = model.model().view_named("x19").unwrap().id;
         let probe = Aarch64StackProbe {
             interval_bytes: 4_096,
@@ -552,7 +541,7 @@ mod tests {
         };
         let EncodedFrameProtocol {
             prologue, epilogue, ..
-        } = encode_aapcs64_frame_protocol(&model, 8_192, probe, &[frame_slot(x19, 0, 8)]).unwrap();
+        } = encode_aapcs64_frame_protocol(model, 8_192, probe, &[frame_slot(x19, 0, 8)]).unwrap();
         let chunk = [0xd140_07ff_u32.to_le_bytes(), 0xf940_03ff_u32.to_le_bytes()].concat();
         assert_eq!(&prologue[..8], &chunk);
         assert_eq!(&prologue[8..16], &chunk);
@@ -566,14 +555,13 @@ mod tests {
 
     #[test]
     fn probed_frame_touches_the_partial_tail_chunk() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let probe = Aarch64StackProbe {
             interval_bytes: 4_096,
             touches: 2,
         };
         let EncodedFrameProtocol { prologue, .. } =
-            encode_aapcs64_frame_protocol(&model, 4_208, probe, &[]).unwrap();
+            encode_aapcs64_frame_protocol(model, 4_208, probe, &[]).unwrap();
         assert_eq!(
             &prologue,
             &[
@@ -588,8 +576,7 @@ mod tests {
 
     #[test]
     fn large_frame_preserves_integer_float_and_link_register_slots() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let slots =
             [("x19", 65_536), ("d8", 65_544), ("x30", 65_552)].map(|(name, offset_bytes)| {
                 frame_slot(model.model().view_named(name).unwrap().id, offset_bytes, 8)
@@ -597,7 +584,7 @@ mod tests {
         let EncodedFrameProtocol {
             prologue, epilogue, ..
         } = encode_aapcs64_frame_protocol(
-            &model,
+            model,
             65_568,
             Aarch64StackProbe {
                 touches: 5,
@@ -636,13 +623,12 @@ mod tests {
 
     #[test]
     fn steps_split_address_words_from_the_slot_transfer() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let slots = [("x19", 8), ("x30", 65_552)].map(|(name, offset_bytes)| {
             frame_slot(model.model().view_named(name).unwrap().id, offset_bytes, 8)
         });
         let encoded = encode_aapcs64_frame_protocol(
-            &model,
+            model,
             65_568,
             Aarch64StackProbe {
                 touches: 5,
@@ -691,15 +677,14 @@ mod tests {
 
     #[test]
     fn frame_past_sixteen_mebibytes_steps_its_release_and_slot_addresses() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let slots = [("x19", 33_554_448), ("x30", 33_554_456)].map(|(name, offset_bytes)| {
             frame_slot(model.model().view_named(name).unwrap().id, offset_bytes, 8)
         });
         let EncodedFrameProtocol {
             prologue, epilogue, ..
         } = encode_aapcs64_frame_protocol(
-            &model,
+            model,
             33_554_464,
             Aarch64StackProbe {
                 touches: 2_049,
@@ -744,8 +729,7 @@ mod tests {
 
     #[test]
     fn large_slot_address_never_clobbers_a_saved_scratch() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let x16 = model.model().view_named("x16").unwrap().id;
         let x17 = model.model().view_named("x17").unwrap().id;
         let x19 = model.model().view_named("x19").unwrap().id;
@@ -754,7 +738,7 @@ mod tests {
             ..DARWIN_PROBE
         };
         let slots = [frame_slot(x16, 0, 8), frame_slot(x19, 65_536, 8)];
-        let plan = plan_aapcs64_frame_protocol(&model, 65_552, probe, &slots).unwrap();
+        let plan = plan_aapcs64_frame_protocol(model, 65_552, probe, &slots).unwrap();
         assert_eq!(
             plan.address_scratch(),
             Some(17),
@@ -762,7 +746,7 @@ mod tests {
         );
         let EncodedFrameProtocol {
             prologue, epilogue, ..
-        } = encode_planned_aapcs64_frame_protocol(&model, &plan).unwrap();
+        } = encode_planned_aapcs64_frame_protocol(model, &plan).unwrap();
         let save = [0x9140_43f1_u32.to_le_bytes(), 0xf900_0233_u32.to_le_bytes()].concat();
         assert!(prologue.ends_with(&save));
         assert_eq!(
@@ -771,26 +755,25 @@ mod tests {
         );
         let occupied = [slots[0], frame_slot(x17, 8, 8), slots[1]];
         assert_eq!(
-            plan_aapcs64_frame_protocol(&model, 65_552, probe, &occupied),
+            plan_aapcs64_frame_protocol(model, 65_552, probe, &occupied),
             Err(Aarch64FrameProtocolError::NonCanonicalSlots),
         );
         assert_eq!(
-            encode_aapcs64_frame_protocol(&model, 65_552, probe, &occupied),
+            encode_aapcs64_frame_protocol(model, 65_552, probe, &occupied),
             Err(Aarch64FrameProtocolError::NonCanonicalSlots),
         );
     }
 
     #[test]
     fn large_frames_still_reject_invalid_slot_geometry() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let x19 = model.model().view_named("x19").unwrap().id;
         let x30 = model.model().view_named("x30").unwrap().id;
         let first = frame_slot(x19, 65_536, 8);
         for (offset_bytes, size_bytes) in [(65_536, 8), (65_540, 8), (65_552, 8), (65_544, 4)] {
             assert_eq!(
                 encode_aapcs64_frame_protocol(
-                    &model,
+                    model,
                     65_552,
                     Aarch64StackProbe {
                         touches: 5,
@@ -806,15 +789,14 @@ mod tests {
 
     #[test]
     fn probe_roster_must_match_the_committed_frame() {
-        let model =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         for (frame_size, touches) in [(8_192_u64, 0), (8_192, 1), (8_192, 3), (4_096, 1), (16, 1)] {
             let probe = Aarch64StackProbe {
                 interval_bytes: 4_096,
                 touches,
             };
             assert_eq!(
-                encode_aapcs64_frame_protocol(&model, frame_size, probe, &[]),
+                encode_aapcs64_frame_protocol(model, frame_size, probe, &[]),
                 Err(Aarch64FrameProtocolError::NonCanonicalProbe),
                 "size {frame_size} touches {touches}"
             );
@@ -825,7 +807,7 @@ mod tests {
                 touches: 1,
             };
             assert_eq!(
-                encode_aapcs64_frame_protocol(&model, 8_192, probe, &[]),
+                encode_aapcs64_frame_protocol(model, 8_192, probe, &[]),
                 Err(Aarch64FrameProtocolError::NonCanonicalProbe),
                 "interval {interval}"
             );

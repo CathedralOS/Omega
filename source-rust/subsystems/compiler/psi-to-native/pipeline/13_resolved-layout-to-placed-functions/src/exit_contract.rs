@@ -1758,12 +1758,6 @@ fn validated_aarch64_form_fixture(
 }
 
 #[cfg(test)]
-fn aarch64_physical_register_model() -> ValidatedPhysicalRegisterModel {
-    register_model::validate_physical_register_model(isa_aarch64::aarch64_physical_register_model())
-        .unwrap()
-}
-
-#[cfg(test)]
 fn form_fixture(
     kind: SelectedInstructionKind,
     alternative: selected_instructions::MachineAlternativeKey,
@@ -1774,7 +1768,7 @@ fn form_fixture(
     ResolvedSelectedFormRow,
 ) {
     let encoded = isa_aarch64::encode_aarch64_selected_form(
-        &aarch64_physical_register_model(),
+        isa_aarch64::validated_aarch64_physical_register_model(),
         kind,
         alternative,
         registers,
@@ -2304,7 +2298,7 @@ mod tests {
 
     #[test]
     fn atomic_exit_admission_binds_memory_width_operands_and_control() {
-        let physical = aarch64_physical_register_model();
+        let physical = isa_aarch64::validated_aarch64_physical_register_model();
         for form in AtomicForm::ALL {
             let registers =
                 if form.operation == selected_instructions::AtomicOperation::CompareExchange {
@@ -2379,7 +2373,7 @@ mod tests {
 
     #[test]
     fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
-        let physical = aarch64_physical_register_model();
+        let physical = isa_aarch64::validated_aarch64_physical_register_model();
         let registers = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
             .map(|name| physical.model().view_named(name).unwrap().id);
         let kind = SelectedInstructionKind::CompareByteSequences;
@@ -2435,7 +2429,7 @@ mod tests {
 
     #[test]
     fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
-        let physical = aarch64_physical_register_model();
+        let physical = isa_aarch64::validated_aarch64_physical_register_model();
         let registers = ["x3", "x4"].map(|name| physical.model().view_named(name).unwrap().id);
         for domain in [
             IeeeFloatToIntegerDomain::Exact,
@@ -2476,7 +2470,7 @@ mod tests {
 
     #[test]
     fn float_result_policy_exit_admission_binds_control_trap_and_operand_footprint() {
-        let physical = aarch64_physical_register_model();
+        let physical = isa_aarch64::validated_aarch64_physical_register_model();
         let registers =
             ["x2", "x3", "x4", "x5"].map(|name| physical.model().view_named(name).unwrap().id);
         for form in FloatResultPolicyForm::ALL {
@@ -2525,7 +2519,7 @@ mod tests {
 
     #[test]
     fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
-        let physical = aarch64_physical_register_model();
+        let physical = isa_aarch64::validated_aarch64_physical_register_model();
         let slot = LocalStorageSlotId::Boundary {
             operation: OperationId::new(7).unwrap(),
         };
@@ -2545,7 +2539,7 @@ mod tests {
                 variant: 0,
             };
             let encoded = isa_aarch64::encode_aarch64_selected_floating_control_form(
-                &physical,
+                physical,
                 kind,
                 alternative,
                 &[],
@@ -2600,7 +2594,7 @@ mod tests {
 
     #[test]
     fn zero_fill_exit_contract_retains_the_span_and_register_roles() {
-        let physical = aarch64_physical_register_model();
+        let physical = isa_aarch64::validated_aarch64_physical_register_model();
         let registers =
             ["x0", "x1", "x2"].map(|name| physical.model().view_named(name).unwrap().id);
         let kind = SelectedInstructionKind::ZeroBytes;
