@@ -253,6 +253,7 @@ fn effects_on_path(
 fn operand(machine: &terminal_psi::TerminalMachine, fact: ScalarFact) -> Option<Operand> {
     Some(match fact {
         ScalarFact::Literal(value) => Operand::Literal(value),
+        ScalarFact::Observation { .. } => return None,
         ScalarFact::EntryInput(formal) => Operand::Parameter {
             position: machine
                 .parameters

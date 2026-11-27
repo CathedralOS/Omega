@@ -156,7 +156,7 @@ pub(super) fn classify(
     memory: &Storage,
     location: &super::storage::Location,
     condition: SpinCondition,
-    pivot_input: Option<terminal_psi::ValueDeclaration>,
+    pivot_input: Option<ScalarFact>,
     update: Option<CellUpdate<ScalarFact>>,
     requirements: &[Proposition],
 ) -> Observation {
