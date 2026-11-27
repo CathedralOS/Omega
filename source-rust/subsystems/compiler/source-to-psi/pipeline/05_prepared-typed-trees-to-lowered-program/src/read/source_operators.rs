@@ -196,6 +196,7 @@ impl Program<'_> {
             site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
             reason: RefusalReason::ForeignIdentity,
             detail: detail.into(),
+            obligation: None,
         };
         if !self
             .typed
@@ -426,6 +427,7 @@ impl Program<'_> {
             site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
             reason: RefusalReason::ForeignIdentity,
             detail,
+            obligation: None,
         };
         if !typed.expression_table.expression_is_valid(expression) {
             return Err(refuse(format!(

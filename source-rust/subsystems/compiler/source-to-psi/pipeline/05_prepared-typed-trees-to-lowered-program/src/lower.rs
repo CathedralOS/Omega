@@ -755,6 +755,7 @@ impl Lowering<'_> {
                     ),
                     source_span: None,
                     detail: String::from("a parameter block is missing"),
+                    obligation: None,
                 })?
                 .structural_parameters = formals.records.clone();
         }
@@ -1047,6 +1048,7 @@ impl<'a> Lowering<'a> {
                 site: terminal_check_tables::RefusalSite::Machine(self.id, Construct::Machine),
                 source_span: None,
                 detail: "a qualification names a value outside this lowering".into(),
+                obligation: None,
             })?;
         if slot.is_some_and(|previous| previous != qualification) {
             return Err(self.internal("a qualification change reused its operand's value identity"));
@@ -1305,6 +1307,7 @@ impl<'a> Lowering<'a> {
             ),
             source_span: None,
             detail: format!("completion {detail}"),
+            obligation: None,
         }
     }
 
@@ -1319,6 +1322,7 @@ impl<'a> Lowering<'a> {
             site: terminal_check_tables::RefusalSite::Machine(id, Construct::Machine),
             source_span: None,
             detail: String::from("slot is past the end of this body"),
+            obligation: None,
         })
     }
 
@@ -1328,6 +1332,7 @@ impl<'a> Lowering<'a> {
             site: terminal_check_tables::RefusalSite::Machine(self.id, Construct::Machine),
             source_span: None,
             detail: String::from("slot is past the end of this body"),
+            obligation: None,
         })
     }
 

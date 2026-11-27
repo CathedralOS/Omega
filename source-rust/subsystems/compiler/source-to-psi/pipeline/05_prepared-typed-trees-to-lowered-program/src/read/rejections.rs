@@ -605,6 +605,7 @@ pub(super) fn call_inside_a_machine_body(id: MachineId) -> Refusal {
             "a call runs a machine from its entry; this call names a point inside a \
              machine's body other than its entry",
         ),
+        obligation: None,
     }
 }
 

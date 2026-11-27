@@ -1521,11 +1521,16 @@ decision from. It discharges an elaborated closure and returns:
   proposition form it does not reason about). The program
   may be valid and the checker cannot judge it, so this is the outcome table's
   "unsupported valid case" (owner ruling on `unproved-goal-form-outcome`). No
-  artifact and no fallback either. `Reject` wins when both kinds occur. The
-  closed `Incomplete` resource table has no provision for a proof goal form
-  yet, so this variant has no `Diagnostic` constructor: a plain error would
-  publish it as `Reject`. The prover has no search bound, so no obligation is
-  `Incomplete` for exhaustion.
+  artifact and no fallback either. `Reject` wins when both kinds occur. Each
+  such goal's diagnostic carries code 36, `coverage_proof_goal_forms` (limit
+  0, requested 1), with the unproved obligation's identity as its coordinate
+  ([unproved goal form publication](../../../../../../wiki/spec/build/compiler_request.md#unproved-goal-form-publication)),
+  so the request ends `Incomplete`; the message ends
+  `[Incomplete code 36 (coverage_proof_goal_forms): obligation N]`. A closed contract
+  implication's refusal names its site's owner, so the refusal carries the
+  obligation itself (`Refusal::obligation`). A goal that runs out of its step
+  budget names no provision yet and ends the request `Reject`
+  ([owner question](../../../../../../OWNER_QUESTIONS.md#per-goal-proof-step-provision)).
 - `FallBack`: elaboration or some obligation was refused as `Unsupported`.
   Despite the name, this stops compilation without an artifact; there is no
   second checker to fall back to. This wins over `Unproved`.

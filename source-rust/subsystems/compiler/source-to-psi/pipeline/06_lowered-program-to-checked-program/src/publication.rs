@@ -12,6 +12,7 @@ use checked_program::CheckedProgram;
 use checked_program_issuer::CHECKER;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
+use terminal_check_tables::UnprovedCause;
 use terminal_check_tables::compilation::CompilationForPublication;
 
 /// Judge the whole lowered compilation under the default proof-work policy.
@@ -144,11 +145,15 @@ fn accept_compilation(
                 }
                 diagnostics.extend(unproved.iter().map(|entry| {
                     let mut diagnostic = entry.reject_diagnostic();
-                    diagnostic.message = format!(
-                        "not supported yet: {}; the checker cannot prove a goal of this form yet, so the program is refused, with no claim that it is wrong",
-                        diagnostic.message
-                    );
-                    diagnostic
+                    let note = match entry.cause {
+                        UnprovedCause::BudgetExhausted => {
+                            "proof search ran out of steps, so the checker could not judge it either way"
+                        }
+                        _ => "the checker could not judge it either way",
+                    };
+                    diagnostic.message =
+                        format!("not supported yet: {}; {note}", diagnostic.message);
+                    goal_form_provision(diagnostic, entry.cause, Some(entry.obligation))
                 }));
             }
             // The signature publishes nothing executable. Its tables are
@@ -172,20 +177,24 @@ fn accept_compilation(
                 diagnostic.source_span = refused.source_span;
                 diagnostics.push(diagnostic);
             }
-            Err(CompilationRefusal::Elaboration(terminal_check_tables::Refusal {
-                reason: terminal_check_tables::RefusalReason::Unproved(cause),
-                detail,
-                source_span,
-                ..
-            })) => {
-                let message = format!("{detail} ({})", cause.describe());
+            Err(CompilationRefusal::Elaboration(
+                refused @ terminal_check_tables::Refusal {
+                    reason: terminal_check_tables::RefusalReason::Unproved(cause),
+                    ..
+                },
+            )) => {
+                let message = format!("{} ({})", refused.detail, cause.describe());
                 let mut diagnostic = Diagnostic::error(if cause.is_incomplete() {
                     format!("not supported yet: {message}")
                 } else {
                     message
                 });
-                diagnostic.source_span = source_span;
-                diagnostics.push(diagnostic);
+                diagnostic.source_span = refused.source_span;
+                diagnostics.push(goal_form_provision(
+                    diagnostic,
+                    cause,
+                    refused.unproved_obligation(),
+                ));
             }
             Err(CompilationRefusal::Elaboration(refused)) if refused.source_span.is_some() => {
                 let mut diagnostic = route_defect(&refused.detail);
@@ -219,6 +228,35 @@ fn accept_compilation(
     })
 }
 
+/// A goal whose form the prover has no rule for leaves the request
+/// `Incomplete` at code 36, `coverage_proof_goal_forms`, naming the
+/// obligation (`wiki/spec/build/compiler_request.md`, "Unproved goal form
+/// publication"). Every other cause keeps its diagnostic as it is. Without
+/// an obligation identity the provision cannot be named, so the diagnostic
+/// stays a refusal rather than an `Incomplete` with an invented coordinate.
+fn goal_form_provision(
+    diagnostic: Diagnostic,
+    cause: UnprovedCause,
+    obligation: Option<semantic_vocabulary::ObligationId>,
+) -> Diagnostic {
+    let (UnprovedCause::NoRuleForGoalForm, Some(obligation)) = (cause, obligation) else {
+        return diagnostic;
+    };
+    let form = diagnostics::CoverageForm::ProofGoalForm;
+    let provision = form.exceeded(obligation.get());
+    Diagnostic {
+        message: format!(
+            "{} [Incomplete code {} ({}): obligation {}]",
+            diagnostic.message,
+            form.code(),
+            form.resource(),
+            obligation.get()
+        ),
+        exceeded_provision: Some(provision),
+        ..diagnostic
+    }
+}
+
 fn route_defect(detail: &str) -> Diagnostic {
     Diagnostic::error(format!(
         "not supported yet: the checker could not judge this program ({detail}); this is a defect of the checker, and the program is refused rather than accepted without a verdict"
@@ -240,7 +278,7 @@ mod tests {
         let refusal = crate::derive_contract_obligation(
             RefusalSite::Program,
             &PropositionContext::default(),
-            ObligationId::new(1).unwrap(),
+            ObligationId::new(7).unwrap(),
             &Proposition::Atom(identity),
             &[],
             &mut Default::default(),
@@ -262,6 +300,48 @@ mod tests {
                 .contains(UnprovedCause::NoRuleForGoalForm.describe())
         );
         assert!(!diagnostic.message.contains("defect"));
+        // Code 36 names the obligation the prover has no rule for.
+        assert_eq!(
+            diagnostic.exceeded_provision,
+            Some(diagnostics::CoverageForm::ProofGoalForm.exceeded(7))
+        );
+        assert!(
+            diagnostic
+                .message
+                .contains("[Incomplete code 36 (coverage_proof_goal_forms): obligation 7]"),
+            "{}",
+            diagnostic.message
+        );
+    }
+
+    /// A goal of a form the prover has rules for, left unproved, is a
+    /// refusal: it names no coverage provision, so the request rejects.
+    #[test]
+    fn an_unproved_goal_with_rules_names_no_coverage_provision() {
+        use semantic_vocabulary::{ObligationId, Proposition, PropositionContext};
+        use terminal_check_tables::{RefusalReason, RefusalSite, UnprovedCause};
+
+        let refusal = crate::derive_contract_obligation(
+            RefusalSite::Program,
+            &PropositionContext::default(),
+            ObligationId::new(7).unwrap(),
+            &Proposition::Falsehood,
+            &[],
+            &mut Default::default(),
+        )
+        .expect_err("nothing proves falsehood without premises");
+        assert_eq!(
+            refusal.reason,
+            RefusalReason::Unproved(UnprovedCause::NoDerivation)
+        );
+        assert_eq!(refusal.unproved_obligation(), ObligationId::new(7));
+        let diagnostics =
+            accept_compilation(vec![Err(CompilationRefusal::Elaboration(refusal))]).unwrap_err();
+        let [diagnostic] = diagnostics.as_slice() else {
+            panic!("expected one refusal")
+        };
+        assert_eq!(diagnostic.exceeded_provision, None);
+        assert!(!diagnostic.message.contains("coverage_proof_goal_forms"));
     }
 
     #[test]

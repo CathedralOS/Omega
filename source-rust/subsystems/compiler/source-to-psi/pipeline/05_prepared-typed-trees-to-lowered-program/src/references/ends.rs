@@ -23,6 +23,7 @@ fn planning_refusal(machine: MachineId, error: Error, sources: Option<&MachineSo
         reason: refusal.reason,
         site: terminal_check_tables::RefusalSite::Machine(machine, refusal.concerns),
         detail: refusal.detail.to_owned(),
+        obligation: None,
     }
 }
 
@@ -47,6 +48,7 @@ fn candidates_refusal(
                 .unwrap_or(Construct::Machine),
         ),
         detail: error.detail,
+        obligation: None,
     }
 }
 

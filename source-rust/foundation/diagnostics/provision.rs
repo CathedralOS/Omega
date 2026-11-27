@@ -15,6 +15,10 @@ pub enum CoverageForm {
     CallForm,
     ExpressionForm,
     TransitionForm,
+    /// A required proof goal whose form the prover has no rule for (code 36,
+    /// `wiki/spec/build/compiler_request.md`, "Unproved goal form
+    /// publication"). Its coordinate is the obligation's identity.
+    ProofGoalForm,
 }
 
 impl CoverageForm {
@@ -27,6 +31,7 @@ impl CoverageForm {
             "coverage_call_forms" => Some(Self::CallForm),
             "coverage_expression_forms" => Some(Self::ExpressionForm),
             "coverage_transition_forms" => Some(Self::TransitionForm),
+            "coverage_proof_goal_forms" => Some(Self::ProofGoalForm),
             _ => None,
         }
     }
@@ -40,15 +45,33 @@ impl CoverageForm {
             Self::CallForm => "coverage_call_forms",
             Self::ExpressionForm => "coverage_expression_forms",
             Self::TransitionForm => "coverage_transition_forms",
+            Self::ProofGoalForm => "coverage_proof_goal_forms",
         }
     }
 
-    pub const fn exceeded(self, first_byte: u64) -> ExceededProvision {
+    /// The specified scalar-resource code of the form's provision.
+    pub const fn code(self) -> u16 {
+        match self {
+            Self::MachineHeader => 17,
+            Self::EntrySignature => 18,
+            Self::StateSignature => 19,
+            Self::StatementForm => 20,
+            Self::CallForm => 21,
+            Self::ExpressionForm => 22,
+            Self::TransitionForm => 23,
+            Self::ProofGoalForm => 36,
+        }
+    }
+
+    /// The provision exceeded by one uncovered construct. `coordinate` is
+    /// the first byte of a refused source row, or for `ProofGoalForm` the
+    /// identity of the obligation left unproved.
+    pub const fn exceeded(self, coordinate: u64) -> ExceededProvision {
         ExceededProvision {
             resource: self.resource(),
             limit: 0,
             requested: 1,
-            coordinate: first_byte,
+            coordinate,
         }
     }
 }

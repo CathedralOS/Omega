@@ -78,6 +78,7 @@ impl BoundaryNamespace {
             reason: RefusalReason::Unsupported,
             source_span: None,
             detail: detail.to_owned(),
+            obligation: None,
         };
         if !module.interfaces.boundary_machines.is_empty() {
             return Err(refusal("boundary declarations were already published"));

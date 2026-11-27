@@ -50,6 +50,7 @@ impl Graph {
             site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
             source_span: None,
             detail: detail.to_owned(),
+            obligation: None,
         };
         let count = lowered.blocks.len();
         for (position, block) in lowered.blocks.iter().enumerate() {
@@ -178,6 +179,7 @@ impl Graph {
             site: terminal_check_tables::RefusalSite::Machine(self.machine, concerns),
             source_span: None,
             detail: String::from("program point is not in this machine"),
+            obligation: None,
         }
     }
 

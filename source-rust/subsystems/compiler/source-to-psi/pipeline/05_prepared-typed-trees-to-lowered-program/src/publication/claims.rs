@@ -388,6 +388,7 @@ fn preparation_error(
         site: terminal_check_tables::RefusalSite::Machine(machine, refusal.concerns),
         source_span: None,
         detail: format!("preparing logical claim transport: {}", refusal.detail),
+        obligation: None,
     }
 }
 
@@ -427,6 +428,7 @@ pub(crate) fn publish(
             site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
             source_span: None,
             detail: detail.into(),
+            obligation: None,
         })?;
     }
     // Each machine's claim rows come from its own ownership walk over the
@@ -497,6 +499,7 @@ pub(crate) fn publish(
                     ),
                     source_span: None,
                     detail: detail.into(),
+                    obligation: None,
                 })?,
             );
         }

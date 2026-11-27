@@ -501,6 +501,7 @@ impl Discharge {
                     ),
                     source_span: None,
                     detail: format!("evidence encoding {error:?}"),
+                    obligation: None,
                 })?;
                 seals.push(seal);
             }
@@ -959,6 +960,7 @@ fn refusal(
         site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
         source_span: None,
         detail: detail.to_owned(),
+        obligation: None,
     }
 }
 
@@ -1456,6 +1458,7 @@ fn check_prepared_machine(
                         "zeroed storage of a gated type is used before its requires holds: {}",
                         unproved.detail
                     ),
+                    obligation: None,
                 };
                 let used = uses
                     .iter_mut()
@@ -2209,6 +2212,7 @@ fn semantics_refusal(
         site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Operation(operation)),
         source_span: None,
         detail: format!("operation semantics {error:?}"),
+        obligation: None,
     }
 }
 
@@ -3764,6 +3768,7 @@ fn unproved(
         site: terminal_check_tables::RefusalSite::Machine(id, Construct::Obligation(obligation)),
         source_span: None,
         detail,
+        obligation: None,
     }
 }
 
@@ -4002,7 +4007,10 @@ pub fn derive_contract_obligation(
         } else {
             UnprovedCause::NoRuleForGoalForm
         };
-        Refusal::at(RefusalReason::Unproved(cause), site, detail)
+        Refusal {
+            obligation: Some(obligation),
+            ..Refusal::at(RefusalReason::Unproved(cause), site, detail)
+        }
     })?;
     let certificate = CertificateEnvelope {
         identity: EvidenceIdentity::new(obligation.get())

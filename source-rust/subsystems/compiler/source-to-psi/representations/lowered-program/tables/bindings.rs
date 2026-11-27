@@ -149,6 +149,7 @@ pub fn intern_projection(
         site: crate::RefusalSite::Machine(machine, crate::Construct::Place(parent)),
         source_span: None,
         detail: "place is past the end of this machine".to_owned(),
+        obligation: None,
     };
     let row = places.get(parent).ok_or_else(missing)?;
     match row.child_position(places, segment) {

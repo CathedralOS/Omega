@@ -64,6 +64,7 @@ impl Lowering<'_> {
             site: terminal_check_tables::RefusalSite::Machine(id, Construct::Block(block)),
             source_span: None,
             detail: String::from("block is past the end of this machine"),
+            obligation: None,
         })
     }
 
@@ -922,6 +923,7 @@ impl Lowering<'_> {
                         site: terminal_check_tables::RefusalSite::Machine(self.id, Construct::Block(self.current()?)),
                         source_span: source.span(),
                         detail: "a conditional case pattern leaves values uncovered; add a case fallback or wildcard".into(),
+                        obligation: None,
                     });
                 };
                 // Every false arrival reaches the same authored wildcard.
@@ -1217,6 +1219,7 @@ impl Lowering<'_> {
                         ),
                         source_span: None,
                         detail: String::from("a match join is past its function"),
+                        obligation: None,
                     })?
                     .structural_parameters
                     .push(parameter);
@@ -1368,6 +1371,7 @@ impl Lowering<'_> {
                 site: terminal_check_tables::RefusalSite::Machine(id, Construct::Block(block)),
                 source_span: None,
                 detail: String::from("block is past the end of this machine"),
+                obligation: None,
             })?
             .parameters
             .push(declaration(value, scalar_type));

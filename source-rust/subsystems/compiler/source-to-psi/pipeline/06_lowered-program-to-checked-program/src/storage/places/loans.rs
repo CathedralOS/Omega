@@ -3329,6 +3329,7 @@ impl<'a> Storage<'a> {
                                 "reborrow exceeds the access of its actual source path"
                             }
                         }),
+                        obligation: None,
                     })
                 }
             };

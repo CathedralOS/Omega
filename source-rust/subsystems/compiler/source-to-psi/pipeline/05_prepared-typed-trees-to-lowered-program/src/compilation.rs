@@ -296,6 +296,7 @@ pub(crate) fn prepare_closure<'source>(
                     site: terminal_check_tables::RefusalSite::Program,
                     source_span: None,
                     detail: detail.to_owned(),
+                    obligation: None,
                 })?;
                 let (_, required) =
                     typed.trait_machine_signature(requirement).ok_or_else(|| {

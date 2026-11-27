@@ -286,6 +286,9 @@ pub struct Refusal {
     pub source_span: Option<source_text::SourceSpan>,
     /// Diagnostic text only. Nothing may branch on it or compare it.
     pub detail: String,
+    /// The obligation left unproved, for an `Unproved` refusal whose site
+    /// names its owner rather than the obligation (a contract implication).
+    pub obligation: Option<ObligationId>,
 }
 
 impl Refusal {
@@ -295,6 +298,16 @@ impl Refusal {
             site,
             source_span: None,
             detail: detail.into(),
+            obligation: None,
+        }
+    }
+
+    /// The obligation an `Unproved` refusal leaves unproved: the one its
+    /// site names, else the one it carries.
+    pub fn unproved_obligation(&self) -> Option<ObligationId> {
+        match self.site {
+            RefusalSite::Machine(_, Construct::Obligation(obligation)) => Some(obligation),
+            _ => self.obligation,
         }
     }
 
@@ -331,6 +344,7 @@ fn checked_row<T>(value: Option<&T>, machine: MachineId, concerns: Construct) ->
         site: crate::RefusalSite::Machine(machine, concerns),
         source_span: None,
         detail: String::from("identity is past the end of this machine's table"),
+        obligation: None,
     })
 }
 

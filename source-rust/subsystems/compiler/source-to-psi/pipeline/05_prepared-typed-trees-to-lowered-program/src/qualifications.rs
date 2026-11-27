@@ -485,6 +485,7 @@ impl Qualifications {
                     ),
                     source_span: None,
                     detail: format!("scalar domain source identity: {detail}"),
+                    obligation: None,
                 });
             }
         };

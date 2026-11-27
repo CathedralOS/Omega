@@ -18,6 +18,7 @@ fn invalid(machine: MachineId, detail: impl Into<String>) -> Refusal {
         site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
         source_span: None,
         detail: detail.into(),
+        obligation: None,
     }
 }
 
