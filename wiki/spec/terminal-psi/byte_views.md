@@ -451,6 +451,12 @@ The selected declarations determine the scalar carrier, including integer width
 and IEEE format. Erased fields, atomic storage and unreadable reference paths
 cannot be used as ordinary scalar observations.
 
+A terminal alignment observation selects the storage at the end of the path.
+It returns the same `u64` guarantee as a location query at that point.
+The path records indirection through a reference and the checked first element
+of a slice explicitly. Writes to the selected bytes preserve the location.
+Changing a descriptor or moving its backing requires a fresh observation.
+
 This is a logical observation, not an instruction that reevaluates storage.
 An executed read may relate its fresh result to that observation only under its
 existing bounds and readable-access obligations. Later writes retire facts about

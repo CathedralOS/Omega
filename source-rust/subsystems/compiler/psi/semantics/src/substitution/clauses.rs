@@ -66,7 +66,7 @@ pub fn bind_fixed_read<B: ClauseBindings + ?Sized>(
                 };
                 Some(CanonicalStructuralPathSegment::FixedIndex(index))
             }
-            ScalarReadProjection::Extent => None,
+            ScalarReadProjection::Extent | ScalarReadProjection::Alignment => None,
         })
         .collect::<Option<Vec<_>>>()
         .ok_or_else(|| {

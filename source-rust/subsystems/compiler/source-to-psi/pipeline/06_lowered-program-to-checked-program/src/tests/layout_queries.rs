@@ -34,6 +34,99 @@ fn storage_address_exposes_the_referent_of_an_ordinary_reference() {
 }
 
 #[test]
+fn alignment_contracts_use_the_borrowed_location_across_a_call() {
+    let program = "machine measured(cell: @u64) -> u64
+            ensures result == align_of(cell) { align_of(cell) }
+        machine forward(first: @u64, second: @u64) -> u64
+            ensures result == align_of(first) { measured(@SUBJECT) }";
+    for (subject, same) in [("first", true), ("second", false)] {
+        let verdict = super::entryless::judged(&program.replace("SUBJECT", subject), false);
+        match verdict {
+            RouteVerdict::Accepted(_) if same => {}
+            RouteVerdict::Rejected { unproved, .. } if !same => assert!(
+                unproved.iter().any(|obligation| matches!(
+                    obligation.kind,
+                    ObligationKind::NormalGuarantee { .. }
+                )),
+                "distinct inputs need their own alignment proof: {unproved:?}",
+            ),
+            other => panic!("returning the alignment of {subject}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn slice_alignment_contracts_require_a_live_first_element() {
+    let program = "machine measured(cells: @[u64]) -> u64
+        GUARD
+        ensures result == align_of(cells) { align_of(cells) }";
+    let guarded = super::entryless::judged(
+        &program.replace("GUARD", "requires cells.length > 0u64"),
+        false,
+    );
+    assert!(matches!(guarded, RouteVerdict::Accepted(_)), "{guarded:?}");
+    let unguarded = super::entryless::judged(&program.replace("GUARD", ""), false);
+    assert!(
+        matches!(unguarded, RouteVerdict::Rejected { .. }),
+        "{unguarded:?}"
+    );
+}
+
+#[test]
+fn a_fresh_local_can_meet_an_alignment_requirement_without_a_runtime_query() {
+    let program = "machine needs(cell: @u64) requires align_of(cell) >= REQUIRED {}
+        machine main() { let cell: u64 = 7u64; needs(@cell); }";
+    for (bound, accepted) in [("8u64", true), ("16u64", false)] {
+        let verdict = super::entryless::judged(&program.replace("REQUIRED", bound), false);
+        match verdict {
+            RouteVerdict::Accepted(_) if accepted => {}
+            RouteVerdict::Rejected { unproved, .. } if !accepted => {
+                assert!(!unproved.is_empty(), "the call needs a larger alignment");
+            }
+            other => panic!("fresh u64 storage with required alignment {bound}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn writing_the_field_contents_preserves_its_alignment() {
+    let program = "data Cell { word: u64; }
+        machine measured(word: @u64) -> u64
+        ensures result == align_of(word) { align_of(word) }
+        machine change(cell: @mutable Cell) -> u64
+        ensures result == align_of(cell.word) {
+            let before: u64 = measured(@cell.word);
+            cell.word = 27u64;
+            before
+        }";
+    let verdict = super::entryless::judged(program, false);
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn replacing_a_reference_cannot_transfer_the_previous_alignment() {
+    let program = "data Cell { word: u64; }
+        data Borrowed<'storage> { cell: @'storage Cell; }
+        machine choose<'storage>(left: @'storage Cell, right: @'storage Cell) -> u64
+        ensures result == align_of(right) {
+            let mutable selected: Borrowed = Borrowed { cell: left };
+            let before: u64 = align_of(selected.cell);
+            selected.cell = right;
+            before
+        }";
+    let verdict = super::entryless::judged(program, false);
+    let RouteVerdict::Rejected { unproved, .. } = verdict else {
+        panic!("replacing the descriptor cannot change an earlier observation: {verdict:?}");
+    };
+    assert!(
+        unproved
+            .iter()
+            .any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. })),
+        "{unproved:?}"
+    );
+}
+
+#[test]
 fn a_live_field_only_proves_the_alignment_its_allocation_preserves() {
     let program = "data Slots { tag: u8; value: u64; }
         machine main() -> u64 {

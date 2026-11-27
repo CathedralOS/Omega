@@ -453,6 +453,8 @@ impl Lowering<'_> {
                         Some(match step {
                             Read::Referent => Segment::Referent,
                             Read::Extent => Segment::Extent,
+                            // A location's geometry does not have a writable content version.
+                            Read::Alignment => return None,
                             Read::Static(step) => projection(*step),
                             Read::Index(term) => match term.as_ref() {
                                 ScalarTerm::Value { id, .. } => {

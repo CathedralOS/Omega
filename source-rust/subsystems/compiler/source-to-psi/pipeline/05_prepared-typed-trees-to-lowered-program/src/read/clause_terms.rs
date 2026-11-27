@@ -29,7 +29,7 @@ use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
 use super::authority::Access;
-use super::contracts::{ClauseScope, ResultTerm, formal_place, static_read_path};
+use super::contracts::{ClauseScope, ProjectionUse, ResultTerm, formal_place, static_read_path};
 use super::types::{OPEN_CARRIER_FAMILY, TypeTruth};
 use crate::body::{Qualification, ValueType};
 use crate::{SourceOrigin, Unserved, reject};
@@ -155,6 +155,43 @@ impl Program<'_> {
                         .is_some_and(|entry| entry.return_type.is_valid())
             })
             .map(|declared| declared.symbol)
+    }
+
+    /// Bind the observation to the actual storage selected in this clause.
+    /// Borrowed scalar formals name the lent place directly, just as in a body.
+    fn location_alignment_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        operand: ExpressionHandle,
+    ) -> Checked<(ScalarTerm, ValueType)> {
+        use semantic_vocabulary::ScalarReadProjection;
+        let invalid = || {
+            refuse_at(
+                id,
+                Unserved::Contract("location alignment requires accessible storage in this clause"),
+            )
+        };
+        let (root, mut path, value_type) = self
+            .read_projection(id, scope, operand, ProjectionUse::Location)?
+            .ok_or_else(invalid)?;
+        if let ValueType::Record(record, _, _) = value_type {
+            if let Some((_, access)) = self.reference_referent(id, value_type)? {
+                if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+                    return Err(invalid());
+                }
+                path.push(ScalarReadProjection::Referent);
+            } else if self.alignment_view_element(id, record)?.is_some() {
+                path.push(CanonicalStructuralPathSegment::FixedIndex(0).into());
+            }
+        }
+        path.push(ScalarReadProjection::Alignment);
+        let scalar = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        let term = ScalarTerm::structural_read(root, path, scalar).map_err(|_| invalid())?;
+        Ok((term, ValueType::plain(scalar)))
     }
 
     /// Read `expression` as a term of the sort `usage` asks for, with its
@@ -657,7 +694,7 @@ impl Program<'_> {
                                         )))) =>
                     {
                         let Some((root, path, value_type)) =
-                            self.read_projection(id, scope, read)?
+                            self.read_projection(id, scope, read, ProjectionUse::Contents)?
                         else {
                             return Err(unavailable(
                                 "name other than the clause's subject, a field of it or a literal",
@@ -1299,6 +1336,12 @@ impl Program<'_> {
                     }
                     ExpressionNode::Call(call) if call.layout_query.is_some() => {
                         let query = call.layout_query.as_ref().expect("matched a layout query");
+                        if matches!(query, crate::source_state::expression::DataLayoutQueryRequest::LocationAlignment) {
+                            let [operand] = table.expression_handles(call.arguments) else {
+                                return Err(unavailable("location alignment needs one operand"));
+                            };
+                            break 'read self.location_alignment_clause(id, scope, *operand)?;
+                        }
                         let source = SourceOrigin::of(table.source_span(read));
                         let measured = self.layout_query(id, call, query, source)?;
                         let (

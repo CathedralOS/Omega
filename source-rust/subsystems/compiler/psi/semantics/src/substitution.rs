@@ -640,6 +640,7 @@ pub(crate) fn substitute_scalar_term_values_with<'input>(
                 .map(|projection| match projection {
                     ScalarReadProjection::Referent => ScalarReadProjection::Referent,
                     ScalarReadProjection::Extent => ScalarReadProjection::Extent,
+                    ScalarReadProjection::Alignment => ScalarReadProjection::Alignment,
                     ScalarReadProjection::Static(segment) => ScalarReadProjection::Static(*segment),
                     ScalarReadProjection::Index(index) => {
                         ScalarReadProjection::Index(Box::new(recurse(index)))

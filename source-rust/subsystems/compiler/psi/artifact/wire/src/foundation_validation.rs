@@ -5938,39 +5938,14 @@ pub(crate) mod scalar_observations {
                     .map(|v| v.scalar_type)
             })
         };
-        for proposition in machine
-            .contract
-            .requires
+        // Callable clauses use their formal namespace, including bodyless declarations.
+        for invariant in module
+            .proofs
+            .scalar_block_invariants
             .iter()
-            .chain(machine.contract.ensures.iter().map(|row| &row.proposition))
-            .chain(
-                machine
-                    .contract
-                    .outcome_specific_ensures
-                    .iter()
-                    .map(|row| &row.proposition),
-            )
-            .chain(
-                machine
-                    .contract
-                    .crash_routes
-                    .iter()
-                    .flat_map(|row| &row.alternatives)
-                    .filter_map(|guard| match guard {
-                        terminal_psi::CrashRouteGuard::Predicate(p) => Some(p.proposition()),
-                        _ => None,
-                    }),
-            )
-            .chain(
-                module
-                    .proofs
-                    .scalar_block_invariants
-                    .iter()
-                    .filter(|row| row.machine == machine.id)
-                    .map(|row| &row.predicate),
-            )
+            .filter(|row| row.machine == machine.id)
         {
-            validate(module, proposition, &root, &value)?;
+            validate(module, &invariant.predicate, &root, &value)?;
         }
         for operation in machine.operations() {
             use terminal_psi::OperationKind;
@@ -6131,7 +6106,7 @@ pub(crate) mod scalar_observations {
         Ok(())
     }
 
-    fn validate(
+    pub(super) fn validate(
         module: &TerminalModule,
         proposition: &Proposition,
         root_type: &impl Fn(PlaceId) -> Option<StructuralTypeId>,
@@ -11538,14 +11513,34 @@ fn validate_contract_formals(
         places.iter().copied(),
     )
     .map_err(CodecError::MalformedProposition)?;
+    let input_root = |place| {
+        terminal_psi::StructuralParameterDeclaration::find_by_place(
+            &contract.structural_parameters,
+            place,
+        )
+        .filter(|p| p.access != StructuralAccess::WriteOnlyBorrow)
+        .map(|p| p.structural_type)
+    };
+    let input_value = |id| {
+        contract
+            .parameters
+            .iter()
+            .chain(&contract.erased_scalar_formals)
+            .find(|p| p.id == id)
+            .map(|p| p.scalar_type)
+    };
+    let validate_input = |proposition: &semantic_vocabulary::Proposition| {
+        requires
+            .validate(proposition)
+            .map_err(CodecError::MalformedProposition)?;
+        scalar_observations::validate(module, proposition, &input_root, &input_value)
+    };
     for proposition in contract
         .requires
         .iter()
         .chain(&contract.source_checked_requires)
     {
-        requires
-            .validate(proposition)
-            .map_err(CodecError::MalformedProposition)?;
+        validate_input(proposition)?;
     }
     let result_place = match &contract.result {
         TerminalMachineResult::Structural(result) => {
@@ -11558,7 +11553,7 @@ fn validate_contract_formals(
                 &result.qualifications,
                 &result.projected_qualifications,
             )?;
-            Some((result.place, StructuralPlaceKind::Result))
+            Some((result.place, result.structural_type))
         }
         _ => None,
     };
@@ -11569,7 +11564,10 @@ fn validate_contract_formals(
             .chain(&contract.erased_scalar_formals)
             .chain(contract.result.scalar_ref())
             .map(|formal| (formal.id, formal.scalar_type)),
-        places.iter().copied().chain(result_place),
+        places
+            .iter()
+            .copied()
+            .chain(result_place.map(|(place, _)| (place, StructuralPlaceKind::Result))),
     )
     .map_err(CodecError::MalformedProposition)?;
     for proposition in contract
@@ -11586,6 +11584,26 @@ fn validate_contract_formals(
         ensures
             .validate(proposition)
             .map_err(CodecError::MalformedProposition)?;
+        scalar_observations::validate(
+            module,
+            proposition,
+            &|place| {
+                input_root(place).or_else(|| {
+                    result_place
+                        .filter(|(id, _)| *id == place)
+                        .map(|(_, ty)| ty)
+                })
+            },
+            &|id| {
+                input_value(id).or_else(|| {
+                    contract
+                        .result
+                        .scalar_ref()
+                        .filter(|result| result.id == id)
+                        .map(|result| result.scalar_type)
+                })
+            },
+        )?;
     }
     for bucket in contract
         .crash_routes
@@ -11594,9 +11612,7 @@ fn validate_contract_formals(
     {
         for guard in &bucket.alternatives {
             if let terminal_psi::CrashRouteGuard::Predicate(predicate) = guard {
-                requires
-                    .validate(predicate.proposition())
-                    .map_err(CodecError::MalformedProposition)?;
+                validate_input(predicate.proposition())?;
             }
         }
     }
@@ -11622,6 +11638,9 @@ fn validate_contract_formals(
     .map_err(CodecError::MalformedStructuralFoundation)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod declaration_observation_tests;
 
 // Bodyless declarations retain descriptive source identities. Their absence
 // of code adds no trust to the promises shared with executable contracts.

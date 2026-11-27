@@ -371,7 +371,7 @@ impl ReplayScope<'_> {
 struct Root {
     place: PlaceId,
     ty: StructuralTypeId,
-    borrowed: bool,
+    access: StructuralAccess,
     result: bool,
     has_entry: bool,
 }
@@ -385,7 +385,7 @@ enum Observation {
         usize,
         Vec<semantic_vocabulary::ScalarReadProjection>,
     ),
-    Extent(usize, Vec<Segment>),
+    Extent(Version, usize, Vec<Segment>),
     BytePredicate(
         Version,
         usize,
@@ -463,7 +463,7 @@ impl<'a, 'activity> Scope<'a, 'activity> {
             roots: vec![Root {
                 place: subject,
                 ty: carrier,
-                borrowed: false,
+                access: StructuralAccess::Owned,
                 result: false,
                 has_entry: false,
             }],
@@ -509,12 +509,20 @@ impl Scope<'_, '_> {
         ) {
             return Err("contract extent is not a borrowed view".into());
         }
-        // Extents in this representation have no old-version tag. Do not
-        // identify a mutable descriptor's completion extent with its input.
-        if self.completion && (root.borrowed || path.contains(&Segment::Referent)) {
-            return Err("completion extent needs its exact storage version".into());
-        }
-        self.observe(Observation::Extent(index, path), ScalarType::Integer(ty))
+        // A shared loan keeps its descriptor count through completion.
+        // A replaceable descriptor needs a fact about its current count
+        // before a completion clause can use it as an index bound.
+        let stable = root.access == StructuralAccess::SharedBorrow
+            || (root.access == StructuralAccess::Owned && !path.contains(&Segment::Referent));
+        let version = if root.has_entry && (!self.completion || stable) {
+            Version::Entry
+        } else {
+            Version::Current
+        };
+        self.observe(
+            Observation::Extent(version, index, path),
+            ScalarType::Integer(ty),
+        )
     }
 
     fn observe(
@@ -739,7 +747,7 @@ impl ClauseBindings for Scope<'_, '_> {
         if found != ty {
             return Err("contract field scalar type differs from its declaration".into());
         }
-        let live = root.borrowed || path.contains(&Segment::Referent);
+        let live = root.access != StructuralAccess::Owned || path.contains(&Segment::Referent);
         let version = if root.has_entry && (!self.completion || !live || version == Version::Entry)
         {
             Version::Entry
@@ -765,6 +773,19 @@ impl ClauseBindings for Scope<'_, '_> {
             .map(ScalarReadProjection::from)
             .chain(path.iter().cloned())
             .collect::<Vec<_>>();
+        if path.last() == Some(&ScalarReadProjection::Alignment) {
+            if root.access == StructuralAccess::WriteOnlyBorrow {
+                return Err("location alignment requires a readable storage root".into());
+            }
+            if path
+                .iter()
+                .any(|step| matches!(step, ScalarReadProjection::Static(Segment::Case(_))))
+            {
+                // This scope does not bind an active case. The payload has
+                // storage only while its own case is selected.
+                return Err("location alignment of a payload needs its active case".into());
+            }
+        }
         let mut indices = Vec::new();
         let actual = terminal_semantics::structural_read_type_with_extents(
             self.module.types.structural_types.iter(),
@@ -835,7 +856,8 @@ impl ClauseBindings for Scope<'_, '_> {
                     .ok_or("contract index has no integer count bound")?,
             )?;
         }
-        let live = root.borrowed || path.contains(&ScalarReadProjection::Referent);
+        let live = root.access != StructuralAccess::Owned
+            || path.contains(&ScalarReadProjection::Referent);
         let version = if root.has_entry && (!self.completion || !live) {
             Version::Entry
         } else {
@@ -922,7 +944,7 @@ impl ClauseBindings for Scope<'_, '_> {
         // These are private logical observations, never a runtime read or a
         // grant of access. Actual storage availability remains independently
         // checked. Completion cannot reuse an entry predicate of live backing.
-        let live = root.borrowed || path.contains(&Segment::Referent);
+        let live = root.access != StructuralAccess::Owned || path.contains(&Segment::Referent);
         let version = if root.has_entry && (!self.completion || !live) {
             Version::Entry
         } else {
@@ -984,7 +1006,7 @@ fn roots(parameters: &[terminal_psi::StructuralParameterDeclaration]) -> Vec<Roo
         .map(|formal| Root {
             place: formal.place,
             ty: formal.structural_type,
-            borrowed: formal.access != StructuralAccess::Owned,
+            access: formal.access,
             result: false,
             has_entry: true,
         })
@@ -1059,7 +1081,7 @@ pub(crate) fn contract(
         scope.roots.push(Root {
             place: result.place,
             ty: result.structural_type,
-            borrowed: false,
+            access: StructuralAccess::Owned,
             result: true,
             has_entry: false,
         });
@@ -1232,7 +1254,7 @@ pub(crate) fn module(
             scope.roots.push(Root {
                 place,
                 ty,
-                borrowed: false,
+                access: StructuralAccess::Owned,
                 result: true,
                 has_entry: false,
             });

@@ -62,43 +62,61 @@ pub fn storage_alignment_fact(
     let ScalarType::Integer(integer) = result.scalar_type else {
         return Err("storage alignment must return u64");
     };
-    let declared_minimum = || {
-        let (producer, root) = machine.producing_operation(source.place)?;
-        if !matches!(
-            producer.kind,
-            OperationKind::EstablishPrimitiveLocal { .. }
-                | OperationKind::EstablishStructuralLocal {}
-                | OperationKind::EstablishZeroedStructural {}
-                | OperationKind::PackedIntegerUnary { .. } | OperationKind::PackedIntegerBinary { .. }
-                | OperationKind::EstablishScalarArray { .. }
-                | OperationKind::EstablishStructuralArray { .. }
-                | OperationKind::EstablishRecord { .. }
-                | OperationKind::EstablishScalarCase { .. }
-                | OperationKind::EstablishStructuralCase { .. }
-        ) || !crate::projection_stays_in_inline_storage(types.iter(), root, &source.path)
-        {
-            return None;
-        }
-        let mut geometry = crate::ReferenceStorageGeometry::new(types.iter(), |id| {
-            Err(crate::StorageGeometryError::UnresolvedExtent(id))
-        });
-        // A cap is not a floor. Only a real contiguous region inside this
-        // fresh, aligned allocation establishes the base-and-offset guarantee.
-        let (_, base_alignment) = geometry.layout(root).ok()?;
-        let guarantee = geometry
-            .region(root, &source.path)?
-            .alignment_at(base_alignment)?;
-        Some(guarantee.min(geometry.location_alignment_limit(root, &source.path)?))
-    };
+    let minimum = fresh_inline_alignment(types, machine, source.place, &source.path)
+        .map_or(1, |bounds| *bounds.start());
     Ok(Some(Proposition::LessOrEqual(
         ScalarTerm::Integer {
             scalar_type: integer,
-            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(
-                declared_minimum().unwrap_or(1),
-            )),
+            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(minimum)),
         },
         ScalarTerm::value(result.id, result.scalar_type),
     )))
+}
+
+/// An exact live alignment is known when the fresh allocation's guaranteed
+/// base and offset meet the same cap used by the selected location view.
+pub fn known_storage_alignment(
+    types: &[StructuralTypeDeclaration],
+    machine: &terminal_psi::TerminalMachine,
+    place: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Option<u64> {
+    let bounds = fresh_inline_alignment(types, machine, place, path)?;
+    (bounds.start() == bounds.end()).then_some(*bounds.end())
+}
+
+fn fresh_inline_alignment(
+    types: &[StructuralTypeDeclaration],
+    machine: &terminal_psi::TerminalMachine,
+    place: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Option<std::ops::RangeInclusive<u64>> {
+    let (producer, root) = machine.producing_operation(place)?;
+    if !matches!(
+        producer.kind,
+        OperationKind::EstablishPrimitiveLocal { .. }
+            | OperationKind::EstablishStructuralLocal {}
+            | OperationKind::EstablishZeroedStructural {}
+            | OperationKind::PackedIntegerUnary { .. }
+            | OperationKind::PackedIntegerBinary { .. }
+            | OperationKind::EstablishScalarArray { .. }
+            | OperationKind::EstablishStructuralArray { .. }
+            | OperationKind::EstablishRecord { .. }
+            | OperationKind::EstablishScalarCase { .. }
+            | OperationKind::EstablishStructuralCase { .. }
+    ) || !crate::projection_stays_in_inline_storage(types.iter(), root, path)
+    {
+        return None;
+    }
+    let mut geometry = crate::ReferenceStorageGeometry::new(types.iter(), |id| {
+        Err(crate::StorageGeometryError::UnresolvedExtent(id))
+    });
+    // A cap is not a floor. Only a real contiguous region inside this
+    // fresh, aligned allocation establishes the base-and-offset guarantee.
+    let (_, base_alignment) = geometry.layout(root).ok()?;
+    let guarantee = geometry.region(root, path)?.alignment_at(base_alignment)?;
+    let cap = geometry.location_alignment_limit(root, path)?;
+    Some(guarantee.min(cap)..=cap)
 }
 
 #[derive(Clone, Copy)]
@@ -147,7 +165,21 @@ pub fn structural_read_type_with_crossings<'a>(
     for (position, projection) in path.iter().enumerate() {
         match projection {
             ScalarReadProjection::Static(Static::Referent) => return None,
+            ScalarReadProjection::Alignment => {
+                if position + 1 != path.len() || case_fields.is_some() {
+                    return None;
+                }
+                if let Target::Declaration(root) = target {
+                    declaration(root)?;
+                }
+                return Some(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).ok()?,
+                ));
+            }
             ScalarReadProjection::Extent => {
+                if position + 1 != path.len() {
+                    return None;
+                }
                 if case_fields.is_some() {
                     return None;
                 }

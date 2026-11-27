@@ -55,6 +55,10 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 304 adds the terminal alignment observation to scalar-read paths. Readers
+check the marker before decoding the module. Rebuild earlier artifacts for this
+format.
+
 Marker 302 adds each theorem application's counted sum arguments after its
 fixed scalar subjects: for each of the applied contract's sum subjects, in
 order, the place id of the applying machine's sum formal it reads. Readers
@@ -789,6 +793,9 @@ spelling is noncanonical and rejects rather than selecting another dialect.
 Tag `6` is `Extent`, has no payload, and ends the path by observing the
 selected readable byte/element descriptor's current `u64` count. A scalar or
 fixed-array leaf cannot supply a live descriptor extent.
+Tag `7` is `Alignment`. It has no payload and ends a path at addressable storage.
+It returns the live location's guaranteed alignment as a `u64`. Indirection and
+the selection of the first element of a nonempty slice are explicit path steps.
 The path is nonempty. Dynamic indices keep their own fixed-integer
 carriers, excluding addresses; they do not become static geometry. The exact
 root declaration and each selected member or element determine the leaf type.

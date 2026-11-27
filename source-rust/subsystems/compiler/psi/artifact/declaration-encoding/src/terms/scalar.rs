@@ -108,6 +108,7 @@ fn write_scalar_row(writer: &mut Writer, term: &ScalarTerm) -> Result<(), CodecE
                 match projection {
                     ScalarReadProjection::Referent => writer.u8(5),
                     ScalarReadProjection::Extent => writer.u8(6),
+                    ScalarReadProjection::Alignment => writer.u8(7),
                     ScalarReadProjection::Static(CanonicalStructuralPathSegment::Field(field)) => {
                         writer.u8(1);
                         writer.id(*field);
@@ -507,6 +508,7 @@ fn read_scalar_row(
                     4 => None,
                     5 => Some(ScalarReadProjection::Referent),
                     6 => Some(ScalarReadProjection::Extent),
+                    7 => Some(ScalarReadProjection::Alignment),
                     tag => return Err(CodecError::InvalidTag("ScalarReadProjection", tag)),
                 })
             })?;
@@ -609,6 +611,28 @@ mod scalar_read_projection_tests {
         let mut repeated = Writer::default();
         encode_scalar_term(&mut repeated, &decoded).unwrap();
         assert_eq!(repeated.finish(), bytes);
+    }
+
+    #[test]
+    fn alignment_projection_roundtrips_only_as_a_terminal_u64_observation() {
+        use semantic_vocabulary::{IntegerSign, IntegerType};
+        let root = PlaceId::new(3).unwrap();
+        let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let path = vec![
+            ScalarReadProjection::Referent,
+            ScalarReadProjection::Alignment,
+        ];
+        let term = ScalarTerm::structural_read(root, path.clone(), count).unwrap();
+        let mut writer = Writer::default();
+        encode_scalar_term(&mut writer, &term).unwrap();
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_scalar_term(&mut reader).unwrap(), term);
+        assert_eq!(reader.remaining(), 0);
+        assert!(ScalarTerm::structural_read(root, path.clone(), ScalarType::Boolean).is_err());
+        let mut continued = path;
+        continued.push(ScalarReadProjection::Extent);
+        assert!(ScalarTerm::structural_read(root, continued, count).is_err());
     }
 
     #[test]

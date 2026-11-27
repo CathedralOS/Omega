@@ -168,6 +168,17 @@ neither creates nor retains an access loan, initializes storage, strengthens
 permissions or authorizes a memory operation. An empty slice cannot justify an
 implicit `@slice[0]`; guard or use an independently justified backing view first.
 
+A machine contract can name the same observation as its body. For example,
+this postcondition relates the result to the storage the caller lent for
+`word`.
+
+```omega
+machine word_alignment(word: @u64) -> u64
+ensures result == align_of(word) {
+    align_of(word)
+}
+```
+
 The result names the observed location at that point. Mutating data bytes does
 not itself move the location, but replacing the view, changing its offset,
 moving its backing or ending its lifetime cannot preserve a stale relationship.

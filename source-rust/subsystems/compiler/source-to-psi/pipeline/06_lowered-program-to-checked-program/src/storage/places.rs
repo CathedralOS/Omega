@@ -95,6 +95,7 @@ use terminal_psi::{
 use crate::graph::Graph;
 use crate::{CaseAnswer, StorageUse, refusal};
 
+mod alignment;
 mod arrivals;
 mod backing;
 use backing::Backing;
@@ -4761,6 +4762,24 @@ impl<'a> Storage<'a> {
         tables: &MachineTables,
         operation: &Operation,
     ) -> Checked<Option<Proposition>> {
+        if let OperationKind::StorageAlignment { source } = &operation.kind {
+            let concerns = Construct::Operation(operation.id);
+            let result = operation
+                .result
+                .scalar_ref()
+                .ok_or_else(|| self.foreign(concerns, "storage alignment has no scalar result"))?;
+            let read = if let Some(value) =
+                self.known_alignment_term(source.place, &source.path, result.scalar_type)
+            {
+                Some(value)
+            } else {
+                let place = self.argument(source, concerns)?;
+                self.alignment_term(tables, &place, &[], result.scalar_type)?
+            };
+            return Ok(read.map(|term| {
+                Proposition::Equal(ScalarTerm::value(result.id, result.scalar_type), term)
+            }));
+        }
         if matches!(operation.kind, OperationKind::ByteSequencePredicate { .. }) {
             return self.stable_byte_predicate_equation(operation);
         }
@@ -7159,11 +7178,42 @@ fn indexed_place(
             }
             ScalarReadProjection::Referent => Segment::Referent,
             ScalarReadProjection::Extent => Segment::Extent,
+            ScalarReadProjection::Alignment => {
+                return Err(crate::Unbound::Unsupported(
+                    "location alignment has no scalar storage cell",
+                ));
+            }
             ScalarReadProjection::Index(term) => index_segment(storage, tables, &actual, term)?,
         };
         actual.segments.push(segment);
     }
     Ok(actual)
+}
+
+/// Resolve both a literal selector in a clause and a literal produced by
+/// an operation so that they name the same storage position.
+fn index_literal(
+    storage: &Storage<'_>,
+    tables: &MachineTables,
+    index: &ScalarTerm,
+) -> Option<semantic_vocabulary::IntegerValue> {
+    index
+        .integer_value()
+        .map(|(_, literal)| literal)
+        .or_else(|| {
+            let ScalarTerm::Value { id, .. } = index else {
+                return None;
+            };
+            let ValueOrigin::Operation(producer) = tables.values.get(*id)?.origin else {
+                return None;
+            };
+            let (ty, literal) = terminal_semantics::scalar_operation_literal(
+                storage.lowered.operation(producer)?,
+                *id,
+            )?;
+            ty.as_integer()?;
+            Some(literal)
+        })
 }
 
 fn index_segment(
@@ -7178,17 +7228,8 @@ fn index_segment(
         ScalarTerm::Value { id, .. } => Some(*id),
         _ => None,
     };
-    let literal = term.integer_value().or_else(|| {
-        let value = value?;
-        let row = tables.values.get(value)?;
-        let ValueOrigin::Operation(id) = row.origin else {
-            return None;
-        };
-        let op = storage.lowered.operation(id)?;
-        let (ty, literal) = terminal_semantics::scalar_operation_literal(op, value)?;
-        Some((ty.as_integer()?, literal))
-    });
-    Ok(if let Some((_, literal)) = literal {
+    let literal = index_literal(storage, tables, term);
+    Ok(if let Some(literal) = literal {
         let position = match literal {
             IntegerValue::Unsigned(value) => u64::try_from(value).ok(),
             IntegerValue::Signed(value) => u64::try_from(value).ok(),
@@ -7455,6 +7496,29 @@ impl<'a, Inputs: InputPlaces<'a>> crate::Bindings for Returned<'_, 'a, Inputs> {
             scalar_type,
         )
     }
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        if let Some((semantic_vocabulary::ScalarReadProjection::Alignment, _)) = path.split_last() {
+            if self
+                .structural
+                .as_ref()
+                .is_some_and(|(declared, _)| *declared == root)
+            {
+                return Err(crate::Unbound::Unproved(
+                    "the returned storage needs its own alignment correspondence",
+                ));
+            }
+            // A loan keeps its location through completion. The input binding
+            // accepts the correspondence only if the selected address is stable.
+            return self.inputs.structural_read(root, path, ty);
+        }
+        terminal_semantics::substitution::clauses::bind_fixed_read(self, root, path, ty)
+    }
+
     fn field_alternatives(
         &mut self,
         version: semantic_vocabulary::ContentPlaceVersion,
@@ -7630,6 +7694,13 @@ impl crate::Bindings for AtEntry<'_, '_> {
         ty: ScalarType,
     ) -> Result<ScalarTerm, crate::Unbound> {
         let input = self.input_place(root, &[])?;
+        if let Some((semantic_vocabulary::ScalarReadProjection::Alignment, location)) =
+            path.split_last()
+        {
+            return self
+                .storage
+                .bind_alignment(self.tables, &input, location, ty);
+        }
         let actual = indexed_place(self.storage, self.tables, input.clone(), path)?;
         let captured = self
             .storage
@@ -8760,6 +8831,13 @@ impl crate::Bindings for AtCall<'_, '_> {
                     "indexed contract has no structural formal",
                 ))?;
         let actual = self.readable_actual(formal)?.clone();
+        if let Some((semantic_vocabulary::ScalarReadProjection::Alignment, location)) =
+            path.split_last()
+        {
+            return self
+                .storage
+                .alignment_at_call(self.tables, &actual, formal, location, ty);
+        }
         let actual_type = self.storage.projection_type(&actual, self.concerns);
         if actual_type != Some(formal.structural_type)
             && !actual_type.is_some_and(|actual_type| {
@@ -9078,6 +9156,20 @@ impl crate::Bindings for AtJoin<'_, '_> {
         {
             self.inputs.structural_read(root, path, ty)
         } else {
+            if let Some((semantic_vocabulary::ScalarReadProjection::Alignment, location)) =
+                path.split_last()
+            {
+                let actual = Lineage {
+                    root,
+                    segments: Vec::new(),
+                };
+                return self.inputs.storage.bind_alignment(
+                    self.inputs.tables,
+                    &actual,
+                    location,
+                    ty,
+                );
+            }
             match terminal_semantics::substitution::clauses::bind_fixed_read(self, root, path, ty) {
                 // A cell of this machine's shared input that no fixed
                 // position names keeps its entry contents at every arrival,

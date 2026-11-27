@@ -51,7 +51,12 @@ mod validation {
                     if path.is_empty() {
                         return Err(PropositionError::EmptyStructuralReadPath);
                     }
-                    if path.iter().any(|projection| {
+                    if path.iter().enumerate().any(|(position, projection)| {
+                        if matches!(projection, super::ScalarReadProjection::Alignment) {
+                            return position + 1 != path.len()
+                                || self.scalar_type().as_integer()
+                                    != IntegerType::new(crate::IntegerSign::Unsigned, 64).ok();
+                        }
                         matches!(
                             projection,
                             super::ScalarReadProjection::Static(
@@ -916,6 +921,8 @@ impl StructuralCaseSubject {
 pub enum ScalarReadProjection {
     Referent,
     Extent,
+    /// Terminal observation of the alignment guarantee of the selected storage.
+    Alignment,
     Static(CanonicalStructuralPathSegment),
     Index(Box<ScalarTerm>),
 }
@@ -1314,7 +1321,8 @@ macro_rules! append_scalar_operands {
                     ScalarReadProjection::Index(index) => Some(index.$borrow()),
                     ScalarReadProjection::Static(_)
                     | ScalarReadProjection::Referent
-                    | ScalarReadProjection::Extent => None,
+                    | ScalarReadProjection::Extent
+                    | ScalarReadProjection::Alignment => None,
                 }))
             }
             scalar_term_unary_operand!(operand) => $operands.push(operand.$borrow()),

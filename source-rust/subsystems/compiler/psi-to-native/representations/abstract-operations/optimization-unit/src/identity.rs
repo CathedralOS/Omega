@@ -758,6 +758,7 @@ pub(crate) mod proposition_encoding {
                     match projection {
                         semantic_vocabulary::ScalarReadProjection::Referent => bytes.u8(3),
                         semantic_vocabulary::ScalarReadProjection::Extent => bytes.u8(4),
+                        semantic_vocabulary::ScalarReadProjection::Alignment => bytes.u8(5),
                         semantic_vocabulary::ScalarReadProjection::Static(segment) => {
                             bytes.u8(1);
                             encode_canonical_path(bytes, std::slice::from_ref(segment));

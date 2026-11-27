@@ -115,6 +115,7 @@ impl ScalarTerm {
                         path: path.iter().map(|segment| match segment {
                             ScalarReadProjection::Index(_) => ScalarReadProjection::Index(take_operand(copies)),
                             ScalarReadProjection::Extent => ScalarReadProjection::Extent,
+                            ScalarReadProjection::Alignment => ScalarReadProjection::Alignment,
                             ScalarReadProjection::Referent => ScalarReadProjection::Referent,
                             ScalarReadProjection::Static(selector) => ScalarReadProjection::Static(*selector),
                         }).collect(),
