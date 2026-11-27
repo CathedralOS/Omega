@@ -60,7 +60,7 @@ fn a_caller_uses_what_a_private_helper_returns() {
 }
 
 /// The same program when the helper is not one whose body its callers may
-/// read (a public machine, a dependency, a requirement): only its written
+/// read (a public machine, a requirement): only its written
 /// contract crosses, and that says nothing of the result.
 #[test]
 fn a_boundary_machine_keeps_its_written_contract() {
@@ -170,6 +170,12 @@ fn summaries_compose_callees_first() {
     }
 }
 
+/// A private generic helper's checked result reaches its package's callers
+/// whether or not that package is the compilation's subject: importing a
+/// package does not change which calls are inside its verification unit
+/// (state_contracts.md, "Local call summaries"). A public helper publishes
+/// only its written contract, and a helper that can return `true` has no
+/// `result == false` summary to give.
 #[test]
 fn private_generic_results_stay_inside_the_verification_unit() {
     let source = r#"
@@ -183,7 +189,7 @@ machine entry() -> bool {
     hold(direct)
 }
 "#;
-    for (public, same_unit, false_result) in [
+    for (public, subject, false_result) in [
         (false, true, true),
         (true, true, true),
         (false, false, true),
@@ -203,7 +209,7 @@ machine entry() -> bool {
             crate::preparation::prepare_typed_trees(super::boundary_calls::typed(&source), &[], &[])
                 .expect("the complete source preparation must retain its generic applications");
         let entry = super::boundary_calls::entry(typed.trees());
-        let subjects = if same_unit { &[None][..] } else { &[][..] };
+        let subjects = if subject { &[None][..] } else { &[][..] };
         let prepared = crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -223,7 +229,7 @@ machine entry() -> bool {
         .program;
         let mut verdicts = crate::judge_compilation(prepared).into_iter();
         let primary = verdicts.next().unwrap().unwrap();
-        if !public && same_unit && false_result {
+        if !public && false_result {
             let RouteVerdict::Accepted(accepted) = primary else {
                 panic!("the caller must get the checked private result: {primary:?}");
             };
@@ -267,7 +273,7 @@ machine entry() -> bool {
             };
             assert!(
                 missing_requirement,
-                "the caller must prove its actual requirement: public={public}, same_unit={same_unit}, false_result={false_result}: {primary:?}"
+                "the caller must prove its actual requirement: public={public}, subject={subject}, false_result={false_result}: {primary:?}"
             );
         }
         // A concrete result never excuses checking the generic declaration.

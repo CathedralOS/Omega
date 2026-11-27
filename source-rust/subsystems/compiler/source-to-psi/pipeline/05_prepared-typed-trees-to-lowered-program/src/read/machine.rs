@@ -315,10 +315,13 @@ impl<'t> Program<'t> {
 
     /// Prepare the bodies whose checked outcomes are available to this source
     /// unit. Public visibility does not move an exact local call across the
-    /// unit boundary (state_contracts.md, "Local call summaries"). Dependencies,
-    /// abstract requirements and selected implementations still retain their
-    /// separately checked interface contracts. A private applied body can
-    /// supply a result summary after its own returns have been checked.
+    /// unit boundary (state_contracts.md, "Local call summaries"). A
+    /// dependency's public machines, abstract requirements and selected
+    /// implementations still retain their separately checked interface
+    /// contracts; a dependency's private helpers keep the summaries their own
+    /// package's callers see when that package is checked as the subject. A
+    /// private applied body can supply a result summary after its own returns
+    /// have been checked.
     ///
     /// Scalar result inference currently adds ordinary contract clauses, so
     /// its roster remains private-only: stronger local facts must not silently
@@ -383,12 +386,23 @@ impl<'t> Program<'t> {
                 .map_err(|reason| refuse_at(id, Unserved::Declaration(reason)))?,
                 _ => complete,
             };
-            if !local_subject {
-                continue;
-            }
             let Some(machine) = self.typed.machine_by_symbol(symbol) else {
                 continue;
             };
+            // A dependency's private helper can be called only from its own
+            // package, so each of those calls is an exact checked call inside
+            // the dependency's verification unit. Importing the package must
+            // not change that membership: the app that reaches `codes` sees
+            // the same summary of its private `read` as `omega --check` on
+            // the package root does. The helper's body is read and checked in
+            // this compilation, so its summary is still proved, not trusted.
+            let dependency_helper = !local_subject
+                && !machine.is_public
+                && machine.body_is_present
+                && machine.body_status == MachineBodyStatus::Complete;
+            if !local_subject && !dependency_helper {
+                continue;
+            }
             // Application copies are private symbols even when their source
             // declaration is public or belongs to an implementation.
             let template = crate::template_of(self.typed, symbol);
@@ -417,6 +431,7 @@ impl<'t> Program<'t> {
                 // call summaries"). The implementation itself keeps its
                 // requirement's contract, excluded above.
                 let witness_subject = complete
+                    || dependency_helper
                     || matches!(
                         self.local_summary_scope,
                         Some(super::LocalSummaryScope::Witness(_))
