@@ -4,17 +4,18 @@
 //! The kernel recurses only on the structure of a value. A machine whose
 //! recursive call is at a computed value is defined by recursion on fuel
 //! taken from the formal it is ranked on, and a law about its own result is
-//! proved for every amount of fuel. A dispatch on a computed value is a
-//! definition by cases of its own. A call of a machine that has a premise
-//! owes that premise where it is made.
+//! proved for every amount of fuel. Each such call owes its descent: the
+//! argument strictly below the caller's in core `Nat`'s natural order, a
+//! statement proved where the call is made. Data other than core `Nat` has no
+//! such order, so a machine over it is refused. A dispatch on a computed
+//! value is a definition by cases of its own. A call of a machine that has a
+//! premise owes that premise where it is made.
 
 use super::*;
 use crate::laws::{SignatureJudgment, UnprovedLaw};
 
 const DRAIN: &str =
-    include_str!("../../tests/fixtures/fuel_recursion/pass/drain_reaches_zero/main.omg");
-const STOPS_AT_ONE: &str =
-    include_str!("../../tests/fixtures/fuel_recursion/fail/drain_stops_at_one/main.omg");
+    include_str!("../../tests/fixtures/fuel_recursion/fail/drain_local_data/main.omg");
 const ALGEBRA: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../../../source/library/core/algebra.omg"
@@ -81,39 +82,24 @@ fn unproved(verdicts: &[RouteVerdict]) -> &UnprovedLaw {
 }
 
 #[test]
-fn a_law_about_a_machine_that_recurses_on_a_computed_value_is_judged() {
+fn a_machine_that_recurses_on_a_computed_value_of_local_data_is_refused() {
+    // `drain` calls itself at `before(a)` over the program's own `Peano`.
+    // Only core `Nat` has the natural order a computed argument's descent
+    // is checked under, so the machine is refused where it is read, not
+    // defined on fuel with its descent unchecked.
     let verdicts = judged(&proofs(DRAIN), &[]);
-    let judgment = signature(&verdicts);
-    let law = judgment
-        .laws
+    let refused: Vec<_> = verdicts
         .iter()
-        .find(|law| law.machine == "drain")
-        .expect("the law");
-    let MathematicalCoreDecision::Judged(receipt) = law.decision;
-    // Nothing is assumed: the machine is a definition over fuel the kernel
-    // checked, and the law at one unit less is the induction's hypothesis.
-    assert_eq!((receipt.context_depth, receipt.assumption_closure), (0, 0));
-    eprintln!("drain: {} conversion steps", law.conversion_steps);
-}
-
-#[test]
-fn a_false_law_about_such_a_machine_is_refused() {
-    let source = proofs(STOPS_AT_ONE);
-    assert_eq!(
-        source,
-        proofs(DRAIN).replace(
-            "        Peano::Zero -> Peano::Zero,\n        Peano::Succ { pred as rest }",
-            "        Peano::Zero -> Peano::Succ { pred: Peano::Zero },\n        Peano::Succ { pred as rest }"
-        )
-    );
-    let verdicts = judged(&source, &[]);
-    let law = unproved(&verdicts);
-    assert_eq!(law.machine, "drain");
-    assert_eq!(law.cause, UnprovedCause::NoDerivation);
-    assert_eq!(
-        law.statement,
-        "cannot prove ensures contract for `drain`: \
-         core\\Identity::<Peano>(drain(a), Peano::Zero)"
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::FallBack(refusal) => Some(refusal.detail.as_str()),
+            RouteVerdict::Laws(judgment) => panic!("`drain` must not be judged: {judgment:?}"),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        refused.iter().any(|detail| detail
+            .contains("recursive call at a computed value whose data has no natural order")),
+        "{verdicts:?}"
     );
 }
 
@@ -178,8 +164,16 @@ fn mod_div_and_gcd_of_nat_are_defined_and_mod_keeps_its_bound() {
             })
             .count()
     };
-    assert_eq!(judged("mod"), 1, "its own bound");
-    assert!(judged("gcd") >= 1, "the premise of `mod` at its call");
+    // Each of the three also owes the descent of its recursive call, which
+    // its citation of `sub_lt` (`mod`, `div`) or `mod`'s own bound (`gcd`)
+    // proves.
+    assert_eq!(judged("mod"), 2, "its own bound and its descent");
+    assert_eq!(judged("div"), 1, "its descent");
+    assert!(
+        judged("gcd") >= 2,
+        "the premise of `mod` at its call and the descent"
+    );
+
     for law in &judgment.laws {
         assert!(
             matches!(law.decision, MathematicalCoreDecision::Judged(_)),
