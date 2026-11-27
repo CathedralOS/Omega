@@ -237,6 +237,14 @@ fn advance<'m>(
                         frame.position += 1;
                         return Some(Advance::OpaqueReturn);
                     };
+                    if result.is_ok()
+                        && effects
+                            .bind_result(op, structural_arguments, &mut frame.bindings, memory)
+                            .is_none()
+                    {
+                        frame.position += 1;
+                        return Some(Advance::OpaqueReturn);
+                    }
                     result.map(|returned| {
                         if let Some(dest) = op.result.as_scalar() {
                             let value = returned
