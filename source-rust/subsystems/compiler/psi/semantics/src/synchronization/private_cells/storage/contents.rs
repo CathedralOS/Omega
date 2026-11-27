@@ -3,7 +3,7 @@
 
 mod indices;
 
-use super::{Assumption, Location};
+use super::{Assumption, CaseEffect, Location};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::progress::ScalarFact;
 use crate::synchronization::spin::CellUpdate;
@@ -19,6 +19,12 @@ pub(in super::super) enum Stored {
         pending_provider: bool,
         includes_zero: bool,
         values: Vec<ScalarWitness>,
+    },
+    /// Reading the associated result tag can narrow this scalar. Ordinary
+    /// writes replace both the scalar and its connection to that result.
+    Observed {
+        identity: usize,
+        value: Rc<Self>,
     },
     Reference(Location),
     /// A result returned by a checked lock constructor. Within an order
@@ -66,6 +72,8 @@ impl ScalarWitness {
 pub(in super::super) struct Aggregate {
     tags: Vec<StructuralCaseId>,
     fill: FieldDefault,
+    /// Fresh allocation of the operation result whose tag describes a storage effect.
+    observation: Option<Rc<CaseEffect>>,
     fields: Vec<(Segment, Stored)>,
 }
 
@@ -139,8 +147,22 @@ impl Stored {
         Self::Aggregate(Rc::new(Aggregate {
             tags: vec![case],
             fill: FieldDefault::Unknown,
+            observation: None,
             fields: Vec::new(),
         }))
+    }
+
+    pub(super) fn attach_observation(&mut self, effect: Rc<CaseEffect>) {
+        if let Self::Aggregate(record) = self {
+            Rc::make_mut(record).observation = Some(effect);
+        }
+    }
+
+    pub(super) fn observation(&self) -> Option<&Rc<CaseEffect>> {
+        match self {
+            Self::Aggregate(record) => record.observation.as_ref(),
+            _ => None,
+        }
     }
 
     pub(in super::super) fn tags(&self) -> &[StructuralCaseId] {
@@ -163,6 +185,7 @@ impl Stored {
             _ => Rc::new(Aggregate {
                 tags: Vec::new(),
                 fill: self.fill(),
+                observation: None,
                 fields: Vec::new(),
             }),
         };
@@ -176,7 +199,7 @@ impl Stored {
         path.iter().fold(self, |value, field| value.field(field))
     }
 
-    pub(super) fn project_mut(&mut self, path: &[Segment]) -> &mut Self {
+    pub(in super::super) fn project_mut(&mut self, path: &[Segment]) -> &mut Self {
         path.iter()
             .fold(self, |value, field| value.field_mut(field))
     }
@@ -212,6 +235,7 @@ impl Stored {
             *self = Self::Aggregate(Rc::new(Aggregate {
                 tags: Vec::new(),
                 fill: self.fill(),
+                observation: None,
                 fields: Vec::new(),
             }));
         }
@@ -253,6 +277,24 @@ impl Stored {
         left_facts: &[Assumption],
         right_facts: &[Assumption],
     ) {
+        // Arrivals retain the correlation only if both refer to the same
+        // dynamic attempt. The scalar values themselves can still join.
+        if let Self::Observed { identity, value } = self {
+            if let Self::Observed {
+                identity: incoming,
+                value: right,
+            } = other
+                && identity == incoming
+            {
+                Rc::make_mut(value).join_with(right, borrow, left_facts, right_facts);
+                return;
+            }
+            *self = value.as_ref().clone();
+        }
+        let other = match other {
+            Self::Observed { value, .. } => value.as_ref(),
+            other => other,
+        };
         match (&*self, other) {
             (Self::Unknown, _) => {}
             (Self::Uniform(left), Self::Uniform(right)) => {
@@ -286,6 +328,14 @@ impl Stored {
                 let mut result = Self::Aggregate(Rc::new(Aggregate {
                     tags,
                     fill: self.fill().join(other.fill()),
+                    observation: self
+                        .observation()
+                        .filter(|left| {
+                            other
+                                .observation()
+                                .is_some_and(|right| Rc::ptr_eq(left, right))
+                        })
+                        .cloned(),
                     fields: Vec::new(),
                 }));
                 let mut keys = fields(self);
@@ -399,6 +449,9 @@ impl Stored {
         ty: ScalarType,
         mut apply: impl FnMut(ScalarFact) -> Option<ScalarFact>,
     ) -> Self {
+        if let Self::Observed { value, .. } = self {
+            return value.map_scalars(ty, apply);
+        }
         if matches!(self, Self::Uniform(FieldDefault::PendingProvider)) {
             return Self::Uniform(FieldDefault::PendingProvider);
         }
@@ -417,6 +470,9 @@ impl Stored {
     }
 
     pub(in super::super) fn includes_pending_provider(&self) -> bool {
+        if let Self::Observed { value, .. } = self {
+            return value.includes_pending_provider();
+        }
         matches!(
             self,
             Self::Uniform(FieldDefault::PendingProvider)
@@ -447,6 +503,9 @@ impl Stored {
             visit(ScalarFact::Literal(Scalar::zero(ty)?), &[]);
             return Some(());
         }
+        if let Self::Observed { value, .. } = self {
+            return value.visit_witnesses(ty, visit);
+        }
         if let Self::Alternatives {
             includes_zero,
             values,
@@ -471,6 +530,7 @@ impl Stored {
     pub(in super::super) fn scalar(&self, ty: ScalarType) -> Option<ScalarFact> {
         match self {
             Self::Uniform(FieldDefault::Zero) => Scalar::zero(ty).map(ScalarFact::Literal),
+            Self::Observed { value, .. } => value.scalar(ty),
             Self::Scalar(value) if value.ty() == ty => Some(*value),
             Self::Alternatives {
                 includes_zero,

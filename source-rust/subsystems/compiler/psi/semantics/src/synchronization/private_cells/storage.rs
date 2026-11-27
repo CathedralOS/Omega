@@ -11,7 +11,7 @@ pub(super) use location::Location;
 use super::super::facts::Facts;
 use crate::synchronization::progress::condition::Assumption;
 pub(super) use contents::Stored;
-use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::{PlaceId, StructuralCaseId};
 use std::cell::Cell;
 use std::rc::Rc;
 use terminal_psi::StructuralPathSegment as Segment;
@@ -26,6 +26,13 @@ pub(super) struct Storage {
     /// A write through a selected reference establishes its value even
     /// when the individual candidate allocations only receive weak updates.
     selected: Rc<Vec<(Location, Stored)>>,
+}
+
+#[derive(Clone)]
+struct CaseEffect {
+    identity: usize,
+    target: Location,
+    cases: Vec<(StructuralCaseId, Stored)>,
 }
 
 impl Storage {
@@ -93,6 +100,49 @@ impl Storage {
         let allocation = home(self.fresh_identity());
         Rc::make_mut(&mut self.contents).insert(allocation, contents);
         Location::allocation(allocation)
+    }
+
+    /// The outcome remains usable when moved or copied. Its tag only refines
+    /// the resident while all incoming paths preserve this exact observation.
+    pub(super) fn allocate_outcome(
+        &mut self,
+        mut outcome: Stored,
+        target: Location,
+        resident: Stored,
+        cases: Vec<(StructuralCaseId, Stored)>,
+    ) -> Location {
+        let identity = self.fresh_identity();
+        self.set(
+            &target,
+            Stored::Observed {
+                identity,
+                value: Rc::new(resident),
+            },
+        );
+        outcome.attach_observation(Rc::new(CaseEffect {
+            identity,
+            target,
+            cases,
+        }));
+        self.allocate(outcome)
+    }
+
+    pub(super) fn select_outcome(&mut self, outcome: &Stored, tag: StructuralCaseId) {
+        let Some(effect) = outcome.observation() else {
+            return;
+        };
+        if let Stored::Observed { identity, .. } = self.get(&effect.target)
+            && identity == effect.identity
+            && let Some((_, value)) = effect.cases.iter().find(|(case, _)| *case == tag)
+        {
+            self.set(
+                &effect.target,
+                Stored::Observed {
+                    identity,
+                    value: Rc::new(value.clone()),
+                },
+            );
+        }
     }
 
     pub(super) fn locate(

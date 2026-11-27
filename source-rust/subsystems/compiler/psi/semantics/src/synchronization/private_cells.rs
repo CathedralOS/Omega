@@ -3,6 +3,7 @@
 
 mod activation;
 mod aggregate;
+mod atomic_attempt;
 mod computed;
 mod continuation;
 mod control;
