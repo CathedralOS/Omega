@@ -4295,9 +4295,16 @@ pub(crate) mod reference_input {
         load_pointer |= placed.is_some_and(|backing| backing.resident_source().is_some());
         let load_codec = storage.is_none() && semantic_scalar.is_some() && load_pointer;
         let codec = match storage {
-            Some(storage) => storage
-                .stored_scalar
-                .and_then(runtime_abi::ScalarStorageCodec::from_scalar),
+            Some(storage) => storage.stored_scalar.and_then(|stored| {
+                // A same-width scalar representation view reinterprets the
+                // backing bits under the presented scalar's codec (for
+                // example, sign-extending `u8` bits read through `@i8`).
+                let presented = semantic_scalar.filter(|logical| {
+                    terminal_semantics::reference_storage_byte_width(stored)
+                        == terminal_semantics::reference_storage_byte_width(*logical)
+                });
+                runtime_abi::ScalarStorageCodec::from_scalar(presented.unwrap_or(stored))
+            }),
             None if !load_codec && semantic_scalar.is_some() => {
                 projected_scalar_codec(projection_root, projection_path, declarations)
             }
