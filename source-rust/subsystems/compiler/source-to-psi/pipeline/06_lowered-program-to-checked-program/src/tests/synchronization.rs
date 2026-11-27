@@ -190,8 +190,8 @@ fn expect_unproved_progress(source: &str) {
     );
 }
 
-/// Reopen the checked invocation and supply the public entry argument. This
-/// exercises the same entry contract after publication and executes the wait.
+/// Recheck the saved artifact, then execute the original checked publication
+/// with the public entry argument. Decoded bytes alone grant no execution trust.
 fn execute_with_input(source: &str, input: u32) {
     let verdict = super::build_purpose::judge_build_published(
         source,
@@ -222,7 +222,8 @@ fn execute_with_input(source: &str, input: u32) {
         scalar_type,
         value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(input)),
     }];
-    let program = terminal_interpreter::TerminalProgram::borrow(saved.view()).unwrap();
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program
         .instantiate(terminal_interpreter::TerminalInstantiation {
             scalar_arguments: &arguments,
