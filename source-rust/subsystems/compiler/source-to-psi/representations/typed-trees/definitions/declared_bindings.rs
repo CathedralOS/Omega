@@ -588,40 +588,6 @@ impl TypedTrees {
         }
         None
     }
-
-    /// Match the full binder sequence in root order, including empty sequences
-    /// and malformed duplicates; types and spellings do not change this query.
-    pub fn state_position_for_parameter_symbols(
-        &self,
-        parameters: arena::RootRows<'_, StateParameter>,
-    ) -> Option<(u32, u32)> {
-        for (machine_position, machine) in self
-            .tables
-            .machines
-            .span(self.roots.machines)?
-            .iter()
-            .enumerate()
-        {
-            for (state_position, state) in self
-                .tables
-                .machine_states
-                .span(machine.states)?
-                .iter()
-                .enumerate()
-            {
-                let authored = self.tables.state_parameters.span(state.parameters)?;
-                if authored.len() == parameters.len()
-                    && authored
-                        .iter()
-                        .zip(parameters)
-                        .all(|(left, right)| left.symbol == right.symbol)
-                {
-                    return Some((machine_position as u32, state_position as u32));
-                }
-            }
-        }
-        None
-    }
 }
 
 #[cfg(test)]

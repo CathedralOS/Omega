@@ -3163,7 +3163,6 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "tokens",
  "typed-trees",
- "wire",
  "worker-budget",
 ]
 

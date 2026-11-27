@@ -43,16 +43,6 @@ pub struct SourceTypeApplication {
     pub scope: std::sync::Arc<SourceTypeScope>,
 }
 
-/// The canonical service coordinate paired with its source declaration.
-/// The lowering owner prepares this association; consumers retain it
-/// beside the checked module instead of comparing display identities.
-#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-pub struct SourceServiceCorrespondence {
-    pub service: semantic_vocabulary::ServiceId,
-    pub source: semantic_vocabulary::ServiceReachId,
-    pub declaration: SymbolHandle,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub struct SourceRecordCorrespondence {
     pub record: StructuralTypeId,

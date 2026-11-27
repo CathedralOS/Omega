@@ -3805,16 +3805,6 @@ pub(crate) mod lifetime_parameters {
         ))
     }
 
-    pub fn applied_lifetime_parameter_identity(
-        program: &TypedTrees,
-        lexical_owner: SymbolHandle,
-        name: &str,
-        scopes: &[super::AppliedTypeIdentityScope<'_>],
-    ) -> Option<LifetimeParameterIdentity> {
-        applied_lifetime_parameter_identity_with_supplier(program, lexical_owner, name, scopes)
-            .map(|(identity, _)| identity)
-    }
-
     pub fn applied_lifetime_parameter_identity_with_supplier(
         program: &TypedTrees,
         lexical_owner: SymbolHandle,
@@ -6831,36 +6821,6 @@ pub(crate) mod portable_machine_applications {
     use std::cell::{Cell, RefCell};
     use symbols::SymbolHandle;
 
-    pub fn portable_machine_application_identity(
-        program: &TypedTrees,
-        symbol: SymbolHandle,
-        exact_toolchain_sources: &[(source_text::SourceId, [u8; 32])],
-    ) -> Result<Option<String>, String> {
-        let projection = PortableMachineApplications::default();
-        let invalid = Cell::new(false);
-        let context = TypeIdentityContext {
-            portable_machine_applications: Some(&projection),
-            qualification: TypeIdentityQualification::PackageQualified,
-            exact_toolchain_sources,
-            missing_exact_nominal_owner: Some(&invalid),
-            invalid_application: Some(&invalid),
-            encountered_elided_regions: Some(&invalid),
-            invalid_index_argument: Some(&invalid),
-            ..Default::default()
-        };
-        let result = projection.identity(program, symbol, &context)?;
-        if let Some(reason) = projection.error.into_inner() {
-            return Err(reason);
-        }
-        if invalid.get() {
-            return Err(
-                "specialization argument lost its exact owner, static operand, or lifetime scope"
-                    .into(),
-            );
-        }
-        Ok(result)
-    }
-
     pub fn portable_machine_selection_identity(
         program: &TypedTrees,
         selected: &crate::source_state::expression::StaticMachineArgument,
@@ -8874,18 +8834,15 @@ pub use callable_identity::{
     CallableResultDispatchId,
 };
 pub use lifetime_parameters::{
-    LifetimeParameterIdentity, applied_lifetime_parameter_identity,
-    applied_lifetime_parameter_identity_with_supplier, apply_resolved_lifetime_parameter_identity,
-    declaration_lifetime_parameters, lifetime_parameter_identity, lifetime_parameter_name,
-    portable_lifetime_parameter_identity,
+    LifetimeParameterIdentity, applied_lifetime_parameter_identity_with_supplier,
+    apply_resolved_lifetime_parameter_identity, declaration_lifetime_parameters,
+    lifetime_parameter_identity, lifetime_parameter_name, portable_lifetime_parameter_identity,
 };
 pub use normalized_identities::{
     NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
     TypeIdentityTable,
 };
-pub use portable_machine_applications::{
-    portable_machine_application_identity, portable_machine_selection_identity,
-};
+pub use portable_machine_applications::portable_machine_selection_identity;
 pub(crate) use portable_machine_applications::{
     portable_machine_selection_identity_in_context, portable_record_schema_identity_in_context,
 };
@@ -8990,34 +8947,6 @@ pub fn applied_type_identity_in_region_scope(
         TypeIdentityQualification::Ordinary,
         resolved_lifetimes,
     )
-}
-
-/// `applied_type_identity_in_region_scope` of the carrier an occurrence
-/// stores: the same identity with the domains of each constrained type left
-/// out and everything else, lifetimes included, kept. `@'a [u8] in Utf8` and
-/// `@'a [u8]` store one carrier; a domain qualifies the value and is no part
-/// of its storage type (domains.md, "Carrier-exact membership").
-pub fn applied_carrier_identity_in_region_scope(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-    receiving_owner: SymbolHandle,
-    argument_owner: SymbolHandle,
-) -> Option<NormalizedTypeIdentity> {
-    let invalid = Cell::new(false);
-    let identity = normalize_type_identity(
-        program,
-        reference,
-        &TypeIdentityContext {
-            erase_constraints: true,
-            application_owner: receiving_owner,
-            application_argument_owner: argument_owner,
-            invalid_application: Some(&invalid),
-            encountered_elided_regions: Some(&invalid),
-            invalid_index_argument: Some(&invalid),
-            ..TypeIdentityContext::default()
-        },
-    );
-    (!invalid.get()).then_some(identity)
 }
 
 pub fn applied_index_identity(

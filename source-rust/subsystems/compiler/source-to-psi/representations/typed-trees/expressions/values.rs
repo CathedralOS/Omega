@@ -4775,10 +4775,6 @@ pub mod expression {
             self.iter_expressions()
         }
 
-        pub fn struct_field_count(&self) -> usize {
-            self.struct_fields.len()
-        }
-
         pub fn display_name(&self, handle: ExpressionHandle) -> String {
             let mut rendered = String::new();
             self.write_display_name(handle, &mut rendered);

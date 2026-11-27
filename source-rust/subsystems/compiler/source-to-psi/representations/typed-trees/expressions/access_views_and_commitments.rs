@@ -6,28 +6,6 @@ and specialization commitments (`commitments`), constant evaluation recipes
 */
 
 pub(crate) mod access_views {
-    pub fn access_atomic_observing_results(
-        operations: access_vocabulary::AtomicPermissions,
-    ) -> Vec<AccessAtomicObservingResultContract> {
-        let mut observing_results = Vec::new();
-        if operations.compare_exchange {
-            let operation =
-                language_core::atomic::AtomicObservingCompareExchangeOperation::Decisive;
-            observing_results.push(AccessAtomicObservingResultContract {
-                operation,
-                result_shape: operation.result_shape(),
-            });
-        }
-        if operations.compare_exchange_once {
-            let operation =
-                language_core::atomic::AtomicObservingCompareExchangeOperation::SingleAttempt;
-            observing_results.push(AccessAtomicObservingResultContract {
-                operation,
-                result_shape: operation.result_shape(),
-            });
-        }
-        observing_results
-    }
 
     pub(crate) mod lifecycle_execution {
         use super::AccessLifecycleOperation;
@@ -49,17 +27,6 @@ pub(crate) mod access_views {
             machine: symbols::SymbolHandle,
             state: symbols::SymbolHandle,
             template: symbols::SymbolHandle,
-        }
-
-        pub struct AccessBackingTransfer {
-            pub parameter: usize,
-            pub input: &'static str,
-            pub output: &'static str,
-        }
-
-        pub struct AccessBackingOutcome {
-            pub case: &'static str,
-            pub transfers: &'static [AccessBackingTransfer],
         }
 
         impl AccessExecutionDeclaration {
@@ -677,9 +644,7 @@ pub(crate) mod access_views {
             }
         }
     }
-    pub use lifecycle_execution::{
-        AccessBackingOutcome, AccessBackingTransfer, AccessContentShape, AccessExecutionDeclaration,
-    };
+    pub use lifecycle_execution::{AccessContentShape, AccessExecutionDeclaration};
     pub use primitive_selection::AccessorPrimitive;
     pub use sealed_accessors::{ScalarAccessorDeclaration, ScalarAccessorOperation};
 
@@ -1278,14 +1243,8 @@ pub mod constant_recipes {
     pub(crate) mod evaluation_entries {
         use crate::source_state::TypedTrees;
         use crate::source_state::expression::ExpressionHandle;
-        use crate::source_state::machine::Machine;
-        use crate::source_state::name::Identifier;
-        use crate::source_state::state::State;
-        use crate::source_state::statement::{
-            StatementNode, TableTransition, TransitionTargetNode,
-        };
         use crate::source_state::types::TypeReferenceHandle;
-        use symbols::{SymbolHandle, SymbolKind};
+        use symbols::SymbolHandle;
 
         #[derive(Clone, Copy)]
         pub struct ConstantEvaluationEntry {
@@ -1332,49 +1291,8 @@ pub mod constant_recipes {
                 })
             }
         }
-
-        pub fn create_evaluation_entry(
-            program: &mut TypedTrees,
-            owner: SymbolHandle,
-            name: String,
-            expression: ExpressionHandle,
-            destination: TypeReferenceHandle,
-        ) -> Machine {
-            let symbol =
-                program
-                    .symbols
-                    .insert_generated_root_from(owner, SymbolKind::Machine, &name);
-            let children = program
-                .symbols
-                .insert_generated_children(symbol, [(SymbolKind::State, name.as_str())]);
-            let target = program
-                .statement_table
-                .insert_transition_target(TransitionTargetNode::Value(expression));
-            let mut state = State {
-                symbol: children.start(),
-                name: Identifier::generated(name.clone()),
-                return_type: destination,
-                ..Default::default()
-            };
-            let source_span = program.expression_table.source_span(expression);
-            program.statement_table.push_statement(
-                &mut state.statement_nodes,
-                StatementNode::Transition(TableTransition {
-                    target,
-                    source_span,
-                    ..Default::default()
-                }),
-            );
-            let mut machine = Machine {
-                symbol,
-                name: Identifier::generated(name),
-                ..Default::default()
-            };
-            program.push_machine_state(&mut machine, state);
-            machine
-        }
     }
-    pub use evaluation_entries::{ConstantEvaluationEntry, create_evaluation_entry};
+    pub use evaluation_entries::ConstantEvaluationEntry;
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
     pub enum RetainedConstantPosition {
@@ -1723,23 +1641,6 @@ pub(crate) mod wire_schema_queries {
     impl TypedTrees {
         crate::source_state::typed_tree_table! {
             wire_schemas => wire_schemas(wire::WireSchema) [push_wire_schema];
-        }
-
-        pub fn record_wire_schema_plan(
-            &mut self,
-            schema: symbols::SymbolHandle,
-            placements: impl IntoIterator<Item = wire::WirePlacement>,
-            encode_obligations: impl IntoIterator<Item = wire::WireEncodeObligation>,
-            policy_verified: bool,
-        ) {
-            let span = self.wire_placements.insert_many(placements);
-            let obligations = self.wire_encode_obligations.insert_many(encode_obligations);
-            self.wire_schema_plans.push(wire::WireSchemaPlan {
-                schema,
-                placements: span,
-                encode_obligations: obligations,
-                policy_verified,
-            });
         }
 
         pub fn append_wire_members(

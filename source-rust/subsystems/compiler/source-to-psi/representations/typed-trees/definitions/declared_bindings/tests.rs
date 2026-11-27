@@ -441,11 +441,6 @@ fn published_and_detached_queries_share_rows_and_preserve_root_multiplicity() {
     });
     matches_global_roster(&program, &binders);
     assert_eq!(program.unique_local_data_for_symbol(binders[1]), None);
-    let parameters = program.state_parameters(&state);
-    assert_eq!(
-        program.state_position_for_parameter_symbols(parameters),
-        Some((0, 0))
-    );
     program.roots.machines = HandleSpan::empty();
     matches_global_roster(&program, &binders);
     program.roots.machines = roots;
@@ -613,12 +608,6 @@ fn legacy_named_value_and_signature_queries_keep_source_order() {
     assert_eq!(
         program.first_named_value_declared_type(SymbolHandle::invalid(), SymbolHandle::invalid()),
         None
-    );
-    let mut requested = program.state_parameters(&state).to_vec();
-    requested[0].type_reference = other;
-    assert_eq!(
-        program.state_position_for_parameter_symbols((&requested).into()),
-        Some((0, 0))
     );
     assert_eq!(program.unique_local_data_for_symbol(binders[1]), None);
 }

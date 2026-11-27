@@ -6,7 +6,7 @@ pub(crate) use callables::{
 };
 pub use callables::{
     callable_lifetimes, callable_signature_shapes, callable_values, runtime_callable_identity,
-    source_call_occurrences, static_operand_binding,
+    static_operand_binding,
 };
 pub use definitions::{
     compiler_intrinsics, declarations, native_locators, service_declarations, source_names,
@@ -53,7 +53,7 @@ pub use service_declarations::provider_declarations;
 pub use source_review::{
     SourceCallCorrespondence, SourceFieldCorrespondence, SourceLayoutPlanCoordinate,
     SourceLayoutRealizationCoordinate, SourceNode, SourceRecordCleanup, SourceRecordCorrespondence,
-    SourceServiceCorrespondence, SourceTypeApplication, SourceTypeScope,
+    SourceTypeApplication, SourceTypeScope,
 };
 pub use spelled_declarations::SpelledDeclarationTable;
 pub use storage::{TypedTreeRoots, TypedTreeTables};
@@ -70,14 +70,13 @@ pub use crate::source_selections::{
     AuthoredDeclarationSelectionRecordError, AuthoredDeclarationSelections,
 };
 pub use access_views::{
-    AccessAtomicObservingResultContract, AccessAtomicResidentContract, AccessBackingOutcome,
-    AccessBackingTransfer, AccessContentShape, AccessExecutionDeclaration, AccessFieldPlan,
-    AccessLifecycleOperation, AccessLifecycleOwner, AccessLifecyclePlan, AccessLifecycleStorage,
-    AccessViewPlan, AccessorPrimitive, AccessorTarget, PlanLaidFieldLayoutSource, PlanLaidGeometry,
-    PlanLaidLayout, PlanLaidRealizations, PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument,
-    PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
-    PrivateCallbackSlotApplication, ScalarAccessorDeclaration, ScalarAccessorOperation,
-    access_atomic_observing_results,
+    AccessAtomicObservingResultContract, AccessAtomicResidentContract, AccessContentShape,
+    AccessExecutionDeclaration, AccessFieldPlan, AccessLifecycleOperation, AccessLifecycleOwner,
+    AccessLifecyclePlan, AccessLifecycleStorage, AccessViewPlan, AccessorPrimitive, AccessorTarget,
+    PlanLaidFieldLayoutSource, PlanLaidGeometry, PlanLaidLayout, PlanLaidRealizations,
+    PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument, PlanLaidSchemaField,
+    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, PrivateCallbackSlotApplication,
+    ScalarAccessorDeclaration, ScalarAccessorOperation,
 };
 pub use calls::{signature, static_applications};
 pub use commitments::{
