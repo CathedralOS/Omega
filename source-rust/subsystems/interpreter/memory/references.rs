@@ -1042,7 +1042,7 @@ pub(crate) mod placed {
                         let [field] = ready.fields.as_slice() else {
                             return Err(malformed());
                         };
-                        storage.stage_case(root.clone(), result.structural_type, ready.id)?;
+                        storage.stage_case(root, result.structural_type, ready.id)?;
                         let mut presentation = backing.clone();
                         presentation.structural_type = carrier;
                         presentation.qualifications.clear();
@@ -1084,7 +1084,7 @@ pub(crate) mod placed {
                         let [_, reason_field] = rejected.fields.as_slice() else {
                             return Err(malformed());
                         };
-                        storage.stage_case(root.clone(), result.structural_type, rejected.id)?;
+                        storage.stage_case(root, result.structural_type, rejected.id)?;
                         crate::storage::provider_storage::initialization::stage_rejection_failure(
                             &mut storage,
                             rejection,

@@ -1962,7 +1962,7 @@ pub(crate) mod lifecycle {
                         .ok_or(malformed())?;
                     storage.stage_scalar_endpoint(
                         &PrimitiveStorageEndpoint::ScalarField(
-                            StructuralScalarRuntimeField::member(destination.clone(), count.id),
+                            StructuralScalarRuntimeField::member(destination, count.id),
                         ),
                         TerminalScalarValue::Integer {
                             scalar_type: count
@@ -2116,7 +2116,7 @@ pub(crate) mod lifecycle {
             let mut value = self.mint_staged(&mut identity_cursor, result.structural_type)?;
             let root = StructuralRuntimePlace::from(&value);
             let mut storage = ConstructorStorage::new(self.account.as_ref());
-            storage.stage_case(root.clone(), result.structural_type, rejected.id)?;
+            storage.stage_case(root, result.structural_type, rejected.id)?;
             let mut frontier = self.live_affine_frontier.clone();
             let mut consumed = Vec::new();
             let mut transported = BTreeMap::new();

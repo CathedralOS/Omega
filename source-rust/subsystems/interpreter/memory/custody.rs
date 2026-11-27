@@ -1822,7 +1822,7 @@ pub(crate) fn split_affine_frontier_at_projection(
                     if let Some(case) = case {
                         path.push(StructuralPathSegment::Case(case));
                     }
-                    path.push(segment.clone());
+                    path.push(segment);
                     let child = StructuralAffineDiscard {
                         place: current.place,
                         path,
