@@ -2085,7 +2085,6 @@ dependencies = [
  "image-macho",
  "native-artifact",
  "object-file",
- "optimization-requests",
  "platform-custody",
  "target",
  "terminal-codec",

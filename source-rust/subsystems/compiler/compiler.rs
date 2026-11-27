@@ -212,7 +212,7 @@ pub fn compile(
                 .admit_runtime(entry_memory, &mut Vec::new())?;
             Ok(CompileOutput {
                 artifact: Artifact::Runtime(product_publication::CompletedProduct::from_runtime(
-                    admitted, None,
+                    admitted,
                 )),
                 validations,
             })
@@ -232,7 +232,6 @@ pub fn compile(
             Ok(CompileOutput {
                 artifact: Artifact::Native(product_publication::CompletedProduct::from_native(
                     emitted.image,
-                    None,
                     application,
                 )),
                 validations: emitted.validations,

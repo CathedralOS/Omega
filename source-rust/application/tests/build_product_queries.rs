@@ -127,7 +127,7 @@ fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Re
     let Artifact::Psi(artifact) = compiled.artifact else {
         panic!("requested Psi");
     };
-    let mut published = CompletedProduct::from_published_psi(artifact, None)?;
+    let mut published = CompletedProduct::from_published_psi(artifact)?;
     let path = output.path().join("program.psi");
     CompletedProduct::save_shared_psi(&mut [&mut published], &path)?;
     let manifest = published
