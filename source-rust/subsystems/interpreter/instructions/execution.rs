@@ -2451,9 +2451,7 @@ pub(crate) mod execution {
     use crate::boundary::values::{
         StructuralByteSequenceRuntimeField, StructuralRuntimePlace, StructuralScalarRuntimeField,
     };
-    use crate::boundary::values::{
-        TerminalScalarValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
-    };
+    use crate::boundary::values::{TerminalScalarValue, TerminalStructuralValue};
     use crate::embedding::instance::{ComponentBindings, TerminalProcessExitAdmission};
     use crate::embedding::program::ProgramDeclarations;
     use crate::engine::custody::{
@@ -3477,27 +3475,6 @@ pub(crate) mod execution {
                 .iter()
                 .map(|argument| self.scalar_value(*argument))
                 .collect()
-        }
-
-        pub fn structural_primitive_values(
-            &self,
-        ) -> Result<Vec<TerminalStructuralPrimitiveValue>, TerminalInterpretError> {
-            self.final_structural_primitive_values()
-        }
-
-        pub(crate) fn final_structural_primitive_values(
-            &self,
-        ) -> Result<Vec<TerminalStructuralPrimitiveValue>, TerminalInterpretError> {
-            let mut values = Vec::with_capacity(self.structural_primitive_entry_places.len());
-            for (argument_index, place) in &self.structural_primitive_entry_places {
-                if let Some(cell) = self.primitive_cell(place)? {
-                    values.push(TerminalStructuralPrimitiveValue {
-                        argument_index: *argument_index,
-                        value: cell.read()?,
-                    });
-                }
-            }
-            Ok(values)
         }
 
         pub fn live_affine_frontier(&self) -> impl Iterator<Item = &StructuralAffineDiscard> + '_ {

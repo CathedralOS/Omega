@@ -4,11 +4,6 @@
 // compilations skip inner clock reads instead of measuring and discarding rows
 // at merge time. Repeated measurements for the same stage label accumulate in
 // place without reordering first-seen phases.
-//
-// `BUILD_AND_CHECKED_CONTINUATION` spans build evaluation and the checked
-// continuation it drives (including Psi 00–03 and pre-build checks), while
-// `SOURCE_ASSEMBLY` spans package closure resolution and per-target source
-// assembly before build evaluation.
 
 pub mod counters;
 pub mod source;
@@ -35,21 +30,6 @@ impl StageMeta {
         format!("{}: {} -> {}", self.name, self.input, self.output)
     }
 }
-
-pub const SOURCE_FILES_TO_TOKENS: StageMeta =
-    StageMeta::new("Psi 00", "SourceFiles", "TokenStreams");
-
-pub const TOKENS_TO_SYNTAX_TREES: StageMeta =
-    StageMeta::new("Psi 01", "TokenStreams", "SyntaxTrees");
-
-pub const BUILD_AND_CHECKED_CONTINUATION: StageMeta = StageMeta::new(
-    "Step: build",
-    "AssembledSyntax",
-    "TypedTrees (contains Psi 00-03)",
-);
-
-pub const SOURCE_ASSEMBLY: StageMeta =
-    StageMeta::new("Step: assemble", "PreparedSources", "AssembledSyntax");
 
 /// Wall time to prepare native inputs for every target `--check` checks.
 /// The targets prepare in parallel, so this is not a sum of per-target work.
@@ -133,49 +113,47 @@ impl CompileTimings {
 
 #[cfg(test)]
 mod tests {
-    use super::{CompileTimings, SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
+    use super::CompileTimings;
+    use super::source::{LOAD_FILES, PARSE_FILES};
 
     #[test]
     fn repeated_phase_measurements_aggregate_without_reordering() {
         let mut timings = CompileTimings::enabled();
-        timings.add_completed(TOKENS_TO_SYNTAX_TREES, 7);
-        timings.add_completed(SOURCE_FILES_TO_TOKENS, 13);
-        timings.add_completed(TOKENS_TO_SYNTAX_TREES, 17);
+        timings.add_completed(PARSE_FILES, 7);
+        timings.add_completed(LOAD_FILES, 13);
+        timings.add_completed(PARSE_FILES, 17);
 
         assert_eq!(timings.phases().len(), 2);
-        assert_eq!(timings.phases()[0].phase, TOKENS_TO_SYNTAX_TREES.label());
+        assert_eq!(timings.phases()[0].phase, PARSE_FILES.label());
         assert_eq!(timings.phases()[0].microseconds, 24);
-        assert_eq!(timings.phases()[1].phase, SOURCE_FILES_TO_TOKENS.label());
+        assert_eq!(timings.phases()[1].phase, LOAD_FILES.label());
     }
 
     #[test]
     fn generic_error_measurement_preserves_the_exact_error() {
         let mut timings = CompileTimings::enabled();
         let result: Result<(), &'static str> =
-            timings.record_result(TOKENS_TO_SYNTAX_TREES, || Err("retained base"));
+            timings.record_result(PARSE_FILES, || Err("retained base"));
 
         assert_eq!(result, Err("retained base"));
         assert_eq!(timings.phases().len(), 1);
-        assert_eq!(timings.phases()[0].phase, TOKENS_TO_SYNTAX_TREES.label());
+        assert_eq!(timings.phases()[0].phase, PARSE_FILES.label());
     }
 
     #[test]
     fn default_collection_runs_work_without_retaining_measurements() {
         let mut timings = CompileTimings::default();
-        assert_eq!(
-            timings.record_result(TOKENS_TO_SYNTAX_TREES, || Ok::<_, ()>(7)),
-            Ok(7)
-        );
-        timings.add_completed(SOURCE_FILES_TO_TOKENS, 3);
+        assert_eq!(timings.record_result(PARSE_FILES, || Ok::<_, ()>(7)), Ok(7));
+        timings.add_completed(LOAD_FILES, 3);
         assert!(timings.phases().is_empty());
     }
 
     #[test]
     fn shared_work_adds_to_local_measurements_without_enabling_collection() {
         let mut shared = CompileTimings::enabled();
-        shared.add_completed(SOURCE_FILES_TO_TOKENS, 7);
+        shared.add_completed(LOAD_FILES, 7);
         let mut local = CompileTimings::enabled();
-        local.add_completed(SOURCE_FILES_TO_TOKENS, 3);
+        local.add_completed(LOAD_FILES, 3);
         local.extend(&shared);
         assert_eq!(local.phases()[0].microseconds, 10);
         assert_eq!(shared.phases()[0].microseconds, 7);

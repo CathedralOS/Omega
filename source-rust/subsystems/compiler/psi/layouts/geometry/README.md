@@ -1,9 +1,9 @@
 # Psi storage layouts
 
-This owner carries chosen storage geometry, layout reports, field and symbolic
-coordinates, placement constraints, stored-integer fit contracts and symbolic
-write records. Canonical fingerprints and shape checks belong to these records;
-neither chooses a default layout nor writes storage.
+This owner carries chosen storage geometry, layout reports, field coordinates,
+stored-integer checks and private callback placements. Canonical fingerprints
+and shape checks belong to these records; neither chooses a default layout nor
+writes storage.
 
 [Geometry](geometry.rs) describes sizes, alignments and field offsets.
 [Packing](packing.rs) computes offsets for records and sums from the supplied

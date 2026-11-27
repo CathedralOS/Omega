@@ -11,10 +11,6 @@ pub enum ProgramEntryTerminalReceiptError {
     TerminalEntryMultiplicity(usize),
     NonUnitEntry,
     MissingEntryDeclaration,
-    TerminalIdentity(crate::CodecError),
-    ArtifactSemanticIdentityMismatch,
-    ContextBridgeMultiplicity(usize),
-    ContextBridgeOccurrenceMismatch,
 }
 
 impl std::fmt::Display for ProgramEntryTerminalReceiptError {
@@ -60,14 +56,4 @@ pub fn prepare_program_entry_receipt(
         artifact.manifest().semantic(),
         entry.id,
     ))
-}
-
-pub fn rejoin_program_entry_receipt(
-    receipt: &CheckedProgramEntryTerminalReceipt,
-    artifact: &CanonicalTerminalArtifact,
-) -> Result<(), ProgramEntryTerminalReceiptError> {
-    if artifact.manifest().semantic() != receipt.terminal_psi_identity() {
-        return Err(ProgramEntryTerminalReceiptError::ArtifactSemanticIdentityMismatch);
-    }
-    Ok(())
 }
