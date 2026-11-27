@@ -50,7 +50,7 @@ use terminal_psi::OperationResult;
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_normalized_foreign_child(
     pass: crate::physical::PhysicalEvidencePass,
-    result_geometry: &psi_target_layouts::TargetLayoutGeometry<'_>,
+    result_geometry: &calling_conventions::terminal_layout::StructuralLayoutResolver<'_>,
     occurrence: &OptimizedBoundaryOccurrence,
     projection: NativeOptimizationProjectionIdentity,
     requirement_identity: &str,
@@ -310,7 +310,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 .ok_or("normalized foreign D41 child lost its structural declarations")?;
             let declared_codec =
                 TargetBoundaryResult::declared_reference_codec(result.structural_type, |id| {
-                    result_geometry.declaration(id)
+                    result_geometry.declaration(id).ok()
                 });
             let layout_matches =
                 if let Some(codec) = rejoin.record.call.result.scalar_reference_codec() {
@@ -342,7 +342,7 @@ pub(crate) fn derive_normalized_foreign_child(
                     .any(|item| item.id == result.structural_type)
                 || retained_types
                     .iter()
-                    .any(|item| result_geometry.declaration(item.id) != Some(item))
+                    .any(|item| result_geometry.declaration(item.id).ok() != Some(item))
                 || !layout_matches
             {
                 return Err("normalized foreign D41 child changed its structural result custody");

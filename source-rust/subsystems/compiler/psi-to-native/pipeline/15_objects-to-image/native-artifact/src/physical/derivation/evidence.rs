@@ -143,7 +143,7 @@ fn derive_object_physical_evidence(
     // Physical homes retain the selected record geometry from lowering. Replay
     // that selection on the original Psi before comparing a fragment's claims.
     let layouts;
-    let result_geometry = if !module.layouts.target_layout_applications.is_empty()
+    let records = if !module.layouts.target_layout_applications.is_empty()
         && let Some(profile) = object.profile()
         && let Some(facts) = profile.layout_target_facts()
     {
@@ -160,6 +160,9 @@ fn derive_object_physical_evidence(
     } else {
         psi_target_layouts::TargetLayoutGeometry::unscoped(terminal_artifact)
     };
+    let result_geometry =
+        calling_conventions::terminal_layout::StructuralLayoutResolver::new(records.declarations())
+            .map_err(|_| "physical result declarations have invalid identities")?;
     let boundary_application_coverage = boundary_application_coverage
         .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
 
