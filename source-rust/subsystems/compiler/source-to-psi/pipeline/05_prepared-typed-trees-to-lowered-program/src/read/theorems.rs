@@ -3,7 +3,6 @@
 use crate::read::refuse_at;
 
 use super::{Program, span};
-use crate::Unserved;
 use crate::body::{Ceiling, CrashCeiling, Qualification, ValueType};
 use crate::source_state::domain::ProofFact;
 use crate::source_state::signature::{SignatureContractKind, StateSignature};
