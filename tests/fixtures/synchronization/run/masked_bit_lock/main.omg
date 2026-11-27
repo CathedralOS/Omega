@@ -1,0 +1,16 @@
+// Bit 2 owns the lock. An independent bit remains set throughout both acquisitions.
+data Flags { word: AtomicU32; other: AtomicU32; }
+
+machine acquire(flags: @Flags) {
+    let prior: u32 = flags.word.fetch_or(4, ReceivePublish);
+    transition (prior & 4) == 0 { true -> done(), _ -> acquire(flags) }
+    machine done() {}
+}
+
+machine main() {
+    let mutable flags: Flags;
+    flags.word.store(2, Publish);
+    acquire(@flags);
+    let prior: u32 = flags.word.fetch_and(4294967291, ReceivePublish);
+    acquire(@flags);
+}

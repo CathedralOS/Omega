@@ -203,3 +203,40 @@ fn atomic_read_modify_write_returns_the_old_word_and_installs_the_typed_result()
             .replace("prior == 0", "prior == 1"),
     );
 }
+
+#[test]
+fn a_private_bit_lock_tracks_its_bit_and_ignores_other_status_bits() {
+    let set = include_str!("../../../tests/fixtures/synchronization/run/masked_bit_lock/main.omg");
+    let (acquisition, entry) = set.split_once("machine main()").unwrap();
+    let clear = format!(
+        "{}machine main(){}",
+        acquisition
+            .replace("fetch_or(4,", "fetch_and(4294967291,")
+            .replace("(prior & 4) == 0", "(4 & prior) != 0"),
+        entry
+            .replace("store(2,", "store(6,")
+            .replace("fetch_and(4294967291,", "fetch_or(4,")
+    );
+    // Toggling a held bit enables this loop on its second attempt. Treating
+    // XOR as an idempotent operation would incorrectly report a deadlock.
+    program::assert_silent_return(
+        &set.replace("fetch_or(4,", "fetch_xor(4,")
+            .replace("store(2,", "store(6,"),
+    );
+    for source in [set, &clear] {
+        program::assert_silent_return(source);
+        // Both acquisitions target the original cell. Calling the release
+        // on the sibling cell leaves the original lock held.
+        let (acquire, entry) = source.split_once("machine main()").unwrap();
+        let held = format!(
+            "{acquire}machine main(){}",
+            entry.replace("flags.word.fetch_", "flags.other.fetch_")
+        );
+        let (outcome, diagnostic) = program::invoke(&held, &["--check"]);
+        assert!(!outcome.status.success(), "{diagnostic}");
+        assert!(
+            diagnostic.contains("synchronization deadlock"),
+            "{diagnostic}"
+        );
+    }
+}
