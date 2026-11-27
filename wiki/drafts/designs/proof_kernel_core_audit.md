@@ -1618,7 +1618,14 @@ same_sign> as SameSign;` is read into the mathematical signature when
     The reader still needs to consume that conformance.
     The compiler uses soundness only, which holds for any relation.
   - A generic quotient, and a quotient of data that has storage in the
-    mathematical signature. Ordinary programs run a quotient of copyable,
+    mathematical signature. Neither is a quotient question alone: the
+    signature states only data that contains itself and records of it, so
+    it has no data with a type parameter and no `i32` field for a quotient
+    to be of (2026-11-27). The reader refuses generic quotient data, and a
+    law equating classes of stored data is refused as "Identity of classes
+    of a quotient of data that has storage"
+    (`a_law_over_classes_of_stored_data_is_refused_by_name`). Ordinary
+    programs run a quotient of copyable,
     custody-free data stored as its representative: all nineteen programs
     under `samples/cli/facts/quotient_closed_literal/` pass the sample gate
     on Linux x86-64 (2026-11-27), each invalid twin refused because its

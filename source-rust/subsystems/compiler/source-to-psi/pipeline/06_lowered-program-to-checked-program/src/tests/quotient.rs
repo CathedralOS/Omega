@@ -828,3 +828,40 @@ fn quotient_effectivity_uses_selected_mere_equivalence_laws() {
     assert_eq!(law.machine, "equal_classes_are_related");
     assert_eq!(law.cause, UnprovedCause::NoDerivation);
 }
+
+/// The executable quotient of the `quotient_closed_literal` sample family,
+/// over a record that stores an `i32`.
+const STORED: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../../samples/cli/facts/quotient_closed_literal/parameter/main.omg"
+));
+
+#[test]
+fn a_law_over_classes_of_stored_data_is_refused_by_name() {
+    // `related_representatives_have_one_class` proves this law of a
+    // quotient of mathematical data. Over data that stores an `i32` the
+    // mathematical signature has no quotient to state it with, so it is
+    // refused as that, not proved and not dropped.
+    let start = STORED
+        .find("data Representative")
+        .expect("the sample's carrier");
+    let end = STORED
+        .find("machine representative(")
+        .expect("the sample's operation");
+    let source = format!(
+        "use {{omega}}/language/core/relation.omg;\n\
+         use {{omega}}/language/core/foundation.omg as proof;\n{}\n\
+         machine one_class(a: Representative, b: Representative)\n\
+         requires equivalent(a, b)\n\
+         ensures |proof|::Identity::<EquivalenceClass>(a as EquivalenceClass, b as EquivalenceClass)\n\
+         {{\n}}\n",
+        &STORED[start..end]
+    );
+    let verdicts = judged(&source);
+    assert!(
+        matches!(refusals(&verdicts).as_slice(), [detail]
+            if detail.contains("quotient of data that has storage")),
+        "{:?}",
+        refusals(&verdicts)
+    );
+}
