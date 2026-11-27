@@ -268,17 +268,16 @@ fn completion_identity(
     steps: &[StructuralRewriteStep],
 ) -> SelectedLoweringOptimizationCompletionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.selected-lowering-structural-rewrites.v1\0");
+    canonical.extend_from_slice(b"omega.selected-lowering-structural-rewrites.v2\0");
     for identity in [
-        custody.optimization.bytes(),
-        custody.projection.bytes(),
-        custody.manifest.bytes(),
+        custody.selection.bytes(),
         custody.optimization_unit.bytes(),
         custody.register_environment.bytes(),
         selections.identity().bytes(),
     ] {
         canonical.extend_from_slice(&identity);
     }
+    canonical.extend_from_slice(&custody.budget_per_pass.encode());
     canonical.extend_from_slice(&custody.entry.get().to_le_bytes());
     canonical.extend_from_slice(&custody.work_schedule.marker().to_le_bytes());
     for step in steps {
@@ -659,15 +658,8 @@ mod tests {
             psi: program.plan.psi,
             target: program.plan.target,
             entry: program.plan.entry,
-            optimization: optimization_core::OptimizationIdentityBundleIdentity::from_bytes(
-                [3; 32],
-            ),
-            projection: optimization_core::OptimizedAbstractPlanProjectionIdentity::from_bytes(
-                [4; 32],
-            ),
-            manifest: optimization_core::PrePhysicalOptimizationManifestIdentity::from_bytes(
-                [5; 32],
-            ),
+            selection: optimization_core::OptimizationSelectionIdentity::from_bytes([3; 32]),
+            budget_per_pass: optimization_core::OptimizationWorkBudget::new(1, 1, 1, 1, 1).unwrap(),
             optimization_unit: program.optimization_unit,
             work_schedule: program.work_schedule,
             register_environment: environment.identity(),

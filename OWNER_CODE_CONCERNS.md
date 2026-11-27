@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-<a id="native-stages-compare-identities-that-restate-their-inputs"></a>
-### Native stages 04–15 compare three identities that only restate their inputs
-- Category: 8. Zombie machinery
-- Where: `OptimizedAbstractProgram::unoptimized` (`source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/unoptimized.rs`) issues `optimization`, `projection` and `pre_physical_manifest`; `PreparedInstructionSelection` (`representations/target-operations/legalized-operations/src/selection.rs`) carries them into stage 05's selected-instruction custody (`representations/selected-instructions/src/lib.rs:263-272`), the stage 06 analyses and stage 07 allocation receipts; `pre_physical` also enters `PostAllocationOptimizationManifest` (`representations/register-homes/src/post_allocation_manifest.rs`) and the execution facts (`target-vocabulary/src/execution_facts.rs`), and the projection reaches stage 15 (`native-artifact/src/physical/projection.rs`)
-- Saw: native stage 03 is archived, and its ledger, decision log, pass manifests, statistics and ownership-frontier facts are deleted, so these three digests bind nothing a later stage lacks. The optimization identity rehashes the selection identity; the projection rehashes the Terminal identity, work schedule, unit identity and selection identity; the manifest identity rehashes the projection, selection identity and budget. Stages 05–08 carry and compare all three beside the selections and budget they already hold.
-- Cost: each stage record carries three 32-byte fields and their comparisons, and a reader has to learn identities that no optimization run produces. A repair has stages 05–15 compare the selection identity, unit identity and budget directly and deletes the three identity types, or brings them back with a native optimization phase that changes the plan.
-- Reported: 2026-11-27, Claude Code, while archiving native stage 03; narrowed the same day after the empty optimizer records were deleted
-
 <a id="resuming-a-typing-from-retained-source-costs-more-than-typing-afresh"></a>
 ### Resuming a typing from retained source costs more than typing afresh
 - Category: 4. Re-deriving

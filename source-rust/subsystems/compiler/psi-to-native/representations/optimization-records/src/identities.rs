@@ -72,13 +72,6 @@ canonical_identity!(
     AcceptedObligationFactIdentity => b"omega.accepted-obligation-fact-identity.v1\0"
 );
 canonical_identity!(
-    OptimizationIdentityBundleIdentity => b"omega.optimization-identity-bundle-identity.v2\0"
-);
-canonical_identity!(
-    PrePhysicalOptimizationManifestIdentity =>
-        b"omega.pre-physical-optimization-manifest-identity.v3\0"
-);
-canonical_identity!(
     PostAllocationOptimizationManifestIdentity =>
         b"omega.post-allocation-optimization-manifest-identity.v1\0"
 );
@@ -91,17 +84,13 @@ canonical_identity!(
         b"omega.pre-allocation-optimization-completion-identity.v1\0"
 );
 canonical_identity!(
-    OptimizedAbstractPlanProjectionIdentity =>
-        b"omega.optimized-abstract-plan-projection-identity.v3\0"
+    OptimizedBoundaryOccurrenceIdentity => b"omega.optimized-boundary-occurrence-identity.v2\0"
 );
 canonical_identity!(
-    OptimizedBoundaryOccurrenceIdentity => b"omega.optimized-boundary-occurrence-identity.v1\0"
+    OptimizedOperatorOccurrenceIdentity => b"omega.optimized-operator-occurrence-identity.v2\0"
 );
 canonical_identity!(
-    OptimizedOperatorOccurrenceIdentity => b"omega.optimized-operator-occurrence-identity.v1\0"
-);
-canonical_identity!(
-    NativeOptimizationProjectionIdentity => b"omega.native-optimization-projection-identity.v2\0"
+    NativeOptimizationProjectionIdentity => b"omega.native-optimization-projection-identity.v3\0"
 );
 
 #[cfg(test)]
@@ -114,12 +103,9 @@ mod tests {
             OptimizationUnitIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationValidatorIdentity::from_canonical_bytes(b"same").bytes(),
             AcceptedObligationFactIdentity::from_canonical_bytes(b"same").bytes(),
-            OptimizationIdentityBundleIdentity::from_canonical_bytes(b"same").bytes(),
-            PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"same").bytes(),
             PostAllocationOptimizationManifestIdentity::from_canonical_bytes(b"same").bytes(),
             SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"same").bytes(),
             PreAllocationOptimizationCompletionIdentity::from_canonical_bytes(b"same").bytes(),
-            OptimizedAbstractPlanProjectionIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(b"same").bytes(),
             NativeOptimizationProjectionIdentity::from_canonical_bytes(b"same").bytes(),

@@ -6,9 +6,8 @@ plan and Terminal boundary-application coverage.
 
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 use optimization_core::{
-    NativeOptimizationProjectionIdentity, OptimizationUnitIdentity,
-    OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
-    OptimizedOperatorOccurrenceIdentity,
+    NativeOptimizationProjectionIdentity, OptimizationSelectionIdentity, OptimizationUnitIdentity,
+    OptimizedBoundaryOccurrenceIdentity, OptimizedOperatorOccurrenceIdentity,
 };
 use semantic_vocabulary::OperationId;
 use terminal_psi::TerminalPsiIdentity;
@@ -22,12 +21,12 @@ use super::{
 use semantic_vocabulary::InvocationSite;
 
 const OPTIMIZED_SCOPE_IDENTITY_DOMAIN: &[u8] =
-    b"omega.native-artifact.validated-optimized-physical-scope.sha256.v1\0";
+    b"omega.native-artifact.validated-optimized-physical-scope.sha256.v2\0";
 
 #[derive(Clone, Copy)]
 struct ValidatedProjectionCoordinates {
     terminal: TerminalPsiIdentity,
-    validation: OptimizedAbstractPlanProjectionIdentity,
+    selection: OptimizationSelectionIdentity,
     final_unit: OptimizationUnitIdentity,
 }
 
@@ -40,7 +39,7 @@ struct D29ReferenceCoordinate {
 pub(crate) fn derive_validated_optimization_scope(
     final_plan: &EmissionProgramFacts,
     terminal: TerminalPsiIdentity,
-    validation: OptimizedAbstractPlanProjectionIdentity,
+    selection: OptimizationSelectionIdentity,
     final_unit: OptimizationUnitIdentity,
     boundary_application_coverage: &TerminalBoundaryApplicationCoverage,
     boundary_application_coverage_identity: [u8; 32],
@@ -59,7 +58,7 @@ pub(crate) fn derive_validated_optimization_scope(
     derive_optimized_scope(
         ValidatedProjectionCoordinates {
             terminal,
-            validation,
+            selection,
             final_unit,
         },
         final_plan,
@@ -174,7 +173,7 @@ fn derive_optimized_scope(
         projection_identity,
     );
     Ok(validated_optimized_native_physical_evidence_scope(
-        authority.validation,
+        authority.selection,
         authority.final_unit,
         boundary_application_coverage_identity,
         projection,
@@ -255,7 +254,7 @@ fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u
     canonical.extend_from_slice(&super::identity_bytes::terminal_identity_bytes(
         authority.terminal,
     ));
-    canonical.extend_from_slice(&authority.validation.bytes());
+    canonical.extend_from_slice(&authority.selection.bytes());
     canonical.extend_from_slice(&authority.final_unit.bytes());
     canonical
 }
@@ -264,7 +263,7 @@ fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u
 mod tests {
     use super::{D29ReferenceCoordinate, ValidatedProjectionCoordinates, derive_optimized_scope};
     use operation_operands::values::AbstractFunctionResult;
-    use optimization_core::{OptimizationUnitIdentity, OptimizedAbstractPlanProjectionIdentity};
+    use optimization_core::{OptimizationSelectionIdentity, OptimizationUnitIdentity};
     use semantic_vocabulary::{BoundaryMachineId, InvocationSite, MachineId, OperationId};
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
     use verified_optimization_input::publication::{
@@ -281,9 +280,7 @@ mod tests {
     fn authority(terminal: TerminalPsiIdentity) -> ValidatedProjectionCoordinates {
         ValidatedProjectionCoordinates {
             terminal,
-            validation: OptimizedAbstractPlanProjectionIdentity::from_canonical_bytes(
-                b"validated projection",
-            ),
+            selection: OptimizationSelectionIdentity::from_bytes([7; 32]),
             final_unit: OptimizationUnitIdentity::from_canonical_bytes(b"final unit"),
         }
     }

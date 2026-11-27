@@ -310,9 +310,9 @@ mod tests {
         let mut publication_record = register_homes::PostAllocationOptimizationManifest {
             identity: PostAllocationOptimizationManifestIdentity::from_bytes([0; 32]),
             stage: register_homes::PostAllocationManifestStage::RegisterHomes,
-            pre_physical: optimization_core::PrePhysicalOptimizationManifestIdentity::from_bytes(
-                [10; 32],
-            ),
+            optimization_unit: optimization_core::OptimizationUnitIdentity::from_bytes([10; 32]),
+            selection: selections.identity(),
+            budget_per_pass: budget,
             target: machine.target,
             selected: Arc::clone(&machine.selected),
             selected_lowering_completion: None,
@@ -618,7 +618,8 @@ mod tests {
                             optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
                                 b"metadata substitution",
                             ),
-                        pre_physical: original.publication.record().pre_physical,
+                        selection: original.publication.record().selection,
+                        budget_per_pass: original.publication.record().budget_per_pass,
                     },
                     Arc::new(
                         target_vocabulary::execution_facts::ReachableCallableInvocations {
