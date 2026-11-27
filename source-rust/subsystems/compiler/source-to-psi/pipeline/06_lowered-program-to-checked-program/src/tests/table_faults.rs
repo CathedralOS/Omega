@@ -11,10 +11,11 @@
 // wrong subject, and an obligation or premise attached at a point where
 // facts hold that do not hold where it belongs.
 //
-// The last three groups do the same to the tables that say what storage
-// holds: the write log, the place table and the value table. A goal over a
-// field is stated over the value its leaf holds, so a log, a place or a
-// value that is wrong changes what is proved without touching an obligation.
+// The last two groups do the same to the tables that still say what storage
+// holds: the place table and the value table. A goal over a field is stated
+// over the value its leaf holds, so a place or a value that is wrong changes
+// what is proved without touching an obligation. The write log is not among
+// them: the checker derives it from the operations and reads no other.
 
 use crate::lowering::Elaboration;
 use semantic_vocabulary::{EdgeId, InvocationSite};
@@ -615,33 +616,6 @@ fn knowledge_the_elaborator_supplies_is_never_used() {
     assert_eq!(refusal.detail, "knowledge rows already present");
 }
 
-// A write log that is not what the operations store.
-
-fn relog(tables: &mut MachineTables, rows: Vec<WriteRow>) {
-    tables.writes = IdTable::default();
-    for row in rows {
-        tables.writes.push(row);
-    }
-}
-
-fn logged(tables: &MachineTables) -> Vec<WriteRow> {
-    tables.writes.values().copied().collect()
-}
-
-#[test]
-fn a_write_to_a_foreign_place_is_refused() {
-    let verdict = with_fault(paired, |elaboration| {
-        let tables = entry_tables(elaboration);
-        let mut rows = logged(tables);
-        rows[0].place = id(tables.places.len() as u64 + 1);
-        relog(tables, rows);
-    });
-    assert_refused(
-        verdict,
-        "a write row names a place past the end of this machine",
-    );
-}
-
 /// Explicit scalar binds supply the old zero-name slots. The writer itself
 /// emits no such names, so compatibility does not test its own output shape.
 fn zeroed_point(preceding: &[u128]) -> Elaboration {
@@ -666,59 +640,6 @@ fn zeroed_point(preceding: &[u128]) -> Elaboration {
     )
 }
 
-fn zero_aliases(elaboration: &mut Elaboration, aliases: &[(u64, ValueId)]) {
-    let paths = aliases
-        .iter()
-        .map(|(field, value)| (vec![Segment::Field(id(*field))], *value))
-        .collect::<Vec<_>>();
-    zero_paths(elaboration, &paths);
-}
-
-fn zero_paths(elaboration: &mut Elaboration, aliases: &[(Vec<Segment>, ValueId)]) {
-    let (operation, root) = elaboration.module.machines[0]
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|operation| matches!(operation.kind, OperationKind::EstablishZeroedStructural {}))
-        .map(|operation| {
-            (
-                operation.id,
-                operation.result.as_structural().unwrap().place,
-            )
-        })
-        .unwrap();
-    let tables = entry_tables(elaboration);
-    let exact = *tables.roots.get(root).unwrap();
-    let extra = aliases
-        .iter()
-        .map(|(path, value)| {
-            let mut place = exact;
-            for segment in path {
-                place = terminal_check_tables::bindings::intern_projection(
-                    id(1),
-                    &mut tables.places,
-                    place,
-                    *segment,
-                )
-                .unwrap();
-            }
-            WriteRow {
-                place,
-                at: ProgramPoint::AfterOperation(operation),
-                content: Content::Value(*value),
-            }
-        })
-        .collect::<Vec<_>>();
-    let mut rows = logged(tables);
-    let after = rows
-        .iter()
-        .position(|row| row.at == ProgramPoint::AfterOperation(operation))
-        .unwrap()
-        + 1;
-    rows.splice(after..after, extra);
-    relog(tables, rows);
-}
-
 #[test]
 fn zero_reads_derive_their_value_only_from_the_establishing_store() {
     for preceding in [[0, 0], [0, 7]] {
@@ -732,34 +653,6 @@ fn zero_reads_derive_their_value_only_from_the_establishing_store() {
         let tables = compact.tables.machines.get(id(1)).unwrap();
         assert_eq!(read_equals(tables, read), None);
         assert_read_equation(tables, read, number(0));
-
-        let mut legacy = zeroed_point(&preceding);
-        let values = constants(&legacy);
-        assert_eq!(values.len(), 2);
-        let mut aliases = vec![(1, values[0])];
-        if preceding[1] == 0 {
-            aliases.push((2, values[1]));
-        }
-        zero_aliases(&mut legacy, &aliases);
-        assert_refused(
-            judge(Ok(legacy)),
-            "a write row states a store its operation does not make",
-        );
-    }
-}
-
-#[test]
-fn extra_zero_writes_are_refused_regardless_of_order() {
-    for fields in [vec![1], vec![2], vec![1, 1], vec![2, 1], vec![1, 2, 2]] {
-        let mut program = zeroed_point(&[0, 0]);
-        let values = constants(&program);
-        let aliases = fields
-            .into_iter()
-            .map(|field| (field, values[field as usize - 1]))
-            .collect::<Vec<_>>();
-        zero_aliases(&mut program, &aliases);
-        let refusal = judge(Ok(program)).unwrap_err();
-        assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
     }
 }
 
@@ -837,23 +730,6 @@ fn zeroed_array_after(length: u64, dynamic: bool, bound: u128, preceding: &[u128
         }],
         &types,
     )
-}
-
-#[test]
-fn a_zeroed_array_does_not_take_values_from_adjacent_constants() {
-    let mut program = zeroed_array_after(3, false, 0, &[0, 7, 0]);
-    let values = constants(&program);
-    zero_paths(
-        &mut program,
-        &[
-            (vec![Segment::FixedIndex(0)], values[0]),
-            (vec![Segment::FixedIndex(2)], values[2]),
-        ],
-    );
-    assert_refused(
-        judge(Ok(program)),
-        "a write row states a store its operation does not make",
-    );
 }
 
 #[test]
@@ -1019,113 +895,7 @@ fn a_zeroed_float_holds_positive_zero_regardless_of_the_preceding_constant() {
             read,
             ScalarTerm::IeeeFloatLiteral(zero),
         );
-        let mut program = program();
-        let constant = program.module.machines[0].blocks[0]
-            .operations
-            .iter()
-            .find(|operation| matches!(operation.kind, OperationKind::IeeeFloatConstant { .. }))
-            .unwrap()
-            .result
-            .as_scalar()
-            .unwrap()
-            .id;
-        zero_aliases(&mut program, &[(1, constant)]);
-        assert_refused(
-            judge(Ok(program)),
-            "a write row states a store its operation does not make",
-        );
     }
-}
-
-#[test]
-fn a_write_row_that_logs_another_value_is_refused() {
-    // `paired`: the construction stores `v` into `value`, and `1 <= value`
-    // is unproved of it. Logged as holding the `17` stored into `neighbor`,
-    // the clause is `1 <= 17`.
-    let verdict = with_fault(paired, |elaboration| {
-        let seventeen = constants(elaboration)[0];
-        let mut rows = logged(entry_tables(elaboration));
-        let stored = rows
-            .iter_mut()
-            .find(|row| row.content == Content::Value(id(1)))
-            .unwrap();
-        stored.content = Content::Value(seventeen);
-        relog(entry_tables(elaboration), rows);
-    });
-    assert_refused(verdict, "a write row is not what its operation stores");
-}
-
-/// `f(v) { let mutable p = Point { x: 7, y: 9 }; p.x = v; peek(p) }` where
-/// `peek` requires `p.x == 7`: at the call `p.x` holds `v`, not the `7` it
-/// was constructed with.
-fn stored_over() -> Elaboration {
-    elaborate_places(vec![
-        Shaped {
-            parameters: vec![u32_type().into()],
-            locals: vec![point()],
-            result: u32_type().into(),
-            requires: Vec::new(),
-            statements: vec![
-                bind(1, point_of(unsigned(7), unsigned(9))),
-                store(1, &[0], slot(0, u32_type())),
-                returns(peeking(place(1, point()))),
-            ],
-        },
-        peek(),
-    ])
-}
-
-/// The one scalar field store of machine 1, as its position in the write
-/// log: the row at its normal continuation.
-fn store_row(elaboration: &Elaboration) -> usize {
-    let store = elaboration.module.machines[0]
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|operation| {
-            matches!(
-                operation.kind,
-                OperationKind::StructuralScalarFieldStore { .. }
-            )
-        })
-        .unwrap()
-        .id;
-    elaboration
-        .tables
-        .machines
-        .get(id(1))
-        .unwrap()
-        .writes
-        .values()
-        .position(|row| row.at == ProgramPoint::AfterOperation(store))
-        .unwrap()
-}
-
-#[test]
-fn a_store_whose_write_row_is_missing_is_refused() {
-    // Without the store's row the last write to `p.x` is the construction.
-    let verdict = with_fault(stored_over, |elaboration| {
-        let row = store_row(elaboration);
-        let mut rows = logged(entry_tables(elaboration));
-        rows.remove(row);
-        relog(entry_tables(elaboration), rows);
-    });
-    assert_refused(verdict, "an operation's store has no write row");
-}
-
-#[test]
-fn a_write_row_moved_before_the_construction_it_follows_is_refused() {
-    // The store's row, stated at the first operation of the block: the
-    // construction then comes after it and is the write that reaches the
-    // call.
-    let verdict = with_fault(stored_over, |elaboration| {
-        let first = elaboration.module.machines[0].blocks[0].operations[0].id;
-        let row = store_row(elaboration);
-        let mut rows = logged(entry_tables(elaboration));
-        rows[row].at = ProgramPoint::AfterOperation(first);
-        relog(entry_tables(elaboration), rows);
-    });
-    assert_refused(verdict, "an operation's store has no write row");
 }
 
 /// `f(p: Point) { let c = 3; bounded(p.x) }` where `bounded` requires
@@ -1158,31 +928,10 @@ fn first_constant(elaboration: &Elaboration) -> (OperationId, ValueId) {
 }
 
 #[test]
-fn a_write_row_for_a_store_no_operation_makes_is_refused() {
-    // A row that says the constant `3` was stored into `p.x`. No operation
-    // stores into the formal, and with the row its read equals `3`.
-    let verdict = with_fault(passes_a_formal_field, |elaboration| {
-        let (constant, three) = first_constant(elaboration);
-        let tables = entry_tables(elaboration);
-        let mut rows = logged(tables);
-        rows.push(WriteRow {
-            place: projected(tables, id(1), &[1]),
-            at: ProgramPoint::AfterOperation(constant),
-            content: Content::Value(three),
-        });
-        relog(tables, rows);
-    });
-    assert_refused(
-        verdict,
-        "a write row states a store its operation does not make",
-    );
-}
-
-#[test]
-fn a_zeroed_leaf_logged_as_another_constant_is_refused() {
+fn a_zeroed_leaf_holds_zero_beside_a_positive_constant() {
     // f() { let c = 3; let b: Bounded; positive(b.value) } where `positive`
-    // requires `1 <= v`: the zero value's `value` is `0`. Logged as holding
-    // the constant `3`, the requirement is `1 <= 3`.
+    // requires `1 <= v`: the zero value's `value` is `0`, not the constant `3`
+    // the machine computed before it.
     let program = || {
         elaborate_over(
             vec![
@@ -1206,13 +955,12 @@ fn a_zeroed_leaf_logged_as_another_constant_is_refused() {
             &constrained(),
         )
     };
-    let verdict = with_fault(program, |elaboration| {
-        let (_, three) = first_constant(elaboration);
-        zero_aliases(elaboration, &[(1, three)]);
-    });
-    assert_refused(
-        verdict,
-        "a write row states a store its operation does not make",
+    // The checker derives the zero from the establishing store alone, so
+    // the requirement is `1 <= 0` and stays unproved.
+    let verdict = judge(Ok(program())).unwrap();
+    assert!(
+        matches!(&verdict, RouteVerdict::Rejected { unestablished, .. } if unestablished.is_empty()),
+        "a zeroed leaf must not meet a positive requirement: {verdict:?}"
     );
 }
 
