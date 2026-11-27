@@ -499,24 +499,25 @@ struct Recursion<'s> {
     /// field holds the data or another member of its block.
     results: &'s [Option<TermHandle>],
     /// For a definition by mutual recursion over a block of data: each
-    /// machine defined with it, with the member it dispatches on. Empty
-    /// otherwise.
-    group: &'s [(MachineId, u32)],
+    /// machine defined with it, with the member it dispatches on and the
+    /// formal that takes it. Empty otherwise.
+    group: &'s [(MachineId, u32, usize)],
     /// For each field of the case, the member of the block it holds.
     members: &'s [Option<u32>],
 }
 
 impl Recursion<'_> {
-    /// Whether a call of `callee` is the recursion, and, for a mutual group,
-    /// the member it recurses on.
-    fn calls(&self, callee: MachineId) -> Option<Option<u32>> {
+    /// Whether a call of `callee` is the recursion, and if so, for a mutual
+    /// group, the member it recurses on, and the formal of `callee` that
+    /// takes the field it recurses at.
+    fn calls(&self, callee: MachineId) -> Option<(Option<u32>, usize)> {
         if self.group.is_empty() {
-            return (callee == self.machine).then_some(None);
+            return (callee == self.machine).then_some((None, self.subject));
         }
         self.group
             .iter()
-            .find(|(machine, _)| *machine == callee)
-            .map(|(_, member)| Some(*member))
+            .find(|(machine, ..)| *machine == callee)
+            .map(|&(_, member, subject)| (Some(member), subject))
     }
 }
 
@@ -3788,15 +3789,17 @@ impl<'p> Converter<'p, '_> {
         ))
     }
 
-    /// A definition by cases on the one formal of a machine over a member of
-    /// a mutual block of data, as the block's recursion. The machines it
+    /// A definition by cases on a formal of a machine over a member of a
+    /// mutual block of data, as the block's recursion. The machines it
     /// calls, directly or through each other, that call it again are defined
-    /// with it (`mutual_group`): each takes one value of a member and
-    /// dispatches on it, and a call of one at a field of its member is the
-    /// recursion's result there. The recursion takes one motive per member
-    /// and one branch per constructor of the block. A member no machine of
-    /// the group dispatches on gets a motive into `Two` and branches that
-    /// ignore their fields: nothing reads their value.
+    /// with it (`mutual_group`): each dispatches on a value of a member, and
+    /// a call of one at a field of its member is the recursion's result
+    /// there, at the call's other arguments. The recursion takes one motive
+    /// per member and one branch per constructor of the block. A member's
+    /// motive is a function of its machine's other formals, as in `by_cases`,
+    /// and each branch binds them and has its machine's premises at them. A
+    /// member no machine of the group dispatches on gets a motive into `Two`
+    /// and branches that ignore their fields: nothing reads their value.
     fn by_mutual_cases(
         &mut self,
         defining: &Defining<'_>,
@@ -3805,35 +3808,79 @@ impl<'p> Converter<'p, '_> {
         arms: &[(CaseSelector, Target, crate::SourceOrigin)],
     ) -> Checked<TermHandle> {
         let id = defining.id;
-        if defining.formals.len() != 1 || !defining.premises.is_empty() {
-            return Err(unserved(
-                id,
-                "definition by cases over a mutual block of data with other formals or a premise",
-            ));
-        }
         let first = shape.member_entry(data, 0);
         let group = self
             .mutual_group(id, first, shape.members())?
             .into_iter()
-            .map(|(machine, member, result)| {
+            .map(|(machine, member, subject, result)| {
                 result
-                    .map(|result| (machine, member, result))
+                    .map(|result| (machine, member, subject, result))
                     .ok_or_else(|| {
                         unserved(machine, "machine of a mutual recursion with no result")
                     })
             })
             .collect::<Checked<Vec<_>>>()?;
-        let members: Vec<(MachineId, u32)> = group
+        let members: Vec<(MachineId, u32, usize)> = group
             .iter()
-            .map(|&(machine, member, _)| (machine, member))
+            .map(|&(machine, member, subject, _)| (machine, member, subject))
             .collect();
+        // Each machine of the group: its formals, the others than the one
+        // it dispatches on, and its premises over its formals.
+        struct Defined {
+            formals: Vec<(TermHandle, u32)>,
+            others: Vec<usize>,
+            premises: Vec<TermHandle>,
+        }
+        let mut defined = Vec::with_capacity(group.len());
+        for &(machine, _, subject, _) in &group {
+            let formals = if machine == id {
+                defining.formals.to_vec()
+            } else {
+                self.formals(machine)?
+            };
+            let count = formals.len();
+            let premises = if machine == id {
+                defining.premises.to_vec()
+            } else {
+                let open: Vec<_> = (0..count)
+                    .map(|formal| self.variable((count - 1 - formal) as u32))
+                    .collect();
+                let program = self.program;
+                let signature = program
+                    .signatures
+                    .get(machine)
+                    .ok_or_else(|| unserved(machine, "mathematical machine lost its signature"))?;
+                let mut premises = Vec::with_capacity(signature.requires.len());
+                for premise in &signature.requires {
+                    premises.push(self.equality(machine, premise, &open, None)?);
+                }
+                premises
+            };
+            let others = (0..count).filter(|formal| *formal != subject).collect();
+            defined.push(Defined {
+                formals,
+                others,
+                premises,
+            });
+        }
         let two = self.signature.arena.insert(Term::Two);
+        // A member's motive returns a function of its machine's other
+        // formals, so a recursive call may pass them different values.
         let landings: Vec<TermHandle> = (0..shape.members())
             .map(|member| {
-                group
-                    .iter()
-                    .find(|(_, of, _)| *of == member)
-                    .map_or(two, |(_, _, result)| *result)
+                let Some(position) = group.iter().position(|(_, of, ..)| *of == member) else {
+                    return two;
+                };
+                let (_, _, _, result) = group[position];
+                let own = &defined[position];
+                let mut landing = result;
+                for &other in own.others.iter().rev() {
+                    landing = self.signature.arena.insert(Term::Pi {
+                        domain: own.formals[other].0,
+                        codomain: landing,
+                    });
+                }
+                landing
             })
             .collect();
         let motives: Vec<TermHandle> = (0..shape.members())
@@ -3850,7 +3897,7 @@ impl<'p> Converter<'p, '_> {
         for member in 0..shape.members() {
             let at = shape.at_member(member).expect("a member of the block");
             let entry = first + member;
-            let Some(&(machine, _, result)) = group.iter().find(|(_, of, _)| *of == member) else {
+            let Some(position) = group.iter().position(|(_, of, ..)| *of == member) else {
                 for case in 0..at.cases() {
                     let ignored = self.signature.arena.insert(Term::TwoZero);
                     branches.push(at.branch_in(
@@ -3863,6 +3910,10 @@ impl<'p> Converter<'p, '_> {
                 }
                 continue;
             };
+            let (machine, _, subject, result) = group[position];
+            let own = &defined[position];
+            let count = own.formals.len();
+            let rest = own.others.len() as u32;
             let body = bodies
                 .get(machine)
                 .ok_or_else(|| unserved(machine, "mathematical machine lost its body"))?;
@@ -3910,46 +3961,60 @@ impl<'p> Converter<'p, '_> {
                 let arity = at.arity(case);
                 let arena = &mut self.signature.arena;
                 let fields: Vec<_> = (0..arity)
-                    .map(|field| at.field(arena, case, field, 0))
+                    .map(|field| at.field(arena, case, field, rest))
                     .collect();
                 let results: Vec<_> = (0..arity)
-                    .map(|field| at.hypothesis(arena, case, field, 0))
+                    .map(|field| at.hypothesis(arena, case, field, rest))
                     .collect();
                 let field_members: Vec<_> = (0..arity)
                     .map(|field| at.field_member(case, field))
                     .collect();
-                let mut slots = vec![None; body.slots.len().max(1)];
-                slots[0] = Some(Bound {
-                    term: at.case_value(arena, entry, case, 0),
+                // Inside the case the dispatched formal is the case's value
+                // and the other formals are the branch's own variables.
+                let mut slots = vec![None; body.slots.len().max(count)];
+                let value_term = at.case_value(arena, entry, case, rest);
+                slots[subject] = Some(Bound {
+                    term: value_term,
                     field: None,
                     applied: None,
                 });
-                // The variables of the branch: the case's fields, then the
+                let mut actuals = vec![value_term; count];
+                for (place, &other) in own.others.iter().enumerate() {
+                    let term = self.variable(rest - 1 - place as u32);
+                    slots[other] = Some(Bound {
+                        term,
+                        field: None,
+                        applied: None,
+                    });
+                    actuals[other] = term;
+                }
+                // The variables of the branch: the case's fields, the
                 // recursion at each field of a member, into that member's
-                // motive.
-                let mut context = at.field_types(arena, entry, case);
-                context.extend(
-                    field_members
-                        .iter()
-                        .flatten()
-                        .map(|&of| landings[of as usize]),
-                );
+                // motive, then the other formals.
+                let arena = &mut self.signature.arena;
+                let mut context = at.case_binders_in(arena, entry, &motives, case);
+                context.extend(own.others.iter().map(|&other| own.formals[other].0));
+                let premises: Vec<_> = own
+                    .premises
+                    .iter()
+                    .map(|&premise| instantiate(arena, premise, &actuals))
+                    .collect();
                 let valuing = Valuing {
                     owner: machine,
                     context: &context,
                     result,
                     fuel: None,
-                    premises: &[],
+                    premises: &premises,
                     facts: &[],
                     cited: &[],
                 };
                 let scope = Scope {
                     slots: &slots,
                     aliases: &aliases,
-                    case: Some((0, case, &fields)),
+                    case: Some((subject, case, &fields)),
                     recursion: Some(Recursion {
                         machine,
-                        subject: 0,
+                        subject,
                         results: &results,
                         group: &members,
                         members: &field_members,
@@ -3958,7 +4023,13 @@ impl<'p> Converter<'p, '_> {
                     induction: true,
                     value: Some(&valuing),
                 };
-                let branch = self.expression(machine, value, &scope)?.term;
+                let mut branch = self.expression(machine, value, &scope)?.term;
+                for &other in own.others.iter().rev() {
+                    branch = self.signature.arena.insert(Term::Lambda {
+                        domain: own.formals[other].0,
+                        body: branch,
+                    });
+                }
                 branches.push(at.branch_in(
                     &mut self.signature.arena,
                     entry,
@@ -3968,48 +4039,61 @@ impl<'p> Converter<'p, '_> {
                 ));
             }
         }
-        let tree = self.variable(0);
-        Ok(shape.induct_in(
+        let position = group
+            .iter()
+            .position(|(machine, ..)| *machine == id)
+            .ok_or_else(|| unserved(id, "mutual recursion that does not define its machine"))?;
+        let (_, _, subject, _) = group[position];
+        let own = &defined[position];
+        let count = own.formals.len();
+        let tree = self.variable((count - 1 - subject) as u32);
+        let induction = shape.induct_in(
             &mut self.signature.arena,
             data,
             Level::Constant(0),
             &motives,
             &branches,
             tree,
-        ))
+        );
+        let arguments: Vec<_> = own
+            .others
+            .iter()
+            .map(|&other| self.variable((count - 1 - other) as u32))
+            .collect();
+        Ok(self.signature.arena.apply_arguments(induction, &arguments))
     }
 
     /// The laws proved with law `id` by induction over a member of a mutual
     /// block of data: the machines its arms cite, directly or through each
     /// other, that cite it again (`mutual_group`), each with the member it
-    /// dispatches on, and for each member of the block the machine whose law
-    /// is about it. The block's induction takes a motive per member, so each
-    /// states one equality about one value of its member, with no premise;
-    /// a member none is about gets a motive into `Two` in stage 06.
+    /// dispatches on and the formal that takes it, and for each member of
+    /// the block the machine whose law is about it. The block's induction
+    /// takes a motive per member, so each states one equality about one
+    /// value of its member, for every value of its other formals that meets
+    /// its premises; a member none is about gets a motive into `Two` in
+    /// stage 06.
     #[allow(clippy::type_complexity)]
     fn mutual_laws(
         &mut self,
         id: MachineId,
         shape: &PlainData,
         data: u32,
-    ) -> Checked<(Vec<(MachineId, u32)>, Vec<Option<SymbolHandle>>)> {
+    ) -> Checked<(Vec<(MachineId, u32, usize)>, Vec<Option<SymbolHandle>>)> {
         let first = shape.member_entry(data, 0);
         let group = self.mutual_group(id, first, shape.members())?;
         if !group.iter().any(|(machine, ..)| *machine == id) {
             return Err(unserved(
                 id,
-                "law by induction over a mutual block of data with other formals",
+                "law by induction over a mutual block of data on a formal it does not dispatch on",
             ));
         }
         let mut mutual = vec![None; shape.members() as usize];
-        for &(machine, member, _) in &group {
+        for &(machine, member, ..) in &group {
             let single = self
                 .program
                 .signatures
                 .get(machine)
-                .is_some_and(|signature| {
-                    signature.ensures.len() == 1 && signature.requires.is_empty()
-                });
+                .is_some_and(|signature| signature.ensures.len() == 1);
             let satisfies = self
                 .satisfactions
                 .iter()
@@ -4017,7 +4101,7 @@ impl<'p> Converter<'p, '_> {
             if !single || satisfies {
                 return Err(unserved(
                     machine,
-                    "law of a mutual induction that is not one equality with no premise",
+                    "law of a mutual induction that is not one equality of its own",
                 ));
             }
             let symbol =
@@ -4028,34 +4112,44 @@ impl<'p> Converter<'p, '_> {
         }
         let group = group
             .into_iter()
-            .map(|(machine, member, _)| (machine, member))
+            .map(|(machine, member, subject, _)| (machine, member, subject))
             .collect();
         Ok((group, mutual))
     }
 
     /// The machines defined with `id` by mutual recursion over the block
     /// whose first member is at entry `first`: those it calls in its arms,
-    /// directly or through each other, that call it again. Each takes one
-    /// value of a member, and no two dispatch on one
-    /// member. Each with the member it dispatches on and its result type.
+    /// directly or through each other, that call it again. Each dispatches
+    /// on a value of a member (`mutual_member`), and no two dispatch on one
+    /// member. Each with that member, the formal that takes it and its
+    /// result type.
     fn mutual_group(
         &mut self,
         id: MachineId,
         first: u32,
         members: u32,
-    ) -> Checked<Vec<(MachineId, u32, Option<TermHandle>)>> {
-        let mut reached: Vec<(MachineId, u32, Option<TermHandle>, Vec<MachineId>)> = Vec::new();
+    ) -> Checked<Vec<(MachineId, u32, usize, Option<TermHandle>)>> {
+        // A machine declared inside another that dispatches on nothing (a
+        // law's case read in place) is passed through: its calls are its
+        // caller's.
+        #[allow(clippy::type_complexity)]
+        let mut reached: Vec<(
+            MachineId,
+            Option<(u32, usize, Option<TermHandle>)>,
+            Vec<MachineId>,
+        )> = Vec::new();
         let mut queue = vec![id];
         while let Some(machine) = queue.pop() {
             if reached.iter().any(|(known, ..)| *known == machine) {
                 continue;
             }
-            let Some((member, result)) = self.mutual_member(machine, first, members)? else {
+            let member = self.mutual_member(machine, first, members)?;
+            if member.is_none() && !self.helper(machine) {
                 continue;
-            };
+            }
             let callees = self.dispatch_callees(machine);
             queue.extend(callees.iter().copied());
-            reached.push((machine, member, result, callees));
+            reached.push((machine, member, callees));
         }
         // Those that reach `id` again through the reached machines' calls.
         let reaches = |from: MachineId| {
@@ -4078,15 +4172,23 @@ impl<'p> Converter<'p, '_> {
             }
             false
         };
-        let group: Vec<(MachineId, u32, Option<TermHandle>)> = reached
+        let group: Vec<(MachineId, u32, usize, Option<TermHandle>)> = reached
             .iter()
             .filter(|(machine, ..)| *machine == id || reaches(*machine))
-            .map(|(machine, member, result, _)| (*machine, *member, *result))
+            .filter_map(|&(machine, member, _)| {
+                member.map(|(member, subject, result)| (machine, member, subject, result))
+            })
             .collect();
-        for (position, (_, member, _)) in group.iter().enumerate() {
+        for (position, &(machine, member, ..)) in group.iter().enumerate() {
+            if self.template(machine).is_some() {
+                return Err(unserved(
+                    machine,
+                    "generic machine of a mutual recursion over a block of data",
+                ));
+            }
             if group[..position]
                 .iter()
-                .any(|(_, other, _)| other == member)
+                .any(|(_, other, ..)| *other == member)
             {
                 return Err(unserved(
                     id,
@@ -4097,34 +4199,62 @@ impl<'p> Converter<'p, '_> {
         Ok(group)
     }
 
-    /// The member of the block at `first` that `machine` dispatches on and
-    /// its result type, if any, when it takes exactly one value of a member.
+    /// The member of the block at `first` that `machine` dispatches on, the
+    /// formal that takes it and its result type, if any, when its body ends
+    /// in a dispatch on a formal that is a value of a member.
+    #[allow(clippy::type_complexity)]
     fn mutual_member(
         &mut self,
         machine: MachineId,
         first: u32,
         members: u32,
-    ) -> Checked<Option<(u32, Option<TermHandle>)>> {
+    ) -> Checked<Option<(u32, usize, Option<TermHandle>)>> {
         let Some(signature) = self.program.signatures.get(machine) else {
             return Ok(None);
         };
-        let (&[ValueType::Record(record, ..)], result) =
-            (signature.parameters.as_slice(), signature.result)
-        else {
+        let of_block = |converter: &mut Self, formal: &ValueType| -> Checked<Option<u32>> {
+            let ValueType::Record(record, ..) = formal else {
+                return Ok(None);
+            };
+            if converter
+                .program
+                .self_containing
+                .binary_search(record)
+                .is_err()
+            {
+                return Ok(None);
+            }
+            let entry = converter.data(machine, *record)?;
+            Ok((first..first + members)
+                .contains(&entry)
+                .then(|| entry - first))
+        };
+        let mut candidates = Vec::new();
+        for (position, formal) in signature.parameters.iter().enumerate() {
+            if let Some(member) = of_block(self, formal)? {
+                candidates.push((position, member));
+            }
+        }
+        let dispatched = self.bodies.get(machine).and_then(|body| {
+            let (aliases, statements) = spine(body);
+            match statements.last() {
+                Some(Statement::Dispatch { subject, .. }) => match subject.kind {
+                    ExpressionKind::Slot(slot) => Some(aliases.get(slot).copied().unwrap_or(slot)),
+                    _ => None,
+                },
+                _ => None,
+            }
+        });
+        let chosen =
+            dispatched.and_then(|slot| candidates.iter().find(|(position, _)| *position == slot));
+        let Some(&(subject, member)) = chosen else {
             return Ok(None);
         };
-        if self.program.self_containing.binary_search(&record).is_err() {
-            return Ok(None);
-        }
-        let entry = self.data(machine, record)?;
-        if !(first..first + members).contains(&entry) {
-            return Ok(None);
-        }
-        let result = match result {
+        let result = match signature.result {
             Some(result) => Some(self.ty(machine, result)?.0),
             None => None,
         };
-        Ok(Some((entry - first, result)))
+        Ok(Some((member, subject, result)))
     }
 
     /// Every machine called in the value arms of `machine`'s body.
@@ -5397,9 +5527,9 @@ impl<'p> Converter<'p, '_> {
                     }));
                 }
                 if let Some(recursion) = scope.recursion
-                    && let Some(member) = recursion.calls(*callee)
+                    && let Some((member, subject)) = recursion.calls(*callee)
                 {
-                    let (subject, results) = (recursion.subject, recursion.results);
+                    let results = recursion.results;
                     self.owed(id, *callee, &operands, scope)?;
                     let field = operands
                         .get(subject)
@@ -6854,14 +6984,14 @@ impl<'p> Converter<'p, '_> {
         }
         if let Some(recursion) = scope.recursion
             && recursion.machine == law
-            && let Some(Some(member)) = recursion.calls(*callee)
+            && let Some((Some(member), subject)) = recursion.calls(*callee)
         {
             // A law of a mutual induction at a field of the dispatched case
             // that holds its member is the block's induction hypothesis
-            // there: each law of the group has the one formal.
-            let at = operands.first().and_then(|operand| operand.applied);
+            // there, at the citation's other arguments.
+            let at = operands.get(subject).and_then(|operand| operand.applied);
             let field = operands
-                .first()
+                .get(subject)
                 .and_then(|operand| operand.field)
                 .ok_or_else(|| {
                     unserved(
@@ -6875,10 +7005,16 @@ impl<'p> Converter<'p, '_> {
                     "law of a mutual induction cited at a field of another member of the block",
                 ));
             }
-            self.ranked_on(*callee, 0, true)?;
+            self.ranked_on(*callee, subject, true)?;
+            let arguments = operands
+                .iter()
+                .enumerate()
+                .filter(|(position, _)| *position != subject)
+                .map(|(_, operand)| operand.term)
+                .collect();
             script.citations.push(Citation {
                 evidence: Evidence::Hypothesis { field, at },
-                arguments: Vec::new(),
+                arguments,
             });
             return Ok(());
         }
