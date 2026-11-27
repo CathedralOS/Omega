@@ -2204,6 +2204,38 @@ fn lower_program_with_parallel<'source>(
                     }),
             );
         }
+        if let (Some(source), Some(typed)) = (declarations, typed_source)
+            && let Some(own) = source.symbols.get(lowered_id)
+            && let Some((implementation, _)) = typed.owned_conformance_realization(*own)
+        {
+            for (member, ensures) in &source.realized_ensures {
+                if member == own
+                    || typed
+                        .owned_conformance_realization(*member)
+                        .is_none_or(|(other, _)| other.symbol != implementation.symbol)
+                {
+                    continue;
+                }
+                // Every reading of the member: a call names one of them.
+                for (callee, _) in source
+                    .symbols
+                    .iter()
+                    .filter(|(_, symbol)| *symbol == member)
+                {
+                    for (clause, statement) in ensures.iter().enumerate() {
+                        lowered.tables.realized_guarantees.push(
+                            terminal_check_tables::RealizedGuarantee {
+                                callee,
+                                clause: u32::try_from(clause).map_err(|_| {
+                                    crate::read::unavailable(lowered_id, "clause position")
+                                })?,
+                                statement: statement.clone(),
+                            },
+                        );
+                    }
+                }
+            }
+        }
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);

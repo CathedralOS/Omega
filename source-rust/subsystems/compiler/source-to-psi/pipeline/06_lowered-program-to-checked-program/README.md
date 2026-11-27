@@ -352,7 +352,18 @@ Boolean goal such as `result` or `!result` the arithmetic prover leaves open
 is retried as an Identity at `bool` when a congruence row exists
 ([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
 "Changed argument values or relevant observed referent versions ...
-invalidate that reasoning"). Each row's proposition
+invalidate that reasoning"). A call of another member of the machine's own
+implementation also adds, after the call, each clause that member's own
+written contract ensures beyond its requirement's (`RealizationGuarantee`,
+from `MachineTables::realized_guarantees`): a law is about "the final
+selected implementation of that member", and user comparisons "expose
+consequences through checked contracts". The member's body owes those
+clauses through the conformance witness, and a call from outside the
+implementation keeps the requirement's contract ("Private strengthening
+does not become a public guarantee"). The equality discharge cites a Boolean
+one as an identity, so `ensures result` on an always-true `equals` and a
+repeated call of it prove `equals(@left, @right)` in an
+identity-implies-comparison law. Each row's proposition
 is in `MachineTables::propositions`. The kernel gets a row for an obligation
 only when the row's point dominates the obligation's. Requires and guarantees
 go in as assumptions and result equations as semantic axioms, which is how
