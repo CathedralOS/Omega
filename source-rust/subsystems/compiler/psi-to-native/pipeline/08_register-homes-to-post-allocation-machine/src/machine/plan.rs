@@ -141,8 +141,6 @@ pub(crate) fn compute_post_allocation_machine_plan(
     // `validate_roots` proved the effects plan names this selected program.
     Ok(PostAllocationMachinePlan {
         selected: Arc::clone(&allocation.effects.selected),
-        ranges: allocation.ranges_identity,
-        legality: allocation.legality_identity,
         homes: allocation.homes_identity,
         post_allocation_manifest: allocation.publication.record().identity,
         target: selected_plan.target,
@@ -166,9 +164,7 @@ fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachine
         selected,
         effects,
         ranges,
-        ranges_identity,
         legality,
-        legality_identity,
         homes,
         homes_identity,
         ..
@@ -187,10 +183,12 @@ fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachine
     {
         return Err(PostAllocationMachineError::WorkScheduleMismatch);
     }
-    if legality.ranges != ranges_identity {
+    // Each analysis names the program it describes; the live ranges were
+    // checked against the selected program above.
+    if *legality.selected != *selected.plan {
         return Err(PostAllocationMachineError::RangeRootMismatch);
     }
-    if homes.ranges != ranges_identity || homes.legality != legality_identity {
+    if *homes.selected != *selected.plan {
         return Err(PostAllocationMachineError::HomeRootMismatch);
     }
     if effects.register_environment != register_environment
@@ -201,8 +199,6 @@ fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachine
     }
     if manifest.target != selected.plan.target
         || *manifest.selected != *selected.plan
-        || manifest.ranges != ranges_identity
-        || manifest.legality != legality_identity
         || manifest.homes != homes_identity
         || manifest.register_environment != register_environment
     {

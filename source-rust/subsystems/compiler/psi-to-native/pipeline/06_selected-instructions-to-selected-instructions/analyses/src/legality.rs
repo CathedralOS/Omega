@@ -34,11 +34,7 @@ mod compute {
             &environment.allocation_constraint_keys(),
         )
         .map_err(OptimizedAllocationLegalityCustodyError::Analysis)?;
-        let custody = custody_receipt(
-            ranges.custody(),
-            availability.receipt().identity(),
-            legality.receipt(),
-        );
+        let custody = custody_receipt(ranges.custody(), availability.receipt().identity());
         Ok(StagedOptimizedAllocationLegality {
             ranges,
             availability,
@@ -48,7 +44,6 @@ mod compute {
     }
 }
 mod custody {
-    use crate::AllocationLegalityValidationReceipt;
     use register_homes::AllocatorAvailabilityIdentity;
 
     use crate::StagedOptimizedLiveRangeCustodyReceipt;
@@ -58,14 +53,10 @@ mod custody {
     pub(super) fn custody_receipt(
         upstream: StagedOptimizedLiveRangeCustodyReceipt,
         allocator_availability: AllocatorAvailabilityIdentity,
-        legality: AllocationLegalityValidationReceipt,
     ) -> StagedOptimizedAllocationLegalityCustodyReceipt {
         StagedOptimizedAllocationLegalityCustodyReceipt {
             core: upstream.core(),
             allocator_availability,
-            liveness: upstream.liveness(),
-            ranges: upstream.ranges(),
-            legality: legality.identity(),
         }
     }
 }
@@ -198,7 +189,7 @@ use optimization_core::{
     PrePhysicalOptimizationManifestIdentity,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
-use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
+use register_homes::AllocatorAvailabilityIdentity;
 use selected_instructions::SelectedProgram;
 use selected_instructions::StagedOptimizedCustodyCore;
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
@@ -242,23 +233,22 @@ pub fn stage_optimized_allocation_legality(
 }
 
 /// Stage a legality analysis a rewrite already validated for `ranges`' program.
-/// Nothing is recomputed; the analysis must name these exact live ranges, this
-/// register environment and this allocator availability.
+/// Nothing is recomputed; the analysis must name the program these live ranges
+/// describe, this register environment and this allocator availability.
 pub fn admit_optimized_allocation_legality(
     ranges: StagedOptimizedLiveRanges,
     availability: ValidatedAllocatorAvailability,
     legality: ValidatedAllocationLegality,
 ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
     let receipt = legality.receipt();
-    if receipt.ranges() != ranges.ranges().receipt().identity()
+    if legality.plan().selected != ranges.ranges().plan().selected
         || receipt.register_environment() != ranges.register_environment().identity()
         || receipt.allocator_availability() != availability.receipt().identity()
         || availability.receipt().register_environment() != ranges.register_environment().identity()
     {
         return Err(OptimizedAllocationLegalityCustodyError::AnalysisMismatch);
     }
-    let custody =
-        custody::custody_receipt(ranges.custody(), availability.receipt().identity(), receipt);
+    let custody = custody::custody_receipt(ranges.custody(), availability.receipt().identity());
     Ok(StagedOptimizedAllocationLegality {
         ranges,
         availability,
@@ -316,9 +306,6 @@ impl StagedOptimizedAllocationLegality {
 pub struct StagedOptimizedAllocationLegalityCustodyReceipt {
     core: StagedOptimizedCustodyCore,
     allocator_availability: AllocatorAvailabilityIdentity,
-    liveness: selected_instructions::LivenessIdentity,
-    ranges: selected_instructions::LiveRangeIdentity,
-    legality: AllocationLegalityIdentity,
 }
 
 impl StagedOptimizedAllocationLegalityCustodyReceipt {
@@ -326,9 +313,6 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
 
     receipt_accessor_rows!(StagedOptimizedAllocationLegalityCustodyReceipt {
         allocator_availability: AllocatorAvailabilityIdentity,
-        ranges: selected_instructions::LiveRangeIdentity,
-        legality: AllocationLegalityIdentity,
-        liveness: selected_instructions::LivenessIdentity,
     });
 }
 
@@ -338,7 +322,7 @@ pub enum OptimizedAllocationLegalityCustodyError {
     Analysis(AllocationLegalityError),
     UnsupportedFramelessLeafConvention,
     MissingRequiredActiveResidentRematerializationView(&'static str),
-    /// An admitted analysis names other live ranges, registers or availability.
+    /// An admitted analysis names another program, registers or availability.
     AnalysisMismatch,
 }
 
