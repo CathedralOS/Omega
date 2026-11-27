@@ -204,3 +204,24 @@ only owners edit `wiki/spec/`. Keep or rewrite them as you see fit.
 **Recommend adopting the proposed text.** Psi encoding design is delegated,
 and the spec page is the only description a separate reader has of these rows.
 Should the encoding spec describe them this way?
+
+### 5. May `encoding.md` list proposition tag 24, `IsMere`, as the codec already writes it?
+
+The proposition codec writes and reads tag 24 for `IsMere`. That proposition
+says any two witnesses of its inner proposition are equal:
+`(p: P) -> (q: P) -> |proof|::Identity::<P>(p, q)`. Its row holds one child
+proposition and no other fields
+([proposition codec](source-rust/subsystems/compiler/psi/artifact/declaration-encoding/src/terms/proposition.rs)).
+The [proposition tag table](wiki/spec/terminal-psi/encoding.md#propositions)
+stops at tag 23. Because of that gap, `every_marked_tag_table_matches_its_decoder` in
+[`spec_tag_tables.rs`](source-rust/subsystems/compiler/psi/artifact/wire/src/spec_tag_tables.rs)
+fails on `main` with "`proposition-tags` omits 24, which the decoder accepts".
+Agents may not edit `wiki/spec/`, so the row needs an owner.
+
+**Recommend adding the row.** The proposed table row is:
+
+    | 24 | IsMere | proposition |
+
+The alternative is to retire tag 24 from the codec until the specification
+names it. That would make any module that states `IsMere` fail to encode.
+Should the table list tag 24?
