@@ -7741,7 +7741,34 @@ impl crate::Bindings for TheoremSubjects<'_, '_, '_> {
                 root,
                 path,
                 ..
-            } => crate::Bindings::field(&mut self.held, *version, *root, path, scalar_type),
+            } if self
+                .held
+                .callee_formals
+                .iter()
+                .any(|formal| formal.place == *root) =>
+            {
+                crate::Bindings::field(&mut self.held, *version, *root, path, scalar_type)
+            }
+            // A record this machine establishes is read in place: its
+            // contents reaching the edge are the subject's value.
+            ScalarTerm::IntegerField { root, path, .. }
+            | ScalarTerm::BooleanField { root, path, .. }
+            | ScalarTerm::IeeeFloatField { root, path, .. } => {
+                let storage = self.held.storage;
+                let concerns = self.held.concerns;
+                let base = Lineage {
+                    root: *root,
+                    segments: Vec::new(),
+                };
+                let established =
+                    storage
+                        .projection_type(&base, concerns)
+                        .ok_or(crate::Unbound::Unsupported(
+                            "logical data subject's record has no type",
+                        ))?;
+                let place = storage.actual_projection(&base, established, path, concerns)?;
+                self.held.held_at(&place).observation(&place, scalar_type)
+            }
             other => Ok(other.clone()),
         }
     }

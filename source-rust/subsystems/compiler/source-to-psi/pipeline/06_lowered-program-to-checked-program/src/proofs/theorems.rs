@@ -49,21 +49,47 @@ pub(crate) fn validate(
             .map_err(|reason| invalid(application.edge, reason))?;
         for argument in &application.arguments {
             // A field subject reads a record formal of this machine, whose
-            // root place every point of the body has.
+            // root place every point of the body has, or a record an
+            // operation of this machine establishes before the application.
+            // The subject is the value its contents hold where the edge
+            // leaves (`Storage::theorem_clause`).
             if let semantic_vocabulary::ScalarTerm::IntegerField { root, .. }
             | semantic_vocabulary::ScalarTerm::BooleanField { root, .. }
             | semantic_vocabulary::ScalarTerm::IeeeFloatField { root, .. } = argument
-                && (tables.roots.get(*root).is_none()
-                    || terminal_psi::StructuralParameterDeclaration::find_by_place(
-                        &machine.contract.structural_parameters,
-                        *root,
-                    )
-                    .is_none())
             {
-                return Err(invalid(
-                    application.edge,
-                    "logical data subject is not a record formal of its machine",
-                ));
+                let formal = terminal_psi::StructuralParameterDeclaration::find_by_place(
+                    &machine.contract.structural_parameters,
+                    *root,
+                )
+                .is_some();
+                let established = || {
+                    machine
+                        .structural_places
+                        .iter()
+                        .find(|place| place.id == *root)
+                        .and_then(|place| match place.kind {
+                            semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                                producer,
+                                ..
+                            } => Some(producer),
+                            _ => None,
+                        })
+                        .is_some_and(|producer| {
+                            matches!(
+                                graph.dominates(
+                                    ProgramPoint::AfterOperation(producer),
+                                    ProgramPoint::Edge(application.edge),
+                                ),
+                                Ok(true)
+                            )
+                        })
+                };
+                if tables.roots.get(*root).is_none() || !(formal || established()) {
+                    return Err(invalid(
+                        application.edge,
+                        "logical data subject is not a record formal of its machine or a record it establishes before the application",
+                    ));
+                }
             }
             let mut failure = None;
             argument.visit_value_ids(|value| {
