@@ -10,11 +10,15 @@ use register_homes::{
 use register_model::{RegisterUnitId, ValidatedPreservationStorageCatalog};
 use std::sync::Arc;
 use target::NativeTarget;
+/// Derive callee-save storage. Only a body that retains its stage inputs
+/// (`audit`) replays the derivation through frame admission; every build keeps
+/// the root, budget and coverage checks the derivation itself enforces.
 pub(crate) fn stage_non_authoritative_callee_save_storage(
     source: &AllocatedCalleeSavedRequirements,
     environment: &ValidatedTargetRegisterEnvironment,
     policy: NonAuthoritativeCalleeSaveStoragePolicy,
     budget: OptimizationWorkBudget,
+    audit: bool,
 ) -> Result<ValidatedNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveStorageError> {
     let plan = admit_storage_plan(
         source,
@@ -23,7 +27,11 @@ pub(crate) fn stage_non_authoritative_callee_save_storage(
         budget,
         derive_storage_functions,
     )?;
-    validate_non_authoritative_callee_save_storage(source, environment, plan)
+    if audit {
+        validate_non_authoritative_callee_save_storage(source, environment, plan)
+    } else {
+        Ok(seal_admitted_callee_save_storage(plan))
+    }
 }
 
 fn derive_storage_functions(
@@ -114,26 +122,24 @@ fn align_up_storage(
         .ok_or(NonAuthoritativeCalleeSaveStorageError::StorageGeometryOverflow)
 }
 
+/// Derive the frame layout. `function_layout` enforces the slot, alignment,
+/// overflow and frame-size rules while it places each function, so only a body
+/// that retains its stage inputs (`audit`) replays them through frame admission.
 pub(crate) fn stage_target_frame_layout(
     machine: &PostAllocationMachinePlan,
     requirements: &AllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     environment: &ValidatedTargetRegisterEnvironment,
     policy: TargetFrameLayoutPolicy,
+    audit: bool,
 ) -> Result<ValidatedTargetFrameLayout, TargetFrameLayoutError> {
     let plan = derive_frame_layout(machine, requirements, storage, environment, policy)?;
-    validate_target_frame_layout(machine, requirements, storage, environment, plan)
-}
-
-pub(crate) fn validate_target_frame_layout(
-    machine: &PostAllocationMachinePlan,
-    requirements: &AllocatedCalleeSavedRequirements,
-    storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
-    environment: &ValidatedTargetRegisterEnvironment,
-    candidate: TargetFrameLayoutPlan,
-) -> Result<ValidatedTargetFrameLayout, TargetFrameLayoutError> {
     let demands = Arc::new(prepare_frame_demands(machine, environment)?);
-    validate_target_frame_demands(demands, requirements, storage, environment, candidate)
+    if audit {
+        validate_target_frame_demands(demands, requirements, storage, environment, plan)
+    } else {
+        seal_derived_target_frame_layout(demands, requirements, storage, environment, plan)
+    }
 }
 
 fn derive_frame_layout(
@@ -247,7 +253,7 @@ fn function_layout(
         0
     };
     let mut outgoing_extent = u64::from(shadow_bytes);
-    for slot in outgoing_arguments {
+    for (index, slot) in outgoing_arguments.iter().enumerate() {
         if !contains_call
             || slot.byte_size == 0
             || !slot.alignment.is_power_of_two()
@@ -267,6 +273,23 @@ fn function_layout(
                     .ok_or(TargetFrameLayoutError::GeometryOverflow)?,
             )
             .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
+        // A slot id names one argument, and the arguments of one call must not
+        // share stack bytes.
+        let overlaps_earlier = outgoing_arguments[..index].iter().any(|earlier| {
+            earlier.id == slot.id
+                || (earlier.id.invocation_site == slot.id.invocation_site
+                    && earlier.abi_stack_byte_offset < end
+                    && u64::from(slot.abi_stack_byte_offset)
+                        < u64::from(earlier.abi_stack_byte_offset)
+                            + u64::from(
+                                earlier
+                                    .reserved_byte_size(call_site.stack_alignment_bytes)
+                                    .unwrap_or(u32::MAX),
+                            ))
+        });
+        if overlaps_earlier {
+            return Err(TargetFrameLayoutError::NonCanonicalLayout);
+        }
         outgoing_extent = outgoing_extent.max(u64::from(end));
     }
     let outgoing_abi_area = machine_code::OutgoingAbiFrameArea {
@@ -1193,6 +1216,43 @@ mod tests {
             assert!(layout.frame_size_bytes >= u64::from(offset) + 8);
             assert!(frame(&environment, abi, CaseShape::Bare, (&[slot], &[])).is_err());
         }
+    }
+
+    /// Frame planning itself refuses outgoing arguments of one call that share
+    /// stack bytes or an id; default builds no longer replay the layout.
+    #[test]
+    fn outgoing_slots_of_one_call_cannot_share_bytes_or_an_id() {
+        let target = NativeTarget::linux_x64();
+        let abi = FrameAbiPreservationConvention::SystemVAMD64;
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let slot = |site: u64, argument_index, abi_stack_byte_offset| {
+            selected_instructions::SelectedOutgoingArgumentSlot {
+                id: selected_instructions::OutgoingArgumentSlotId {
+                    role: selected_instructions::OutgoingArgumentSlotRole::Argument,
+                    invocation_site: semantic_vocabulary::OperationId::new(site).unwrap().into(),
+                    argument_index,
+                },
+                byte_size: 8,
+                alignment: 8,
+                abi_stack_byte_offset,
+            }
+        };
+        let place = |slots: &[selected_instructions::SelectedOutgoingArgumentSlot]| {
+            frame(&environment, abi, CaseShape::Call, (slots, &[]))
+        };
+        let separate = place(&[slot(11, 6, 0), slot(11, 7, 8)]).unwrap();
+        assert_eq!(separate.outgoing_abi_area.byte_size, 16);
+        // Two calls reuse the same outgoing bytes.
+        assert!(place(&[slot(11, 6, 0), slot(12, 6, 0)]).is_ok());
+        assert_eq!(
+            place(&[slot(11, 6, 0), slot(11, 7, 0)]),
+            Err(TargetFrameLayoutError::NonCanonicalLayout)
+        );
+        assert_eq!(
+            place(&[slot(11, 6, 0), slot(11, 6, 8)]),
+            Err(TargetFrameLayoutError::NonCanonicalLayout)
+        );
     }
 
     #[test]

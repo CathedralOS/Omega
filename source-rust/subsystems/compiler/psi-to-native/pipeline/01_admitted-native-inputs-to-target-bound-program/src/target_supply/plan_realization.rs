@@ -43,6 +43,9 @@ pub struct TargetSupplyRealizationRequest<'a> {
     components: Option<PublishedComponentSuppliers>,
     logical: &'a terminal_semantics::logical_providers::ClosedLogicalProviders,
     module: &'a TerminalModule,
+    /// The identity of `module`, taken from its sealed artifact or hashed
+    /// once by the caller that holds only the module.
+    program: terminal_psi::TerminalPsiIdentity,
     target: &'a str,
     reached: &'a [BoundaryMachineId],
     calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
@@ -55,13 +58,27 @@ pub struct TargetSupplyRealizationRequest<'a> {
 }
 
 impl<'a> TargetSupplyRealizationRequest<'a> {
+    /// Realize supply for an accepted artifact. The artifact's sealed identity
+    /// names its module, so realization never re-hashes the program.
     pub fn from_execution_inputs(
+        artifact: terminal_codec::TerminalArtifactView<'a>,
+        logical: &'a terminal_semantics::logical_providers::ClosedLogicalProviders,
+        inputs: TargetSupplyExecutionInputs,
+    ) -> Self {
+        Self::for_identified_module(artifact.module(), artifact.identity(), logical, inputs)
+    }
+
+    /// `program` must be the identity of `module`: either its artifact's sealed
+    /// identity or `terminal_psi_identity(module)`.
+    pub(crate) fn for_identified_module(
         module: &'a TerminalModule,
+        program: terminal_psi::TerminalPsiIdentity,
         logical: &'a terminal_semantics::logical_providers::ClosedLogicalProviders,
         inputs: TargetSupplyExecutionInputs,
     ) -> Self {
         Self {
             module,
+            program,
             logical,
             target: logical.target(),
             reached: logical.requirements(),
@@ -526,13 +543,8 @@ pub fn realize_target_supply(
     let module = request.module;
     target::TargetProfile::from_canonical_target_name(request.target)
         .map_err(|error| error.to_string())?;
-    request
-        .logical
-        .require_program(
-            terminal_codec::terminal_psi_identity(module).map_err(|error| {
-                format!("native planning lost its canonical input identity: {error:?}")
-            })?,
-        )?;
+    let program = request.program;
+    request.logical.require_program(program)?;
     if request.target != request.logical.target()
         || request.reached != request.logical.requirements()
     {
@@ -624,6 +636,7 @@ pub fn realize_target_supply(
     }
     RealizedTargetSupply::from_checked(
         module,
+        program,
         TargetSupplyRealizationInput {
             reached: request.reached.to_vec(),
             target: request.target.to_owned(),

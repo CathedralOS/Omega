@@ -70,7 +70,9 @@ public machine image_tail() -> address reaches |program_image|::ProgramImage cra
         terminal_authority_permission_identities: Default::default(),
     };
     let realized = realize_target_supply(TargetSupplyRealizationRequest::from_execution_inputs(
-        module, &logical, inputs,
+        artifact.view(),
+        &logical,
+        inputs,
     ))
     .unwrap();
     let [plan] = realized.provider_declarations() else {
@@ -321,7 +323,7 @@ reaches |extent|::ProgramStorageEntry invokes |extent|::ProgramStorageEntry cras
     };
     let logical = select(module).unwrap();
     let realized = realize_target_supply(TargetSupplyRealizationRequest::from_execution_inputs(
-        module,
+        artifact.view(),
         &logical,
         TargetSupplyExecutionInputs {
             components: None,

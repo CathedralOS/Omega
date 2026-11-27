@@ -3,13 +3,20 @@ We independently replay and validate a `SelectedFormEncoding` against its
 selected-instruction, post-allocation-machine, physical-register-model, and
 frame-layout roots (`:IndependentByteReplay`).
 
+The replay runs only when a body retains its originals for audit. The encoder
+itself enforces, on every build, the per-row contracts this replay rechecks:
+byte length against the declared size (`validate_size`), encoded effects
+against the allocator's alternative, external operand resolution, the
+frame-address equation (`frame_address::validate_address`) and the
+kind-to-address-operation match (`admits_address_operation`).
+
 After checking root digests and frame geometry (`frame_address::validate_frame_root`),
 `validate_ordinary` walks the selected-to-machine instruction correspondence
 (`for_each_row`) in lockstep with the artifact's `SelectedFormEncodingRow`
 table. For each row, we first verify the frame-space address equation
 (`frame_address::validate_address`) and then dispatch `validate_row` on the
-selected instruction kind using our own kind-to-address-operation matching
-(`admits_address_operation`) rather than trusting the producer's route table:
+selected instruction kind using the kind-to-address-operation matching
+(`admits_address_operation`) rather than the producer's route table:
 - Memory, frame, hosted byte-channel, and ordinary scalar forms are decoded by
   the target ISA's independent byte validators (`isa_x86_64` / `isa_aarch64`),
   and `admit_decoded_footprint` checks that the decoded register reads, writes,
@@ -81,7 +88,7 @@ pub(super) fn validate(
     let machine = &*selected.machine;
     let physical = selected.physical();
     frame_address::validate_frame_root(machine, frame)?;
-    if artifact.frame.as_ref() != frame {
+    if artifact.frame.as_deref() != frame {
         return Err(Error::ArtifactMismatch);
     }
     if artifact.selected != machine.selected {
@@ -378,7 +385,9 @@ pub fn validate_row(
     }
 }
 
-fn admits_address_operation(
+/// Whether `operation` is the address form `kind` requires, with matching
+/// operand positions and offsets. The encoder applies this on every build.
+pub fn admits_address_operation(
     kind: SelectedInstructionKind,
     operation: post_allocation_machine::PhysicalAddressOperation,
 ) -> bool {

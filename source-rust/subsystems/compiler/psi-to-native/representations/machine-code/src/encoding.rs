@@ -38,7 +38,7 @@ pub struct SelectedFormEncoding {
     pub identity: SelectedFormEncodingIdentity,
     pub rows: Vec<SelectedFormEncodingRow>,
     pub encoded: Arc<SelectedFormEncodedRowStore>,
-    pub frame: Option<crate::TargetFrameLayoutPlan>,
+    pub frame: Option<Arc<crate::TargetFrameLayoutPlan>>,
     pub counts: SelectedFormEncodingCounts,
 }
 
@@ -80,7 +80,7 @@ impl SelectedFormEncoding {
             self.post_allocation_machine_optimization,
             &self.rows,
             &self.encoded,
-            self.frame.as_ref(),
+            self.frame.as_deref(),
             self.counts,
         )
     }
