@@ -2615,7 +2615,6 @@ pub(crate) mod resource_profile {
                                 }),
                                 entry_block: BlockId::new(7).unwrap(),
                                 blocks: vec![],
-                                ownership_frontier_facts: vec![],
                             };
                             let source =
                                 crate::instruction_selection::native_geometry::NativeInput::new(

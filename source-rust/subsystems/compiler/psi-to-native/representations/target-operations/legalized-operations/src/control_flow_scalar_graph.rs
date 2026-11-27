@@ -36,8 +36,6 @@ pub struct LegalizedScalarFunction {
     pub structural: Option<crate::LegalizedStructuralContract>,
     pub entry_block: BlockId,
     pub blocks: Vec<LegalizedScalarBlock>,
-    pub ownership_frontier_facts:
-        Vec<operation_evidence::ownership_frontier::OwnershipFrontierFact>, // Verifier-owned ownership-frontier facts projected byte-exact from the source unit.
 }
 
 impl LegalizedScalarFunction {

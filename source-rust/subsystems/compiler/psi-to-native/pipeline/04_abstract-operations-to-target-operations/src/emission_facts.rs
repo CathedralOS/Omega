@@ -21,8 +21,8 @@ pub(crate) fn project(
         },
         OptimizedProgramProjection {
             identity: optimized.projection(),
-            terminal: optimized.projection_psi(),
-            final_unit: optimized.final_unit(),
+            terminal: optimized.unit().psi,
+            final_unit: optimized.unit().identity,
         },
     )
 }

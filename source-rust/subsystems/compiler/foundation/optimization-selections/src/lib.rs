@@ -18,7 +18,7 @@ routes a stage's local subset of optimizations while retaining the full
   while `From<optimization::PsiOptimization>` is checked exhaustively by the
   compiler in the reverse direction.
 - `PostTerminalOptimizationSelections` (`post_terminal.rs`) admits only phases
-  where `is_post_terminal()` holds (`AbstractOperations` through
+  where `is_post_terminal()` holds (`TargetOperations` through
   `FunctionRelativeLayout`), making pre-Terminal selections unrepresentable in
   post-Terminal native lowering.
 */
@@ -38,11 +38,10 @@ const SELECTION_ENCODING_VERSION: u32 = 16;
 const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v16\0";
 
 ::wire::tagged_vocabulary! {
-    8;
+    7;
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum OptimizationExecutionPhase {
         Psi = 0,
-        AbstractOperations = 1,
         TargetOperations = 2,
         SelectedLowering = 3,
         PreAllocation = 4,

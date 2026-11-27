@@ -87,17 +87,12 @@ phase, measured on `baa76c5b222e` (after archiving Stage 03).
 | Phase | Catalog entries | Stages naming it |
 | --- | --- | --- |
 | `Psi` | 9 | none; runs before Terminal Psi publication |
-| `AbstractOperations` | 0 | none (Stage 03 archived) |
 | `TargetOperations` | 2 | 04 (rewrites applied in 05) |
 | `SelectedLowering` | 23 | 06, 07, 12, 13 |
 | `PreAllocation` | 10 | 06, 07 |
 | `AllocationRecovery` | 2 | 06, 07, 13 |
 | `PostAllocationMachine` | 9 | 08, 13 |
 | `FunctionRelativeLayout` | 1 | 12, 13 |
-
-No optimization belongs to `AbstractOperations`, and Stage 03 has been archived;
-`TASKS.md` **NATIVE-ABSTRACT-PHASE-RETIREMENT** tracks retiring the remaining
-phase enum and empty optimization-unit records.
 
 Stage 05 also runs call inlining (`selection_inlining.rs`) and vector promotion
 (`selection_vector_promotion.rs`) on every build without a catalog entry. The

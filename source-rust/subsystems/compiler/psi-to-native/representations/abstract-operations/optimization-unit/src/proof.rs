@@ -371,24 +371,24 @@ pub(crate) fn accepted_obligation_fact_identity(
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.psi-accepted-obligation-fact.v2\0");
     canonical.extend_from_slice(psi.program_fingerprint.as_bytes());
-    crate::codec_bytes::push_encoded(&mut canonical, psi.vocabulary_marker.get().to_le_bytes());
+    ::wire::codec_bytes::push_encoded(&mut canonical, psi.vocabulary_marker.get().to_le_bytes());
     canonical.extend_from_slice(&proof_bundle_fingerprint);
-    crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
+    ::wire::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
     match owner {
         AcceptedObligationOwner::Operation(operation) => {
             canonical.push(0);
-            crate::codec_bytes::push_encoded(&mut canonical, operation.get().to_le_bytes());
+            ::wire::codec_bytes::push_encoded(&mut canonical, operation.get().to_le_bytes());
         }
         AcceptedObligationOwner::Edge(edge) => {
             canonical.push(1);
-            crate::codec_bytes::push_encoded(&mut canonical, edge.get().to_le_bytes());
+            ::wire::codec_bytes::push_encoded(&mut canonical, edge.get().to_le_bytes());
         }
         AcceptedObligationOwner::Terminator(block) => {
             canonical.push(2);
-            crate::codec_bytes::push_encoded(&mut canonical, block.get().to_le_bytes());
+            ::wire::codec_bytes::push_encoded(&mut canonical, block.get().to_le_bytes());
         }
     }
-    crate::codec_bytes::push_encoded(&mut canonical, obligation.get().to_le_bytes());
+    ::wire::codec_bytes::push_encoded(&mut canonical, obligation.get().to_le_bytes());
     canonical.extend_from_slice(
         &u64::try_from(proposition.len())
             .expect("canonical proposition length fits u64")

@@ -855,7 +855,6 @@ pub(crate) mod input_site {
                     })
                     .into_iter()
                     .collect(),
-                ownership_frontier_facts: Vec::new(),
             };
             let geometry = crate::instruction_selection::native_geometry::NativeGeometry::new(
                 &[],

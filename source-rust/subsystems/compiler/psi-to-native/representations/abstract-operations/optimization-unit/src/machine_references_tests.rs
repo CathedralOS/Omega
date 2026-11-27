@@ -28,8 +28,6 @@ fn unit() -> PsiOptimizationUnit {
         dynamic_dispatch: Default::default(),
         callables: Default::default(),
         accepted_obligation_facts: Vec::new(),
-        ownership_frontier_facts: Vec::new(),
-        pruned_machines: Vec::new(),
         identities: Default::default(),
         runtime_evidence: None,
         functions: Vec::new(),
