@@ -61,11 +61,17 @@ pub enum CodecError {
     ObligationLedgerMismatch,
     /// The encoded input is larger than the receiving host admits. This is a
     /// resource refusal, not malformed input.
-    InputTooLarge { limit: u64, actual: u64 },
+    InputTooLarge {
+        limit: u64,
+        actual: u64,
+    },
     /// Loading would exceed the receiving host's overall work budget in the
     /// named phase. This is a resource refusal, not malformed input or a
     /// failed semantic check.
-    LoadWorkExhausted { phase: &'static str, limit: u64 },
+    LoadWorkExhausted {
+        phase: &'static str,
+        limit: u64,
+    },
 }
 
 impl CodecError {

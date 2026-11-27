@@ -817,7 +817,7 @@ mod tests {
             CanonicalTerminalArtifactError::Semantic(CodecError::LoadWorkExhausted { limit, .. })
                 if limit == used - 1
         ));
-        CanonicalTerminalArtifact::from_bytes_within(
+        let reloaded = CanonicalTerminalArtifact::from_bytes_within(
             bytes,
             terminal_wire::PsiLoadLimits {
                 max_input_bytes: None,
@@ -825,8 +825,10 @@ mod tests {
             },
         )
         .unwrap();
+        assert!(reloaded.requires_host_trust());
 
-        let truncated = CanonicalTerminalArtifact::from_bytes(&bytes[..bytes.len() - 1]).unwrap_err();
+        let truncated =
+            CanonicalTerminalArtifact::from_bytes(&bytes[..bytes.len() - 1]).unwrap_err();
         assert!(!truncated.is_resource_refusal());
     }
 

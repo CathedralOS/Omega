@@ -120,7 +120,10 @@ impl std::fmt::Display for ArtifactTrustError {
             Self::ProducerTrustRequired => formatter
                 .write_str("execution requires the host's acceptance of the actual producer"),
             Self::LoadWorkExhausted(reason) => {
-                write!(formatter, "received Psi exceeds the host's load budget: {reason}")
+                write!(
+                    formatter,
+                    "received Psi exceeds the host's load budget: {reason}"
+                )
             }
             Self::ExecutionPreparation(reason) => {
                 write!(
@@ -153,15 +156,13 @@ pub fn authorize_terminal_artifact(
     Ok(AuthorizedTerminalArtifact {
         // Received bytes become executable only here, beside the host's
         // decision. The caller's own copy stays received.
-        artifact: artifact
-            .record_host_authorization()
-            .map_err(|error| {
-                if error.is_resource_refusal() {
-                    ArtifactTrustError::LoadWorkExhausted(error)
-                } else {
-                    ArtifactTrustError::ExecutionPreparation(error)
-                }
-            })?,
+        artifact: artifact.record_host_authorization().map_err(|error| {
+            if error.is_resource_refusal() {
+                ArtifactTrustError::LoadWorkExhausted(error)
+            } else {
+                ArtifactTrustError::ExecutionPreparation(error)
+            }
+        })?,
         producer_identity: Arc::clone(&producer.identity),
     })
 }
