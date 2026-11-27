@@ -2060,7 +2060,7 @@ fn copy_declarations(
         .map_err(Stop::Defect)?;
     substitute_record_receivers(program, &record_receivers)?;
     substitute_widths(program, type_start, operands)?;
-    substitute_values(program, expression_start, operands);
+    substitute_values(program, expression_start, operands)?;
     settle_const_expressions(program, type_start, operands)?;
     for (mut machine, state, body) in copied {
         select_requirements(program, &body, &selections);
@@ -2205,7 +2205,7 @@ fn substitute_widths(
     operands: &[Operand],
 ) -> Served<()> {
     for operand in operands {
-        let Some(Value::Integer(literal)) = &operand.scalar else {
+        let Some(Value::Integer(literal)) = &operand.closed_value else {
             continue;
         };
         let table = &program.type_reference_table;
@@ -2283,12 +2283,16 @@ fn substitute_widths(
 /// the value. An integer literal carries the parameter's type as its landing
 /// and a Boolean has only the one type, so either is typed as the parameter
 /// was.
-fn substitute_values(program: &mut TypedTrees, expression_start: usize, operands: &[Operand]) {
+fn substitute_values(
+    program: &mut TypedTrees,
+    expression_start: usize,
+    operands: &[Operand],
+) -> Served<()> {
     let value_of = |symbol: SymbolHandle| {
         operands
             .iter()
             .find(|operand| operand.parameter == symbol)
-            .and_then(|operand| operand.scalar.clone())
+            .and_then(|operand| operand.closed_value.clone())
     };
     let named = program
         .expression_table
@@ -2305,8 +2309,10 @@ fn substitute_values(program: &mut TypedTrees, expression_start: usize, operands
         })
         .collect::<Vec<_>>();
     for (handle, value) in named {
-        *program.expression_table.expression_mut(handle) = value.expression();
+        let node = value.expression(program)?;
+        *program.expression_table.expression_mut(handle) = node;
     }
+    Ok(())
 }
 
 /// Evaluates closed integer `ConstExpression` type references copied into a
@@ -2359,7 +2365,7 @@ fn substituted_const_int(
         operands
             .iter()
             .find(|operand| operand.parameter == path.symbol)
-            .and_then(|operand| match &operand.scalar {
+            .and_then(|operand| match &operand.closed_value {
                 Some(Value::Integer(literal)) => Some(literal.clone()),
                 _ => None,
             })
