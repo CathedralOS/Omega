@@ -167,12 +167,12 @@ machine entry() -> u8 {
 Observed: refused at `apply`'s signature with "logical data subject is not a
 plain record".
 
-**After: accepted.** Source unchanged.
+**After: accepted.** No code changes. The same program compiles under the ruling.
 
 Expected: accepted. `L(c)` owes `c.x != 0u8`, which `apply`'s own `requires`
 supplies.
 
-**After: rejected.** Rest as Before.
+**After: rejected.** Only `entry` changes. It passes the other case:
 
 ```omega
 machine entry() -> u8 {
@@ -193,9 +193,9 @@ an application. Self-containing data stays an indexed family's evidence.
 #### Alternates
 
 - **One inductive subject.** Elaborate every sum to a checked inductive
-  declaration and give the contract one binder of that type. Both After blocks
-  have the same outcomes. It also covers comparing whole sums, such as
+  declaration and give the contract one binder of that type. Both examples above
+  turn out the same. It also covers comparing whole sums, such as
   `requires c == d`. It costs a non-scalar binder in Terminal Psi's theorem
   contract, the kernel contract type and citation checking.
-- **Keep the refusal.** Both After blocks keep the Before outcome: refused at
+- **Keep the refusal.** Both examples above stay refused at
   `apply`'s signature. Users restate sum laws over payload scalars at each use.
