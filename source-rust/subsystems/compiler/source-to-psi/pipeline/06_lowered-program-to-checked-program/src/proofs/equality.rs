@@ -284,6 +284,7 @@ impl Definitions {
                     | SignatureEntryKind::Boolean
                     | SignatureEntryKind::Encoding { .. }
                     | SignatureEntryKind::Scheme
+                    | SignatureEntryKind::GenericData { .. }
                     | SignatureEntryKind::Quotient { .. }
                     | SignatureEntryKind::Statement { .. } => Definition::Opaque,
                     SignatureEntryKind::Constructor { data, case } => match shape(*data) {
@@ -655,7 +656,18 @@ pub(crate) fn normal(
             });
         }
         let mut applied = arena.apply_arguments(cases.branches[case], &fields);
-        for &field in &fields {
+        // The branch takes the recursion at each field that holds the data
+        // itself, after all of the case's fields.
+        let Some((_, shape)) = definitions.1.iter().find(|(entry, _)| *entry == cases.data) else {
+            return Ok(arena.apply_arguments(function, &operands));
+        };
+        let recursive: Vec<TermHandle> = fields
+            .iter()
+            .zip(shape.fields(case))
+            .filter(|(_, kind)| **kind == proof_admission::PlainField::Recursive)
+            .map(|(&field, _)| field)
+            .collect();
+        for &field in &recursive {
             let at_field = arena.insert(Term::Apply {
                 function: recursor,
                 argument: field,

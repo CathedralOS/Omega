@@ -100,6 +100,22 @@ the law that must have proved it (`lifted` in `read/signature.rs`):
 them. A formal passed twice, a formal left out and an argument that is not a
 formal are refused.
 
+Data that contains itself may hold other values beside itself, and may take
+types (`data Seq<T> { case Empty; case Cons(head: T, tail: Seq<T>); }`). The
+signature declares each such type as a native inductive declaration
+(`read/signature.rs`, `PlainData`): a field of the data itself is a recursive
+child with an induction hypothesis, and any other field is a payload of its own
+kernel type. A fixed-width payload or formal is the integer it holds, read in
+the integer vocabulary; a definition only passes such a value along, so a
+result of that type is still refused. Generic data is declared once, from its
+template, as one block whose former takes a uniform `Type 0` parameter per type
+parameter (`GenericPlainData`). An application such as `Seq<u64>` is that block
+at the argument types: definitions laid out as plain data, so laws over the
+application read and judge as over any plain data. The template is refused when
+a field applies a parameter inside another type (a field `Seq<T>` of
+`Tagged<T>`, a nested inductive), when it holds itself at other arguments than
+its own parameters, or when a parameter is not a type.
+
 Data whose parameters are values and that holds itself at other values
 (`data Vector<Length: u64, Total: u64> requires .. { case Nil; case
 Cons(previous: u64, previous_total: u64, head: u64, tail [erased]:

@@ -40,7 +40,7 @@ pub use indexed_data::{
     IndexedField, IndexedInduction, IndexedInstance, IndexedValue,
 };
 pub use inductive::{declare_inductive_family, declare_mutual_inductive_family};
-pub use plain_data::PlainData;
+pub use plain_data::{GenericPlainData, GenericPlainField, PlainData, PlainField};
 pub use quotient::{
     EquivalenceProofs, QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE,
     QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM, QUOTIENT_ID_TRANS,
