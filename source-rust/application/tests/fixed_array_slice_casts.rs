@@ -10,8 +10,7 @@
 
 #[path = "support/observations.rs"]
 mod observations;
-#[path = "support/project.rs"]
-mod project;
+use observations::project;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 

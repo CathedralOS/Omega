@@ -1,5 +1,5 @@
 #[path = "project.rs"]
-mod project;
+pub(super) mod project;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::process::{Command, Output, Stdio};

@@ -1,6 +1,6 @@
 use platform_custody::temporary_directory::TemporaryDirectory;
 #[path = "project.rs"]
-mod fixture;
+pub(super) mod project;
 
 /// Execute the fixture against its declared process status and compare the raw streams.
 pub fn assert_declared_exit(project: &std::path::Path, entry: &str) {
@@ -11,7 +11,7 @@ pub fn assert_declared_exit(project: &std::path::Path, entry: &str) {
         .unwrap();
     let scratch = TemporaryDirectory::create("application-observations", false).unwrap();
     let directory = scratch.path();
-    let output = fixture::omega(
+    let output = project::omega(
         project,
         &["run", "--outputs", directory.to_str().unwrap(), entry],
     );
@@ -24,7 +24,7 @@ pub fn assert_declared_exit(project: &std::path::Path, entry: &str) {
         _ => panic!("unexpected interpreter outcome: {termination}"),
     };
     assert_eq!(actual, expected, "{termination}");
-    let built = fixture::build_and_run(project, &[entry]);
+    let built = project::build_and_run(project, &[entry]);
     assert_eq!(built.status.code(), Some(expected), "{built:?}");
     assert_eq!(
         std::fs::read(directory.join("stdout")).unwrap(),
