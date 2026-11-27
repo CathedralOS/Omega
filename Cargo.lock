@@ -1452,6 +1452,7 @@ dependencies = [
  "psi-entry-memory",
  "psi-provider-selections",
  "psi-scalar-applications",
+ "psi-target-layouts",
  "published-runtime-input",
  "runtime-abi",
  "selected-instructions",
