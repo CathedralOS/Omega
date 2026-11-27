@@ -118,7 +118,8 @@ pub use boundary::effects::storage_inputs::{
     TerminalBoundaryStorageBuffer, TerminalBoundaryStructuralBuffer,
 };
 pub use boundary::effects::{
-    AdmittedTargetLayouts, ProviderInstallationSelection, TerminalCallStorageRequirements,
+    AdmittedTargetLayouts, ProviderInstallationSelection, TerminalAbandonedEffect,
+    TerminalCallStorageRequirements,
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalRuntimeSupplies,
     TerminalRuntimeSupplyRequest, TerminalTargetContext, TerminalX86FlagsEnvironment,
     admit_target_layouts, terminal_target_context,
@@ -150,8 +151,8 @@ pub use embedding::adapters::{
     TerminalImportStructuralParameter, TerminalScalarImport, TerminalUnitImport,
 };
 pub use embedding::instance::{
-    TerminalBindingRejection, TerminalComponentBinding, TerminalInstance,
-    TerminalInstanceCloseError, TerminalInstanceError, TerminalObservationRoot,
+    TerminalBindingRejection, TerminalComponentBinding, TerminalDiscardStatus, TerminalInstance,
+    TerminalInstanceCloseError, TerminalOutstandingCustody, TerminalInstanceError, TerminalObservationRoot,
     TerminalProcessExitAdmission, TerminalReturnedLoan, TerminalReturnedLoanError,
     TerminalStorageObservationError, TerminalStorageObservationValue,
 };

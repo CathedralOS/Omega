@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod guest_discard;
+
 const BLOCKING: &str = r#"
 public machine may_wait() -> u32 blocks { 7 }
 public machine wrapped() -> u32 blocks { block may_wait() }

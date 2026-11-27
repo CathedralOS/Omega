@@ -12,6 +12,12 @@ before lending the mapping to the worker so a rejected attach cannot free a
 mapping already opened by the worker. On exchange failure, we briefly poll
 `try_wait` so a real native trap's exit status is observed before forced
 process cleanup.
+
+An incarnation that cannot be reaped may still use its homes, so dropping it
+must not release them. It moves to this thread's quarantine with its process,
+session and homes. The quarantine reports what it retains for the host to
+charge, and `settle_native_provider_quarantine` releases an incarnation only
+after reaping it.
 */
 
 use crate::{
@@ -24,6 +30,7 @@ use bounded_process::BoundedProcessChild;
 use calling_conventions::PublishedForeignAdapterIdentity;
 use calling_conventions::{ValueClass, ValueShape};
 use std::{
+    cell::RefCell,
     collections::BTreeMap,
     io,
     path::Path,
@@ -501,19 +508,30 @@ impl NativeProviderProcess {
         let Some(child) = &mut self.child else {
             return Ok(());
         };
-        child.terminate()?;
-        let deadline = Instant::now() + self.timeout;
-        while child.try_wait()?.is_none() {
-            if Instant::now() >= deadline {
-                return Err(io::Error::new(
-                    io::ErrorKind::TimedOut,
-                    "native provider process was not reaped",
-                ));
-            }
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        reap(child, self.timeout)?;
         self.child.take().unwrap().finish()?;
         Ok(())
+    }
+}
+
+fn reap(child: &mut BoundedProcessChild, timeout: Duration) -> io::Result<()> {
+    child.terminate()?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        #[cfg(test)]
+        let refused = REFUSE_REAPING.with(std::cell::Cell::get);
+        #[cfg(not(test))]
+        let refused = false;
+        if !refused && child.try_wait()?.is_some() {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "native provider process was not reaped",
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(1));
     }
 }
 
@@ -522,7 +540,104 @@ impl Drop for NativeProviderProcess {
         if self.retire_process().is_ok() {
             self.homes.clear();
             self.session.release_home_directory();
+            return;
         }
+        let Some(child) = self.child.take() else {
+            return;
+        };
+        let quarantined = QuarantinedProvider {
+            child,
+            session: std::mem::replace(&mut self.session, Box::new(RetiredSession)),
+            homes: std::mem::take(&mut self.homes),
+        };
+        QUARANTINE.with(|quarantine| quarantine.borrow_mut().push(quarantined));
+    }
+}
+
+/// Provider storage this thread still retains for incarnations it could not
+/// reap. It stays charged to the host until it settles.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct NativeProviderQuarantine {
+    pub incarnations: usize,
+    pub retained_bytes: u64,
+}
+
+struct QuarantinedProvider {
+    child: BoundedProcessChild,
+    session: Box<dyn NativeProviderSession>,
+    homes: BTreeMap<u64, SharedBacking>,
+}
+
+thread_local! {
+    static QUARANTINE: RefCell<Vec<QuarantinedProvider>> = const { RefCell::new(Vec::new()) };
+}
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static REFUSE_REAPING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+fn quarantine_summary(quarantined: &[QuarantinedProvider]) -> NativeProviderQuarantine {
+    NativeProviderQuarantine {
+        incarnations: quarantined.len(),
+        retained_bytes: quarantined
+            .iter()
+            .flat_map(|provider| provider.homes.values())
+            .map(|home| home.extent() as u64)
+            .sum(),
+    }
+}
+
+/// What this thread's quarantine retains now.
+pub fn native_provider_quarantine() -> NativeProviderQuarantine {
+    QUARANTINE.with(|quarantine| quarantine_summary(&quarantine.borrow()))
+}
+
+/// Try again, without waiting, to reap each quarantined incarnation. One that
+/// has exited releases its homes and home directory; one that has not stays
+/// retained.
+pub fn settle_native_provider_quarantine() -> NativeProviderQuarantine {
+    let pending = QUARANTINE.with(|quarantine| std::mem::take(&mut *quarantine.borrow_mut()));
+    let mut kept = Vec::new();
+    for mut provider in pending {
+        if reap(&mut provider.child, Duration::ZERO).is_err() {
+            kept.push(provider);
+            continue;
+        }
+        let QuarantinedProvider {
+            child,
+            mut session,
+            mut homes,
+            ..
+        } = provider;
+        let _ = child.finish();
+        homes.clear();
+        session.release_home_directory();
+    }
+    QUARANTINE.with(|quarantine| {
+        let mut quarantine = quarantine.borrow_mut();
+        quarantine.extend(kept);
+        quarantine_summary(&quarantine)
+    })
+}
+
+/// Stands in for a session whose custody moved to the quarantine.
+struct RetiredSession;
+impl NativeProviderSession for RetiredSession {
+    fn home_directory(&self) -> &Path {
+        Path::new("")
+    }
+    fn release_home_directory(&mut self) {}
+    fn install(
+        &mut self,
+        _: &PublishedForeignAdapterIdentity,
+        _: u64,
+        _: NativeAdapterStorage<'_>,
+    ) -> io::Result<Vec<u8>> {
+        Err(io::Error::other("native provider session was retired"))
+    }
+    fn exchange(&mut self, _: NativeProviderOperation<'_>) -> io::Result<Vec<u8>> {
+        Err(io::Error::other("native provider session was retired"))
     }
 }
 

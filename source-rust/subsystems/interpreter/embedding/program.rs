@@ -591,6 +591,14 @@ pub(crate) mod instance {
                 }
             }
 
+            /// Discard the provider instance of a pending invocation, or on a
+            /// later call consume its late completions. `None` when no
+            /// provider instance is live.
+            pub(crate) fn discard_pending(&mut self) -> Option<super::TerminalDiscardStatus> {
+                let instance = self.pending.as_mut()?.instance.as_mut()?;
+                Some(instance.discard())
+            }
+
             pub(crate) fn completed(&self) -> Option<&ComponentOwnedReturn<'host, 'artifact>> {
                 self.pending.as_ref()?.completed.as_ref()
             }
@@ -778,6 +786,8 @@ pub(crate) mod instance {
         }
     }
     pub(crate) use component_return::ComponentOwnedReturn;
+    pub(crate) mod discard;
+    pub use discard::{TerminalDiscardStatus, TerminalOutstandingCustody};
     pub(crate) mod storage_observation;
     pub use storage_observation::{
         TerminalObservationRoot, TerminalStorageObservationError, TerminalStorageObservationValue,
@@ -959,6 +969,8 @@ pub(crate) mod instance {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum TerminalInstanceError {
         Closed,
+        /// The guest was discarded and can never resume.
+        Discarded,
         UnboundImports {
             missing: Vec<BoundaryMachineId>,
         },
@@ -1017,6 +1029,7 @@ pub(crate) mod instance {
         components: ComponentBindings<'host, 'artifact>,
         invoked: bool,
         closed: bool,
+        discard: Option<discard::DiscardCustody>,
     }
 
     impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
@@ -1038,6 +1051,7 @@ pub(crate) mod instance {
                 components: BTreeMap::new(),
                 invoked: false,
                 closed: false,
+                discard: None,
             }
         }
 
@@ -1102,7 +1116,7 @@ pub(crate) mod instance {
             slot: BoundaryMachineId,
             adapter: impl TerminalImportAdapter + 'host,
         ) -> Result<(), TerminalBindingRejection> {
-            if self.closed {
+            if self.closed || self.discard.is_some() {
                 return Err(TerminalBindingRejection::InstanceClosed);
             }
             if self
@@ -1333,6 +1347,9 @@ pub(crate) mod instance {
             if self.closed {
                 return Err(TerminalInstanceError::Closed);
             }
+            if self.discard.is_some() {
+                return Err(TerminalInstanceError::Discarded);
+            }
             let missing =
                 self.unbound_imports()
                     .filter(|boundary| {
@@ -1453,11 +1470,19 @@ pub(crate) mod instance {
             self.closed
         }
 
+        /// Close a settled instance. A discarded instance closes once every
+        /// outstanding provider operation has settled; until then it is `Busy`
+        /// and keeps custody of the operation and the storage it holds.
         pub fn close(&mut self) -> Result<(), TerminalInstanceCloseError> {
             if self.closed {
                 return Ok(());
             }
-            if self.invoked
+            if self.discard.is_some() {
+                if self.discard() != TerminalDiscardStatus::Settled {
+                    return Err(TerminalInstanceCloseError::Busy);
+                }
+                self.discard = None;
+            } else if self.invoked
                 && self
                     .execution
                     .as_ref()
@@ -1533,6 +1558,20 @@ pub(crate) mod instance {
             effect: &TerminalEffect,
         ) -> Result<bool, TerminalEffectRejection> {
             self.adapter_for(effect)?.poll_effect_readiness(effect)
+        }
+
+        fn request_effect_cancellation(
+            &mut self,
+            effect: &TerminalEffect,
+        ) -> Result<crate::TerminalAbandonedEffect, TerminalEffectRejection> {
+            self.adapter_for(effect)?.request_effect_cancellation(effect)
+        }
+
+        fn settle_abandoned_effect(
+            &mut self,
+            effect: &TerminalEffect,
+        ) -> Result<crate::TerminalAbandonedEffect, TerminalEffectRejection> {
+            self.adapter_for(effect)?.settle_abandoned_effect(effect)
         }
 
         fn accepts_reference_results(&self, boundary: BoundaryMachineId) -> bool {
@@ -3328,6 +3367,45 @@ pub(crate) mod program {
                 fresh.invoke(&mut terminal_work::WorkMeter::unbounded()),
                 Ok(TerminalExecutionStatus::Complete(_))
             ));
+        }
+
+        // A stopped guest with no provider operation outstanding has nothing
+        // to settle: discarding it reclaims its activation at once, it never
+        // resumes, and it closes.
+        #[test]
+        fn a_discarded_paused_instance_never_resumes() {
+            let bytes = std::fs::read(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
+            ))
+            .unwrap();
+            let received = std::sync::Arc::new(
+                terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap(),
+            );
+            let host = psi_authorization::HostProducerTrust::accept("containment test host");
+            let authorized =
+                psi_authorization::authorize_terminal_artifact(received, Some(&host)).unwrap();
+
+            let mut instance = instantiate(&authorized);
+            assert!(matches!(
+                instance.invoke(&mut terminal_work::WorkMeter::with_budget(1)),
+                Ok(TerminalExecutionStatus::SponsorExhausted(_))
+            ));
+            assert_eq!(instance.discard(), crate::TerminalDiscardStatus::Settled);
+            assert!(!instance.is_closed());
+            assert!(matches!(
+                instance.invoke(&mut terminal_work::WorkMeter::unbounded()),
+                Err(TerminalInstanceError::Discarded)
+            ));
+            assert!(instance.observe_private_entry_ram().is_err());
+            assert!(instance.result().is_none());
+            assert_eq!(instance.close(), Ok(()));
+            assert!(instance.is_closed());
+
+            // Discarding an instance that never ran just closes it.
+            let mut unopened = instantiate(&authorized);
+            assert_eq!(unopened.discard(), crate::TerminalDiscardStatus::Settled);
+            assert!(unopened.is_closed());
         }
     }
 

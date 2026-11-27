@@ -84,15 +84,25 @@ locator, calling convention and image digest before sending bytes to the worker.
 
 ## Admission and preparation work
 
-Until containment of untrusted artifacts is audited, the
+Until an untrusted interpretation route exists, the
 [admission contract](../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
 requires the host to explicitly trust an exact producer artifact before running
 it. Received code executes only through the host's `AuthorizedTerminalArtifact`.
 Canonical decoding and safe Rust do not isolate the guest. Inspection works
 without execution trust, under shared input and work limits. The
 [containment audit](../../../wiki/drafts/designs/psi_containment_audit.md)
-lists what must exist before untrusted execution opens, chiefly a way to
-discard a faulted, stopped or waiting guest.
+records what is contained and what that route still needs.
+
+`TerminalInstance::discard` ends a faulted, stopped or waiting guest. The guest
+never resumes. Its waiting provider operation is asked to cancel through
+`TerminalEffectHandler::request_effect_cancellation`, the rest of its execution
+is reclaimed, and the waiting call keeps its buffers until the provider
+settles. Each later `discard` consumes late completions through
+`settle_abandoned_effect`, never through resumption, and reports what is still
+outstanding. Storage a provider reports retained stays charged to the
+invocation account. `close` succeeds only once everything has settled. A
+native provider incarnation that cannot be reaped keeps its homes in its
+thread's quarantine until a later attempt reaps it.
 
 The [implementation plan](../../../wiki/drafts/designs/psi_claim_admission.md)
 tracks the API gate, splitting the inspection and preparation decoders, the

@@ -43,7 +43,8 @@ mod worker;
 pub use native_provider_runtime::{
     NativeAdapterId, NativeAdapterStorage, NativeArgument, NativeHomeId, NativeParameterStorage,
     NativeProviderCommand, NativeProviderError, NativeProviderOperation, NativeProviderProcess,
-    NativeProviderSession,
+    NativeProviderQuarantine, NativeProviderSession, native_provider_quarantine,
+    settle_native_provider_quarantine,
 };
 pub use worker::run_worker_if_requested;
 

@@ -134,6 +134,10 @@ pub(crate) struct SharedBacking {
 }
 
 impl SharedBacking {
+    pub(crate) const fn extent(&self) -> usize {
+        self.extent
+    }
+
     pub(crate) fn create(path: &Path, extent: usize) -> io::Result<Self> {
         if extent == 0 || extent > isize::MAX as usize {
             return Err(io::Error::new(
