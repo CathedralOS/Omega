@@ -27,6 +27,14 @@ impl Program<'_> {
     ) -> Checked<terminal_psi::TheoremSource> {
         let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
         let typed = self.typed;
+        // Stage 04 closes an instantiated citation into the machine generated
+        // for its arguments. One left open supplies the cited theorem's own
+        // proof parameters, whose citations have no invocation to check at.
+        if argument.authored_machine_application.is_valid() && argument.application.is_some() {
+            return Err(unavailable(
+                "citing a theorem given its own proof arguments needs those citations checked",
+            ));
+        }
         if !typed.symbols.symbols().nodes().is_valid(argument.symbol)
             || argument.application.is_some()
             || argument.authored_machine_application.is_valid()
