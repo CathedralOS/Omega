@@ -2442,6 +2442,232 @@ impl Denotation {
         }
     }
 
+    /// Discreteness away from a literal: `n < 9` gives `n <= 8`, and
+    /// `3 < n` gives `4 <= n`. The step adds no assumption about `n`: the
+    /// difference `d` of the two sides is strictly on one side of zero, and
+    /// `DivisorCaseSplit` (every integer is at most -2, -1, 0 or at least 1)
+    /// leaves only the cases a unit away from zero, so `d <= -1` or `1 <= d`.
+    /// Addition moves the literal back, and a numeral equation names the
+    /// adjacent literal. Every law cited is closed, so the proof depends on
+    /// the theorem's subjects only through its arguments and abstracts over
+    /// them. Any other shape returns `None` and keeps the rule instance.
+    fn successor_evidence(
+        &mut self,
+        prem: &Proposition,
+        ev: TermHandle,
+        goal: &Proposition,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let (Proposition::LessThan(l, r), Proposition::LessOrEqual(bl, br)) = (prem, goal) else {
+            return Ok(None);
+        };
+        let (pt, gt) = (self.denote(prem)?, self.denote(goal)?);
+        let (
+            Some(IntegerRelation::LessThan { left: a, right: b }),
+            Some(IntegerRelation::LessOrEqual { .. }),
+        ) = (self.integer_relation(pt), self.integer_relation(gt))
+        else {
+            return Ok(None);
+        };
+        let zero = self.integer_numeral(0)?;
+        if r == br {
+            // `k < x`: `0 < x - k`, so `1 <= x - k`, `1 + k <= x`, `k + 1 <= x`.
+            let (Some((_, k)), Some((_, next))) = (l.integer_value(), bl.integer_value()) else {
+                return Ok(None);
+            };
+            let (kn, km) = integer_parts(k);
+            let (nn, nm) = integer_parts(next);
+            let (kt, nt, one) = (
+                self.binary_term(kn, km)?,
+                self.binary_term(nn, nm)?,
+                self.integer_numeral(1)?,
+            );
+            let Some(eq) = self.numeral_binary_equation(
+                BinaryOp::Add,
+                IntegerValue::Unsigned(1),
+                k,
+                next,
+                one,
+                kt,
+                nt,
+            )?
+            else {
+                return Ok(None);
+            };
+            let (d, same) = (
+                self.binary_terms(BinaryOp::Sub, b, a)?,
+                self.binary_terms(BinaryOp::Sub, b, b)?,
+            );
+            let order = self.law(CoreLaw::SubAntitone, &[b, a, b, ev])?;
+            let to_zero = self.law(CoreLaw::SubSelfZero, &[b])?;
+            let positive = self.ord_subst(true, true, same, zero, d, to_zero, order)?;
+            let Some(unit) = self.unit_from_zero(d, positive, false)? else {
+                return Ok(None);
+            };
+            let moved = self.law(CoreLaw::AddMonotone, &[one, d, a, unit])?;
+            let (back, sum) = (
+                self.binary_terms(BinaryOp::Add, d, a)?,
+                self.binary_terms(BinaryOp::Add, one, a)?,
+            );
+            let cancel = self.law(CoreLaw::AddCancelSub, &[b, a])?;
+            let bound = self.ord_subst(false, false, back, b, sum, cancel, moved)?;
+            return self.ord_subst(false, true, sum, nt, b, eq, bound).map(Some);
+        }
+        if l != bl {
+            return Ok(None);
+        }
+        // `x < k`: `x - k < 0`, so `x - k <= -1`, `x <= -1 + k`, `x <= k - 1`.
+        let (Some((_, k)), Some((_, previous))) = (r.integer_value(), br.integer_value()) else {
+            return Ok(None);
+        };
+        let (kn, km) = integer_parts(k);
+        let (pn, pm) = integer_parts(previous);
+        let (kt, prev_t, minus_one) = (
+            self.binary_term(kn, km)?,
+            self.binary_term(pn, pm)?,
+            self.integer_numeral(-1)?,
+        );
+        let Some(eq) = self.numeral_binary_equation(
+            BinaryOp::Add,
+            IntegerValue::Signed(-1),
+            k,
+            previous,
+            minus_one,
+            kt,
+            prev_t,
+        )?
+        else {
+            return Ok(None);
+        };
+        let (d, same) = (
+            self.binary_terms(BinaryOp::Sub, a, b)?,
+            self.binary_terms(BinaryOp::Sub, a, a)?,
+        );
+        let order = self.law(CoreLaw::SubAntitone, &[a, a, b, ev])?;
+        let to_zero = self.law(CoreLaw::SubSelfZero, &[a])?;
+        let negative = self.ord_subst(true, false, same, zero, d, to_zero, order)?;
+        let Some(unit) = self.unit_from_zero(d, negative, true)? else {
+            return Ok(None);
+        };
+        let moved = self.law(CoreLaw::AddMonotone, &[d, minus_one, b, unit])?;
+        let (back, sum) = (
+            self.binary_terms(BinaryOp::Add, d, b)?,
+            self.binary_terms(BinaryOp::Add, minus_one, b)?,
+        );
+        let cancel = self.law(CoreLaw::AddCancelSub, &[a, b])?;
+        let bound = self.ord_subst(false, true, back, a, sum, cancel, moved)?;
+        self.ord_subst(false, false, sum, prev_t, a, eq, bound)
+            .map(Some)
+    }
+
+    /// From `d < 0` (`negative`) prove `d <= -1`, or from `0 < d` prove
+    /// `1 <= d`, by `DivisorCaseSplit` on `d`. The two cases on the wrong
+    /// side of zero, and zero itself, contradict the strict premise.
+    fn unit_from_zero(
+        &mut self,
+        d: TermHandle,
+        strict: TermHandle,
+        negative: bool,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        // The case types are read again under the branch binders, so `d`
+        // must have no bound variable a binder would capture.
+        let lifted = shift(&mut self.arena, d, 0, 1);
+        if !self.arena.structurally_equal(lifted, d) {
+            return Ok(None);
+        }
+        let int = self.integer_constant()?;
+        let (z, one, m1, m2) = (
+            self.integer_numeral(0)?,
+            self.integer_numeral(1)?,
+            self.integer_numeral(-1)?,
+            self.integer_numeral(-2)?,
+        );
+        let goal = if negative {
+            self.order_term(false, d, m1)?
+        } else {
+            self.order_term(false, one, d)?
+        };
+        let (cm2, cm1, c0, c1) = (
+            self.order_term(false, d, m2)?,
+            self.id(int, d, m1),
+            self.id(int, d, z),
+            self.order_term(false, one, d)?,
+        );
+        // Each branch binds its case's hypothesis as variable 0.
+        let (hyp, held) = (self.var(0), shift(&mut self.arena, strict, 0, 1));
+        let Some(m2_m1) =
+            self.integer_le_numeral(IntegerValue::Signed(-2), IntegerValue::Signed(-1))?
+        else {
+            return Ok(None);
+        };
+        let (m2_z, m1_z, z_one) = (
+            self.literal_order(IntegerValue::Signed(-2), IntegerValue::Signed(0))?,
+            self.literal_order(IntegerValue::Signed(-1), IntegerValue::Signed(0))?,
+            self.literal_order(IntegerValue::Unsigned(0), IntegerValue::Unsigned(1))?,
+        );
+        // `held` is `d < 0` or `0 < d`; `at` replaces `d` by a literal in it.
+        let at = |s: &mut Self, value: TermHandle| -> Result<TermHandle, BoundedDenotationError> {
+            if negative {
+                s.ord_subst(true, true, d, value, z, hyp, held)
+            } else {
+                s.ord_subst(true, false, d, value, z, hyp, held)
+            }
+        };
+        let m2_body = if negative {
+            self.ord_trans(false, false, d, m2, m1, hyp, m2_m1)?
+        } else {
+            // `0 < d <= -2 < 0`.
+            let below = self.ord_trans(true, false, z, d, m2, held, hyp)?;
+            let loop_ = self.ord_trans(true, true, z, m2, z, below, m2_z)?;
+            let e = self.irreflexive(z, loop_)?;
+            self.empty_elim(goal, e)
+        };
+        let m1_body = if negative {
+            self.le_of_eq(d, m1, hyp)?
+        } else {
+            // `0 < -1 < 0`.
+            let below = at(self, m1)?;
+            let loop_ = self.ord_trans(true, true, z, m1, z, below, m1_z)?;
+            let e = self.irreflexive(z, loop_)?;
+            self.empty_elim(goal, e)
+        };
+        let z_body = {
+            let loop_ = at(self, z)?;
+            let e = self.irreflexive(z, loop_)?;
+            self.empty_elim(goal, e)
+        };
+        let one_body = if negative {
+            // `1 <= d < 0 < 1`.
+            let below = self.ord_trans(false, true, one, d, z, hyp, held)?;
+            let loop_ = self.ord_trans(true, true, one, z, one, below, z_one)?;
+            let e = self.irreflexive(one, loop_)?;
+            self.empty_elim(goal, e)
+        } else {
+            hyp
+        };
+        let (m2b, m1b, zb, ob) = (
+            self.lam(cm2, m2_body),
+            self.lam(cm1, m1_body),
+            self.lam(c0, z_body),
+            self.lam(c1, one_body),
+        );
+        let split = self.law(CoreLaw::DivisorCaseSplit, &[d])?;
+        let inner = self.tagged_sum(c0, c1);
+        let mid = self.tagged_sum(cm1, inner);
+        let s0 = self.var(0);
+        let (zb2, ob2) = (
+            shift(&mut self.arena, zb, 0, 2),
+            shift(&mut self.arena, ob, 0, 2),
+        );
+        let l3 = self.tagged_sum_elim(c0, c1, s0, zb2, ob2, goal);
+        let m1_one = self.lam(inner, l3);
+        let m1l = shift(&mut self.arena, m1b, 0, 1);
+        let l2 = self.tagged_sum_elim(cm1, inner, s0, m1l, m1_one, goal);
+        let top_one = self.lam(mid, l2);
+        Ok(Some(
+            self.tagged_sum_elim(cm2, mid, split, m2b, top_one, goal),
+        ))
+    }
+
     fn numeral_binary_equation(
         &mut self,
         op: BinaryOp,
@@ -7280,8 +7506,14 @@ impl<'a> Elaboration<'a> {
                     (&relation.conclusion, &proof.conclusion),
                     (Proposition::LessOrEqual(..), Proposition::LessThan(..))
                 ) {
-                    return self.rule_instance(
+                    let d = self.denotation.successor_evidence(
+                        &relation.conclusion,
+                        ev,
+                        &proof.conclusion,
+                    )?;
+                    return self.finish_or_instance(
                         AcceptedProofRule::IntegerOrderDiscreteness,
+                        d,
                         vec![relation.conclusion.clone()],
                         vec![ev],
                         &proof.conclusion,
