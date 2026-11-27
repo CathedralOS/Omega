@@ -87,19 +87,23 @@ locator, calling convention and image digest before sending bytes to the worker.
 Until containment of untrusted artifacts is audited, the
 [admission contract](../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
 requires the host to explicitly trust an exact producer artifact before running
-it. The byte-loading APIs below do not take that trust witness yet. Canonical
-decoding and safe Rust do not isolate the guest. Inspection works without
-execution trust, under shared input and work limits.
+it. Received code executes only through the host's `AuthorizedTerminalArtifact`.
+Canonical decoding and safe Rust do not isolate the guest. Inspection works
+without execution trust, under shared input and work limits.
 
 The [implementation plan](../../../wiki/drafts/designs/psi_claim_admission.md)
 tracks the API gate, splitting the inspection and preparation decoders, the
 host's optional encoded input size limit and the total loading budget. It also moves
 declaration-dependent restrictions and descriptor lookups out of repeated
-dispatch: today primitive stores, reference paths and boundary qualifications
-reach static entailment from the execution layer. Prepared plans must keep
-the checks of predicates on actual values and the safety of concrete
-operations. Acceptance measures startup and steady-state costs; it does not
-assume closed predicate evaluation is always cheap.
+dispatch. An admitted program prepares, once and only when first needed, which
+declared scalar restrictions confer which whole-scalar domains
+(`AdmittedTerminalProgram::intrinsic_memberships`, used by reference paths and
+boundary qualifications) and each primitive store's declared restriction and
+UTF-8 obligation (`primitive_store_plan`). Both are keyed by the program's
+exact declaration view, so a layout or scalar-geometry replacement prepares its
+own. Prepared plans keep the checks of predicates on actual values and the
+safety of concrete operations. Acceptance measures startup and steady-state
+costs; it does not assume closed predicate evaluation is always cheap.
 
 ## Which execution refusals admission already covers
 

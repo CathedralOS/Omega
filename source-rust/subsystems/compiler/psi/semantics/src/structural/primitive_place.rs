@@ -77,7 +77,7 @@ pub fn primitive_projection_declaration<'a>(
 }
 
 pub fn primitive_projection_restriction<'a>(
-    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    declarations: impl StructuralDeclarations<'a>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a StructuralFieldType> {
@@ -174,7 +174,7 @@ pub fn primitive_read_projection_type<'a>(
 }
 
 pub(crate) fn primitive_read_field<'a>(
-    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    declarations: impl StructuralDeclarations<'a>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a StructuralFieldDeclaration> {

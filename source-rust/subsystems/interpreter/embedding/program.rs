@@ -1631,6 +1631,63 @@ pub(crate) mod program {
             replacements: &'storage [Declaration],
         }
 
+        impl<Declaration> Clone for ProgramDeclarations<'_, Declaration> {
+            fn clone(&self) -> Self {
+                *self
+            }
+        }
+
+        impl<Declaration> Copy for ProgramDeclarations<'_, Declaration> {}
+
+        // Each answer is the one a scan of `values()` gives: a canonical
+        // module declares each identity once, in order, and a replacement
+        // stands for the row with its identity.
+        impl<'storage> terminal_semantics::StructuralDeclarations<'storage>
+            for ProgramDeclarations<'storage, StructuralTypeDeclaration>
+        {
+            fn unique(
+                &self,
+                id: semantic_vocabulary::StructuralTypeId,
+            ) -> Option<&'storage StructuralTypeDeclaration> {
+                self.get(&id)
+            }
+
+            fn representation_view(
+                &self,
+                view: semantic_vocabulary::StructuralTypeId,
+                stored: Option<semantic_vocabulary::ScalarType>,
+            ) -> Option<&'storage StructuralTypeDeclaration> {
+                terminal_semantics::representation_view_declaration(
+                    std::iter::once(self.get(&view)?),
+                    view,
+                    stored,
+                )
+            }
+
+            fn inline_carrier(
+                &self,
+                field: &terminal_psi::StructuralFieldDeclaration,
+            ) -> Option<&'storage StructuralTypeDeclaration> {
+                if field.relevance.is_erased() {
+                    return None;
+                }
+                terminal_semantics::inline_carrier_declaration(
+                    std::iter::once(self.get(&field.inline_carrier?)?),
+                    field,
+                )
+            }
+
+            fn leaf_declaration(
+                &self,
+                field_type: &terminal_psi::StructuralFieldType,
+            ) -> Option<&'storage StructuralTypeDeclaration> {
+                if let terminal_psi::StructuralFieldType::Structural(id) = field_type {
+                    return self.get(id);
+                }
+                field_type.leaf_declaration(self.values())
+            }
+        }
+
         impl<'storage, Declaration: ProgramDeclaration> ProgramDeclarations<'storage, Declaration> {
             pub(crate) const fn new(declarations: &'storage [Declaration]) -> Self {
                 Self {
@@ -1731,6 +1788,23 @@ pub(crate) mod program {
         pub(crate) target_layouts:
             Option<std::sync::Arc<psi_target_layouts::AdmittedTargetLayouts>>,
         pub(crate) scalar_geometry: Option<std::sync::Arc<[StructuralTypeDeclaration]>>,
+        /// Prepared from this exact declaration view, including any layout
+        /// or scalar-geometry replacements, the first time execution asks,
+        /// and kept unchanged for the life of this program.
+        memberships: std::sync::OnceLock<terminal_semantics::IntrinsicMemberships>,
+        /// The declaration-dependent part of every primitive store, prepared
+        /// for the whole program the first time one runs.
+        primitive_stores: std::sync::OnceLock<Vec<PreparedPrimitiveStore>>,
+    }
+
+    /// One `WriteOnlyPrimitiveStore` of this program, by machine and
+    /// operation, with the exact destination and path its plan answers for.
+    struct PreparedPrimitiveStore {
+        machine: MachineId,
+        operation: semantic_vocabulary::OperationId,
+        destination: semantic_vocabulary::PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        plan: Option<crate::storage::primitive_storage::PrimitiveStorePlan>,
     }
 
     pub(crate) enum ProgramStorage<'artifact> {
@@ -1786,6 +1860,121 @@ pub(crate) mod program {
     impl AsRef<TerminalModule> for ProgramStorage<'_> {
         fn as_ref(&self) -> &TerminalModule {
             self
+        }
+    }
+
+    impl<'artifact> AdmittedTerminalProgram<'artifact> {
+        pub(crate) fn new(
+            identity: terminal_codec::TerminalExecutionIdentity,
+            catalogs: std::sync::Arc<ProgramStorage<'artifact>>,
+            target_layouts: Option<std::sync::Arc<psi_target_layouts::AdmittedTargetLayouts>>,
+            scalar_geometry: Option<std::sync::Arc<[StructuralTypeDeclaration]>>,
+        ) -> Self {
+            Self {
+                identity,
+                catalogs,
+                target_layouts,
+                scalar_geometry,
+                memberships: std::sync::OnceLock::new(),
+                primitive_stores: std::sync::OnceLock::new(),
+            }
+        }
+
+        fn prepare_memberships(&self) -> terminal_semantics::IntrinsicMemberships {
+            terminal_semantics::IntrinsicMemberships::prepare(
+                self.structural_types().values(),
+                self.catalogs.types.structural_domains.iter(),
+            )
+        }
+
+        /// Which declared restrictions confer which whole-scalar domains,
+        /// prepared once for this program. Programs that never ask, such as
+        /// most compile-time invocations, never pay for it. An engine
+        /// fixture edits its module after construction, so it prepares on
+        /// each request.
+        pub(crate) fn intrinsic_memberships(
+            &self,
+        ) -> std::borrow::Cow<'_, terminal_semantics::IntrinsicMemberships> {
+            #[cfg(test)]
+            if matches!(*self.catalogs, ProgramStorage::Fixture(_)) {
+                return std::borrow::Cow::Owned(self.prepare_memberships());
+            }
+            std::borrow::Cow::Borrowed(self.memberships.get_or_init(|| self.prepare_memberships()))
+        }
+
+        fn prepare_primitive_stores(&self) -> Vec<PreparedPrimitiveStore> {
+            let mut stores = Vec::new();
+            for machine in &self.catalogs.machines {
+                for operation in machine.operations() {
+                    let terminal_psi::OperationKind::WriteOnlyPrimitiveStore {
+                        destination,
+                        ref path,
+                        ..
+                    } = operation.kind
+                    else {
+                        continue;
+                    };
+                    stores.push(PreparedPrimitiveStore {
+                        machine: machine.id,
+                        operation: operation.id,
+                        destination,
+                        path: path.clone(),
+                        plan: crate::storage::primitive_storage::primitive_store_plan(
+                            self,
+                            machine,
+                            destination,
+                            path,
+                        ),
+                    });
+                }
+            }
+            stores.sort_by_key(|store| (store.machine, store.operation));
+            stores
+        }
+
+        /// The prepared plan for this store. A store the program does not
+        /// declare in `machine`, such as an engine fixture's, is planned
+        /// here instead, with the same answer.
+        pub(crate) fn primitive_store_plan(
+            &self,
+            machine: MachineId,
+            operation: &terminal_psi::Operation,
+            destination: semantic_vocabulary::PlaceId,
+            path: &[terminal_psi::StructuralPathSegment],
+        ) -> Result<
+            std::borrow::Cow<'_, crate::storage::primitive_storage::PrimitiveStorePlan>,
+            TerminalInterpretError,
+        > {
+            #[cfg(test)]
+            let fixture = matches!(*self.catalogs, ProgramStorage::Fixture(_));
+            #[cfg(not(test))]
+            let fixture = false;
+            if !fixture {
+                let stores = self
+                    .primitive_stores
+                    .get_or_init(|| self.prepare_primitive_stores());
+                if let Ok(position) = stores
+                    .binary_search_by_key(&(machine, operation.id), |store| {
+                        (store.machine, store.operation)
+                    })
+                    && stores[position].destination == destination
+                    && stores[position].path == path
+                {
+                    return stores[position]
+                        .plan
+                        .as_ref()
+                        .map(std::borrow::Cow::Borrowed)
+                        .ok_or(malformed());
+                }
+            }
+            crate::storage::primitive_storage::primitive_store_plan(
+                self,
+                self.machine(machine)?,
+                destination,
+                path,
+            )
+            .map(std::borrow::Cow::Owned)
+            .ok_or(malformed())
         }
     }
 
@@ -2177,12 +2366,12 @@ pub(crate) mod program {
         /// cannot construct it.
         pub fn admit(artifact: &'artifact psi_authorization::AuthorizedTerminalArtifact) -> Self {
             let view = terminal_codec::TerminalExecutionView::from(artifact.artifact().view());
-            Self::from_admitted(AdmittedTerminalProgram {
-                identity: view.custody_identity(),
-                catalogs: std::sync::Arc::new(ProgramStorage::Borrowed(view)),
-                target_layouts: None,
-                scalar_geometry: None,
-            })
+            Self::from_admitted(AdmittedTerminalProgram::new(
+                view.custody_identity(),
+                std::sync::Arc::new(ProgramStorage::Borrowed(view)),
+                None,
+                None,
+            ))
         }
 
         /// [`Self::admit`] for a program that outlives the borrowed witness.
@@ -2190,12 +2379,12 @@ pub(crate) mod program {
             artifact: &psi_authorization::AuthorizedTerminalArtifact,
         ) -> TerminalProgram<'static> {
             let code = artifact.artifact().retain_code();
-            TerminalProgram::from_admitted(AdmittedTerminalProgram {
-                identity: code.view().custody_identity(),
-                catalogs: std::sync::Arc::new(ProgramStorage::Retained(code)),
-                target_layouts: None,
-                scalar_geometry: None,
-            })
+            TerminalProgram::from_admitted(AdmittedTerminalProgram::new(
+                code.view().custody_identity(),
+                std::sync::Arc::new(ProgramStorage::Retained(code)),
+                None,
+                None,
+            ))
         }
 
         /// Reuse code this process produced, such as a compiler stage's
@@ -2207,12 +2396,12 @@ pub(crate) mod program {
         ) -> Result<Self, psi_authorization::ArtifactTrustError> {
             let artifact = artifact.into();
             require_produced(artifact)?;
-            Ok(Self::from_admitted(AdmittedTerminalProgram {
-                identity: artifact.custody_identity(),
-                catalogs: std::sync::Arc::new(ProgramStorage::Borrowed(artifact)),
-                target_layouts: None,
-                scalar_geometry: None,
-            }))
+            Ok(Self::from_admitted(AdmittedTerminalProgram::new(
+                artifact.custody_identity(),
+                std::sync::Arc::new(ProgramStorage::Borrowed(artifact)),
+                None,
+                None,
+            )))
         }
 
         /// [`Self::borrow`] for retained code that outlives its producer's view.
@@ -2220,12 +2409,12 @@ pub(crate) mod program {
             code: terminal_codec::RetainedTerminalCode,
         ) -> Result<Self, psi_authorization::ArtifactTrustError> {
             require_produced(code.view())?;
-            Ok(Self::from_admitted(AdmittedTerminalProgram {
-                identity: code.view().custody_identity(),
-                catalogs: std::sync::Arc::new(ProgramStorage::Retained(code)),
-                target_layouts: None,
-                scalar_geometry: None,
-            }))
+            Ok(Self::from_admitted(AdmittedTerminalProgram::new(
+                code.view().custody_identity(),
+                std::sync::Arc::new(ProgramStorage::Retained(code)),
+                None,
+                None,
+            )))
         }
 
         pub fn terminal_psi(&self) -> TerminalPsiIdentity {
@@ -2590,12 +2779,12 @@ pub(crate) mod program {
             if layouts.is_none() && scalars.is_none() {
                 return std::sync::Arc::clone(&self.program);
             }
-            std::sync::Arc::new(AdmittedTerminalProgram {
-                identity: self.program.identity.clone(),
-                catalogs: std::sync::Arc::clone(&self.program.catalogs),
-                target_layouts: layouts.map(std::sync::Arc::clone),
-                scalar_geometry: scalars.map(|scalars| std::sync::Arc::clone(scalars.geometry())),
-            })
+            std::sync::Arc::new(AdmittedTerminalProgram::new(
+                self.program.identity.clone(),
+                std::sync::Arc::clone(&self.program.catalogs),
+                layouts.map(std::sync::Arc::clone),
+                scalars.map(|scalars| std::sync::Arc::clone(scalars.geometry())),
+            ))
         }
 
         fn prepare_execution(
@@ -2943,6 +3132,48 @@ pub(crate) mod program {
                 program.module().identities.text(declaration),
                 Some("envelope_owned_declaration")
             );
+        }
+    }
+
+    #[cfg(test)]
+    mod prepared_membership_tests {
+        use super::*;
+
+        #[test]
+        fn an_admitted_program_prepares_its_membership_plan_once() {
+            let bytes = std::fs::read(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
+            ))
+            .unwrap();
+            let received = std::sync::Arc::new(
+                terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap(),
+            );
+            let host = psi_authorization::HostProducerTrust::accept("embedding test host");
+            let authorized =
+                psi_authorization::authorize_terminal_artifact(received, Some(&host)).unwrap();
+            let program = TerminalProgram::admit(&authorized);
+            let admitted = &program.program;
+            let std::borrow::Cow::Borrowed(first) = admitted.intrinsic_memberships() else {
+                panic!("an admitted program keeps the plan it prepared");
+            };
+            let std::borrow::Cow::Borrowed(second) = admitted.intrinsic_memberships() else {
+                panic!("an admitted program keeps the plan it prepared");
+            };
+            assert!(std::ptr::eq(first, second));
+            assert_eq!(
+                first,
+                &terminal_semantics::IntrinsicMemberships::prepare(
+                    admitted.structural_types().values(),
+                    admitted.catalogs.types.structural_domains.iter(),
+                )
+            );
+            // An execution with no other layout or geometry reuses the same
+            // prepared program rather than preparing again.
+            assert!(std::sync::Arc::ptr_eq(
+                &program.execution_program(None, None),
+                &program.program
+            ));
         }
     }
 

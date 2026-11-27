@@ -32,12 +32,17 @@ external-completion providers and dynamic view results) run once in
 received artifact, so inspection skips them and no executed received module
 misses them.
 
-Primitive stores, reference contracts and boundary normal qualifications can
-repeat declaration-dependent entailment during execution. Individual searches
-have a 4,096-step limit and depth-64 limit. Their total cost scales with artifact
-size and repeated dispatch. Other dispatch paths repeatedly scan type and place
-tables. Closed checks of an actual value against its predicate are separate from
-that static search and must survive the repair.
+Step 4 has started. Reference contracts and boundary normal qualifications no
+longer repeat declaration-dependent entailment during execution: an admitted
+program prepares `terminal_semantics::IntrinsicMemberships` once for its exact
+declaration view, including layout and scalar-geometry replacements, and
+dispatch answers from it with indexed type and domain lookups. Each
+`WriteOnlyPrimitiveStore` likewise reads a plan of its destination's declared
+root, scalar restriction and UTF-8 obligation, prepared once per program
+instead of on every store. The stored value is still checked against that
+restriction on every store. Other dispatch paths still repeatedly scan type and
+place tables. Closed checks of an actual value against its predicate are
+separate from that static search and must survive the repair.
 
 Keep the local proof kernel, its source-checking and interpreter evaluation uses,
 and the current certificate codec. Proof-term tags 5/6, indexed theorem rows and

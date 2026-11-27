@@ -2600,9 +2600,8 @@ pub(crate) mod normal_qualifications {
             path: &[StructuralPathSegment],
             domain: StructuralDomainId,
         ) -> bool {
-            terminal_semantics::scalar_projection_entails_membership(
-                self.structural_types().values(),
-                self.program.catalogs.types.structural_domains.iter(),
+            self.program.intrinsic_memberships().entails(
+                self.structural_types(),
                 value.structural_type,
                 path,
                 domain,

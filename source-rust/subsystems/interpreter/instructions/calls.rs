@@ -905,14 +905,14 @@ pub(crate) mod frames {
                     ..MachineContract::empty(ContractId::new(1).unwrap())
                 },
             });
-            Arc::new(AdmittedTerminalProgram {
-                identity: terminal_codec::TerminalExecutionIdentity::portable(
+            Arc::new(AdmittedTerminalProgram::new(
+                terminal_codec::TerminalExecutionIdentity::portable(
                     terminal_codec::terminal_psi_identity(&module).unwrap(),
                 ),
-                catalogs: Arc::new(crate::embedding::program::ProgramStorage::Fixture(module)),
-                target_layouts: None,
-                scalar_geometry: None,
-            })
+                Arc::new(crate::embedding::program::ProgramStorage::Fixture(module)),
+                None,
+                None,
+            ))
         }
 
         #[test]
