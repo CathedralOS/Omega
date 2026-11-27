@@ -639,11 +639,14 @@ impl Program<'_> {
         let conformance = typed
             .conformance_by_symbol(selection.conformance_symbol)
             .ok_or_else(|| unserved("quotient's equivalence is no declared conformance"))?;
+        // The trait's declared name, not its spelling here: the fixture
+        // names it through a qualified scope (`|relation|::Equivalence`).
         if conformance.trait_symbol != selection.trait_symbol
-            || !matches!(
-                conformance.trait_name.as_str(),
-                "Equivalence" | "MereEquivalence"
-            )
+            || typed
+                .trait_definition_by_symbol(selection.trait_symbol)
+                .is_none_or(|declaration| {
+                    !matches!(declaration.name.as_str(), "Equivalence" | "MereEquivalence")
+                })
         {
             return Err(unserved(
                 "quotient must select a closed Equivalence or MereEquivalence conformance",

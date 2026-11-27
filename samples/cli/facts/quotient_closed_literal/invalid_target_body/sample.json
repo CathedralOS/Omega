@@ -2,6 +2,7 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "representative fixed call precondition 0"
+    "cannot prove requires contract for call representative",
+    "amount == 3"
   ]
 }
