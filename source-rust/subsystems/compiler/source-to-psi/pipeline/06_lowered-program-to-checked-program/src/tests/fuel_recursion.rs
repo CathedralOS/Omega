@@ -253,6 +253,14 @@ fn every_law_of_rat_is_judged() {
         "regular_transitive_at",
         "regular_add_at",
         "related_add_at",
+        // Products of close values, bounded samples, and the product's
+        // regularity and congruence at one index.
+        "rat_within_mul",
+        "rat_within_compare",
+        "rat_bounded_near",
+        "regular_bounded_at",
+        "regular_mul_at",
+        "related_mul_at",
     ] {
         assert!(
             judgment.laws.iter().any(|law| law.machine == machine),
