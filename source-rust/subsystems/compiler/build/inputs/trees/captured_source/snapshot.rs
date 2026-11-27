@@ -37,6 +37,10 @@ fn snapshot_entry(entry: &CapturedSourceEntry) -> SourceSnapshotEntry<'_> {
 
 impl CapturedBuildSourceInput {
     pub fn lookup(&self, path: &[u8]) -> Result<SourceSnapshotEntry<'_>, SourceSnapshotError> {
+        self.entry_at(path).map(snapshot_entry)
+    }
+
+    fn entry_at(&self, path: &[u8]) -> Result<&CapturedSourceEntry, SourceSnapshotError> {
         if !filesystem_authority::source_snapshot_path_is_canonical(path, true) {
             return Err(SourceSnapshotError::InvalidPath);
         }
@@ -55,10 +59,9 @@ impl CapturedBuildSourceInput {
             }
         }
         if path.is_empty() {
-            return Ok(SourceSnapshotEntry::Directory);
+            return Ok(&CapturedSourceEntry::Directory);
         }
         self.retained_entry(path)
-            .map(snapshot_entry)
             .ok_or(SourceSnapshotError::NotFound)
     }
 
@@ -74,11 +77,12 @@ impl CapturedBuildSourceInput {
         })
     }
 
-    pub fn open_file(&self, path: &[u8]) -> Result<&[u8], SourceSnapshotError> {
-        match self.lookup(path)? {
-            SourceSnapshotEntry::File(bytes) => Ok(bytes),
-            SourceSnapshotEntry::Directory => Err(SourceSnapshotError::NotFile),
-            SourceSnapshotEntry::Symlink(_) => Err(SourceSnapshotError::SymlinkTraversal),
+    /// Open the retained backing so independent readers can share its bytes.
+    pub fn open_file(&self, path: &[u8]) -> Result<&std::sync::Arc<[u8]>, SourceSnapshotError> {
+        match self.entry_at(path)? {
+            CapturedSourceEntry::File { bytes, .. } => Ok(bytes),
+            CapturedSourceEntry::Directory => Err(SourceSnapshotError::NotFile),
+            CapturedSourceEntry::Symlink { .. } => Err(SourceSnapshotError::SymlinkTraversal),
         }
     }
 

@@ -14,7 +14,7 @@ use super::engine::Summary;
 use crate::descriptors::descriptor_results::{DescriptorMachine, DescriptorSlotKind};
 use semantic_vocabulary::MachineId;
 use std::sync::OnceLock;
-use terminal_psi::generic_calls::NominalCallArgument;
+use terminal_psi::generic_calls::NominalCallType;
 use terminal_psi::{OperationKind, StructuralTypeDeclaration, TerminalModule};
 
 /// Completed borrowed-storage summaries of one module's machines, shared by
@@ -27,7 +27,7 @@ use terminal_psi::{OperationKind, StructuralTypeDeclaration, TerminalModule};
 /// arguments show of that.
 pub struct ModuleSummaries<'m> {
     types: &'m [StructuralTypeDeclaration],
-    nominal_calls: &'m [NominalCallArgument],
+    nominal_calls: &'m [NominalCallType],
     /// Sorted, unique: an entry's index is its machine's rank here.
     machines: Vec<MachineId>,
     /// Sorted: machines whose bodies make a dynamic call.
@@ -49,7 +49,7 @@ pub(crate) struct PublishedSummary {
 impl<'m> ModuleSummaries<'m> {
     pub fn borrowed_storage(
         module: &'m TerminalModule,
-        nominal_calls: &'m [NominalCallArgument],
+        nominal_calls: &'m [NominalCallType],
     ) -> Self {
         let mut dynamic = module
             .machines
@@ -72,7 +72,7 @@ impl<'m> ModuleSummaries<'m> {
 
     pub(crate) fn over(
         types: &'m [StructuralTypeDeclaration],
-        nominal_calls: &'m [NominalCallArgument],
+        nominal_calls: &'m [NominalCallType],
         machines: impl IntoIterator<Item = MachineId>,
         dynamic: Vec<MachineId>,
     ) -> Self {
@@ -98,7 +98,7 @@ impl<'m> ModuleSummaries<'m> {
         types: &[StructuralTypeDeclaration],
         slot_kind: DescriptorSlotKind,
         rows: &[DescriptorMachine],
-        nominal_calls: &[NominalCallArgument],
+        nominal_calls: &[NominalCallType],
     ) -> bool {
         slot_kind == DescriptorSlotKind::BorrowedStorage
             && std::ptr::eq(types, self.types)

@@ -9456,27 +9456,29 @@ impl TypedTrees {
         &self,
         reference: TypeReferenceHandle,
     ) -> Option<&data::DataDefinition> {
-        // A field keeps its semantic type through a representation choice,
-        // including before that choice's geometry has been evaluated. Following
-        // the authenticated storage argument grants no layout or access rights.
-        let mut reference = reference;
+        self.closed_field_owner(reference).map(|(_, data)| data)
+    }
+
+    /// The semantic record application whose fields this value exposes.
+    /// A representation supplies storage geometry for its own semantic type.
+    pub(crate) fn closed_field_owner(
+        &self,
+        mut reference: TypeReferenceHandle,
+    ) -> Option<(TypeReferenceHandle, &data::DataDefinition)> {
         for _ in 0..=self.type_reference_table.type_reference_count() {
             if !self.type_reference_table.contains_type_reference(reference) {
                 return None;
             }
-            match self.type_reference_table.type_reference(reference) {
-                crate::source_state::types::TypeReferenceNode::Constrained {
-                    base_type, ..
-                } => {
-                    reference = *base_type;
-                }
-                crate::source_state::types::TypeReferenceNode::Generic { .. } => {
-                    match self.layout_storage_arguments(reference) {
-                        Some(storage) => reference = storage.semantic_type,
-                        None => return self.closed_data_definition(reference),
-                    }
-                }
-                _ => return self.closed_data_definition(reference),
+            if let crate::source_state::types::TypeReferenceNode::Constrained {
+                base_type, ..
+            } = self.type_reference_table.type_reference(reference)
+            {
+                reference = *base_type;
+                continue;
+            }
+            match self.layout_storage_arguments(reference) {
+                Some(storage) => reference = storage.semantic_type,
+                None => return Some((reference, self.closed_data_definition(reference)?)),
             }
         }
         None

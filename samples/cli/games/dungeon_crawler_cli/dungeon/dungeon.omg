@@ -83,7 +83,7 @@ machine dungeon_use_event(
         dungeon: @mutable Dungeon,
         line: @mutable |buffer|::TextBuffer
     ) {
-        dungeon.player.health = |math|::min_i32(dungeon.player.max_health as i32, (dungeon.player.health + 12) as i32) as i32 +Wrapping;
+        dungeon.player.health = |math|::min_i32(dungeon.player.max_health as -Wrapping, (dungeon.player.health + 12) as -Wrapping) as +Wrapping;
         dungeon.fountain_used = true;
         |buffer|::text_buffer_set(line, "The fountain heals your wounds." as + |buffer|::Ascii);
     }

@@ -5576,9 +5576,6 @@ impl<'a> Storage<'a> {
             Ok(())
         };
         match &block.terminator {
-            // The suspended frame retains the owner and every descriptor that
-            // borrows it. No instruction observes or mutates their storage here.
-            Terminator::PendingNormalCompletion { .. } => {}
             Terminator::StructuralCase { source, path, .. } => {
                 reads.push(self.stored_at(*source, path, Construct::Block(block.id))?);
             }
@@ -6528,8 +6525,6 @@ impl<'a> Storage<'a> {
                 }
             }
             let (edge, used) = match &block.terminator {
-                // Parking transfers no value and consumes no authority.
-                Terminator::PendingNormalCompletion { .. } => continue,
                 Terminator::EliminateEmpty { edge, source, path } => {
                     let at = Construct::Edge(*edge);
                     let subject = vec![self.stored_at(*source, path, at)?];

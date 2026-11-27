@@ -3522,27 +3522,11 @@ pub(crate) mod execution {
             ))
         }
 
-        pub(crate) fn require_complete_program(&self) -> Result<(), TerminalInterpretError> {
-            if !self
-                .program
-                .catalogs
-                .pending_normal_completions()
-                .is_empty()
-                && !self.is_finished()
-            {
-                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                    "an unfinished program cannot execute",
-                ));
-            }
-            Ok(())
-        }
-
         pub fn resume(
             &mut self,
             meter: &mut dyn ExecutionMeter,
             handler: &mut impl TerminalEffectHandler,
         ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
-            self.require_complete_program()?;
             self.resume_with_components(meter, handler, &mut ComponentBindings::new())
         }
 
@@ -3933,11 +3917,6 @@ pub(crate) mod execution {
                     .terminator;
                 self.trace_scalar_state(format_args!("before terminator {terminator:?}"));
                 let flow = match &terminator {
-                    Terminator::PendingNormalCompletion { .. } => {
-                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                            "an unfinished callee reached its missing result without a checked continuation",
-                        ));
-                    }
                     // The checked actual storage path has no admitted value.
                     // Reaching it signals an invalid runtime input or engine
                     // invariant; it is neither a language crash nor a return.

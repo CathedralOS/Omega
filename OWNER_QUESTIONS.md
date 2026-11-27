@@ -126,41 +126,34 @@ and [calling policy](wiki/spec/build/calling_plans.md#identity-and-selection)
 govern those concrete uses.
 
 <a id="package-review-empty-policy-sections"></a>
-### 3. Should package review fill the policy sections it leaves empty, or should those sections leave the evidence schema?
+### 3. What should package audit report by default?
 
-Package review leaves six policy sections empty for every package. They are
-dangerous capabilities, external supplies, slack uses, service audits,
-representation availability and demands. The code that builds a package's
-review policy fills each of those with `Vec::new()`
-([policy projection](source-rust/subsystems/compiler/build/planning/package_review/policy.rs)).
-The package-review spec still defines dangerous capabilities, external
-supplies and service audits, and `TASKS.md` lists "Finish … package projection"
-as remaining work.
-[Complete checked findings](wiki/spec/packages/review.md#complete-checked-findings) ·
-[Critical service audit policy](wiki/spec/packages/review.md#critical-service-audit-policy)
+**Owner ruling, 2026-11-27.** `omega packages audit` should show what the
+consumer has to trust by default. Show the boundary trait that declares an
+API's promise, the promise itself, and the provider or external implementation
+the consumer relies on when one is selected. Include custom services that the
+consuming project marks critical and highlight which APIs can reach them.
+For example, if an update makes `read_status()` reach an already permitted
+`MotorControl`, highlight that change when the previous findings are available.
 
-Only the evidence decoders in
-[`encoding/recovery/`](source-rust/subsystems/package-manager/review/evidence/src/encoding/recovery/)
-build values in those sections. That is 4,818 lines. No product code reads a
-stored policy baseline back. The lock keeps policy rows as text and decodes them
-with its own reader. The spec does not need a stored baseline: review compares
-against accepted lock rows, and when the old baseline is missing it reports
-current findings and marks the change unknown.
-[Review preamble](wiki/spec/packages/review.md) ·
-[Installing and updating](wiki/spec/packages/staged_inputs.md#installing-and-updating)
+The dependency's `max_reach` sets the ceiling for that use. The audit can
+highlight a change within the ceiling. With no previous findings, show the
+current reach and identify the change as unknown.
+[Dependency reach](wiki/spec/packages/staged_inputs.md#dependency-reach) ·
+[Staged updates](wiki/spec/packages/staged_inputs.md#installing-and-updating)
 
-So the decoders survive only as round-trip tests for encoders that real
-policies never use. Deleting them now would mean cutting specified vocabulary
-from the evidence schema or keeping it alive as dead code. The choice depends
-on whether these sections stay part of package review.
+Keep the report sections and fill them from checked facts. Package review
+already records custom critical services, derives dangerous capabilities, and
+identifies declared critical reach that a checked body leaves unused.
+The remaining work includes recording external supplies and which opaque
+representations the build provides and the package requires.
+[Policy construction](source-rust/subsystems/compiler/build/planning/package_review/policy.rs) ·
+[Service classification](source-rust/subsystems/package-manager/review/evidence/src/record/baseline.rs)
 
-**Recommend finishing the projection.** Keep the vocabulary until package
-review fills those sections from checked facts. Then delete `encoding/recovery/`
-in one change, replace its round-trip tests with direct encoding tests, and
-move the build tests that decode bytes onto the typed policy they already
-hold. Alternatively, remove these sections from the package-review spec and
-the evidence schema now, and delete the decoders and the vocabulary together.
-Should package review report these sections?
+**Specification follow-up for the owners.** Make this default explicit under
+[complete checked findings](wiki/spec/packages/review.md#complete-checked-findings)
+and [critical service audit policy](wiki/spec/packages/review.md#critical-service-audit-policy).
+CLI filters can be considered later.
 
 <a id="psi-receiving-rules-outside-spec"></a>
 ### 4. Should the specification restate the Psi receiving rules that moved with the wire encoding?

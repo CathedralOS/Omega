@@ -89,8 +89,13 @@ pub fn validate_function_field_binding(
     if !access.is_readable() {
         return Err("function table dispatch requires permission to read the table".into());
     }
-    let data = typed
+    // The parameter selects a complete representation. Its semantic record
+    // supplies the field description while native admission selects the offset.
+    typed
         .closed_data_definition(referee)
+        .ok_or("function table dispatch requires a closed table application")?;
+    let (owner, data) = typed
+        .closed_field_owner(referee)
         .ok_or("function table dispatch requires a closed record application")?;
     if DataDefinition::shape_kind_from_members(typed.data_members(data)) != DataShapeKind::Record {
         return Err("function table dispatch requires a record table".into());
@@ -119,7 +124,7 @@ pub fn validate_function_field_binding(
     {
         return Err("function table binding requires a live, non-atomic address field".into());
     }
-    let expected = field_description_for_application(typed, field.symbol, referee, requirement)?;
+    let expected = field_description_for_application(typed, field.symbol, owner, requirement)?;
     if binding.field != expected {
         return Err(
             "function table binding names a different field, owner application or source revision"

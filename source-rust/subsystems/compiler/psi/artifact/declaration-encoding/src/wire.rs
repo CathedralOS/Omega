@@ -7,7 +7,6 @@ const MAX_CONTENT_IDENTITY_BYTES: usize = 1 << 20;
 enum EncodingRole {
     #[default]
     ClosedPublication,
-    InvocationPrefix,
     CheckingIdentity,
 }
 
@@ -19,17 +18,6 @@ pub struct Writer {
 }
 
 impl Writer {
-    pub fn invocation_prefix() -> Self {
-        Self {
-            role: EncodingRole::InvocationPrefix,
-            ..Self::default()
-        }
-    }
-
-    pub fn is_invocation_prefix(&self) -> bool {
-        matches!(self.role, EncodingRole::InvocationPrefix)
-    }
-
     /// Checking keys identify rigid widths; they do not publish executable code.
     pub fn checking_identity() -> Self {
         Self {

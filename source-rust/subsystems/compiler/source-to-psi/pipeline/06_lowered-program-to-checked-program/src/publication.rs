@@ -109,12 +109,6 @@ fn accept_compilation(
     let mut diagnostics = Vec::new();
     for (position, verdict) in verdicts.into_iter().enumerate() {
         match verdict {
-            Ok(RouteVerdict::AcceptedPrefix(accepted)) if position == 0 => {
-                first = Some(accepted);
-            }
-            Ok(RouteVerdict::AcceptedPrefix(_)) => diagnostics.push(route_defect(
-                "a generic form or conformance cannot depend on an unfinished Build",
-            )),
             Ok(RouteVerdict::Accepted(accepted)) => {
                 if position == 0 {
                     first = Some(accepted);
@@ -389,7 +383,6 @@ mod tests {
             };
             let invocation = closure.publish_invocation().unwrap();
             let view = invocation.artifact.view();
-            assert!(view.pending_normal_completions().is_empty());
             let entry = &view.module().machines[0];
             let (block, call) = entry
                 .blocks
@@ -454,115 +447,6 @@ machine pause() suspends {}
                 );
             }
         }
-    }
-
-    #[test]
-    fn a_value_body_can_publish_only_its_checked_invocation_prefix() {
-        let publication = terminal_codec::TerminalPublication::Invocation;
-        let mut stated = elaboration_with(
-            publication,
-            "machine entry() -> i32 suspends { suspend pause() } machine pause() -> i32 suspends { 7 }",
-        );
-        // This verdict belongs to the lowered-form checker. Supply an open Psi
-        // block directly, leaving ordinary source lowering complete.
-        let block = &mut stated.module.machines[0].blocks[0];
-        let call = block.operations.last().unwrap();
-        assert!(call.suspension_crossing.is_some());
-        block.terminator = terminal_psi::Terminator::PendingNormalCompletion {
-            call: call.id,
-            scalars: Vec::new(),
-            storage: Vec::new(),
-        };
-        let machine = &stated.module.machines[0];
-        let declaration = machine.declaration.as_ref().unwrap().clone();
-        let callable = declaration.callable;
-        let scope = &mut stated.module.scalars.scalar_applications.proof_scope;
-        let id =
-            terminal_psi::ProofDeclarationId(u32::try_from(scope.declarations.len() + 1).unwrap());
-        scope
-            .declarations
-            .insert(terminal_psi::ProofScopeDeclaration::Callable(declaration));
-        scope
-            .callables
-            .insert(terminal_psi::ProofCallableAssociation::Callable {
-                declaration: id,
-                callable: terminal_psi::TargetMachineCallable::Machine(machine.id),
-            });
-        let header = scope
-            .callable_headers
-            .insert(terminal_psi::ProofCallableHeader {
-                declaration: id,
-                callable: Ok(callable),
-                ..Default::default()
-            });
-        let mut forged = stated.clone();
-        let open = forged
-            .module
-            .machines
-            .iter_mut()
-            .find(|machine| {
-                machine.blocks.iter().any(|block| {
-                    matches!(
-                        block.terminator,
-                        terminal_psi::Terminator::PendingNormalCompletion { .. }
-                    )
-                })
-            })
-            .unwrap();
-        let unreturned = open.result.scalar().unwrap().id;
-        let scalars = open
-            .blocks
-            .iter_mut()
-            .find_map(|block| match &mut block.terminator {
-                terminal_psi::Terminator::PendingNormalCompletion { scalars, .. } => Some(scalars),
-                _ => None,
-            })
-            .unwrap();
-        scalars.push(unreturned);
-        let diagnostics = accept_compilation(vec![
-            crate::judge(Ok(forged)).map_err(CompilationRefusal::Elaboration),
-        ])
-        .unwrap_err();
-        assert!(
-            diagnostics.iter().any(|diagnostic| diagnostic
-                .message
-                .contains("a live scalar has no declaration in its machine")),
-            "{diagnostics:?}"
-        );
-        let RouteVerdict::AcceptedPrefix(closure) = crate::judge(Ok(stated)).unwrap() else {
-            panic!("the partial body must receive its own checked verdict");
-        };
-        let invocation = closure.publish_invocation().unwrap();
-        let view = invocation.artifact.view();
-        assert_eq!(view.pending_normal_completions().len(), 1);
-        assert!(
-            !view
-                .module()
-                .scalars
-                .scalar_applications
-                .proof_scope
-                .callable_headers
-                .get(header)
-                .supplies_checked_body
-        );
-        let (owner, call) = view.pending_normal_completions()[0];
-        let machine = view
-            .module()
-            .machines
-            .iter()
-            .find(|row| row.id == owner)
-            .unwrap();
-        assert!(matches!(
-            machine.result,
-            terminal_psi::TerminalMachineResult::Scalar(_)
-        ));
-        assert!(machine.blocks.iter().any(|block| matches!(
-            block.terminator,
-            terminal_psi::Terminator::PendingNormalCompletion { call: cut, .. } if cut == call
-        )));
-        assert!(view.closed_module().is_none());
-        assert!(closure.publish().is_err());
-        assert!(terminal_codec::ClosedTerminalModule::new(view.module().clone()).is_err());
     }
 
     #[test]

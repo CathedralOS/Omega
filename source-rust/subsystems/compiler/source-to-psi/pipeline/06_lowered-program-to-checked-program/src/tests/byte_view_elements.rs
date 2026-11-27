@@ -1449,7 +1449,6 @@ fn a_shared_array_view_cannot_observe_write_only_backing() {
     let refused = judge(Ok(changed)).unwrap();
     let category = match &refused {
         RouteVerdict::Accepted(_) => "accepted".to_owned(),
-        RouteVerdict::AcceptedPrefix(_) => String::from("unfinished"),
         RouteVerdict::Incomplete(_) => "incomplete".to_owned(),
         RouteVerdict::FallBack(refusal) => format!("fallback: {}", refusal.detail),
         RouteVerdict::Laws(_) | RouteVerdict::UnprovedLaws(_) => {

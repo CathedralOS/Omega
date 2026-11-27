@@ -161,7 +161,6 @@ pub(super) fn supplied_trees(
                 );
                 return Err(format!("part {part} rejected: {}", messages.join("\n")));
             }
-            Ok(RouteVerdict::AcceptedPrefix(_)) => return Err(format!("part {part} is an unfinished Build invocation")),
             Ok(RouteVerdict::Incomplete(_)) => return Err(format!("part {part} incomplete")),
             Ok(RouteVerdict::FallBack(refusal)) => {
                 return Err(format!("part {part} not supported: {}", refusal.detail));

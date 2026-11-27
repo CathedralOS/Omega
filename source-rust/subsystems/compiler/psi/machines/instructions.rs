@@ -2,22 +2,6 @@ use crate::*;
 use semantic_vocabulary::{MachineId};
 
 impl Psi {
-    /// Open tails come only from invocation-local Build checking. A consumer
-    /// of a sealed invocation reads the already prepared list on its view.
-    pub fn pending_normal_completions(
-        &self,
-    ) -> impl Iterator<Item = (MachineId, semantic_vocabulary::OperationId)> + '_ {
-        self.machines.iter().flat_map(|machine| {
-            machine
-                .blocks
-                .iter()
-                .filter_map(move |block| match block.terminator {
-                    Terminator::PendingNormalCompletion { call, .. } => Some((machine.id, call)),
-                    _ => None,
-                })
-        })
-    }
-
     pub fn blocks(&self) -> impl Iterator<Item = &Block> + '_ {
         self.machines.iter().flat_map(|machine| &machine.blocks)
     }

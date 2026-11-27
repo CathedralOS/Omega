@@ -163,23 +163,15 @@ pub enum PublicationError {
 
 /// The exact module and evidence the lowered-form checker approved for publication.
 /// This value owns no typed tree, source correspondence or checker work tables.
-enum PublicationBody {
-    Complete(terminal_codec::ClosedTerminalModule),
-    Prefix(terminal_codec::InvocationTerminalCode),
-}
-
 pub struct CheckedPublicationModule {
-    module: PublicationBody,
+    module: terminal_codec::ClosedTerminalModule,
     optimization: Option<terminal_codec::PsiOptimizationExecutionRecord>,
     seals: terminal_codec::EvidenceSeals,
 }
 
 impl CheckedPublicationModule {
     pub fn module(&self) -> &terminal_psi::TerminalModule {
-        match &self.module {
-            PublicationBody::Complete(closed) => closed.module(),
-            PublicationBody::Prefix(prefix) => prefix.view().module(),
-        }
+        self.module.module()
     }
 
     pub fn publish(self) -> Result<RoutePublication, PublicationError> {
@@ -188,11 +180,6 @@ impl CheckedPublicationModule {
             seals,
             optimization,
         } = self;
-        let PublicationBody::Complete(module) = module else {
-            return Err(PublicationError::Semantic(
-                "the Build prefix still owes a checked suffix".into(),
-            ));
-        };
         let identity = module.identity();
         let record = match optimization {
             Some(record) => record,
@@ -222,13 +209,8 @@ impl CheckedPublicationModule {
                 "executed Psi optimizations require their portable publication record".into(),
             ));
         }
-        let artifact = match module {
-            PublicationBody::Complete(closed) => {
-                terminal_codec::InvocationTerminalCode::from_closed_module(closed)
-                    .map_err(PublicationError::Seals)?
-            }
-            PublicationBody::Prefix(prefix) => prefix,
-        };
+        let artifact = terminal_codec::InvocationTerminalCode::from_closed_module(module)
+            .map_err(PublicationError::Seals)?;
         Ok(RoutePublication { artifact, seals })
     }
 }
@@ -239,20 +221,10 @@ fn prepare(
     optimization: Option<&terminal_codec::PsiOptimizationExecutionRecord>,
 ) -> Result<CheckedPublicationModule, PublicationError> {
     validate(elaboration)?;
-    let checked = &elaboration.module;
-    let (module, identity) = if checked.pending_normal_completions().next().is_some() {
-        let code = terminal_codec::InvocationTerminalCode::from_prefix(checked.clone())
-            .map_err(PublicationError::Seals)?;
-        let identity = code.view().identity();
-        (PublicationBody::Prefix(code), identity)
-    } else {
-        let code = terminal_codec::ClosedTerminalModule::new(checked.clone())
-            .map_err(PublicationError::Seals)?;
-        let identity = code.identity();
-        (PublicationBody::Complete(code), identity)
-    };
+    let module = terminal_codec::ClosedTerminalModule::new(elaboration.module.clone())
+        .map_err(PublicationError::Seals)?;
     let seals = terminal_codec::EvidenceSeals {
-        module: identity,
+        module: module.identity(),
         seals: seals.to_vec(),
     };
     Ok(CheckedPublicationModule {

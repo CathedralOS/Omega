@@ -33,7 +33,10 @@ machine main(main: @mutable Main) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-public machine entry_start() {
+public machine entry_start()
+reaches |process|::ProcessExit + |streams|::StandardInput + |streams|::StandardOutput
+blocks
+{
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

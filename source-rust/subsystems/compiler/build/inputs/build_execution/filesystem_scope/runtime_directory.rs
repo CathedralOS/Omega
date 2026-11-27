@@ -26,6 +26,20 @@ enum Backing {
     },
 }
 
+pub(super) enum FileReader {
+    Live(std::fs::File),
+    Captured(std::io::Cursor<Arc<[u8]>>),
+}
+
+impl Read for FileReader {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Self::Live(file) => file.read(buffer),
+            Self::Captured(cursor) => cursor.read(buffer),
+        }
+    }
+}
+
 impl BuildDirectory {
     pub(crate) fn caller(directory: BoundDirectory) -> Self {
         Self(Backing::Live(directory))
@@ -80,10 +94,10 @@ impl BuildDirectory {
         }
     }
 
-    pub(super) fn read(&self, path: &[u8], buffer: &mut [u8]) -> io::Result<usize> {
+    pub(super) fn open_read(&self, path: &[u8]) -> io::Result<FileReader> {
         match &self.0 {
             Backing::Live(directory) | Backing::Staging { directory, .. } => {
-                directory.open_read(path)?.read(buffer)
+                directory.open_read(path).map(FileReader::Live)
             }
             Backing::Captured { source, prefix } => {
                 let combined;
@@ -93,11 +107,10 @@ impl BuildDirectory {
                     combined = [prefix.as_slice(), b"/", path].concat();
                     &combined
                 };
-                let bytes = source
-                    .read(path, 0, buffer.len() as u64)
-                    .map_err(snapshot_error)?;
-                buffer[..bytes.len()].copy_from_slice(bytes);
-                Ok(bytes.len())
+                let bytes = source.open_file(path).map_err(snapshot_error)?;
+                Ok(FileReader::Captured(std::io::Cursor::new(Arc::clone(
+                    bytes,
+                ))))
             }
         }
     }

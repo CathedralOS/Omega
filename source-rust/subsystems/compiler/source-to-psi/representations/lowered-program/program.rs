@@ -288,7 +288,7 @@ pub struct Elaboration {
     /// Complete nominal applications under each open call’s actual const inputs.
     /// These checking rows cannot grant executable publication.
     pub nominal_types: Vec<(MachineId, StructuralTypeId)>,
-    pub nominal_calls: Vec<terminal_psi::generic_calls::NominalCallArgument>,
+    pub nominal_calls: Vec<terminal_psi::generic_calls::NominalCallType>,
     /// The literals a requirement's value parameters are bound to in the
     /// machine that stands for it, in declaration order: a requirement read
     /// at the static arguments of a call (`Step::apply::<7>(x)`), in a generic

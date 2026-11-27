@@ -1,10 +1,17 @@
-use pipeline/tokens_to_syntax_trees/parser.omg;
+use pipeline/tokens_to_syntax_trees/parser_state.omg as parser;
 
+use representations/source_files/source.omg;
 use representations/syntax_trees/syntax_trees.omg;
 use representations/tokens/numeric.omg;
 use representations/tokens/tokens.omg;
 
-machine initialize_cursor(parser: @mutable |parser|::Parser) {
+// The unit `parse` appends next: its spans anchor to `source`, and its token
+// cursor starts over.
+machine begin_unit(parser: @mutable |parser|::Parser, source: |source|::SourceId, source_length: u64 in Trapping) {
+    parser.source = source;
+    parser.source_length = source_length;
+    parser.first_unit_use = parser.output.use_count as +Trapping;
+    parser.expression_clause_fact = false;
     parser.cursor = 0 as +Trapping;
     parser.current_index = 0;
     parser.current_present = false;

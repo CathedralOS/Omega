@@ -1,7 +1,7 @@
 use representations/source_files/source.omg;
 use pipeline/tokens_to_syntax_trees/expression_frames.omg as frames;
 use pipeline/tokens_to_syntax_trees/input.omg;
-use pipeline/tokens_to_syntax_trees/parser.omg;
+use pipeline/tokens_to_syntax_trees/parser_state.omg as parser;
 use pipeline/tokens_to_syntax_trees/path.omg;
 use pipeline/tokens_to_syntax_trees/types.omg;
 
@@ -23,15 +23,6 @@ use representations/tokens/tokens.omg;
 // by commas. A call's arguments, a construction's fields and a match's arms
 // are staged on scratch stacks while their nested expressions append nodes,
 // and are copied contiguously into their tables when the bracket closes.
-
-// An operator waiting for its right operand; a prefix operator waits for its
-// only operand.
-public data PendingOperator [copy] {
-    operator: |syntax_trees|::OperatorKind;
-    precedence: u64 in Trapping;
-    unary: bool;
-    start: u64 in Trapping;
-}
 
 // Parse one expression, leaving its handle in `expression_result`. `missing`
 // is the caller's diagnostic for an absent first operand; constructions
@@ -1675,7 +1666,7 @@ crashes Trap
         unary: bool,
         start: u64 in Trapping
     ) {
-        parser.expression_operators[parser.expression_operator_depth] = PendingOperator {
+        parser.expression_operators[parser.expression_operator_depth] = |frames|::PendingOperator {
             operator: operator,
             precedence: precedence,
             unary: unary,
@@ -1709,7 +1700,7 @@ crashes Trap
     }
 
     machine top(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, precedence: u64 in Trapping) {
-        let pending: PendingOperator = top_operator(parser);
+        let pending: |frames|::PendingOperator = top_operator(parser);
         transition pending.precedence >= precedence {
             true -> reduce(parser, input, base, precedence, pending),
             _ -> done()
@@ -1721,7 +1712,7 @@ crashes Trap
         input: @|tokens|::TokenStream,
         base: u64 in Trapping,
         precedence: u64 in Trapping,
-        pending: PendingOperator
+        pending: |frames|::PendingOperator
     ) {
         pop_operator(parser);
         reduce_operator(parser, input, pending);
@@ -1734,7 +1725,7 @@ crashes Trap
     machine done() {}
 }
 
-machine top_operator(parser: @|parser|::Parser) -> PendingOperator
+machine top_operator(parser: @|parser|::Parser) -> |frames|::PendingOperator
 crashes Trap
 {
     transition parser.expression_operator_depth > 0 {
@@ -1742,13 +1733,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine element(parser: @|parser|::Parser, top: u64) -> PendingOperator
+    machine element(parser: @|parser|::Parser, top: u64) -> |frames|::PendingOperator
     requires top <= 63
     {
         parser.expression_operators[top]
     }
 
-    machine invalid() -> PendingOperator {
+    machine invalid() -> |frames|::PendingOperator {
         crash Trap;
     }
 }
@@ -1772,7 +1763,7 @@ crashes Trap
 
 // One pending operator becomes a Unary node over one operand or a Binary
 // node over two.
-machine reduce_operator(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, pending: PendingOperator)
+machine reduce_operator(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, pending: |frames|::PendingOperator)
 crashes Trap
 {
     transition pending.unary {
@@ -1780,7 +1771,7 @@ crashes Trap
         _ -> binary(parser, input, pending)
     }
 
-    machine unary(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, pending: PendingOperator) {
+    machine unary(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, pending: |frames|::PendingOperator) {
         let operand: u64 in Trapping = pop_operand(parser);
         let operand_expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(@parser.output, operand);
         let node: |syntax_trees|::Expression = |syntax_trees|::Expression {
@@ -1800,7 +1791,7 @@ crashes Trap
         emit_expression(parser, input, node);
     }
 
-    machine binary(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, pending: PendingOperator) {
+    machine binary(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, pending: |frames|::PendingOperator) {
         let right: u64 in Trapping = pop_operand(parser);
         let left: u64 in Trapping = pop_operand(parser);
         let left_expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(@parser.output, left);

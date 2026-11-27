@@ -1,5 +1,14 @@
 use representations/syntax_trees/syntax_trees.omg as syntax;
 
+// An operator waiting for its right operand; a prefix operator waits for its
+// only operand.
+public data PendingOperator [copy] {
+    operator: |syntax|::OperatorKind;
+    precedence: u64 in Trapping;
+    unary: bool;
+    start: u64 in Trapping;
+}
+
 // A match uses the same frame for its subject and for the pattern and value of each arm.
 public data ExpressionFrameKind [copy] {
     case Group;

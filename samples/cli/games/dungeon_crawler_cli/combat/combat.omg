@@ -21,8 +21,8 @@ machine combat_system_fight(
     random: @mutable |random_state|::RandomState,
     round: @mutable |combat_round|::CombatRound
 ) {
-    round.player_damage = |math|::max_i32(0, (player.attack - event.enemy.defense + ((|random|::range(@mutable combat_system.rng, random, 3u32 as +Wrapping) as i32) as i32 +Wrapping)) as i32) as i32 +Wrapping;
-    event.enemy.health = |math|::max_i32(0, (event.enemy.health - round.player_damage) as i32) as i32 +Wrapping;
+    round.player_damage = |math|::max_i32(0, (player.attack - event.enemy.defense + (|random|::range(@mutable combat_system.rng, random, 3u32 as +Wrapping) as i32 +Wrapping)) as -Wrapping) as +Wrapping;
+    event.enemy.health = |math|::max_i32(0, (event.enemy.health - round.player_damage) as -Wrapping) as +Wrapping;
     round.enemy_defeated = event.enemy.health == 0;
 
     transition round.enemy_defeated {
@@ -56,7 +56,7 @@ machine combat_system_fight(
         random: @mutable |random_state|::RandomState,
         round: @mutable |combat_round|::CombatRound
     ) {
-        round.enemy_damage = |math|::max_i32(0, (event.enemy.attack - player.defense + ((|random|::range(@mutable combat_system.rng, random, 3u32 as +Wrapping) as i32) as i32 +Wrapping)) as i32) as i32 +Wrapping;
+        round.enemy_damage = |math|::max_i32(0, (event.enemy.attack - player.defense + (|random|::range(@mutable combat_system.rng, random, 3u32 as +Wrapping) as i32 +Wrapping)) as -Wrapping) as +Wrapping;
         |player|::take_damage(player, round.enemy_damage);
         round.player_defeated = player.health == 0;
     }
