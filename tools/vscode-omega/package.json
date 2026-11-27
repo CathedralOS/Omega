@@ -1,21 +1,23 @@
 {
   "name": "omega-syntax",
   "displayName": "Omega",
-  "description": "Syntax highlighting and Go to Definition for the Omega systems language (.omg).",
-  "version": "0.3.0",
+  "description": "Syntax highlighting, formatting, and Go to Definition for the Omega systems language (.omg).",
+  "version": "0.4.0",
   "publisher": "cathedralos",
   "license": "MIT",
   "engines": {
     "vscode": "^1.75.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Formatters"
   ],
   "keywords": [
     "omega",
     "omg",
     "syntax",
-    "highlighting"
+    "highlighting",
+    "formatter"
   ],
   "repository": {
     "type": "git",

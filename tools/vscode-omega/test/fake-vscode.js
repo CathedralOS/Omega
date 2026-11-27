@@ -47,6 +47,16 @@ class Location {
   }
 }
 
+class TextEdit {
+  constructor(range, newText) {
+    this.range = range;
+    this.newText = newText;
+  }
+  static replace(range, newText) {
+    return new TextEdit(range, newText);
+  }
+}
+
 const FileType = { File: 1, Directory: 2 };
 
 class TextDocument {
@@ -54,9 +64,21 @@ class TextDocument {
     this.uri = uri;
     this.text = text;
     this.version = 1;
+    this._lines = text.split('\n');
+    this.lineCount = this._lines.length;
   }
-  getText() {
-    return this.text;
+  lineAt(line) {
+    const raw = this._lines[line] ?? '';
+    const text = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+    return {
+      lineNumber: line,
+      text,
+      range: new Range(new Position(line, 0), new Position(line, text.length)),
+    };
+  }
+  getText(range) {
+    if (!range) return this.text;
+    return this.text.slice(this.offsetAt(range.start), this.offsetAt(range.end));
   }
   offsetAt(position) {
     const lines = this.text.split('\n');
@@ -78,6 +100,7 @@ function createVscode(workspaceRoots) {
     Position,
     Range,
     Location,
+    TextEdit,
     FileType,
     TextDocument,
     workspace: {
@@ -118,6 +141,14 @@ function createVscode(workspaceRoots) {
         this.definitionProvider = provider;
         return { dispose() {} };
       },
+      registerDocumentFormattingEditProvider(selector, provider) {
+        this.formattingProvider = provider;
+        return { dispose() {} };
+      },
+      registerDocumentRangeFormattingEditProvider(selector, provider) {
+        this.rangeFormattingProvider = provider;
+        return { dispose() {} };
+      },
     },
   };
 }
@@ -148,7 +179,7 @@ function loadExtension(workspaceRoots) {
   }
   extension.activate({ subscriptions: [] });
   const provider = vscode.languages.definitionProvider;
-  return async function definitionAt(file, context) {
+  const definitionAt = async function definitionAt(file, context) {
     const marker = context.indexOf('$');
     const text = fs.readFileSync(file, 'utf8');
     const found = text.indexOf(context.slice(0, marker) + context.slice(marker + 1));
@@ -159,6 +190,28 @@ function loadExtension(workspaceRoots) {
     if (!result) return [];
     return (Array.isArray(result) ? result : [result]).map(describe);
   };
+  definitionAt.format = (text, options = { tabSize: 4, insertSpaces: true }) => {
+    const document = new TextDocument(Uri.file(path.join(workspaceRoots[0], 'sample.omg')), text);
+    const edits = vscode.languages.formattingProvider.provideDocumentFormattingEdits(document, options);
+    return applyEdits(document, edits);
+  };
+  definitionAt.formatRange = (text, startLine, endLine, options = { tabSize: 4, insertSpaces: true }) => {
+    const document = new TextDocument(Uri.file(path.join(workspaceRoots[0], 'sample.omg')), text);
+    const range = new Range(new Position(startLine, 0), new Position(endLine, document.lineAt(endLine).text.length));
+    const edits = vscode.languages.rangeFormattingProvider.provideDocumentRangeFormattingEdits(document, range, options);
+    return applyEdits(document, edits);
+  };
+  return definitionAt;
+}
+
+function applyEdits(document, edits) {
+  let out = document.getText();
+  for (const edit of [...edits].reverse()) {
+    const start = document.offsetAt(edit.range.start);
+    const end = document.offsetAt(edit.range.end);
+    out = out.slice(0, start) + edit.newText + out.slice(end);
+  }
+  return out;
 }
 
 function describe(location) {
