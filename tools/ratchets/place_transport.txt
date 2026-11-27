@@ -29,7 +29,6 @@
 3 source-rust/subsystems/compiler/psi/access/validated-placements/plan.rs
 1 source-rust/subsystems/compiler/psi/execution/dynamic_dispatch.rs
 1 source-rust/subsystems/compiler/psi/execution/suspension.rs
-5 source-rust/subsystems/compiler/psi/layouts/geometry/layout.rs
 4 source-rust/subsystems/compiler/psi/layouts/geometry/layout_reports.rs
 4 source-rust/subsystems/compiler/psi/proofs/evidence/content.rs
 1 source-rust/subsystems/compiler/psi/proofs/evidence/declarations.rs

@@ -25,7 +25,6 @@ Sleep waits finite milliseconds while rejecting INFINITE.
 */
 
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{ClosedIntegerType, IntegerValue, ScalarType};
@@ -107,21 +106,6 @@ impl TerminalClockSnapshot {
                 .unix_nanoseconds
                 .checked_add(nanoseconds)
                 .ok_or_else(|| TerminalEffectRejection::new("Unix clock overflow"))?,
-        })
-    }
-
-    pub fn capture_host_epoch() -> Result<Self, TerminalRuntimeError> {
-        let elapsed = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| {
-            TerminalRuntimeError::InvalidProvision("host clock precedes the Unix epoch")
-        })?;
-        let unix_nanoseconds = u64::try_from(elapsed.as_nanos()).map_err(|_| {
-            TerminalRuntimeError::InvalidProvision(
-                "host epoch exceeds the clock model's u64 nanoseconds",
-            )
-        })?;
-        Ok(Self {
-            monotonic_nanoseconds: 0,
-            unix_nanoseconds,
         })
     }
 }

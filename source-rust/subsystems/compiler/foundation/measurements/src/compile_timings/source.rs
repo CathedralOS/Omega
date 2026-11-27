@@ -33,8 +33,3 @@ pub const PUBLISH: StageMeta = StageMeta::new(
     "CheckedPublicationModule",
     "TerminalProgramProduct",
 );
-pub const ENTRY_RECEIPT: StageMeta = StageMeta::new(
-    "terminal-production/entry-receipt",
-    "CanonicalTerminalArtifact",
-    "CheckedProgramEntryTerminalReceipt",
-);

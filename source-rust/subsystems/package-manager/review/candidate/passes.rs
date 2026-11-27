@@ -15,7 +15,6 @@ use super::{
 use crate::build_session::PackageBuildSession;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::timings;
-use artifacts::compile_timings::counters;
 use occurrences::{PackageReviewPass, RetainedPackageReviews};
 
 pub(crate) use crate::build_session::PackageSourceBindings;
@@ -118,22 +117,10 @@ fn note_pass_accounting(
     pass: &'static str,
     run: impl FnOnce() -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError>,
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
-    let compilations_before = counters::checked_compilation_call_count();
-    let frontiers_before = counters::typed_frontier_reuse_count();
-    let settled_before = counters::settled_check_totals();
     let result = run()?;
     let occurrences = result.occurrences.len();
     let carried = result.carried;
-    timings::note(|| {
-        let (settled_calls, settled_micros) = counters::settled_check_totals();
-        format!(
-            "review_pass {pass} occurrences={occurrences} compiled={} carried={carried} frontier_reused={} settled_checks={} settled_micros={}",
-            counters::checked_compilation_call_count() - compilations_before,
-            counters::typed_frontier_reuse_count() - frontiers_before,
-            settled_calls - settled_before.0,
-            settled_micros - settled_before.1,
-        )
-    });
+    timings::note(|| format!("review_pass {pass} occurrences={occurrences} carried={carried}"));
     Ok(result)
 }
 
