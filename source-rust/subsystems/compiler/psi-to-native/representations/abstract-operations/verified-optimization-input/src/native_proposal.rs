@@ -239,12 +239,21 @@ mod proposal {
                     }
                 }
             };
-            if let Some(stuck) = psi_provider_selections::component_wait_deadlock(
+            let scope = match &root {
+                target_bound_program::NativeRoot::Program(_) => {
+                    psi_provider_selections::ProgressScope::Executable
+                }
+                target_bound_program::NativeRoot::Component { .. } => {
+                    psi_provider_selections::ProgressScope::OpenInterface
+                }
+            };
+            if let Some(failure) = psi_provider_selections::invocation_progress_failure(
                 artifact.view(),
                 root.semantic_entry(),
+                scope,
                 request.imports.iter().flat_map(|import| import.calls()),
             ) {
-                return Err(vec![Diagnostic::error(stuck.to_string())]);
+                return Err(vec![Diagnostic::error(failure.to_string())]);
             }
             let scope_source = target_bound_program::NativeScopeSource::admit(
                 &authorization,

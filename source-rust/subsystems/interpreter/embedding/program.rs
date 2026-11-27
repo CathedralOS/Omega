@@ -597,7 +597,7 @@ pub(crate) mod instance {
                     TerminalEffectRejection::new("component invocation lost its live instance")
                 })?;
                 match instance
-                    .invoke(meter)
+                    .invoke_in_scope(meter, psi_provider_selections::ProgressScope::OpenInterface)
                     .map_err(|error| match error.sponsor_exhaustion() {
                         Some(reason) => TerminalEffectRejection::sponsor_exhausted(format!(
                             "component invocation: {reason}"
@@ -1321,6 +1321,14 @@ pub(crate) mod instance {
             &mut self,
             meter: &mut dyn ExecutionMeter,
         ) -> Result<TerminalExecutionStatus, TerminalInstanceError> {
+            self.invoke_in_scope(meter, psi_provider_selections::ProgressScope::Executable)
+        }
+
+        fn invoke_in_scope(
+            &mut self,
+            meter: &mut dyn ExecutionMeter,
+            scope: psi_provider_selections::ProgressScope,
+        ) -> Result<TerminalExecutionStatus, TerminalInstanceError> {
             if self.closed {
                 return Err(TerminalInstanceError::Closed);
             }
@@ -1348,20 +1356,20 @@ pub(crate) mod instance {
                 .as_mut()
                 .ok_or(TerminalInstanceError::Closed)?;
             if !self.invoked
-                && !self.components.is_empty()
-                && let Some(stuck) = psi_provider_selections::component_wait_deadlock(
+                && let Some(failure) = psi_provider_selections::invocation_progress_failure(
                     self.program
                         .program
                         .catalogs
                         .execution_view()
                         .map_err(TerminalInstanceError::Execution)?,
                     self.entry,
+                    scope,
                     self.components
                         .values()
                         .map(TerminalComponentBinding::selected),
                 )
             {
-                return Err(TerminalInstanceError::ComponentSynchronization(stuck));
+                return Err(TerminalInstanceError::Synchronization(failure));
             }
             self.invoked = true;
             let status = execution

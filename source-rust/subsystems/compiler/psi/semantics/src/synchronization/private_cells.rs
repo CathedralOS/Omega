@@ -14,25 +14,12 @@ use super::selected::Summaries;
 use super::spin::{SpinWait, spin_observation};
 use activation::{Bindings, Destination, Frame, ScalarArguments};
 use control::{Execution, Frontier};
-use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use storage::{Location, Storage};
 use terminal_psi::{
     StructuralAccess, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
     Terminator,
 };
-
-/// Find a call which can only retry on a permanently unchanged private cell.
-/// The caller supplies summaries only for its exact admitted boundary bodies.
-/// Follow returned records and their selected cleanup on the actual edge.
-/// Stop upon unknown effects, control or aliasing and repeated ordinary blocks.
-pub fn stuck_private_wait(
-    module: &TerminalModule,
-    entry: MachineId,
-    boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
-) -> Option<(MachineId, OperationId)> {
-    let failure = private_wait_failure(module, entry, ProgressScope::Executable, boundary)?;
-    (failure.cause == ProgressFailure::Deadlock).then_some((failure.machine, failure.operation))
-}
 
 pub fn private_wait_failure(
     module: &TerminalModule,

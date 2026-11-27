@@ -38,8 +38,7 @@ pub enum TerminalBindingRejection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TerminalInstanceError {
-    Closed,
+pub enum TerminalInstanceError {    Closed,
     /// The guest was discarded and can never resume.
     Discarded,
     UnboundImports {
@@ -48,7 +47,7 @@ pub enum TerminalInstanceError {
     UnboundExternalCompletions {
         missing: Vec<crate::engine::capabilities::TerminalExternalCompletionDemand>,
     },
-    ComponentSynchronization(psi_provider_selections::ComponentDeadlock),
+    Synchronization(psi_provider_selections::PrivateWaitFailure),
     Execution(TerminalInterpretError),
 }
 
@@ -78,7 +77,7 @@ impl std::fmt::Display for TerminalInstanceError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Execution(reason) => reason.fmt(formatter),
-            Self::ComponentSynchronization(reason) => reason.fmt(formatter),
+            Self::Synchronization(reason) => reason.fmt(formatter),
             other => write!(formatter, "{other:?}"),
         }
     }

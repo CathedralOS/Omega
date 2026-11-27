@@ -9,8 +9,10 @@ pub mod logical_reach;
 
 mod component;
 pub use component::{
-    AdmittedComponentProvider, ComponentDeadlock, admit_component_provider, component_wait_deadlock,
+    AdmittedComponentProvider, admit_component_provider, invocation_progress_failure,
 };
+
+pub use terminal_semantics::synchronization::{PrivateWaitFailure, ProgressScope};
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::collections::{BTreeMap, BTreeSet};

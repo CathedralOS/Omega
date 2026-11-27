@@ -52,6 +52,24 @@ pub struct PrivateWaitFailure {
     pub cause: ProgressFailure,
 }
 
+impl std::fmt::Display for PrivateWaitFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let header = match self.cause {
+            ProgressFailure::Deadlock => "synchronization deadlock",
+            ProgressFailure::Unproved | ProgressFailure::UnprovedExternal => {
+                "cannot prove synchronization progress"
+            }
+        };
+        write!(
+            f,
+            "{header} in machine {} at operation {}: {}",
+            self.machine.get(),
+            self.operation.get(),
+            self.cause.detail()
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ScalarFact {
     Literal(Scalar),
