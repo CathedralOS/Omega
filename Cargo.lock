@@ -1231,6 +1231,7 @@ dependencies = [
  "prepared-typed-trees-to-lowered-program",
  "proof-admission",
  "psi-authorization",
+ "psi-provider-selections",
  "rayon",
  "semantic-vocabulary",
  "service-surface",
