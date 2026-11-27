@@ -8,7 +8,7 @@ declared ceilings.
 use build_providers::plans::{ProviderBinding, ProviderPlan};
 use service_surface::ServiceSynchronousInvocation;
 
-pub enum SynchronousBoundaryTarget {
+pub(crate) enum SynchronousBoundaryTarget {
     Application {
         declaration: String,
         package: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -70,7 +70,7 @@ impl SynchronousBoundaryTarget {
     }
 }
 
-pub fn validate_selected_synchronous_invocation_cycles<'plan>(
+pub(crate) fn validate_selected_synchronous_invocation_cycles<'plan>(
     selected_plans: impl IntoIterator<Item = &'plan ProviderPlan>,
     mut checked_targets: impl FnMut(
         &ProviderPlan,
