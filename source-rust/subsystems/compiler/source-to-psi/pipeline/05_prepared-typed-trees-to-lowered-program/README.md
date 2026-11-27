@@ -386,6 +386,26 @@ call, so `requires a == b` proves a body's `a == b` true by call congruence
 ([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
 "Repeated admitted pure comparisons with the same selected operation and
 exact unchanged arguments have the same Boolean denotation").
+The core equality evidence traits `EqualImpliesIdentity<T>` and
+`IdentityImpliesEqual<T>` inherit `Equatable<T>`, and each law names the
+inherited `equals` ([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
+"Each law refers to the final selected implementation of that member").
+Read in the trait, that `equals` is `Equatable`'s requirement at the
+arguments the inheriting trait gives it, and it needs no envelope of its own
+there: "Either evidence bound guarantees that its inherited `equals` is
+admissible in a proof clause". Only a trait the sealed catalog marks as
+equality evidence (`SealedIntrinsic::EqualityEvidence`) gets that, and only
+for `Equatable`'s `equals`; any other trait law over its own abstract
+operation is still refused. Read anywhere for an implementation, `equals`
+is that implementation's row, exactly as `CoinByBoth::equals(@a, @b)`
+would be: in a member's own clauses, where typing calls the member but the
+selection names the requirement (`sibling_row`), and in the requirement's
+clauses at the implementation's arguments (`witness_conformance`, set while
+the member's routed contract, its witness, the applied implementation and a
+selected call read them), where `Identity::<T>` is the type the
+implementation supplies for `T`. So the row's own envelope is checked for
+every conformance, and a law about one comparison names no other. What an
+operation ensures does not stop a clause naming it; a precondition does.
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
 
