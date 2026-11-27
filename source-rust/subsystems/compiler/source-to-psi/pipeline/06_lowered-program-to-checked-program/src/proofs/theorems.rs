@@ -156,14 +156,20 @@ pub(crate) fn goal<'a>(
         .ok_or_else(|| invalid("logical application has no such premise"))?;
     // The stored subjects name the clause's formals; the goal reads each
     // one where the edge leaves.
-    terminal_semantics::theorems::substitute(&contract, &application.arguments, clause)
-        .map_err(invalid)?;
+    terminal_semantics::theorems::substitute(
+        &contract,
+        &application.arguments,
+        &application.data_arguments,
+        clause,
+    )
+    .map_err(invalid)?;
     let (storage, references) = context;
     storage.theorem_clause(
         references,
         tables,
         edge,
         &application.arguments,
+        &sums(&contract, application),
         clause,
         Construct::Edge(edge),
     )
@@ -198,6 +204,7 @@ pub(crate) fn fill<'a>(
             terminal_semantics::theorems::substitute(
                 &contract,
                 &application.arguments,
+                &application.data_arguments,
                 proposition,
             )
             .map_err(invalid)?;
@@ -206,6 +213,7 @@ pub(crate) fn fill<'a>(
                 tables,
                 application.edge,
                 &application.arguments,
+                &sums(&contract, application),
                 proposition,
                 Construct::Edge(application.edge),
             )?;
@@ -221,6 +229,20 @@ pub(crate) fn fill<'a>(
         }
     }
     Ok(())
+}
+
+/// Each sum subject's place in the applied contract, with the sum formal
+/// the application gives it.
+fn sums(
+    contract: &terminal_psi::TheoremContract,
+    application: &TheoremApplication,
+) -> Vec<(semantic_vocabulary::PlaceId, semantic_vocabulary::PlaceId)> {
+    contract
+        .data_subjects
+        .iter()
+        .map(|subject| subject.place)
+        .zip(application.data_arguments.iter().copied())
+        .collect()
 }
 
 fn lookup(

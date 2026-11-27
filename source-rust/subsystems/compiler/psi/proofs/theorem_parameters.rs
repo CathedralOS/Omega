@@ -65,6 +65,10 @@ pub struct TheoremApplication {
     pub successor: BlockId,
     pub source: TheoremSource,
     pub arguments: Vec<ScalarTerm>,
+    /// The place of each of the applied contract's sum subjects, in its
+    /// order: a sum formal of the applying machine. Its case and payloads are
+    /// read where the edge leaves.
+    pub data_arguments: Vec<PlaceId>,
     pub requirements: Vec<ObligationId>,
     /// One proof for each of the applied contract's own proof parameters, in
     /// its header order, such as `inner` in `Step::<inner>(n)`. Each is

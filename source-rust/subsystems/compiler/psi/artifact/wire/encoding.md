@@ -55,6 +55,12 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 302 adds each theorem application's counted sum arguments after its
+fixed scalar subjects: for each of the applied contract's sum subjects, in
+order, the place id of the applying machine's sum formal it reads. Readers
+reject earlier markers before reading the payload, so a saved program from
+marker 301 or earlier must be rebuilt.
+
 Marker 301 adds each theorem hypothesis's counted sum subjects after its
 scalar formal declarations. A sum subject is one value of its sum's inductive
 declaration, not its case Booleans and payload scalars. Readers reject earlier
@@ -2918,7 +2924,7 @@ and its implication is its `requires` and `ensures`.
 | theorem hypothesis | counted scalar formal declarations + counted theorem sum subjects + counted requires propositions + counted ensures propositions |
 | theorem sum subject | place id + structural type id |
 | theorem parameter | owner machine id + `u32` proof position + theorem contract |
-| theorem application | owner machine id + edge id + successor block id + proof source + counted fixed scalar subjects + counted premise obligation ids + counted theorem instantiations |
+| theorem application | owner machine id + edge id + successor block id + proof source + counted fixed scalar subjects + counted sum argument place ids + counted premise obligation ids + counted theorem instantiations |
 | theorem supply | caller machine id + invocation site + `u32` proof position + proof source + counted certificate envelopes + counted theorem instantiations |
 | theorem instantiation | proof source + counted certificate envelopes |
 | proof source | `u8`: 1 + cited machine id; 2 + `u32` caller proof-formal position |

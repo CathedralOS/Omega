@@ -193,11 +193,27 @@ impl Lowering<'_> {
         })
     }
 
+    /// The place of a sum formal given a sum subject.
+    fn sum_subject(&mut self, sum: &Expression) -> Checked<semantic_vocabulary::PlaceId> {
+        let ExpressionKind::Slot(slot) = sum.kind else {
+            return Err(self.internal("logical sum subject is not a named sum formal"));
+        };
+        let (Some(Bound::Record(root)) | Some(Bound::Home(root))) = *self.slot_mut(slot)? else {
+            return Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Expression("logical sum subject that is not a sum place"),
+            ));
+        };
+        Ok(root)
+    }
+
     fn theorem_application(
         &mut self,
         theorem: terminal_psi::TheoremSource,
         arguments: &[Expression],
         fields: &[Vec<semantic_vocabulary::CanonicalStructuralPathSegment>],
+        sums: &[Expression],
         instantiation: &[terminal_psi::TheoremSource],
         source: SourceOrigin,
     ) -> Checked<()> {
@@ -244,6 +260,9 @@ impl Lowering<'_> {
                         Ok(subject)
                     })
                     .collect::<Checked<Vec<_>>>()?;
+                if sums.len() != parameter.contract.data_subjects.len() {
+                    return Err(self.internal("logical application lost a sum subject"));
+                }
                 (requires, arguments)
             }
             // A named machine's subjects are its scalar formals and then its
@@ -286,6 +305,10 @@ impl Lowering<'_> {
                 (signature.requires.len(), scalars)
             }
         };
+        let data_arguments = sums
+            .iter()
+            .map(|sum| self.sum_subject(sum))
+            .collect::<Checked<Vec<_>>>()?;
         let successor = self.block(source);
         let edge = self.edge(
             terminal_check_tables::edges::Destination::Block(successor),
@@ -316,6 +339,7 @@ impl Lowering<'_> {
                 successor,
                 source: theorem,
                 arguments,
+                data_arguments,
                 requirements,
                 instantiation: instantiation
                     .iter()
@@ -409,9 +433,10 @@ impl Lowering<'_> {
                 source: theorem,
                 arguments,
                 fields,
+                sums,
                 instantiation,
             } => {
-                self.theorem_application(*theorem, arguments, fields, instantiation, source)?;
+                self.theorem_application(*theorem, arguments, fields, sums, instantiation, source)?;
                 Ok(Reached::Value(Value::Unit))
             }
             ExpressionKind::Atomic(operation) => match operation {

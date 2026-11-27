@@ -8,12 +8,12 @@ From this directory, publish the selected Build with the bundled library.
 omega --emit-psi /tmp/linux_x86_64.psi --target linux_x86_64 --build-input build.omg --build-input main.omg build.omg
 ```
 
-The compiler built from `d455d2ba94a` with the theorem sum subject wire row compiled 51 source files and published the fixture under semantic format marker 301. Its executable SHA-256 was `8db183707f5c12ce5582e274a4f6fb221bfe97f5717944664b870f369e80e04a`. The bundled `source/library` tree is Git object `30ef73494382b587b5d0cbd21a3dd1ed3159525c`.
+The compiler built from `99aaa6ba9a8` with the theorem application's sum argument row compiled 51 source files and published the fixture under semantic format marker 302. Its executable SHA-256 was `c250f1a351baac543e2f09784b709aa91834c7991668dcb684993605e6ac7ac4`. The bundled `source/library` tree is Git object `30ef73494382b587b5d0cbd21a3dd1ed3159525c`.
 
 | Input or receipt | Digest |
 | --- | --- |
-| Canonical artifact manifest | `46df5bca2ef19eb30cbb983f4a670a7c4b249f8cf4bd927b24d22deb42f5c9b7` |
-| Saved file SHA-256, 226930 bytes | `189756247b6d7b14ebd4e26e055cc2c316f004d48d14f404cfa2d3a1500da6ab` |
+| Canonical artifact manifest | `bdc09d2788aafff6e9d273da01e7b691a3ec2ff9b613cd0454c473233963212b` |
+| Saved file SHA-256, 226930 bytes | `72da467198f8b9bbcf8b3bfbca3d387d6174aa9ab0f942948f5a80b65f5257bb` |
 | main.omg SHA-256 | `073768333496caabb3c28a753482d2888a9a527b0765f7f12941332eba6c8e58` |
 | build.omg SHA-256 | `95e9fe2fa4d640385511dfecef410202674234e1fd9181a02caaea77cc862e54` |
 | `source/library/system/targets/linux_x86_64/entry.omg` SHA-256 | `da744cd48323520484545a412be9d6334b81d3b55806e056dcf920cda444ac2b` |

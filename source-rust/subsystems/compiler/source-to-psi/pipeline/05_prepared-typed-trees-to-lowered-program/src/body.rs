@@ -1315,6 +1315,9 @@ pub enum ExpressionKind {
         /// for a scalar subject, and a scalar field's path when the
         /// argument names a record formal. Empty for a named machine.
         fields: Vec<Vec<semantic_vocabulary::CanonicalStructuralPathSegment>>,
+        /// For a proof formal, the sum formal given each of the applied
+        /// contract's sum subjects, in its order. Empty for a named machine.
+        sums: Vec<Expression>,
         /// One proof for each of the applied contract's own proof
         /// parameters, such as `inner` in `Step::<inner>(n)`.
         instantiation: Vec<terminal_psi::TheoremSource>,
