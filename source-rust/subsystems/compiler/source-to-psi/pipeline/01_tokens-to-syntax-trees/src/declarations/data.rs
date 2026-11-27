@@ -151,12 +151,14 @@ fn parse_data_definition<'tokens, 'source>(
         let (relation, next) = parse_path_handle_span(input, |member| {
             syntax_trees.items.append_identifier_path_member(member)
         })?;
+        let (relation_arguments, next) = parse_quotient_arguments(syntax_trees, next)?;
         input = next;
         let equivalence = if input.at_contextual("requires") {
             input = input.take_contextual("requires")?;
             let (selected_relation, next) = parse_path_handle_span(input, |member| {
                 syntax_trees.items.append_identifier_path_member(member)
             })?;
+            let (selected_relation_arguments, next) = parse_quotient_arguments(syntax_trees, next)?;
             input = next.take_contextual("satisfies")?;
             let ((trait_name, trait_lifetime_arguments, trait_arguments), next) =
                 parse_conformance_trait_application(syntax_trees, input)?;
@@ -167,12 +169,15 @@ fn parse_data_definition<'tokens, 'source>(
             }
             input = next.take_contextual("as")?;
             let (conformance_name, next) = input.take_identifier()?;
+            let (conformance_arguments, next) = parse_quotient_arguments(syntax_trees, next)?;
             input = next;
             Some(QuotientEquivalenceSelection {
                 relation: selected_relation,
+                relation_arguments: selected_relation_arguments,
                 trait_name,
                 trait_arguments,
                 conformance_name,
+                conformance_arguments,
             })
         } else {
             None
@@ -192,6 +197,7 @@ fn parse_data_definition<'tokens, 'source>(
                 quotient: Some(QuotientDefinition {
                     carrier,
                     relation,
+                    relation_arguments,
                     equivalence,
                 }),
                 requires_facts: HandleSpan::empty(),
@@ -800,4 +806,35 @@ fn parse_case_payload_fields<'tokens, 'source>(
         input,
     )?;
     Ok(((payload, retired_identities), input))
+}
+
+/// The generic arguments a quotient writes after its relation or its
+/// conformance (`same_length<T>`, `SameLength<T>`), if any.
+fn parse_quotient_arguments<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<TypeReferenceHandle>> {
+    if !input.at_punctuation(PunctuationKind::Less) {
+        return Ok((HandleSpan::empty(), input));
+    }
+    input = input.take_punctuation(PunctuationKind::Less, "<")?;
+    let mut arguments = Vec::new();
+    loop {
+        let (argument, next) =
+            crate::types::references::parse_static_argument_reference(syntax_trees, input)?;
+        arguments.push(argument);
+        input = next;
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            continue;
+        }
+        input = input.take_punctuation(PunctuationKind::Greater, ">")?;
+        break;
+    }
+    Ok((
+        syntax_trees
+            .type_references
+            .insert_type_reference_handles(arguments),
+        input,
+    ))
 }

@@ -956,6 +956,7 @@ mod tests {
             carrier,
             relation: Vec::new(),
             relation_symbol: Default::default(),
+            relation_arguments: Default::default(),
             equivalence: None,
         });
         let (family, _) = super::prepare_selections(&program).unwrap();

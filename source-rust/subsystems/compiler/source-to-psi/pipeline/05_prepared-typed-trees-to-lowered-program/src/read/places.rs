@@ -163,6 +163,11 @@ impl Program<'_> {
                     Unserved::Type("record without its exact retained application"),
                 )
             })?;
+        // A quotient application is a declaration of its own, its carrier,
+        // relation and conformance closed at its arguments (`quotients`).
+        if data.quotient.is_some() && data.generic_instance.is_some() {
+            return self.record_definition(id, data, None);
+        }
         let application = self.source_record_application(data, reference, id)?;
         let regions = self.occurrence_regions(id, data, semantic)?;
         self.record_definition(id, data, Some(application))

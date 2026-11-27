@@ -155,7 +155,7 @@ fn desugar_generic_data_instances_in(
         if definition.type_parameters.is_empty() {
             continue;
         }
-        if definition.quotient.is_some() || !definition.conformance_bounds.is_empty() {
+        if !definition.conformance_bounds.is_empty() {
             continue;
         }
         if matches!(
@@ -241,6 +241,7 @@ fn desugar_generic_data_instances_in(
                 members: definition.members,
                 properties: definition.properties,
                 supply_mode: definition.supply_mode,
+                quotient: definition.quotient.clone(),
             },
         );
     }
@@ -707,6 +708,48 @@ fn synthesize_instance(
             warnings,
         )
     });
+    // A quotient application is the quotient of the carrier applied at the
+    // same arguments, by the relation and conformance applied at them.
+    let quotient = base_info.quotient.clone().map(|mut quotient| {
+        let mut substitute = |syntax: &mut SyntaxTrees, handle| {
+            super::substitution::substitute_type_reference(
+                syntax,
+                snapshot,
+                handle,
+                &substitution,
+                selection,
+                warnings,
+            )
+        };
+        let mut substitute_span =
+            |syntax: &mut SyntaxTrees, span: HandleSpan<TypeReferenceHandle>| {
+                let handles = syntax.type_references.type_reference_handles(span).to_vec();
+                let substituted = handles
+                    .into_iter()
+                    .map(|handle| substitute(syntax, handle))
+                    .collect::<Vec<_>>();
+                syntax
+                    .tables
+                    .type_references
+                    .insert_type_reference_handles(substituted)
+            };
+        quotient.carrier = {
+            let span = syntax
+                .tables
+                .type_references
+                .insert_type_reference_handles([quotient.carrier]);
+            let span = substitute_span(syntax, span);
+            syntax.type_references.type_reference_handles(span)[0]
+        };
+        quotient.relation_arguments = substitute_span(syntax, quotient.relation_arguments);
+        if let Some(selection) = &mut quotient.equivalence {
+            selection.relation_arguments = substitute_span(syntax, selection.relation_arguments);
+            selection.trait_arguments = substitute_span(syntax, selection.trait_arguments);
+            selection.conformance_arguments =
+                substitute_span(syntax, selection.conformance_arguments);
+        }
+        quotient
+    });
     let declaration = syntax.push_root_item(Item::Data(DataDefinition {
         name: Identifier::new(
             instance.synthetic_name.as_str(),
@@ -722,7 +765,7 @@ fn synthesize_instance(
         properties,
         requires_facts,
         members: HandleSpan::from_parts(first, count),
-        quotient: None,
+        quotient,
     }));
 
     let mut materialized = instance.clone();

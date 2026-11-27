@@ -221,10 +221,36 @@ pub(crate) mod data {
                         crate::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
                     )?;
                 }
+                let mut arguments = |span| {
+                    let arguments = lowerer
+                        .source_trees
+                        .child_type_references(span)
+                        .iter()
+                        .map(|argument| lower_type_reference_into_table(lowerer, argument))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    Ok::<_, Diagnostic>(
+                        lowerer
+                            .typed_trees
+                            .type_reference_table
+                            .insert_type_reference_handles(arguments),
+                    )
+                };
+                let relation_arguments = arguments(quotient.relation_arguments)?;
+                let selection_arguments = quotient
+                    .equivalence
+                    .as_ref()
+                    .map(|selection| {
+                        Ok::<_, Diagnostic>((
+                            arguments(selection.relation_arguments)?,
+                            arguments(selection.conformance_arguments)?,
+                        ))
+                    })
+                    .transpose()?;
                 Ok::<_, Diagnostic>(typed::data::QuotientDefinition {
                     carrier: lower_type_reference_into_table(lowerer, &quotient.carrier)?,
                     relation: lower_names(&quotient.relation),
                     relation_symbol: quotient.relation_symbol,
+                    relation_arguments,
                     equivalence: quotient
                         .equivalence
                         .as_ref()
@@ -238,6 +264,9 @@ pub(crate) mod data {
                             Ok::<_, Diagnostic>(typed::data::QuotientEquivalenceSelection {
                                 relation: lower_names(&selection.relation),
                                 relation_symbol: selection.relation_symbol,
+                                relation_arguments: selection_arguments
+                                    .expect("a selection's arguments")
+                                    .0,
                                 trait_name: lower_name(&selection.trait_name),
                                 trait_symbol: selection.trait_symbol,
                                 trait_arguments: lowerer
@@ -248,6 +277,9 @@ pub(crate) mod data {
                                     &selection.conformance_name,
                                 ),
                                 conformance_symbol: selection.conformance_symbol,
+                                conformance_arguments: selection_arguments
+                                    .expect("a selection's arguments")
+                                    .1,
                             })
                         })
                         .transpose()?,

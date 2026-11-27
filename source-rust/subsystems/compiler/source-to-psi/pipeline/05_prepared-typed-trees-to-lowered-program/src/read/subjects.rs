@@ -389,6 +389,7 @@ impl Program<'_> {
                 || !self.proof_machine(machine)
                 || (instantiation.is_some() && !type_instance)
                 || self.type_template(machine)
+                || self.conformance_template_row(machine)
                 || (!type_instance
                     && self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject)
             {

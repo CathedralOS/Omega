@@ -341,6 +341,13 @@ mod assignment {
                             diagnostic_path_source_span(&quotient.relation),
                         )
                         .unwrap_or_else(SymbolHandle::invalid);
+                    assign_type_reference_argument_symbols_with_constraints(
+                        symbols,
+                        child_type_references,
+                        type_constraints,
+                        &type_parameters,
+                        quotient.relation_arguments,
+                    );
                     if let Some(selection) = &mut quotient.equivalence {
                         let relation_name = selection.relation.joined_path();
                         selection.relation_symbol = symbols
@@ -367,6 +374,18 @@ mod assignment {
                             &type_parameters,
                             selection.trait_arguments,
                         );
+                        for arguments in [
+                            selection.relation_arguments,
+                            selection.conformance_arguments,
+                        ] {
+                            assign_type_reference_argument_symbols_with_constraints(
+                                symbols,
+                                child_type_references,
+                                type_constraints,
+                                &type_parameters,
+                                arguments,
+                            );
+                        }
                         if let Some((_, proposition_slots)) = trait_proposition_slots
                             .iter()
                             .find(|(symbol, _)| *symbol == selection.trait_symbol)
@@ -761,6 +780,21 @@ mod assignment {
             .zip(proposition_slots)
         {
             if !is_proposition {
+                continue;
+            }
+            // A proposition generic over types names its declaration as the
+            // application's base (`same_count<T>`); its arguments are types,
+            // resolved with the others.
+            if let TypeReference::Generic(generic) = argument {
+                let storage = &mut generic.storage;
+                if !storage.base_symbol.is_valid() {
+                    storage.base_symbol =
+                        crate::resolution::names::lookup::top_level_symbol_for_source(
+                            symbols,
+                            SymbolKind::Proposition,
+                            &storage.base_name,
+                        );
+                }
                 continue;
             }
             let TypeReference::Named { symbol, name, .. } = argument else {

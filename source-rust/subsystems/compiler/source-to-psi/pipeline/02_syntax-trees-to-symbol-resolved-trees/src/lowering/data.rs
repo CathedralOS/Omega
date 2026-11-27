@@ -167,6 +167,11 @@ fn lower_data_definition_with_argument_origins(
                     syntax_items(syntax_trees).identifier_path_members(quotient.relation),
                 ),
                 relation_symbol: SymbolHandle::invalid(),
+                relation_arguments: lower_child_type_references(
+                    lowerer,
+                    syntax_trees,
+                    quotient.relation_arguments,
+                )?,
                 equivalence: quotient
                     .equivalence
                     .as_ref()
@@ -178,6 +183,11 @@ fn lower_data_definition_with_argument_origins(
                                 .map(|name| lower_name(syntax_trees, name))
                                 .collect(),
                             relation_symbol: SymbolHandle::invalid(),
+                            relation_arguments: lower_child_type_references(
+                                lowerer,
+                                syntax_trees,
+                                selection.relation_arguments,
+                            )?,
                             trait_name: lower_name(syntax_trees, &selection.trait_name),
                             trait_symbol: SymbolHandle::invalid(),
                             trait_arguments: lower_child_type_references(
@@ -187,6 +197,11 @@ fn lower_data_definition_with_argument_origins(
                             )?,
                             conformance_name: lower_name(syntax_trees, &selection.conformance_name),
                             conformance_symbol: SymbolHandle::invalid(),
+                            conformance_arguments: lower_child_type_references(
+                                lowerer,
+                                syntax_trees,
+                                selection.conformance_arguments,
+                            )?,
                         })
                     })
                     .transpose()?,

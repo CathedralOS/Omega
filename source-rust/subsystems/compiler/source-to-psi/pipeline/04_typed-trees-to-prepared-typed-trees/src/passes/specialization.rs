@@ -84,6 +84,7 @@ mod callable_binder;
 mod named_conformances;
 mod propositions;
 mod provider_methods;
+mod quotients;
 mod reflected_fields;
 
 #[cfg(test)]
@@ -128,6 +129,9 @@ pub(crate) fn prepare_selected(
             ))]
         })?;
     }
+    // Each closed quotient application selects its relation and conformance
+    // first, so the rows generated for it are visited in turn below.
+    quotients::close(program, &mut generated_propositions);
     let mut captures = crate::source_state::NamedConformanceCaptureIndex::new(program);
     // A generated machine is appended to the machines and read in its turn.
     let mut selected_methods = provider_methods::SelectedMethods::new(program, &selected_providers);

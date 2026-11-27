@@ -1190,6 +1190,64 @@ fn parses_quotient_equivalence_selection_requirement() {
 }
 
 #[test]
+fn parses_generic_quotient_relation_and_conformance_arguments() {
+    // OWNER_QUESTIONS.md, "Generic quotients name the applied relation and
+    // its proof": the relation's arguments follow `%` and `requires`, the
+    // conformance's follow `as`.
+    let source = r#"
+        data SequenceLength<T> = Seq<T> % same_length<T>
+            requires same_length<T> satisfies MereEquivalence<Seq<T>, same_length<T>>
+            as SameLength<T>;
+    "#;
+    let parsed = crate::tests::parse_source(source);
+    let quotient = parsed
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(data) => data.quotient.as_ref(),
+            _ => None,
+        })
+        .expect("quotient metadata");
+    let selection = quotient
+        .equivalence
+        .as_ref()
+        .expect("equivalence selection");
+    let named = |span| {
+        parsed
+            .type_references
+            .type_reference_handles(span)
+            .iter()
+            .map(
+                |&argument| match parsed.type_references.type_reference(argument) {
+                    TypeReferenceNode::Named(name) => name.as_str(&parsed).to_owned(),
+                    _ => "?".to_owned(),
+                },
+            )
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(named(quotient.relation_arguments), ["T"]);
+    assert_eq!(named(selection.relation_arguments), ["T"]);
+    assert_eq!(named(selection.conformance_arguments), ["T"]);
+
+    // Without them, each list is empty.
+    let plain = crate::tests::parse_source(
+        "data Carrier { case Value; }\ndata Quotient = Carrier % same\nrequires same satisfies Equivalence<Carrier, same> as Laws;",
+    );
+    let quotient = plain
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(data) => data.quotient.as_ref(),
+            _ => None,
+        })
+        .expect("quotient metadata");
+    assert!(quotient.relation_arguments.is_empty());
+    let selection = quotient
+        .equivalence
+        .as_ref()
+        .expect("equivalence selection");
+    assert!(selection.relation_arguments.is_empty() && selection.conformance_arguments.is_empty());
+}
+
+#[test]
 fn parses_static_machine_symbol_call_argument() {
     let source = r#"
         data Card {}

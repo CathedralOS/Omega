@@ -278,6 +278,11 @@ impl Program<'_> {
         {
             return Err(unserved("generic or constrained quotient data"));
         }
+        if !closed_application(quotient) {
+            return Err(unserved(
+                "application of a generic quotient whose relation or conformance does not close at its arguments",
+            ));
+        }
         let identity = typed
             .normalized_nominal_type_identity(symbol)
             .and_then(|identity| typed.type_identity_text(identity))
@@ -382,6 +387,12 @@ impl Program<'_> {
                 "quotient must select a closed MereEquivalence conformance",
             ));
         }
+        // A conformance generic over types is selected only at arguments.
+        if !conformance.type_parameters.is_empty() {
+            return Err(unserved(
+                "application of a generic quotient whose relation or conformance does not close at its arguments",
+            ));
+        }
         let conformance_args = typed
             .type_reference_table
             .type_reference_handles(conformance.arguments);
@@ -394,7 +405,12 @@ impl Program<'_> {
             crate::source_state::types::TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
             _ => None,
         };
-        if named_symbol(*arg_carrier) != Some(carrier_declared) {
+        // A closed application's conformance states its carrier as the
+        // application it is (`Tagged<u64>`), which reads as the same type.
+        let same_carrier = named_symbol(*arg_carrier) == Some(carrier_declared)
+            || (data.generic_instance.is_some()
+                && self.value_type(id, *arg_carrier).ok() == Some(carrier_type));
+        if !same_carrier {
             return Err(unserved(
                 "quotient selects a MereEquivalence conformance proved for a different carrier",
             ));
@@ -595,6 +611,11 @@ impl Program<'_> {
             || data.cleanup_selection.is_some()
         {
             return Err(unserved("generic or constrained quotient data"));
+        }
+        if !closed_application(quotient) {
+            return Err(unserved(
+                "application of a generic quotient whose relation or conformance does not close at its arguments",
+            ));
         }
         if crate::body::source_multiplicity(data.properties.multiplicity)
             != terminal_psi::StructuralMultiplicity::Unrestricted
@@ -1156,4 +1177,13 @@ impl Program<'_> {
         check_side(right_call_handle, &right_syms)?;
         Ok(())
     }
+}
+
+/// Whether typed preparation selected what a quotient application's
+/// relation and conformance name: none of their generic arguments remain.
+fn closed_application(quotient: &crate::source_state::data::QuotientDefinition) -> bool {
+    quotient.relation_arguments.is_empty()
+        && quotient.equivalence.as_ref().is_none_or(|selection| {
+            selection.relation_arguments.is_empty() && selection.conformance_arguments.is_empty()
+        })
 }
