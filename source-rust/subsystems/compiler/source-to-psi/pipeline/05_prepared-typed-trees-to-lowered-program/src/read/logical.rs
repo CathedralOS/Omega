@@ -1548,6 +1548,7 @@ pub(crate) fn projected_arrival(
         },
     ));
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: callee_signature.parameters,
         statements: Vec::new(),
     });

@@ -272,6 +272,7 @@ fn lower(machines: Vec<Machine>) -> Checked<crate::lowering::Elaboration> {
         let mut slots = parameters.clone();
         slots.extend(machine.locals.into_iter().map(ValueType::plain));
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots,
             statements: machine.statements,
         });
@@ -2043,6 +2044,7 @@ fn elaborate_over(
         let mut slots = machine.parameters.clone();
         slots.extend(machine.locals);
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots,
             statements: machine.statements,
         });
@@ -6529,6 +6531,7 @@ mod generic_bodies {
             let parameters: Vec<ValueType> =
                 machine.parameters.into_iter().map(Into::into).collect();
             bodies.push(Body {
+                assembly_target_requirement: Default::default(),
                 slots: parameters.clone(),
                 statements: machine.statements,
             });
@@ -7128,6 +7131,7 @@ fn crashing_below_ten(
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![
             Statement::Arm {
@@ -7220,6 +7224,7 @@ fn crashing_at_zero(requires: Vec<Proposition>) -> (crate::lowering::Elaboration
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![
             Statement::Arm {
@@ -7282,6 +7287,7 @@ fn calling_a_zero_route(requires: Vec<Proposition>) -> (crate::lowering::Elabora
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
     });
@@ -7302,6 +7308,7 @@ fn calling_a_zero_route(requires: Vec<Proposition>) -> (crate::lowering::Elabora
         ranking: None,
     });
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![
             Statement::Arm {
@@ -7413,6 +7420,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
         let mut bodies: IdTable<MachineId, Body> = IdTable::default();
         let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![u32_type().into()],
             statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
         });
@@ -7433,6 +7441,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             ranking: None,
         });
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![u32_type().into()],
             statements: vec![
                 Statement::Arm {

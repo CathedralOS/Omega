@@ -67,6 +67,7 @@ pub(super) fn lower_lending(machines: Vec<Lending>) -> Checked<crate::lowering::
         let mut slots = machine.parameters.clone();
         slots.extend(machine.locals);
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots,
             statements: machine.statements,
         });

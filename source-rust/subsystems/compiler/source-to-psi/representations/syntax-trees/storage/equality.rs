@@ -101,6 +101,7 @@ macro_rules! plain {
 }
 plain!(
     bool,
+    language_core::inline_assembly::AsmTargetApplicability,
     language_core::PatternComponent,
     language_core::PatternSelector,
     usize,

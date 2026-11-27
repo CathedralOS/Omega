@@ -526,6 +526,7 @@ fn read_bodies(
         {
             if complete {
                 bodies.push(Body {
+                    assembly_target_requirement: Default::default(),
                     slots: Vec::new(),
                     statements: Vec::new(),
                 });
@@ -1130,6 +1131,7 @@ fn witness_call(
 pub(crate) fn callable_refinement_body(required: &body::Signature, call: Expression) -> Body {
     let source = call.source;
     Body {
+        assembly_target_requirement: Default::default(),
         slots: required.parameters.clone(),
         statements: vec![match required.result {
             Some(_) => Statement::Arm {
@@ -1164,6 +1166,7 @@ fn finish_logical_witness<'source>(
         let signature =
             terminal_check_tables::row(&program.signatures, id, entry, Construct::Machine)?;
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: signature.parameters.clone(),
             statements: Vec::new(),
         });
@@ -1393,6 +1396,7 @@ fn finish_reading_into<'source>(
                     .parameters
                     .clone();
                     bodies.push(Body {
+                        assembly_target_requirement: Default::default(),
                         slots,
                         statements: Vec::new(),
                     });
@@ -2620,6 +2624,7 @@ mod publication_scope_tests {
         let entry = MachineId::new(1).unwrap();
         let mut bodies = IdTable::default();
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: Vec::new(),
             statements: Vec::new(),
         });

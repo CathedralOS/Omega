@@ -11,6 +11,8 @@ what it supports is refused. To check a source program without running its
 Build, see
 [Running the checker on a source program](../06_lowered-program-to-checked-program/README.md#running-the-checker-on-a-source-program).
 
+Each emitted Psi machine carries the instruction catalog target required by its source body. When recursive transitions share a machine, their bodies must admit a common target.
+
 Data that contains itself by value has no storage, so a machine over it never
 runs. Such declarations take a second route: [mathematics.rs](src/mathematics.rs)
 reads them with the same reader, in a reader of its own so none of them is
