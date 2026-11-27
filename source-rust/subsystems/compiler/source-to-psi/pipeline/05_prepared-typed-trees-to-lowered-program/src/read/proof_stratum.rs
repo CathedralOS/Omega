@@ -67,7 +67,7 @@ impl Program<'_> {
     /// Whether the declaration contains itself: a field of it, or of one of
     /// its cases, has the declaration as its type, directly or through the
     /// fields of other declarations. The declarations it so reaches and that
-    /// reach it again are one mutual block with it (`mutual_block`).
+    /// reach it again are one mutual block with it (`signature::record_block`).
     pub(crate) fn contains_itself(&self, data: &DataDefinition) -> bool {
         self.reaches(data, data.symbol, &mut Vec::new())
     }
@@ -98,6 +98,15 @@ impl Program<'_> {
     fn names_through(&self, reference: TypeReferenceHandle, named: &mut Vec<SymbolHandle>) {
         if let Some(symbol) = self.names_data(reference) {
             named.push(symbol);
+            // An application names its type arguments too: `Rose`, holding
+            // a `Seq<Rose>`, reaches itself through `Seq` (a nested
+            // inductive).
+            let table = &self.typed.type_reference_table;
+            if let TypeReferenceNode::Generic { arguments, .. } = table.type_reference(reference) {
+                for &argument in table.type_reference_handles(*arguments) {
+                    self.names_through(argument, named);
+                }
+            }
             return;
         }
         if !reference.is_valid() {
@@ -146,37 +155,6 @@ impl Program<'_> {
             }
         }
         false
-    }
-
-    /// The declarations of the mutual block of data that contains itself:
-    /// `data` and every declaration it reaches through fields that reaches it
-    /// again, in one order whichever member it is asked of.
-    pub(crate) fn mutual_block(&self, data: &DataDefinition) -> Vec<SymbolHandle> {
-        let mut reached = vec![data.symbol];
-        let mut at = 0;
-        while let Some(&symbol) = reached.get(at) {
-            at += 1;
-            let Some(declaration) = self.typed.unique_data_definition_by_symbol(symbol) else {
-                continue;
-            };
-            for named in self.field_declarations(declaration) {
-                if !reached.contains(&named) {
-                    reached.push(named);
-                }
-            }
-        }
-        let mut block: Vec<SymbolHandle> = reached
-            .into_iter()
-            .filter(|&symbol| {
-                symbol == data.symbol
-                    || self
-                        .typed
-                        .unique_data_definition_by_symbol(symbol)
-                        .is_some_and(|member| self.reaches(member, data.symbol, &mut Vec::new()))
-            })
-            .collect();
-        block.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-        block
     }
 
     /// Whether a type is a callable whose parameters or result name data
