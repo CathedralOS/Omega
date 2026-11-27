@@ -137,11 +137,11 @@ substitute for the general constructor-computation check.
 
 Justify substitution, preservation, normalization and decidable conversion for
 the admitted blocks and generated reductions together with the rest of the
-calculus. The implementation's existing [W/IW metatheory](kernel_metatheory.md)
-documents its earlier encoding. The [kernel prototypes](../../drafts/designs/recursive_data_encoding_experiments.md)
+calculus. The [kernel metatheory](kernel_metatheory.md#native-inductive-declarations-and-scheme-correspondence)
+argues these rules with the rest of the calculus. The [kernel prototypes](../../drafts/designs/recursive_data_encoding_experiments.md)
 supply comparative evidence. End-to-end acceptance requires checking authored
 declarations through elaboration and Psi publication/consumption under the
-existing admission rules. Retire the production W/IW encoding once this path
-preserves constructor computation, induction, index checks and refusal of
-malformed declarations and forged recursors. Track conversion steps, allocation
-and checking time on the same declarations and proofs during migration.
+existing admission rules. Each change keeps constructor computation,
+induction, index checks and refusal of malformed declarations and forged
+recursors. Track conversion steps, allocation and checking time on the same
+declarations and proofs.
