@@ -55,6 +55,12 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 301 adds each theorem hypothesis's counted sum subjects after its
+scalar formal declarations. A sum subject is one value of its sum's inductive
+declaration, not its case Booleans and payload scalars. Readers reject earlier
+markers before reading the payload, so a saved program from marker 300 or
+earlier must be rebuilt.
+
 Marker 300 ends each theorem contract with its counted proof parameters, as in
 `machine<Inner: NonzeroIsPositive>(n: u8)`, and each theorem application with
 the counted proofs it gives them, as in `Step::<inner>(n)`. Readers reject
@@ -2909,7 +2915,8 @@ and its implication is its `requires` and `ensures`.
 | Row | Fields |
 | --- | --- |
 | theorem contract | theorem hypothesis + counted theorem hypotheses |
-| theorem hypothesis | counted scalar formal declarations + counted requires propositions + counted ensures propositions |
+| theorem hypothesis | counted scalar formal declarations + counted theorem sum subjects + counted requires propositions + counted ensures propositions |
+| theorem sum subject | place id + structural type id |
 | theorem parameter | owner machine id + `u32` proof position + theorem contract |
 | theorem application | owner machine id + edge id + successor block id + proof source + counted fixed scalar subjects + counted premise obligation ids + counted theorem instantiations |
 | theorem supply | caller machine id + invocation site + `u32` proof position + proof source + counted certificate envelopes + counted theorem instantiations |
@@ -2956,6 +2963,13 @@ carries no instantiation; its derivations are unchanged. An application of such
 a parameter carries one instantiation for each hypothesis, checked as a
 supply's instantiation is against that hypothesis. Every other application
 carries none.
+
+A theorem sum subject names one sum input of the contract. Its places number
+the contract's sum subjects from 1, in order, and its clauses name it by that
+place: a case test as structural case membership, and a payload read as a
+structural read under that case's field path. A record input is still its
+scalar leaves among the formal declarations. The checker refuses a contract
+with a sum subject until its kernel type is defined.
 
 ### Closed conformance applications
 

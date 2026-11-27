@@ -659,6 +659,7 @@ impl Program<'_> {
         }
         let contract = TheoremContract {
             parameters: formals,
+            data_subjects: Vec::new(),
             requires,
             ensures,
             proof_parameters,
