@@ -104,6 +104,7 @@ impl Program<'_> {
                 source: terminal_psi::TheoremSource::Named(*callee),
                 arguments: std::mem::take(arguments),
                 fields: Vec::new(),
+                sums: Vec::new(),
                 instantiation: Vec::new(),
             };
         }

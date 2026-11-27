@@ -393,6 +393,20 @@ pub fn application<'a>(
     if application.instantiation.len() != formal.proof_parameters.len() {
         return Err("logical use needs one proof for each of its contract's own proof parameters");
     }
+    if application.data_arguments.len() != formal.data_subjects.len() {
+        return Err("logical use lost a sum subject");
+    }
+    // A sum subject is a whole sum formal of the applying machine, of the
+    // subject's own sum.
+    for (place, subject) in application.data_arguments.iter().zip(&formal.data_subjects) {
+        let declared = terminal_psi::StructuralParameterDeclaration::find_by_place(
+            &machine.contract.structural_parameters,
+            *place,
+        );
+        if declared.is_none_or(|declared| declared.structural_type != subject.structural_type) {
+            return Err("logical sum subject is not a sum formal of its machine");
+        }
+    }
     for (argument, formal) in application.arguments.iter().zip(&formal.parameters) {
         argument
             .validate_after_operands()
@@ -449,6 +463,20 @@ pub fn application<'a>(
 struct Subjects<'a> {
     contract: &'a TheoremContract,
     actuals: &'a [ScalarTerm],
+    sums: &'a [PlaceId],
+}
+
+impl Subjects<'_> {
+    /// The applying machine's place given the contract's sum subject.
+    fn sum(&self, root: PlaceId) -> Result<PlaceId, &'static str> {
+        self.contract
+            .data_subjects
+            .iter()
+            .position(|subject| subject.place == root)
+            .and_then(|position| self.sums.get(position))
+            .copied()
+            .ok_or("logical clause names a sum the application does not supply")
+    }
 }
 impl ClauseBindings for Subjects<'_> {
     type Error = &'static str;
@@ -484,14 +512,48 @@ impl ClauseBindings for Subjects<'_> {
     ) -> Result<crate::substitution::clauses::CaseAnswer, Self::Error> {
         Err("logical application cannot observe a live case")
     }
+    fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
+        self.sum(root)
+    }
+    // A sum subject's case and payloads are the actual sum's, read where the
+    // edge leaves.
+    fn case_predicate(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<Proposition, Self::Error> {
+        if !path.is_empty() {
+            return Err("logical application tests a case beneath a sum subject");
+        }
+        Ok(Proposition::StructuralCaseMembership {
+            subject: semantic_vocabulary::StructuralCaseSubject::new(self.sum(root)?, Vec::new()),
+            case,
+        })
+    }
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        Ok(ScalarTerm::StructuralRead {
+            root: self.sum(root)?,
+            path: path.to_vec(),
+            scalar_type,
+        })
+    }
 }
 
+/// `arguments` give the contract's scalar subjects, and `sums` the place of
+/// each of its sum subjects.
 pub fn substitute(
     contract: &TheoremContract,
     arguments: &[ScalarTerm],
+    sums: &[PlaceId],
     clause: &Proposition,
 ) -> Result<Proposition, &'static str> {
-    if arguments.len() != contract.parameters.len() {
+    if arguments.len() != contract.parameters.len() || sums.len() != contract.data_subjects.len() {
         return Err("logical substitution has another complete telescope");
     }
     substitute_clause(
@@ -499,6 +561,7 @@ pub fn substitute(
         &mut Subjects {
             contract,
             actuals: arguments,
+            sums,
         },
     )
 }
