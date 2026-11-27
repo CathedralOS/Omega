@@ -192,12 +192,11 @@ impl PlainData {
     /// type, or a function to the data: anything but a value of the block
     /// itself.
     pub fn has_payload(&self) -> bool {
-        self.members.iter().flatten().flatten().any(|field| {
-            matches!(
-                field,
-                PlainField::Payload(_) | PlainField::Function { .. }
-            )
-        })
+        self.members
+            .iter()
+            .flatten()
+            .flatten()
+            .any(|field| matches!(field, PlainField::Payload(_) | PlainField::Function { .. }))
     }
 
     /// The index of the first member's own entry when the block's

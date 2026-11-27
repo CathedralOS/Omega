@@ -980,7 +980,11 @@ impl<'p> Converter<'p, '_> {
         records: &[StructuralTypeId],
         own: usize,
     ) -> Checked<PlainField> {
-        let member = |ty: ValueType| records.iter().position(|&other| ty == ValueType::record(other));
+        let member = |ty: ValueType| {
+            records
+                .iter()
+                .position(|&other| ty == ValueType::record(other))
+        };
         if let Some(at) = member(value_type) {
             return Ok(if at == own {
                 PlainField::Recursive
@@ -1036,7 +1040,10 @@ impl<'p> Converter<'p, '_> {
     /// Whether a type is a member of the block, or a callable that takes or
     /// returns one, however deeply.
     fn mentions_block(&self, ty: ValueType, records: &[StructuralTypeId], depth: u32) -> bool {
-        if records.iter().any(|&record| ty == ValueType::record(record)) {
+        if records
+            .iter()
+            .any(|&record| ty == ValueType::record(record))
+        {
             return true;
         }
         let ValueType::Scalar(ScalarType::Callable(contract), _) = ty else {
@@ -2056,7 +2063,13 @@ impl<'p> Converter<'p, '_> {
     ) -> Checked<Vec<TermHandle>> {
         let slots: Vec<_> = values
             .iter()
-            .map(|&term| Some(Bound { term, field: None, applied: None }))
+            .map(|&term| {
+                Some(Bound {
+                    term,
+                    field: None,
+                    applied: None,
+                })
+            })
             .collect();
         let aliases: Vec<usize> = (0..values.len()).collect();
         let scope = Scope {
@@ -3686,7 +3699,11 @@ impl<'p> Converter<'p, '_> {
             let after = others.len() as u32;
             for (position, &other) in others.iter().enumerate() {
                 let term = self.variable(after - 1 - position as u32);
-                slots[other] = Some(Bound { term, field: None, applied: None });
+                slots[other] = Some(Bound {
+                    term,
+                    field: None,
+                    applied: None,
+                });
                 actuals[other] = term;
             }
             // The variables of the branch: the case's fields, the recursion
@@ -3801,7 +3818,9 @@ impl<'p> Converter<'p, '_> {
             .map(|(machine, member, result)| {
                 result
                     .map(|result| (machine, member, result))
-                    .ok_or_else(|| unserved(machine, "machine of a mutual recursion with no result"))
+                    .ok_or_else(|| {
+                        unserved(machine, "machine of a mutual recursion with no result")
+                    })
             })
             .collect::<Checked<Vec<_>>>()?;
         let members: Vec<(MachineId, u32)> = group
@@ -3984,9 +4003,13 @@ impl<'p> Converter<'p, '_> {
         }
         let mut mutual = vec![None; shape.members() as usize];
         for &(machine, member, _) in &group {
-            let single = self.program.signatures.get(machine).is_some_and(|signature| {
-                signature.ensures.len() == 1 && signature.requires.is_empty()
-            });
+            let single = self
+                .program
+                .signatures
+                .get(machine)
+                .is_some_and(|signature| {
+                    signature.ensures.len() == 1 && signature.requires.is_empty()
+                });
             let satisfies = self
                 .satisfactions
                 .iter()
@@ -3997,11 +4020,10 @@ impl<'p> Converter<'p, '_> {
                     "law of a mutual induction that is not one equality with no premise",
                 ));
             }
-            let symbol = *self
-                .program
-                .symbols
-                .get(machine)
-                .ok_or_else(|| unserved(machine, "mathematical machine lost its declaration"))?;
+            let symbol =
+                *self.program.symbols.get(machine).ok_or_else(|| {
+                    unserved(machine, "mathematical machine lost its declaration")
+                })?;
             mutual[member as usize] = Some(symbol);
         }
         let group = group
@@ -5096,7 +5118,11 @@ impl<'p> Converter<'p, '_> {
         expression: &Expression,
         scope: &Scope<'_>,
     ) -> Checked<Bound> {
-        let plain = |term| Bound { term, field: None, applied: None };
+        let plain = |term| Bound {
+            term,
+            field: None,
+            applied: None,
+        };
         match &expression.kind {
             ExpressionKind::Boolean(value) => Ok(plain(self.signature.arena.insert(if *value {
                 Term::TwoOne
@@ -5220,14 +5246,16 @@ impl<'p> Converter<'p, '_> {
                     .signature
                     .arena
                     .apply_arguments(function.term, &operands);
-                Ok(match (function.field, function.applied, operands.as_slice()) {
-                    (Some(field), None, &[argument]) => Bound {
-                        term,
-                        field: Some(field),
-                        applied: Some(argument),
+                Ok(
+                    match (function.field, function.applied, operands.as_slice()) {
+                        (Some(field), None, &[argument]) => Bound {
+                            term,
+                            field: Some(field),
+                            applied: Some(argument),
+                        },
+                        _ => plain(term),
                     },
-                    _ => plain(term),
-                })
+                )
             }
             ExpressionKind::Applied {
                 head,
@@ -5251,7 +5279,9 @@ impl<'p> Converter<'p, '_> {
                 let own = scope
                     .value
                     .is_some_and(|valuing| valuing.fuel.is_some_and(|fuel| fuel.machine == head))
-                    || scope.recursion.is_some_and(|recursion| recursion.machine == head);
+                    || scope
+                        .recursion
+                        .is_some_and(|recursion| recursion.machine == head);
                 if own {
                     // The machine calling itself, at its own machine
                     // parameters or others: the recursion's function takes
@@ -6538,9 +6568,9 @@ impl<'p> Converter<'p, '_> {
                     bound.map(|bound| Bound {
                         term: shift(&mut self.signature.arena, bound.term, 0, arity),
                         field: bound.field,
-                        applied: bound.applied.map(|applied| {
-                            shift(&mut self.signature.arena, applied, 0, arity)
-                        }),
+                        applied: bound
+                            .applied
+                            .map(|applied| shift(&mut self.signature.arena, applied, 0, arity)),
                     })
                 })
                 .collect();

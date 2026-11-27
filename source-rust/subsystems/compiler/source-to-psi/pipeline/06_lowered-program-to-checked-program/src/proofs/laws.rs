@@ -529,15 +529,17 @@ impl Cited<'_> {
                     };
                     let count = self.law.formals.len();
                     let at = at.map(|at| instantiate(self.arena, at, self.names));
-                    let child = self.names.get(count + field as usize).copied().map(|value| {
-                        match at {
-                            Some(argument) => self.arena.insert(Term::Apply {
-                                function: value,
-                                argument,
-                            }),
-                            None => value,
-                        }
-                    });
+                    let child =
+                        self.names
+                            .get(count + field as usize)
+                            .copied()
+                            .map(|value| match at {
+                                Some(argument) => self.arena.insert(Term::Apply {
+                                    function: value,
+                                    argument,
+                                }),
+                                None => value,
+                            });
                     let mut others = arguments.iter().copied();
                     let actuals: Vec<_> = (0..count)
                         .map(|position| {

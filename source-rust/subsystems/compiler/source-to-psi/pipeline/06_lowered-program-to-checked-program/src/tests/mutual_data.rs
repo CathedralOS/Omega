@@ -169,7 +169,9 @@ fn a_false_law_by_induction_over_a_mutual_block_is_refused() {
     let mut refused: Vec<_> = verdicts
         .iter()
         .flat_map(|verdict| match verdict {
-            RouteVerdict::UnprovedLaws(laws) => laws.iter().map(|law| law.machine.as_str()).collect(),
+            RouteVerdict::UnprovedLaws(laws) => {
+                laws.iter().map(|law| law.machine.as_str()).collect()
+            }
             RouteVerdict::Laws(judgment) => panic!("the laws must not be accepted: {judgment:?}"),
             _ => Vec::new(),
         })
@@ -182,8 +184,10 @@ fn a_false_law_by_induction_over_a_mutual_block_is_refused() {
 fn a_mutual_law_without_its_companion_hypothesis_is_refused() {
     // Citing nothing at the odd field leaves the step's goal open: the
     // hypothesis comes only from the other law of the group.
-    let source = program(&format!("{MUTUAL}{REBUILD}"))
-        .replace("Even::Next { odd } -> rebuild_odd_id(odd)", "Even::Next { odd } -> Nat::Zero");
+    let source = program(&format!("{MUTUAL}{REBUILD}")).replace(
+        "Even::Next { odd } -> rebuild_odd_id(odd)",
+        "Even::Next { odd } -> Nat::Zero",
+    );
     let verdicts = judged(&source);
     let law = unproved(&verdicts);
     assert_eq!(law.machine, "rebuild_id", "{law:?}");
@@ -338,7 +342,8 @@ ensures
         "{refused:#?}"
     );
     // Every machine over `Loop` repeats the declaration's refusal.
-    let reason = "data that contains itself as the input of a stored callable: a negative occurrence";
+    let reason =
+        "data that contains itself as the input of a stored callable: a negative occurrence";
     for machine in ["depth", "depth_end"] {
         let at = format!("while reading the mathematical declaration of `{machine}`");
         assert!(
@@ -466,4 +471,3 @@ fn false_laws_over_data_with_a_callable_to_itself_are_refused() {
         assert_eq!(law.machine, machine, "{law:?}");
     }
 }
-
