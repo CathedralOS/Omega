@@ -680,8 +680,9 @@ impl Program<'_> {
         Ok((contract, carrier_key, inputs))
     }
 
-    /// A plain record's scalar fields, in declared order, as Terminal Psi
-    /// will publish them (`data_subjects::record_leaves`).
+    /// A plain record's scalar fields, in declared order and with a nested
+    /// plain record's fields in its place, as Terminal Psi will publish them
+    /// (`data_subjects::record_leaves`).
     fn record_leaves(
         &self,
         id: MachineId,
@@ -695,20 +696,24 @@ impl Program<'_> {
         if !declared.requires.is_empty() {
             return Err(unavailable("logical data subject has a data invariant"));
         }
-        fields
-            .iter()
-            .map(|field| match field.value_type {
-                ValueType::Scalar(scalar, Qualification::NONE) => Ok((
-                    vec![CanonicalStructuralPathSegment::Field(field.id)],
-                    scalar,
-                )),
-                ValueType::Record(..) => Err(unavailable(
-                    "logical data subject has a field that is itself data",
-                )),
-                _ => Err(unavailable(
-                    "logical data subject has a field that is not a plain scalar",
-                )),
-            })
-            .collect()
+        let mut leaves = Vec::new();
+        for field in fields {
+            let at = CanonicalStructuralPathSegment::Field(field.id);
+            match field.value_type {
+                ValueType::Scalar(scalar, Qualification::NONE) => leaves.push((vec![at], scalar)),
+                ValueType::Record(child, Qualification::NONE, _) => {
+                    for (mut path, scalar) in self.record_leaves(id, child)? {
+                        path.insert(0, at);
+                        leaves.push((path, scalar));
+                    }
+                }
+                _ => {
+                    return Err(unavailable(
+                        "logical data subject has a field that is not a plain scalar",
+                    ));
+                }
+            }
+        }
+        Ok(leaves)
     }
 }
