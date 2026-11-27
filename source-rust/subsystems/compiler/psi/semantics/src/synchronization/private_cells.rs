@@ -6,9 +6,9 @@ mod aggregate;
 mod computed;
 mod continuation;
 mod control;
-mod guard_order;
-pub use guard_order::GuardOrder;
-pub(super) use guard_order::guard_order;
+mod effects;
+pub use effects::NormalEffects;
+pub(super) use effects::normal_effects;
 mod opaque_calls;
 mod storage;
 mod successor;
@@ -30,14 +30,7 @@ pub fn private_wait_failure(
     boundary: impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
 ) -> Option<PrivateWaitFailure> {
     let imported_obligations = module.interfaces.boundary_machines.iter().any(|row| {
-        matches!(
-            boundary(row.id),
-            Some(
-                SelectedCall::ImportedWait(_)
-                    | SelectedCall::ImportedGuards(_)
-                    | SelectedCall::UnresolvedImport
-            )
-        )
+        boundary(row.id).is_some_and(|call| call.owes_import_progress())
     });
     if !imported_obligations
         && !module.types.structural_types.iter().any(|ty| {
@@ -229,13 +222,21 @@ fn advance<'m>(
                     }
                 }
                 Some(SelectedCall::ImportedWait(wait)) => apply_wait(&wait, memory),
-                Some(SelectedCall::ImportedGuards(order)) => order.apply(
-                    memory,
-                    &frame.bindings,
-                    structural_arguments,
-                    requirements,
-                    scope,
-                ),
+                Some(SelectedCall::ImportedEffects(effects)) => {
+                    let result = effects.apply(
+                        memory,
+                        &frame.bindings,
+                        structural_arguments,
+                        |index| frame.bindings.values.get(arguments.get(index)?).copied(),
+                        requirements,
+                        scope,
+                    );
+                    let Some(result) = result else {
+                        frame.position += 1;
+                        return Some(Advance::OpaqueReturn);
+                    };
+                    result
+                }
                 None | Some(SelectedCall::PendingProvider) => {
                     let call = op.declared_invocation()?;
                     let terminal_psi::TargetMachineCallable::Boundary(slot) = call.callee else {

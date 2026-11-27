@@ -145,6 +145,7 @@ impl Word {
     }
 }
 
+
 pub(super) struct ForwardedWait {
     pub(super) callee: TargetMachineCallable,
     borrowed: Vec<Subject>,

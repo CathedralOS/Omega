@@ -1,50 +1,26 @@
-//! Derive what a successful guard constructor acquires and what consuming its
-//! result actually writes. The cleanup starts with the returned record alone.
-//! A reference to the other lock therefore cannot release the acquired one.
-
-mod body;
-use body::GuardEvent;
-pub use body::GuardOrder;
-pub(in crate::synchronization) use body::guard_order;
-
-use super::activation::{Bindings, Destination, Frame};
-use super::storage::{Location, Storage, Stored};
-use super::successor;
-use crate::entry_values::TerminalScalarValue as Scalar;
-use crate::synchronization::progress::{ProgressFailure, ProgressScope, ScalarFact, entry_scalars};
+//! Follow a returned guard through its selected owned cleanup on the same
+//! storage. Record what the constructor acquired and what the cleanup writes.
+use super::super::activation::{Bindings, Destination, Frame};
+use super::super::storage::{Location, Storage, Stored};
+use super::super::successor;
+use super::{Acquisition, AtomicWrite, CellUpdate, Operand, ScalarFact, Subject};
+use crate::synchronization::progress::entry_scalars;
 use crate::synchronization::selected::{SelectedCall, Summaries};
-use crate::synchronization::spin::{CellUpdate, SpinCondition};
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::{
     AtomicAccessEvent, OperationKind, StructuralAccess, TerminalAffineCleanupAction,
     TerminalMachine, TerminalModule, Terminator,
 };
 
-use crate::synchronization::spin::Subject;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct GuardAcquisition {
-    subject: Subject,
-    held: Scalar,
-    blocked: SpinCondition,
-    update: CellUpdate<ScalarFact>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct GuardCleanupWrite {
-    subject: Subject,
-    value: Scalar,
-}
-
 /// Acquisitions occur in order and remain held on the successful return.
 /// Cleanup writes occur only when the selected destructor consumes that result.
 /// Keep the writes in order: different symbolic parameters may alias after
 /// substitution, and a later write can restore the blocking word.
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct OwnedGuardLocks {
-    acquisitions: Vec<GuardAcquisition>,
-    cleanup: MachineId,
-    cleanup_writes: Vec<GuardCleanupWrite>,
+pub(super) struct OwnedGuardLocks {
+    pub(super) acquisitions: Vec<Acquisition>,
+    pub(super) cleanup: MachineId,
+    pub(super) cleanup_writes: Vec<AtomicWrite>,
 }
 
 struct Analysis<'m, 'b, B> {
@@ -53,8 +29,8 @@ struct Analysis<'m, 'b, B> {
     spins: Summaries,
     storage: Storage,
     roots: Vec<Location>,
-    acquired: Vec<GuardAcquisition>,
-    writes: Vec<GuardCleanupWrite>,
+    acquired: Vec<Acquisition>,
+    writes: Vec<AtomicWrite>,
 }
 
 impl<'m, B: Fn(BoundaryMachineId) -> Option<SelectedCall>> Analysis<'m, '_, B> {
@@ -101,7 +77,7 @@ impl<'m, B: Fn(BoundaryMachineId) -> Option<SelectedCall>> Analysis<'m, '_, B> {
             .locate(&frame.bindings, actual.place, &actual.path)?;
         let target = self.storage.project(root, &wait.subject.fixed_path()?)?;
         let subject = self.subject(&target)?;
-        self.acquired.push(GuardAcquisition {
+        self.acquired.push(Acquisition {
             subject,
             held,
             blocked: wait.while_value,
@@ -140,7 +116,10 @@ impl<'m, B: Fn(BoundaryMachineId) -> Option<SelectedCall>> Analysis<'m, '_, B> {
                         let ScalarFact::Literal(value) = *frame.bindings.values.get(value)? else {
                             return None;
                         };
-                        self.writes.push(GuardCleanupWrite { subject, value });
+                        self.writes.push(AtomicWrite {
+                            subject,
+                            value: Operand::Literal(value),
+                        });
                     }
                     OperationKind::AtomicAccess { .. } => return None,
                     OperationKind::StoreStructuralField {
@@ -177,7 +156,7 @@ impl<'m, B: Fn(BoundaryMachineId) -> Option<SelectedCall>> Analysis<'m, '_, B> {
     }
 }
 
-fn guard_locks(
+pub(super) fn guard_locks(
     module: &TerminalModule,
     constructor: MachineId,
     boundary: impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
@@ -242,53 +221,3 @@ fn guard_locks(
     })
 }
 
-impl GuardOrder {
-    pub(super) fn apply(
-        &self,
-        memory: &mut Storage,
-        bindings: &Bindings<'_>,
-        actuals: &[terminal_psi::StructuralArgument],
-        requirements: &[semantic_vocabulary::Proposition],
-        scope: ProgressScope,
-    ) -> Result<(), ProgressFailure> {
-        let locate = |memory: &Storage, subject: &Subject| {
-            let actual = actuals.get(subject.parameter)?;
-            if !matches!(actual.access, terminal_psi::reading_borrow_pair_pattern!()) {
-                return None;
-            }
-            let root = memory.locate(bindings, actual.place, &actual.path)?;
-            memory.project(root, &subject.fixed_path()?)
-        };
-        for event in &self.events {
-            match event {
-                GuardEvent::Acquired { acquisitions, .. } => {
-                    for acquisition in acquisitions {
-                        let place = locate(memory, &acquisition.subject)
-                            .ok_or(ProgressFailure::Unproved)?;
-                        let observation = super::wait::classify(
-                            memory,
-                            &place,
-                            acquisition.blocked,
-                            None,
-                            Some(acquisition.update),
-                            requirements,
-                        );
-                        super::wait::require_progress(observation, scope)?;
-                        memory.set(
-                            &place,
-                            Stored::Scalar(ScalarFact::Literal(acquisition.held)),
-                        );
-                    }
-                }
-                GuardEvent::Consumed { writes, .. } => {
-                    for write in writes {
-                        let place =
-                            locate(memory, &write.subject).ok_or(ProgressFailure::Unproved)?;
-                        memory.set(&place, Stored::Scalar(ScalarFact::Literal(write.value)));
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-}
