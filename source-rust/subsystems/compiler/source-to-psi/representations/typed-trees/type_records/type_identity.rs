@@ -10224,6 +10224,92 @@ impl TypedTrees {
         Ok(())
     }
 
+    /// A formal's declared qualification already requires this exact domain.
+    /// Typing records that membership as a contract for both states and
+    /// bodyless requirements. It adds no new predicate here: formal type
+    /// checking enforces the domain, and `signature_predicates` supplies its
+    /// value facts. A fact about another value or domain still needs checking.
+    pub fn fact_restates_formal_domain(
+        &self,
+        formals: arena::RootRows<'_, crate::source_state::signature::StateParameter>,
+        fact: &crate::source_state::domain::ProofFact,
+    ) -> bool {
+        use crate::source_state::domain::ProofFact;
+        use crate::source_state::expression::ExpressionNode;
+        use crate::source_state::types::{
+            DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode,
+        };
+        let typed = self;
+        let ProofFact::Membership(membership) = fact else {
+            return false;
+        };
+        if !membership.domain_symbol.is_valid()
+            || !typed.expression_table.expression_is_valid(membership.value)
+        {
+            return false;
+        }
+        let identity = if membership.semantic_domain.is_valid() {
+            membership.semantic_domain
+        } else {
+            let Some(declaration) = typed
+                .domain_definition(membership.domain_symbol)
+                .filter(|declaration| typed.domain_type_parameters(declaration).is_empty())
+            else {
+                return false;
+            };
+            declaration.semantic_id
+        };
+        if typed
+            .domain_arguments_for_instance(membership.domain_symbol, identity)
+            .is_none()
+        {
+            return false;
+        }
+        let ExpressionNode::Name(path) = typed.expression_table.expression(membership.value) else {
+            return false;
+        };
+        if path.static_application.is_valid()
+            || path.reserved_result_of.is_valid()
+            || typed.expression_table.name_path_members(path.members).len() != 1
+        {
+            return false;
+        }
+        let Some(formal) = path
+            .resolved_symbol()
+            .and_then(|symbol| formals.iter().find(|parameter| parameter.symbol == symbol))
+        else {
+            return false;
+        };
+        let mut reference = formal.type_reference;
+        while reference.is_valid() {
+            match typed.type_reference_table.type_reference(reference) {
+                // Qualification of a borrowed formal belongs to its referent.
+                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => {
+                    if typed
+                        .type_reference_table
+                        .constraints(*constraints)
+                        .iter()
+                        .any(|constraint| {
+                            matches!(constraint, TypeConstraintNode::Domain(domain)
+                            if domain.subject == DomainConstraintSubject::Declared
+                                && domain.symbol == membership.domain_symbol
+                                && domain.semantic_id == identity)
+                        })
+                    {
+                        return true;
+                    }
+                    reference = *base_type;
+                }
+                _ => return false,
+            }
+        }
+        false
+    }
+
     pub fn runtime_membership_domain_identity(
         &self,
         membership: &crate::source_state::domain::ProofMembershipFact,

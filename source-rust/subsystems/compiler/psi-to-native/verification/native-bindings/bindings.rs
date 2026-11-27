@@ -309,7 +309,7 @@ impl<'input> CheckedNativeBinding<'input> {
                     )
                 )
             })?;
-        terminal_semantics::validate_boundary_normal_memberships(module, boundary, method)?;
+        terminal_semantics::validate_boundary_memberships(module, boundary, method)?;
         if method.completion != boundary.completion {
             return Err("native requirement changes its declared completion".into());
         }

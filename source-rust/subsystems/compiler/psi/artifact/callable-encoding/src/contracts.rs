@@ -41,6 +41,7 @@ wire_record! {
         crash_routes: CrashRoutes,
         erased_scalar_formals: List<Declaration>,
         erased_proof_formals: ProofFormals,
+        membership_requires: List<Membership>,
         membership_ensures: List<Membership>,
         requires: List<Proposition>,
         source_checked_requires: List<Proposition>,

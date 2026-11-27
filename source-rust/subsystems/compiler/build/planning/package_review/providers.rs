@@ -1958,7 +1958,7 @@ pub(super) fn service_method_policy(
         result_type_identity: method
             .has_result
             .then(|| schema.identity_text(method.result_type_identity).to_owned()),
-        normal_result_memberships: method.normal_result_memberships.clone(),
+        domain_memberships: method.domain_memberships.clone(),
         result_claims: method.result_claims.clone(),
         service_reach: method.service_reach.clone(),
         synchronous_invocations: method.synchronous_invocations.clone(),

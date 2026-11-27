@@ -24,7 +24,9 @@ use service_surface::ServiceReceiverApplication;
 use service_surface::ServiceResultClaim;
 use service_surface::identities::ProviderIdentityId;
 use service_surface::identities::ProviderIdentityTable;
-use service_surface::{ServiceNormalResultMembership, ServiceResultProjection};
+use service_surface::{
+    ServiceDomainMembership, ServiceMembershipProjection, ServiceMembershipSubject,
+};
 use service_surface::{ServiceSurface, ServiceSynchronousInvocation};
 use std::sync::Arc;
 use terminal_psi::{
@@ -122,7 +124,7 @@ wire_enum! {
         1 => CheckedRequirement,
         2 => BoundaryRequirement,
     }
-    ResultProjection: ServiceResultProjection, "ServiceResultProjection" {
+    MembershipProjection: ServiceMembershipProjection, "ServiceMembershipProjection" {
         1 => Field(name: Text),
         2 => Case(name: Text),
         3 => FixedIndex(index: crate::wire_fields::U64),
@@ -131,6 +133,7 @@ wire_enum! {
         1 => Parameter(position: crate::wire_fields::U32),
         2 => Service(name: Text),
     }
+    MembershipSubject: ServiceMembershipSubject, "ServiceMembershipSubject" { 1 => NormalResult, 2 => Input(index: crate::wire_fields::U32) }
     ProgressSubject: ServiceProgressSubject, "ServiceProgressSubject" {
         1 => Parameter(index: Count),
     }
@@ -153,7 +156,7 @@ wire_record! {
         effective_carry: Carry,
         authority_flow: AuthorityFlow,
     }
-    NormalMembership: ServiceNormalResultMembership { path: List<ResultProjection>, domain: Text }
+    DomainMembership: ServiceDomainMembership { subject: MembershipSubject, path: List<MembershipProjection>, domain: Text }
     ResultClaim: ServiceResultClaim {
         domain: Text,
         effective_carry: Carry,
@@ -181,7 +184,7 @@ wire_record! {
         has_result: Flag,
         result_type_identity: ProviderIdentity,
         result_claims: List<ResultClaim>,
-        normal_result_memberships: List<NormalMembership>,
+        domain_memberships: List<DomainMembership>,
         service_reach: List<Text>,
         synchronous_invocations: List<SynchronousInvocation>,
         may_suspend: Flag,
@@ -284,7 +287,7 @@ mod tests {
                 }],
                 has_result: true,
                 result_type_identity: scalar,
-                normal_result_memberships: Vec::new(),
+                domain_memberships: Vec::new(),
                 result_claims: vec![ServiceResultClaim {
                     domain: "ResultDomain".into(),
                     effective_carry: CarryPolicy::STRICT,

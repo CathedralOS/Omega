@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 303`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 304`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -2116,6 +2116,7 @@ mod numeric_intrinsic_tests {
                     scalar_type: result,
                     qualifications: ScalarQualificationSetId::ZERO,
                 }),
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
@@ -2938,6 +2939,7 @@ mod routed_scalar_tests {
             .boundary_machines
             .push(BoundaryMachineDeclaration {
                 numeric_intrinsic: None,
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
@@ -4077,6 +4079,7 @@ pub(crate) use wire::{Reader, Writer, decode_canonical};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 304 distinguishes nominal preconditions on exact formals from normal results.
 // Marker 303 makes task activation storage refer to the ordinary program declarations.
 // Marker 302 adds each theorem application's sum arguments after its scalar
 // subjects.
@@ -4089,7 +4092,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // at the FloatMeaning carrier and retires proposition tag 19.
 // Marker 295 retires byte-sequence equality proposition tag 12, which only
 // an uncalled producer wrote.
-pub(crate) const FORMAT_MARKER: u16 = 303;
+pub(crate) const FORMAT_MARKER: u16 = 304;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4452,6 +4455,7 @@ mod normal_qualification_tests {
                     path: vec![field(8)],
                     domain,
                 }],
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 normal_qualifications: [
                     (0, Vec::new()),

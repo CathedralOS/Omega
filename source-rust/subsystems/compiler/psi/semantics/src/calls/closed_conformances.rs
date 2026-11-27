@@ -213,6 +213,7 @@ pub fn hosted_primitive_requirement(
         || boundary.crash_routes != canonical.crash_routes
         || boundary.scalar_requires != canonical.scalar_requires
         || boundary.scalar_ensures != canonical.scalar_ensures
+        || boundary.membership_requires != canonical.membership_requires
         || boundary.membership_ensures != canonical.membership_ensures
         || boundary.requires != canonical.requires
         || boundary.normal_qualifications != canonical.normal_qualifications
@@ -229,6 +230,7 @@ pub fn hosted_primitive_requirement(
         || !boundary.crash_routes.is_empty()
         || !boundary.scalar_requires.is_empty()
         || !boundary.scalar_ensures.is_empty()
+        || !boundary.membership_requires.is_empty()
         || !boundary.membership_ensures.is_empty()
         || !boundary.requires.is_empty()
         || !boundary.normal_qualifications.is_empty()

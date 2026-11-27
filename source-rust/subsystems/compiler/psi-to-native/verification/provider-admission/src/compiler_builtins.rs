@@ -547,12 +547,13 @@ fn validate_access_schema(
         || !method.termination_premises.is_empty()
         || !method.entry_claims.is_empty()
         || !method.result_claims.is_empty()
-        || !method.normal_result_memberships.is_empty()
+        || !method.domain_memberships.is_empty()
         || !method.service_reach.is_empty()
         || !method.synchronous_invocations.is_empty()
         || !boundary.requires.is_empty()
         || !boundary.scalar_requires.is_empty()
         || !boundary.scalar_ensures.is_empty()
+        || !boundary.membership_requires.is_empty()
         || !boundary.membership_ensures.is_empty()
         || !boundary.normal_qualifications.is_empty()
         || !boundary.program_local_root_introductions.is_empty()
@@ -742,6 +743,7 @@ mod selected_completion_contract_tests {
             result_reference_regions: Vec::new(),
             result_lifetimes: None,
             requires: Vec::new(),
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
@@ -865,8 +867,9 @@ mod selected_completion_contract_tests {
         ));
         let mut extra_schema_promise = plan.clone();
         std::sync::Arc::make_mut(&mut extra_schema_promise.schema.declaration).methods[0]
-            .normal_result_memberships
-            .push(service_surface::ServiceNormalResultMembership {
+            .domain_memberships
+            .push(service_surface::ServiceDomainMembership {
+                subject: service_surface::ServiceMembershipSubject::NormalResult,
                 path: Vec::new(),
                 domain: "another-domain-application".into(),
             });

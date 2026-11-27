@@ -1060,14 +1060,23 @@ impl<'a> Lowering<'a> {
     }
 
     fn qualify_contract(&self, contract: &mut MachineContract) -> Checked<()> {
-        contract.membership_ensures = self
-            .signature
-            .membership_ensures
-            .iter()
-            .map(|membership| self.qualifications.runtime_membership(self.id, membership))
-            .collect::<Checked<_>>()?;
-        contract.membership_ensures.sort();
-        contract.membership_ensures.dedup();
+        for (source, target) in [
+            (
+                &self.signature.membership_requires,
+                &mut contract.membership_requires,
+            ),
+            (
+                &self.signature.membership_ensures,
+                &mut contract.membership_ensures,
+            ),
+        ] {
+            *target = source
+                .iter()
+                .map(|membership| self.qualifications.runtime_membership(self.id, membership))
+                .collect::<Checked<_>>()?;
+            target.sort();
+            target.dedup();
+        }
         self.qualify_content_equations(contract)?;
         Ok(())
     }

@@ -2217,36 +2217,47 @@ fn commit_structural_guarantees(
             commitment,
         )?;
     }
-    if signature.membership_ensures.is_empty() {
-        return Ok(());
-    }
-    let typed =
-        typed.ok_or("normal-result membership lost its exact source declaration context")?;
-    b"normal-result-memberships.v1".hash(commitment);
-    signature.membership_ensures.len().hash(commitment);
-    for membership in &signature.membership_ensures {
-        use crate::body::RuntimeMembershipSubject;
-        let identity =
-            crate::qualifications::domain_identity(typed, sources, membership.domain, identities)?;
-        identities
-            .text(identity)
-            .ok_or("normal-result membership lost its canonical domain application")?
-            .hash(commitment);
-        match &membership.subject {
-            RuntimeMembershipSubject::Scalar(subject) => {
-                0u8.hash(commitment);
-                subject.hash(commitment);
-            }
-            RuntimeMembershipSubject::Structural {
-                root,
-                path,
-                version,
-                ..
-            } => {
-                1u8.hash(commitment);
-                root.hash(commitment);
-                path.hash(commitment);
-                version.hash(commitment);
+    for (tag, memberships) in [
+        (&b"entry-memberships.v1"[..], &signature.membership_requires),
+        (
+            &b"normal-result-memberships.v1"[..],
+            &signature.membership_ensures,
+        ),
+    ] {
+        if memberships.is_empty() {
+            continue;
+        }
+        let typed = typed.ok_or("membership contract lost its exact source declaration context")?;
+        tag.hash(commitment);
+        memberships.len().hash(commitment);
+        for membership in memberships {
+            use crate::body::RuntimeMembershipSubject;
+            let identity = crate::qualifications::domain_identity(
+                typed,
+                sources,
+                membership.domain,
+                identities,
+            )?;
+            identities
+                .text(identity)
+                .ok_or("routed membership lost its canonical domain application")?
+                .hash(commitment);
+            match &membership.subject {
+                RuntimeMembershipSubject::Scalar(subject) => {
+                    0u8.hash(commitment);
+                    subject.hash(commitment);
+                }
+                RuntimeMembershipSubject::Structural {
+                    root,
+                    path,
+                    version,
+                    ..
+                } => {
+                    1u8.hash(commitment);
+                    root.hash(commitment);
+                    path.hash(commitment);
+                    version.hash(commitment);
+                }
             }
         }
     }
@@ -2608,17 +2619,18 @@ pub(crate) fn boundary_declaration(
     if content_rows != signature.content_ensures.len() {
         return Err("boundary declaration lost an authored content guarantee");
     }
-    let sources = if !signature.has_structural_guarantees() {
-        Vec::new()
-    } else {
-        source_admission::source_identity::toolchain_source_identities(
-            typed
-                .ok_or("normal-result membership lost its source context")?
-                .symbols
-                .source_files(),
-        )
-        .map_err(|_| "normal-result membership lost its toolchain source identity")?
-    };
+    let sources =
+        if !signature.has_structural_guarantees() && signature.membership_requires.is_empty() {
+            Vec::new()
+        } else {
+            source_admission::source_identity::toolchain_source_identities(
+                typed
+                    .ok_or("normal-result membership lost its source context")?
+                    .symbols
+                    .source_files(),
+            )
+            .map_err(|_| "normal-result membership lost its toolchain source identity")?
+        };
     commit_structural_guarantees(typed, &sources, signature, identities, &mut commitment)?;
     proof.crash_routes.hash(&mut commitment);
     signature.termination.hash(&mut commitment);

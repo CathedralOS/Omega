@@ -90,7 +90,7 @@ impl DirectBoundaryLeaf {
         let (Some(method), None) = (methods.next(), methods.next()) else {
             return Err("direct foreign requirement has no unique complete declared method".into());
         };
-        terminal_semantics::validate_boundary_normal_memberships(module, boundary, method)?;
+        terminal_semantics::validate_boundary_memberships(module, boundary, method)?;
         Ok(schema)
     }
 

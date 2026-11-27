@@ -460,6 +460,7 @@ pub fn contract_refinement_goals(
         }
         _ => return Err("refinement result formal has another role"),
     }
+    crate::membership_facts::input_membership_refinement(module, required, selected)?;
     crate::membership_facts::normal_membership_refinement(
         module,
         required.result,

@@ -111,12 +111,30 @@ fn retained_plan_authenticates_the_entire_preimage_and_its_schema() {
         .windows(b"field".len())
         .position(|part| part == b"field")
         .unwrap();
+    // The historical record starts with three ordinary result projections.
+    // Insert the new input selector before them. It takes a public parameter
+    // ordinal, unlike field/case/index selectors which continue the path.
+    let path_start = field - 8 - 1;
+    let mut first_input = bytes.to_vec();
+    assert_eq!(
+        &first_input[path_start - 8..path_start],
+        &3u64.to_le_bytes()
+    );
+    first_input[path_start - 8..path_start].copy_from_slice(&4u64.to_le_bytes());
+    first_input.splice(path_start..path_start, [4, 0, 0, 0, 0]);
+    ProviderPlanInput::read(&first_input, &content_identity(&first_input)).unwrap();
+    first_input[path_start + 1..path_start + 5].copy_from_slice(&1u32.to_le_bytes());
+    assert_eq!(
+        ProviderPlanInput::read(&first_input, &content_identity(&first_input)).unwrap_err(),
+        "membership outside method signature"
+    );
+
     let mut wrong_projection = bytes.to_vec();
-    wrong_projection[field - 8 - 1] = 0;
+    wrong_projection[path_start] = 0;
     assert_eq!(
         ProviderPlanInput::read(&wrong_projection, &content_identity(&wrong_projection))
             .unwrap_err(),
-        "unknown provider plan result membership projection"
+        "invalid provider membership selector"
     );
 
     let mut changed = bytes.to_vec();

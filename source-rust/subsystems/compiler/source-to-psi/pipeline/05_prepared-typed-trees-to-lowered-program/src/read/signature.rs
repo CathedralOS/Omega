@@ -142,6 +142,7 @@ impl Program<'_> {
         if required.parameters != own.parameters
             || required.result != own.result
             || !required.requires.is_empty()
+            || !required.membership_requires.is_empty()
         {
             return Err(self.read_failure_at(
                 unserved("member signature differs from its requirement's"),
@@ -1718,7 +1719,7 @@ impl<'p> Converter<'p, '_> {
             ..
         } = self.lift_shape(id, lifted)?;
         let private = program.machine_signature(operation)?;
-        if !private.requires.is_empty() {
+        if !private.requires.is_empty() || !private.membership_requires.is_empty() {
             return Err(unserved(
                 id,
                 "term that applies an operation lifted to a quotient whose operation on \
@@ -3886,6 +3887,12 @@ impl<'p> Converter<'p, '_> {
 
     fn formals(&mut self, id: MachineId) -> Checked<Vec<(TermHandle, u32)>> {
         let signature = self.program.machine_signature(id)?;
+        if !signature.membership_requires.is_empty() {
+            return Err(unserved(
+                id,
+                "mathematical use needs a checked argument witness for a routed input membership",
+            ));
+        }
         if !signature.erased.is_empty() || !signature.borrowed.is_empty() {
             return Err(unserved(
                 id,
@@ -6591,6 +6598,12 @@ impl<'p> Converter<'p, '_> {
     ) -> Checked<()> {
         let program = self.program;
         let called = program.machine_signature(callee)?;
+        if !called.membership_requires.is_empty() {
+            return Err(unserved(
+                id,
+                "mathematical call needs a checked argument witness for a routed input membership",
+            ));
+        }
         if called.requires.is_empty() {
             return Ok(());
         }

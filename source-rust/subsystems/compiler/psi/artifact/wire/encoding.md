@@ -55,6 +55,11 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 304 records routed memberships on exact formal arguments in machine and
+boundary preconditions. A service method identifies each roster entry as
+normal result or input (with its ordered runtime formal ordinal), followed by the
+projection and canonical domain identity. The phases are committed separately.
+
 Marker 303 encodes section 54 as a counted list of task activation demands.
 Structural arguments, outcomes and frame residents refer to the module's
 structural storage declarations by ID. The module's target layout applications
@@ -3351,7 +3356,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 300 | yes |
+| semantic module | `PSITERM\0` | 304 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |

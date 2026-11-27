@@ -10,7 +10,7 @@ use semantic_vocabulary::BoundaryCompletion;
 use service_surface::{
     ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
 };
-use service_surface::{ServiceResultProjection, ServiceSynchronousInvocation};
+use service_surface::{ServiceMembershipProjection, ServiceSynchronousInvocation};
 
 pub(in crate::encoding::encode) fn method(
     encoder: &mut Encoder,
@@ -75,21 +75,36 @@ pub(in crate::encoding::encode) fn method(
             encoder.field("value", |encoder| encoder.string(value))
         })
     })?;
-    encoder.field("normal_result_memberships", |encoder| {
-        encoder.sequence(&method.normal_result_memberships, |encoder, membership| {
+    encoder.field("domain_memberships", |encoder| {
+        encoder.sequence(&method.domain_memberships, |encoder, membership| {
             encoder.field("path", |encoder| {
-                encoder.sequence(&membership.path, |encoder, step| match step {
-                    ServiceResultProjection::Field(identity) => {
-                        encoder.tag("field", 1);
-                        encoder.string_field("identity", identity)
+                // Bare projections are the established normal-result format. An
+                // input begins with its source ordinal before the same projections.
+                let input = match membership.subject {
+                    service_surface::ServiceMembershipSubject::Input(index) => Some(index),
+                    service_surface::ServiceMembershipSubject::NormalResult => None,
+                };
+                let prefix = usize::from(input.is_some());
+                encoder.sequence_by_index(membership.path.len() + prefix, |encoder, ordinal| {
+                    if ordinal == 0
+                        && let Some(index) = input
+                    {
+                        encoder.tag("input", 4);
+                        return encoder.u32_field("index", index);
                     }
-                    ServiceResultProjection::Case(identity) => {
-                        encoder.tag("case", 2);
-                        encoder.string_field("identity", identity)
-                    }
-                    ServiceResultProjection::FixedIndex(index) => {
-                        encoder.tag("fixed_index", 3);
-                        encoder.u64_field("index", *index)
+                    match &membership.path[ordinal - prefix] {
+                        ServiceMembershipProjection::Field(identity) => {
+                            encoder.tag("field", 1);
+                            encoder.string_field("identity", identity)
+                        }
+                        ServiceMembershipProjection::Case(identity) => {
+                            encoder.tag("case", 2);
+                            encoder.string_field("identity", identity)
+                        }
+                        ServiceMembershipProjection::FixedIndex(index) => {
+                            encoder.tag("fixed_index", 3);
+                            encoder.u64_field("index", *index)
+                        }
                     }
                 })
             })?;

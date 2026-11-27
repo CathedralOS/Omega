@@ -11,7 +11,7 @@ use language_core::CarryPolicy;
 use language_core::CarrySuspension;
 use language_core::DomainPredicatePresence;
 use service_surface::{
-    ServiceNormalResultMembership, ServiceResultProjection, ServiceSynchronousInvocation,
+    ServiceDomainMembership, ServiceMembershipProjection, ServiceSynchronousInvocation,
 };
 use service_surface::{ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim};
 
@@ -50,15 +50,26 @@ pub(in crate::encoding::recovery) fn method(
         }),
         has_result: reader.boolean()?,
         result_type_identity: reader.option(Reader::string)?,
-        normal_result_memberships: reader.sequence(16, |reader| {
-            Ok(ServiceNormalResultMembership {
-                path: reader.sequence(9, |reader| {
-                    Ok(super::super::tag!(reader => {
-                        1 => ServiceResultProjection::Field(reader.string()?),
-                        2 => ServiceResultProjection::Case(reader.string()?),
-                        3 => ServiceResultProjection::FixedIndex(reader.u64()?),
-                    }))
-                })?,
+        domain_memberships: reader.sequence(16, |reader| {
+            let mut subject = service_surface::ServiceMembershipSubject::NormalResult;
+            let mut first = true;
+            let steps = reader.sequence(5, |reader| {
+                let step = super::super::tag!(reader => {
+                    1 => Some(ServiceMembershipProjection::Field(reader.string()?)),
+                    2 => Some(ServiceMembershipProjection::Case(reader.string()?)),
+                    3 => Some(ServiceMembershipProjection::FixedIndex(reader.u64()?)),
+                    4 => {
+                        if !first { return Err(Error::InvalidValue); }
+                        subject = service_surface::ServiceMembershipSubject::Input(reader.u32()?);
+                        None
+                    },
+                });
+                first = false;
+                Ok(step)
+            })?;
+            Ok(ServiceDomainMembership {
+                subject,
+                path: steps.into_iter().flatten().collect(),
                 domain: reader.string()?,
             })
         })?,

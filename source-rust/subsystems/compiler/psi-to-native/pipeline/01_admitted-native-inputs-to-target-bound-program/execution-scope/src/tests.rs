@@ -328,6 +328,7 @@ fn emission_records_a_callback_only_when_its_registrar_runs() {
             declaration: None,
             numeric_intrinsic: None,
             attachment: None,
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),

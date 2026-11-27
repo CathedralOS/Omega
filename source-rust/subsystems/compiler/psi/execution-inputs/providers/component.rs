@@ -139,6 +139,14 @@ pub fn admit_component_provider<'receiver>(
     {
         return Err("component import/export checked callable contracts differ".into());
     }
+    if !terminal_semantics::same_boundary_memberships(
+        receiver.module(),
+        receiving,
+        provider.module(),
+        supplying,
+    )? {
+        return Err("component import/export input or normal-result memberships differ".into());
+    }
     if !terminal_semantics::boundary_result_lifetimes_match(
         receiver.module(),
         receiving,

@@ -7,8 +7,8 @@ typed declaration and application for later provider selection.
 #[path = "service_declarations/inventory_records.rs"]
 mod inventory_records;
 
-#[path = "service_declarations/normal_memberships.rs"]
-mod normal_memberships;
+#[path = "service_declarations/memberships.rs"]
+mod memberships;
 
 pub fn service_declaration_scope(
     typed: &crate::source_state::TypedTrees,
@@ -790,7 +790,7 @@ pub mod projection {
         } else {
             root.argument_owner
         };
-        let normal_memberships = super::normal_memberships::NormalMemberships::new(program);
+        let memberships = super::memberships::ServiceMemberships::new(program);
         let scopes = applied_receivers::collect_scopes(program, root)?;
         for scope in scopes.iter().rev() {
             collect_service_methods(
@@ -799,7 +799,7 @@ pub mod projection {
                 &mut requirements,
                 &mut methods,
                 &mut identities,
-                &normal_memberships,
+                &memberships,
             )?;
         }
         let receiver_applications =
@@ -889,11 +889,14 @@ pub mod projection {
                         })
                         .unwrap_or_default(),
                     result_claims: Vec::new(),
-                    normal_result_memberships: super::normal_memberships::NormalMemberships::new(
-                        program,
-                    )
-                    .collect(operator.symbol, operator.contracts, None)
-                    .map_err(|reason| projection_failure(program, operator.symbol, reason))?,
+                    domain_memberships: super::memberships::ServiceMemberships::new(program)
+                        .collect(
+                            operator.symbol,
+                            program.operator_parameters(operator),
+                            operator.contracts,
+                            None,
+                        )
+                        .map_err(|reason| projection_failure(program, operator.symbol, reason))?,
                     service_reach: Vec::new(),
                     synchronous_invocations: Vec::new(),
                     may_suspend: false,
@@ -1048,11 +1051,11 @@ pub mod projection {
                         })
                         .unwrap_or_default(),
                     result_claims: Vec::new(),
-                    normal_result_memberships: super::normal_memberships::NormalMemberships::new(
-                        program,
-                    )
-                    .collect(entry.symbol, entry.contracts, None)
-                    .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
+                    domain_memberships: super::memberships::ServiceMemberships::new(program)
+                        .collect(entry.symbol, parameters, entry.contracts, None)
+                        .map_err(|reason| {
+                            projection_failure(program, requirement.symbol, reason)
+                        })?,
                     service_reach: service_reach_names(
                         program,
                         None,
@@ -1084,7 +1087,7 @@ pub mod projection {
         requirements: &mut Vec<ServiceRequirementSource>,
         methods: &mut Vec<ServiceMethod>,
         identities: &mut ProviderIdentityTable,
-        normal_memberships: &super::normal_memberships::NormalMemberships<'_>,
+        memberships: &super::memberships::ServiceMemberships<'_>,
     ) -> Result<(), diagnostics::Diagnostic> {
         let trait_definition = scope.declaration;
         for signature in program.trait_machine_signatures(trait_definition) {
@@ -1147,8 +1150,13 @@ pub mod projection {
                     })
                     .unwrap_or_default(),
                 result_claims: service_result_claims(program, scope, signature),
-                normal_result_memberships: normal_memberships
-                    .collect(signature.symbol, signature.contracts, Some(scope))
+                domain_memberships: memberships
+                    .collect(
+                        signature.symbol,
+                        program.state_signature_parameters(signature),
+                        signature.contracts,
+                        Some(scope),
+                    )
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 service_reach: service_reach_names(
                     program,

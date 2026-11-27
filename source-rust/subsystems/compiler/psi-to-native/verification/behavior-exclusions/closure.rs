@@ -718,7 +718,7 @@ mod boundary_reach_tests {
                 parents: vec![ServiceId::new(2).unwrap()],
             },
         ];
-        module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
+        let boundary = BoundaryMachineDeclaration {
             id: BoundaryMachineId::new(1).unwrap(),
             declaration: None,
             numeric_intrinsic: None,
@@ -737,6 +737,7 @@ mod boundary_reach_tests {
             result_reference_regions: Vec::new(),
             result_lifetimes: None,
             requires: Vec::new(),
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
@@ -750,7 +751,8 @@ mod boundary_reach_tests {
             owning_service: Some(ServiceId::new(1).unwrap()),
             published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
-        });
+        };
+        module.interfaces.boundary_machines.push(boundary);
         module
     }
 

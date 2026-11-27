@@ -30,8 +30,8 @@ pub mod inhabitation;
 mod membership_facts;
 pub mod module_analyses;
 pub use membership_facts::{
-    BodyMemberships, MembershipTest, TestedMembership, test_memberships_in,
-    validate_boundary_normal_memberships,
+    BodyMemberships, MembershipTest, TestedMembership, same_boundary_memberships,
+    test_memberships_in, validate_boundary_memberships,
 };
 pub use module_analyses::{
     DescriptorRowFamily, DescriptorRowView, DescriptorRows, MachineSlots, ModuleAnalyses,

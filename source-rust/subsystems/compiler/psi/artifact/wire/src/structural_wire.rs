@@ -699,6 +699,7 @@ pub(crate) mod structural_signature_wire {
             result_lifetimes: Optional<List<crate::module_wire::closed_conformance_wire::ResultLifetime>>,
             requires: List<DomainRequirement>,
             normal_qualifications: List<DomainRequirement>,
+            membership_requires: List<super::contract_wire::Membership>,
             membership_ensures: List<super::contract_wire::Membership>,
             scalar_domain_requirements: List<ScalarDomain>,
             scalar_requires: List<Proposition>,

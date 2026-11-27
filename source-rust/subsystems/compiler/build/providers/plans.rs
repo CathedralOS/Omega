@@ -423,8 +423,21 @@ impl ProviderPlan {
                         .text(method.result_type_identity),
                 );
             }
-            for membership in &method.normal_result_memberships {
-                rendered.push_str(&format!("\nnormal-membership:{membership:?}"));
+            for membership in &method.domain_memberships {
+                let path = &membership.path;
+                let domain = &membership.domain;
+                match membership.subject {
+                    service_surface::ServiceMembershipSubject::Input(index) => {
+                        rendered
+                            .push_str(&format!("\ninput-membership:{index}:{path:?}:{domain:?}"));
+                    }
+                    service_surface::ServiceMembershipSubject::NormalResult => {
+                        // Existing provider reports committed the original record's Debug spelling.
+                        rendered.push_str(&format!(
+                            "\nnormal-membership:ServiceNormalResultMembership {{ path: {path:?}, domain: {domain:?} }}"
+                        ));
+                    }
+                }
             }
             let mut result_claims = method.result_claims.iter().collect::<Vec<_>>();
             result_claims.sort_by(|left, right| left.domain.cmp(&right.domain));
@@ -782,18 +795,16 @@ impl ProviderPlan {
                     context()
                 ));
             }
-            if (!method.normal_result_memberships.is_empty() && !method.has_result)
-                || method
-                    .normal_result_memberships
-                    .iter()
-                    .any(|row| !row.has_exact_identity())
-                || method
-                    .normal_result_memberships
-                    .windows(2)
-                    .any(|pair| pair[0] >= pair[1])
+            if method.domain_memberships.iter().any(|row| {
+                !row.has_exact_identity()
+                    || !row.has_subject(method.parameter_count, method.has_result)
+            }) || method
+                .domain_memberships
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
             {
                 errors.push(format!(
-                    "{} normal-result membership roster has no exact canonical meaning",
+                    "{} domain membership roster has no exact canonical meaning",
                     context()
                 ));
             }

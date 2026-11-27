@@ -2304,6 +2304,7 @@ pub(crate) mod program {
         access_view_inputs: &'program [terminal_psi::TerminalAccessViewInput],
         pub result: &'program terminal_psi::TerminalMachineResult,
         requires: &'program [semantic_vocabulary::Proposition],
+        membership_requires: &'program [terminal_psi::RuntimeDomainMembership],
     }
 
     impl TerminalProgramEntry<'_> {
@@ -2324,7 +2325,7 @@ pub(crate) mod program {
             established: &[semantic_vocabulary::Proposition],
         ) -> Result<Option<bool>, String> {
             let mut integers = closed_predicates::ClosedIntegerEvaluator::default();
-            let mut undecided = false;
+            let mut undecided = !self.membership_requires.is_empty();
             for clause in self.requires {
                 if established.contains(clause) {
                     continue;
@@ -2405,6 +2406,7 @@ pub(crate) mod program {
                 access_view_inputs: &self.program.catalogs.access.access_view_inputs,
                 result: &machine.result,
                 requires: &machine.contract.requires,
+                membership_requires: &machine.contract.membership_requires,
             })
         }
 

@@ -42,6 +42,8 @@ pub fn hosted_requirement_schema(
         || !boundary.requires.is_empty()
         || !boundary.normal_qualifications.is_empty()
         || !boundary.scalar_domain_requirements.is_empty()
+        || !boundary.membership_requires.is_empty()
+        || !boundary.membership_ensures.is_empty()
         || !boundary.scalar_requires.is_empty()
         || !boundary.scalar_ensures.is_empty()
         || !boundary.crash_routes.is_empty()

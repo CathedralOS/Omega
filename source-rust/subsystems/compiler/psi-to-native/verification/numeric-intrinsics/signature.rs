@@ -28,8 +28,7 @@ pub fn boundary_contract_matches_selected_schema(
         method.completion == boundary.completion
             && boundary.unconditional_termination
                 == (method.terminates_guarantee && method.termination_premises.is_empty())
-            && terminal_semantics::validate_boundary_normal_memberships(module, boundary, method)
-                .is_ok()
+            && terminal_semantics::validate_boundary_memberships(module, boundary, method).is_ok()
     }) && matching.next().is_none()
 }
 

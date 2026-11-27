@@ -71,6 +71,7 @@ pub fn snapshot_fields(
         || !boundary.scalar_ensures.is_empty()
         || !boundary.scalar_domain_requirements.is_empty()
         || !boundary.normal_qualifications.is_empty()
+        || !boundary.membership_requires.is_empty()
         || !boundary.membership_ensures.is_empty()
         || !boundary.program_local_root_introductions.is_empty()
         || !boundary.content_guarantees.is_empty()

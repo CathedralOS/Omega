@@ -729,6 +729,7 @@ impl<'a> LogicalScope<'a> {
                 erased: Vec::new(),
                 borrowed: Vec::new(),
                 result: None,
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 content_ensures: Vec::new(),
                 requires,

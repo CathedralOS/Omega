@@ -232,6 +232,7 @@ fn no_additional_obligations(boundary: &terminal_psi::BoundaryMachineDeclaration
         && boundary.scalar_ensures.is_empty()
         && boundary.normal_qualifications.is_empty()
         && boundary.scalar_domain_requirements.is_empty()
+        && boundary.membership_requires.is_empty()
         && boundary.membership_ensures.is_empty()
         && boundary.reference_outputs.is_empty()
         && boundary.content_guarantees.is_empty()

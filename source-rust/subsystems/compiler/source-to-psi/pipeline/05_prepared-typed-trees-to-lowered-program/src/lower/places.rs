@@ -5971,6 +5971,7 @@ mod tests {
                 home: Some("plain-u32".into()),
             }],
             result: Some(plain),
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             requires: Vec::new(),

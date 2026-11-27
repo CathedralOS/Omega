@@ -219,6 +219,7 @@ pub struct BoundaryMachineDeclaration {
     pub requires: Vec<StructuralDomainRequirement>,
     pub normal_qualifications: Vec<StructuralDomainRequirement>,
     pub scalar_domain_requirements: Vec<ScalarDomainRequirement>,
+    pub membership_requires: Vec<crate::RuntimeDomainMembership>,
     pub membership_ensures: Vec<crate::RuntimeDomainMembership>,
     pub scalar_requires: Vec<Proposition>,
     pub scalar_ensures: Vec<Proposition>,

@@ -629,6 +629,7 @@ impl Program<'_> {
         if signature.result.is_some()
             || !signature.borrowed.is_empty()
             || !signature.erased.is_empty()
+            || !signature.membership_requires.is_empty()
             || signature.has_structural_guarantees()
             || signature.ranking.is_some()
             || matches!(&signature.reaches, Ceiling::Authored(entries) if !entries.is_empty())

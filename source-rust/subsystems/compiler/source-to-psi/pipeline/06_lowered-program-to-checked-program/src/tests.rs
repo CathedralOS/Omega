@@ -279,6 +279,7 @@ fn lower(machines: Vec<Machine>) -> Checked<crate::lowering::Elaboration> {
             statements: machine.statements,
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -2049,6 +2050,7 @@ fn elaborate_over(
             statements: machine.statements,
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -6538,6 +6540,7 @@ mod generic_bodies {
                 statements: machine.statements,
             });
             signatures.push(Signature {
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 content_ensures: Vec::new(),
                 operational: Default::default(),
@@ -7144,6 +7147,7 @@ fn crashing_below_ten(
         ],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),
@@ -7237,6 +7241,7 @@ fn crashing_at_zero(requires: Vec<Proposition>) -> (crate::lowering::Elaboration
         ],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),
@@ -7293,6 +7298,7 @@ fn calling_a_zero_route(requires: Vec<Proposition>) -> (crate::lowering::Elabora
         statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),
@@ -7321,6 +7327,7 @@ fn calling_a_zero_route(requires: Vec<Proposition>) -> (crate::lowering::Elabora
         ],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),
@@ -7426,6 +7433,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -7454,6 +7462,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             ],
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),

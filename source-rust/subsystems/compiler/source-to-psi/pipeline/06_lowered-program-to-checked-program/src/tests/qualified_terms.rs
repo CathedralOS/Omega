@@ -422,7 +422,7 @@ fn a_boundary_call_rejects_an_unqualified_actual_with_the_same_carrier() {
 
 #[test]
 fn membership_of_another_formal_is_not_implied_by_a_qualified_formal() {
-    let refused = invocation(&format!(
+    let source = format!(
         r#"
 {DOMAIN}
 boundary trait Probe {{
@@ -430,14 +430,28 @@ boundary trait Probe {{
     requires other in Classified
     reaches none crashes none;
 }}
-machine entry() -> i64 {{ Probe::consume(issue(7), 0) }}
+machine forward(first: i64 in Classified, other: i64) -> i64
+requires other in Classified
+{{
+    Probe::consume(first, other)
+}}
+machine entry() -> i64 {{ forward(issue(7), issue(0) as -Classified) }}
 "#
-    ))
-    .unwrap_err();
-    assert_eq!(refused.reason, RefusalReason::Unsupported);
-    assert_eq!(
-        refused.detail,
-        "contract routed contract membership needs its exact normal result subject while reading the body of `entry`"
+    );
+    let accepted = judge(invocation(&source)).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    // Identical runtime value satisfies the arithmetic predicate. Only the
+    // first of these paths went through the issuer for the second argument.
+    let other = source.replace("issue(0) as -Classified", "0");
+    let refused = judge(invocation(&other)).unwrap_err();
+    assert!(
+        refused
+            .detail
+            .contains("routed membership of its actual input"),
+        "{refused:?}"
     );
 }
 

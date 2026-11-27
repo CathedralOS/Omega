@@ -20,6 +20,151 @@ machine entry() -> u32 {
 }
 "#;
 
+#[test]
+fn a_routed_input_membership_follows_the_original_record_through_another_call() {
+    let source = r#"
+data Ticket { number: u32; }
+domain Ticket::Stamped established by stamp;
+machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
+machine read(ticket: Ticket) -> u32 requires ticket in Stamped { ticket.number }
+machine forward(ticket: Ticket) -> u32 requires ticket in Stamped { read(ticket) }
+machine entry() -> u32 { forward(stamp(Ticket { number: 7u32 }) as -Stamped) }
+"#;
+    let accepted = judge(invocation(source)).unwrap();
+    let RouteVerdict::Accepted(checked) = accepted else {
+        panic!("{accepted:?}")
+    };
+    let publication = checked.publish_invocation().unwrap();
+    let program = TerminalProgram::borrow(publication.artifact.view()).unwrap();
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1000))
+        .unwrap();
+    assert!(matches!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Integer {
+                value: semantic_vocabulary::IntegerValue::Unsigned(7),
+                ..
+            }
+        ))
+    ));
+    let unissued = source.replace(
+        "stamp(Ticket { number: 7u32 }) as -Stamped",
+        "Ticket { number: 7u32 }",
+    );
+    let changed_after_entry = source.replace(
+        "{ read(ticket) }",
+        "{ let mutable copy: Ticket = ticket; copy.number = 9u32; read(copy) }",
+    );
+    for (name, source) in [
+        ("unissued", unissued),
+        ("changed after entry", changed_after_entry),
+    ] {
+        let refused = judge(invocation(&source)).expect_err(name);
+        assert!(
+            refused
+                .detail
+                .contains("routed membership of its actual input"),
+            "{name}: {refused:?}"
+        );
+    }
+}
+
+/// The installed interrupt context helper takes a borrow of its acknowledgement.
+/// Keeping that borrow must preserve the issuing receipt on the actual referent.
+#[test]
+fn a_routed_input_membership_through_a_borrow_uses_its_actual_referent() {
+    let source = r#"
+data Receipt { code: u32; }
+domain Receipt::Active established by issue;
+machine issue(receipt: Receipt) -> Receipt in Active { receipt as +Active }
+machine inspect(receipt: @Receipt) -> u32 requires receipt in Active { receipt.code }
+machine entry() -> u32 {
+    let active: Receipt in Active = issue(Receipt { code: 5u32 });
+    let plain: Receipt = active as -Active;
+    let other: Receipt = Receipt { code: 5u32 };
+    inspect(@plain)
+}
+"#;
+    let accepted = judge(invocation(source)).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let refusal = judge(invocation(
+        &source.replace("inspect(@plain)", "inspect(@other)"),
+    ))
+    .expect_err("a different referent with the same payload has no establishment");
+    assert!(
+        refusal
+            .detail
+            .contains("routed membership of its actual input"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn service_input_membership_follows_the_ordered_formal_even_with_equal_carriers() {
+    let source = r#"
+data Ticket { number: u32; }
+domain Ticket::Stamped established by issue;
+machine issue(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
+boundary trait Verifier {
+    machine read(other: Ticket, checked: Ticket) -> u32
+    requires checked in Stamped
+    reaches none crashes none;
+}
+machine entry() -> u32 {
+    Verifier::read(Ticket { number: 7u32 }, issue(Ticket { number: 7u32 }) as -Stamped)
+}
+"#;
+    let elaboration = invocation(source).unwrap();
+    let module = &elaboration.module;
+    let boundary = &module.interfaces.boundary_machines[0];
+    let method = &module.interfaces.service_schemas[0].surface.methods[0];
+    assert_eq!(method.domain_memberships.len(), 1);
+    assert_eq!(
+        method.domain_memberships[0].subject,
+        service_surface::ServiceMembershipSubject::Input(1)
+    );
+    terminal_semantics::validate_boundary_memberships(module, boundary, method).unwrap();
+    let mut swapped = boundary.clone();
+    let other = swapped.structural_parameters[0].place;
+    let [terminal_psi::RuntimeDomainMembership::Structural { root, .. }] =
+        swapped.membership_requires.as_mut_slice()
+    else {
+        panic!("Verifier must require membership on exactly one record argument")
+    };
+    *root = other;
+    assert!(terminal_semantics::validate_boundary_memberships(module, &swapped, method).is_err());
+    assert!(
+        !terminal_semantics::same_boundary_memberships(module, boundary, module, &swapped).unwrap()
+    );
+}
+
+#[test]
+fn a_raw_entry_cannot_assume_membership_from_the_callers_payload() {
+    let source = r#"
+data Ticket { number: u32; }
+domain Ticket::Stamped established by stamp;
+machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
+machine entry(ticket: Ticket) -> u32 requires ticket in Stamped { ticket.number }
+"#;
+    let module = invocation(source).unwrap().module;
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| !machine.contract.membership_requires.is_empty())
+        .unwrap();
+    let error =
+        terminal_semantics::validate_empty_erased_invocation_inputs(&module, entry.id).unwrap_err();
+    assert!(
+        error.contains("supplied no evidence of the required input domain memberships"),
+        "{error}"
+    );
+}
+
 fn invocation(text: &str) -> Checked<crate::lowering::Elaboration> {
     let typed = boundary_calls::typed(text);
     let entry = boundary_calls::entry(&typed);
@@ -769,7 +914,7 @@ fn normal_result_membership_rejects_missing_facts_and_wrong_subjects() {
             let refusal = verdict.expect_err(name);
             let expected = match name {
                 "input named as result" => {
-                    "membership promise does not name its exact normal result"
+                    "routed membership does not match its declared subject and carrier"
                 }
                 "missing independent predicate" => {
                     "membership guarantee lost its independent result predicate"
@@ -802,12 +947,12 @@ machine entry() -> u32 crashes none {
     let module = elaboration.module;
     let boundary = &module.interfaces.boundary_machines[0];
     let method = &module.interfaces.service_schemas[0].surface.methods[0];
-    assert_eq!(method.normal_result_memberships.len(), 1);
+    assert_eq!(method.domain_memberships.len(), 1);
     assert!(!boundary.requires_checked_result(
         &module.types.structural_domains,
         &module.types.scalar_qualifications.domains
     ));
-    terminal_semantics::validate_boundary_normal_memberships(&module, boundary, method).unwrap();
+    terminal_semantics::validate_boundary_memberships(&module, boundary, method).unwrap();
     let mut missing = boundary.clone();
     missing.membership_ensures.clear();
     let mut changed = module.clone();
@@ -824,11 +969,11 @@ machine entry() -> u32 crashes none {
     let observed = [
         (
             "missing row",
-            terminal_semantics::validate_boundary_normal_memberships(&module, &missing, method),
+            terminal_semantics::validate_boundary_memberships(&module, &missing, method),
         ),
         (
             "changed domain",
-            terminal_semantics::validate_boundary_normal_memberships(
+            terminal_semantics::validate_boundary_memberships(
                 &changed,
                 &changed.interfaces.boundary_machines[0],
                 method,
@@ -836,7 +981,7 @@ machine entry() -> u32 crashes none {
         ),
         (
             "changed domain and header commitment",
-            terminal_semantics::validate_boundary_normal_memberships(
+            terminal_semantics::validate_boundary_memberships(
                 &changed,
                 &changed_commitment,
                 method,
@@ -850,7 +995,7 @@ machine entry() -> u32 crashes none {
         assert!(
             result
                 .unwrap_err()
-                .contains("authored normal-result membership guarantees"),
+                .contains("authored domain membership contract"),
             "{name}"
         );
     }

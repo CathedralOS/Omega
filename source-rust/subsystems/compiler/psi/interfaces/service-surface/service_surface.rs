@@ -175,7 +175,7 @@ pub struct ServiceMethod {
     pub has_result: bool,
     pub result_type_identity: ProviderIdentityId,
     pub result_claims: Vec<ServiceResultClaim>,
-    pub normal_result_memberships: Vec<ServiceNormalResultMembership>,
+    pub domain_memberships: Vec<ServiceDomainMembership>,
     pub service_reach: Vec<String>,
     pub synchronous_invocations: Vec<ServiceSynchronousInvocation>,
     pub may_suspend: bool,
@@ -225,7 +225,7 @@ impl ServiceMethod {
             && left_table.text(self.result_type_identity)
                 == right_table.text(other.result_type_identity)
             && self.result_claims == other.result_claims
-            && self.normal_result_memberships == other.normal_result_memberships
+            && self.domain_memberships == other.domain_memberships
             && self.service_reach == other.service_reach
             && self.synchronous_invocations == other.synchronous_invocations
             && self.may_suspend == other.may_suspend
@@ -512,32 +512,60 @@ pub struct ServiceResultClaim {
 /// application. Field and case identities use the declaration's named or
 /// numbered member identity. Implicit reference traversal adds no selector.
 /// Rust's variant imports require an enum declaration. Import this concrete
-/// type and qualify its variants, for example `ServiceResultProjection::Field`.
-pub type ServiceResultProjection = semantic_vocabulary::StructuralPlaceSegment<true>;
+/// type and qualify its variants, for example `ServiceMembershipProjection::Field`.
+pub type ServiceMembershipProjection = semantic_vocabulary::StructuralPlaceSegment<true>;
 
 /// The service contract writes fields, cases and fixed indices in this order.
-fn service_member_tag(member: &ServiceResultProjection) -> u8 {
+fn service_member_tag(member: &ServiceMembershipProjection) -> u8 {
     match member {
-        ServiceResultProjection::Field(_) => 1,
-        ServiceResultProjection::Case(_) => 2,
-        ServiceResultProjection::FixedIndex(_) => 3,
+        ServiceMembershipProjection::Field(_) => 1,
+        ServiceMembershipProjection::Case(_) => 2,
+        ServiceMembershipProjection::FixedIndex(_) => 3,
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ServiceNormalResultMembership {
-    pub path: Vec<ServiceResultProjection>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ServiceMembershipSubject {
+    /// Zero-based position among runtime formals, before scalar/structural lane separation.
+    Input(u32),
+    NormalResult,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ServiceDomainMembership {
+    pub subject: ServiceMembershipSubject,
+    pub path: Vec<ServiceMembershipProjection>,
     /// Complete canonical declaration/application identity, including indices.
     pub domain: String,
 }
 
-impl ServiceNormalResultMembership {
+impl std::hash::Hash for ServiceDomainMembership {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // The original result encoding starts with the Vec's path length.
+        // No allocated non-zero-sized path can have usize::MAX entries.
+        if let ServiceMembershipSubject::Input(index) = self.subject {
+            state.write_usize(usize::MAX);
+            state.write_u32(index);
+        }
+        std::hash::Hash::hash(&self.path, state);
+        std::hash::Hash::hash(&self.domain, state);
+    }
+}
+
+impl ServiceDomainMembership {
+    pub fn has_subject(&self, parameters: usize, has_result: bool) -> bool {
+        match self.subject {
+            ServiceMembershipSubject::Input(index) => (index as usize) < parameters,
+            ServiceMembershipSubject::NormalResult => has_result,
+        }
+    }
+
     pub fn has_exact_identity(&self) -> bool {
         !self.domain.is_empty()
             && self.path.iter().all(|step| match step {
-                ServiceResultProjection::Field(identity)
-                | ServiceResultProjection::Case(identity) => !identity.is_empty(),
-                ServiceResultProjection::FixedIndex(_) => true,
+                ServiceMembershipProjection::Field(identity)
+                | ServiceMembershipProjection::Case(identity) => !identity.is_empty(),
+                ServiceMembershipProjection::FixedIndex(_) => true,
             })
     }
 }
