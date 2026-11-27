@@ -84,16 +84,23 @@ selects must have proved exactly the law an equivalence owes for this
 relation, so the signature records that sealed statement on the row's law
 for stage 06 to compare. A conformance whose every row is proved by a
 machine over mathematical data states laws only, and the ordinary reader
-skips it. A quotient of data that has storage is still refused.
+skips it. A quotient of data that has storage is run by the ordinary
+reader, and a law equating its classes is refused by name: the signature
+states no record with a fixed-width field. Generic quotient data is refused:
+the source has no spelling yet for the relation application and conformance a
+generic quotient selects ([owner question](../../../../../../OWNER_QUESTIONS.md#generic-quotient-selection)).
 
 An operation on a quotient is a machine whose whole body is
 `Quotient::lift::<op, respects>(..)`, `Quotient::lift::<op, respects,
 transports>(..)` or `Quotient::define::<op, respects>(..)`, with the
-machine's own formals as arguments. Its body is not lowered
-(`lifted_operation` in `read/quotients.rs`), and the signature defines
-nothing for it: a clause that applies it is refused. The signature instead
-states what makes the operation well defined and records each statement on
-the law that must have proved it (`lifted` in `read/signature.rs`):
+machine's formals, or values computed from them, as arguments. Its body is
+not lowered (`lifted_operation` in `read/quotients.rs`). Where the kernel's
+`lift` gives a definition (one class in, a class or plain data out, and an
+operation on representatives that requires nothing) the signature defines
+the machine as that `lift`, so a clause may apply it; any other application
+is refused by name. The signature also states what makes the operation well
+defined and records each statement on the law that must have proved it
+(`lifted` in `read/signature.rs`):
 
 - **Congruence.** The theorem's formals are two representatives of every
   argument that is a class and one value of every other argument, in the
@@ -107,8 +114,9 @@ the law that must have proved it (`lifted` in `read/signature.rs`):
   citation; `Quotient::define` owes the converse as well.
 
 `Quotient::define` passes its formals in order. `Quotient::lift` may reorder
-them. A formal passed twice, a formal left out and an argument that is not a
-formal are refused.
+them, leave one out, pass one twice or pass a value it computes. Only a formal
+is a class, and a lift that does not pass each formal once as it is selects
+no transport theorem: it owes that statement itself, over its formals.
 
 Data that contains itself may hold other values beside itself, and may take
 types (`data Seq<T> { case Empty; case Cons(head: T, tail: Seq<T>); }`). The
