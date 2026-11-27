@@ -356,9 +356,7 @@ impl PreparedBuildInvocation {
     pub fn publish(
         self,
     ) -> Result<(AcceptedTerminalSource, ProducedTerminalProgram), Vec<Diagnostic>> {
-        let produced = self
-            .publication
-            .publish(&[], &mut CompileTimings::default())?;
+        let produced = self.publication.publish(&mut CompileTimings::default())?;
         Ok((self.accepted, produced))
     }
 }

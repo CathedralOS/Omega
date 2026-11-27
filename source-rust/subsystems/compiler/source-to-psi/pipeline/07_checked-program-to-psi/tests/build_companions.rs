@@ -577,9 +577,7 @@ machine watch() {{
     let unreached = unreached.prepare_publication(None).unwrap();
     // The helper is still part of the program: its call has no host row,
     // and the entry's and the called helper's requests have theirs.
-    let produced = unreached
-        .publish(&[], &mut CompileTimings::default())
-        .unwrap();
+    let produced = unreached.publish(&mut CompileTimings::default()).unwrap();
     assert_eq!(
         produced
             .build_requests()
@@ -618,9 +616,7 @@ machine build(builder: @mutable Build) {
     .unwrap()
     .prepare_publication(None)
     .unwrap();
-    let program = outside
-        .publish(&[], &mut CompileTimings::default())
-        .unwrap();
+    let program = outside.publish(&mut CompileTimings::default()).unwrap();
     assert_eq!(published_boundary_calls(&program).len(), 2);
     assert_eq!(
         program
@@ -629,107 +625,6 @@ machine build(builder: @mutable Build) {
             .unwrap()
             .len(),
         1
-    );
-}
-
-/// A saved artifact's code digest does not authenticate separately decoded
-/// host actions. A valid site with a different action or protocol family must
-/// not acquire authority; even an unmodified saved Build row needs its source
-/// correspondence rejoined. Fresh accepted production remains available.
-#[test]
-fn saved_build_rows_do_not_authorize_changed_actions_or_protocol_families() {
-    use record_storage::{Record, RecordLimits, RecordWriter};
-    use source_compiler::CompileTimings;
-use checked_program_to_psi::{TerminalBuildQueryCall, TerminalBuildRequestCall};
-
-    let program = accepted_for(ONE_BINDING, terminal_codec::TerminalPublication::Portable)
-        .unwrap()
-        .produce(
-            TerminalProductionCustody::default(),
-            &mut CompileTimings::default(),
-        )
-        .unwrap();
-    let refused = record_storage::encode(&program, RecordLimits::default()).unwrap_err();
-    assert!(
-        refused.to_string().contains(
-            "saved Build companions require their accepted source protocol correspondence"
-        ),
-        "{refused}"
-    );
-    let view = program.view();
-    let original = program.build_requests().calls_for(view).unwrap()[0].clone();
-    let binding = &program.build_bindings().calls_for(view).unwrap()[0];
-    let mut different_action = original.clone();
-    different_action.action = TerminalBuildRequestOperation::LogLine;
-    let mut different_family = original.clone();
-    different_family.site = binding.site;
-    for request in [original, different_action, different_family] {
-        // Write one altered companion beside the real accepted artifact,
-        // using exactly the existing private record layout. No new evidence
-        // or source protocol declaration is supplied by these bytes.
-        let mut output = RecordWriter::new(RecordLimits::default());
-        output.record(|output| {
-            u64::from_le_bytes(*b"OMGBLD04").write(output)?;
-            program.artifact().unwrap().to_bytes().write(output)?;
-            Arc::<[checked_program_to_psi::TerminalBuildBindingCall]>::from([]).write(output)?;
-            Arc::<[Arc<source_compiler::representations::declaration_selection::ProductDeclarationRequest>]>::from([]).write(output)?;
-            Arc::<[TerminalBuildQueryCall]>::from([]).write(output)?;
-            Arc::<[source_compiler::representations::declaration_selection::NativeBindingFormation]>::from([]).write(output)?;
-            Arc::<[TerminalBuildRequestCall]>::from([request]).write(output)?;
-            Arc::<[checked_program_to_psi::TerminalBuildFilesystemCall]>::from([]).write(output)
-        }).unwrap();
-        let refused = record_storage::decode::<ProducedTerminalProgram>(
-            &output.finish(),
-            RecordLimits::default(),
-        )
-        .unwrap_err();
-        assert!(
-            refused.to_string().contains(
-                "saved Build companions require their accepted source protocol correspondence"
-            ),
-            "{refused}"
-        );
-    }
-}
-
-/// Portable artifacts without host actions still use the normal persistence
-/// path, without a fabricated protocol witness.
-#[test]
-fn a_portable_artifact_without_build_companions_still_round_trips() {
-    let program = accepted_for(
-        "machine build(builder: @mutable Build) {}",
-        terminal_codec::TerminalPublication::Portable,
-    )
-    .unwrap()
-    .produce(
-        TerminalProductionCustody::default(),
-        &mut CompileTimings::default(),
-    )
-    .unwrap();
-    let bytes =
-        record_storage::encode(&program, record_storage::RecordLimits::default()).unwrap();
-    let restored = record_storage::decode::<ProducedTerminalProgram>(
-        &bytes,
-        record_storage::RecordLimits::default(),
-    )
-    .unwrap();
-    assert_eq!(
-        restored.view().custody_identity(),
-        program.view().custody_identity()
-    );
-    assert!(
-        restored
-            .build_bindings()
-            .calls_for(restored.view())
-            .unwrap()
-            .is_empty()
-    );
-    assert!(
-        restored
-            .build_requests()
-            .calls_for(restored.view())
-            .unwrap()
-            .is_empty()
     );
 }
 

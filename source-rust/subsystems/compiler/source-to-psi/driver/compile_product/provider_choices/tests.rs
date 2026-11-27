@@ -145,7 +145,7 @@ fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTermin
 
 /// Native planning binds its provider choices to this published program identity.
 fn assert_published(accepted: &AcceptedTerminalSource, file_name: &str) {
-    let (artifact, _) = accepted
+    let artifact = accepted
         .produce(Default::default(), &mut crate::CompileTimings::default())
         .expect("accepted source publishes")
         .into_portable_publication()

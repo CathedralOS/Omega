@@ -101,7 +101,6 @@ impl PreparedBuildMachineEntry {
             .produce(
                 production::TerminalProductionCustody {
                     invocation_sources: self.source_consent.as_deref(),
-                    ..Default::default()
                 },
                 &mut artifacts::compile_timings::CompileTimings::default(),
             )

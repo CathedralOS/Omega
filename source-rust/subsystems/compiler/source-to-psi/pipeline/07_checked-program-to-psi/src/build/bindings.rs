@@ -12,18 +12,18 @@ mod native_locator {
     use semantic_vocabulary::{ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId};
     use std::sync::Arc;
 
-    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct TerminalBuildNativeLocator {
         pub structural_type: StructuralTypeId,
         pub kind: TerminalBuildNativeLocatorKind,
         pub shape: Arc<TerminalBuildValueShape>,
     }
-    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum TerminalBuildNativeLocatorKind {
         ForeignBinding { widths: [u64; 3] },
         FunctionFieldBinding,
     }
-    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum TerminalBuildValueShape {
         Scalar(ScalarType),
         Array {
@@ -38,13 +38,13 @@ mod native_locator {
             fields: Vec<TerminalBuildValueField>,
         },
     }
-    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct TerminalBuildValueCase {
         pub id: StructuralCaseId,
         pub name: String,
         pub fields: Vec<TerminalBuildValueField>,
     }
-    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct TerminalBuildValueField {
         pub id: StructuralFieldId,
         pub name: String,
@@ -66,7 +66,7 @@ use semantic_vocabulary::source_selections::BuildCallSite;
 use std::sync::Arc;
 use terminal_codec::TerminalExecutionView;
 
-#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalBuildProviderRequirement {
     pub declaration: terminal_psi::NominalDeclarationIdentity,
     pub application: terminal_psi::TerminalIdentityIndex,
@@ -75,7 +75,7 @@ pub struct TerminalBuildProviderRequirement {
 
 pub type TerminalBuildSelectionRequest = BuildSelectionRequest<TerminalBuildProviderRequirement>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalBuildBindingOperation {
     AwaitProvider,
     DescribeService,
@@ -91,13 +91,13 @@ pub enum TerminalBuildBindingOperation {
     Exclude,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderSelectionOption {
     Target(semantic_vocabulary::source_selections::ProductTarget),
     Mode(semantic_vocabulary::source_selections::CompositionMode),
 }
 
-#[derive(Debug, PartialEq, Eq, record_storage::Record)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum TerminalBuildBindingOperand {
     NativeLocator(TerminalBuildNativeLocator),
     ProviderOption {
@@ -113,7 +113,7 @@ pub enum TerminalBuildBindingOperand {
     },
 }
 
-#[derive(Debug, PartialEq, Eq, record_storage::Record)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TerminalBuildBindingCall {
     pub site: BuildCallSite,
     pub action: TerminalBuildBindingOperation,
@@ -232,7 +232,7 @@ fn validate_sites(
 }
 
 pub(crate) mod build_filesystem {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum TerminalBuildFilesystemOperation {
         ResolveSource,
         ResolveOutput,
@@ -257,7 +257,7 @@ pub(crate) mod build_filesystem {
         CloseFile,
     }
 
-    #[derive(Debug, PartialEq, Eq, record_storage::Record)]
+    #[derive(Debug, PartialEq, Eq)]
     pub struct TerminalBuildFilesystemCall {
         pub site: semantic_vocabulary::source_selections::BuildCallSite,
         pub action: TerminalBuildFilesystemOperation,
@@ -358,7 +358,7 @@ pub(crate) mod build_provider {
 }
 
 pub(crate) mod build_queries {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum TerminalBuildQueryOperation {
         Entry,
         Schema,
@@ -375,7 +375,7 @@ pub(crate) mod build_queries {
         }
     }
 
-    #[derive(Debug, PartialEq, Eq, record_storage::Record)]
+    #[derive(Debug, PartialEq, Eq)]
     pub struct TerminalBuildQueryCall {
         pub site: semantic_vocabulary::source_selections::BuildCallSite,
         pub action: TerminalBuildQueryOperation,
@@ -391,7 +391,7 @@ pub(crate) mod build_requests {
 
     pub use semantic_vocabulary::source_selections::BuildCallSite;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum TerminalBuildRequestOperation {
         /// Exact authored nominal declaration in the checked Build source.
         LaunchProgram {
@@ -424,7 +424,7 @@ pub(crate) mod build_requests {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct TerminalBuildRequestCall {
         pub site: BuildCallSite,
         pub action: TerminalBuildRequestOperation,
