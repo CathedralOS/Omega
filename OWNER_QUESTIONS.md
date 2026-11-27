@@ -259,7 +259,13 @@ fixed-integer endpoint cases. The mathematical rule for a selected address
 width continues to apply. [Elementary certificate rules](wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules)
 
 <a id="retired-w-encoding-text"></a>
-### 7. May the proof specification drop its text about the retired W/IW encoding?
+### 7. Retire W/IW wording from the proof specification
+
+**Owner ruling, 2026-11-27.** Describe the native inductive blocks that the
+kernel checks today. Keep constructor computation, induction, index checks
+and rejection of malformed declarations and forged recursors as requirements
+for future changes. Keep the old encoding's rationale and measurements in
+the experiment notes.
 
 The [inductive profile](wiki/spec/proofs/inductive_profile.md#required-evidence-and-measurements)
 says "The implementation's existing [W/IW metatheory](wiki/spec/proofs/kernel_metatheory.md)
@@ -283,15 +289,13 @@ Malformed declarations and forged recursors are refused in the kernel's
 tests. Costs from source sit beside the prototype figures in
 [the encoding experiments](wiki/drafts/designs/recursive_data_encoding_experiments.md#production-measurements-from-source).
 
-**Recommend this text.** In `inductive_profile.md`, the two sentences become
-"The [kernel metatheory](kernel_metatheory.md#native-inductive-declarations-and-scheme-correspondence)
+**Approved wording for the owners to apply.** In `inductive_profile.md`, the two sentences become
+"The [kernel metatheory](wiki/spec/proofs/kernel_metatheory.md#native-inductive-declarations-and-scheme-correspondence)
 argues these rules with the rest of the calculus." and "Each change keeps
 constructor computation, induction, index checks and refusal of malformed
 declarations and forged recursors." In `kernel_metatheory.md`, "`Two` and `W`
 rules" becomes "`Two` rules and native inductive blocks", and "W eta" becomes
-"eta for inductive types". The alternative keeps the text as a record of the
-earlier encoding.
-Should the specification drop it?
+"eta for inductive types" in the list of properties the metatheory does not claim.
 
 <a id="fixed-extent-view-of-a-slice"></a>
 ### 8. Explicit casts between slices and fixed-array references
