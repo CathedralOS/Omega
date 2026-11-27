@@ -1504,3 +1504,67 @@ fn a_theorem_over_another_sum_cannot_supply_the_alias() {
         "{shown}"
     );
 }
+
+/// A theorem's order premise and conclusion with the citation at `actual`.
+fn ordered(premise: &str, conclusion: &str, actual: &str) -> String {
+    ONE_IS_NONZERO
+        .replace("requires n == 1u8", &format!("requires {premise}"))
+        .replace("ensures n != 0u8", &format!("ensures {conclusion}"))
+        .replace("(1u8)", &format!("({actual})"))
+}
+
+/// Integer order between literals: the complete implication `n < 9` to
+/// `n <= 8` is closed over every `u8`, not only the goals at its citations.
+#[test]
+fn a_strict_bound_theorem_concludes_the_inclusive_bound_below_it() {
+    let source = ordered("n < 9u8", "n <= 8u8", "5u8");
+    assert!(source.contains("ensures n <= 8u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// `n < 9` leaves `n = 8`, so it does not give `n <= 7`.
+#[test]
+fn a_strict_bound_theorem_cannot_conclude_two_steps_inside_it() {
+    let source = ordered("n < 9u8", "n <= 7u8", "5u8");
+    assert!(source.contains("ensures n <= 7u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// A literal on the left moves up: `3 < n` gives `4 <= n`.
+#[test]
+fn a_strict_lower_bound_theorem_concludes_the_inclusive_bound_above_it() {
+    let source = ordered("3u8 < n", "4u8 <= n", "5u8");
+    assert!(source.contains("ensures 4u8 <= n"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// `3 < n` leaves `n = 4`, so it does not give `5 <= n`.
+#[test]
+fn a_strict_lower_bound_theorem_cannot_conclude_two_steps_above_it() {
+    let source = ordered("3u8 < n", "5u8 <= n", "6u8");
+    assert!(source.contains("ensures 5u8 <= n"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// The same at a signed carrier with a negative literal: `n < -3` gives
+/// `n <= -4`, and not `n <= -5`.
+#[test]
+fn a_signed_strict_bound_theorem_concludes_only_the_adjacent_bound() {
+    let signed = |conclusion: &str| ordered("n < -3i8", conclusion, "-9i8").replace("u8", "i8");
+    let accepted = signed("n <= -4i8");
+    let verdict = Program::of(&accepted).judged(|_| {});
+    assert!(
+        matches!(verdict, Verdict::Accepted),
+        "{accepted}\n{verdict:?}"
+    );
+    let refused = signed("n <= -5i8");
+    let verdict = Program::of(&refused).judged(|_| {});
+    assert!(
+        !matches!(verdict, Verdict::Accepted),
+        "{refused}\n{verdict:?}"
+    );
+}
