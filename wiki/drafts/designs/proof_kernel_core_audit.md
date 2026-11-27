@@ -1747,10 +1747,10 @@ same_sign> as SameSign;` is read into the mathematical signature when
   - A generic quotient, and a quotient of data that has storage in the
     mathematical signature. The signature now declares generic data that
     contains itself, with payloads (#6295), but a quotient's reader still
-    refuses generic quotient data: the source cannot yet name a relation or
-    conformance at a type parameter (`% same_length<T>` and
-    `as SameLength<T>` do not parse), which is
-    [owner question 7](../../../OWNER_QUESTIONS.md#generic-quotient-selection). It states a record only of mathematical
+    refuses generic quotient data. The parser has yet to accept
+    `% same_length<T>` and `as SameLength<T>` as specified in the
+    [generic quotient ruling](../../../OWNER_QUESTIONS.md#generic-quotient-selection).
+    The signature states a record only of mathematical
     data, never one with an `i32` field, so a law equating classes of
     stored data is refused as "Identity of classes of a quotient of data
     that has storage"
