@@ -1116,6 +1116,16 @@ pub(crate) fn canonical(proposition: Proposition, id: MachineId) -> Checked<Prop
         }
         Proposition::Conjunction(parts) => canonical_parts(parts, true, id)?,
         Proposition::Disjunction(parts) => canonical_parts(parts, false, id)?,
+        // Renaming a caller's formals can reverse an equality inside a
+        // logical premise or conclusion, just as it can at the top level.
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => Proposition::Implication {
+            premise: Box::new(canonical(*premise, id)?),
+            conclusion: Box::new(canonical(*conclusion, id)?),
+        },
+        Proposition::IsMere(inner) => Proposition::IsMere(Box::new(canonical(*inner, id)?)),
         other => other,
     })
 }
