@@ -1,8 +1,9 @@
-//! A Windows program that writes to the console runs its Omega frames on the
-//! loader's stack, and the image reserves 1 MiB of it. A local record holding
-//! a 2 MB array used to compile and then die with STATUS_STACK_OVERFLOW. The
-//! build now refuses it and names the call path, and a 512 KB record still
-//! builds.
+//! A program that writes to the console runs its Omega frames on the loader's
+//! stack. On Windows a local record holding a 2 MB array used to compile and
+//! then die with STATUS_STACK_OVERFLOW, because the image always reserved
+//! 1 MiB. The image now reserves enough for the checked frames. macOS gives
+//! the main thread a fixed 8 MiB, so a larger frame there is refused at build
+//! time with its call path.
 //!
 //! The spec rule: `wiki/spec/build/entry_roots.md`, the WCSU paragraph
 //! (insufficient fixed supply reports the responsible call path), with
@@ -12,9 +13,18 @@
 mod project;
 mod support;
 
-/// Build `main` for windows_x86_64 with a local record of `bytes` bytes and
-/// a console write, and return the exit status and everything printed.
-fn build(name: &str, bytes: u32) -> (Option<i32>, String) {
+/// Build `main` for `target` with a local record of `bytes` bytes and a
+/// console write, and return the exit status, everything printed and the
+/// staged project.
+fn build(
+    name: &str,
+    target: &str,
+    bytes: u32,
+) -> (
+    Option<i32>,
+    String,
+    platform_custody::temporary_directory::TemporaryDirectory,
+) {
     let library = support::repository_root().join("source/library/system");
     let library = library.to_string_lossy().replace('\\', "/");
     let application = name.replace('-', "_");
@@ -27,7 +37,7 @@ machine build(builder: @mutable BuildPlan) {{
     let allowed: [BoundaryServiceReference; 1] = [Build::service::<|streams|::StandardOutput>(builder)];
     let system: DependencyDescription = |dependency|::from_source(Source::Path {{ location: \"{library}\" }});
     _ = |dependency|::add(builder, system, @allowed[..]);
-    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, {target}::ProgramEntry, |app|::main);
 }}
 "
     );
@@ -50,13 +60,7 @@ public machine main() reaches |process_authority|::StandardOutput {{
     let scratch = project::stage(name, &[("build.omg", &build), ("main.omg", &main)]);
     let output = project::omega(
         scratch.path(),
-        &[
-            "--target",
-            "windows_x86_64",
-            "--build-dir",
-            "out",
-            "build.omg",
-        ],
+        &["--target", target, "--build-dir", "out", "build.omg"],
     );
     let report = format!(
         "{}{}",
@@ -64,23 +68,33 @@ public machine main() reaches |process_authority|::StandardOutput {{
         String::from_utf8_lossy(&output.stderr)
     );
     eprintln!("{report}");
-    (output.status.code(), report)
+    (output.status.code(), report, scratch)
+}
+
+/// The PE32+ optional header's `SizeOfStackReserve`.
+fn stack_reserve(image: &[u8]) -> u64 {
+    let header = u32::from_le_bytes(image[0x3c..0x40].try_into().unwrap()) as usize;
+    let field = header + 24 + 72;
+    u64::from_le_bytes(image[field..field + 8].try_into().unwrap())
 }
 
 #[test]
-fn a_frame_larger_than_the_windows_loader_stack_is_refused() {
-    let (status, report) = build("loader-stack-overflow", 2_000_000);
+fn a_windows_image_reserves_the_stack_its_frames_need() {
+    for (bytes, reserve) in [(2_000_000, 2_097_152), (512_000, 1_048_576)] {
+        let (status, report, scratch) = build("loader-stack-reserve", "windows_x86_64", bytes);
+        assert_eq!(status, Some(0), "{report}");
+        let image = std::fs::read(scratch.path().join("out/omega-program.exe")).unwrap();
+        assert_eq!(stack_reserve(&image), reserve, "{report}");
+    }
+}
+
+#[test]
+fn a_frame_larger_than_the_macos_main_thread_stack_is_refused() {
+    let (status, report, _) = build("loader-stack-overflow", "macos_arm64", 9_000_000);
     assert_ne!(status, Some(0), "{report}");
     assert!(
         report.contains("stack frames on call path machine ")
-            && report.contains("the windows_x86_64 loader stack supplies 1048576 bytes"),
+            && report.contains("the macos_arm64 loader stack supplies 8388608 bytes"),
         "{report}"
     );
-}
-
-#[test]
-fn a_frame_within_the_windows_loader_stack_builds() {
-    let (status, report) = build("loader-stack-fits", 512_000);
-    assert_eq!(status, Some(0), "{report}");
-    assert!(report.contains("published native output"), "{report}");
 }

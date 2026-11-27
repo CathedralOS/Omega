@@ -145,19 +145,14 @@ pub fn plan_hosted_program_entry<R: HostedReceiverCustody>(
     ))
 }
 
-/// Bytes of the loader's stack kept for the loader's own frames, the entry
-/// adapter, guard pages and the host imports' frames, none of which the
-/// checked Omega frames account for.
-pub const LOADER_STACK_HEADROOM_BYTES: u64 = 64 * 1024;
-
-/// A hosted import runs on the loader's fixed stack, so the checked Omega
-/// frames must fit in it with headroom for the frames they cannot see.
+/// A hosted import runs on the loader's stack, so the checked Omega frames
+/// must fit in it with headroom for the frames they cannot see.
 fn check_loader_stack_supply(demand: &StackDemand) -> Result<(), Diagnostic> {
+    use target::LOADER_STACK_HEADROOM_BYTES as HEADROOM;
     let target = demand.target();
-    let supply = target.loader_stack_supply_bytes();
-    let available = supply.saturating_sub(LOADER_STACK_HEADROOM_BYTES);
     let needed = demand.known_stack_bytes();
-    if needed <= available {
+    let supply = target.loader_stack_supply_bytes(needed);
+    if supply.is_some_and(|supply| needed <= supply.saturating_sub(HEADROOM)) {
         return Ok(());
     }
     let path = demand
@@ -173,11 +168,12 @@ fn check_loader_stack_supply(demand: &StackDemand) -> Result<(), Diagnostic> {
                 && profile.native_realization() == Some(target)
         })
         .map_or("hosted", |profile| profile.target_name());
+    let supply = supply.map_or_else(|| "no".to_owned(), |bytes| bytes.to_string());
     Err(Diagnostic::error(format!(
         "hosted native entry: the stack frames on call path {path} need {needed} bytes, but \
-         the {target} loader stack supplies {supply} bytes and keeps \
-         {LOADER_STACK_HEADROOM_BYTES} of them for loader and host-call frames; shrink the \
-         large locals on that path, because the build cannot choose a larger stack"
+         the {target} loader stack supplies {supply} bytes and keeps {HEADROOM} of them for \
+         loader and host-call frames; shrink the large locals on that path, because the \
+         build cannot choose a larger stack"
     )))
 }
 

@@ -100,8 +100,12 @@ fn x64_rows_release_the_frame_and_reload_each_saved_register() {
         epilogue: Vec::new(),
         epilogue_offsets: vec![40],
     };
-    let output = emit_pe_executable(image_with(NativeTarget::windows_x64(), 64, frame), 3)
-        .expect("emit image");
+    let output = emit_pe_executable(
+        image_with(NativeTarget::windows_x64(), 64, frame),
+        3,
+        target::WINDOWS_LOADER_STACK_RESERVE_BYTES,
+    )
+    .expect("emit image");
     assert_eq!(
         read_pe_function_frames(&output.bytes).unwrap(),
         [PeFunctionFrame {
@@ -143,8 +147,12 @@ fn x64_prologue_past_255_bytes_continues_in_chained_rows() {
         epilogue: Vec::new(),
         epilogue_offsets: Vec::new(),
     };
-    let output = emit_pe_executable(image_with(NativeTarget::windows_x64(), 800, frame), 3)
-        .expect("emit image");
+    let output = emit_pe_executable(
+        image_with(NativeTarget::windows_x64(), 800, frame),
+        3,
+        target::WINDOWS_LOADER_STACK_RESERVE_BYTES,
+    )
+    .expect("emit image");
     assert_eq!(
         exception_directory(&output.bytes).1,
         3 * 12,
@@ -184,8 +192,12 @@ fn arm64_rows_give_one_code_per_prologue_word_and_scope_each_epilogue() {
         epilogue,
         epilogue_offsets: vec![40, 76],
     };
-    let output = emit_pe_executable(image_with(NativeTarget::windows_arm64(), 100, frame), 3)
-        .expect("emit image");
+    let output = emit_pe_executable(
+        image_with(NativeTarget::windows_arm64(), 100, frame),
+        3,
+        target::WINDOWS_LOADER_STACK_RESERVE_BYTES,
+    )
+    .expect("emit image");
     assert_eq!(
         read_pe_function_frames(&output.bytes).unwrap(),
         [PeFunctionFrame {
@@ -232,8 +244,12 @@ fn arm64_refuses_a_save_its_codes_cannot_reach() {
         epilogue: Vec::new(),
         epilogue_offsets: Vec::new(),
     };
-    let error =
-        emit_pe_executable(image_with(NativeTarget::windows_arm64(), 16, frame), 3).unwrap_err();
+    let error = emit_pe_executable(
+        image_with(NativeTarget::windows_arm64(), 16, frame),
+        3,
+        target::WINDOWS_LOADER_STACK_RESERVE_BYTES,
+    )
+    .unwrap_err();
     assert!(format!("{error:?}").contains("504 bytes"), "{error:?}");
 }
 
@@ -246,6 +262,7 @@ fn frameless_functions_get_no_row() {
             FunctionFrameUnwind::default(),
         ),
         3,
+        target::WINDOWS_LOADER_STACK_RESERVE_BYTES,
     )
     .expect("emit image");
     assert_eq!(exception_directory(&output.bytes), (0, 0));
@@ -263,8 +280,12 @@ fn x64_rows_encode_and_decode_save_xmm128_and_far() {
         epilogue: Vec::new(),
         epilogue_offsets: vec![40],
     };
-    let output = emit_pe_executable(image_with(NativeTarget::windows_x64(), 64, frame), 3)
-        .expect("emit image");
+    let output = emit_pe_executable(
+        image_with(NativeTarget::windows_x64(), 64, frame),
+        3,
+        target::WINDOWS_LOADER_STACK_RESERVE_BYTES,
+    )
+    .expect("emit image");
     assert_eq!(
         read_pe_function_frames(&output.bytes).unwrap(),
         [PeFunctionFrame {
