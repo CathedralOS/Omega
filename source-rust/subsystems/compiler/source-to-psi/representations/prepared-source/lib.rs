@@ -131,6 +131,9 @@ impl PreparedTypedTrees {
     }
 
     /// Return to mutable source. A new preparation establishes its own inputs.
+    /// The compiler never edits a prepared program, so only tests that change
+    /// one fact and prepare again need this.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn into_inner(self) -> TypedTrees {
         std::sync::Arc::unwrap_or_clone(self.typed).into_inner()
     }

@@ -1237,7 +1237,7 @@ impl Lowering<'_> {
         let join_reads = JoinReads::new(
             join,
             before,
-            self.tables.writes.len(),
+            self.writes.len(),
             arrivals.values.iter().map(|&(block, _, _)| block),
         );
         for (block, point, value) in arrivals.values {

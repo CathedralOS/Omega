@@ -739,12 +739,7 @@ fn zeroed_array_naming_follows_observed_paths_not_array_extent() {
             .iter()
             .map(|block| block.operations.len())
             .sum::<usize>();
-        counts.push((
-            operations,
-            tables.places.len(),
-            tables.writes.len(),
-            tables.values.len(),
-        ));
+        counts.push((operations, tables.places.len(), tables.values.len()));
         assert!(operations < 8);
         assert!(matches!(
             judge(Ok(program)).unwrap(),

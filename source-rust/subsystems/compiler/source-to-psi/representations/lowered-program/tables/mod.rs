@@ -3,7 +3,7 @@ The checker tables for the lowered form: the explicit,
 unsealed Terminal Psi module that structure-only elaboration produces
 (`wiki/drafts/designs/check_on_lowered_form.md`). They hold what the checker
 knows about one machine, as tables over dense identities: values with
-their knowledge rows, places with the forward write log, obligations, and
+their knowledge rows, places, obligations, and
 edges with invocations.
 
 Semantic rows never identify a fact by a name, printed expression, path string
@@ -69,10 +69,6 @@ check_id!(
 check_id!(
     KnowledgeId,
     "One knowledge row over value identities (`values::KnowledgeRow`)."
-);
-check_id!(
-    WriteId,
-    "One entry of the forward write log (`bindings::WriteRow`)."
 );
 check_id!(
     InvocationId,
@@ -161,8 +157,8 @@ pub enum RefusalReason {
     /// zero satisfies the default domain, the value is zero-constructible.
     /// Otherwise the type is gated: construction or checked qualification
     /// must establish the domain before observation." It is a structural
-    /// judgment over the write log and the lowered graph, so it has no
-    /// obligation row and no certificate.
+    /// judgment over the checker's write log and the lowered graph, so it has
+    /// no obligation row and no certificate.
     ///
     /// The same reason covers the two structural judgments over a sum. A
     /// case payload named where its case is not established on every path:
@@ -374,7 +370,6 @@ pub struct MachineTables {
     /// The `ExactPlaceId` of each root `PlaceId`. Elaboration mints root
     /// `PlaceId`s densely too, so interning a root is one index.
     pub roots: IdTable<PlaceId, ExactPlaceId>,
-    pub writes: IdTable<WriteId, bindings::WriteRow>,
     pub obligations: IdTable<ObligationId, obligations::ObligationRow>,
     pub edges: IdTable<EdgeId, edges::EdgeRow>,
     pub invocations: IdTable<InvocationId, edges::InvocationRow>,

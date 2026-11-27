@@ -1518,9 +1518,9 @@ empty cycle metadata; its private measure does not become a caller guarantee.
 
 ## Places, roots and the write log
 
-A record value is storage, so lowering a record fills three tables in step
-with the Terminal Psi operations that create the storage
-([lower/places.rs](src/lower/places.rs)).
+A record value is storage, so lowering a record fills the `places` and
+`roots` tables and lowering's own write log in step with the Terminal Psi
+operations that create the storage ([lower/places.rs](src/lower/places.rs)).
 
 **Roots.** One Terminal `PlaceId`, one `PlaceRow { origin: Root }` and one
 `roots` entry for each record formal (`StructuralPlaceKind::Parameter`), each
@@ -1553,7 +1553,11 @@ test exercises its control-flow walk without claiming such loops are accepted.
 **Writes.** Each row says what one operation stored and where, at
 `ProgramPoint::AfterOperation` of that operation. Lowering never asks what a
 place holds: answering that needs the graph, and the checker is the one that
-walks it.
+walks it. The log is lowering scratch (`Lowering::writes`, rows of
+`lower::places::WriteRow`): join reads and the naming of call-overwritten
+contents read it while the machine is lowered, and it is dropped with the
+machine. It is not part of `MachineTables`; the checker derives its own log
+from the operations.
 
 | Operation | What is logged |
 | --- | --- |

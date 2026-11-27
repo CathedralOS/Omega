@@ -1397,7 +1397,7 @@ fn an_unproved_goal_with_rules_rejects_even_beside_one_without() {
 
 use crate::lowering::{RecordField, RecordType};
 use semantic_vocabulary::{OperationId, PlaceId, StructuralFieldId, StructuralTypeId, ValueId};
-use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
+use terminal_check_tables::bindings::{PlaceOrigin, PlaceRow, Segment};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{ExactPlaceId, MachineTables};
 use terminal_psi::{Operation, OperationKind, OperationResult};
@@ -2464,15 +2464,7 @@ fn different_values_on_different_arrivals_give_no_equation() {
             .operations[0]
             .id;
         if let Some((field, value)) = stored {
-            let tables = elaboration.tables.machines.get(id(1)).unwrap();
-            let place = projected(tables, root, &[field]);
-            store_by_hand(
-                &mut elaboration,
-                arm,
-                place,
-                value,
-                field_store(root, field, value),
-            );
+            store_by_hand(&mut elaboration, arm, field_store(root, field, value));
         }
         discharge(&mut elaboration, &mut Default::default()).unwrap();
         let read = field_reads(&elaboration)[0];
@@ -2617,16 +2609,12 @@ fn uses(result: &Discharge) -> Vec<Result<(), RefusalReason>> {
         .collect()
 }
 
-/// Adds a store of `value` to machine 1 by hand, directly after the
-/// operation `after`: the store operation `kind` in the lowered form, and
-/// the row elaboration would log for it on `place`. The checker derives what
-/// is stored from the operations and refuses a log that says otherwise, so
-/// a store the source language cannot write has to be in both.
+/// Adds the store operation `kind` to machine 1 by hand, directly after the
+/// operation `after`, for a store the source language cannot write. The
+/// checker derives what is stored from the operations alone.
 fn store_by_hand(
     elaboration: &mut crate::lowering::Elaboration,
     after: OperationId,
-    place: ExactPlaceId,
-    value: ValueId,
     kind: OperationKind,
 ) {
     let machine = &mut elaboration.module.machines[0];
@@ -2654,12 +2642,6 @@ fn store_by_hand(
         position + 1,
         Operation::unsuspended(store, OperationResult::Unit, kind),
     );
-    let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
-    tables.writes.push(WriteRow {
-        place,
-        at: ProgramPoint::AfterOperation(store),
-        content: Content::Value(value),
-    });
 }
 
 /// `root.field = value`, for `store_by_hand`.
@@ -2774,14 +2756,7 @@ fn a_store_inside_a_guarded_arm_does_not_reach_the_continuation() {
             .unwrap()
             .place;
         if arm_store {
-            let leaf = projected(elaboration.tables.machines.get(id(1)).unwrap(), p, &[1]);
-            store_by_hand(
-                &mut elaboration,
-                arm,
-                leaf,
-                in_arm,
-                field_store(p, 1, in_arm),
-            );
+            store_by_hand(&mut elaboration, arm, field_store(p, 1, in_arm));
         }
         let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         assert!(uses(&result).iter().all(Result::is_ok));
@@ -3200,14 +3175,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
         let mut inserted = None;
         if let Some(value) = on_one_way {
             // `g.v`, the one leaf of the local (field identity 7).
-            let place = projected(elaboration.tables.machines.get(id(1)).unwrap(), home, &[7]);
-            store_by_hand(
-                &mut elaboration,
-                negation,
-                place,
-                value,
-                field_store(home, 7, value),
-            );
+            store_by_hand(&mut elaboration, negation, field_store(home, 7, value));
             // A store into a `Gated` owes its clause, like the authored one.
             let store = elaboration.module.machines[0]
                 .blocks
@@ -5975,14 +5943,7 @@ fn a_window_open_on_one_way_into_a_join_is_open_after_it() {
             .place;
         if restored_on_one_way {
             // `s.low`, field identity 2.
-            let low = projected(elaboration.tables.machines.get(id(1)).unwrap(), root, &[2]);
-            store_by_hand(
-                &mut elaboration,
-                negation,
-                low,
-                one,
-                field_store(root, 2, one),
-            );
+            store_by_hand(&mut elaboration, negation, field_store(root, 2, one));
             let store = elaboration.module.machines[0]
                 .blocks
                 .iter()
