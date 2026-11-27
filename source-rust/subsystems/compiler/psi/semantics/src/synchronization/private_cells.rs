@@ -10,14 +10,14 @@ mod successor;
 mod wait;
 
 use super::progress::{PrivateWaitFailure, ProgressFailure, ProgressScope, entry_scalars};
-use super::selected::Summaries;
-use super::spin::{SpinWait, spin_observation};
+use super::selected::{SelectedCall, Summaries};
+use super::spin::spin_observation;
 use activation::{Bindings, Destination, Frame, ScalarArguments};
 use control::{Execution, Frontier};
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use storage::{Location, Storage};
 use terminal_psi::{
-    StructuralAccess, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
+    StructuralAccess, TerminalAffineCleanupAction, TerminalModule,
     Terminator,
 };
 
@@ -25,7 +25,7 @@ pub fn private_wait_failure(
     module: &TerminalModule,
     entry: MachineId,
     scope: ProgressScope,
-    boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+    boundary: impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
 ) -> Option<PrivateWaitFailure> {
     if !module.types.structural_types.iter().any(|ty| {
         matches!(ty.shape, terminal_psi::StructuralTypeShape::AtomicCell(_))
@@ -116,7 +116,7 @@ enum Advance {
 
 fn advance<'m>(
     module: &'m TerminalModule,
-    boundary: &impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+    boundary: &impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
     summaries: &mut Summaries,
     path: &mut Execution<'m>,
     requirements: &[semantic_vocabulary::Proposition],
@@ -132,8 +132,15 @@ fn advance<'m>(
                 frame.step(module, op, memory)?;
                 continue;
             };
-            let spin = match call.callee {
-                TargetMachineCallable::Machine(id) => {
+            let Some(selected) = SelectedCall::resolve(call.callee, boundary) else {
+                let terminal_psi::TargetMachineCallable::Boundary(slot) = call.callee else { return None };
+                if !opaque_calls::returns_without_storage(module, slot, op, &call)? {
+                    path.coverage = control::Coverage::Partial;
+                }
+                return Some(Advance::Continue);
+            };
+            let spin = match selected {
+                SelectedCall::Local(id) => {
                     if let Some(summary) = summaries.get(module, id, boundary) {
                         summary
                     } else {
@@ -153,17 +160,7 @@ fn advance<'m>(
                         continue;
                     }
                 }
-                TargetMachineCallable::Boundary(id) => match boundary(id) {
-                    Some(summary) => summary,
-                    None => {
-                        let always_returns =
-                            opaque_calls::returns_without_storage(module, id, op, &call)?;
-                        if !always_returns {
-                            path.coverage = control::Coverage::Partial;
-                        }
-                        return Some(Advance::Continue);
-                    }
-                },
+                SelectedCall::ImportedWait(wait) => wait,
             };
             let progress = wait::apply(
                 &spin,

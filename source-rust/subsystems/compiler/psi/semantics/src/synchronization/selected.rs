@@ -6,6 +6,24 @@ use super::spin::{ForwardedWait, SpinWait, forwarded_wait, spin_wait};
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::{TargetMachineCallable, TerminalModule};
 
+/// Body reached by a concrete invocation after its provider choices are bound.
+pub enum SelectedCall {
+    Local(MachineId),
+    ImportedWait(SpinWait),
+}
+
+impl SelectedCall {
+    pub(super) fn resolve(
+        callee: TargetMachineCallable,
+        boundary: &impl Fn(BoundaryMachineId) -> Option<Self>,
+    ) -> Option<Self> {
+        match callee {
+            TargetMachineCallable::Machine(id) => Some(Self::Local(id)),
+            TargetMachineCallable::Boundary(slot) => boundary(slot),
+        }
+    }
+}
+
 #[derive(Default)]
 pub(super) struct Summaries(Facts<MachineId, Option<SpinWait>>);
 
@@ -14,7 +32,7 @@ impl Summaries {
         &mut self,
         module: &TerminalModule,
         entry: MachineId,
-        boundary: &impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+        boundary: &impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
     ) -> Option<SpinWait> {
         let mut chain = Vec::<(MachineId, ForwardedWait)>::new();
         let mut visiting = Facts::default();
@@ -39,9 +57,10 @@ impl Summaries {
             };
             let callee = forward.callee;
             chain.push((current, forward));
-            match callee {
-                TargetMachineCallable::Machine(id) => current = id,
-                TargetMachineCallable::Boundary(id) => break boundary(id),
+            match SelectedCall::resolve(callee, boundary) {
+                Some(SelectedCall::Local(id)) => current = id,
+                Some(SelectedCall::ImportedWait(wait)) => break Some(wait),
+                None => break None,
             }
         };
         for (caller, forward) in chain.into_iter().rev() {
@@ -57,7 +76,7 @@ impl Summaries {
 pub fn selected_spin_wait(
     module: &TerminalModule,
     entry: MachineId,
-    boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+    boundary: impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
 ) -> Option<SpinWait> {
     Summaries::default().get(module, entry, &boundary)
 }
