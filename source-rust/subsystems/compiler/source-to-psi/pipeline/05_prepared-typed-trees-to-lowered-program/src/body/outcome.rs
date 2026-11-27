@@ -231,6 +231,10 @@ struct Walk<'b> {
     /// the order met; sorted when the body's walk ends.
     contributed: [Contributed; 2],
     operational: [bool; 2],
+    /// Whether a `transition` inside a block-valued arm can return normally
+    /// from the enclosing machine, even though the block itself does not fall
+    /// through to its enclosing expression.
+    returned_normally: bool,
     #[cfg(test)]
     visits: usize,
 }
@@ -269,6 +273,7 @@ impl<'b> Walk<'b> {
             causes: BTreeSet::new(),
             contributed: Default::default(),
             operational: [false; 2],
+            returned_normally: false,
             #[cfg(test)]
             visits: 0,
         })
@@ -342,6 +347,7 @@ impl<'b> Walk<'b> {
         self.causes.clear();
         self.contributed = Default::default();
         self.operational = [false; 2];
+        self.returned_normally = false;
         let declared_empty = crate::body::inhabitation::excludes_result(
             self.inhabitation,
             self.signatures.get(machine.into(), machine)?.result,
@@ -351,7 +357,8 @@ impl<'b> Walk<'b> {
         } else {
             // Always walk the body for its other effects. Only its
             // normal-completion inference is private to the unit.
-            let completes = self.statements(machine, &body.statements)?;
+            let completes =
+                self.statements(machine, &body.statements, false)? || self.returned_normally;
             !declared_empty && (completes || self.local.get(machine) != Some(&true))
         };
         let found = Reached {
@@ -460,7 +467,12 @@ impl<'b> Walk<'b> {
     /// complete normally in an arm. Statements after a no-successor exit are
     /// not reached, so they contribute nothing; lowering leaves them out
     /// (`lower`, `body`).
-    fn statements(&mut self, machine: MachineId, statements: &[Statement]) -> Checked<bool> {
+    fn statements(
+        &mut self,
+        machine: MachineId,
+        statements: &[Statement],
+        in_block: bool,
+    ) -> Checked<bool> {
         let mut normal = false;
         for statement in statements {
             match statement {
@@ -522,16 +534,28 @@ impl<'b> Walk<'b> {
                     if let Some((target, _)) = default {
                         normal |= self.target(machine, target)?;
                     }
+                    if in_block {
+                        self.returned_normally |= normal;
+                        return Ok(false);
+                    }
                     return Ok(normal);
                 }
                 Statement::Arm { guard, target, .. } => {
                     if let Some(guard) = guard.condition()
                         && !self.expression(machine, guard)?
                     {
+                        if in_block {
+                            self.returned_normally |= normal;
+                            return Ok(false);
+                        }
                         return Ok(normal);
                     }
                     normal |= self.target(machine, target)?;
                     if guard.closes_dispatch() {
+                        if in_block {
+                            self.returned_normally |= normal;
+                            return Ok(false);
+                        }
                         return Ok(normal);
                     }
                 }
@@ -592,7 +616,7 @@ impl<'b> Walk<'b> {
             ExpressionKind::Block {
                 statements, value, ..
             } => {
-                if !self.statements(machine, statements)? {
+                if !self.statements(machine, statements, true)? {
                     return Ok(false);
                 }
                 match value {

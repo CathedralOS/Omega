@@ -1451,9 +1451,10 @@ impl<'t> Program<'t> {
             _ => None,
         };
         let value = self.expression(id, slots, value, expected)?;
-        if value
-            .result
-            .is_some_and(|value_type| self.type_excludes_values(value_type))
+        if value.diverges()
+            || value
+                .result
+                .is_some_and(|value_type| self.type_excludes_values(value_type))
         {
             if let (ArmsDeliver::Unread, Some(value_type)) = (*result, value.result) {
                 *result = ArmsDeliver::Value(value_type);

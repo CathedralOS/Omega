@@ -1195,6 +1195,34 @@ impl Expression {
         }
         self
     }
+
+    /// Whether every path through this expression leaves the enclosing
+    /// machine via a `crash` or `transition` statement rather than delivering
+    /// a value to its enclosing context.
+    pub(crate) fn diverges(&self) -> bool {
+        match &self.kind {
+            ExpressionKind::Block { statements, value } => {
+                value.as_deref().is_some_and(Self::diverges)
+                    || (value.is_none()
+                        && statements.last().is_some_and(|statement| {
+                            matches!(
+                                statement,
+                                Statement::Dispatch { .. }
+                                    | Statement::Arm {
+                                        guard: ArmGuard::Always | ArmGuard::Final(_),
+                                        ..
+                                    }
+                            )
+                        }))
+            }
+            ExpressionKind::Match { arms, default, .. } => {
+                (!arms.is_empty() || default.is_some())
+                    && arms.iter().all(|(_, arm)| arm.diverges())
+                    && default.as_deref().is_none_or(Self::diverges)
+            }
+            _ => false,
+        }
+    }
 }
 
 /// Convert a checked clause value into the scalar lane, retaining the

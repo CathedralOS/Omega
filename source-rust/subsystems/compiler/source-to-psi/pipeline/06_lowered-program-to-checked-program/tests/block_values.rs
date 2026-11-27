@@ -99,6 +99,39 @@ fn a_loan_of_a_block_local_used_after_the_block_is_refused() {
     }
 }
 
+#[test]
+fn a_block_arm_crash_and_transition_with_valid_contracts_are_accepted() {
+    let fixture = program::prepare_source(program::CONTROL_FLOW, &["guarded_crash", "early_exit"]);
+    assert!(
+        matches!(judged(fixture.lower()), Verdict::Accepted),
+        "guarded crash and early transition in block arms must pass checking"
+    );
+}
+
+#[test]
+fn an_uncovered_crash_in_a_block_arm_is_refused() {
+    let fixture = program::prepare_source(program::UNCOVERED_CRASH, &["uncovered_crash"]);
+    match judged(fixture.lower()) {
+        Verdict::Refused(detail) => assert!(
+            detail.contains("CrashCoverage"),
+            "uncovered crash in block arm must fail CrashCoverage: {detail}"
+        ),
+        other => panic!("uncovered crash in block arm must be refused: {other:?}"),
+    }
+}
+
+#[test]
+fn a_block_arm_crash_with_a_mismatched_guard_is_refused() {
+    let fixture = program::prepare_source(program::WRONG_GUARD_CRASH, &["wrong_guard_crash"]);
+    match judged(fixture.lower()) {
+        Verdict::Refused(detail) => assert!(
+            detail.contains("CrashCoverage"),
+            "wrong crash guard in block arm must fail CrashCoverage: {detail}"
+        ),
+        other => panic!("wrong crash guard in block arm must be refused: {other:?}"),
+    }
+}
+
 /// The position of the machine the source names `name` in stage 05's module.
 fn position(fixture: &program::Prepared, lowered: &PreparedCompilation, name: &str) -> usize {
     let closure = lowered.closure.as_ref().unwrap();

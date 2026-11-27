@@ -584,7 +584,7 @@ impl Program<'_> {
             }
         };
         crate::lower::operational::boundary(&mut target);
-        if !self.agrees(target.result, result) {
+        if !target.diverges() && !self.agrees(target.result, result) {
             return Err(self.mistyped(
                 id,
                 target.source,

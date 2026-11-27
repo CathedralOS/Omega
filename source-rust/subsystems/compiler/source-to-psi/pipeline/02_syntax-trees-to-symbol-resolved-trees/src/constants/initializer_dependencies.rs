@@ -1286,7 +1286,23 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 }
                 self.queue_expressions(fields.iter().rev().map(|field| field.value));
             }
-            ExpressionNode::Block(block) => self.queue_expression(block.tail),
+            ExpressionNode::Block(block) => {
+                if block.tail.is_valid() {
+                    self.queue_expression(block.tail);
+                }
+                let statements = program
+                    .tables
+                    .declarations
+                    .state_statements
+                    .span_or_empty(block.statements);
+                for statement in statements.iter().rev() {
+                    statement.visit_operands(table, |operand| {
+                        if operand.is_valid() {
+                            self.queue_expression(operand);
+                        }
+                    });
+                }
+            }
             ExpressionNode::Match(dispatch) => {
                 let arms = table.match_arms(dispatch.arms);
                 if arms.len() != dispatch.arms.len() {
