@@ -1,11 +1,5 @@
 # build_name_mismatch
 
-Every name in the dep chain mismatches:
+The dependency lives in `depdir/` and declares the package name `dep_declared`. The first Build registers it as `depkit`. The second Build imports `{depkit}/main.omg`, checks the returned 9, and forwards the existing binding to the application. The application, named `app_declared`, checks the same value on entry.
 
-- application declares `app_declared` (directory differs),
-- dep directory `depdir`, dep declares `dep_declared`,
-- requesting alias `depkit` — and `use depkit;` resolves.
-
-Together with the `invalid_declared_import` control (declared name does
-not satisfy the alias edge), this pins the roles: alias = import name,
-declared name = diagnostic identity, directory = on-disk layout.
+Run `omega run --engine psi build.omg` or `omega run --engine native build.omg` in this directory. The `build_dual_purpose_alias_controls/invalid_declared_import` sample exercises an attempt to use a package's declared name as an unregistered root.
