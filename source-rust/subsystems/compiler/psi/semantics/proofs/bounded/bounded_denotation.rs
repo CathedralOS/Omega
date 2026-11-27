@@ -45,9 +45,11 @@ use crate::{
 
 const MAX_ELABORATION_NODES: u64 = 1 << 16;
 
+mod data_subjects;
 #[cfg(test)]
 mod law_arithmetic;
 mod theorems;
+pub use data_subjects::{DataFieldShape, DataSubject, DataSubjectShape};
 pub use theorems::{
     BoundedImplicationType, BoundedTheorem, BoundedTheoremError, denote_bounded_implication_type,
     verify_bounded_theorem,
@@ -952,6 +954,7 @@ struct Denotation {
     decisions: HashMap<TermHandle, u32>,
     tables: DenotationTables,
     denotations: logical::LogicalTable,
+    data: data_subjects::DataSubjectTables,
 }
 
 impl Denotation {
@@ -975,6 +978,7 @@ impl Denotation {
             decisions: HashMap::new(),
             tables: DenotationTables::default(),
             denotations: logical::LogicalTable::default(),
+            data: data_subjects::DataSubjectTables::default(),
         }
     }
 
@@ -1881,12 +1885,16 @@ impl Denotation {
                             cur = l;
                             continue 'enter;
                         }
-                        let p = self.interned_keyed(
-                            |s| &mut s.tables.scalar_integer_terms,
-                            cur.clone(),
-                            Self::integer_constant,
-                        )?;
-                        self.constant(p)
+                        if let Some(read) = self.data_payload_read(cur)? {
+                            read
+                        } else {
+                            let p = self.interned_keyed(
+                                |s| &mut s.tables.scalar_integer_terms,
+                                cur.clone(),
+                                Self::integer_constant,
+                            )?;
+                            self.constant(p)
+                        }
                     }
                 }
             };
@@ -1983,7 +1991,15 @@ impl Denotation {
                 );
                 self.id(ty, l, r)
             }
-            atomic => self.atom(atomic)?,
+            atomic => {
+                if let Some(test) = self.data_case_test(atomic)? {
+                    test
+                } else if let Some(identity) = self.data_identity(atomic)? {
+                    identity
+                } else {
+                    self.atom(atomic)?
+                }
+            }
         })
     }
 
@@ -2527,6 +2543,10 @@ impl Denotation {
                 _ => {
                     if let Some(rel) = self.integer_relation_term(cur)? {
                         rel
+                    } else if cur.scalar_type() == ScalarType::Boolean
+                        && let Some(read) = self.data_payload_read(cur)?
+                    {
+                        read
                     } else {
                         let key = match cur.integer_value() {
                             Some((ity, v)) => {

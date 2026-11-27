@@ -25,6 +25,7 @@ fn the_expected_implication_is_formed_without_automatically_proving_it() {
         &[(id, ScalarType::Integer(integer))],
         &[],
         &[],
+        &[],
         &conclusion,
         &mut Budget::default(),
     )
@@ -147,6 +148,7 @@ fn a_singleton_conjunction_is_not_a_canonical_contract_conclusion() {
     let refused = denote_bounded_implication_type(
         &[(id, ScalarType::Integer(integer))],
         &[],
+        &[],
         &[premise],
         &conclusion,
         &mut Budget::default(),
@@ -161,6 +163,7 @@ fn a_hypothesis_binds_between_the_subjects_and_the_premises() {
     let (integer, id, subject, zero) = fixture();
     let inner = denote_bounded_implication_type(
         &[(id, ScalarType::Integer(integer))],
+        &[],
         &[],
         &[],
         &Proposition::LessOrEqual(zero.clone(), subject.clone()),
@@ -182,6 +185,7 @@ fn a_hypothesis_binds_between_the_subjects_and_the_premises() {
     };
     let expected = denote_bounded_implication_type(
         &[(id, ScalarType::Integer(integer))],
+        &[],
         std::slice::from_ref(&inner),
         &[],
         &goal,
@@ -311,6 +315,7 @@ fn an_address_subject_binds_only_its_lower_carrier_bound() {
     let (scalar, id, subject, zero) = address_fixture();
     let expected = denote_bounded_implication_type(
         &[(id, scalar)],
+        &[],
         &[],
         &[],
         &Proposition::LessOrEqual(zero, subject),

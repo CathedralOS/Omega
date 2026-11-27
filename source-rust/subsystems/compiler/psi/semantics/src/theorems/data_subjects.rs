@@ -154,6 +154,56 @@ pub fn record_subject(
     Ok(subject)
 }
 
+/// The declaration of a sum that a logical contract takes as one value
+/// (mathematical_bindings.md, "A sum input in a logical contract denotes a
+/// single mathematical value of that sum's checked inductive declaration"):
+/// each case with its fields, each a relevant scalar payload or the sum
+/// itself. A sum with an invariant, a quotient, a mixed record and sum, or any
+/// other field is refused by name.
+pub fn sum_shape(
+    module: &TerminalModule,
+    sum: StructuralTypeId,
+) -> Result<proof_admission::DataSubjectShape, &'static str> {
+    let declaration = module
+        .structural_type(sum)
+        .ok_or("logical sum subject has no structural declaration")?;
+    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        return Err("logical sum subject is not a sum");
+    };
+    if declaration.quotient_carrier.is_some()
+        || declaration.scalar_restriction.is_some()
+        || !declaration.requires.is_empty()
+    {
+        return Err("logical sum subject has an invariant, a quotient or a restriction");
+    }
+    let mut shape = proof_admission::DataSubjectShape {
+        structural_type: sum,
+        cases: Vec::with_capacity(cases.len()),
+    };
+    for case in cases {
+        let mut fields = Vec::with_capacity(case.fields.len());
+        for field in &case.fields {
+            if field.relevance.is_erased() {
+                return Err("logical sum subject has an erased payload");
+            }
+            let kind = match field.field_type {
+                StructuralFieldType::Scalar(scalar) => {
+                    proof_admission::DataFieldShape::Scalar(scalar)
+                }
+                StructuralFieldType::Structural(child) if child == sum => {
+                    proof_admission::DataFieldShape::Recursive
+                }
+                _ => {
+                    return Err("logical sum subject has a payload that is not a scalar or itself");
+                }
+            };
+            fields.push((field.id, kind));
+        }
+        shape.cases.push((case.id, fields));
+    }
+    Ok(shape)
+}
+
 /// The source inputs of a machine's contract, in header order.
 pub fn machine_subjects(
     module: &TerminalModule,

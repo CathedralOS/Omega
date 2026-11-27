@@ -3,8 +3,8 @@
 //! premises. The existing kernels check both the source and closed judgments.
 
 use super::{
-    BoundedDenotation, BoundedDenotationError, Budget, Denotation, Elaboration, ProofNode,
-    Proposition, PropositionContext, ScalarTerm, ScalarType, Term, ValueId,
+    BoundedDenotation, BoundedDenotationError, Budget, DataSubject, Denotation, Elaboration,
+    ProofNode, Proposition, PropositionContext, ScalarTerm, ScalarType, Term, ValueId,
 };
 use mathematical_kernel::{
     CertificateAbstractionError, Declaration, MathematicalJudgmentType, StrictCertificateError,
@@ -49,15 +49,25 @@ impl From<BoundedDenotationError> for BoundedTheoremError {
 
 fn subject_context(
     subjects: &[(ValueId, ScalarType)],
+    data_subjects: &[DataSubject],
 ) -> Result<PropositionContext, BoundedTheoremError> {
     let mut ordered = subjects.to_vec();
     ordered.sort_unstable_by_key(|(value, _)| *value);
     if let Some(pair) = ordered.windows(2).find(|pair| pair[0].0 == pair[1].0) {
         return Err(BoundedTheoremError::DuplicateSubject(pair[0].0));
     }
-    PropositionContext::from_value_types(subjects.iter().copied()).map_err(|error| {
-        BoundedDenotationError::Certificate(super::ProofError::MalformedProposition(error)).into()
-    })
+    let places = data_subjects.iter().zip(0..).map(|(subject, position)| {
+        (
+            subject.place,
+            semantic_vocabulary::StructuralPlaceKind::Parameter { position },
+        )
+    });
+    PropositionContext::from_value_types_and_places(subjects.iter().copied(), places).map_err(
+        |error| {
+            BoundedDenotationError::Certificate(super::ProofError::MalformedProposition(error))
+                .into()
+        },
+    )
 }
 
 fn prepare_subjects(
@@ -212,20 +222,30 @@ fn copy_term(
 /// its premises, such as the proof `Inner` given to a contract declared as
 /// `machine<Inner: NonzeroIsPositive>(n: u8)`. The type is then
 /// `Π subjects. Π hypotheses. Π premises. conclusion`.
+///
+/// Each of `data_subjects` is a sum input, bound after the scalar subjects as
+/// one value of its sum's inductive declaration. The declaration is in the
+/// type's signature, so two contracts over different sums never share a type.
 pub fn denote_bounded_implication_type(
     subjects: &[(ValueId, ScalarType)],
+    data_subjects: &[DataSubject],
     hypotheses: &[BoundedImplicationType],
     premises: &[Proposition],
     conclusion: &Proposition,
     budget: &mut Budget,
 ) -> Result<BoundedImplicationType, BoundedTheoremError> {
-    let context = subject_context(subjects)?;
+    let context = subject_context(subjects, data_subjects)?;
     for proposition in premises.iter().chain(std::iter::once(conclusion)) {
         context.validate(proposition).map_err(|error| {
             BoundedDenotationError::Certificate(super::ProofError::MalformedProposition(error))
         })?;
     }
     let mut denotation = Denotation::new();
+    // Each sum is declared before any clause reads it.
+    let data_inputs = data_subjects
+        .iter()
+        .map(|subject| denotation.declare_data_subject(subject))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut bindings = Vec::with_capacity(premises.len());
     for premise in premises {
         let ty = denotation.denote(premise)?;
@@ -233,7 +253,8 @@ pub fn denote_bounded_implication_type(
     }
     let ty = denotation.denote(conclusion)?;
     let ty = denotation.arena.insert(Term::Squash { ty });
-    let (selected, _) = prepare_subjects(&mut denotation, subjects)?;
+    let (mut selected, _) = prepare_subjects(&mut denotation, subjects)?;
+    selected.extend(data_inputs);
     let mut context = append_hypotheses(
         &mut denotation.arena,
         &mut denotation.declarations,
@@ -275,7 +296,7 @@ pub fn verify_bounded_theorem(
     proof: &ProofNode,
     budget: &mut Budget,
 ) -> Result<BoundedTheorem, BoundedTheoremError> {
-    let context = subject_context(subjects)?;
+    let context = subject_context(subjects, &[])?;
     let machine_parameters = std::collections::BTreeSet::new();
     let mut elaboration = Elaboration::new(
         &context,
