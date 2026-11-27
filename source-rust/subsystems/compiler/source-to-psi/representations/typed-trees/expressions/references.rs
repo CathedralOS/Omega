@@ -4103,6 +4103,25 @@ fn visit_static_requirement_dispatch(
     visit_symbol(retained, dispatch.declaring_trait);
 }
 
+fn visit_interrupt_registration(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    installation: &crate::source_state::expression::InstalledInterruptOperationRequest,
+) {
+    visit_symbol(retained, installation.registrar_trait);
+    if retained.derived_declaration_references()
+        && let Some(registrar) = installation.prepared
+    {
+        visit_callable_symbol(program, retained, registrar.target);
+        visit_static_machine_bindings(program, retained, registrar.application);
+        registrar
+            .receiving_scope
+            .visit_references(program, retained);
+    }
+    visit_static_argument(program, retained, &installation.registrar);
+    visit_static_argument(program, retained, &installation.timer_slot);
+}
+
 fn visit_call_expression(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
@@ -4192,16 +4211,7 @@ fn visit_call_expression(
         }
     }
     if let Some(installation) = &call.installed_interrupt_operation {
-        visit_symbol(retained, installation.registrar_trait);
-        if retained.derived_declaration_references() {
-            visit_callable_symbol(program, retained, installation.registrar_target);
-            visit_static_machine_bindings(program, retained, installation.registrar_application);
-            installation
-                .registrar_receiving_scope
-                .visit_references(program, retained);
-        }
-        visit_static_argument(program, retained, &installation.registrar);
-        visit_static_argument(program, retained, &installation.timer_slot);
+        visit_interrupt_registration(program, retained, installation);
     }
     if let Some(layout) = &call.private_layout_operation {
         visit_static_argument(program, retained, &layout.selected_slot);
@@ -4301,17 +4311,8 @@ fn visit_statement(
             if let Some(dispatch) = &call.static_requirement_dispatch {
                 visit_static_requirement_dispatch(retained, dispatch);
             }
-            if let Some(request) = &call.installed_interrupt_operation {
-                visit_symbol(retained, request.registrar_trait);
-                if retained.derived_declaration_references() {
-                    visit_callable_symbol(program, retained, request.registrar_target);
-                    visit_static_machine_bindings(program, retained, request.registrar_application);
-                    request
-                        .registrar_receiving_scope
-                        .visit_references(program, retained);
-                }
-                visit_static_argument(program, retained, &request.registrar);
-                visit_static_argument(program, retained, &request.timer_slot);
+            if let Some(installation) = &call.installed_interrupt_operation {
+                visit_interrupt_registration(program, retained, installation);
             }
             if retained.call_arguments(program, StaticArgumentCall::Statement(call)) {
                 for argument in StaticArgumentCall::Statement(call).arguments(program) {

@@ -81,6 +81,7 @@ use crate::source_state::{
 };
 
 mod callable_binder;
+mod installed_interrupts;
 mod named_conformances;
 mod propositions;
 mod provider_methods;
@@ -610,6 +611,7 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
                     && machine.has_bodyless_signature()
             })
     {
+        installed_interrupts::prepare_registrar(program, site, &applied)?;
         program
             .prepare_bodyless_callable_application(applied.application, applied.target)
             .map_err(unserved)?;

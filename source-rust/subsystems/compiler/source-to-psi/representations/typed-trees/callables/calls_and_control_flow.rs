@@ -1282,7 +1282,7 @@ pub mod control_flow {
                                 let mut installed_interrupt_operation =
                                     call.installed_interrupt_operation.clone();
                                 if let Some(request) = &mut installed_interrupt_operation {
-                                    request.invalidate_preparation();
+                                    request.prepared = None;
                                     request.registrar =
                                         self.expression_table.copy_static_argument_from(
                                             &source_tables.expression_table,
@@ -1559,7 +1559,7 @@ pub mod control_flow {
                                 current.target_symbol = remapped(current.target_symbol, symbols);
                                 let mut request = current.installed_interrupt_operation.take();
                                 if let Some(request) = &mut request {
-                                    request.invalidate_preparation();
+                                    request.prepared = None;
                                     self.expression_table.remap_static_argument_symbols(
                                         &mut request.registrar,
                                         symbols.execution(),

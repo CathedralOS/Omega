@@ -158,7 +158,7 @@ const OPERATOR: &str = "public machine + |units|::Distance::add(left: u32 in |un
 const GENERIC_DOMAIN: &str = "public domain<T> T::Distance;";
 const GENERIC_OPERATOR: &str = "use units/domains.omg as units; public machine + |units|::Distance::add<T [copy]>(left: T in |units|::Distance, right: T) -> T in |units|::Distance requires T == u32 { ((left as - |units|::Distance) +% right) as + |units|::Distance }";
 
-fn bundled_core_sources() -> Vec<(String, String)> {
+pub(crate) fn bundled_core_sources() -> Vec<(String, String)> {
     let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../../../../source/library/core");
     let mut directories = vec![core.clone()];

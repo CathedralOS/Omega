@@ -1,0 +1,61 @@
+use {omega}/language/core/static_interrupt.omg;
+use {omega}/language/core/interrupt.omg;
+use {omega}/language/core/layout.omg;
+
+data First { lock: AtomicU32; }
+data Second { lock: AtomicU32; }
+
+boundary trait Timer { machine tick() reaches none crashes none; }
+machine tick() satisfies Timer::tick {}
+boundary trait Registrar<Context> {
+    machine register<const Enter: Timer::tick>(table: @mutable InterruptTable) reaches none crashes none;
+}
+
+data InterruptTable { value: u64; }
+TableLayout satisfies |layout|::FixedLayout<InterruptTable> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
+    reaches none terminates
+    {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        let base: |layout|::LayoutPlan = |layout|::LayoutPlan {
+            entries: entries, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8
+        };
+        |layout|::layout_plan_place_private::<TimerSlot>(base, 8)
+    }
+}
+TimerSlot satisfies |layout|::PrivateCallbackSlot<InterruptTable, TableLayout, Timer::tick> {}
+
+machine install_first<
+    machine Valid,
+    const Validate: |static_interrupt|::StaticInterruptTableValidation<InterruptTable, Valid>::validate,
+    const Work: |static_interrupt|::StaticInterruptWork<First>::run,
+    const Completion: |interrupt|::InterruptAcknowledgementCompletion::complete
+>(table: @mutable InterruptTable, gdt: @mutable [u64; 2], task_state: @[u8; 104],
+  stacks: @mutable [|static_interrupt|::StaticInterruptStack],
+  arrivals: @[|static_interrupt|::StaticInterruptArrival], context: @First) -> bool
+requires machine Valid(accepted: bool, table: @InterruptTable) -> bool reaches none terminates;
+{
+    |static_interrupt|::X86StaticInterruptScope::run::<
+        Registrar::<First>::register::<tick>, TimerSlot, InterruptTable, First,
+        Valid, Validate, Work, Completion, 2
+    >(table, gdt, task_state, stacks, arrivals, context)
+}
+
+machine install_second<
+    machine Valid,
+    const Validate: |static_interrupt|::StaticInterruptTableValidation<InterruptTable, Valid>::validate,
+    const Work: |static_interrupt|::StaticInterruptWork<Second>::run,
+    const Completion: |interrupt|::InterruptAcknowledgementCompletion::complete
+>(table: @mutable InterruptTable, gdt: @mutable [u64; 2], task_state: @[u8; 104],
+  stacks: @mutable [|static_interrupt|::StaticInterruptStack],
+  arrivals: @[|static_interrupt|::StaticInterruptArrival], context: @Second) -> bool
+requires machine Valid(accepted: bool, table: @InterruptTable) -> bool reaches none terminates;
+{
+    |static_interrupt|::X86StaticInterruptScope::run::<
+        Registrar::<Second>::register::<tick>, TimerSlot, InterruptTable, Second,
+        Valid, Validate, Work, Completion, 2
+    >(table, gdt, task_state, stacks, arrivals, context)
+}
+
+machine main() {}

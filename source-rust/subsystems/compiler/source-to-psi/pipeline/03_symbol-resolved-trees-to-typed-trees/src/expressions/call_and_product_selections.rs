@@ -3403,6 +3403,8 @@ pub(crate) mod installed_interrupts {
     use crate::source_resolved as resolved;
     use crate::source_state::expression::InstalledInterruptOperationRequest;
     use diagnostics::Diagnostic;
+    use language_core::sealed_intrinsics::SealedIntrinsic;
+    use language_core::static_interrupts::StaticInterruptOperation;
     use symbols::SymbolKind;
 
     pub(crate) fn lower_request(
@@ -3416,32 +3418,33 @@ pub(crate) mod installed_interrupts {
         let Some(program) = program else {
             return Ok(None);
         };
-        if !target_symbol.is_valid() {
+        if !program.symbols.symbols().nodes().is_valid(target_symbol) {
             return Ok(None);
         }
         let target = program.symbols.get(target_symbol);
-        if target.kind != SymbolKind::State {
-            return Ok(None);
-        }
-        let Some(owner) = program.machines.unique_by_symbol(target.parent) else {
+        let owner_symbol = match target.kind {
+            SymbolKind::Machine => target_symbol,
+            SymbolKind::State => target.parent,
+            _ => return Ok(None),
+        };
+        let Some(owner) = program.machines.unique_by_symbol(owner_symbol) else {
             return Ok(None);
         };
-        if program.symbols.name(target_symbol) != "run"
-            || !owner.attached_data_symbol.is_valid()
-            || program.symbols.name(owner.attached_data_symbol) != "X86StaticInterruptScope"
-            || program.symbols.symbol_source_origin(target_symbol)
-                != Some(source_admission::SourceOrigin::Toolchain)
-            || program
-                .symbols
-                .symbol_source_origin(owner.attached_data_symbol)
-                != Some(source_admission::SourceOrigin::Toolchain)
+        if program
+            .symbols
+            .sealed_declaration(owner.symbol, owner.name.as_str())
+            != Some(SealedIntrinsic::StaticInterrupt(
+                StaticInterruptOperation::Install,
+            ))
         {
             return Ok(None);
         }
-        if !program
-            .machine_state_handles(owner.states)
-            .iter()
-            .any(|state| program.machine_state(*state).symbol == target_symbol)
+        if target.kind == SymbolKind::State
+            && program
+                .machine_state_handles(owner.states)
+                .first()
+                .map(|entry| program.machine_state(*entry).symbol)
+                != Some(target_symbol)
         {
             return Err(Diagnostic::error(
                 "interrupt installation lost its exact declaration's entry",
@@ -3543,9 +3546,7 @@ pub(crate) mod installed_interrupts {
             ));
         }
         Ok(Some(InstalledInterruptOperationRequest {
-            registrar_application: Default::default(),
-            registrar_target: Default::default(),
-            registrar_receiving_scope: Default::default(),
+            prepared: None,
             registrar_selection,
             registrar_trait,
             registrar,

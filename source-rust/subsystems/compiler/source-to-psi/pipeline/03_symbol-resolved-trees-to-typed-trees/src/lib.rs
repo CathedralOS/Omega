@@ -116,6 +116,10 @@ mod operand_owner_tests;
 mod undeclared_type_name_tests;
 
 #[cfg(test)]
+#[path = "../tests/unit/installed_interrupt_tests.rs"]
+mod installed_interrupt_tests;
+
+#[cfg(test)]
 #[path = "../tests/unit/bodyless_headers_tests.rs"]
 mod bodyless_headers_tests;
 
