@@ -877,6 +877,16 @@ impl CoreVocabularyCatalog {
             .map(|row| row.vocabulary)
     }
 
+    /// Returns the vocabulary for a file already authenticated against its
+    /// exact bundled core path and bytes at source admission.
+    pub fn classify_bundled(file: BundledFile, declaration: &str) -> Option<CoreVocabulary> {
+        ROWS.iter()
+            .find(|row| {
+                row.source == file && SealedDeclaration::Exact(row.declaration).matches(declaration)
+            })
+            .map(|row| row.vocabulary)
+    }
+
     /// The core source the site's file is, matching path and exact bytes.
     pub fn match_source(
         file: &Path,
@@ -888,5 +898,42 @@ impl CoreVocabularyCatalog {
                 file == Path::new(candidate) && matches_source(*bundled_file)
             })
             .map(|(core, _, _)| *core)
+    }
+
+    /// The core source for a file already authenticated at source admission.
+    pub fn source_bundled(file: BundledFile) -> Option<CoreSource> {
+        CORE_SOURCES
+            .iter()
+            .find(|(_, _, bundled_file)| *bundled_file == file)
+            .map(|(core, _, _)| *core)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bundled_classification_matches_row_paths() {
+        for row in ROWS {
+            assert_eq!(
+                Path::new(row.file),
+                Path::new(row.source.core_relative_path()),
+                "row `{}` path must match its BundledFile path",
+                row.declaration
+            );
+            assert_eq!(
+                CoreVocabularyCatalog::classify_bundled(row.source, row.declaration),
+                Some(row.vocabulary)
+            );
+        }
+        for &(core, file, bundled) in CORE_SOURCES {
+            assert_eq!(
+                Path::new(file),
+                Path::new(bundled.core_relative_path()),
+                "core source `{core:?}` path must match its BundledFile path"
+            );
+            assert_eq!(CoreVocabularyCatalog::source_bundled(bundled), Some(core));
+        }
     }
 }
