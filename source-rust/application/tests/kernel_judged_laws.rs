@@ -168,14 +168,14 @@ fn library_subtraction_under_the_swapped_order_is_refused_at_its_declaration() {
     // The same machine requiring `a <= b` instead: the premise of `-` is
     // not one it holds, and nothing proves it from `a <= b`. The refusal
     // names the premise of the call and is placed at `difference`'s
-    // declaration (`main.omg:9:9`), the only position it carries.
+    // declaration (`main.omg:7:9`), the only position it carries.
     let (output, report) = check("nat_order/fail/swapped_order");
     assert_eq!(output.status.code(), Some(1), "{report}");
     assert!(
         report.contains(
             "cannot prove ensures contract for `difference`: the premise of `subtract` at its call"
         ) && report.contains(UNPROVED)
-            && report.contains("main.omg:9:9"),
+            && report.contains("main.omg:7:9"),
         "{report}"
     );
 }
@@ -192,7 +192,7 @@ fn library_subtraction_without_an_order_premise_is_refused_for_that_premise() {
         report.contains(
             "cannot prove ensures contract for `difference`: the premise of `subtract` at its call"
         ) && report.contains(UNPROVED)
-            && report.contains("main.omg:11:9")
+            && report.contains("main.omg:9:9")
             && !report.contains("typing arm value type"),
         "{report}"
     );
