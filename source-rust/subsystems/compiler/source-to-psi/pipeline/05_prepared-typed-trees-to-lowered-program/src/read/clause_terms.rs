@@ -1464,7 +1464,19 @@ impl Program<'_> {
                         .case_symbol
                         .filter(|symbol| symbol.is_valid() && literal.type_symbol.is_valid())
                         .ok_or_else(|| unavailable("clause constructor without a case"))?;
-                    let constructed = self.record(id, literal.type_symbol)?;
+                    // A case of generic data is read at the application the
+                    // literal constructs (`Seq::Empty` as a `Seq<u64>`), not
+                    // at the declaration it names.
+                    let application = [
+                        literal.application_type,
+                        table.constructed_value_type_reference(expression),
+                    ]
+                    .into_iter()
+                    .find(|reference| reference.is_valid());
+                    let constructed = match application {
+                        Some(reference) => self.value_type(id, reference)?,
+                        None => self.record(id, literal.type_symbol)?,
+                    };
                     let ValueType::Record(record, ..) = constructed else {
                         return Err(unavailable("clause constructor of a scalar type"));
                     };

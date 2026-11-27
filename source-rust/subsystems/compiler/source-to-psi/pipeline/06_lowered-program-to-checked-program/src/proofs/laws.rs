@@ -629,8 +629,9 @@ struct Frame {
     names: Vec<TermHandle>,
     /// The proofs in hand: the premises and what enclosing cases cited.
     evidence: Vec<TermHandle>,
-    /// The law at each field of the induction's case; empty outside one.
-    hypotheses: Vec<TermHandle>,
+    /// The law at each field of the induction's case that holds the data
+    /// itself, by field; `None` at a payload field and empty outside one.
+    hypotheses: Vec<Option<TermHandle>>,
 }
 
 /// What a split is for.
@@ -679,7 +680,7 @@ impl Proving<'_> {
             law: self.law,
             names: &frame.names,
             held: frame.evidence.clone(),
-            hypothesis: &|field| hypotheses.get(field as usize).copied(),
+            hypothesis: &|field| hypotheses.get(field as usize).copied().flatten(),
         }
         .evidence(&script.citations)
         .map_err(|error| error.failure(reported))?;
@@ -961,7 +962,10 @@ impl Proving<'_> {
         else {
             return Ok(None);
         };
-        let set_proof = shape.is_set(self.arena, declaration);
+        // Data with a payload has no derived set proof (`PlainData::is_set`).
+        let Some(set_proof) = shape.is_set(self.arena, declaration) else {
+            return Ok(None);
+        };
         Ok(Some(self.arena.apply_arguments(set_proof, &[left, right])))
     }
 
@@ -1093,7 +1097,11 @@ impl Proving<'_> {
             goal: shift(self.arena, stated, 0, 1),
             names: under(self.arena, &frame.names),
             evidence,
-            hypotheses: under(self.arena, &frame.hypotheses),
+            hypotheses: frame
+                .hypotheses
+                .iter()
+                .map(|held| held.map(|held| shift(self.arena, held, 0, 2)))
+                .collect(),
             telescope,
         };
         let mut proof = self.split(inner, count, data, cases, Split::Cases, reported)?;
@@ -1229,7 +1237,7 @@ impl Proving<'_> {
                 frame
                     .hypotheses
                     .iter()
-                    .map(|&held| instantiate(self.arena, held, &actuals))
+                    .map(|held| held.map(|held| instantiate(self.arena, held, &actuals)))
                     .collect()
             };
             let inner = Frame {

@@ -40,8 +40,8 @@ itself through its citations is refused, so no statement can justify itself.
 
 use arena::IdTable;
 use mathematical_kernel::{
-    Declaration, IndexedCase, IndexedData, IndexedField, Level, PlainData, Sort, Term, TermHandle,
-    instantiate, shift,
+    Declaration, GenericPlainData, GenericPlainField, IndexedCase, IndexedData, IndexedField,
+    Level, PlainData, PlainField, Sort, Term, TermHandle, instantiate, shift,
 };
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue,
@@ -58,6 +58,7 @@ use terminal_check_tables::{Checked, Construct, Refusal};
 
 use super::Program;
 use super::families::{EvidenceUse, FamilyRecord, FamilyTerm, FamilyTheorem};
+use super::proof_stratum::TemplateField;
 use super::quotients::LiftedOperation;
 use crate::Unserved;
 use crate::body::{
@@ -196,6 +197,8 @@ impl Program<'_> {
             stating_premises: false,
             integers: None,
             families: Vec::new(),
+            generic: Vec::new(),
+            declaring: Vec::new(),
         };
         let mut refused = Vec::new();
         let diagnostic = MachineId::new(1).expect("1 is nonzero");
@@ -213,33 +216,8 @@ impl Program<'_> {
         }
         // Data indexed by values needs an integer vocabulary for the indices.
         if !self.families.is_empty() {
-            match proof_admission::SourceIntegerTheory::new(
-                &mut converter.signature.arena,
-                &mut converter.signature.declarations,
-            ) {
-                Ok(theory) => {
-                    let positions = theory.positions();
-                    converter.signature.integers = Some(IntegerPositions {
-                        carrier: positions.vocabulary.carrier,
-                        less_than: positions.vocabulary.less_than,
-                        less_or_equal: positions.vocabulary.less_or_equal,
-                        add: positions.vocabulary.add,
-                        subtract: positions.vocabulary.subtract,
-                        multiply: positions.vocabulary.multiply,
-                        numeral_zero: positions.numeral_zero,
-                        numeral_double: positions.numeral_double,
-                        numeral_odd: positions.numeral_odd,
-                        numeral_negate: positions.numeral_negate,
-                    });
-                    converter.integers = Some(theory);
-                    converter.sync("integer");
-                }
-                Err(_) => {
-                    return Err(vec![unserved(
-                        diagnostic,
-                        "integer vocabulary the kernel cannot declare",
-                    )]);
-                }
+            if let Err(refusal) = converter.declare_integers(diagnostic) {
+                return Err(vec![refusal]);
             }
             for family in &self.families {
                 if let Err(refusal) = converter.indexed_family(diagnostic, family) {
@@ -492,7 +470,7 @@ struct Scope<'s> {
     case: Option<(usize, usize, &'s [TermHandle])>,
     /// The machine whose body this is and, for each field of the case, the
     /// recursion's result for it.
-    recursion: Option<(MachineId, usize, &'s [TermHandle])>,
+    recursion: Option<(MachineId, usize, &'s [Option<TermHandle>])>,
     /// How many fields the enclosing cases of a law bind: its terms are
     /// stated under the law's formals and then those fields.
     depth: u32,
@@ -628,6 +606,12 @@ struct Converter<'p, 't> {
     integers: Option<proof_admission::SourceIntegerTheory>,
     /// Each data declaration indexed by values, as it was declared.
     families: Vec<FamilyDeclared>,
+    /// Each generic data declaration declared so far: its symbol, the entry
+    /// of its inductive former and its fields.
+    generic: Vec<(SymbolHandle, u32, GenericPlainData)>,
+    /// The data records being declared, outermost first, while their
+    /// payload types are read.
+    declaring: Vec<StructuralTypeId>,
 }
 
 /// Data indexed by values in the signature: where its family is, and what
@@ -735,27 +719,39 @@ impl<'p> Converter<'p, '_> {
             .record_sources
             .get(record)
             .ok_or_else(|| unserved(id, "mathematical data lost its declaration"))?;
-        let mut arities = Vec::with_capacity(declared.cases().len());
-        for case in declared.cases() {
-            if case
-                .fields
-                .iter()
-                .any(|field| field.value_type != ValueType::record(record))
-            {
-                return Err(unserved(
-                    id,
-                    "data that contains itself with a field of another type",
-                ));
-            }
-            arities.push(index(id, case.fields.len())?);
+        // A payload that is itself data being declared further up is a
+        // recursion through another declaration: a mutual block, which this
+        // reader does not declare.
+        if self.declaring.contains(&record) {
+            return Err(unserved(
+                id,
+                "data that contains itself through another declaration",
+            ));
         }
-        let shape = PlainData::new(arities)
-            .ok_or_else(|| unserved(id, "data that contains itself without a case"))?;
+        self.declaring.push(record);
+        let read = if source
+            .application
+            .as_ref()
+            .is_some_and(|application| !application.substitutions.is_empty())
+        {
+            self.generic_application(id, record)
+        } else {
+            self.plain_data(id, record)
+        };
+        self.declaring.pop();
+        let (shape, declarations) = read?;
         let first = index(id, self.signature.declarations.len())?;
-        let declarations = shape.declarations(&mut self.signature.arena, first);
         index(id, self.signature.declarations.len() + declarations.len())?;
         let entry = PlainData::data_entry(first);
-        let name = self.name(source.declaration);
+        let name = if source
+            .application
+            .as_ref()
+            .is_some_and(|application| !application.substitutions.is_empty())
+        {
+            declared.identity.clone()
+        } else {
+            self.name(source.declaration)
+        };
         for (offset, declaration) in declarations.into_iter().enumerate() {
             let position = first + offset as u32;
             let case = position
@@ -780,6 +776,178 @@ impl<'p> Converter<'p, '_> {
         }
         self.data.push((record, entry));
         Ok(entry)
+    }
+
+    /// The cases of plain data that contains itself, each field either the
+    /// data itself or a payload of a type the signature declares, and its
+    /// declarations from the next free entry on.
+    fn plain_data(
+        &mut self,
+        id: MachineId,
+        record: StructuralTypeId,
+    ) -> Checked<(PlainData, Vec<Declaration>)> {
+        let declared = self
+            .program
+            .records
+            .get(record)
+            .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
+        let mut cases = Vec::with_capacity(declared.cases().len());
+        for case in declared.cases() {
+            let mut fields = Vec::with_capacity(case.fields.len());
+            for field in &case.fields {
+                fields.push(if field.value_type == ValueType::record(record) {
+                    PlainField::Recursive
+                } else {
+                    PlainField::Payload(self.value_ty(id, field.value_type)?.0)
+                });
+            }
+            cases.push(fields);
+        }
+        let shape = PlainData::new(cases)
+            .ok_or_else(|| unserved(id, "data that contains itself without a case"))?;
+        let first = index(id, self.signature.declarations.len())?;
+        let declarations = shape.declarations(&mut self.signature.arena, first);
+        Ok((shape, declarations))
+    }
+
+    /// An application of generic data that contains itself (`Seq<u64>`): the
+    /// generic declaration at the application's type arguments. The generic
+    /// declaration is declared the first time, from its template, as one
+    /// inductive block with a uniform parameter per type parameter; the
+    /// application's entries are definitions equal to that block's at the
+    /// arguments, from the next free entry on.
+    fn generic_application(
+        &mut self,
+        id: MachineId,
+        record: StructuralTypeId,
+    ) -> Checked<(PlainData, Vec<Declaration>)> {
+        let program = self.program;
+        let declared = program
+            .records
+            .get(record)
+            .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
+        let source = program
+            .record_sources
+            .get(record)
+            .ok_or_else(|| unserved(id, "mathematical data lost its declaration"))?;
+        let (parameters, template) = program
+            .generic_template_fields(source.declaration)
+            .map_err(|what| unserved(id, what))?;
+        if template.len() != declared.cases().len()
+            || template
+                .iter()
+                .zip(declared.cases())
+                .any(|(fields, case)| fields.len() != case.fields.len())
+        {
+            return Err(unserved(
+                id,
+                "application of generic data whose cases differ from its template",
+            ));
+        }
+        // Each type argument, read from a field the template gives that
+        // parameter's type; and each field whose type names no parameter,
+        // the same at every application.
+        let mut arguments = vec![None; parameters as usize];
+        let mut closed = Vec::with_capacity(template.len());
+        for (fields, case) in template.iter().zip(declared.cases()) {
+            let mut row = Vec::with_capacity(fields.len());
+            for (kind, field) in fields.iter().zip(&case.fields) {
+                row.push(match *kind {
+                    TemplateField::Recursive => {
+                        if field.value_type != ValueType::record(record) {
+                            return Err(unserved(
+                                id,
+                                "application of generic data whose recursive field is another type",
+                            ));
+                        }
+                        GenericPlainField::Recursive
+                    }
+                    TemplateField::Parameter(position) => {
+                        let ty = self.value_ty(id, field.value_type)?.0;
+                        match arguments[position as usize] {
+                            Some(known) if !self.signature.arena.structurally_equal(known, ty) => {
+                                return Err(unserved(
+                                    id,
+                                    "application of generic data at two types for one parameter",
+                                ));
+                            }
+                            _ => arguments[position as usize] = Some(ty),
+                        }
+                        GenericPlainField::Parameter(position)
+                    }
+                    TemplateField::Closed => {
+                        GenericPlainField::Closed(self.value_ty(id, field.value_type)?.0)
+                    }
+                });
+            }
+            closed.push(row);
+        }
+        let arguments: Vec<TermHandle> =
+            arguments
+                .into_iter()
+                .collect::<Option<_>>()
+                .ok_or_else(|| {
+                    unserved(
+                        id,
+                        "generic mathematical data with a parameter no field holds",
+                    )
+                })?;
+        let generic = match self
+            .generic
+            .iter()
+            .find(|(symbol, ..)| *symbol == source.declaration)
+        {
+            Some((_, entry, generic)) => {
+                // A closed field names no parameter, so every application
+                // reads it at the same type.
+                let same =
+                    GenericPlainData::new(parameters, closed).is_some_and(|read| &read == generic);
+                if !same {
+                    return Err(unserved(
+                        id,
+                        "application of generic data whose closed fields differ from the template's",
+                    ));
+                }
+                (*entry, generic.clone())
+            }
+            None => {
+                let generic = GenericPlainData::new(parameters, closed).ok_or_else(|| {
+                    unserved(id, "generic data that contains itself without a case")
+                })?;
+                let first = index(id, self.signature.declarations.len())?;
+                index(
+                    id,
+                    self.signature.declarations.len() + generic.width() as usize,
+                )?;
+                let declarations = generic.declarations(&mut self.signature.arena, first);
+                let name = self.name(source.declaration);
+                for (offset, declaration) in declarations.into_iter().enumerate() {
+                    let kind = if offset == 0 {
+                        SignatureEntryKind::GenericData {
+                            declaration: source.declaration,
+                        }
+                    } else {
+                        SignatureEntryKind::Encoding { data: first }
+                    };
+                    self.push(declaration, kind, name.clone());
+                }
+                self.generic
+                    .push((source.declaration, first, generic.clone()));
+                (first, generic)
+            }
+        };
+        let (entry, generic) = generic;
+        let recursor_type = self.signature.declarations[(entry + generic.width() - 1) as usize].ty;
+        let first = index(id, self.signature.declarations.len())?;
+        generic
+            .instance(
+                &mut self.signature.arena,
+                entry,
+                recursor_type,
+                first,
+                &arguments,
+            )
+            .ok_or_else(|| unserved(id, "application of generic data the kernel cannot state"))
     }
 
     /// The kernel's quotient of the data at entry `carrier` by the relation
@@ -1080,7 +1248,15 @@ impl<'p> Converter<'p, '_> {
             None => match &self.signature.entries[result_entry as usize].kind {
                 SignatureEntryKind::Data { shape, .. } => {
                     let shape = shape.clone();
-                    shape.is_set(&mut self.signature.arena, result_entry)
+                    shape
+                        .is_set(&mut self.signature.arena, result_entry)
+                        .ok_or_else(|| {
+                            unserved(
+                                id,
+                                "term that applies an operation lifted to a quotient whose result \
+                                 is data with a payload",
+                            )
+                        })?
                 }
                 _ => {
                     return Err(unserved(
@@ -1674,6 +1850,37 @@ impl<'p> Converter<'p, '_> {
                 name: name.to_owned(),
             });
         }
+    }
+
+    /// Declares the integer vocabulary, once: for the indices of indexed
+    /// data, or for a fixed-width payload or formal, which is the integer it
+    /// holds.
+    fn declare_integers(&mut self, id: MachineId) -> Checked<u32> {
+        if let Some(theory) = &self.integers {
+            return Ok(theory.positions().vocabulary.carrier);
+        }
+        let theory = proof_admission::SourceIntegerTheory::new(
+            &mut self.signature.arena,
+            &mut self.signature.declarations,
+        )
+        .map_err(|_| unserved(id, "integer vocabulary the kernel cannot declare"))?;
+        let positions = theory.positions();
+        self.signature.integers = Some(IntegerPositions {
+            carrier: positions.vocabulary.carrier,
+            less_than: positions.vocabulary.less_than,
+            less_or_equal: positions.vocabulary.less_or_equal,
+            add: positions.vocabulary.add,
+            subtract: positions.vocabulary.subtract,
+            multiply: positions.vocabulary.multiply,
+            numeral_zero: positions.numeral_zero,
+            numeral_double: positions.numeral_double,
+            numeral_odd: positions.numeral_odd,
+            numeral_negate: positions.numeral_negate,
+        });
+        let carrier = positions.vocabulary.carrier;
+        self.integers = Some(theory);
+        self.sync("integer");
+        Ok(carrier)
     }
 
     /// Runs `work` with the integer vocabulary and records what it declared.
@@ -2576,6 +2783,18 @@ impl<'p> Converter<'p, '_> {
         Ok((self.constant(entry), entry))
     }
 
+    /// The closed kernel type of a formal or of a payload field: what `ty`
+    /// reads, or a fixed-width integer, which is the integer it holds. A
+    /// definition only passes such a value along: no result is one, and its
+    /// arithmetic is not read.
+    fn value_ty(&mut self, id: MachineId, value_type: ValueType) -> Checked<(TermHandle, u32)> {
+        if let ValueType::Scalar(ScalarType::Integer(_), _) = value_type {
+            let carrier = self.declare_integers(id)?;
+            return Ok((self.constant(carrier), carrier));
+        }
+        self.ty(id, value_type)
+    }
+
     fn formals(&mut self, id: MachineId) -> Checked<Vec<(TermHandle, u32)>> {
         let signature = self
             .program
@@ -2602,7 +2821,7 @@ impl<'p> Converter<'p, '_> {
             .parameters
             .clone()
             .into_iter()
-            .map(|formal| self.ty(id, formal))
+            .map(|formal| self.value_ty(id, formal))
             .collect()
     }
 
@@ -3039,8 +3258,8 @@ impl<'p> Converter<'p, '_> {
             }
             // The variables of the branch: the case's fields, the recursion
             // at each, then the other formals.
-            let mut context = vec![formals[subject].0; arity as usize];
-            context.extend(vec![landing; arity as usize]);
+            let mut context = shape.field_types(&mut self.signature.arena, data, case);
+            context.extend(vec![landing; shape.hypotheses(case) as usize]);
             context.extend(others.iter().map(|&other| formals[other].0));
             let premises: Vec<_> = defining
                 .premises
@@ -3145,15 +3364,22 @@ impl<'p> Converter<'p, '_> {
         let all = count as u32;
         let mut branches = Vec::with_capacity(shape.cases());
         for case in 0..shape.cases() {
-            let arity = shape.arity(case);
-            let step =
-                (arity > 0).then(|| shape.hypothesis(&mut self.signature.arena, case, 0, all));
-            let mut context = vec![fuel; arity as usize];
-            context.extend(vec![landing; arity as usize]);
+            // A unit less of fuel is the first field that holds the data.
+            let step = shape
+                .fields(case)
+                .iter()
+                .enumerate()
+                .find_map(|(field, read)| {
+                    matches!(read, PlainField::Recursive).then_some(field as u32)
+                });
+            let step = step
+                .and_then(|field| shape.hypothesis(&mut self.signature.arena, case, field, all));
+            let mut context = shape.field_types(&mut self.signature.arena, data, case);
+            context.extend(vec![landing; shape.hypotheses(case) as usize]);
             context.extend(types.iter().copied());
             // The case with no fuel left binds nothing besides the formals,
             // so it states each call's descent over them alone.
-            let descent = (arity == 0).then(|| Descent {
+            let descent = (shape.arity(case) == 0).then(|| Descent {
                 measure,
                 ranked: self.variable((count - 1 - measure) as u32),
                 nat: data,
@@ -3257,7 +3483,9 @@ impl<'p> Converter<'p, '_> {
         let shape = shape.clone();
         let zero = (0..shape.cases()).find(|&case| shape.arity(case) == 0);
         let successor = (0..shape.cases()).find(|&case| shape.arity(case) == 1);
-        let (2, Some(zero), Some(successor)) = (shape.cases(), zero, successor) else {
+        let (2, Some(zero), Some(successor), false) =
+            (shape.cases(), zero, successor, shape.has_payload())
+        else {
             return Err(refused());
         };
         let functions: Vec<u32> = (0..self.signature.entries.len() as u32)
@@ -3341,7 +3569,9 @@ impl<'p> Converter<'p, '_> {
             body: left,
         });
         branches[zero] = shape.branch(&mut self.signature.arena, data, motive, zero, at_zero);
-        let recursion = shape.hypothesis(&mut self.signature.arena, successor, 0, 1);
+        let recursion = shape
+            .hypothesis(&mut self.signature.arena, successor, 0, 1)
+            .expect("the successor's one field holds the data: data with a payload is no number");
         let left = self.variable(0);
         let recursion = self.signature.arena.apply_arguments(recursion, &[left]);
         let pred = self.constant(pred);
@@ -3413,7 +3643,7 @@ impl<'p> Converter<'p, '_> {
         &mut self,
         machine: MachineId,
         mut slots: Vec<Option<Bound>>,
-        recursion: Option<(MachineId, usize, &[TermHandle])>,
+        recursion: Option<(MachineId, usize, &[Option<TermHandle>])>,
         valuing: &Valuing<'_>,
     ) -> Checked<TermHandle> {
         let body = self
@@ -3614,8 +3844,8 @@ impl<'p> Converter<'p, '_> {
                 term: shape.case_value(arena, data, case, outer),
                 field: None,
             });
-            let mut context = vec![ty; arity as usize];
-            context.extend(vec![landing; arity as usize]);
+            let mut context = shape.field_types(&mut self.signature.arena, data, case);
+            context.extend(vec![landing; shape.hypotheses(case) as usize]);
             context.extend(valuing.context.iter().copied());
             // The terms of the scope are terms of the branch as they stand,
             // so the branch knows its subject is this case.
@@ -3787,7 +4017,7 @@ impl<'p> Converter<'p, '_> {
         let cases = shape.cases();
         let zero = (0..cases).find(|&case| shape.arity(case) == 0);
         let successor = (0..cases).find(|&case| shape.arity(case) == 1);
-        let (Some(zero), Some(successor)) = (zero, successor) else {
+        let (Some(zero), Some(successor), false) = (zero, successor, shape.has_payload()) else {
             return Err(unserved(
                 id,
                 "natural order over data without zero and successor",
@@ -4058,11 +4288,18 @@ impl<'p> Converter<'p, '_> {
                         .filter(|(position, _)| *position != subject)
                         .map(|(_, operand)| operand.term)
                         .collect();
-                    return Ok(plain(
-                        self.signature
-                            .arena
-                            .apply_arguments(results[field as usize], &rest),
-                    ));
+                    let result =
+                        results
+                            .get(field as usize)
+                            .copied()
+                            .flatten()
+                            .ok_or_else(|| {
+                                unserved(
+                                    id,
+                                    "recursive call at a field that does not hold the data",
+                                )
+                            })?;
+                    return Ok(plain(self.signature.arena.apply_arguments(result, &rest)));
                 }
                 if self.helper(*callee)
                     && let Some(valuing) = scope.value
@@ -4548,10 +4785,12 @@ impl<'p> Converter<'p, '_> {
             carriers.push(match value.carrier {
                 ClauseCarrier::Structural(record) => self.data(id, record)?,
                 ClauseCarrier::Scalar(ScalarType::Boolean) => self.boolean(id)?,
+                // A fixed-width value is the integer it holds.
+                ClauseCarrier::Scalar(ScalarType::Integer(_)) => self.declare_integers(id)?,
                 _ => {
                     return Err(unserved(
                         id,
-                        "law over a carrier other than mathematical data or `bool`",
+                        "law over a carrier other than mathematical data, `bool` or an integer",
                     ));
                 }
             });
@@ -4563,12 +4802,15 @@ impl<'p> Converter<'p, '_> {
                         .arena
                         .insert(if *truth { Term::TwoOne } else { Term::TwoZero })
                 }
-                // The formal at position `k` is place `k + 1`.
-                // The machine's own result is the place after its formals:
-                // the definition it is read as, applied to those formals.
+                // The `k`-th formal that is a place, counting from zero, is
+                // place `k + 1`; a fixed-width formal before it is a value,
+                // not a place. The machine's own result is the place after
+                // them: the definition it is read as, applied to the formals.
                 ClauseOperand::Input(subject)
                     if subject.path().is_empty()
-                        && subject.root().get() == formals.len() as u64 + 1 =>
+                        && self
+                            .place_formal(id, subject.root(), formals.len())
+                            .is_none() =>
                 {
                     match self.result_as {
                         Some((machine, result)) if machine == id => result,
@@ -4579,11 +4821,10 @@ impl<'p> Converter<'p, '_> {
                         }
                     }
                 }
-                ClauseOperand::Input(subject) if subject.path().is_empty() => subject
-                    .root()
-                    .get()
-                    .checked_sub(1)
-                    .and_then(|formal| formals.get(usize::try_from(formal).ok()?))
+                ClauseOperand::Input(subject) if subject.path().is_empty() => self
+                    .place_formal(id, subject.root(), formals.len())
+                    .flatten()
+                    .and_then(|formal| formals.get(formal))
                     .copied()
                     .ok_or_else(|| unserved(id, "law names storage outside its formals"))?,
                 ClauseOperand::Application {
@@ -4655,6 +4896,31 @@ impl<'p> Converter<'p, '_> {
                         }
                     }
                 }
+                // A fixed-width formal is the integer it holds.
+                ClauseOperand::Scalar(ScalarTerm::Value { id: named, .. })
+                    if matches!(value.carrier, ClauseCarrier::Scalar(ScalarType::Integer(_))) =>
+                {
+                    let position = self
+                        .program
+                        .signatures
+                        .get(id)
+                        .ok_or_else(|| unserved(id, "mathematical machine lost its signature"))?
+                        .formal_values()
+                        .iter()
+                        .position(|known| *known == Some(*named));
+                    position
+                        .and_then(|position| formals.get(position))
+                        .copied()
+                        .ok_or_else(|| unserved(id, "law names an integer other than a formal"))?
+                }
+                ClauseOperand::Scalar(ScalarTerm::Integer { value: literal, .. }) => self
+                    .integer_literal(
+                        id,
+                        match *literal {
+                            IntegerValue::Signed(value) => bignum::BigInt::from_i128(value),
+                            IntegerValue::Unsigned(value) => bignum::BigInt::from_u128(value),
+                        },
+                    )?,
                 _ => {
                     return Err(unserved(
                         id,
@@ -4665,6 +4931,36 @@ impl<'p> Converter<'p, '_> {
             terms.push(term);
         }
         Ok((terms, carriers))
+    }
+
+    /// The formal of `id` that a clause names as place `root`: `Some(None)`
+    /// for a place outside its formals, and `None` for its result's place.
+    /// When every formal is a place, as for any machine of data alone, the
+    /// `k`-th formal is place `k + 1` and the result's place follows them.
+    fn place_formal(
+        &self,
+        id: MachineId,
+        root: semantic_vocabulary::PlaceId,
+        count: usize,
+    ) -> Option<Option<usize>> {
+        let place = usize::try_from(root.get().checked_sub(1)?).ok()?;
+        let signature = self
+            .program
+            .signatures
+            .get(id)
+            .filter(|signature| signature.parameters.len() == count)
+            .filter(|signature| (0..count).any(|position| !signature.is_place(position)));
+        let Some(signature) = signature else {
+            return (place != count).then_some((place < count).then_some(place));
+        };
+        if signature.structural_result_place() == Some(root) {
+            return None;
+        }
+        Some(
+            (0..count)
+                .filter(|&position| signature.is_place(position))
+                .nth(place),
+        )
     }
 
     /// The entry a clause applies: a machine with a result, a case, or the
@@ -5195,6 +5491,29 @@ impl<'p> Converter<'p, '_> {
         else {
             return Err(unserved(machine, "law body statement other than a call"));
         };
+        let cited = self
+            .program
+            .signatures
+            .get(*callee)
+            .ok_or_else(|| unserved(machine, "citation lost its machine"))?;
+        if *callee != law
+            && cited.result.is_some()
+            && !self.states_law(*callee)
+            && !self.helper(*callee)
+        {
+            // An ordinary function. As an operand it is a term and cites
+            // nothing, so its operands are not read: one may be a local
+            // bound to a citation, which has no term. As a statement it
+            // would say nothing.
+            return if term {
+                Ok(())
+            } else {
+                Err(unserved(
+                    machine,
+                    "law body calls a machine with a result that states no law",
+                ))
+            };
+        }
         let mut operands = Vec::with_capacity(arguments.len());
         for argument in arguments {
             operands.push(self.expression(machine, argument, scope)?);
@@ -5238,23 +5557,6 @@ impl<'p> Converter<'p, '_> {
                     .collect(),
             });
             return Ok(());
-        }
-        let cited = self
-            .program
-            .signatures
-            .get(*callee)
-            .ok_or_else(|| unserved(machine, "citation lost its machine"))?;
-        if cited.result.is_some() && !self.states_law(*callee) && !self.helper(*callee) {
-            // An ordinary function. As an operand it is a term and cites
-            // nothing; as a statement it would say nothing.
-            return if term {
-                Ok(())
-            } else {
-                Err(unserved(
-                    machine,
-                    "law body calls a machine with a result that states no law",
-                ))
-            };
         }
         let laws = self.laws(*callee)?;
         if !laws.is_empty() {
