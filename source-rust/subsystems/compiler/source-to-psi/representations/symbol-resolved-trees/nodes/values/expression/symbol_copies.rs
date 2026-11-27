@@ -216,17 +216,26 @@ impl SymbolCopy<'_, '_> {
             .declarations_mut()
             .signature_contracts
             .insert_many(contracts);
-        let rows = self
-            .program
-            .authored_service_reach_rows_for(source.symbol)
-            .cloned()
-            .collect::<Vec<_>>();
+        // One pass reads the source's rows and the rows the copy already
+        // owns; only a row with the copy's owner can equal a rewritten one,
+        // so the duplicate check never rescans the whole table.
+        let mut rows = Vec::new();
+        let mut copied_rows = Vec::new();
+        for row in self.program.authored_service_reach_rows.iter() {
+            if row.owner == source.symbol {
+                rows.push(row.clone());
+            }
+            if row.owner == copied.symbol {
+                copied_rows.push(row.clone());
+            }
+        }
         for mut row in rows {
             row.owner = copied.symbol;
             // Runtime rows can share their formal namespace while their
             // supplying scope changes. Preserve each distinct authored
             // row without duplicating an unchanged declaration record.
-            if !self.program.authored_service_reach_rows.contains(&row) {
+            if !copied_rows.contains(&row) {
+                copied_rows.push(row.clone());
                 self.program.authored_service_reach_rows.push(row);
             }
         }

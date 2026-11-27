@@ -571,7 +571,11 @@ machine watch() {{
     };
     let unreached = program("");
     let demand = |accepted: &AcceptedTerminalSource| {
-        accepted.boundary_calls_reached(accepted.entry().unwrap(), &[], None).unwrap().len()
+        accepted
+            .boundary_call_reach(accepted.entry().unwrap(), &[], None)
+            .unwrap()
+            .boundaries
+            .len()
     };
     assert_eq!(demand(&unreached), 1);
     let unreached = unreached.prepare_publication(None).unwrap();

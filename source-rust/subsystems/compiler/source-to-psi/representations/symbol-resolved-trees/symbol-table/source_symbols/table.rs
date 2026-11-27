@@ -2405,7 +2405,7 @@ mod tests {
     }
 }
 use super::{
-    BuiltinFunction, BuiltinType, BuiltinTypeAtom, BuiltinTypeMember, FixedCoreDeclaration, Symbol,
+    BuiltinFunction, BuiltinTypeAtom, BuiltinTypeMember, FixedCoreDeclaration, Symbol,
     SymbolHandle, SymbolKind, SymbolName, SymbolNameRef,
 };
 use child_batches::{SupplementalChildHandles, SupplementalChildren};
@@ -4169,12 +4169,6 @@ impl SymbolTable {
         symbol.is_valid().then_some(())?;
         let member = BuiltinTypeMember::AddressBound;
         (self.builtin_type_member_symbol(member) == Some(symbol)).then_some(member)
-    }
-
-    pub fn builtin_type_symbol(&self, builtin_type: BuiltinType) -> Option<SymbolHandle> {
-        self.child_handles(self.root)?
-            .nth(builtin_type.ordinal())
-            .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinType)
     }
 
     /// Scalar meaning is derived from the selected builtin, never its display name.

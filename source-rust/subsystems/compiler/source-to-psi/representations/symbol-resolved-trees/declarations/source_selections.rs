@@ -843,16 +843,6 @@ impl AuthoredDeclarationSelections {
         }
     }
 
-    pub fn all_finalized(&self) -> bool {
-        self.rows.iter().all(|row| {
-            matches!(
-                row.target,
-                AuthoredDeclarationSelectionTarget::Resolved(_)
-                    | AuthoredDeclarationSelectionTarget::Intrinsic(_)
-            )
-        })
-    }
-
     fn next_occurrence_id(
         &self,
     ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
@@ -1374,7 +1364,6 @@ mod tests {
             Err(AuthoredDeclarationSelectionFinalizationError::LateBindingMismatch)
         );
         assert_eq!(selections, before);
-        assert!(!selections.all_finalized());
 
         selections
             .finalize_late_bound(
@@ -1383,7 +1372,6 @@ mod tests {
                 SymbolHandle::from_arena_index(7),
             )
             .expect("finalize exact operator occurrence");
-        assert!(selections.all_finalized());
         assert_eq!(
             selections.finalize_late_bound(
                 occurrence,
