@@ -161,6 +161,55 @@ fn inventory_keeps_a_content_domains_predicate_without_proving_a_changed_value()
     );
 }
 
+/// A whole stored value carries the content domain its destination displays,
+/// so the lender owes no predicate for it (allocation's `bump.omg` stores a
+/// split's `rest` into its `@mutable` strategy's `tail`). Under a destination
+/// that does not display the domain, the lender's content still owes a proof.
+#[test]
+fn a_whole_stored_value_delivers_the_content_domain_its_destination_displays() {
+    use semantic_vocabulary::{
+        ContentAlgebra, ContentAlgebraKind, ContentDomainId, ContentProjectionExpression,
+        ContentProjectionIdentity, ContentProjectionScalar,
+    };
+    let types = types(2);
+    let mut machine = machine();
+    let mut owner = domain(types[1].id);
+    owner.predicate.as_mut().unwrap().proposition = Proposition::Truth;
+    machine.structural_parameters[0]
+        .qualifications
+        .push(owner.id);
+    let algebra = ContentAlgebra {
+        kind: ContentAlgebraKind::CountedQuantity,
+        parameter: "Bytes".into(),
+    };
+    let value =
+        ContentProjectionExpression::CountedQuantity(ContentProjectionScalar::Natural("2".into()));
+    owner.content_projection = Some(terminal_psi::StructuralContentProjection {
+        identity: ContentProjectionIdentity {
+            domain: ContentDomainId::new(owner.semantic_domain.get()).unwrap(),
+            projection_report_fingerprint: value.report_fingerprint(&algebra),
+        },
+        algebra,
+        expression: value,
+    });
+    let domains = [owner];
+    let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
+    let root = PlaceId::new(2).unwrap();
+    let mut lost = Vec::new();
+    defaults
+        .append_lost(&mut lost, root, &[], root, &[])
+        .unwrap();
+    assert!(lost.is_empty(), "{lost:?}");
+    let element = [StructuralPathSegment::FixedIndex(0)];
+    let error = defaults
+        .append_lost(&mut lost, root, &element, root, &[])
+        .unwrap_err();
+    assert_eq!(
+        error.detail,
+        "a named default has no complete storage predicate theory"
+    );
+}
+
 #[test]
 fn named_defaults_are_rerooted_goals_not_membership_truth() {
     let mut types = types(2);
@@ -333,7 +382,9 @@ fn a_window_requires_coordinates_only_for_its_potential_owners() {
     types[0].requires.clear();
 
     let owner = domain(types[1].id);
-    machine.structural_parameters[0].qualifications.push(owner.id);
+    machine.structural_parameters[0]
+        .qualifications
+        .push(owner.id);
     assert!(!handback(&types, &machine, &selected, element));
     assert!(!project(&types, &[owner], &machine));
 }
