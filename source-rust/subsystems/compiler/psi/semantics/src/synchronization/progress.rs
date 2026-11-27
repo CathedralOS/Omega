@@ -92,10 +92,15 @@ pub(super) enum ScalarFact {
     Observation {
         occurrence: usize,
         scalar_type: ScalarType,
+        pending_provider: bool,
     },
 }
 
 impl ScalarFact {
+    pub(super) fn awaits_provider(self) -> bool {
+        matches!(self, Self::Observation { pending_provider: true, .. })
+    }
+
     pub(super) fn term(self) -> Option<ScalarTerm> {
         Some(match self {
             ScalarFact::EntryInput(input) => ScalarTerm::Value {

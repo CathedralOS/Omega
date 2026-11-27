@@ -1,4 +1,4 @@
-//! Interpret one verified unit-returning path symbolically. An owned guard
+//! Interpret one verified returning path symbolically. An owned guard
 //! contributes its cleanup writes only when that exact value is consumed.
 use super::super::activation::{Bindings, Destination, Frame};
 use super::super::storage::{Location, Storage, Stored};
@@ -106,7 +106,7 @@ fn effects_on_path(
                         &roots,
                     )
                 };
-                if matches!(op.result, terminal_psi::OperationResult::Unit) {
+                if !matches!(op.result, terminal_psi::OperationResult::Structural(_)) {
                     let mut nested = completed.get(&id)?.as_ref()?.clone();
                     nested.map_subjects(|subject| {
                         *subject = project(subject)?;
@@ -124,6 +124,14 @@ fn effects_on_path(
                         let operand = operand(machine, *frame.bindings.values.get(actual)?)?;
                         (operand.scalar_type() == scalar_type).then_some(operand)
                     })?;
+                    if let Some(result) = op.result.as_scalar() {
+                        let returned = nested.returned_scalar(decide)?.binding(&|index| {
+                            let formal = machine.parameters.get(index)?;
+                            frame.bindings.values.get(&formal.id).copied()
+                        })?;
+                        (result.scalar_type == returned.ty()).then_some(())?;
+                        frame.bindings.values.insert(result.id, returned);
+                    }
                     effects.append_call(nested, program_size)?;
                     continue;
                 }
@@ -240,8 +248,15 @@ fn effects_on_path(
             }
         }
         if frame.arrival.is_none() {
-            if !matches!(frame.block.terminator, Terminator::ReturnUnit { .. }) {
-                return None;
+            match frame.block.terminator {
+                Terminator::ReturnUnit { .. } => {}
+                Terminator::Return { value, .. } => {
+                    let result = operand(machine, *frame.bindings.values.get(&value)?)?;
+                    for path in &mut effects.paths {
+                        path.scalar_result = Some(result);
+                    }
+                }
+                _ => return None,
             }
             effects.compact_stores();
             return Some(effects);

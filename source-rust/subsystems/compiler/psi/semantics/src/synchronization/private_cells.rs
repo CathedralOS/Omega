@@ -243,7 +243,14 @@ fn advance<'m>(
                         frame.position += 1;
                         return Some(Advance::OpaqueReturn);
                     };
-                    result
+                    result.map(|returned| {
+                        if let Some(dest) = op.result.as_scalar() {
+                            let value = returned
+                                .filter(|fact| fact.ty() == dest.scalar_type)
+                                .unwrap_or_else(|| memory.observation(dest.scalar_type, false));
+                            frame.bindings.values.insert(dest.id, value);
+                        }
+                    })
                 }
                 None | Some(SelectedCall::PendingProvider) => {
                     let call = op.declared_invocation()?;
@@ -277,7 +284,7 @@ fn advance<'m>(
                         frame
                             .bindings
                             .values
-                            .insert(result.id, memory.observation(result.scalar_type));
+                            .insert(result.id, memory.observation(result.scalar_type, pending));
                     }
                     return Some(Advance::Continue);
                 }
