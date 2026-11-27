@@ -240,34 +240,23 @@ argument may cite its checked logical evidence under the rules above. The
 compiler work is tracked under PROOF-KERNEL-CORE. [Operation records](wiki/spec/language/conformances.md#implementations-are-operation-records) · [Logical hypotheses](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) · [Callable storage and evidence](wiki/spec/language/machine_values.md#invocation-storage-and-evidence) · [Compiler tasks](TASKS.md)
 
 <a id="address-subject-lower-bound"></a>
-### 6. May an address subject assume the scalar lower bound `0 <= n`?
+### 6. Numeric addresses have a lower bound of zero on every target
 
-The scalar carrier-bound judgment accepts "exactly `MIN <= value` or
-`value <= MAX` for a declared fixed-integer SSA value of the matching signed
-width". Its mathematical form bounds `MathValue` "including an address model's
-width"
-([integer certificates](wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules)).
-An address is "interpreted under the selected target's address model", and
-`usize` is not an Omega carrier
-([counts and addresses](wiki/spec/language/counts_and_addresses.md#separate-roles)).
-Neither section says whether a scalar comparison over an address may use its
-lower endpoint, which no address model changes.
+**Owner ruling, 2026-11-27.** Every numeric `address` is zero or positive.
+The proof checker may use `0 <= n` for any value `n: address` before target
+selection. Zero is a valid address value. The upper bound depends on the
+selected target's address model. Numeric address facts grant no memory access
+authority. [Counts and addresses](wiki/spec/language/counts_and_addresses.md#separate-roles)
 
-The compiler follows the fixed-integer reading. A logical contract over
-`address` now checks when its premise alone gives the conclusion, as in
-`machine(n: address) requires n == 1 ensures n != 0`. But
-`machine(n: address) requires n != 0 ensures n > 0` is refused with "value has
-no bound", although the `u8` version is accepted, because `n != 0` is
-`n < 0 ∨ 0 < n` and the first arm needs `0 <= n`.
+For example, a machine with `requires n != 0` may conclude `n > 0`. Without
+that premise or other evidence excluding zero, strict positivity does not
+follow. The current compiler refuses the nonzero-to-positive example with
+“value has no bound.”
 
-**Recommend that the scalar judgment also accept `0 <= value` for an address
-value**, and keep refusing the scalar upper bound, which depends on the
-target's width. The proposed row text: "Exactly `MIN <= value` or
-`value <= MAX` for a declared fixed-integer SSA value of the matching signed
-width, or `0 <= value` for a declared address value." The alternative keeps
-address order out of scalar proofs, so such a contract must be stated over a
-fixed carrier.
-Which reading holds?
+**Specification follow-up for the owners.** Extend the scalar carrier-bound
+rule to accept `0 <= value` for a declared address value alongside its existing
+fixed-integer endpoint cases. The mathematical rule for a selected address
+width continues to apply. [Elementary certificate rules](wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules)
 
 <a id="retired-w-encoding-text"></a>
 ### 7. May the proof specification drop its text about the retired W/IW encoding?
