@@ -1936,3 +1936,63 @@ public ConstantReading satisfies Reading {
     let candidates = &reviewed.semantic_module().interfaces.provider_candidates;
     assert_eq!(candidates.len(), 1);
 }
+
+/// A selected provider may publish a guarded crash route its requirement
+/// publishes. Review keeps the guard over the requirement's formal positions.
+/// The refused twin, a provider guard over other formals, is
+/// `crash_route_tests` in `package_review/providers.rs`: the checked provider
+/// here publishes its requirement's guard even when its own clause is
+/// narrower, so this source cannot reach it.
+#[test]
+fn selected_provider_review_keeps_a_guarded_crash_route_over_formal_positions() {
+    use review_evidence::record::{
+        PackagePolicyCrashGuard, PackageReviewContractExpression as Expression,
+        PackageReviewCrashCause,
+    };
+    let source =
+        fixture_repository::root().join("samples/cli/facts/indexed_crash_guard/target_body");
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-guarded-crash",
+        false,
+    )
+    .unwrap();
+    for file in ["build.omg", "main.omg"] {
+        std::fs::copy(source.join(file), temporary.path().join(file)).unwrap();
+    }
+    let reviewed = reviewed_policy(&temporary.path().join("build.omg"), TargetProfile::LinuxX64);
+    let policy = &reviewed.policy;
+    let requirement = policy
+        .callables
+        .callables()
+        .iter()
+        .find(|item| item.identity().path == "main.omg::SelectedForward::forward")
+        .unwrap();
+    let [route] = requirement.checked_crash.published.as_slice() else {
+        panic!("one published crash route");
+    };
+    assert_eq!(route.cause, PackageReviewCrashCause::Trap);
+    // `items[index] == 0`, stated over the requirement's formal positions.
+    let [PackagePolicyCrashGuard::Expression(Expression::Binary { left, right, .. })] =
+        route.alternative_guards.as_slice()
+    else {
+        panic!("one guarded alternative: {route:?}");
+    };
+    assert!(matches!(
+        left.as_ref(),
+        Expression::Indexed { collection, index, .. }
+            if matches!(collection.as_ref(), Expression::Parameter(0))
+                && matches!(index.as_ref(), Expression::Parameter(1))
+    ));
+    assert_eq!(right.as_ref(), &Expression::Integer("0".to_owned()));
+    let plan = policy
+        .selected_providers
+        .plans
+        .iter()
+        .find(|plan| {
+            plan.methods
+                .iter()
+                .any(|method| &method.requirement == requirement.identity())
+        })
+        .unwrap();
+    assert_eq!(plan.methods.len(), 1);
+}
