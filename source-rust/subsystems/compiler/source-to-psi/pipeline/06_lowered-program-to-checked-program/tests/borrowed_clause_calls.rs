@@ -378,3 +378,33 @@ machine m<'a>(held: @Mut<'a>) requires $held.slot > 3i32 {}
         "{refusal}"
     );
 }
+
+#[test]
+fn a_clause_call_relies_on_the_conjunct_before_it() {
+    accepted(&format!(
+        "{GUARDED}machine needs(value: @i32) requires $value > 0i32 && big(value) {{}}
+machine nested(value: @i32) requires $value > 1i32 && ($value > 0i32 && big(value)) {{}}
+machine forward(value: @i32) requires $value > 20i32 {{ needs(value); nested(value); }}
+"
+    ));
+    unproved(&format!(
+        "{GUARDED}machine needs(value: @i32) requires $value > 0i32 && big(value) {{}}
+machine forward(value: @i32) requires $value > 5i32 {{ needs(value); }}
+"
+    ));
+}
+
+#[test]
+fn a_clause_call_cannot_rely_on_a_later_conjunct_or_a_disjunct() {
+    for needs in [
+        "machine needs(value: @i32) requires big(value) && $value > 0i32 {}\n",
+        "machine needs(value: @i32) requires $value > -1i32 && big(value) {}\n",
+        "machine needs(value: @i32) requires $value > 0i32 || big(value) {}\n",
+    ] {
+        let refusal = lowering_refusal(&format!("{GUARDED}{needs}"));
+        assert!(
+            refusal.contains("called machine in a clause has an unproved precondition"),
+            "{refusal}"
+        );
+    }
+}

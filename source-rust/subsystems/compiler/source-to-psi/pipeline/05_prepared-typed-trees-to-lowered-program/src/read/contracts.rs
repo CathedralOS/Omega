@@ -790,12 +790,22 @@ impl Program<'_> {
         }
         let comparison = match operator {
             BinaryOperator::And => {
+                // `a && f(x)` reads `f(x)` only where `a` holds, so a
+                // precondition of a called machine on the right may be
+                // taken from the left, as from an earlier `requires` clause.
+                // The left side is read first and never relies on the right.
                 let mut conjuncts = Vec::new();
-                for side in [binary.left, binary.right] {
-                    match self.clause(id, scope, side)? {
-                        Proposition::Conjunction(inner) => conjuncts.extend(inner),
-                        other => conjuncts.push(other),
-                    }
+                match self.clause(id, scope, binary.left)? {
+                    Proposition::Conjunction(inner) => conjuncts.extend(inner),
+                    other => conjuncts.push(other),
+                }
+                let saved = self.enclosing_requires.len();
+                self.enclosing_requires.extend(conjuncts.iter().cloned());
+                let right = self.clause(id, scope, binary.right);
+                self.enclosing_requires.truncate(saved);
+                match right? {
+                    Proposition::Conjunction(inner) => conjuncts.extend(inner),
+                    other => conjuncts.push(other),
                 }
                 // A data clause is published with its type, so it takes the
                 // canonical order too. A conjunct that tests the case still
