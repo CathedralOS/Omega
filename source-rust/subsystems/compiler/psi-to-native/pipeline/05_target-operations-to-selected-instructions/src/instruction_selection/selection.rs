@@ -984,7 +984,6 @@ pub(crate) mod field_bytes {
                     }),
                     entry_block: BlockId::new(1).unwrap(),
                     blocks: Vec::new(),
-                    ownership_frontier_facts: Vec::new(),
                 };
                 let source = StructuralArgument {
                     place,

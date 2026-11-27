@@ -16,9 +16,9 @@ effect links, and ownership events required for independent stage verification.
 Why legalized operations retain both semantic contracts and target placements:
 Instruction selection and register allocation need concrete ABI placements, resolved byte offsets,
 and explicit runtime index strides, whereas independent legalization replay and access-roster
-verification must check that every target operation still honors its Terminal Psi source contract,
-accepted obligation facts, and ownership frontier. Keeping the semantic contract (`LegalizedStructuralContract`,
-`NativeCallOrigin`, `AcceptedObligationFactIdentity`, `OwnershipFrontierFact`) alongside the
+verification must check that every target operation still honors its Terminal Psi source contract
+and accepted obligation facts. Keeping the semantic contract (`LegalizedStructuralContract`,
+`NativeCallOrigin`, `AcceptedObligationFactIdentity`) alongside the
 target-legal instruction graph lets downstream verifiers audit the stage boundary without
 re-running the legalization solver.
 */

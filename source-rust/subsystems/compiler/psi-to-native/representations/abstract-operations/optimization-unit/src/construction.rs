@@ -68,8 +68,6 @@ pub fn reconstruct_psi_optimization_unit_seed(
         dynamic_dispatch: plan.dynamic_dispatch.clone(),
         callables: plan.callables.clone(),
         accepted_obligation_facts: Vec::new(),
-        ownership_frontier_facts: Vec::new(),
-        pruned_machines: Vec::new(),
         identities: plan.identities.clone(),
         runtime_evidence: None,
         functions,

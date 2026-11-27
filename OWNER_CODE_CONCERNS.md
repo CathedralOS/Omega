@@ -75,13 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-<a id="native-stages-carry-records-of-an-optimizer-that-no-longer-runs"></a>
-### Native stages 04–15 carry the records of an abstract optimizer that no longer runs
+<a id="native-stages-compare-identities-that-restate-their-inputs"></a>
+### Native stages 04–15 compare three identities that only restate their inputs
 - Category: 8. Zombie machinery
-- Where: `OptimizedAbstractProgram::unoptimized` (`source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/unoptimized.rs`); its readers in stage 04 (`target_lowering/mod.rs:372-374`, `preparation/legalization.rs:296`, `:602`, `:725`) and stage 15 (`native-artifact/src/physical/derivation/evidence.rs:181`)
-- Saw: native stage 03 is archived, so stage 04 issues an empty optimization identity bundle, a transformation ledger with no records, a plan-projection identity and a pre-physical manifest whose source and optimized statistics are equal. Later stages hash, carry and compare these as if a run had happened. `PsiOptimizationUnit::ownership_frontier_facts` is always empty on this path; stage 04 still threads the empty slice into legalization and compares it.
-- Cost: every native body pays for records nobody can change, and a reader of stage 04 or 15 has to learn an optimizer protocol that has no producer. A repair drops the records from `OptimizedAbstractProgram` and their comparisons together, or brings them back with a native optimization phase that actually rewrites the plan.
-- Reported: 2026-11-27, Claude Code, while archiving native stage 03
+- Where: `OptimizedAbstractProgram::unoptimized` (`source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/unoptimized.rs`) issues `optimization`, `projection` and `pre_physical_manifest`; `PreparedInstructionSelection` (`representations/target-operations/legalized-operations/src/selection.rs`) carries them into stage 05's selected-instruction custody (`representations/selected-instructions/src/lib.rs:263-272`), the stage 06 analyses and stage 07 allocation receipts; `pre_physical` also enters `PostAllocationOptimizationManifest` (`representations/register-homes/src/post_allocation_manifest.rs`) and the execution facts (`target-vocabulary/src/execution_facts.rs`), and the projection reaches stage 15 (`native-artifact/src/physical/projection.rs`)
+- Saw: native stage 03 is archived, and its ledger, decision log, pass manifests, statistics and ownership-frontier facts are deleted, so these three digests bind nothing a later stage lacks. The optimization identity rehashes the selection identity; the projection rehashes the Terminal identity, work schedule, unit identity and selection identity; the manifest identity rehashes the projection, selection identity and budget. Stages 05–08 carry and compare all three beside the selections and budget they already hold.
+- Cost: each stage record carries three 32-byte fields and their comparisons, and a reader has to learn identities that no optimization run produces. A repair has stages 05–15 compare the selection identity, unit identity and budget directly and deletes the three identity types, or brings them back with a native optimization phase that changes the plan.
+- Reported: 2026-11-27, Claude Code, while archiving native stage 03; narrowed the same day after the empty optimizer records were deleted
 
 <a id="flattened-asm-regions-drop-their-target"></a>
 ### Straight-line asm regions of place instructions lose their x86-64 requirement

@@ -4950,7 +4950,6 @@ pub(crate) mod reference_input {
                         ownership: Vec::new(),
                     }),
                 }],
-                ownership_frontier_facts: Vec::new(),
             }
         }
 
@@ -6556,7 +6555,6 @@ pub(crate) mod storage_origin_input {
                         ownership: Vec::new(),
                     }),
                 }],
-                ownership_frontier_facts: Vec::new(),
             }
         }
 

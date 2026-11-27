@@ -1372,12 +1372,6 @@ pub(crate) fn derive_target_function_rosters(
             )?,
             entry_block: function.graph.entry,
             blocks,
-            ownership_frontier_facts: evidence
-                .ownership_frontier_facts
-                .iter()
-                .filter(|fact| fact.machine == function.machine)
-                .cloned()
-                .collect(),
         });
     }
     Ok(SourceFunctionRosters { scalar_functions })

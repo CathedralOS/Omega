@@ -286,7 +286,6 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         optimization_unit: unit.identity,
         work_schedule: unit.work_schedule,
         accepted_obligation_facts: &[],
-        ownership_frontier_facts: &[],
     };
     let origins = BoundaryOriginFacts {
         program_entry: None,

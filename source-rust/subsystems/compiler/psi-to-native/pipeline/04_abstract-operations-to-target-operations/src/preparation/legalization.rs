@@ -293,7 +293,6 @@ pub struct PreparationEvidence<'input> {
     pub optimization_unit: optimization_core::OptimizationUnitIdentity,
     pub work_schedule: semantic_vocabulary::WorkScheduleIdentity,
     pub accepted_obligation_facts: &'input [optimization_unit::AcceptedObligationFact],
-    pub ownership_frontier_facts: &'input [optimization_unit::OwnershipFrontierFact],
 }
 
 #[cfg(test)]
@@ -315,7 +314,6 @@ pub(crate) fn legalize_target_operations(
             optimization_unit: unit.identity,
             work_schedule: unit.work_schedule,
             accepted_obligation_facts: &unit.accepted_obligation_facts,
-            ownership_frontier_facts: &unit.ownership_frontier_facts,
         },
         origins,
         &callable_invocations,
@@ -576,7 +574,6 @@ fn audit_target_operation_plan_with_module(
             optimization_unit: unit.identity,
             work_schedule: unit.work_schedule,
             accepted_obligation_facts: &unit.accepted_obligation_facts,
-            ownership_frontier_facts: &unit.ownership_frontier_facts,
         },
         closed_types,
     )?;
@@ -599,7 +596,7 @@ pub fn verify_execution_plan(
 ) -> Result<(), LegalizationError> {
     let abstract_plan = optimized.plan();
     let unit = optimized.unit();
-    let pre_physical = optimized.pre_physical_manifest().identity;
+    let pre_physical = optimized.pre_physical_manifest();
     let origins = crate::preparation::BoundaryOriginFacts::from_lowering(lowering);
     let installed_interrupts = lowering.installed_interrupts();
     let closed_module = lowering.closed_module();
@@ -711,7 +708,6 @@ pub fn verify_execution_plan(
             optimization_unit: unit.identity,
             work_schedule: unit.work_schedule,
             accepted_obligation_facts: &unit.accepted_obligation_facts,
-            ownership_frontier_facts: &unit.ownership_frontier_facts,
         },
         &closed_types,
     )?;
@@ -722,8 +718,6 @@ pub fn verify_execution_plan(
         if expected != published {
             let part = if expected.machine != published.machine {
                 "the plan orders its functions differently"
-            } else if expected.ownership_frontier_facts != published.ownership_frontier_facts {
-                "ownership-frontier facts"
             } else if expected.parameters != published.parameters
                 || expected.call_plan != published.call_plan
                 || expected.structural != published.structural

@@ -405,7 +405,6 @@ fn retained_target<'replay>(
                 .target_for_correspondence()
                 .optimized()
                 .pre_physical_manifest()
-                .identity
     {
         return Err(diagnostics::Diagnostic::error(format!(
             "{audit} audit: retained target operations name another pre-physical manifest"

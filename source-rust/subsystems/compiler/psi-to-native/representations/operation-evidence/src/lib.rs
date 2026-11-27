@@ -4,6 +4,5 @@
 #![forbid(unsafe_code)]
 
 pub mod completion_claims;
-pub mod ownership_frontier;
 pub mod provenance;
 pub mod provider_calls;

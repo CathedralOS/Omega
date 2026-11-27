@@ -11,7 +11,7 @@ registers or frame offsets.
 `lower_native_body` prepares the plan with
 [`prepare_execution_plan`](../preparation/legalization.rs). That joins
 the target operations to what this stage already holds: the optimized
-program's accepted obligation and ownership-frontier facts, the admitted
+program's accepted obligation facts, the admitted
 boundary origins and interrupt installations, and the integer types the
 sealed module retains. Preparation closes every scalar type it writes into
 the plan against those module types, including the leaf scalars of

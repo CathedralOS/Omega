@@ -35,8 +35,8 @@ impl SemanticEmissionFacts {
             || self.program.psi != working.psi
             || self.program.entry != working.entry
             || self.projection.identity != optimized.projection()
-            || self.projection.terminal != optimized.projection_psi()
-            || self.projection.final_unit != optimized.final_unit()
+            || self.projection.terminal != optimized.unit().psi
+            || self.projection.final_unit != optimized.unit().identity
             || optimized.plan().psi != working.psi
             || lowering.closed_module().identity() != working.psi
             || plan.psi != working.psi
