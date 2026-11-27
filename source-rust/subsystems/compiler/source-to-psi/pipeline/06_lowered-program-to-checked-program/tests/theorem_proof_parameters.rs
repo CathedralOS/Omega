@@ -1059,21 +1059,57 @@ fn a_theorem_applied_to_a_record_field_owes_its_premise_for_that_field() {
     assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
 }
 
-/// A record the machine builds itself is not one of its record formals.
-#[test]
-fn a_theorem_applied_to_a_local_record_is_refused_by_name() {
-    let source = INNER_FIELD.replacen(
+/// A record the applying machine establishes itself is a subject too: its
+/// contents reaching the application are the subjects' values.
+fn local(x: &str, ensures: &str) -> String {
+    INNER_FIELD.replacen(
         "requires p.inner.x == 1u8\nensures p.inner.x != 0u8\n{\n    Step(p.inner);",
-        "{\n    let i: Inner = Inner { x: 1u8, z: 3u8 };\n    Step(i);",
+        &format!("{ensures}{{\n    let i: Inner = Inner {{ x: {x}, z: 3u8 }};\n    Step(i);"),
         1,
-    );
+    )
+}
+
+#[test]
+fn a_theorem_applied_to_a_record_the_machine_establishes_owes_its_premise_there() {
+    let source = local("1u8", "");
     assert!(source.contains("Step(i);"), "{source}");
+    let verdict = Program::of(&source).judged(|elaboration| {
+        let application = &elaboration.module.proofs.theorem_applications[0];
+        let machine = elaboration.module.machine(application.machine).unwrap();
+        assert!(
+            application.arguments.iter().all(|argument| matches!(
+                argument,
+                semantic_vocabulary::ScalarTerm::IntegerField { root, .. }
+                    if terminal_psi::StructuralParameterDeclaration::find_by_place(
+                        &machine.contract.structural_parameters,
+                        *root,
+                    )
+                    .is_none()
+            )),
+            "each subject reads the established record: {application:?}"
+        );
+    });
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_record_the_machine_establishes_must_meet_the_premise() {
+    let source = local("0u8", "");
+    assert!(source.contains("Inner { x: 0u8"), "{source}");
     let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// The conclusion is about the established record, not the formal.
+#[test]
+fn a_theorem_applied_to_an_established_record_concludes_nothing_about_a_formal() {
+    let source = local("1u8", "ensures p.inner.x != 0u8\n");
     assert!(
-        format!("{verdict:?}")
-            .contains("logical data subject is not a record formal of its machine"),
-        "{verdict:?}"
+        source.contains("ensures p.inner.x != 0u8\n{\n    let i"),
+        "{source}"
     );
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
 }
 
 /// Terminal Psi may name a theorem over a record directly in an
