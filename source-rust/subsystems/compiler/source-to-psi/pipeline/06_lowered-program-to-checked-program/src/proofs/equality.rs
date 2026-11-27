@@ -1790,6 +1790,38 @@ pub(crate) fn prove_licensed(
     search_steps: usize,
     conversion: &mut Budget,
 ) -> Result<TermHandle, SearchError> {
+    // The box of a strict statement is introduced from a proof of that
+    // statement, and a squash is proved strictly (`squashed`).
+    let head = weak_head_normalize(arena, context.signature(), goal, conversion)?;
+    match arena.get(head) {
+        Term::Box { ty } => {
+            let value = prove_licensed(
+                arena,
+                context,
+                definitions,
+                ty,
+                citations,
+                licenses,
+                search_steps,
+                conversion,
+            )?;
+            return Ok(arena.insert(Term::BoxIntro { ty, value }));
+        }
+        Term::Squash { ty } => {
+            return squashed(
+                arena,
+                context,
+                definitions,
+                head,
+                ty,
+                citations,
+                licenses,
+                search_steps,
+                conversion,
+            );
+        }
+        _ => {}
+    }
     if definitions.abbreviates() {
         definitions.2.set(true);
         let as_written = prove_as(
@@ -1818,6 +1850,97 @@ pub(crate) fn prove_licensed(
         search_steps,
         conversion,
     )
+}
+
+/*
+    A proof of `Squash G`. A citation of that very type proves it. Otherwise
+    the first citation that is itself strict, a `Squash P` or a `Box S`, is
+    opened: its eliminator targets the strict goal, so the witness inside is
+    a citation only of the proof the goal is stated under, and no relevant
+    value leaves it. Opening one never loses a proof, so the citations are
+    opened in order, each once. With none left to open, a proof of `G` is
+    squashed.
+*/
+#[allow(clippy::too_many_arguments)]
+fn squashed(
+    arena: &mut TermArena,
+    context: &Context,
+    definitions: &Definitions,
+    goal: TermHandle,
+    stated: TermHandle,
+    citations: &[TermHandle],
+    licenses: Licenses<'_>,
+    search_steps: usize,
+    conversion: &mut Budget,
+) -> Result<TermHandle, SearchError> {
+    let mut opened = None;
+    for (position, &citation) in citations.iter().enumerate() {
+        let ty = infer_type(arena, context, citation, conversion)?;
+        let ty = weak_head_normalize(arena, context.signature(), ty, conversion)?;
+        if arena.structurally_equal(ty, goal) {
+            return Ok(citation);
+        }
+        if opened.is_none() && matches!(arena.get(ty), Term::Squash { .. } | Term::Box { .. }) {
+            opened = Some((position, ty));
+        }
+    }
+    let Some((position, ty)) = opened else {
+        let value = prove_licensed(
+            arena,
+            context,
+            definitions,
+            stated,
+            citations,
+            licenses,
+            search_steps,
+            conversion,
+        )?;
+        return Ok(arena.insert(Term::SquashIntro { ty: stated, value }));
+    };
+    let (Term::Squash { ty: inner } | Term::Box { ty: inner }) = arena.get(ty) else {
+        unreachable!("the opened citation is strict");
+    };
+    let scrutinee = citations[position];
+    let mut under: Vec<TermHandle> = citations
+        .iter()
+        .enumerate()
+        .filter(|&(other, _)| other != position)
+        .map(|(_, &citation)| shift(arena, citation, 0, 1))
+        .collect();
+    under.push(arena.insert(Term::Variable(0)));
+    let lifted = shift(arena, goal, 0, 1);
+    let witness = prove_licensed(
+        arena,
+        &context.extend(inner),
+        definitions,
+        lifted,
+        &under,
+        licenses,
+        search_steps,
+        conversion,
+    )?;
+    let function = arena.insert(Term::Lambda {
+        domain: inner,
+        body: witness,
+    });
+    Ok(match arena.get(ty) {
+        Term::Squash { .. } => arena.insert(Term::SquashElim {
+            proposition: goal,
+            function,
+            scrutinee,
+        }),
+        _ => {
+            let motive = arena.insert(Term::Lambda {
+                domain: ty,
+                body: lifted,
+            });
+            arena.insert(Term::BoxElim {
+                motive,
+                body: function,
+                scrutinee,
+            })
+        }
+    })
 }
 
 /// One try of [`prove_licensed`], with abbreviations as `definitions` has

@@ -561,6 +561,62 @@ impl Program<'_> {
             )
     }
 
+    /*
+        `|proof|::Squash::<P>` is the strict proposition that `P` holds, and
+        `|proof|::Box::<S>` the relevant type of the strict `S`
+        (`wiki/spec/proofs/mathematical_bindings.md#importing-the-mathematical-foundation`).
+        Each takes the one static argument it is applied to; a proposition
+        written there is read as a clause.
+    */
+    fn foundation_type_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        member: &crate::source_state::expression::StaticMachineArgument,
+    ) -> Checked<Proposition> {
+        let typed = self.typed;
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
+        let fixed = typed
+            .symbols
+            .fixed_core_declaration_for_symbol(member.symbol);
+        if let Some(
+            fixed @ (symbols::FixedCoreDeclaration::Box | symbols::FixedCoreDeclaration::Squash),
+        ) = fixed
+        {
+            let Some([argument]) = member
+                .application
+                .as_ref()
+                .map(|application| application.arguments.as_ref())
+            else {
+                return Err(unserved(
+                    "foundation type applied to other than one argument",
+                ));
+            };
+            let inner = Box::new(self.foundation_type_clause(id, scope, argument)?);
+            return Ok(match fixed {
+                symbols::FixedCoreDeclaration::Box => Proposition::Boxed(inner),
+                _ => Proposition::Squash(inner),
+            });
+        }
+        if member.type_reference.is_valid()
+            && let TypeReferenceNode::ConstExpression(expression) = typed
+                .type_reference_table
+                .type_reference(member.type_reference)
+        {
+            if let ExpressionNode::Call(call) = typed.expression_table.expression(*expression)
+                && typed
+                    .proposition_definition_by_symbol(call.target_symbol)
+                    .is_some()
+            {
+                return self.named_proposition_call(id, scope, call);
+            }
+            return self.clause(id, scope, *expression);
+        }
+        Err(unserved(
+            "foundation type argument that is not a proposition",
+        ))
+    }
+
     fn read_clause(
         &mut self,
         id: MachineId,
@@ -610,6 +666,24 @@ impl Program<'_> {
                     premise: Box::new(self.clause(id, scope, unary.operand)?),
                     conclusion: Box::new(Proposition::Falsehood),
                 });
+            }
+            ExpressionNode::Name(path)
+                if path.static_application.is_valid()
+                    && matches!(
+                        typed.symbols.fixed_core_declaration_for_symbol(path.symbol),
+                        Some(
+                            symbols::FixedCoreDeclaration::Box
+                                | symbols::FixedCoreDeclaration::Squash
+                        )
+                    ) =>
+            {
+                let member = typed
+                    .expression_table
+                    .static_member(path.static_application)
+                    .ok_or_else(|| {
+                        refuse_at(id, Unserved::Contract("foundation type without its member"))
+                    })?;
+                return self.foundation_type_clause(id, scope, member);
             }
             // A clause that is one Boolean value reads it as an operand is
             // read: `requires $flag` over `flag: @bool` reads the referent,
