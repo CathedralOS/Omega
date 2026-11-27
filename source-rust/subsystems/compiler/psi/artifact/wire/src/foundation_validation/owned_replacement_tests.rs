@@ -5,10 +5,11 @@ use semantic_vocabulary::{
     ClaimId, MachineId, OperationId, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId,
 };
 use terminal_psi::{
-    EntryClaim, NominalCleanupSelection, Operation, OperationKind, OperationResult,
-    StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralStoreDisposition, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalIdentityIndex, TerminalMachine, TerminalModule,
+    EntryClaim, NominalCleanupSelection, NominalDeclarationIdentity, Operation, OperationKind,
+    OperationResult, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralStoreDisposition,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityIndex, TerminalMachine,
+    TerminalModule,
 };
 
 #[test]
@@ -84,8 +85,11 @@ fn replacing_an_owned_root_requires_its_prior_contents_to_be_discardable() {
     });
     assert!(!admitted(&module, &machine));
     machine.entry_claims.clear();
+    module.types.structural_types[0].owns_linear_claim = true;
+    assert!(!admitted(&module, &machine));
+    module.types.structural_types[0].owns_linear_claim = false;
     module.types.structural_types[0].nominal_cleanup = Some(NominalCleanupSelection {
-        declaration: Default::default(),
+        declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
         cleanup_machine: MachineId::new(2).unwrap(),
     });
     assert!(!admitted(&module, &machine));
