@@ -47,100 +47,227 @@ pub(crate) mod captures {
     }
 }
 pub mod const_integer {
-    use super::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable};
-    use symbols::SymbolHandle;
+    /*
+    Every reader that needs the value of an integer calculation before a
+    machine runs reads it here: a static argument written as a calculation
+    (`closed_literal`), an array extent (`ExpressionTable::constant_integer_value`)
+    and a const expression in a specialized machine (`Index<Count + 1>`
+    after `Count = 3`). Each reads the exact value the calculation denotes,
+    or no value; none of them may wrap, truncate or narrow it.
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub enum ConstIntegerExpression {
-        Closed(i128),
-        Open,
+    numeric_values.md, "Literal landing and destinations": a suffixed literal
+    "retains its chosen carrier", "computational arithmetic lands an
+    anonymous peer in its carrier", and "Anonymous integer-literal division
+    is rational division, not truncation". So `255u8 + 1` has no `u8` value,
+    `7u64 / 2u64` is the integer quotient `3u64`, and `7 / 2` is the fraction
+    7/2. The values are `bignum` integers, so a calculation over `u128` or
+    wider literals is exact at every width.
+
+    The fold answers in three ways. A value. `Undecided` where the answer
+    belongs to an evaluator that sees more than literals: a name the caller
+    does not bind, another operator, an operator suffix (`+%`), two carriers
+    (typing reports that), a fractional anonymous quotient (the fractional
+    diagnostic needs its origin), anonymous `%` (remainder needs integer
+    operand meaning) or a wrapping or saturating carrier whose result left
+    its range. `Refused` where the calculation is closed and has no value:
+    a division by zero, or an exact result, a literal or an anonymous peer
+    outside its carrier. A Wrapping, Saturating or Trapping carrier never
+    repairs an out-of-range literal or peer.
+    */
+    use super::expression::{
+        BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
+    };
+    use bignum::BigInt;
+    use numeric_literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    use numerics::arithmetic::ArithmeticDomain;
+
+    /// What exact evaluation found for one integer calculation.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum ExactInteger {
+        /// The exact value, in the carrier its typed operands state; `None`
+        /// for a wholly anonymous calculation.
+        Value {
+            value: BigInt,
+            landing: Option<IntegerLanding>,
+        },
+        /// Not this fold's to decide; the expression stays as written.
+        Undecided,
+        /// The calculation is closed and has no value.
+        Refused(Refusal),
     }
 
-    pub fn classify(
-        expressions: &ExpressionTable,
-        expression: ExpressionHandle,
-        is_binder: &impl Fn(SymbolHandle, &str) -> bool,
-    ) -> Option<ConstIntegerExpression> {
-        fold(
-            expressions,
-            expression,
-            &|leaf| match leaf {
-                IntegerLeaf::Literal(literal) => literal
-                    .value_i64()
-                    .map(i128::from)
-                    .or_else(|| literal.value_u64().map(i128::from))
-                    .map(ConstIntegerExpression::Closed),
-                IntegerLeaf::Name { symbol, spelling } => {
-                    if !symbol.is_valid()
-                        && let Ok(value) = spelling.parse::<i128>()
-                    {
-                        return Some(ConstIntegerExpression::Closed(value));
-                    }
-                    is_binder(symbol, spelling).then_some(ConstIntegerExpression::Open)
-                }
-            },
-            &|operator, left, right| match (left, right) {
-                (ConstIntegerExpression::Closed(left), ConstIntegerExpression::Closed(right)) => {
-                    apply(operator, left, right).map(ConstIntegerExpression::Closed)
-                }
-                _ => Some(ConstIntegerExpression::Open),
-            },
-        )
-    }
-
-    enum IntegerLeaf<'expression> {
-        Literal(&'expression numeric_literals::IntegerLiteral),
-        Name {
-            symbol: SymbolHandle,
-            spelling: &'expression str,
+    /// Why a closed calculation has no value.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum Refusal {
+        DivisionByZero,
+        OutsideCarrier {
+            value: BigInt,
+            carrier: LandedIntegerType,
         },
     }
 
-    fn fold<Value>(
-        expressions: &ExpressionTable,
-        expression: ExpressionHandle,
-        leaf: &impl Fn(IntegerLeaf<'_>) -> Option<Value>,
-        operation: &impl Fn(BinaryOperator, Value, Value) -> Option<Value>,
-    ) -> Option<Value> {
-        match expressions.expression(expression) {
-            ExpressionNode::Integer(literal) => leaf(IntegerLeaf::Literal(literal)),
-            ExpressionNode::Name(path) if !path.static_application.is_valid() => {
-                let [member] = expressions.name_path_members(path.members) else {
-                    return None;
-                };
-                leaf(IntegerLeaf::Name {
-                    symbol: path.symbol,
-                    spelling: member.as_str(),
-                })
+    impl std::fmt::Display for Refusal {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::DivisionByZero => formatter.write_str("it divides by zero"),
+                Self::OutsideCarrier { value, carrier } => {
+                    write!(formatter, "the value {value} is outside `{carrier}`")
+                }
             }
-            ExpressionNode::Binary(binary)
-                if matches!(
-                    binary.operator,
-                    BinaryOperator::Add
-                        | BinaryOperator::Subtract
-                        | BinaryOperator::Multiply
-                        | BinaryOperator::Divide
-                        | BinaryOperator::Modulo
-                ) =>
-            {
-                operation(
-                    binary.operator,
-                    fold(expressions, binary.left, leaf, operation)?,
-                    fold(expressions, binary.right, leaf, operation)?,
-                )
-            }
-            _ => None,
         }
     }
 
-    fn apply(operator: BinaryOperator, left: i128, right: i128) -> Option<i128> {
-        match operator {
-            BinaryOperator::Add => left.checked_add(right),
-            BinaryOperator::Subtract => left.checked_sub(right),
-            BinaryOperator::Multiply => left.checked_mul(right),
-            BinaryOperator::Divide => left.checked_div(right),
-            BinaryOperator::Modulo => left.checked_rem(right),
-            _ => None,
+    /// The operators a reader folds.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Operators {
+        /// `+`, `-` and `*`.
+        Ring,
+        /// `+`, `-`, `*`, `/` and `%`.
+        WithQuotients,
+    }
+
+    impl Operators {
+        fn fold(self, operator: BinaryOperator) -> bool {
+            match operator {
+                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply => true,
+                BinaryOperator::Divide | BinaryOperator::Modulo => self == Self::WithQuotients,
+                _ => false,
+            }
+        }
+    }
+
+    /// The exact value of `expression`: integer literals, names the caller
+    /// binds to a literal through `name`, and `operators` under the bare
+    /// (Exact) operator.
+    pub fn exact_value(
+        expressions: &ExpressionTable,
+        expression: ExpressionHandle,
+        operators: Operators,
+        name: &impl Fn(&TableNamePath) -> Option<IntegerLiteral>,
+    ) -> ExactInteger {
+        if !expressions.expression_is_valid(expression) {
+            return ExactInteger::Undecided;
+        }
+        match expressions.expression(expression) {
+            ExpressionNode::Integer(literal) => literal_value(literal),
+            ExpressionNode::Name(path) => name(path)
+                .as_ref()
+                .map_or(ExactInteger::Undecided, literal_value),
+            ExpressionNode::Binary(binary)
+                if binary.policy == ArithmeticDomain::Exact && operators.fold(binary.operator) =>
+            {
+                let left = exact_value(expressions, binary.left, operators, name);
+                let right = exact_value(expressions, binary.right, operators, name);
+                match (left, right) {
+                    (
+                        ExactInteger::Value {
+                            value: left,
+                            landing: left_landing,
+                        },
+                        ExactInteger::Value {
+                            value: right,
+                            landing: right_landing,
+                        },
+                    ) => apply(
+                        binary.operator,
+                        (left, left_landing),
+                        (right, right_landing),
+                    ),
+                    // A closed operand with no value leaves the whole
+                    // calculation without one, whatever its peer is.
+                    (ExactInteger::Refused(refusal), _) | (_, ExactInteger::Refused(refusal)) => {
+                        ExactInteger::Refused(refusal)
+                    }
+                    _ => ExactInteger::Undecided,
+                }
+            }
+            _ => ExactInteger::Undecided,
+        }
+    }
+
+    fn literal_value(literal: &IntegerLiteral) -> ExactInteger {
+        let Some(value) = literal.value_bignum() else {
+            return ExactInteger::Undecided;
+        };
+        let landing = literal.landing();
+        if let Some(carrier) = landing
+            && !admits(carrier, &value)
+        {
+            return refused_outside(value, carrier);
+        }
+        ExactInteger::Value { value, landing }
+    }
+
+    fn apply(
+        operator: BinaryOperator,
+        (left, left_landing): (BigInt, Option<IntegerLanding>),
+        (right, right_landing): (BigInt, Option<IntegerLanding>),
+    ) -> ExactInteger {
+        let landing = match (left_landing, right_landing) {
+            (Some(left), Some(right)) if left != right => return ExactInteger::Undecided,
+            (left, right) => left.or(right),
+        };
+        // An anonymous peer lands in the typed operand's carrier.
+        if let Some(carrier) = landing
+            && let Some(outside) = [&left, &right]
+                .into_iter()
+                .find(|operand| !admits(carrier, operand))
+        {
+            return refused_outside(outside.clone(), carrier);
+        }
+        let value = match operator {
+            BinaryOperator::Add => left.add(&right),
+            BinaryOperator::Subtract => left.sub(&right),
+            BinaryOperator::Multiply => left.mul(&right),
+            BinaryOperator::Modulo if landing.is_none() => return ExactInteger::Undecided,
+            BinaryOperator::Divide | BinaryOperator::Modulo => {
+                let Some((quotient, remainder)) = left.div_rem(&right) else {
+                    return ExactInteger::Refused(Refusal::DivisionByZero);
+                };
+                match landing {
+                    // Rational division: an inexact quotient is a fraction.
+                    None if !remainder.is_zero() => return ExactInteger::Undecided,
+                    None => quotient,
+                    // A typed operand selects the carrier's quotient,
+                    // truncated toward zero. Its remainder exists only where
+                    // that quotient is a value of the carrier (`i8` -128 % -1).
+                    Some(carrier) if operator == BinaryOperator::Modulo => {
+                        if !admits(carrier, &quotient) {
+                            return result_outside(quotient, carrier);
+                        }
+                        remainder
+                    }
+                    Some(_) => quotient,
+                }
+            }
+            _ => return ExactInteger::Undecided,
+        };
+        match landing {
+            Some(carrier) if !admits(carrier, &value) => result_outside(value, carrier),
+            _ => ExactInteger::Value { value, landing },
+        }
+    }
+
+    fn admits(carrier: IntegerLanding, value: &BigInt) -> bool {
+        carrier.landed_type.value_carrier().admits(value)
+    }
+
+    /// A literal or an anonymous peer outside its carrier: no carrier
+    /// policy repairs an out-of-range initial value.
+    fn refused_outside(value: BigInt, carrier: IntegerLanding) -> ExactInteger {
+        ExactInteger::Refused(Refusal::OutsideCarrier {
+            value,
+            carrier: carrier.landed_type,
+        })
+    }
+
+    /// An operation result outside its carrier. Exact and Trapping carriers
+    /// have no value there; a wrapping or saturating carrier has one this
+    /// exact fold does not compute.
+    fn result_outside(value: BigInt, carrier: IntegerLanding) -> ExactInteger {
+        match carrier.domain {
+            ArithmeticDomain::Exact | ArithmeticDomain::Trapping => refused_outside(value, carrier),
+            ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating => ExactInteger::Undecided,
         }
     }
 
@@ -154,15 +281,10 @@ pub mod const_integer {
     static argument reads that one literal.
 
     Only what needs no machine and no declaration is folded: integer literals
-    under the bare `+`, `-` and `*`. numeric_values.md, "Literal landing and
-    destinations": a suffixed literal "retains its chosen carrier", and "an
-    already typed operand selects its operation's declared admission rules:
-    computational arithmetic lands an anonymous peer in its carrier". Typed
-    operands must therefore agree on one carrier, an anonymous operand must
-    fit it, and every typed result must fit it at its own node; a wholly
-    anonymous calculation stays exact and keeps no carrier. Division is left
-    out: between anonymous literals it is rational division, which this
-    reader has no value for.
+    under the bare `+`, `-` and `*` (`Operators::Ring`). Typed operands must
+    agree on one carrier, an anonymous operand must fit it, and every typed
+    result must fit it at its own node; a wholly anonymous calculation stays
+    exact and keeps no carrier.
 
     Anything else (a name, a call, another operator, two carriers, a value
     out of its carrier's range) is not this fold's to decide and yields
@@ -172,21 +294,24 @@ pub mod const_integer {
     pub fn closed_literal(
         expressions: &ExpressionTable,
         expression: ExpressionHandle,
-    ) -> Option<numeric_literals::IntegerLiteral> {
-        use numeric_literals::{IntegerLiteral, IntegerRadix};
+    ) -> Option<IntegerLiteral> {
         if !matches!(
             expressions.expression(expression),
             ExpressionNode::Binary(_)
         ) {
             return None;
         }
-        let (value, landing) = closed_value(expressions, expression)?;
-        let literal = match i64::try_from(value) {
-            Ok(narrow) => IntegerLiteral::from_value(narrow),
-            Err(_) => IntegerLiteral::from_parts(
-                value < 0,
+        let ExactInteger::Value { value, landing } =
+            exact_value(expressions, expression, Operators::Ring, &|_| None)
+        else {
+            return None;
+        };
+        let literal = match value.to_i64() {
+            Some(narrow) => IntegerLiteral::from_value(narrow),
+            None => IntegerLiteral::from_parts(
+                value.is_negative(),
                 IntegerRadix::Decimal,
-                &value.unsigned_abs().to_string(),
+                &value.abs().to_string(),
             )
             .ok()?,
         };
@@ -196,55 +321,10 @@ pub mod const_integer {
         })
     }
 
-    fn closed_value(
-        expressions: &ExpressionTable,
-        expression: ExpressionHandle,
-    ) -> Option<(i128, Option<numeric_literals::IntegerLanding>)> {
-        match expressions.expression(expression) {
-            ExpressionNode::Integer(literal) => {
-                let value = literal
-                    .value_i64()
-                    .map(i128::from)
-                    .or_else(|| literal.value_u64().map(i128::from))?;
-                let landing = literal.landing();
-                landing
-                    .is_none_or(|landing| landing.landed_type.admits_i128(value))
-                    .then_some((value, landing))
-            }
-            ExpressionNode::Binary(binary)
-                if binary.policy == numerics::arithmetic::ArithmeticDomain::Exact
-                    && matches!(
-                        binary.operator,
-                        BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
-                    ) =>
-            {
-                let (left, left_landing) = closed_value(expressions, binary.left)?;
-                let (right, right_landing) = closed_value(expressions, binary.right)?;
-                let landing = match (left_landing, right_landing) {
-                    (Some(left), Some(right)) if left != right => return None,
-                    (left, right) => left.or(right),
-                };
-                let value = apply(binary.operator, left, right)?;
-                // An anonymous peer lands in the typed operand's carrier, and
-                // the typed result is a value of that carrier.
-                landing
-                    .is_none_or(|landing| {
-                        [left, right, value]
-                            .into_iter()
-                            .all(|value| landing.landed_type.admits_i128(value))
-                    })
-                    .then_some((value, landing))
-            }
-            _ => None,
-        }
-    }
-
     #[cfg(test)]
     mod tests {
         use super::super::expression::TableBinaryExpression;
         use super::*;
-        use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
-        use numerics::arithmetic::ArithmeticDomain;
 
         fn landed(value: i64, name: &str) -> IntegerLiteral {
             IntegerLiteral::from_value(value).with_landing(IntegerLanding {
@@ -315,6 +395,265 @@ pub mod const_integer {
             let mut expressions = ExpressionTable::default();
             let literal = expressions.insert(ExpressionNode::Integer(anonymous(3)));
             assert!(closed_literal(&expressions, literal).is_none());
+        }
+
+        fn carrier(name: &str, domain: ArithmeticDomain) -> IntegerLanding {
+            IntegerLanding {
+                landed_type: LandedIntegerType::from_name(name).expect("an integer type"),
+                domain,
+            }
+        }
+
+        fn digits(text: &str) -> IntegerLiteral {
+            IntegerLiteral::from_parts(false, IntegerRadix::Decimal, text).expect("decimal digits")
+        }
+
+        fn big(text: &str) -> BigInt {
+            BigInt::from_decimal_str(text).expect("decimal digits")
+        }
+
+        fn leaf(expressions: &mut ExpressionTable, literal: IntegerLiteral) -> ExpressionHandle {
+            expressions.insert(ExpressionNode::Integer(literal))
+        }
+
+        fn under(
+            expressions: &mut ExpressionTable,
+            left: ExpressionHandle,
+            operator: BinaryOperator,
+            policy: ArithmeticDomain,
+            right: ExpressionHandle,
+        ) -> ExpressionHandle {
+            expressions.insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                operator,
+                right,
+                policy,
+                negation: false,
+            }))
+        }
+
+        fn exact(
+            expressions: &mut ExpressionTable,
+            left: ExpressionHandle,
+            operator: BinaryOperator,
+            right: ExpressionHandle,
+        ) -> ExpressionHandle {
+            under(expressions, left, operator, ArithmeticDomain::Exact, right)
+        }
+
+        /// `left operator right` over two literals, with every operator.
+        fn folded(
+            left: IntegerLiteral,
+            operator: BinaryOperator,
+            right: IntegerLiteral,
+        ) -> ExactInteger {
+            let mut expressions = ExpressionTable::default();
+            let left = leaf(&mut expressions, left);
+            let right = leaf(&mut expressions, right);
+            let root = exact(&mut expressions, left, operator, right);
+            exact_value(&expressions, root, Operators::WithQuotients, &|_| None)
+        }
+
+        fn value(value: &str, landing: Option<IntegerLanding>) -> ExactInteger {
+            ExactInteger::Value {
+                value: big(value),
+                landing,
+            }
+        }
+
+        fn outside(value: &str, carrier: &str) -> ExactInteger {
+            ExactInteger::Refused(Refusal::OutsideCarrier {
+                value: big(value),
+                carrier: LandedIntegerType::from_name(carrier).expect("an integer type"),
+            })
+        }
+
+        /// Exact values at every width: a `u128` result past every host
+        /// `i128`, an anonymous intermediate past `i64`, typed quotients and
+        /// remainders truncated toward zero, and an anonymous quotient that
+        /// divides exactly.
+        #[test]
+        fn exact_evaluation_keeps_every_value_at_every_width() {
+            let exact_u128 = carrier("u128", ArithmeticDomain::Exact);
+            let u128_max = "340282366920938463463374607431768211455";
+            assert_eq!(
+                folded(
+                    digits(u128_max).with_landing(exact_u128),
+                    BinaryOperator::Subtract,
+                    landed(1, "u128"),
+                ),
+                value("340282366920938463463374607431768211454", Some(exact_u128))
+            );
+            assert_eq!(
+                folded(landed(7, "u64"), BinaryOperator::Divide, landed(2, "u64")),
+                value("3", Some(carrier("u64", ArithmeticDomain::Exact)))
+            );
+            assert_eq!(
+                folded(landed(-7, "i8"), BinaryOperator::Divide, landed(2, "i8")),
+                value("-3", Some(carrier("i8", ArithmeticDomain::Exact)))
+            );
+            assert_eq!(
+                folded(landed(-7, "i8"), BinaryOperator::Modulo, landed(2, "i8")),
+                value("-1", Some(carrier("i8", ArithmeticDomain::Exact)))
+            );
+            let anonymous = IntegerLiteral::from_value;
+            assert_eq!(
+                folded(anonymous(6), BinaryOperator::Divide, anonymous(2)),
+                value("3", None)
+            );
+            // (i64::MAX * 4) / 4: the product leaves `i64`, the result is back in it.
+            let mut expressions = ExpressionTable::default();
+            let maximum = leaf(&mut expressions, anonymous(i64::MAX));
+            let four = leaf(&mut expressions, anonymous(4));
+            let product = exact(&mut expressions, maximum, BinaryOperator::Multiply, four);
+            let four = leaf(&mut expressions, anonymous(4));
+            let root = exact(&mut expressions, product, BinaryOperator::Divide, four);
+            assert_eq!(
+                exact_value(&expressions, root, Operators::WithQuotients, &|_| None),
+                value(&i64::MAX.to_string(), None)
+            );
+            assert_eq!(expressions.constant_integer_value(root), Some(i64::MAX));
+            // A name the caller binds reads its literal, in its carrier.
+            let mut expressions = ExpressionTable::default();
+            let count = expressions.insert(ExpressionNode::Name(TableNamePath::default()));
+            let one = leaf(&mut expressions, anonymous(1));
+            let root = exact(&mut expressions, count, BinaryOperator::Add, one);
+            let bound = |_: &TableNamePath| Some(landed(3, "u8"));
+            assert_eq!(
+                exact_value(&expressions, root, Operators::Ring, &bound),
+                value("4", Some(carrier("u8", ArithmeticDomain::Exact)))
+            );
+            assert_eq!(
+                exact_value(&expressions, root, Operators::Ring, &|_| None),
+                ExactInteger::Undecided
+            );
+        }
+
+        /// The twins: a closed calculation with no value is refused, never
+        /// wrapped or truncated, and a calculation whose value belongs to
+        /// another evaluator is left undecided.
+        #[test]
+        fn exact_evaluation_refuses_overflow_and_division_by_zero() {
+            let anonymous = IntegerLiteral::from_value;
+            assert_eq!(
+                folded(landed(255, "u8"), BinaryOperator::Add, landed(1, "u8")),
+                outside("256", "u8")
+            );
+            assert_eq!(
+                folded(landed(-128, "i8"), BinaryOperator::Divide, landed(-1, "i8")),
+                outside("128", "i8")
+            );
+            assert_eq!(
+                folded(landed(-128, "i8"), BinaryOperator::Modulo, landed(-1, "i8")),
+                outside("128", "i8")
+            );
+            assert_eq!(
+                folded(landed(1, "u8"), BinaryOperator::Add, anonymous(-1)),
+                outside("-1", "u8")
+            );
+            let u128_max = "340282366920938463463374607431768211455";
+            assert_eq!(
+                folded(
+                    digits(u128_max).with_landing(carrier("u128", ArithmeticDomain::Exact)),
+                    BinaryOperator::Add,
+                    landed(1, "u128"),
+                ),
+                outside("340282366920938463463374607431768211456", "u128")
+            );
+            for (left, right) in [
+                (landed(1, "u64"), landed(0, "u64")),
+                (anonymous(7), anonymous(0)),
+            ] {
+                assert_eq!(
+                    folded(left, BinaryOperator::Divide, right),
+                    ExactInteger::Refused(Refusal::DivisionByZero)
+                );
+            }
+            // Rational `7 / 2`, anonymous `%`, two carriers.
+            for (left, operator, right) in [
+                (anonymous(7), BinaryOperator::Divide, anonymous(2)),
+                (anonymous(7), BinaryOperator::Modulo, anonymous(2)),
+                (landed(8, "u64"), BinaryOperator::Add, landed(9, "u32")),
+            ] {
+                assert_eq!(folded(left, operator, right), ExactInteger::Undecided);
+            }
+            // A wrapping carrier has a value past its range that this exact
+            // fold does not compute; inside the range it is the exact one.
+            let wrapping = carrier("u8", ArithmeticDomain::Wrapping);
+            let wrapped = |value: i64| IntegerLiteral::from_value(value).with_landing(wrapping);
+            assert_eq!(
+                folded(wrapped(200), BinaryOperator::Add, wrapped(100)),
+                ExactInteger::Undecided
+            );
+            assert_eq!(
+                folded(wrapped(2), BinaryOperator::Add, wrapped(3)),
+                value("5", Some(wrapping))
+            );
+            // An operator suffix (`200u8 +% 100u8`) is not the bare operator.
+            let mut expressions = ExpressionTable::default();
+            let left = leaf(&mut expressions, landed(200, "u8"));
+            let right = leaf(&mut expressions, landed(100, "u8"));
+            let root = under(
+                &mut expressions,
+                left,
+                BinaryOperator::Add,
+                ArithmeticDomain::Wrapping,
+                right,
+            );
+            assert_eq!(
+                exact_value(&expressions, root, Operators::WithQuotients, &|_| None),
+                ExactInteger::Undecided
+            );
+            assert_eq!(expressions.constant_integer_value(root), None);
+            // A closed operand with no value refuses beside an open peer.
+            let mut expressions = ExpressionTable::default();
+            let open = expressions.insert(ExpressionNode::Name(TableNamePath::default()));
+            let one = leaf(&mut expressions, landed(1, "u8"));
+            let zero = leaf(&mut expressions, landed(0, "u8"));
+            let quotient = exact(&mut expressions, one, BinaryOperator::Divide, zero);
+            let root = exact(&mut expressions, open, BinaryOperator::Add, quotient);
+            assert_eq!(
+                exact_value(&expressions, root, Operators::WithQuotients, &|_| None),
+                ExactInteger::Refused(Refusal::DivisionByZero)
+            );
+        }
+
+        /// An array extent reads the exact value or none: `7 / 2` and
+        /// `200u8 + 100u8` no longer read as 3 and 300.
+        #[test]
+        fn a_constant_extent_is_the_exact_value_or_none() {
+            let anonymous = IntegerLiteral::from_value;
+            let extent = |left: IntegerLiteral, operator, right: IntegerLiteral| {
+                let mut expressions = ExpressionTable::default();
+                let left = leaf(&mut expressions, left);
+                let right = leaf(&mut expressions, right);
+                let root = exact(&mut expressions, left, operator, right);
+                expressions.constant_integer_value(root)
+            };
+            assert_eq!(
+                extent(anonymous(6), BinaryOperator::Divide, anonymous(2)),
+                Some(3)
+            );
+            assert_eq!(
+                extent(anonymous(7), BinaryOperator::Divide, anonymous(2)),
+                None
+            );
+            assert_eq!(
+                extent(landed(100, "u8"), BinaryOperator::Add, landed(100, "u8")),
+                Some(200)
+            );
+            assert_eq!(
+                extent(landed(200, "u8"), BinaryOperator::Add, landed(100, "u8")),
+                None
+            );
+            assert_eq!(
+                extent(landed(9, "u64"), BinaryOperator::Modulo, landed(4, "u64")),
+                Some(1)
+            );
+            assert_eq!(
+                extent(landed(9, "u64"), BinaryOperator::Modulo, landed(0, "u64")),
+                None
+            );
         }
     }
 }
@@ -4895,26 +5234,23 @@ pub mod expression {
             self.expression(handle).write_display_name(self, out);
         }
 
+        /// The value of a closed integer calculation, as an array extent
+        /// (`[u8; 6 / 2]`) reads it: the exact value under each typed
+        /// operand's carrier, or `None`. A calculation with no exact value
+        /// (`7 / 2`, `200u8 + 100u8`, a division by zero), one under an
+        /// operator suffix (`+%`) and one outside `i64` read as `None`,
+        /// never as a truncated or wrapped number.
         pub fn constant_integer_value(&self, handle: ExpressionHandle) -> Option<i64> {
+            use crate::source_state::const_integer::{ExactInteger, Operators, exact_value};
             if !handle.is_valid() {
                 return None;
             }
-            match self.expression(handle) {
-                ExpressionNode::Integer(value) => value.value_i64(),
-                ExpressionNode::Borrow(inner) => self.constant_integer_value(inner.target),
-                ExpressionNode::Binary(binary) => {
-                    let left = self.constant_integer_value(binary.left)?;
-                    let right = self.constant_integer_value(binary.right)?;
-                    match binary.operator {
-                        BinaryOperator::Add => left.checked_add(right),
-                        BinaryOperator::Subtract => left.checked_sub(right),
-                        BinaryOperator::Multiply => left.checked_mul(right),
-                        BinaryOperator::Divide => left.checked_div(right),
-                        BinaryOperator::Modulo => left.checked_rem(right),
-                        _ => None,
-                    }
-                }
-                _ => None,
+            if let ExpressionNode::Borrow(inner) = self.expression(handle) {
+                return self.constant_integer_value(inner.target);
+            }
+            match exact_value(self, handle, Operators::WithQuotients, &|_| None) {
+                ExactInteger::Value { value, .. } => value.to_i64(),
+                ExactInteger::Undecided | ExactInteger::Refused(_) => None,
             }
         }
 
