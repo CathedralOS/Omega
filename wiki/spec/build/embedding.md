@@ -40,11 +40,11 @@ separates inspecting bytes from authorizing execution:
 1. Inspection checks canonical form and structural validity under shared loading
    limits. It requires no execution trust and performs no execution-only
    descriptor or entailment analysis.
-2. Execution admission requires the host's authorization for the exact artifact
-   and producer. Preparation resolves required execution metadata and installation
-   relationships before creating an executable instance. Untrusted execution is
-   unavailable until the interpreter, adapters and teardown meet the containment
-   acceptance in the [implementation plan](../../drafts/designs/psi_claim_admission.md).
+2. A host may authorize the exact artifact and its producer. To interpret saved
+   Psi without producer trust it admits the artifact for contained execution,
+   with bounded resources and host bindings that enforce the caller’s grants.
+   Preparation resolves required execution metadata and installation
+   relationships before creating an executable instance.
 
 This is a separation of codec and preparation responsibilities, not an option to
 skip structural checks. Public byte-loading and module-start APIs enforce it as
@@ -133,14 +133,17 @@ that an unbound branch will not run.
 ## Standalone interpretation
 
 `omega run main.omg` lowers the selected Product to Psi and interprets its
-entry. When the input is saved Psi, the driver checks the supplied artifact
-authorization and interprets the admitted program. Both paths use the same
-Psi program and instance lifecycle.
+entry. `omega run app.psi` admits saved Psi for contained interpretation
+without a producer-trust flag. Both forms use the same Psi program and
+instance lifecycle and the same Product grants. By default the Product sees
+the caller’s working directory at `/` read/write, with live networking and
+program launch disabled. Explicit run directory mappings replace the default
+mount. [Standalone directory rules](command_line.md#runtime-directory-mappings)
 
 `--target` selects the environment whose contracts, provider closure and
 host adapters the interpreter must honor. An explicit target still requests
 interpretation. Missing provider or target support fails before guest effects.
-The normal package, Build, and trust requirements apply. Use `omega build` to
+Source preparation follows the normal package and Build admission rules. Use `omega build` to
 produce a native executable and launch the resulting image through its target
 host. Build owns [comparison of registered tests](testing.md#comparing-native-and-psi-tests).
 

@@ -124,7 +124,16 @@ it. Kept file names such as
 The CLI package is **`omega`** (binary `omega`); there is no `omega-cli`.
 
 The standalone interpreter uses the admitted runtime for the selected target
-and providers. A missing adapter refuses execution. [Standalone interpretation](../../wiki/spec/build/embedding.md#standalone-interpretation)
+and providers. A missing adapter refuses execution.
+
+**Implementation status.** The [standalone contract](../../wiki/spec/build/embedding.md#standalone-interpretation)
+specifies bare `omega run app.psi` and confines both source and saved Products
+to the caller’s working directory by default. The current Rust CLI still
+requires `--trusted-artifact <manifest-id>` to run saved Psi. With no explicit
+run directory mappings it supplies the host filesystem namespace and enables
+matching-host adapters for admitted providers. The contained embedding
+currently refuses filesystem delegation. The CLI defaults and confined
+filesystem work are tracked in [PSI-UNTRUSTED-INTERPRETATION](../../TASKS.md#psi-untrusted-interpretation).
 
 ```bash
 mbx run -p omega -- packages update --project samples/cli/basics/cli_mvp --target macos_arm64
@@ -231,8 +240,9 @@ artifact returns status 1; inspection grants no runtime authority.
 
 A host can pass `--max-psi-input-bytes <bytes>` to inspect, run, or compile
 a saved artifact. The CLI refuses an oversized file before decoding it.
-Running or compiling a saved artifact requires the
-producer's exact manifest identity through `--trusted-artifact`.
+Compiling saved Psi to native code requires the trusted producer’s exact
+manifest identity through `--trusted-artifact`. For interpretation, see the
+[CLI implementation status](#command-surface).
 With `--emit-psi`, `--max-psi-output-bytes <bytes>` limits the new artifact.
 If it exceeds the quota, an existing destination keeps its previous contents.
 Omitting either option leaves the encoded byte count uncapped for that operation.

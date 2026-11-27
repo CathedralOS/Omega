@@ -65,38 +65,8 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="untrusted-psi-run-flag"></a>
-### 1. Should `omega run` accept a Psi artifact the host does not trust, and under what flag?
-
-The admission contract makes an untrusted artifact runnable only through a
-containment-audited interpreter and host bindings, and the command line names
-only the trusted route.
-[Publication and separate consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption) ·
-[Loading and preparation](wiki/spec/build/embedding.md#loading-and-preparation) ·
-[Command line](wiki/spec/build/command_line.md)
-
-The embedding now has that route.
-`psi_authorization::admit_contained_interpretation` admits an artifact without
-producer trust, `TerminalProgram::admit_contained` runs it, and the runtime
-host's `TerminalRuntimeContainment` runs it under a storage account and output
-limits. It refuses native providers, native services, filesystem delegation,
-and components. Live waits require a host-granted ceiling. Native lowering
-requires separate artifact authorization.
-[Containment audit](wiki/drafts/designs/psi_containment_audit.md#contained-interpretation) ·
-[Runtime host](source-rust/subsystems/interpreter/host/src/execution.rs)
-
-`omega run --trusted-artifact <manifest-id>` is the current CLI form for running a saved artifact.
-Today an untrusted artifact requires an embedding.
-- **Option A (add a flag):** add
-  `omega run --untrusted-artifact [--max-psi-input-bytes <bytes>] <program.psi>`.
-  It interprets the admitted artifact with default work, storage and output limits.
-- **Option B (embedding only):** keep the CLI trusted-only. Untrusted
-  interpretation stays an embedding capability that a host opts into in code.
-
-Should the command line expose untrusted interpretation?
-
 <a id="function-valued-data-field"></a>
-### 2. How does a data declaration hold a mathematical function?
+### 1. How does a data declaration hold a mathematical function?
 
 The `Real` quotient's representatives are regular Cauchy sequences of `Rat`,
 so its carrier is data holding a function `|nat|::Nat -> |rat|::Rat` and

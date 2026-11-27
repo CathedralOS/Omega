@@ -84,6 +84,8 @@ answers from a recording. The [critical audit policy](../packages/review.md#crit
 highlights `Network` for both Build and Product code. The [default Build environment](execution.md#restricted-build-requests)
 supplies neither live network access nor a subprocess service. The caller can delegate [live networking](scoped_execution.md#live-networking-in-a-build)
 and [program launches](program_launch.md#grant-and-delegation) independently.
+The [standalone Product](command_line.md#runtime-directory-mappings) also starts
+with live networking and program launch disabled and requires its own grants.
 
 ## Three layers
 
