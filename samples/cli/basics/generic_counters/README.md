@@ -1,7 +1,8 @@
 # Generic counters
 
 Two invocation-local instances of `Counter<T>` retain independent fields. Static
-machines take explicit borrowed counters: the integer counter records 30 then 12,
+machines borrow each counter to read its fields. Recording returns the next
+counter, which the caller installs in its own storage. The integer counter records 30 then 12,
 yielding value 12 and count 2; the Boolean counter records true, yielding true
 and count 1. The checksum is `12 + 2 + 1 + 1`: process exit **16**, without
 printing. Only the observed scalars pass explicitly to the nested final machine;
