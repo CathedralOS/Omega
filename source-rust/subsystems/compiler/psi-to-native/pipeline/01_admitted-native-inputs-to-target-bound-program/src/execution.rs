@@ -8,7 +8,8 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::MachineId;
 use terminal_psi::TerminalModule;
 use terminal_semantics::{
-    callable_values::CallableBoundaryImplementation, logical_providers::ClosedLogicalProviders,
+    ModuleAnalyses, callable_values::CallableBoundaryImplementation,
+    logical_providers::ClosedLogicalProviders,
 };
 
 #[derive(Debug)]
@@ -42,10 +43,15 @@ pub(super) fn plan_published_target_execution(
     >,
 ) -> Result<SelectedExecution, NativeProgramPlanningError> {
     let artifact = std::sync::Arc::clone(origins.artifact());
+    // The folded scalar entry and installation reach read one set of call
+    // analyses. A refusal to build them stays with each reader, so it
+    // surfaces where it did before.
+    let analyses = terminal_semantics::synchronous_calls::call_analyses(artifact.semantic_module());
     // An inspection or package review can select providers without an executable entry.
     // Keep the capture result until an execution product asks to bind the entry.
     let folded_entry = crate::folded_entry::FoldedEntryReach::capture(
         artifact.view(),
+        analyses.as_ref(),
         target.target_name(),
         bindings,
         has_bound_applications,
@@ -66,6 +72,7 @@ pub(super) fn plan_published_target_execution(
     }
     let selected = plan_identified_target_execution(
         module,
+        analyses.as_ref(),
         artifact.view().identity(),
         target,
         logical,
@@ -96,12 +103,23 @@ pub fn plan_target_execution(
             format!("native planning lost its canonical input identity: {error:?}").into(),
         )
     })?;
-    plan_identified_target_execution(module, program, target, logical, bindings, inputs)
+    let analyses = terminal_semantics::synchronous_calls::call_analyses(module);
+    plan_identified_target_execution(
+        module,
+        analyses.as_ref(),
+        program,
+        target,
+        logical,
+        bindings,
+        inputs,
+    )
 }
 
-/// `program` is the identity of `module`.
+/// `program` is the identity of `module`, and `analyses` are its call
+/// analyses or the refusal that building them produced.
 fn plan_identified_target_execution(
     module: &TerminalModule,
+    analyses: Result<&ModuleAnalyses<'_>, &String>,
     program: terminal_psi::TerminalPsiIdentity,
     target: target::TargetProfile,
     logical: &ClosedLogicalProviders,
@@ -128,7 +146,12 @@ fn plan_identified_target_execution(
         )]));
     }
     let realization = realization
-        .resolve_installation_reach(module, program, &module.installation_reach_requirements())
+        .resolve_installation_reach(
+            module,
+            analyses,
+            program,
+            &module.installation_reach_requirements(),
+        )
         .map_err(|reason| Admission(vec![Diagnostic::error(reason)]))?;
     SelectedExecution::from_realization(module, Some(target), realization).map_err(Admission)
 }

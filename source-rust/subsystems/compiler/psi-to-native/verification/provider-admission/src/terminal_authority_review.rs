@@ -71,6 +71,7 @@ pub(crate) fn review_terminal_authority_closure(
     terminal_artifact_identity: [u8; 32],
     target_profile: target::TargetProfile,
     input: &crate::AdmissionSource<'_>,
+    analyses: Option<&terminal_semantics::ModuleAnalyses<'_>>,
     selected: &SelectedProviderPlanFacts,
     physical_policy: &TerminalAuthorityPolicy,
     permission_policy: Option<&TerminalAuthorityPermissionPolicy>,
@@ -83,6 +84,7 @@ pub(crate) fn review_terminal_authority_closure(
     let context = ReviewContext::new(
         target_profile,
         input,
+        analyses,
         selected,
         physical_policy,
         permission_policy,

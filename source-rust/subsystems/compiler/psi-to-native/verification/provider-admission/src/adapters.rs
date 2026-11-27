@@ -15,6 +15,8 @@ use psi_provider_selections::AdmittedProviderSelections;
 use psi_target_layouts::TerminalTargetContext;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 pub use target_bound_program::retain_selected_provider_adapters;
+use terminal_psi::TerminalModule;
+use terminal_semantics::ModuleAnalyses;
 use terminal_semantics::synchronous_calls::SynchronousCallGraph;
 
 #[derive(Debug)]
@@ -74,8 +76,11 @@ impl AdmittedProgramProviderContext {
     }
 }
 
+/// `analyses` are the admitted program's shared analyses; `None` when they
+/// could not be built, and the graph then refuses as it always has.
 pub fn selected_synchronous_call_graph<'module>(
     artifact: terminal_codec::TerminalArtifactView<'module>,
+    analyses: Option<&'module ModuleAnalyses<'_>>,
     target_members: Option<&'module TerminalTargetContext>,
     entry_bridge: Option<(BoundaryMachineId, MachineId)>,
     installation: Option<&AdmittedProviderSelections>,
@@ -103,7 +108,44 @@ pub fn selected_synchronous_call_graph<'module>(
             }
         }
     }
-    SynchronousCallGraph::new(module, entry_bridge)?.with_boundary_calls(calls)
+    admission_call_graph(module, analyses, entry_bridge, calls)
+}
+
+/// A synchronous call graph that reads the shared analyses' callable values
+/// instead of building its own, with the same refusals as
+/// `SynchronousCallGraph::new(module, entry_bridge)?.with_boundary_calls(calls)`.
+///
+/// The entry bridge differs from a supplied boundary body only in winning
+/// the lookup for its boundary, so a declared bridge joins the supplied
+/// bodies in place of any body supplied for the same boundary. The supplied
+/// bodies are checked on their own first, so their refusals stay the same.
+/// Without analyses, or with a bridge whose boundary or body the module does
+/// not declare, the graph is built alone, so its refusal is the one an
+/// unshared graph gives.
+pub(crate) fn admission_call_graph<'module>(
+    module: &'module TerminalModule,
+    analyses: Option<&'module ModuleAnalyses<'_>>,
+    entry_bridge: Option<(BoundaryMachineId, MachineId)>,
+    calls: Vec<(BoundaryMachineId, MachineId)>,
+) -> Result<SynchronousCallGraph<'module>, String> {
+    let declared = |(boundary, machine): (BoundaryMachineId, MachineId)| {
+        module.boundary_machine(boundary).is_some() && module.machine(machine).is_some()
+    };
+    let Some(analyses) = analyses.filter(|_| entry_bridge.is_none_or(declared)) else {
+        return SynchronousCallGraph::new(module, entry_bridge)?.with_boundary_calls(calls);
+    };
+    let Some(bridge) = entry_bridge else {
+        return analyses.calls().with_boundary_calls(calls);
+    };
+    analyses
+        .calls()
+        .with_boundary_calls(calls.iter().copied())?;
+    analyses.calls().with_boundary_calls(
+        calls
+            .into_iter()
+            .filter(|(boundary, _)| *boundary != bridge.0)
+            .chain([bridge]),
+    )
 }
 
 #[cfg(test)]

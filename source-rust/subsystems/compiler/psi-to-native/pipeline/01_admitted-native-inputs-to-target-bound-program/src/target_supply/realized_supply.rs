@@ -84,8 +84,10 @@ impl RealizedTargetSupply {
         artifact: terminal_codec::TerminalArtifactView<'_>,
         roots: &[semantic_vocabulary::MachineId],
     ) -> Result<Self, String> {
-        let module = artifact.module();
-        let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)?;
+        // The scalar roots and every root's boundary reach read one set of
+        // callable values instead of building them once per root.
+        let analyses = terminal_semantics::synchronous_calls::call_analyses(artifact.module())?;
+        let graph = analyses.calls();
         let mut demanded_roots = roots.to_vec();
         for root in graph.scalar_evaluation_roots(roots, None)? {
             match root {
@@ -102,9 +104,8 @@ impl RealizedTargetSupply {
         demanded_roots.sort_unstable();
         demanded_roots.dedup();
         for root in demanded_roots {
-            if !terminal_semantics::callable_values::reached_boundary_calls(module, root, &[])?
-                .is_empty()
-            {
+            let reach = analyses.boundary_call_reach(root, &[])?;
+            if !reach.boundaries.is_empty() {
                 return Err("boundary requirements require an explicit deployment target".into());
             }
         }
@@ -433,16 +434,19 @@ impl RealizedTargetSupply {
     }
 
     /// `program` is the identity of `module`, which must be the program this
-    /// supply was realized for.
+    /// supply was realized for. `analyses` are the module's call analyses or
+    /// the refusal that building them produced.
     pub(crate) fn resolve_installation_reach(
         mut self,
         module: &TerminalModule,
+        analyses: Result<&terminal_semantics::ModuleAnalyses<'_>, &String>,
         program: terminal_psi::TerminalPsiIdentity,
         installation_requirements: &[semantic_vocabulary::BoundaryMachineId],
     ) -> Result<Self, String> {
         self.require_program(program)?;
         let plans = super::installation_reach::resolve_installation_reach(
             module,
+            analyses,
             installation_requirements,
             self.plans.as_ref().clone(),
         )
