@@ -17,7 +17,7 @@ use std::path::Path;
 #[cfg(test)]
 use std::sync::atomic::Ordering;
 
-use resolver_execution::ResolverExecutionPhase;
+use crate::git::execution::ResolverExecutionPhase;
 
 use crate::error::{SourceResolveError, cache_invalid};
 use crate::git::cache::repository::VerifiedGitRepository;

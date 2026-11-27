@@ -201,8 +201,8 @@ fn structural_observations_read_only_the_active_case_at_the_selected_call() {
     );
 }
 use crate::embedding::instance::TerminalInstance;
-use evaluation_accounting::BuildEvaluationSponsor;
-use evaluation_contracts::{
+use build_model::accounting::BuildEvaluationSponsor;
+use build_model::contracts::{
     BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
 };
 use semantic_vocabulary::{ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, ValueId};
@@ -298,7 +298,7 @@ fn exact_calls_retain_executed_integer_arguments_and_discard_crashed_invocations
         let mut instance =
             TerminalInstance::new(crate::TerminalProgram { program }, execution, vec![]);
         assert!(instance.take_call_observations().is_empty());
-        let mut meter = evaluation_work::sponsored_meter(account.clone(), Some(1000)).unwrap();
+        let mut meter = build_model::work::sponsored_meter(account.clone(), Some(1000)).unwrap();
         let status = instance.invoke(&mut meter).unwrap();
         let usage = account.snapshot().unwrap();
         assert_eq!(usage.record().work_units, meter.usage().total_units());

@@ -408,15 +408,13 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
             &elaboration.static_schemas,
             &elaboration.domain_sources,
         );
-        let prepared_machine =
-            crate::prepare(formed, &elaboration.domains, machine_id, tables).unwrap();
+        let prepared_machine = crate::prepare(formed, machine_id, tables).unwrap();
         let mut references =
             prepared_machine.references(&elaboration.module.types.structural_types);
         let storage = crate::places::Storage::new(
             machine_id,
             lowered,
             &elaboration.module,
-            &elaboration.domains,
             &prepared_machine.graph,
             tables,
             &prepared_machine.types,
@@ -447,10 +445,12 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
             lowered,
             tables,
             &prepared_machine.graph,
+            &storage,
             row.created_at,
             obligation,
             &goal,
             &[],
+            None,
             &mut storage.at_entry(&mut references, tables),
         ) else {
             panic!("{kind}: missing opaque field identity must be refused");
@@ -548,5 +548,98 @@ use {omega}/language/core/foundation.omg as proof;
         refused.detail,
         "no available equality proves the stated Identity: \
          nothing proves the identity of field `y`"
+    );
+}
+
+#[test]
+fn structural_result_identity_postconditions_and_twins() {
+    // Direct return of `outer.inner`, caller restatement through `pick(outer)`,
+    // and passing the unmodified call result to a helper whose `requires`
+    // states `Identity::<Inner>(got, outer.inner)` all prove.
+    let positive = "
+use {omega}/language/core/foundation.omg as proof;
+
+        data Inner [copy] { value: i32; }
+        data Outer [copy] { inner: Inner; other: Inner; }
+
+        machine pick(outer: Outer) -> Inner
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            outer.inner
+        }
+
+        machine check_same(got: Inner, outer: Outer) -> Inner
+        requires |proof|::Identity::<Inner>(got, outer.inner)
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            got
+        }
+
+        machine direct_restatement(outer: Outer) -> Inner
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            let got: Inner = pick(outer);
+            got
+        }
+
+        machine forward(outer: Outer) -> Inner
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            let got: Inner = pick(outer);
+            check_same(got, outer)
+        }
+    ";
+    let verdict = judged(positive);
+    assert!(
+        matches!(verdict, RouteVerdict::Accepted(_)),
+        "expected structural result Identity postconditions to prove: {verdict:?}"
+    );
+
+    // Negative twin 1: mutating the local call result invalidates the imported
+    // Identity guarantee from `pick(outer)`.
+    let mutated_after_call = "
+use {omega}/language/core/foundation.omg as proof;
+
+        data Inner [copy] { value: i32; }
+        data Outer [copy] { inner: Inner; other: Inner; }
+
+        machine pick(outer: Outer) -> Inner
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            outer.inner
+        }
+
+        machine forward(outer: Outer) -> Inner
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            let mutable got: Inner = pick(outer);
+            got.value = got.value +% 1;
+            got
+        }
+    ";
+    let verdict = judged(mutated_after_call);
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { .. }),
+        "mutating a call result must invalidate its Identity guarantee: {verdict:?}"
+    );
+
+    // Negative twin 2: returning a different field does not prove
+    // `Identity::<Inner>(result, outer.inner)`.
+    let wrong_field = "
+use {omega}/language/core/foundation.omg as proof;
+
+        data Inner [copy] { value: i32; }
+        data Outer [copy] { inner: Inner; other: Inner; }
+
+        machine pick(outer: Outer) -> Inner
+        ensures |proof|::Identity::<Inner>(result, outer.inner)
+        {
+            outer.other
+        }
+    ";
+    let verdict = judged(wrong_field);
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { .. }),
+        "returning another field must be refused: {verdict:?}"
     );
 }

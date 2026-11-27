@@ -388,10 +388,12 @@ impl Projection {
 
     /// A window changes the origin of an index but preserves its element
     /// type. Its selections can inventory carriers without identifying a
-    /// physical location. A reference crossing may introduce another lender.
-    pub(crate) fn captured_window_carrier_path(&self) -> Option<Vec<StructuralPathSegment>> {
+    /// physical location. The depth of the last window distinguishes a
+    /// subview from a complete element selected within it. A reference
+    /// crossing may introduce another lender.
+    pub(crate) fn captured_window_carrier_path(&self) -> Option<(Vec<StructuralPathSegment>, usize)> {
         let mut path = Vec::new();
-        let mut window = false;
+        let mut window_depth = None;
         for step in self.address.as_ref()? {
             match step {
                 AddressStep::Path(segments, _)
@@ -399,11 +401,11 @@ impl Projection {
                 {
                     path.extend_from_slice(segments);
                 }
-                AddressStep::Window { .. } => window = true,
+                AddressStep::Window { .. } => window_depth = Some(path.len()),
                 _ => return None,
             }
         }
-        window.then_some(path)
+        Some((path, window_depth?))
     }
 
     /// Validate the complete retained address without erasing dynamic

@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 Keep carrier conversion separate from changes to a value's qualification.
 Domain-only casts preserve the same value and carrier, with shared accounting
@@ -23,7 +24,7 @@ use super::{Program, Slot};
 use crate::body::{
     DomainInstance, DomainSet, Expression, ExpressionKind, Policy, Qualification, ValueType,
 };
-use crate::{SourceOrigin, Unserved, refuse, reject};
+use crate::{SourceOrigin, Unserved, reject};
 
 #[derive(Clone, Copy)]
 pub(super) enum CastContext<'a> {
@@ -49,7 +50,7 @@ impl Program<'_> {
         cast: &TableCastExpression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Expression(what)));
         if let Some(entry) = cast.form.entry() {
             return self.domain_entry(id, slots, handle, cast, entry, source);
         }
@@ -98,11 +99,7 @@ impl Program<'_> {
         {
             if cast.result_type.is_valid() && self.value_type(id, cast.result_type)? != target_type
             {
-                return Err(refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Typing("cast result type"),
-                ));
+                return Err(refuse_at(id, Unserved::Typing("cast result type")));
             }
             let operand = self.expression(id, slots, cast.value, Some(quotient.carrier))?;
             if operand.result != Some(quotient.carrier) {
@@ -132,11 +129,7 @@ impl Program<'_> {
             }
         };
         if cast.result_type.is_valid() && self.value_type(id, cast.result_type)? != target {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("cast result type"),
-            ));
+            return Err(refuse_at(id, Unserved::Typing("cast result type")));
         }
         // An explicit carrier supplies the landing type for an anonymous
         // numeric operand, including the carrier step before a named domain.
@@ -230,7 +223,7 @@ impl Program<'_> {
                     source_term,
                     to,
                 )
-                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
+                .map_err(|detail| refuse_at(id, Unserved::Expression(detail)))?;
                 Expression {
                     result: operand.result,
                     kind: ExpressionKind::Establish {
@@ -266,7 +259,7 @@ impl Program<'_> {
             use numerics::intrinsics::NumericIntrinsic;
             use numerics::intrinsics::NumericType;
             let carrier = semantic_vocabulary::fixed_integer_type(to)
-                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
+                .map_err(|detail| refuse_at(id, Unserved::Expression(detail)))?;
             let source_term = semantic_vocabulary::ScalarTerm::value(
                 semantic_vocabulary::ValueId::new(1).expect("fixed predicate formal"),
                 ScalarType::IeeeFloat(from),
@@ -306,7 +299,7 @@ impl Program<'_> {
             use numerics::intrinsics::NumericIntrinsic;
             use numerics::intrinsics::NumericType;
             let carrier = semantic_vocabulary::fixed_integer_type(from)
-                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
+                .map_err(|detail| refuse_at(id, Unserved::Expression(detail)))?;
             let source_term = semantic_vocabulary::ScalarTerm::value(
                 semantic_vocabulary::ValueId::new(1).expect("fixed predicate formal"),
                 ScalarType::Integer(from),
@@ -391,7 +384,7 @@ impl Program<'_> {
         operand: Expression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Expression(detail));
+        let unavailable = |detail| refuse_at(id, Unserved::Expression(detail));
         let declaration = terminal_semantics::numeric_primitives::declaration_path(meaning)
             .map_err(unavailable)?;
         let target = self.typed.symbols
@@ -470,7 +463,7 @@ impl Program<'_> {
         let operand = self
             .expression(id, slots, value, landing)?
             .with_membership_tests(tests.into_iter().rev());
-        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let unavailable = |what| refuse_at(id, Unserved::Expression(what));
         let actual = operand
             .result
             .ok_or_else(|| unavailable("domain cast of a Unit value"))?;
@@ -525,7 +518,7 @@ impl Program<'_> {
         mut entry: language_core::cast_form::CastEntry,
     ) -> Checked<DomainCast> {
         use language_core::cast_form::CastEntryKind;
-        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let unavailable = |what| refuse_at(id, Unserved::Expression(what));
         let mut site = *first_read;
         if !site.result_type.is_valid() {
             return Err(unavailable("domain cast typing did not account for"));
@@ -541,9 +534,8 @@ impl Program<'_> {
         loop {
             if matches!(context, CastContext::Clause) && entry.kind == CastEntryKind::Add {
                 // A clause cannot assume its own assertion to establish a domain.
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Contract("domain establishment in a clause term"),
                 ));
             }
@@ -631,7 +623,7 @@ impl Program<'_> {
         if definition.alias.is_none() {
             return Ok(DomainSet::EMPTY.with(selected).expect("one domain fits"));
         }
-        let invalid = |reason| refuse(id, Construct::Machine, Unserved::Type(reason));
+        let invalid = |reason| refuse_at(id, Unserved::Type(reason));
         let mut named = DomainSet::EMPTY;
         for (member, identity) in
             crate::source_state::domain::expanded_alias_members(self.typed, selected.declaration)
@@ -658,9 +650,8 @@ impl Program<'_> {
     ) -> Checked<ValueType> {
         use language_core::cast_form::CastEntryKind;
         let unavailable = || {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Typing("domain cast result does not account for its input domains"),
             )
         };
@@ -726,9 +717,8 @@ impl Program<'_> {
             ValueType::Scalar(carrier, _) => self.cast_predicates(id, qualification, carrier)?,
             ValueType::Record(..) => self.record_cast_predicates(id, qualification, result)?,
             ValueType::Rigid(_) => {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Expression(
                         "cast that adds a domain with predicates to a value of a type parameter",
                     ),
@@ -770,7 +760,7 @@ impl Program<'_> {
         named: DomainSet,
     ) -> Checked<()> {
         use language_core::cast_form::CastEntryKind;
-        let mistyped = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
+        let mistyped = |what| refuse_at(id, Unserved::Typing(what));
         if operand.qualified(Qualification::NONE) != result.qualified(Qualification::NONE)
             || operand.qualified(Qualification::NONE).is_none()
         {
@@ -839,7 +829,7 @@ impl Program<'_> {
         operand: ValueType,
         source: SourceOrigin,
     ) -> Checked<()> {
-        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let unavailable = |what| refuse_at(id, Unserved::Expression(what));
         let definition = self.domain_theory(id, domain)?;
         if definition.requires_access_retention() {
             return Err(unavailable(
@@ -896,7 +886,7 @@ impl Program<'_> {
     ) -> Checked<()> {
         use crate::source_state::domain::DomainIssuance;
         use source_declarations::DomainEstablishmentRoute;
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Expression(what)));
         let definition = self.domain_theory(id, domain)?;
         match definition.issuance() {
             DomainIssuance::Unrestricted => {}
@@ -967,9 +957,8 @@ impl Program<'_> {
                 }
             }
             DomainIssuance::Planned(policy) => {
-                let refusal = refuse(
+                let refusal = refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Expression(
                         "cast that adds a domain whose issuers are in an access plan",
                     ),

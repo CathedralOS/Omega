@@ -145,8 +145,8 @@ fn stage_adapter_operations(project: &Project, library: &Path) {
 
 fn build() -> String {
     r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-Build::application(builder, "portable_filesystem_values");
+machine build(builder: @mutable BuildPlan) {
+builder.product = BuildProduct::Application { name: "portable_filesystem_values" };
 Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
 Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
@@ -166,7 +166,7 @@ fn raw_windows_filesystem_methods_publish_the_shared_path_domain() {
     project.write("main.omg", "");
     project.write(
         "build.omg",
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "raw_fs"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "raw_fs" }; }"#,
     );
     let output = project.observe(&["--check"], "main.omg");
     assert!(output.status.success(), "{}", report(&output));
@@ -387,7 +387,7 @@ machine posix_filesystem_last_error_i64(filesystem: @mutable PosixFilesystem, re
 "#);
     project.write("posix_filesystem_adapter.omg", &adapter);
     let mut settings = String::from(
-        "use main.omg as app;\nuse posix_filesystem_host.omg as host;\nmachine build(b: @mutable Build) { Build::application(b, \"posix_names\");\n",
+        "use main.omg as app;\nuse posix_filesystem_host.omg as host;\nmachine build(b: @mutable BuildPlan) { b.product = BuildProduct::Application { name: \"posix_names\" };\n",
     );
     for target in [
         "linux_x86_64",

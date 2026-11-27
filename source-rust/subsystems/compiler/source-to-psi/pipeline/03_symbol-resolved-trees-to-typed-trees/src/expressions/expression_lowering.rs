@@ -3423,7 +3423,7 @@ pub(crate) mod expression {
                     ExpressionNode::Name(path) => {
                         return program
                             .const_declaration(path.symbol)
-                            .map(|constant| &constant.declared_type);
+                            .and_then(|constant| constant.declared_type.as_ref());
                     }
                     ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_) => {}
                     _ => return None,
@@ -3440,14 +3440,16 @@ pub(crate) mod expression {
                     else {
                         continue;
                     };
-                    let Some(constant) = program.const_declaration(selected.selected_symbol())
+                    let Some(constant_type) = program
+                        .const_declaration(selected.selected_symbol())
+                        .and_then(|constant| constant.declared_type.as_ref())
                     else {
                         continue;
                     };
-                    if declared.is_some_and(|previous| previous != &constant.declared_type) {
+                    if declared.is_some_and(|previous| previous != constant_type) {
                         return None;
                     }
-                    declared = Some(&constant.declared_type);
+                    declared = Some(constant_type);
                 }
                 declared
             }

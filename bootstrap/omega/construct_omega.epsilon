@@ -28,7 +28,6 @@ data Main {
     length: i32;
     entry_unit: i32;
     entry_name: OmegaRelativeSpan;
-    has_paths: i32;
     build_count: i32;
     has_builds: i32;
     // Build and Product file ordinals belong to separate scopes.
@@ -107,22 +106,21 @@ machine Main::construct_deployment(&mut self, deployment: &[u8], roots: &[u8]) {
         let first: i32 = self.word();
         transition first {
             0 -> version(self.word())
-            _ -> header(first, false)
+            _ -> self.console.exit_process(3)
         }
     }
     state version(number: i32) {
         transition number {
-            1 -> header(self.word(), true)
+            1 -> header(self.word())
             2 -> build_header()
             _ -> self.console.exit_process(3)
         }
     }
     state build_header() {
         self.has_builds = 1;
-        transition true { true -> header(self.word(), true) }
+        transition true { true -> header(self.word()) }
     }
-    state header(packages: i32, has_paths: i32) {
-        self.has_paths = has_paths;
+    state header(packages: i32) {
         self.compiler.parser.sources.package_count = packages;
         self.compiler.parser.sources.dependency_count = self.word();
         self.compiler.parser.sources.unit_count = self.word();
@@ -185,12 +183,7 @@ machine Main::construct_deployment(&mut self, deployment: &[u8], roots: &[u8]) {
         self.compiler.parser.sources.units[index].package = self.word();
         self.compiler.parser.sources.units[index].start = self.word();
         self.compiler.parser.sources.units[index].end = self.word();
-        transition self.has_paths {
-            true -> path(index)
-            _ -> unit(index + 1)
-        }
-    }
-    state path(index: i32) {
+
         let start: i32 = self.word();
         let end: i32 = self.word();
         transition (start < end) && (end <= self.length) {
@@ -251,7 +244,7 @@ machine Main::construct_deployment(&mut self, deployment: &[u8], roots: &[u8]) {
         }
     }
     state path_limit(source: &[u8], index: i32) {
-        transition (self.has_paths == 1) && (index < self.compiler.parser.sources.unit_count) {
+        transition index < self.compiler.parser.sources.unit_count {
             true -> unit_path(source, index)
             _ -> scoped(source)
         }
@@ -259,10 +252,10 @@ machine Main::construct_deployment(&mut self, deployment: &[u8], roots: &[u8]) {
     state scoped(source: &[u8]) {
         transition self.has_builds {
             1 -> check_builds(source)
-            _ -> legacy(source)
+            _ -> product_entry(source)
         }
     }
-    state legacy(source: &[u8]) {
+    state product_entry(source: &[u8]) {
         transition deployment.len == 0 {
             true -> compile(source)
             _ -> self.console.exit_process(3)

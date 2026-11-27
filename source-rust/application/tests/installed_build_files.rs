@@ -44,12 +44,15 @@ public machine score() -> u32 { |inside|::inner_value() +% |other|::inner_value(
     );
     let build = r#"use {omega}/build/left/score.omg as left;
 use {omega}/build/right/score.omg as right;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "checks");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "checks" };
     transition |left|::score() == 3u32 && |right|::score() == 18u32 {
         true -> BuildLog::write_line(@mutable builder.log, "read both"),
-        _ -> Build::package(builder, "duplicate")
+        _ -> duplicate(builder)
     }
+}
+machine duplicate(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "duplicate" };
 }"#;
     let main = "public machine answer() -> u32 { 42 }";
     let check = |build: &str, main: &str| {

@@ -29,7 +29,7 @@ lookup is one index.
 | `propositions` | `PropositionId` | The proposition each knowledge row states. Machine-local, minted by `push`: Terminal Psi keeps contract propositions inline and has no proposition table. |
 | `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value, descriptor extent metadata), with its sorted children and the writes to it. |
 | `roots` | `PlaceId` | The `ExactPlaceId` of each root place. |
-| `writes` | `WriteId` | The forward write log: a value, unknown contents, or a hole. |
+| `writes` | `WriteId` | Elaboration's forward write log: a value, unknown contents, or a hole. Lowering scratch; the checker derives its own log from the operations and never reads this one. |
 | `obligations` | `ObligationId` | Claims, loans, windows and debts (conserved across edges) and proof questions (discharged at one site). |
 | `edges` | `EdgeId` | Source, destination, and the fate of every conserved obligation crossing the edge. |
 | `invocations` | `InvocationId` | The one entry operation of ordinary and terminal calls: callee, ordered actuals, one requirement obligation per callee clause. |
@@ -114,8 +114,23 @@ closure in `PreparedCompilation::mathematics`:
   declares it, and a distributivity law may regroup under the one-operation
   laws. A law of the right shape that satisfies no requirement licenses
   nothing.
+- **Identity tables**: one per generic check form with const record
+  parameters (`IdentityTable`, keyed by the form's declaration and form
+  position). It holds what every Identity goal of the form names beyond its
+  own inputs: the carriers, the trait operations the clause reader applied
+  through the record parameters (`StaticRecordBinding::applied`) and the
+  laws those parameters' traits state. A law is the `ensures` equality of the
+  machine standing for a record's law requirement, written over its formals
+  (`ClauseOperand::Formal`), structural formals first. A law that requires
+  something, or names part of a formal, stays out, and a citation of it is
+  refused. Stage 06 checks the table once per form and starts each
+  obligation from it, adding only the obligation's own inputs
+  (`extend_signature`). An obligation that names a trait operation or a law
+  missing from its form's table is refused, and so is every Identity goal of
+  a form whose table the kernel refuses.
 
-Stage 05 writes the table ([`read/signature.rs`](../../pipeline/05_prepared-typed-trees-to-lowered-program/src/read/signature.rs)).
+Stage 05 writes the table ([`read/signature.rs`](../../pipeline/05_prepared-typed-trees-to-lowered-program/src/read/signature.rs);
+Identity tables in [`identity_tables.rs`](../../pipeline/05_prepared-typed-trees-to-lowered-program/src/identity_tables.rs)).
 Stage 06 checks every declaration once with the kernel and judges each law
 ([`laws.rs`](../../pipeline/06_lowered-program-to-checked-program/src/laws.rs)).
 Once the compilation is accepted, stage 06 writes each data declaration,
@@ -245,8 +260,7 @@ A lane met each, reported it, and read the fact from the lowered form instead.
   is a knowledge row justified as `Justification::DispatchBinding`.
 - **A domain debt on a data type's `requires`.** `ObligationKind::DomainDebt`
   names its domain by a `DomainSemanticId`; a data `requires` clause has no such
-  identity (its clauses are stored in `Elaboration::domains`, by type and
-  position). An invariant window on one is therefore the opening write's
+  identity (its clauses live in the type's declaration, by position). An invariant window on one is therefore the opening write's
   `DataDomain` row, which `terminal-psi-to-terminal-psi` follows to its
   consumption points, not a conserved row here.
 

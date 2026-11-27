@@ -1,14 +1,15 @@
 //! Storage ancestry is independent of the operation asking about it. Walk
 //! projection bases without evaluating selectors; callers authorize each step
 //! and decide whether a saved match subject must be resolved or may stay opaque.
+use crate::read::refuse_at;
 
 use std::borrow::Borrow;
 
 use semantic_vocabulary::MachineId;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
+use crate::Unserved;
 use crate::body::{Expression, ExpressionKind};
-use crate::{Unserved, refuse};
 
 type Capture = arena::Handle<crate::source_state::expression::CompletedValueCapture>;
 
@@ -21,7 +22,9 @@ pub(super) fn walk<'a, E>(
         match &place.kind {
             ExpressionKind::TestMembership { predicate, .. } => place = predicate,
 
-            ExpressionKind::TheoremApplication { .. } => return Ok(place),
+            ExpressionKind::TheoremApplication { .. } | ExpressionKind::Applied { .. } => {
+                return Ok(place);
+            }
             ExpressionKind::Field { base, .. }
             | ExpressionKind::Payload { base, .. }
             | ExpressionKind::Index { base, .. }
@@ -88,7 +91,7 @@ impl<'a, C: Borrow<Expression>> Captures<'a, C> {
     }
 
     pub(super) fn resolve(&mut self, capture: Capture) -> Checked<Option<&'a Expression>> {
-        let invalid = |reason| refuse(self.machine, Construct::Machine, Unserved::Call(reason));
+        let invalid = |reason| refuse_at(self.machine, Unserved::Call(reason));
         if self.followed == self.subjects.len() {
             return Err(invalid("cyclic saved subject capture"));
         }

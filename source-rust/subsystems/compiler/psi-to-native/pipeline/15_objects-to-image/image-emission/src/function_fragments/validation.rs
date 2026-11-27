@@ -311,7 +311,10 @@ pub(crate) fn validate_function_fragment_object_artifact(
     artifact: &ObjectArtifact,
 ) -> Result<(), Error> {
     let source = replay.fragment_source();
-    if source.publication().custody() != artifact.emission_input.publication().custody() {
+    if !source
+        .publication()
+        .same_text(artifact.emission_input.publication())
+    {
         return Err(Error::Mismatch("composition source custody changed"));
     }
     if artifact.composition_source.is_none() {

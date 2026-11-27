@@ -220,7 +220,7 @@ impl PackageCompilationInputs {
             errors.push(PackageCompilationInputError::DependencyCycle { cycle });
         }
 
-        let mut filesystem = source_capture::SourceFileSystem::default();
+        let mut filesystem = source_acquisition::capture::SourceFileSystem::default();
         for (identity, record) in &canonical_packages {
             if let Some(tree) = &record.captured_source
                 && let Err(error) =
@@ -376,7 +376,7 @@ pub(super) fn append_overlapping_source_roots(
 
 fn acquired_tree(
     record: &PackageCompilationSourceRecord,
-) -> Option<&source_capture::CapturedSourceTree> {
+) -> Option<&source_acquisition::capture::CapturedSourceTree> {
     record
         .preparing_source
         .as_ref()
@@ -385,9 +385,9 @@ fn acquired_tree(
 }
 
 fn compatible_nested_capture(
-    parent: &source_capture::CapturedSourceTree,
+    parent: &source_acquisition::capture::CapturedSourceTree,
     relative: &Path,
-    child: &source_capture::CapturedSourceTree,
+    child: &source_acquisition::capture::CapturedSourceTree,
 ) -> bool {
     // A scoped parent can omit the child's directory entirely. Its inventory then
     // owns no part of the child's capture. A file or symlink on the way to the
@@ -397,7 +397,10 @@ fn compatible_nested_capture(
         .entries()
         .filter(|(path, _)| relative.starts_with(path))
     {
-        if !matches!(node, source_capture::CapturedSourceNode::Directory) {
+        if !matches!(
+            node,
+            source_acquisition::capture::CapturedSourceNode::Directory
+        ) {
             return false;
         }
         has_child_directory |= ancestor == relative;
@@ -415,8 +418,8 @@ fn compatible_nested_capture(
         };
         let same_node = match (node, child_node) {
             (
-                source_capture::CapturedSourceNode::Symlink { target: a },
-                source_capture::CapturedSourceNode::Symlink { target: b },
+                source_acquisition::capture::CapturedSourceNode::Symlink { target: a },
+                source_acquisition::capture::CapturedSourceNode::Symlink { target: b },
             ) => a.as_os_str() == b.as_os_str(),
             _ => node == child_node,
         };
@@ -456,7 +459,7 @@ mod tests {
 
     #[test]
     fn nested_captures_accept_disjoint_inventories_and_require_matching_shared_contents() {
-        use source_capture::{CapturedSourceNode, CapturedSourceTree};
+        use source_acquisition::capture::{CapturedSourceNode, CapturedSourceTree};
 
         let capture = |rows: &[(&str, CapturedSourceNode)]| {
             CapturedSourceTree::new(

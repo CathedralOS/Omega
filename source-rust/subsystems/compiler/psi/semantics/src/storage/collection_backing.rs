@@ -14,6 +14,7 @@ pub enum CollectionExtent {
         owner: semantic_vocabulary::MachineId,
         value: semantic_vocabulary::ValueId,
     },
+    Application(semantic_vocabulary::ScalarApplicationId),
     Fixed(u64),
     LiveLength {
         capacity: u64,
@@ -101,6 +102,13 @@ fn collection_shape_backing<'types>(
             length: terminal_psi::ArrayExtent::Parameter { owner, value },
         } if actual == element => Some(CollectionBacking {
             extent: CollectionExtent::Parameter { owner, value },
+            storage: CollectionStorage::Inline,
+        }),
+        StructuralTypeShape::FixedArray {
+            element: actual,
+            length: terminal_psi::ArrayExtent::Application(application),
+        } if actual == element => Some(CollectionBacking {
+            extent: CollectionExtent::Application(application),
             storage: CollectionStorage::Inline,
         }),
         StructuralTypeShape::ByteSequence(carrier)

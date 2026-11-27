@@ -13,8 +13,8 @@ pub use schemas::{compiler_primitive_schemas, hosted_requirement_schema};
 pub struct DirectBoundaryLeaf {
     pub declaration_identity: String,
     pub callable_identity: String,
-    pub satisfied_schema: provider_plans::ServiceSchema,
-    pub plan: provider_plans::ProviderPlan,
+    pub satisfied_schema: build_providers::plans::ServiceSchema,
+    pub plan: build_providers::plans::ProviderPlan,
     pub satisfied_requirement_identity: String,
     pub target_realization: Option<target::CanonicalFloatRealization>,
     pub execution: DirectBoundaryExecution, // Preserves exact refusal until executable demand activates this row.
@@ -99,7 +99,7 @@ impl DirectBoundaryLeaf {
     pub fn validate_plain_execution<'binding>(
         &'binding self,
         module: &terminal_psi::TerminalModule,
-        evaluated: &'binding [provider_plans::EvaluatedNativeBinding],
+        evaluated: &'binding [build_providers::plans::EvaluatedNativeBinding],
         identities: &'binding terminal_psi::TerminalIdentityTable,
     ) -> Result<native_binding_admission::NativeBindingInput<'binding>, String> {
         let boundary = self.bound_calling_declaration(module)?;
@@ -137,15 +137,18 @@ impl DirectBoundaryLeaf {
         }
         match (receipt, &binding.binding) {
             (
-                provider_plans::EvaluatedNativeBinding::Import(import),
+                build_providers::plans::EvaluatedNativeBinding::Import(import),
                 calling_conventions::ExternalBindingKind::Import { locator },
             ) if import.locator() == locator => {}
             (
-                provider_plans::EvaluatedNativeBinding::Syscall(syscall),
+                build_providers::plans::EvaluatedNativeBinding::Syscall(syscall),
                 calling_conventions::ExternalBindingKind::Syscall { number },
             ) if syscall.number() == *number => {}
-            (provider_plans::EvaluatedNativeBinding::FunctionField(field), calling_conventions::ExternalBindingKind::FunctionField(candidate))
-                if *candidate == native_binding_admission::resolve_function_field(module, boundary, field)? => {}
+            (
+                build_providers::plans::EvaluatedNativeBinding::FunctionField(field),
+                calling_conventions::ExternalBindingKind::FunctionField(candidate),
+            ) if *candidate
+                == native_binding_admission::resolve_function_field(module, boundary, field)? => {}
             _ => return Err("plain binding changes its normalized execution mechanism".into()),
         }
         Ok(native_binding_admission::NativeBindingInput {

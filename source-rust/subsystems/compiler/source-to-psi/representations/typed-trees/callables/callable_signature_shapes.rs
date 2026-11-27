@@ -664,7 +664,7 @@ impl crate::source_state::TypedTrees {
                 return Err("selected record was not supplied as its declared Const value".into());
             };
             let schema = self
-                .static_record_parameter_schema(frame.declaration, parameter)?
+                .static_record_schema_in_frame(&frame, parameter)?
                 .ok_or("selected record receiver has no exact declared schema")?;
             let actual = self.static_operand_from_type_reference(reference)?;
             if identity(&actual, frame.argument_owner)? != identity(selected, selected_supplier)? {

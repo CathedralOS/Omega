@@ -2,7 +2,7 @@ use target_vocabulary::NearestIeeeFloatArithmeticRealization;
 pub fn boundary_contract_matches_selected_schema(
     module: &terminal_psi::TerminalModule,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
-    plan: &provider_plans::ProviderPlan,
+    plan: &build_providers::plans::ProviderPlan,
     requirement: &str,
 ) -> bool {
     // A closed call keeps its own selected row while sharing the declared

@@ -751,9 +751,23 @@ impl<'a> Storage<'a> {
         before: usize,
         concerns: Construct,
     ) -> Checked<Backing> {
+        self.optional_backing(references, place, block, before, concerns)?
+            .ok_or_else(|| self.unsupported(concerns, "captured storage family is empty"))
+    }
+
+    /// Like `backing`, returning `Ok(None)` when a conservative call write
+    /// names a reference slot that is inactive on every arrival.
+    pub(super) fn optional_backing(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        place: &Lineage,
+        block: BlockId,
+        before: usize,
+        concerns: Construct,
+    ) -> Checked<Option<Backing>> {
         let borrowed_arrival = self.is_borrowed_arrival(place.root, concerns)?;
         if !borrowed_arrival && !place.segments.contains(&Segment::Referent) {
-            return Ok(Backing::direct(place.clone()));
+            return Ok(Some(Backing::direct(place.clone())));
         }
         let before = crate::position(
             before.min(self.block(block)?.operations.len()),
@@ -782,9 +796,12 @@ impl<'a> Storage<'a> {
                 "reference backing has no complete descriptor coordinate",
             )
         })?;
-        let addresses = references
-            .captured_storage_family(self.machine, (block, before), &location)
-            .map_err(|detail| self.unsupported(concerns, detail))?;
+        let Some(addresses) = references
+            .captured_storage_family_if_active(self.machine, (block, before), &location)
+            .map_err(|detail| self.unsupported(concerns, detail))?
+        else {
+            return Ok(None);
+        };
         let owner = if borrowed_arrival && !place.segments.contains(&Segment::Referent) {
             match self.root_kind(place.root, concerns)? {
                 StructuralPlaceKind::BlockParameter { block, .. } => Some(block),
@@ -794,6 +811,7 @@ impl<'a> Storage<'a> {
             None
         };
         self.captured_backing(place, suffix, addresses, owner, concerns)
+            .map(Some)
     }
 
     /// Ordinary uses and cleanup actions interpret the same authenticated

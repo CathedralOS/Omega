@@ -1,15 +1,16 @@
 //! When lowering copies a helper body into a loop, its calls still refer to
 //! the original callback parameter. Source call records preserve that connection.
+use crate::read::refuse_at;
 
 use crate::source_state::SourceCallCorrespondence;
 use crate::source_state::data::TypeParameter;
 use semantic_vocabulary::{InvocationSite, MachineId};
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 use terminal_psi::static_reach::StaticReachParameter;
 
 use super::Program;
-use crate::{Unserved, refuse};
+use crate::Unserved;
 
 struct Origin {
     owner: MachineId,
@@ -22,7 +23,7 @@ fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
 }
 
 fn unavailable(owner: MachineId, reason: &'static str) -> crate::Refusal {
-    refuse(owner, Construct::Machine, Unserved::Declaration(reason))
+    refuse_at(owner, Unserved::Declaration(reason))
 }
 
 impl Program<'_> {

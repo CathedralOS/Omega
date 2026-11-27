@@ -65,6 +65,8 @@ fn product<'a>(
             default_provider_selections: &[],
             native_bindings: Default::default(),
             optimizations: Default::default(),
+            proof_index_expansion_terms:
+                lowered_program_to_checked_program::DEFAULT_PROOF_INDEX_EXPANSION_TERMS as u64,
         },
     })
 }
@@ -246,7 +248,7 @@ fn the_core_iterator_instantiates_its_callback_borrow_for_each_element() {
     let package = PackageKeyIdentity::from_digest([0x7a; 32]).unwrap();
     let source = concat!(
         include_str!("../../../../../source/library/core/iteration.omg"),
-        "\ndata Cell { value: i32; }
+        "\ndata Cell requires value >= 0 { value: i32; }
         machine clear(item: @mutable Cell) satisfies ElementStep<Cell>::apply { item.value = 0; }
         machine main() {
             let mutable items: [Cell; 2] = [Cell { value: 1 }, Cell { value: 2 }];
@@ -262,6 +264,16 @@ fn the_core_iterator_instantiates_its_callback_borrow_for_each_element() {
             .unwrap()
             .to_bytes(),
         bytes,
+    );
+
+    let broken = source.replace("item.value = 0;", "item.value = -1;");
+    let (files, root) = captured(package, &broken);
+    let diagnostics = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove requires clause")),
+        "an exclusive callback must reestablish its element default: {diagnostics:?}"
     );
 }
 
@@ -1356,6 +1368,20 @@ fn publication_checks_the_same_grammar_in_root_and_imported_files() {
 }
 
 #[test]
+fn an_open_array_prepares_its_applied_element_type() {
+    let source = "
+        data Leaf<const N: u64> { index: u64; }
+        data Group<const M: u64, const N: u64> { items: [Leaf<N>; M]; }
+        machine inspect<const Rows: u64, const Bound: u64>(group: @Group<Rows, Bound>) {}
+        machine main() {}
+    ";
+    let package = PackageKeyIdentity::from_digest([0x45; 32]).unwrap();
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None)
+        .expect("a symbolic array extent must retain its element's applied declaration");
+}
+
+#[test]
 fn an_erased_array_argument_still_requires_an_integer_extent() {
     let package = PackageKeyIdentity::from_digest([0x45; 32]).unwrap();
     let compile_source = |declarations: &str, formals: &str, extent: &str| {
@@ -2310,7 +2336,7 @@ fn a_file_qualified_domain_still_requires_its_declared_carrier() {
 /// `b.omg`. One compilation captures and imports `a` before `b`, the other
 /// `b` before `a`; nothing else differs, so the published bytes must not.
 ///
-/// `wiki/spec/terminal-psi/encoding.md`, "Canonical form": "Unordered sets
+/// `source-rust/subsystems/compiler/psi/artifact/wire/encoding.md`, "Canonical form": "Unordered sets
 /// are strictly sorted by stable identity or canonical bytes".
 #[test]
 fn the_order_files_are_met_in_does_not_change_the_published_psi() {

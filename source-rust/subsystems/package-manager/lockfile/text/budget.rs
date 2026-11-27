@@ -47,7 +47,7 @@ impl Budget {
     pub(super) fn native_bindings(
         &mut self,
         bytes: &[u8],
-    ) -> Result<Vec<evaluation_receipts::NativeBindingMaterialization>, Error> {
+    ) -> Result<Vec<build_model::receipts::NativeBindingMaterialization>, Error> {
         let mut limits = record_storage::RecordLimits {
             bytes: bytes.len(),
             allocation: self.remaining.maximum_owned_bytes,

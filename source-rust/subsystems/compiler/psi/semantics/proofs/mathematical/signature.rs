@@ -213,8 +213,33 @@ pub fn check_signature_with_attribution(
     declarations: &[Declaration],
     budget: &mut Budget,
 ) -> Result<Signature, SignatureCheckError> {
-    let mut signature = Signature::new();
-    let mut position = 0;
+    check_from(arena, Signature::new(), declarations, 0, budget)
+}
+
+/// Checks `added` after `checked`, a signature this kernel already checked,
+/// and returns the two as one signature. The declarations of `checked` are
+/// not checked again, so a table checked once can be extended by each of its
+/// users without repeating that work. A refusal's position counts from the
+/// start of `checked`.
+pub fn extend_signature(
+    arena: &mut TermArena,
+    checked: &Signature,
+    added: &[Declaration],
+    budget: &mut Budget,
+) -> Result<Signature, SignatureCheckError> {
+    let start = checked.len();
+    let mut declarations = checked.declarations().to_vec();
+    declarations.extend_from_slice(added);
+    check_from(arena, checked.clone(), &declarations, start, budget)
+}
+
+fn check_from(
+    arena: &mut TermArena,
+    mut signature: Signature,
+    declarations: &[Declaration],
+    mut position: usize,
+    budget: &mut Budget,
+) -> Result<Signature, SignatureCheckError> {
     while position < declarations.len() {
         let declaration = &declarations[position];
         match declaration.kind {

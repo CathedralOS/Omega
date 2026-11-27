@@ -1,8 +1,8 @@
 //! The placement index of resident custody is the qualified type of its value.
+use crate::read::refuse_at;
 
 use super::{
-    Checked, Construct, MachineId, Program, Qualification, SourceOrigin, TypeReferenceHandle,
-    Unserved, refuse,
+    Checked, MachineId, Program, Qualification, SourceOrigin, TypeReferenceHandle, Unserved,
 };
 
 impl Program<'_> {
@@ -16,7 +16,7 @@ impl Program<'_> {
         schema: TypeReferenceHandle,
     ) -> Checked<Qualification> {
         let typed = self.typed;
-        let unavailable = |reason| refuse(id, Construct::Machine, Unserved::Call(reason));
+        let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
         let placed = self.local_type(id, placement)?;
         let value = self.local_type(id, schema)?;
         if matches!(placed, crate::body::ValueType::Rigid(_))

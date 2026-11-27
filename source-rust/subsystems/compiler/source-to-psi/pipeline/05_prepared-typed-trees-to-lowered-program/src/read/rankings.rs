@@ -1,21 +1,20 @@
 //! A loop's decreasing measure must use the view that name resolution
 //! selected. A familiar name does not turn an authored function into a
 //! compiler ranking theory.
+use crate::read::refuse_at;
 
 use super::{Program, Slot};
-use crate::body::{
-    Expression, ExpressionKind, Policy, RankRange, Ranking, Strict, ValueType,
-};
-use crate::{Unserved, refuse};
+use crate::Unserved;
+use crate::body::{Expression, ExpressionKind, Policy, RankRange, Ranking, Strict, ValueType};
 use crate::source_state::machine::Machine;
 use semantic_vocabulary::RankingViewId;
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
 use source_declarations::RankingViewSelection;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 impl Program<'_> {
     fn ranking_view(&self, id: MachineId, machine: &Machine) -> Checked<(RankingViewId, bool)> {
-        let unsupported = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
+        let unsupported = |detail| refuse_at(id, Unserved::Contract(detail));
         let custody = self
             .typed
             .ranking_expression_custody_for(machine.symbol)
@@ -141,7 +140,7 @@ impl Program<'_> {
         let Some(witness) = &machine.termination_plan.implementation_witness else {
             return Ok(None);
         };
-        let unsupported = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
+        let unsupported = |detail| refuse_at(id, Unserved::Contract(detail));
         if self.mathematical {
             // contracts.md, "Citation and induction": "Proof/compile-time
             // recursion may rank on mathematical structure." The subject is
@@ -151,7 +150,9 @@ impl Program<'_> {
                 crate::source_state::ranking::resolve_machine_witness_subjects(self.typed, machine)
                     .ok_or_else(|| unsupported("ranking subjects have no resolved expressions"))?;
             let [subject] = subjects.as_slice() else {
-                return Err(unsupported("structural ranking requires exactly one subject"));
+                return Err(unsupported(
+                    "structural ranking requires exactly one subject",
+                ));
             };
             let value = self.expression(id, slots, *subject, None)?;
             if !matches!(value.result, Some(ValueType::Record(record, ..))
@@ -308,9 +309,8 @@ impl Program<'_> {
         let lower_type = natural_subject(id, &lower, default)?;
         let upper_type = natural_subject(id, &upper, default)?;
         if lower_type != upper_type {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract("bounded distance needs one common unsigned integer carrier"),
             ));
         }
@@ -339,7 +339,7 @@ fn catalog_natural_carrier() -> IntegerType {
 }
 
 fn natural_subject(id: MachineId, value: &Expression, default: bool) -> Checked<IntegerType> {
-    let unsupported = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
+    let unsupported = |detail| refuse_at(id, Unserved::Contract(detail));
     let Some(ValueType::Scalar(ScalarType::Integer(integer), _)) = value.result else {
         return Err(unsupported(
             "natural ranking needs an unsigned integer subject",

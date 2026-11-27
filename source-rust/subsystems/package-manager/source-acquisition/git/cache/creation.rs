@@ -13,13 +13,13 @@ use std::ffi::{OsStr, OsString};
 use std::io::Write;
 use std::path::Path;
 
+use crate::git::execution::ResolverExecutionPhase;
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::fs::{Dir as CapabilityDirectory, OpenOptions as CapabilityOpenOptions};
 #[cfg(unix)]
 use cap_std::fs::{
     OpenOptionsExt as CapabilityOpenOptionsExt, PermissionsExt as CapabilityPermissionsExt,
 };
-use resolver_execution::ResolverExecutionPhase;
 
 use crate::SourceResolveError;
 use crate::custody::platform::verify_capability_cache_node_owner_and_mode;

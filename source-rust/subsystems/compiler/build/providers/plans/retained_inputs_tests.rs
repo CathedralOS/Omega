@@ -1,18 +1,17 @@
-use crate::digest_encoder::PROVIDER_PLAN_DOMAIN;
-use crate::{
+use crate::plans::digest_encoder::PROVIDER_PLAN_DOMAIN;
+use crate::plans::{
     BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ProviderBinding, ProviderPlan,
-    ProviderPlanRow, ServiceCallingApplication, ServiceCallingPlan, ServiceMethod,
-    ServiceReceiverApplication,
+    ServiceCallingApplication, ServiceCallingPlan,
 };
 use component_description::retained_plan::ProviderPlanInput;
 use semantic_vocabulary::{CallingAbiIdentity, CallingOperandKind, CallingStaticOperand};
 use sha2::{Digest, Sha256};
 
-include!("selected_plan_fixture.rs");
+use crate::plans::selected_plan_fixture::selected_plan;
 
 #[test]
 fn table_field_correspondence_is_committed_and_received_in_full() {
-    use crate::TableFieldStorage;
+    use crate::plans::TableFieldStorage;
     let storage = TableFieldStorage {
         table_application: "closed-table<word>".into(),
         field_declaration: "exact-package::table::invoke".into(),
@@ -278,7 +277,7 @@ fn applied_provider_and_receiver_remain_in_the_complete_commitment() {
     let application = declaration.identities.intern("Boundary<u64>");
     declaration
         .receiver_applications
-        .push(crate::ServiceReceiverApplication {
+        .push(crate::plans::ServiceReceiverApplication {
             application,
             trait_name: declaration.trait_name,
             trait_package_identity: None,
@@ -376,7 +375,7 @@ fn retained_plan_reads_complete_applied_identity_framing() {
     let lifetime = declaration.identities.intern("'caller");
     declaration
         .receiver_applications
-        .push(crate::ServiceReceiverApplication {
+        .push(crate::plans::ServiceReceiverApplication {
             application,
             trait_name: declaration.trait_name,
             trait_package_identity: declaration.trait_package_identity,

@@ -29,6 +29,27 @@ pub enum CoreVocabulary {
     CountedQuantity,
     /// The proof-natural constructor family in core nat.omg.
     ProofNatural,
+    /// Core nat.omg's `succ_of_sub_between`: a value above `k` and at most
+    /// `Succ k` is `Succ k`. A machine recursing at a computed natural cites
+    /// it in the law that its fuel suffices, so its body is demanded with
+    /// the naturals.
+    NaturalFuelBound,
+    /// Core nat.omg's lemmas the recursive equation of such a machine
+    /// cites: `not_succ_le_self` (a unit of fuel at the ranked argument
+    /// runs the body), `not_succ_le_zero` (with no fuel left no call is
+    /// reached) and `le_of_succ_le_succ` (a call below `Succ p` is within
+    /// `p` units of fuel).
+    NaturalFuelGuard,
+    NaturalFuelExhausted,
+    NaturalFuelStep,
+    /// Core nat.omg's lemmas the induction on fuel of a law citing itself
+    /// at a computed natural cites: `sub_self` (the ranked argument is
+    /// fuel enough), `not_lt_of_le_zero` (with no fuel no call is reached)
+    /// and `le_of_lt_of_sub_between` (a call at a unit of fuel that runs
+    /// the body is within the rest).
+    NaturalSubSelf,
+    NaturalFuelInductionExhausted,
+    NaturalFuelInductionStep,
     /// The ordinary `Never` data declaration in core `never.omg`.
     /// This identifies a nominal ABI result; it proves no inhabitedness.
     Never,
@@ -216,6 +237,22 @@ impl CoreVocabulary {
     pub fn is_extent_domain_named(self, name: &str) -> bool {
         matches!(self, Self::ExtentDomain(domain) if domain.name() == name)
     }
+
+    /// Whether this is one of core nat.omg's lemmas that the laws stated
+    /// for a machine on fuel cite, which no call names: their bodies are
+    /// demanded and read with the naturals.
+    pub const fn is_natural_fuel_lemma(self) -> bool {
+        matches!(
+            self,
+            Self::NaturalFuelBound
+                | Self::NaturalFuelGuard
+                | Self::NaturalFuelExhausted
+                | Self::NaturalFuelStep
+                | Self::NaturalSubSelf
+                | Self::NaturalFuelInductionExhausted
+                | Self::NaturalFuelInductionStep
+        )
+    }
 }
 
 /// The selector primitives of the two segment files.
@@ -297,6 +334,48 @@ const ROWS: &[CoreVocabularyRow] = &[
         "Nat",
         BundledFile::CoreNat,
         CoreVocabulary::ProofNatural,
+    ),
+    row(
+        "nat.omg",
+        "succ_of_sub_between",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalFuelBound,
+    ),
+    row(
+        "nat.omg",
+        "not_succ_le_self",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalFuelGuard,
+    ),
+    row(
+        "nat.omg",
+        "not_succ_le_zero",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalFuelExhausted,
+    ),
+    row(
+        "nat.omg",
+        "le_of_succ_le_succ",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalFuelStep,
+    ),
+    row(
+        "nat.omg",
+        "sub_self",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalSubSelf,
+    ),
+    row(
+        "nat.omg",
+        "not_lt_of_le_zero",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalFuelInductionExhausted,
+    ),
+    row(
+        "nat.omg",
+        "le_of_lt_of_sub_between",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalFuelInductionStep,
     ),
     row(
         "native_execution_authority.omg",
@@ -877,6 +956,16 @@ impl CoreVocabularyCatalog {
             .map(|row| row.vocabulary)
     }
 
+    /// Returns the vocabulary for a file already authenticated against its
+    /// exact bundled core path and bytes at source admission.
+    pub fn classify_bundled(file: BundledFile, declaration: &str) -> Option<CoreVocabulary> {
+        ROWS.iter()
+            .find(|row| {
+                row.source == file && SealedDeclaration::Exact(row.declaration).matches(declaration)
+            })
+            .map(|row| row.vocabulary)
+    }
+
     /// The core source the site's file is, matching path and exact bytes.
     pub fn match_source(
         file: &Path,
@@ -888,5 +977,42 @@ impl CoreVocabularyCatalog {
                 file == Path::new(candidate) && matches_source(*bundled_file)
             })
             .map(|(core, _, _)| *core)
+    }
+
+    /// The core source for a file already authenticated at source admission.
+    pub fn source_bundled(file: BundledFile) -> Option<CoreSource> {
+        CORE_SOURCES
+            .iter()
+            .find(|(_, _, bundled_file)| *bundled_file == file)
+            .map(|(core, _, _)| *core)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bundled_classification_matches_row_paths() {
+        for row in ROWS {
+            assert_eq!(
+                Path::new(row.file),
+                Path::new(row.source.core_relative_path()),
+                "row `{}` path must match its BundledFile path",
+                row.declaration
+            );
+            assert_eq!(
+                CoreVocabularyCatalog::classify_bundled(row.source, row.declaration),
+                Some(row.vocabulary)
+            );
+        }
+        for &(core, file, bundled) in CORE_SOURCES {
+            assert_eq!(
+                Path::new(file),
+                Path::new(bundled.core_relative_path()),
+                "core source `{core:?}` path must match its BundledFile path"
+            );
+            assert_eq!(CoreVocabularyCatalog::source_bundled(bundled), Some(core));
+        }
     }
 }

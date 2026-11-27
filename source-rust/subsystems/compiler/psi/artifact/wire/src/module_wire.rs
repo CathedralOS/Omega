@@ -77,13 +77,16 @@ pub(crate) mod borrow_wire {
 }
 
 mod theorem_parameter_wire {
+    use crate::CodecError;
     use crate::obligation_evidence::Certificate;
+    use crate::wire::{Reader, Writer};
     use crate::wire_fields::{
-        Id, InvocationSite, List, Proposition, ScalarTermField, U32, wire_enum, wire_record,
+        Field, Id, InvocationSite, List, Proposition, ScalarTermField, U32, wire_enum, wire_record,
     };
     use psi_callable_encoding::signatures::Declaration;
     use terminal_psi::{
-        TheoremApplication, TheoremCitation, TheoremContract, TheoremParameter, TheoremSource,
+        TheoremApplication, TheoremCitation, TheoremContract, TheoremInstantiation,
+        TheoremParameter, TheoremSource,
     };
 
     wire_enum! {
@@ -93,12 +96,50 @@ mod theorem_parameter_wire {
         }
     }
 
-    wire_record! {
-        Contract: TheoremContract {
-            parameters: List<Declaration>,
-            requires: List<Proposition>,
-            ensures: List<Proposition>,
+    /// A contract and then its own proof parameters. Each of those is a
+    /// contract with none of its own, so the row never nests further.
+    pub struct Contract;
+    impl Field<TheoremContract> for Contract {
+        fn write(writer: &mut Writer, value: &TheoremContract) -> Result<(), CodecError> {
+            write_clauses(writer, value)?;
+            List::<Hypothesis>::write(writer, &value.proof_parameters)
         }
+        fn read(reader: &mut Reader<'_>) -> Result<TheoremContract, CodecError> {
+            let mut contract = Hypothesis::read(reader)?;
+            contract.proof_parameters = List::<Hypothesis>::read(reader)?;
+            Ok(contract)
+        }
+    }
+
+    /// One of a contract's own proof parameters: its subjects and clauses.
+    /// Writing one that has proof parameters itself would drop them.
+    pub struct Hypothesis;
+    impl Field<TheoremContract> for Hypothesis {
+        fn write(writer: &mut Writer, value: &TheoremContract) -> Result<(), CodecError> {
+            if !value.proof_parameters.is_empty() {
+                return Err(CodecError::MalformedMathematicalCertificate(
+                    "a logical contract's proof parameter takes proof parameters of its own",
+                ));
+            }
+            write_clauses(writer, value)
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<TheoremContract, CodecError> {
+            Ok(TheoremContract {
+                parameters: List::<Declaration>::read(reader)?,
+                requires: List::<Proposition>::read(reader)?,
+                ensures: List::<Proposition>::read(reader)?,
+                proof_parameters: Vec::new(),
+            })
+        }
+    }
+
+    fn write_clauses(writer: &mut Writer, value: &TheoremContract) -> Result<(), CodecError> {
+        List::<Declaration>::write(writer, &value.parameters)?;
+        List::<Proposition>::write(writer, &value.requires)?;
+        List::<Proposition>::write(writer, &value.ensures)
+    }
+
+    wire_record! {
         Parameter: TheoremParameter {
             machine: Id,
             proof_position: U32,
@@ -111,11 +152,17 @@ mod theorem_parameter_wire {
             source: Source,
             arguments: List<ScalarTermField>,
             requirements: List<Id>,
+            instantiation: List<Instantiation>,
         }
         Citation: TheoremCitation {
             machine: Id,
             site: InvocationSite,
             proof_position: U32,
+            source: Source,
+            derivations: List<Certificate>,
+            instantiation: List<Instantiation>,
+        }
+        Instantiation: TheoremInstantiation {
             source: Source,
             derivations: List<Certificate>,
         }

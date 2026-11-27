@@ -162,6 +162,20 @@ pub(crate) mod optimization_output {
         SelectedInstructionOptimizationError,
         "selected-instruction optimization failed"
     );
+
+    impl SelectedInstructionOptimizationError {
+        /// The selected optimization that this target has no implementation of, when that
+        /// is why the run failed.
+        pub fn unimplemented_optimization(&self) -> Option<optimization_core::Optimization> {
+            use crate::selected_rewrites::{LiteralFoldError, OptimizedLiteralFoldCustodyError};
+            match self {
+                Self::Rewrite(OptimizedLiteralFoldCustodyError::Fold(
+                    LiteralFoldError::UnsupportedTarget { optimization },
+                )) => Some(*optimization),
+                _ => None,
+            }
+        }
+    }
 }
 
 use crate::selected_rewrites::{

@@ -142,8 +142,26 @@ To test higher-order, indexed, universe-polymorphic inductives—and check wheth
 
 Soundness negative checks: `Acc Nat (=) Zero -> Void` is provable in 8 steps (reflexive relations are uninhabited under `Acc`), and `check_type` refuses both a bogus `Acc Nat (=) Zero` construction and a non-decreasing recursive call in `Acc.rec` (`le_refl x` where `lt x x` is required).
 
+## Production measurements from source
+
+Option C is now the production kernel, and the W/IW encoding is gone from it. On 2026-11-27 the prototype benchmarks ran unchanged against it (`mathematical-kernel` tests `native_inductives` and `mutual_inductives`, Linux x86-64, `mbx test`). Every step count matches Option C's column above: 0 steps for each declaration, 9/21/68 for the `Nat` probes, 53/132 for the 4- and 8-case copies, 364 for the 12-case `bounds_mono`, 0/0/12 for `Vector`, 122/201 for mutual `Expr`+`Stmt`, and 969/1,723 for `Ast50`. Allocation is a little lower than the prototypes' (for example 390 rather than 434 terms for the 12-case declaration, 46,113 terms for `Ast50 bounds_mono` as in `opt_c_opt`).
+
+The same laws were then written in source and judged through stage 05 and stage 06 (`proof_costs.rs` in `lowered-program-to-checked-program`). Stage 06 finds each proof by search and the kernel checks the certificate once. The table gives that check's conversion steps. The source declarations check in 0 steps, as above.
+
+| Law from source | Steps from source | Option C, hand-built | Option A (W), proof only |
+|---|---:|---:|---:|
+| `Nat` right identity (`add_zero_right`) | 39 | 21 | 300 |
+| `Nat` associativity (`add_assoc`) | 85 | 68 | 1,381 |
+| `Nat` commutativity (`add_comm`) | 51 | | |
+| 4-case `[0, 0, 2, 2]` `copy(x) = x` | 103 | 53 | 2,132 |
+| 8-case `[0, 0, 1, 1, 2, 2, 2, 3]` `copy(x) = x` | 206 | 132 | 12,421 |
+| 12-case `[0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 3]` `copy(x) = x` | 309 | | |
+| Mutual `Expr` + `Stmt` `copy(e) = e`, each law | 315 | 122 | |
+
+Proofs elaborated from source cost about 1.3 to 2.6 times the hand-built ones. A likely cause is that a source proof cites the induction hypothesis as a rewrite the search assembles, where the hand-built proofs apply congruence directly. The mutual source block has three and three cases, not the prototype's shapes, so its row is not a like-for-like comparison. Every law stays below 1% of the default 65,536-step ceiling, and the 8-case copy costs 60 times fewer steps than Option A's proof alone. `proof_costs.rs` fails when a law exceeds about twice its measured cost.
+
 ## Limits of these measurements
 
-- Prototypes were tested at the `mathematical-kernel` crate level only; stage 05 elaboration, Psi wire encoding, and end-to-end Omega programs were not updated or run.
+- The prototypes were tested at the `mathematical-kernel` crate level only. The production measurements above cover stage 05 elaboration and stage 06 judgment from source, but not wall-clock time.
 - The payload comparison used independent non-recursive fields. The later stress test measured mutual families. Dependent payload telescopes still lack measurements.
 - All timings were measured once on a single Windows x86-64 host under `[profile.test]` (`opt-level = 1`, `debug = 0`). Step counts and arena term counts are deterministic and host-independent.

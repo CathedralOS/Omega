@@ -10,7 +10,8 @@ pub(crate) mod rematerialization {
     pub(crate) mod compute {
         use crate::allocation::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
         use crate::allocation::{
-            PressureRematerializationPolicy, rematerialize_selected_active_resident,
+            PressureRematerializationError, PressureRematerializationPolicy,
+            rematerialize_selected_active_resident,
         };
         use optimization_core::OptimizationWorkBudget;
         use register_homes::{
@@ -21,11 +22,11 @@ pub(crate) mod rematerialization {
             choose_spill_victims, classify_pressure_recovery,
         };
 
-        use selected_instruction_analyses::StagedOptimizedAllocationLegality;
+        use selected_instruction_analyses::{SpillChoiceError, StagedOptimizedAllocationLegality};
 
         use super::custody::{custody_receipt, pressure_custody_receipt};
         use super::{
-            OptimizedActiveResidentRematerializationError,
+            ActiveResidentRematerializationStage, OptimizedActiveResidentRematerializationError,
             StagedOptimizedActiveResidentRematerialization,
             StagedOptimizedActiveResidentRematerializationPressure,
         };
@@ -38,7 +39,7 @@ pub(crate) mod rematerialization {
             rematerialization_policy: PressureRematerializationPolicy,
             budget: OptimizationWorkBudget,
         ) -> Result<
-            StagedOptimizedActiveResidentRematerializationPressure,
+            ActiveResidentRematerializationStage,
             OptimizedActiveResidentRematerializationError,
         > {
             if choice_policy != SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1
@@ -53,7 +54,7 @@ pub(crate) mod rematerialization {
             let environment = source.register_environment();
             let selected = source.selected();
             let source_ranges = source.ranges();
-            let choices = choose_spill_victims(
+            let choices = match choose_spill_victims(
                 source.legality(),
                 source_ranges,
                 environment.identity(),
@@ -63,8 +64,17 @@ pub(crate) mod rematerialization {
                 &environment.allocation_constraint_keys(),
                 choice_policy,
                 budget,
-            )
-            .map_err(OptimizedActiveResidentRematerializationError::SpillChoice)?;
+            ) {
+                Ok(choices) => choices,
+                Err(error) if outside_victim_choice_shape(&error) => {
+                    return Ok(ActiveResidentRematerializationStage::NothingToApply(source));
+                }
+                Err(error) => {
+                    return Err(OptimizedActiveResidentRematerializationError::SpillChoice(
+                        error,
+                    ));
+                }
+            };
             let classifications = classify_pressure_recovery(
                 selected,
                 source_ranges,
@@ -74,7 +84,7 @@ pub(crate) mod rematerialization {
                 budget,
             )
             .map_err(OptimizedActiveResidentRematerializationError::Classification)?;
-            let rematerialization = rematerialize_selected_active_resident(
+            let rematerialization = match rematerialize_selected_active_resident(
                 selected,
                 source_ranges,
                 source.legality(),
@@ -86,8 +96,17 @@ pub(crate) mod rematerialization {
                 &environment.allocation_constraint_keys(),
                 rematerialization_policy,
                 budget,
-            )
-            .map_err(OptimizedActiveResidentRematerializationError::Rematerialization)?;
+            ) {
+                Ok(rematerialization) => rematerialization,
+                Err(PressureRematerializationError::NoAction) => {
+                    return Ok(ActiveResidentRematerializationStage::NothingToApply(source));
+                }
+                Err(error) => {
+                    return Err(
+                        OptimizedActiveResidentRematerializationError::Rematerialization(error),
+                    );
+                }
+            };
             if rematerialization.receipt().applied_count() == 0 {
                 return Err(OptimizedActiveResidentRematerializationError::NoAppliedAction);
             }
@@ -122,14 +141,29 @@ pub(crate) mod rematerialization {
                 &ranges,
                 &legality,
             );
-            Ok(StagedOptimizedActiveResidentRematerializationPressure {
-                source,
-                rematerialization,
-                liveness,
-                ranges,
-                legality,
-                custody,
-            })
+            Ok(ActiveResidentRematerializationStage::Applied(
+                StagedOptimizedActiveResidentRematerializationPressure {
+                    source,
+                    rematerialization,
+                    liveness,
+                    ranges,
+                    legality,
+                    custody,
+                },
+            ))
+        }
+
+        /// The victim choice covers single-block pressure over values that keep
+        /// one register view for their whole range. A program outside that shape
+        /// has no rewrite this rule can make, which is not a defect.
+        fn outside_victim_choice_shape(error: &SpillChoiceError) -> bool {
+            matches!(
+                error,
+                SpillChoiceError::UnsupportedTiedOperands { .. }
+                    | SpillChoiceError::UnsupportedEarlyClobber { .. }
+                    | SpillChoiceError::NoCommonCandidate { .. }
+                    | SpillChoiceError::UnsupportedPressureShape { .. }
+            )
         }
 
         pub(crate) fn complete_optimized_active_resident_rematerialization(
@@ -375,6 +409,15 @@ pub(crate) mod rematerialization {
                 rematerialization: PressureRematerializationIdentity,
             }
         );
+    }
+
+    /// What active-resident rematerialization staging produced: a rewritten
+    /// program, or the unchanged source when the program has nothing the rule
+    /// applies to. The rule is still the allocation's recorded recovery rule.
+    #[derive(Debug)]
+    pub(crate) enum ActiveResidentRematerializationStage {
+        Applied(StagedOptimizedActiveResidentRematerializationPressure),
+        NothingToApply(StagedOptimizedAllocationLegality),
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1774,7 +1817,8 @@ pub use runtime_split::{RuntimeSplitError, ValidatedRuntimeSplit, split_selected
 pub(crate) use rematerialization::complete_optimized_active_resident_rematerialization;
 
 pub(crate) use rematerialization::{
-    OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
+    ActiveResidentRematerializationStage, OptimizedActiveResidentRematerializationError,
+    StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedActiveResidentRematerializationPressure,
     stage_optimized_active_resident_rematerialization_pressure,

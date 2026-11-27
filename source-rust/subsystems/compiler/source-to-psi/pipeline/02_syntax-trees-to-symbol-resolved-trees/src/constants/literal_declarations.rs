@@ -56,7 +56,7 @@ pub(super) fn primitive_literal_declaration(
     selection: Option<&ConstantSelection>,
 ) -> bool {
     use syntax_trees::expression::ExpressionNode;
-    if !scalar_literal_tree(syntax, constant.value()) {
+    if !constant.type_reference.is_valid() || !scalar_literal_tree(syntax, constant.value()) {
         return false;
     }
     let mut type_reference = constant.type_reference;
@@ -104,6 +104,9 @@ fn generic_const_carrier_leaf<'a>(
     syntax: &'a SyntaxTrees,
     constant: &ConstDefinition,
 ) -> Option<&'a Identifier> {
+    if !constant.type_reference.is_valid() {
+        return None;
+    }
     let mut carrier = constant.type_reference;
     loop {
         carrier = match syntax.type_references.type_reference(carrier) {

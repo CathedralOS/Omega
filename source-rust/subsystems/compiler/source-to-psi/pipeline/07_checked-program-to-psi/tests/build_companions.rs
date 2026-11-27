@@ -669,7 +669,7 @@ use checked_program_to_psi::{TerminalBuildQueryCall, TerminalBuildRequestCall};
         // or source protocol declaration is supplied by these bytes.
         let mut output = RecordWriter::new(RecordLimits::default());
         output.record(|output| {
-            u64::from_le_bytes(*b"OMGBLD03").write(output)?;
+            u64::from_le_bytes(*b"OMGBLD04").write(output)?;
             program.artifact().unwrap().to_bytes().write(output)?;
             Arc::<[checked_program_to_psi::TerminalBuildBindingCall]>::from([]).write(output)?;
             Arc::<[Arc<source_compiler::representations::declaration_selection::ProductDeclarationRequest>]>::from([]).write(output)?;
@@ -1556,7 +1556,7 @@ fn boundary_declaration_facts_do_not_admit_pure_execution() {
             .unwrap();
         let providers =
             psi_provider_selections::admit_provider_execution_installation(view, &[]).unwrap();
-        let refusal = evaluation_admission::admit_compiler_evaluation(
+        let refusal = build_model::admission::admit_compiler_evaluation(
             view,
             None,
             root,

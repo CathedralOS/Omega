@@ -2,8 +2,8 @@ use main.omg as program;
 use {omega}/build/dependency.omg;
 use {omega}/language/core/filesystem_authority.omg as authority;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "portable_filesystem_values");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "portable_filesystem_values" };
     let system: DependencyDescription = |dependency|::from_source(Source::Path {
         location: "../../../../../../../source/library/system"
     });

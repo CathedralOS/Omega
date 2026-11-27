@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 A primitive byte predicate (`valid_utf8`, `ascii_only`, `no_nul`, `non_empty`)
 of a fixed byte array, read as the clause it means over the array's bytes.
@@ -19,13 +20,13 @@ use semantic_vocabulary::{
     ByteSequencePredicate, CanonicalStructuralPathSegment, IntegerSign, IntegerType, IntegerValue,
     MachineId, PlaceId, Proposition, ScalarTerm, ScalarType,
 };
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 use super::Program;
 use super::authority::Access;
+use crate::Unserved;
 use crate::body::ValueType;
 use crate::canonical::{self, Repeated};
-use crate::{Unserved, refuse};
 
 /// The bytes of one fixed array, by position, and how to write a statement
 /// about them in canonical form.
@@ -236,7 +237,7 @@ impl Program<'_> {
         value_type: ValueType,
         predicate: ByteSequencePredicate,
     ) -> Checked<Proposition> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
         let Some(array) = self.opened(id, Some(value_type), Access::Read)? else {
             return Err(unserved(
                 "byte predicate of something that is not a byte array",

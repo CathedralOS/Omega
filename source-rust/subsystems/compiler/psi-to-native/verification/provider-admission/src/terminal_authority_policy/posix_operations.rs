@@ -193,7 +193,7 @@ pub(crate) fn mechanism_row(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use provider_plans::BoundaryCallingPlanCommitment;
+    use build_providers::plans::BoundaryCallingPlanCommitment;
     use terminal_authority_receipts::{
         CheckedSyscallArgumentContractIdentity, SyscallTerminalMechanismIdentity,
     };

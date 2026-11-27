@@ -1,5 +1,5 @@
 use provider_correspondence::external_providers::{matches_external_selection, selected_sealed_native_provider};
-use provider_plans::ProviderPlan;
+use build_providers::plans::ProviderPlan;
 use std::collections::BTreeSet;
 
 // A selected external realization needs its exact declaring owner only where
@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 // the program never executes.
 pub fn validate_external_provider_owners(
     module: &terminal_psi::TerminalModule,
-    selected: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &build_providers::selections::SelectedProviderPlanFacts,
 ) -> Result<(), String> {
     let mut retained = module
         .interfaces.boundary_machines
@@ -46,24 +46,26 @@ pub fn validate_external_provider_owners(
 pub(crate) fn validate_retained_provider_owners(
     external_providers: &[terminal_psi::ExternalProviderConformance],
     identities: &terminal_psi::TerminalIdentityTable,
-    facts: &selected_provider_plans::SelectedProviderPlanFacts,
+    facts: &build_providers::selections::SelectedProviderPlanFacts,
     retained: &BTreeSet<&str>,
 ) -> Result<(), String> {
-    let requires_declaration = |plan: &ProviderPlan, row: &provider_plans::ProviderPlanRow| {
-        retained.iter().any(|requirement| {
-            facts.selected_row_matches_requirement(
-                requirement,
-                plan.identities.text(row.requirement_identity),
-                plan.report_fingerprint(),
-            )
-        })
-    };
+    let requires_declaration =
+        |plan: &ProviderPlan, row: &build_providers::plans::ProviderPlanRow| {
+            retained.iter().any(|requirement| {
+                facts.selected_row_matches_requirement(
+                    requirement,
+                    plan.identities.text(row.requirement_identity),
+                    plan.report_fingerprint(),
+                )
+            })
+        };
     for selected in facts.plans() {
         if selected.row_numeric_realizations.len() != selected.rows.len() {
             return Err("selected external declarations have incomplete row custody".into());
         }
         for (row, realization) in selected.rows.iter().zip(&selected.row_numeric_realizations) {
-            let provider_plans::ProviderBinding::CompilerIntrinsic { machine } = &row.binding
+            let build_providers::plans::ProviderBinding::CompilerIntrinsic { machine } =
+                &row.binding
             else {
                 if realization.is_some() {
                     return Err("non-intrinsic row substituted an external realization".into());

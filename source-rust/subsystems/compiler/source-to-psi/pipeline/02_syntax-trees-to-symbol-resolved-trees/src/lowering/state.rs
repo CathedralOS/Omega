@@ -18,8 +18,6 @@ mod lexical_inputs {
         assignment shares its preceding-local scope and append-only allocation.
     */
 
-    #[cfg(any(test, feature = "test-support"))]
-    use crate::resolution::declarations::generic_data::statement_type_inputs;
     use crate::resolution::lowering::lowerer::Lowerer;
     use crate::resolution::lowering::type_reference::lower_type_reference_handle;
     use crate::source_resolved::{
@@ -28,8 +26,7 @@ mod lexical_inputs {
         types::TypeReference,
     };
     use arena::Handle;
-    #[cfg(any(test, feature = "test-support"))]
-    use arena::HandleSpan;
+
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
     use syntax_trees::{self as syntax, SyntaxTrees};
@@ -101,64 +98,7 @@ mod lexical_inputs {
             },
         })
     }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub(crate) fn lower_state_lexical_inputs(
-        lowerer: &mut Lowerer,
-        syntax: &SyntaxTrees,
-        machine: SymbolHandle,
-        state: Handle<State>,
-        statements: HandleSpan<syntax::statement::StatementHandle>,
-    ) -> Result<StateLexicalInputs, Diagnostic> {
-        let declaration = lowerer.symbol_resolved_trees.machine_state(state).clone();
-        super::with_state_scope(lowerer, &declaration, |lowerer| {
-            let mut inputs = StateLexicalInputs {
-                machine,
-                state,
-                locals: Vec::new(),
-                types: Vec::new(),
-            };
-            for &statement in syntax.items.statements(statements) {
-                let local = match syntax.statements.statement(statement) {
-                    syntax::statement::StatementNode::LocalData(local) => Some(local),
-                    _ => None,
-                };
-                let types = statement_type_inputs(syntax, statement)
-                    .into_iter()
-                    .filter(|reference| {
-                        !local.is_some_and(|local| local.type_reference == *reference)
-                    })
-                    .collect::<Vec<_>>();
-                if !types.is_empty() {
-                    crate::resolution::lowering::expression::match_dispatch::with_transition_pattern_captures(
-                        lowerer,
-                        syntax,
-                        statement,
-                        |lowerer| {
-                            for reference in types {
-                                inputs.types.push((
-                                    inputs.locals.len(),
-                                    lower_type_reference_handle(lowerer, syntax, reference)?,
-                                ));
-                            }
-                            Ok(())
-                        },
-                    )?;
-                }
-                if let Some(local) = local {
-                    inputs
-                        .locals
-                        .push(Statement::LocalData(lower_local_declaration(
-                            lowerer, syntax, local,
-                        )?));
-                }
-            }
-            Ok(inputs)
-        })
-    }
 }
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use lexical_inputs::lower_state_lexical_inputs;
 pub(crate) use lexical_inputs::{StateLexicalInputs, lower_local_declaration};
 
 use crate::resolution::lowering::domain::lower_proof_facts;
@@ -590,7 +530,9 @@ pub(crate) fn lower_machine_signature_contracts(
                     data.name.source_span(),
                 )
         })
-        .min_by_key(|data| data.name.source_span().source_id != result_data_name.source_span().source_id)
+        .min_by_key(|data| {
+            data.name.source_span().source_id != result_data_name.source_span().source_id
+        })
         .ok_or_else(|| {
             Diagnostic::error(
                 "outcome-specific ensures result does not resolve to a declared data sum",

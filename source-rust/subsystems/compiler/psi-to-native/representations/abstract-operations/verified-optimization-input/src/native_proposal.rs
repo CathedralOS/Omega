@@ -9,7 +9,7 @@ use provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal;
 pub struct TerminalNativeProviders {
     pub direct_boundary_leaves: Vec<direct_boundary_bindings::DirectBoundaryLeaf>,
     pub native_bindings: native_binding_admission::RetainedNativeBindings,
-    pub selection: std::sync::Arc<selected_provider_plans::SelectedProviderPlanFacts>,
+    pub selection: std::sync::Arc<build_providers::selections::SelectedProviderPlanFacts>,
     pub checked_adapters: target_bound_program::SelectedProviderAdapters,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     pub intrinsic_executions:
@@ -42,11 +42,13 @@ pub struct TerminalNativeRealizationProposal {
     imports: Vec<crate::ComponentImport>,
     application: target::NativeApplicationMetadata,
     scope_source: std::sync::Arc<target_bound_program::NativeScopeSource>,
-    post_terminal_optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
+    post_terminal_optimizations:
+        optimization_selections::PostTerminalOptimizationSelectionProjection,
     providers: TerminalNativeProviders,
     occurrences: TerminalNativeOccurrences,
     boundary_applications: TerminalNativeBoundaryApplications,
-    package_terminal_authority_permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
+    package_terminal_authority_permissions:
+        Vec<build_providers::acceptance::ServiceTerminalAuthorityPermission>,
     package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     behavior_exclusions: native_behavior_exclusions::BehaviorExclusions,
     target_provider: target_provider_admission::TerminalTargetProviderProposal,
@@ -96,7 +98,7 @@ impl TerminalNativeRealizationProposal {
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         scope: &crate::NativeExecutionScope,
-        selection: &selected_provider_plans::SelectedProviderPlanFacts,
+        selection: &build_providers::selections::SelectedProviderPlanFacts,
         provenance: &[provider_correspondence::CompilerIntrinsicPlanProvenance<'_>],
     ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
         let coverage = crate::settlement::boundary_application_settlement::settle(
@@ -137,7 +139,7 @@ impl TerminalNativeRealizationProposal {
 
     pub fn package_terminal_authority_permissions(
         &self,
-    ) -> &[provider_acceptance::ServiceTerminalAuthorityPermission] {
+    ) -> &[build_providers::acceptance::ServiceTerminalAuthorityPermission] {
         &self.package_terminal_authority_permissions
     }
 
@@ -180,9 +182,10 @@ mod proposal {
         pub application: target::NativeApplicationMetadata,
         pub optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
         pub external_bindings: &'input [calling_conventions::ExternalBindingRow],
-        pub behavior_exclusions: &'input [behavior_exclusion_requests::AuthoredBehaviorExclusion],
+        pub behavior_exclusions:
+            &'input [build_model::behavior_exclusions::AuthoredBehaviorExclusion],
         pub package_terminal_authority_permissions:
-            Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
+            Vec<build_providers::acceptance::ServiceTerminalAuthorityPermission>,
         pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
         pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     }
@@ -337,12 +340,11 @@ mod proposal {
             &selected,
             checked_adapters.rows(),
         )?;
-        let callback_arguments =
-            provider_admission::project_native_callback_arguments(
-                terminal_module,
-                &callback_placements,
-                &callback_occurrences,
-            )?;
+        let callback_arguments = provider_admission::project_native_callback_arguments(
+            terminal_module,
+            &callback_placements,
+            &callback_occurrences,
+        )?;
         let registrar_occurrences = callback_occurrences
             .iter()
             .map(|occurrence| {
@@ -405,8 +407,11 @@ mod proposal {
             });
             callback_occurrences.push(occurrence);
         }
-        provider_correspondence::callbacks::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
+        provider_correspondence::callbacks::validate_callback_thunk_joins(
+            artifact.view(),
+            &callback_occurrences,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
         Ok(TerminalNativeBodyProposal {
             providers: TerminalNativeProviders {
                 native_bindings: native_binding_admission::RetainedNativeBindings::retain(
@@ -459,7 +464,7 @@ mod proposal {
     fn project_callback_occurrences(
         callback_placements: &[provider_correspondence::callbacks::NativeCallbackPlacement],
         artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
         checked_adapters: &[crate::SelectedProviderAdapter],
     ) -> Result<Vec<crate::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
         let caller = artifact.view();
@@ -471,7 +476,8 @@ mod proposal {
         application_indices.sort_unstable();
         let operations = crate::settlement::callback_settlement::CallbackTerminalOperations::new(
             module
-                .interfaces.callback_applications
+                .interfaces
+                .callback_applications
                 .iter()
                 .map(|application| (application.registrar_machine, application.registrar)),
             module.machines.iter().flat_map(|machine| {
@@ -520,9 +526,8 @@ mod proposal {
                 }
                 continue;
             };
-            if let provider_plans::ProviderBinding::CheckedAdapter {
-                machine_identity,
-                ..
+            if let build_providers::plans::ProviderBinding::CheckedAdapter {
+                machine_identity, ..
             } = &row.binding
             {
                 let machine = selected

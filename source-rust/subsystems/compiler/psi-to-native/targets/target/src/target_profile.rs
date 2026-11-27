@@ -625,7 +625,34 @@ pub enum TargetWireIdentityError {
     LayoutOverflow,
 }
 
+/// The smallest initial-thread stack reserve a Windows executable declares.
+pub const WINDOWS_LOADER_STACK_RESERVE_BYTES: u64 = 0x10_0000;
+
+/// The default initial-thread stack limit on Linux and macOS.
+pub const POSIX_LOADER_STACK_LIMIT_BYTES: u64 = 8 * 0x10_0000;
+
+/// Bytes of a loader stack kept for the loader's own frames, the entry
+/// adapter, guard pages and host imports' frames, none of which the checked
+/// Omega frames account for.
+pub const LOADER_STACK_HEADROOM_BYTES: u64 = 64 * 1024;
+
 impl NativeTarget {
+    /// Stack the operating-system loader gives the initial thread of a hosted
+    /// executable whose checked frames need `frame_bytes`. A Windows image
+    /// declares its own reserve, so it is sized to the frames plus headroom
+    /// and is never below 1 MiB. Linux and macOS give the main thread their
+    /// default limit, whatever the image holds. `None` means the reserve
+    /// overflows.
+    pub fn loader_stack_supply_bytes(&self, frame_bytes: u64) -> Option<u64> {
+        match self.object_format {
+            ObjectFormat::Coff => frame_bytes
+                .checked_add(LOADER_STACK_HEADROOM_BYTES)?
+                .checked_next_multiple_of(LOADER_STACK_HEADROOM_BYTES)
+                .map(|bytes| bytes.max(WINDOWS_LOADER_STACK_RESERVE_BYTES)),
+            ObjectFormat::Elf | ObjectFormat::MachO => Some(POSIX_LOADER_STACK_LIMIT_BYTES),
+        }
+    }
+
     pub fn identity_bytes(&self) -> [u8; 18] {
         let mut bytes = [0u8; 18];
         bytes[0] = match self.architecture {

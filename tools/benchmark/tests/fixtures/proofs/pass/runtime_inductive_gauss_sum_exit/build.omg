@@ -4,8 +4,8 @@ use {omega}/build/dependency.omg;
 use {system}/console.omg;
 use main.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "runtime_inductive_gauss_sum_exit");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "runtime_inductive_gauss_sum_exit" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../../../source/library/system" }));
     Build::select_provider::<|console|::Console, |console|::LinuxArm64Console>(builder, linux_arm64);
     Build::select_provider::<|console|::Console, |console|::LinuxX86Console>(builder, linux_x86_64);

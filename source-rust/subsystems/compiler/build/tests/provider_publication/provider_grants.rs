@@ -197,8 +197,8 @@ fn selected_provider_preserves_the_domains_of_each_record_field() {
     std::fs::write(
         root.join("build.omg"),
         r#"use main.omg as app;
-        machine build(builder: @mutable Build) {
-            Build::package(builder, "reading");
+        machine build(builder: @mutable BuildPlan) {
+            builder.product = BuildProduct::Package { name: "reading" };
             Build::select_provider::<|app|::Reading, |app|::Provider>(builder, linux_x86_64);
         }"#,
     )

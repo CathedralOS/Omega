@@ -3,7 +3,7 @@
 These rules decide when a fact may justify a later obligation in Terminal Psi.
 Psi checking applies them when it discharges operation, call, crash-site and
 arrival obligations; the Omega optimizer applies them when it consumes checked
-facts. See the [product](product.md), [encoding](encoding.md), and
+facts. See the [product](product.md), [encoding](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md), and
 [observation](observations.md) contracts. Runtime cycles follow
 [control flow and ranking](control_flow.md).
 

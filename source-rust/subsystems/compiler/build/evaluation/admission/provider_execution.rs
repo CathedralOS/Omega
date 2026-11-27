@@ -113,7 +113,7 @@ impl BuildProviderScope {
             &selections.dependency_calls,
         )?;
         let authority = self.selection_scope(build_declarations::DependencyPurpose::Build);
-        let pending = evaluation_admission::admit_declaration_selections(
+        let pending = build_model::admission::admit_declaration_selections(
             artifact,
             None,
             entry,

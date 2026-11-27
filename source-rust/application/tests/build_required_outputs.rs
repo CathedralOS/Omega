@@ -24,17 +24,17 @@ mod project;
 fn check(name: &str, body: &str) -> (bool, String) {
     let build = format!(
         "use main.omg as app;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, \"promised\");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: \"promised\" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 {body}}}
-machine settle(builder: @mutable Build, settled: OutputCompletion) {{
+machine settle(builder: @mutable BuildPlan, settled: OutputCompletion) {{
     transition settled {{
         OutputCompletion::Sealed {{ receipt }} -> done(),
         OutputCompletion::Retry {{ obligation, file }} -> failed(builder, obligation)
     }}
     machine done() {{}}
-    machine failed(builder: @mutable Build, obligation: RequiredOutput) {{
+    machine failed(builder: @mutable BuildPlan, obligation: RequiredOutput) {{
         BuildOutput::fail(@mutable builder.output, obligation, \"output was not sealed\");
     }}
 }}

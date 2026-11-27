@@ -165,3 +165,58 @@ fn a_blocks_record_local_ends_on_its_arms_edge_out_of_the_match() {
         "the ended root is the block's `Counter`: {identity:?}"
     );
 }
+
+#[test]
+fn a_block_arm_crash_emits_a_crash_terminator_with_the_arms_guard() {
+    let fixture = program::prepare_source(program::CONTROL_FLOW, &["guarded_crash", "early_exit"]);
+    let lowered = fixture.lower();
+    let lowered = lowered.closure.as_ref().unwrap();
+    let guarded = machine(&fixture, lowered, "guarded_crash");
+    let crashes = guarded
+        .blocks
+        .iter()
+        .filter_map(|block| match &block.terminator {
+            Terminator::Crash {
+                cause, site_guard, ..
+            } => Some((*cause, site_guard.len())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        crashes,
+        [(semantic_vocabulary::CrashCause::Trap, 1)],
+        "the block arm crash carries the arm's branch guard: {crashes:?}"
+    );
+}
+
+#[test]
+fn a_block_arm_transition_returns_from_the_enclosing_machine() {
+    let fixture = program::prepare_source(program::CONTROL_FLOW, &["guarded_crash", "early_exit"]);
+    let lowered = fixture.lower();
+    let lowered = lowered.closure.as_ref().unwrap();
+    let early = machine(&fixture, lowered, "early_exit");
+    let returns = early
+        .blocks
+        .iter()
+        .filter(|block| matches!(block.terminator, Terminator::Return { .. }))
+        .count();
+    assert_eq!(
+        returns, 3,
+        "two returns from the block arm's transition plus the outer return"
+    );
+}
+
+#[test]
+fn a_tail_after_crash_in_a_block_arm_is_refused() {
+    let fixture = program::prepare_source(program::TRAILING_AFTER_CRASH, &["trailing"]);
+    let lowered = fixture.lower_program(&fixture.program);
+    let refusal = lowered
+        .closure
+        .expect_err("a tail expression after crash must be refused");
+    assert!(
+        refusal
+            .detail
+            .contains("statement after an unconditional arm"),
+        "{refusal:?}"
+    );
+}

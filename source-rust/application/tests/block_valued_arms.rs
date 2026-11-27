@@ -158,3 +158,58 @@ fn a_read_after_distinct_bounded_writes_preserves_their_common_range() {
         "{report}"
     );
 }
+
+#[test]
+fn block_arm_crash_and_transition_run_natively_and_in_psi() {
+    let source = fixture("run", "block_crash_transition");
+    program::assert_silent_return(&source);
+
+    // Negative twin 1: uncovered `crash Trap;` in a block-valued arm.
+    let uncovered = source.replacen("crashes Trap code == 0", "crashes none", 1);
+    let (output, report) = invoke(&uncovered, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("uncovered Trap crash"),
+        "uncovered block-arm crash must be refused: {report}"
+    );
+
+    // Negative twin 2: mismatched crash guard on a block-valued arm.
+    let wrong_guard = source.replacen("crashes Trap code == 0", "crashes Trap code == 1", 1);
+    let (output, report) = invoke(&wrong_guard, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("uncovered Trap crash"),
+        "mismatched crash guard on block-arm crash must be refused: {report}"
+    );
+
+    // Negative twin 3: `transition` inside a block-valued arm returning the wrong type.
+    let wrong_type = source.replacen("0 -> 41,", "0 -> true,", 1);
+    let (output, report) = invoke(&wrong_type, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("bool") && report.contains("u32"),
+        "wrong transition return type in block arm must be refused: {report}"
+    );
+
+    // Negative twin 4: trailing expression after `crash Trap;` inside a block-valued arm.
+    let trailing = source.replacen("crash Trap; }", "crash Trap; 5 }", 1);
+    let (output, report) = invoke(&trailing, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("statement after an unconditional arm"),
+        "trailing expression after crash in block arm must be refused: {report}"
+    );
+
+    // Negative twin 5: `asm` remains refused inside a block-valued arm.
+    let with_asm = source.replacen(
+        "let made: Counter = Counter { value: 3 }; crash Trap;",
+        "asm { nop; }; crash Trap;",
+        1,
+    );
+    let (output, report) = invoke(&with_asm, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("a block value holds"),
+        "asm inside block arm must still be refused: {report}"
+    );
+}

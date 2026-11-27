@@ -1191,11 +1191,9 @@ pub(crate) mod exhaustiveness {
                             && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
                             && program
                                 .const_declaration(path.symbol)
-                                .is_some_and(|declaration| {
-                                    declaration
-                                        .declared_type
-                                        .primitive_type(&program.symbols)
-                                        .is_some()
+                                .and_then(|declaration| declaration.declared_type.as_ref())
+                                .is_some_and(|declared_type| {
+                                    declared_type.primitive_type(&program.symbols).is_some()
                                 })
                     }
             }
@@ -1277,8 +1275,9 @@ pub(crate) mod exhaustiveness {
                             && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
                             && program
                                 .const_declaration(path.symbol)
-                                .is_some_and(|declaration| {
-                                    scalar_value_type(program, &declaration.declared_type).is_some()
+                                .and_then(|declaration| declaration.declared_type.as_ref())
+                                .is_some_and(|declared_type| {
+                                    scalar_value_type(program, declared_type).is_some()
                                 })
                     }
             }
@@ -2404,7 +2403,7 @@ pub(crate) mod exhaustiveness {
                 return Some(declared_type.clone());
             }
             if let Some(declaration) = scope.program.const_declaration(symbol) {
-                return Some(declaration.declared_type.clone());
+                return declaration.declared_type.clone();
             }
             if let Some(type_reference) = field_declared_type(scope, symbol) {
                 return Some(type_reference);

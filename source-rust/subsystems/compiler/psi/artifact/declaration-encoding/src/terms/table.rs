@@ -9,7 +9,7 @@ then one `u32` handle per recursive child, in the child's declared order. A
 handle names an earlier entry of the same table, so nesting depth is bounded
 only by the table's encoded size, and encoding and decoding are loops over an
 explicit stack rather than host-stack recursion
-(`wiki/spec/terminal-psi/encoding.md#canonical-form`).
+(`source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#canonical-form`).
 
 The table is a tree, not a DAG: every entry except the roots is the child of
 exactly the next entry that consumes it. The decoder keeps the entries not yet

@@ -43,7 +43,7 @@ fn implementation_members<'program, 'row>(
 ) -> Checked<Vec<ImplementationMember<'program, 'row>>> {
     let receivers =
         crate::source_state::service_declarations::projection::inherited_scopes(typed, application)
-            .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+            .map_err(|diagnostic| crate::read::unavailable(context, diagnostic.message))?;
     let mut requirements = std::collections::HashMap::new();
     for receiver in &receivers {
         for signature in typed.trait_machine_signatures(receiver.declaration) {
@@ -51,7 +51,7 @@ fn implementation_members<'program, 'row>(
                 .insert(signature.symbol, (receiver, signature))
                 .is_some()
             {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "two declarations claim the same implementation requirement",
                 ));
@@ -59,7 +59,7 @@ fn implementation_members<'program, 'row>(
         }
     }
     if declaration.rows.len() != requirements.len() {
-        return Err(services::unavailable(
+        return Err(crate::read::unavailable(
             context,
             "implementation rows do not cover the complete schema",
         ));
@@ -72,7 +72,7 @@ fn implementation_members<'program, 'row>(
                 .remove(&row.requirement)
                 .filter(|(owner, _)| owner.declaration.symbol == row.declaring_trait)
                 .ok_or_else(|| {
-                    services::unavailable(
+                    crate::read::unavailable(
                         context,
                         "implementation row repeats or changes an exact declaring requirement",
                     )
@@ -81,7 +81,7 @@ fn implementation_members<'program, 'row>(
                 == crate::source_state::trait_definition::ConformanceRowSource::TraitDefault
                 && !requirement.is_default
             {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "selected requirement has no default body",
                 ));
@@ -202,7 +202,7 @@ impl<'program> Program<'program> {
             crate::publication::reach::has_authored_ceiling(self.typed, context, signature.symbol)?;
         let service_reach = if written {
             if signature.service_reach_is_installation_bound && !boundary {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "static service ceiling is bound to an unresolved installation",
                 ));
@@ -216,7 +216,7 @@ impl<'program> Program<'program> {
                 signature.service_reach_row,
             )?)
         } else if boundary {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "boundary requirement has no authored finite service ceiling",
             ));
@@ -228,14 +228,14 @@ impl<'program> Program<'program> {
             .signature_invokes
             .span(signature.invokes)
             .ok_or_else(|| {
-                services::unavailable(context, "static invocation ceiling has a stale span")
+                crate::read::unavailable(context, "static invocation ceiling has a stale span")
             })?;
         let parameters = self
             .typed
             .state_parameters
             .span(signature.parameters)
             .ok_or_else(|| {
-                services::unavailable(context, "static signature has a stale formal span")
+                crate::read::unavailable(context, "static signature has a stale formal span")
             })?;
         Ok(StaticSourceEnvelope {
             service_reach,
@@ -267,7 +267,7 @@ impl<'program> Program<'program> {
         declaration: &TraitDefinition,
     ) -> Checked<()> {
         if !declaration.is_boundary {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "boundary schema names an ordinary trait",
             ));
@@ -325,7 +325,9 @@ impl<'program> Program<'program> {
         let parameters = typed
             .data_type_parameters
             .span(declaration.type_parameters)
-            .ok_or_else(|| services::unavailable(context, "trait has a stale generic telescope"))?;
+            .ok_or_else(|| {
+                crate::read::unavailable(context, "trait has a stale generic telescope")
+            })?;
         let values = parameters
             .iter()
             .enumerate()
@@ -338,7 +340,7 @@ impl<'program> Program<'program> {
                     parameter.symbol,
                     ValueType::Rigid(terminal_check_tables::values::RigidType(
                         u32::try_from(ordinal).map_err(|_| {
-                            services::unavailable(
+                            crate::read::unavailable(
                                 context,
                                 "trait type telescope exceeds its ordinal width",
                             )
@@ -362,14 +364,16 @@ impl<'program> Program<'program> {
         let signatures = typed
             .trait_machine_signatures
             .span(declaration.machines)
-            .ok_or_else(|| services::unavailable(context, "trait has a stale requirement span"))?;
+            .ok_or_else(|| {
+                crate::read::unavailable(context, "trait has a stale requirement span")
+            })?;
         let mut requirements = Vec::with_capacity(signatures.len());
         let mut symbols = Vec::with_capacity(signatures.len());
         for signature in signatures {
             if !typed.symbols.symbols().nodes().is_valid(signature.symbol)
                 || symbols.contains(&signature.symbol)
             {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "trait repeats or loses an exact requirement declaration",
                 ));
@@ -379,7 +383,7 @@ impl<'program> Program<'program> {
                 .state_parameters
                 .span(signature.parameters)
                 .ok_or_else(|| {
-                    services::unavailable(
+                    crate::read::unavailable(
                         context,
                         "schema requirement has a stale formal telescope",
                     )
@@ -388,7 +392,7 @@ impl<'program> Program<'program> {
                 !typed.symbols.symbols().nodes().is_valid(formal.symbol)
                     || typed.symbols.get(formal.symbol).parent != signature.symbol
             }) {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "schema requirement borrows another declaration's formal scope",
                 ));
@@ -456,7 +460,7 @@ impl<'program> Program<'program> {
                 .max()
                 .map_or(Ok(0), |last| {
                     last.checked_add(1).ok_or_else(|| {
-                        services::unavailable(
+                        crate::read::unavailable(
                             context,
                             "abstract type namespace exceeds its ordinal width",
                         )
@@ -478,13 +482,13 @@ impl<'program> Program<'program> {
                     || self.declaration_selections.push(None) != id
                     || self.declaration_envelopes.push(complete) != id
                 {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         context,
                         "requirement lost its declaration contract coordinate",
                     ));
                 }
             } else if !lowered.content_ensures.is_empty() {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "an abstract content guarantee needs its applied declaration contract",
                 ));
@@ -507,7 +511,7 @@ impl<'program> Program<'program> {
         );
         let parents = AppliedTraitScope::abstract_scope(declaration)
             .parent_scopes(typed)
-            .map_err(|reason| services::unavailable(context, reason))?;
+            .map_err(|reason| crate::read::unavailable(context, reason))?;
         for parent in parents {
             self.read_trait_schema(context, parent.declaration)?;
         }
@@ -536,7 +540,7 @@ impl<'program> Program<'program> {
         scope: &AppliedTraitScope<'_>,
     ) -> Checked<bool> {
         if !scope.declaration.is_boundary {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "boundary parent contract has no boundary owner",
             ));
@@ -548,18 +552,18 @@ impl<'program> Program<'program> {
             typed,
             scope.clone(),
         )
-        .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+        .map_err(|diagnostic| crate::read::unavailable(context, diagnostic.message))?;
         let mut needs_contract_owner = false;
         for view in &scopes {
             if !view.declaration.is_boundary {
                 needs_contract_owner = true;
                 if view
                     .parent_scopes(typed)
-                    .map_err(|reason| services::unavailable(context, reason))?
+                    .map_err(|reason| crate::read::unavailable(context, reason))?
                     .iter()
                     .any(|parent| parent.declaration.is_boundary)
                 {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         context,
                         "ordinary contract trait inherits a boundary service",
                     ));
@@ -577,7 +581,7 @@ impl<'program> Program<'program> {
                 for signature in signatures {
                     typed
                         .requirement_definition_types(view, signature)
-                        .ok_or_else(|| services::unavailable(
+                        .ok_or_else(|| crate::read::unavailable(
                             context,
                             "inherited boundary call lost its complete declared parameter and result types",
                         ))?;
@@ -596,12 +600,12 @@ impl<'program> Program<'program> {
     ) -> Checked<()> {
         use crate::source_state::data::TypeParameterKind;
         let typed = self.typed;
-        let unavailable = |reason| services::unavailable(context, reason);
+        let unavailable = |reason| crate::read::unavailable(context, reason);
         let scopes = crate::source_state::service_declarations::projection::inherited_scopes(
             typed,
             root.clone(),
         )
-        .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+        .map_err(|diagnostic| crate::read::unavailable(context, diagnostic.message))?;
         for parent in scopes.iter().skip(1) {
             let declaration = parent.declaration;
             if declaration.is_boundary {
@@ -712,7 +716,7 @@ impl<'program> Program<'program> {
         declaration: &'_ crate::source_state::trait_definition::Conformance,
     ) -> Checked<()> {
         let typed = self.typed;
-        let unserved = |what| services::unavailable(context, what);
+        let unserved = |what| crate::read::unavailable(context, what);
         let parameters = typed.conformance_type_parameters(declaration);
         let plain = declaration.lifetime_parameters.is_empty()
             && declaration.trait_lifetime_arguments.is_empty()
@@ -819,7 +823,7 @@ impl<'program> Program<'program> {
             || !declaration.lifetime_parameters.is_empty()
             || !declaration.trait_lifetime_arguments.is_empty()
         {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "static implementation family needs its general binder or region proof",
             ));
@@ -827,12 +831,12 @@ impl<'program> Program<'program> {
         let schema = typed
             .trait_definition_by_symbol(declaration.trait_symbol)
             .ok_or_else(|| {
-                services::unavailable(context, "implementation has no exact schema declaration")
+                crate::read::unavailable(context, "implementation has no exact schema declaration")
             })?;
         if typed.core_vocabulary(schema.symbol)
             == Some(language_core::core_vocabulary::CoreVocabulary::AccessCustody)
         {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "AccessCustody conformance agreement is not checked yet",
             ));
@@ -849,16 +853,16 @@ impl<'program> Program<'program> {
             };
             let sources = self
                 .exact_toolchain_sources()
-                .map_err(|reason| services::unavailable(context, reason))?;
+                .map_err(|reason| crate::read::unavailable(context, reason))?;
             typed
                 .check_private_callback_slot_declaration(&selected, symbol, sources)
-                .map_err(|reason| services::unavailable(context, reason))?;
+                .map_err(|reason| crate::read::unavailable(context, reason))?;
             if !schema.machines.is_empty()
                 || !schema.requires.is_empty()
                 || schema.refines.is_some()
                 || !schema.refinement_clauses.is_empty()
             {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "private callback slot has additional requirements",
                 ));
@@ -891,7 +895,7 @@ impl<'program> Program<'program> {
             None => AppliedTraitScope::from_conformance(typed, declaration),
         }
         .ok_or_else(|| {
-            services::unavailable(
+            crate::read::unavailable(
                 context,
                 "implementation has no complete exact trait application",
             )
@@ -908,7 +912,7 @@ impl<'program> Program<'program> {
                         });
                 match (groups.next(), groups.next()) {
                     (Some((_, group)), None) => Ok(group),
-                    _ => Err(services::unavailable(
+                    _ => Err(crate::read::unavailable(
                         context,
                         "selected provider has no unique set of prepared member bodies",
                     )),
@@ -930,7 +934,7 @@ impl<'program> Program<'program> {
                 .and_then(|identity| typed.type_identity_text(identity))
                 .filter(|identity| !identity.is_empty())
                 .ok_or_else(|| {
-                    services::unavailable(
+                    crate::read::unavailable(
                         context,
                         "implementation requirement has no portable receiver identity",
                     )
@@ -938,7 +942,7 @@ impl<'program> Program<'program> {
             let supplied = typed
                 .machine_by_symbol(row.realization_machine)
                 .ok_or_else(|| {
-                    services::unavailable(
+                    crate::read::unavailable(
                         context,
                         "implementation row has no exact selected declaration",
                     )
@@ -956,23 +960,23 @@ impl<'program> Program<'program> {
                                 owner,
                                 required.symbol,
                             )
-                            .map_err(|reason| services::unavailable(context, reason))?
+                            .map_err(|reason| crate::read::unavailable(context, reason))?
                             .is_some_and(|own| own.same_application(typed, application)));
                 if !same_application {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         context,
                         "selection row cannot rebind a declared conformer",
                     ));
                 }
             }
             let Some([state]) = typed.machine_states(supplied).as_array() else {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "implementation row has no unique selected entry",
                 ));
             };
             if state.symbol != row.realization_state {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "implementation row changes the selected entry state",
                 ));
@@ -981,13 +985,13 @@ impl<'program> Program<'program> {
                 let (owner, owned) = typed
                     .owned_conformance_realization(supplied.symbol)
                     .ok_or_else(|| {
-                        services::unavailable(
+                        crate::read::unavailable(
                             context,
                             "implementation body lost its exact owning conformance row",
                         )
                     })?;
                 if owner.symbol != declaration.symbol || owned != row {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         context,
                         "implementation body changes its exact owning conformance row",
                     ));
@@ -998,7 +1002,7 @@ impl<'program> Program<'program> {
             {
                 capture
                     .declaration(original.symbol)
-                    .map_err(|reason| services::unavailable(context, reason))?
+                    .map_err(|reason| crate::read::unavailable(context, reason))?
                     .filter(|body| {
                         typed
                             .captured_conformance_owner(capture, body)
@@ -1006,7 +1010,7 @@ impl<'program> Program<'program> {
                     })
                     .and_then(|body| typed.machine_by_symbol(body.instance))
                     .ok_or_else(|| {
-                        services::unavailable(
+                        crate::read::unavailable(
                             context,
                             "selected provider lost its checked member body",
                         )
@@ -1039,7 +1043,7 @@ impl<'program> Program<'program> {
                     .any(|value| matches!(value, ValueType::Rigid(_)))
                     || matches!(signature.result, Some(ValueType::Rigid(_)))
                 {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         context,
                         "conformance requirement retains an unapplied abstract carrier",
                     ));
@@ -1063,13 +1067,13 @@ impl<'program> Program<'program> {
                                 && closed.local_arguments.is_empty()
                         });
                         let selected = closed.next().ok_or_else(|| {
-                            services::unavailable(
+                            crate::read::unavailable(
                                 context,
                                 "boundary implementation lost its prepared exact receiving application",
                             )
                         })?;
                         if closed.next().is_some() {
-                            return Err(services::unavailable(
+                            return Err(crate::read::unavailable(
                                 context,
                                 "boundary implementation has ambiguous receiving applications",
                             ));
@@ -1079,7 +1083,7 @@ impl<'program> Program<'program> {
                     let (boundary, _) = self
                         .read_boundary_declaration(context, requirement)?
                         .ok_or_else(|| {
-                            services::unavailable(
+                            crate::read::unavailable(
                                 context,
                                 "boundary implementation lost its genuine required header",
                             )
@@ -1092,13 +1096,13 @@ impl<'program> Program<'program> {
                         .next()
                         .map_or(original.symbol, |receipt| receipt.template);
                     if templates.next().is_some() {
-                        return Err(services::unavailable(
+                        return Err(crate::read::unavailable(
                             context,
                             "provider body has ambiguous specialization provenance",
                         ));
                     }
                     let original = typed.machine_by_symbol(template).ok_or_else(|| {
-                        services::unavailable(
+                        crate::read::unavailable(
                             context,
                             "provider body lost its original declaration",
                         )
@@ -1112,7 +1116,7 @@ impl<'program> Program<'program> {
                                 .normalized_hermetic_symbol_identity(
                                     typed.implementation_value_head(symbol),
                                 )
-                                .map_err(|reason| services::unavailable(context, reason))?,
+                                .map_err(|reason| crate::read::unavailable(context, reason))?,
                         },
                         // The selection names the public method in the service schema.
                         // Its boundary above identifies this particular checked call.
@@ -1123,7 +1127,7 @@ impl<'program> Program<'program> {
                         source_candidate: typed
                             .machine_callable_identity_text(original)
                             .ok_or_else(|| {
-                                services::unavailable(
+                                crate::read::unavailable(
                                     context,
                                     "provider body has no original callable identity",
                                 )
@@ -1213,7 +1217,7 @@ fn schema_local_shape(
     schema: &TraitDefinition,
 ) -> Checked<()> {
     super::subjects::served_trait_header(typed, schema)
-        .map_err(|reason| services::unavailable(context, reason))?;
+        .map_err(|reason| crate::read::unavailable(context, reason))?;
     if !typed.symbols.symbols().nodes().is_valid(schema.symbol)
         || !schema.lifetime_parameters.is_empty()
         || schema.refines.is_some()
@@ -1234,7 +1238,7 @@ fn schema_local_shape(
                     .source_file(span)
                     .map(|file| (&file.path, span))
             });
-        return Err(services::unavailable(
+        return Err(crate::read::unavailable(
             context,
             format!(
                 "trait `{declaration}` cannot be lowered: resolved declaration={resolved}, lifetime parameters={}, conformance bounds={}, required traits={}, inheritance={}, refinements={}; source {source:?}",
@@ -1249,7 +1253,7 @@ fn schema_local_shape(
     let parameters = typed
         .data_type_parameters
         .span(schema.type_parameters)
-        .ok_or_else(|| services::unavailable(context, "trait type telescope is stale"))?;
+        .ok_or_else(|| crate::read::unavailable(context, "trait type telescope is stale"))?;
     let mut seen = Vec::with_capacity(parameters.len());
     for parameter in parameters {
         if !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
@@ -1257,7 +1261,7 @@ fn schema_local_shape(
             || parameter.bounds.multiplicity != language_core::Multiplicity::Affine
             || typed.symbols.get(parameter.symbol).parent != schema.symbol
         {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "trait type telescope has an unsupported family or duplicate binder",
             ));
@@ -1359,9 +1363,9 @@ fn validate_references(
         error: None,
     };
     crate::source_state::references::visit_signature(typed, &mut references, signature);
-    references
-        .error
-        .map_or(Ok(()), |reason| Err(services::unavailable(context, reason)))
+    references.error.map_or(Ok(()), |reason| {
+        Err(crate::read::unavailable(context, reason))
+    })
 }
 
 #[cfg(test)]

@@ -16,12 +16,12 @@ pub(super) struct RegisteredTestGroup {
     providers: Vec<ExecutedProductSelection>,
     engines: Vec<(
         TestTargetEngines,
-        Option<evaluation_accounting::EvaluationStorageLease>,
+        Option<build_model::accounting::EvaluationStorageLease>,
     )>,
     pub(super) fixture: super::test_fixtures::TestFixture,
     disabled: TerminalInvocationScalar,
     private_filesystem: TerminalInvocationScalar,
-    _storage: Option<evaluation_accounting::EvaluationStorageLease>,
+    _storage: Option<build_model::accounting::EvaluationStorageLease>,
 }
 
 impl RegisteredTestGroup {
@@ -42,7 +42,7 @@ impl RegisteredTestGroup {
 
     pub(super) fn finish(
         mut self,
-        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+        account: Option<&build_model::accounting::EvaluationInvocationAccount>,
     ) -> Result<ExecutedBuildSelection, String> {
         let boolean = |cell: &TerminalInvocationScalar| match cell.read().map_err(|e| e.reason)? {
             TerminalScalarValue::Boolean(value) => Ok(value),

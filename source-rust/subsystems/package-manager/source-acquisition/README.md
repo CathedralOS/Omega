@@ -10,7 +10,7 @@ Start at [lib.rs](lib.rs) and follow the source through acquisition and verifica
 source-acquisition/
 ├── lib.rs          stable resolution entrance and public results
 ├── capture/        immutable source trees and per-invocation lookup across selected roots
-│   └── selection/   inventory obligations and bounded member selection shared with Build
+├── selection.rs    inventory obligations and bounded member selection shared with Build
 ├── identity/       lineages, locators, immutable revisions, and digests
 ├── tree/           source-neutral tree model and bounded no-follow capture
 │   ├── capture/       traversal policy and captured-entry observations
@@ -28,6 +28,7 @@ source-acquisition/
 │   ├── request.rs      validate transport, locator, revision, and endpoint
 │   ├── cache/          create, verify, repair, and invalidate retained stores
 │   ├── executable/     freeze operator-selected Git before package input
+│   ├── execution/      resolver executable path custody, phases and working roots
 │   ├── git_command.rs  run bounded Git commands; owns policy and capture
 │   ├── objects/        verify commit/tree/blob object graphs and identities
 │   │   └── batch/         bounded transfer, exact protocol, and request custody
@@ -46,7 +47,7 @@ and exact-object probes. Callers supply arguments, stdin and stdout limits;
 it applies command policy, counts the launch, limits capture and
 checks the shared resolution budget. Batch callers still interpret the
 protocol and own the cache. A failed Git exit never counts as object absence.
-The [Git execution](git/execution/README.md) crate prepares
+The [Git execution](git/execution/README.md) module prepares
 the resolver's executable, phases and roots. Acquisition keeps no executable
 identity, command/completion history, platform-guarantee row or fetch
 receipt. Successful Git resolution returns the authored canonical lineage,

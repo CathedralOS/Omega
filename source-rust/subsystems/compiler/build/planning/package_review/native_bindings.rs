@@ -7,9 +7,9 @@ use super::{
     input::PolicySource,
     providers::{AcceptedDeclarations, symbol_key},
 };
+use build_providers::plans::{EvaluatedNativeBinding, ServiceSchema};
 use diagnostics::Diagnostic;
 use package_compilation::{NativeBindingProducer, PackageDependencyClosure};
-use provider_plans::{EvaluatedNativeBinding, ServiceSchema};
 use review_evidence::record::{
     PackagePolicyCallable, PackagePolicyEvaluatedBindingProducer, PackagePolicyNativeBinding,
     PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall,

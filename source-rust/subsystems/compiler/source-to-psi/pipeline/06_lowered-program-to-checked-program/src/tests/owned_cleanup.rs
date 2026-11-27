@@ -405,3 +405,160 @@ fn linear_cleanup_transfers_the_receipt_claim_exactly_once() {
             if violations.len() == 1
                 && violations[0].statement.contains("a linear value is still held")));
 }
+
+#[test]
+fn unmatched_sum_disposes_only_active_case_and_rejects_unproved_or_linear_cases() {
+    let source = |lease_header: &str, release_requires: &str, choose_a: bool| {
+        let construct = if choose_a {
+            "Choice::A { left: Token { id: 1u64 }, right: Lease { counter: @mutable counter, valid: 1u64, value: 7u64 } }"
+        } else {
+            "Choice::B { left: Token { id: 1u64 }, right: Token { id: 2u64 } }"
+        };
+        format!(
+            r#"
+data Counter {{ value: u64; }}
+data Token {{ id: u64; }}
+data Lease<'view> {lease_header} {{ counter: @'view mutable Counter; valid: u64; value: u64; }}
+data Choice<'view> {{
+    case A(left: Token, right: Lease<'view>);
+    case B(left: Token, right: Token);
+}}
+machine release(lease: Lease)
+{release_requires}
+{{
+    let {{ counter, valid as _, value }} = move lease;
+    counter.value = value;
+}}
+machine discard(x: Choice) {{}}
+machine build_entry() -> u64 {{
+    let mutable counter: Counter = Counter {{ value: 10u64 }};
+    let choice: Choice = {construct};
+    discard(choice);
+    counter.value
+}}
+"#
+        )
+    };
+
+    for (choose_a, expected) in [(true, 7u64), (false, 10u64)] {
+        let text = source("dropped by release", "", choose_a);
+        let result = super::build_purpose::judge_build(&text)
+            .expect("unmatched sum disposal must reach the checker");
+        let RouteVerdict::Accepted(accepted) = result else {
+            panic!("unmatched sum disposal must be admitted: {result:?}");
+        };
+        let discard_machine = accepted
+            .elaboration
+            .module
+            .machines
+            .iter()
+            .find(|machine| {
+                accepted
+                    .elaboration
+                    .names
+                    .get(machine.id)
+                    .is_some_and(|name| name.machine == "discard")
+            })
+            .expect("discard machine must exist");
+        let mut invoked_cases = 0usize;
+        let mut plain_cases = 0usize;
+        for block in &discard_machine.blocks {
+            if let terminal_psi::Terminator::StructuralCase { cases, .. } = &block.terminator {
+                for arm in cases {
+                    let invokes = arm
+                        .cleanup_actions
+                        .iter()
+                        .filter(|action| {
+                            matches!(action, TerminalAffineCleanupAction::InvokeOwned(_))
+                        })
+                        .count();
+                    let discards = arm
+                        .cleanup_actions
+                        .iter()
+                        .filter(|action| {
+                            matches!(action, TerminalAffineCleanupAction::DiscardResidual(_))
+                        })
+                        .count();
+                    let retires = arm
+                        .cleanup_actions
+                        .iter()
+                        .filter(|action| {
+                            matches!(action, TerminalAffineCleanupAction::RetireHome(_))
+                        })
+                        .count();
+                    assert_eq!(retires, 1, "each case arm must retire the sum home once");
+                    if invokes == 1 && discards == 1 {
+                        invoked_cases += 1;
+                    } else if invokes == 0 && discards == 2 {
+                        plain_cases += 1;
+                    } else {
+                        panic!(
+                            "unexpected cleanup roster on arm: {:?}",
+                            arm.cleanup_actions
+                        );
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            (invoked_cases, plain_cases),
+            (1, 1),
+            "case A must invoke release on right and discard left; case B must discard both"
+        );
+
+        let publication = accepted.publish_invocation().unwrap();
+        let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+        let mut instance = program.instantiate(Default::default()).unwrap();
+        let status = instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap();
+        assert!(
+            matches!(
+                status,
+                terminal_interpreter::TerminalExecutionStatus::Complete(
+                    terminal_interpreter::TerminalExecutionResult::Scalar(
+                        terminal_interpreter::TerminalScalarValue::Integer {
+                            value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                            ..
+                        }
+                    )
+                ) if value == u128::from(expected)
+            ),
+            "Psi execution must agree for choose_a={choose_a}: {status:?}"
+        );
+    }
+
+    // Negative twin 1: case A's cleanup machine has a precondition that `discard`
+    // cannot prove on an arbitrary `Choice`.
+    let unproved_requires = judged(&source(
+        "dropped by release",
+        "requires lease.valid == 1u64",
+        true,
+    ))
+    .expect("unproved cleanup precondition must reach the checker");
+    assert!(
+        matches!(
+            unproved_requires,
+            RouteVerdict::Rejected { ref unproved, .. }
+                if unproved
+                    .iter()
+                    .any(|row| matches!(row.kind, ObligationKind::CallRequirement { clause: 0, .. }))
+        ),
+        "{unproved_requires:?}"
+    );
+
+    // Negative twin 2: case A holds a linear payload with no declared cleanup.
+    let linear_without_drop = judged(&source("[linear]", "", true));
+    let detail = match linear_without_drop {
+        Err(crate::CompilationRefusal::Elaboration(refusal))
+        | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
+        Ok(RouteVerdict::Rejected { violations, .. }) if violations.len() == 1 => {
+            violations[0].statement.clone()
+        }
+        other => panic!("expected linear refusal, got {other:?}"),
+    };
+    assert!(
+        detail.contains("a linear value is still held"),
+        "expected unconsumed linear refusal, got {detail}"
+    );
+}

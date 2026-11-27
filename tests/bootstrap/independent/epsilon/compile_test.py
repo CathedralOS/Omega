@@ -17,7 +17,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "tests/bootstrap/conformance"))
-from vectors import ocreq_request
+from vectors import ocreq_lineage_cases, ocreq_request
 
 COMPILER = ROOT / 'bootstrap/epsilon/compiler'
 FIXTURES = Path(__file__).resolve().parent
@@ -222,6 +222,13 @@ def stored_customers(work, observe, compile_delta, reference, compiler, pack):
         if name == 'surrogate':
             assert fields[12] == 0 and fields[13] == 0, fields
         request_report['cases'].append({'name': name, 'input': identity(payload), 'output': identity(actual)})
+
+    for label, payload, failure in ocreq_lineage_cases():
+        reply = observe(executable, payload)
+        assert reply[:5] == b'\0' + struct.pack('<i', 42), label
+        fields = struct.unpack('<14i', reply[5:])
+        expected = (1, -1) if failure is None else (0, failure)
+        assert fields[6:8] == expected, (label, fields)
 
     # Mutate one header byte at a time. Each failure points to its own
     # offset and clears both section spans before any contents are read.

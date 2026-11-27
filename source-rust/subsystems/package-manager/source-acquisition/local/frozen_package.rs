@@ -1,6 +1,7 @@
 //! Derive a package acquisition and its content identity from a frozen directory.
 use super::resolution_observations::CapturedLocalSource;
 use crate::SourceResolveError;
+use crate::capture::{CapturedSourceNode, CapturedSourceTree};
 use crate::limits::CANONICAL_DIRECTORY_MODE;
 use crate::tree::ResolvedLocalSource;
 use crate::tree::capture::{
@@ -8,7 +9,6 @@ use crate::tree::capture::{
 };
 use crate::tree::filesystem::{io_error, raw_os_bytes};
 use crate::tree::identity::SourceIdentityHasher;
-use source_capture::{CapturedSourceNode, CapturedSourceTree};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -18,7 +18,7 @@ impl CapturedLocalSource {
     pub fn workspace_member(
         &self,
         member: &Path,
-        selection: &source_selection::SourceCaptureRequest,
+        selection: &crate::selection::SourceCaptureRequest,
     ) -> Result<Self, SourceResolveError> {
         let root = self.canonical_live_root().join(member);
         let covers_member = selection
@@ -101,7 +101,7 @@ impl CapturedLocalSource {
             },
             tree: Arc::new(tree),
             selection_identity: super::operations::selection_identity(
-                &source_selection::SourceCaptureRequest::entire_tree(),
+                &crate::selection::SourceCaptureRequest::entire_tree(),
             ),
         })
     }
@@ -125,7 +125,7 @@ mod tests {
         let catalog = capture_local_source_input(&root, LocalSourceLimits::default()).unwrap();
         let result = catalog.workspace_member(
             Path::new("first"),
-            &source_selection::SourceCaptureRequest::entire_tree(),
+            &crate::selection::SourceCaptureRequest::entire_tree(),
         );
         fs::remove_dir_all(&root).unwrap();
         assert!(
@@ -150,12 +150,12 @@ mod tests {
         let frozen = catalog
             .workspace_member(
                 Path::new("nested/alpha"),
-                &source_selection::SourceCaptureRequest::entire_tree(),
+                &crate::selection::SourceCaptureRequest::entire_tree(),
             )
             .unwrap();
         assert_eq!(frozen, standalone);
         assert!(frozen.tree().entries().any(|(path, node)| {
-            path == Path::new("font.bin") && matches!(node, source_capture::CapturedSourceNode::File{bytes,..} if bytes.as_ref() == [0, 127, 255])
+            path == Path::new("font.bin") && matches!(node, crate::capture::CapturedSourceNode::File{bytes,..} if bytes.as_ref() == [0, 127, 255])
         }));
         assert_eq!(
             &*frozen

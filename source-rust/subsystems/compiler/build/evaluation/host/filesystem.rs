@@ -2,7 +2,7 @@
 Evaluated Build filesystem calls over one admitted captured-input scope.
 
 Guest structural shapes carry no filesystem authority on their own. We
-authenticate the activation's original `source`, `inputs`, and `output` facets
+authenticate the activation's original `source` and `output` facets
 along with activation-minted opaque markers (`BuildPath`, `RequiredOutput`, and
 completion receipts) before delegating any read, write, generated-source
 inclusion, or required-output settlement to `BuildFilesystemRuntime`.
@@ -16,7 +16,7 @@ lock.
 
 mod file_result;
 
-use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use filesystem_authority::FilesystemGrantRootIdentity;
 use package_compilation::build_execution::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildDirectoryMappings,
@@ -39,7 +39,7 @@ struct Marker {
     _storage: EvaluationStorageLease,
 }
 
-enum MarkerKind {    Source(FilesystemGrantRootIdentity),
+enum MarkerKind {
     Path(FilesystemGrantRootIdentity, Vec<u8>),
     Directory {
         previous: Option<usize>,
@@ -65,7 +65,6 @@ pub(crate) fn installed_operation(action: Operation) -> bool {
 struct FilesystemFacets {
     directories: TerminalStructuralValue,
     source: TerminalStructuralValue,
-    inputs: TerminalStructuralValue,
     output: TerminalStructuralValue,
 }
 
@@ -139,7 +138,6 @@ impl TerminalBuildFilesystemHost {
                 Some(FilesystemFacets {
                     directories: crate::host::requests::build_facet(artifact, original, "directories")?,
                     source: crate::host::requests::build_facet(artifact, original, "source")?,
-                    inputs: crate::host::requests::build_facet(artifact, original, "inputs")?,
                     output: original_output.clone(),
                 })
             },
@@ -252,21 +250,11 @@ impl TerminalBuildFilesystemHost {
             .transpose()
     }
 
-    fn source_root(
-        &self,
-        markers: &[Marker],
-        value: &TerminalStructuralValue,
-    ) -> Result<FilesystemGrantRootIdentity, String> {
-        if self
-            .facets
-            .as_ref()
-            .is_some_and(|facets| value == &facets.source)
-        {
-            return Ok(BUILD_SOURCE_ROOT_IDENTITY);
-        }
-        match &marker(markers, value)?.kind {
-            MarkerKind::Source(root) => Ok(*root),
-            _ => Err("BuildSource operation requires an issued input facet".into()),
+    fn source_root(&self, value: &TerminalStructuralValue) -> Result<FilesystemGrantRootIdentity, String> {
+        if self.facets.as_ref().is_some_and(|facets| value == &facets.source) {
+            Ok(BUILD_SOURCE_ROOT_IDENTITY)
+        } else {
+            Err("BuildSource operation requires an issued input facet".into())
         }
     }
 }
@@ -404,7 +392,7 @@ impl FilesystemAdapter {
         match action {
             Operation::ResolveSource | Operation::ResolveOutput => {
                 let root = if action == Operation::ResolveSource {
-                    self.host.source_root(markers, structural(0)?)?
+                    self.host.source_root(structural(0)?)?
                 } else {
                     output()?;
                     BUILD_OUTPUT_ROOT_IDENTITY
@@ -439,20 +427,8 @@ impl FilesystemAdapter {
                 };
                 mint(markers, &self.host.account, result, retained, || Ok(MarkerKind::Directory { previous, grants, _rows: storage }))
             }
-            Operation::NamedInput => {
-                if structural(0)? != &facets()?.inputs {
-                    return Err(
-                        "named input lookup requires the original compiler-issued inputs facet"
-                            .into(),
-                    );
-                }
-                let root = runtime.named_input(bytes(1)?)?;
-                mint(markers, &self.host.account, result, 0, || {
-                    Ok(MarkerKind::Source(root))
-                })
-            }
             Operation::Open => {
-                let root = self.host.source_root(markers, structural(0)?)?;
+                let root = self.host.source_root(structural(0)?)?;
                 let (path_root, relative) = path(1)?;
                 if root != path_root {
                     return Err("BuildPath belongs to another input root".into());
@@ -481,7 +457,7 @@ impl FilesystemAdapter {
                     .finish(read.map(Some))
             }
             Operation::Read => {
-                let root = self.host.source_root(markers, structural(0)?)?;
+                let root = self.host.source_root(structural(0)?)?;
                 let count = unsigned(integer(1)?)?;
                 let [buffer] = buffers else {
                     return Err("Build read requires one bounded mutable byte buffer".into());
@@ -495,7 +471,7 @@ impl FilesystemAdapter {
                 )
             }
             Operation::CloseSource => {
-                let root = self.host.source_root(markers, structural(0)?)?;
+                let root = self.host.source_root(structural(0)?)?;
                 integer_result(i64::from(runtime.close(root, descriptor()?)?), 32)
             }
             Operation::Create => {
@@ -516,9 +492,6 @@ impl FilesystemAdapter {
                     i64::from(runtime.close(BUILD_OUTPUT_ROOT_IDENTITY, descriptor()?)?),
                     32,
                 )
-            }
-            Operation::RetiredSourcePublication => {
-                Err("retired filesystem source publication is not available".into())
             }
             Operation::Require => {
                 output()?;

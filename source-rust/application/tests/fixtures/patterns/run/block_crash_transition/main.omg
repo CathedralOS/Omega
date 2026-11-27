@@ -1,0 +1,100 @@
+data Counter { value: u32; }
+data Shape {
+    case Square(side: u32);
+    case Empty;
+}
+machine read(counter: @Counter) -> u32
+ensures result == counter.value
+{ counter.value }
+public machine match_guarded_crash(code: u32) -> u32
+crashes Trap code == 0
+{
+    let seen: u32 = match code {
+        0 -> { let made: Counter = Counter { value: 3 }; crash Trap; },
+        _ -> 7,
+    };
+    seen
+}
+public machine transition_guarded_crash(code: u32) -> u32
+crashes Trap code == 0
+{
+    transition code {
+        0 -> { let made: Counter = Counter { value: 3 }; crash Trap; },
+        _ -> 9,
+    }
+}
+machine match_early_transition(code: u32, inner: u32) -> u32 {
+    let outer: Counter = Counter { value: 10 };
+    let seen: u32 = match code {
+        0 -> {
+            let made: Counter = Counter { value: inner };
+            transition made.value {
+                0 -> 41,
+                _ -> 42,
+            }
+        },
+        _ -> 7,
+    };
+    read(@outer) + seen
+}
+machine transition_nested_block(code: u32, inner: u32) -> u32 {
+    let outer: Counter = Counter { value: 5 };
+    transition code {
+        0 -> {
+            let made: Counter = Counter { value: inner };
+            transition made.value {
+                0 -> finish(read(@outer) + 1),
+                _ -> finish(read(@outer) + 2),
+            }
+        },
+        _ -> read(@outer),
+    }
+    machine finish(total: u32) -> u32
+    requires total <= 100
+    { total * 10 }
+}
+machine destructure_transition(shape: Shape) -> u32 {
+    match shape {
+        Shape::Square { side } -> {
+            transition side {
+                0 -> 100,
+                _ -> (side - 1),
+            }
+        },
+        Shape::Empty -> 0,
+    }
+}
+public machine all_diverge(code: u32) -> u32
+crashes Trap code == 0
+{
+    let seen: u32 = match code {
+        0 -> { crash Trap; },
+        _ -> {
+            transition code {
+                1 -> 11,
+                _ -> 12,
+            }
+        },
+    };
+    seen
+}
+machine main() crashes Trap {
+    transition match_guarded_crash(1) == 7
+        && transition_guarded_crash(1) == 9
+        && match_early_transition(0, 0) == 41
+        && match_early_transition(0, 9) == 42
+        && match_early_transition(1, 0) == 17
+        && transition_nested_block(0, 0) == 60
+        && transition_nested_block(0, 3) == 70
+        && transition_nested_block(1, 0) == 5
+        && destructure_transition(Shape::Square { side: 0 }) == 100
+        && destructure_transition(Shape::Square { side: 4 }) == 3
+        && destructure_transition(Shape::Empty) == 0
+        && all_diverge(1) == 11
+        && all_diverge(2) == 12 {
+        true -> done(),
+        false -> failed(),
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

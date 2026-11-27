@@ -280,7 +280,9 @@ struct InlinedPlan {
     slot_map: HashMap<LocalStorageSlotId, LocalStorageSlotId>,
     reg_map: HashMap<VirtualRegisterId, VirtualRegisterId>,
     arg_copies: Vec<ParamCopySpec>,
-    ret_copies: Vec<(VirtualRegisterId, VirtualRegisterId)>,
+    /// For each callee return block, by position, the copies from its
+    /// returned registers into the call's results.
+    ret_copies: HashMap<usize, Vec<(VirtualRegisterId, VirtualRegisterId)>>,
     call_work_provenance: Option<SelectedInstructionProvenance>,
 }
 
@@ -375,6 +377,14 @@ fn check_inline_eligibility(
     let CallSiteOwner::Operation(call_op) = contract.owner else {
         return None;
     };
+    // Arguments passed on the stack are stored into outgoing slots before the
+    // call. Inlining removes the call but would leave those slots and stores,
+    // and a frame without a call cannot hold outgoing arguments.
+    if caller.outgoing_arguments.iter().any(|slot| {
+        slot.id.invocation_site == semantic_vocabulary::InvocationSite::Operation(call_op)
+    }) {
+        return None;
+    }
 
     // Preserve any work settled on the call instruction only when edges are empty
     // and all settled sites belong to `call_op`.
@@ -487,33 +497,35 @@ fn check_inline_eligibility(
     if return_block_indices.is_empty() {
         return None;
     }
-    if !call_defs.is_empty() && return_block_indices.len() != 1 {
-        return None;
-    }
-
-    // Match return values by fixed_view.
-    let mut ret_copies = Vec::with_capacity(call_defs.len());
+    // Match return values by fixed_view. Each return block copies its own
+    // returned registers into the call's results before joining the
+    // continuation, so a result register is defined once per return block.
+    let mut ret_copies = HashMap::with_capacity(return_block_indices.len());
     if !call_defs.is_empty() {
-        let ret_inst = terminator_instruction(&callee.blocks[return_block_indices[0]].terminator);
-        let mut ret_uses: HashMap<RegisterViewId, &SelectedOperand> = HashMap::new();
-        for op in &ret_inst.operands {
-            if op.access == RegisterOperandAccess::Use {
-                let view = op.fixed_view?;
-                if ret_uses.insert(view, op).is_some() {
-                    return None;
+        for &return_block in &return_block_indices {
+            let ret_inst = terminator_instruction(&callee.blocks[return_block].terminator);
+            let mut ret_uses: HashMap<RegisterViewId, &SelectedOperand> = HashMap::new();
+            for op in &ret_inst.operands {
+                if op.access == RegisterOperandAccess::Use {
+                    let view = op.fixed_view?;
+                    if ret_uses.insert(view, op).is_some() {
+                        return None;
+                    }
                 }
             }
-        }
-        for call_def in &call_defs {
-            if call_def.class != copy_class {
-                return None;
+            let mut copies = Vec::with_capacity(call_defs.len());
+            for call_def in &call_defs {
+                if call_def.class != copy_class {
+                    return None;
+                }
+                let view = call_def.fixed_view?;
+                let ret_op = ret_uses.get(&view)?;
+                if ret_op.class != copy_class {
+                    return None;
+                }
+                copies.push((ret_op.virtual_register, call_def.virtual_register));
             }
-            let view = call_def.fixed_view?;
-            let ret_op = ret_uses.get(&view)?;
-            if ret_op.class != copy_class {
-                return None;
-            }
-            ret_copies.push((ret_op.virtual_register, call_def.virtual_register));
+            ret_copies.insert(return_block, copies);
         }
     }
 
@@ -755,9 +767,10 @@ fn apply_inline(
     // 4. Clone and remap callee blocks + instructions + memory accesses.
     let mut inst_map: HashMap<SelectedInstructionId, SelectedInstructionId> = HashMap::new();
     let mut cloned_blocks = Vec::with_capacity(callee.blocks.len() + 1);
-    let mut ret_copies = Some(plan.ret_copies);
+    let mut ret_copies = plan.ret_copies;
+    let mut result_defined = false;
 
-    for block in &callee.blocks {
+    for (callee_block_idx, block) in callee.blocks.iter().enumerate() {
         let new_block_id = block_map[&block.id];
         let mut instructions = Vec::with_capacity(block.instructions.len());
         for inst in &block.instructions {
@@ -776,7 +789,7 @@ fn apply_inline(
         let old_term_id = terminator_instruction(&block.terminator).id;
         let new_terminator = match &block.terminator {
             SelectedTerminator::Return { .. } => {
-                if let Some(copies) = ret_copies.take() {
+                if let Some(copies) = ret_copies.remove(&callee_block_idx) {
                     for (callee_ret_src, caller_def_dst) in copies {
                         let mapped_src = plan.reg_map[&callee_ret_src];
                         let copy_id = alloc_inst_id();
@@ -788,11 +801,16 @@ fn apply_inline(
                             copy_row,
                         )?;
                         instructions.push(copy_inst);
-                        remap_origin_instruction(
-                            &mut caller.virtual_registers[caller_def_dst.0 as usize].origin,
-                            copy_id,
-                        );
+                        // The first return block's copy stands as the origin;
+                        // later return blocks define the same register again.
+                        if !result_defined {
+                            remap_origin_instruction(
+                                &mut caller.virtual_registers[caller_def_dst.0 as usize].origin,
+                                copy_id,
+                            );
+                        }
                     }
+                    result_defined = true;
                 }
                 let ret_jump_id = alloc_inst_id();
                 inst_map.insert(old_term_id, ret_jump_id);
@@ -1839,6 +1857,26 @@ mod tests {
         };
         assert_eq!(successor.bindings, [binding]);
         assert_eq!(successor.role, SelectedSuccessorRole::Semantic);
+
+        // A call that passes an argument on the stack stays a call: inlining
+        // would remove it but leave the outgoing slot, which frame layout
+        // refuses in a function without calls.
+        let mut stack_passed = [caller.clone(), callee.clone()];
+        stack_passed[0].outgoing_arguments.push(
+            selected_instructions::SelectedOutgoingArgumentSlot {
+                id: selected_instructions::OutgoingArgumentSlotId {
+                    invocation_site: semantic_vocabulary::InvocationSite::Operation(caller_op),
+                    argument_index: 4,
+                    role: selected_instructions::OutgoingArgumentSlotRole::ValueCopy,
+                },
+                byte_size: 48,
+                alignment: 16,
+                abi_stack_byte_offset: 32,
+            },
+        );
+        inline_and_simplify(&mut stack_passed, &environment).unwrap();
+        assert_eq!(stack_passed[0].calls.as_slice(), caller.calls.as_slice());
+        assert_eq!(stack_passed[0].outgoing_arguments.len(), 1);
 
         let mut functions = vec![caller, callee];
         inline_and_simplify(&mut functions, &environment).unwrap();

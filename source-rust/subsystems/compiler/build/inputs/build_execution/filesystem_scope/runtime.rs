@@ -13,7 +13,7 @@ use crate::build_execution::message;
 use crate::build_execution::observations::{
     BuildFilesystemAuthorizedPath, BuildFilesystemOperationAttempt, BuildFilesystemRoot,
 };
-use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use filesystem_authority::{
     BuildOutputObligation, BuildOutputObligationState, BuildOutputReceipt, FilesystemGrantAccess,
     FilesystemGrantRootIdentity, FilesystemHostOperation, FilesystemLogicalHandleIdentity,
@@ -115,21 +115,6 @@ impl BuildMachineFilesystemScope {
 }
 
 impl BuildFilesystemRuntime {
-    pub fn named_input(&self, name: &[u8]) -> Result<FilesystemGrantRootIdentity, String> {
-        self.effects
-            .scope
-            .named_inputs
-            .iter()
-            .find(|input| input.name == name)
-            .map(|input| input.root)
-            .ok_or_else(|| {
-                format!(
-                    "named build input `{}` is not assigned to this activation",
-                    String::from_utf8_lossy(name),
-                )
-            })
-    }
-
     pub fn resolve(
         &self,
         root: FilesystemGrantRootIdentity,
@@ -265,13 +250,7 @@ impl BuildFilesystemRuntime {
                 .as_ref()
                 .ok_or_else(|| "Source capture is absent".into());
         }
-        self.effects
-            .scope
-            .named_inputs
-            .iter()
-            .find(|input| input.root == root)
-            .map(|input| &input.input)
-            .ok_or_else(|| "unknown Build input root".into())
+        Err("unknown Build input root".into())
     }
 
     fn begin_attempt(
@@ -287,8 +266,7 @@ impl BuildFilesystemRuntime {
         } else if root == BUILD_OUTPUT_ROOT_IDENTITY {
             BuildFilesystemRoot::Output
         } else {
-            self.snapshot(root)?;
-            BuildFilesystemRoot::NamedInput(root.get())
+            return Err("unknown Build input root".into());
         };
         let provider = if root == BUILD_OUTPUT_ROOT_IDENTITY
             || (root == BUILD_SOURCE_ROOT_IDENTITY && self.effects.scope.live_source.is_some())
@@ -1309,7 +1287,7 @@ mod tests {
     }
 
     #[test]
-    fn source_and_named_inputs_validate_only_the_selected_snapshot() {
+    fn source_capture_validates_only_the_selected_snapshot() {
         use build_output::{SourceSnapshotEntry, SourceSnapshotError};
         let capture = |names: &[&[u8]]| {
             let rows = std::iter::once(b"".as_slice())
@@ -1340,11 +1318,6 @@ mod tests {
             assert!(
                 scope(&inventory)
                     .with_captured_source_input(inventory.clone())
-                    .is_err()
-            );
-            assert!(
-                crate::BuildSnapshotRequest::for_activation(true)
-                    .with_inputs([(b"assets".to_vec(), inventory.clone())])
                     .is_err()
             );
             scope(&inventory)
@@ -1567,11 +1540,11 @@ mod tests {
     }
 
     fn account() -> EvaluationInvocationAccount {
-        let limits = evaluation_contracts::BuildEvaluationSponsorLimits::new(
+        let limits = build_model::contracts::BuildEvaluationSponsorLimits::new(
             1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
         )
         .unwrap();
-        let sponsor = evaluation_accounting::BuildEvaluationSponsor::new(limits);
+        let sponsor = build_model::accounting::BuildEvaluationSponsor::new(limits);
         sponsor
             .begin_invocation(sponsor.measurement(), 1_000_000)
             .unwrap()

@@ -1,8 +1,8 @@
 use main.omg as app;
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "terminal_project_requests");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "terminal_project_requests" };
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
@@ -12,20 +12,20 @@ machine build(builder: @mutable Build) {
 // Build project requests are effects of the executed branch, including helpers.
 machine project_name() -> @[u8] { "computed_project" }
 
-machine selected_dependency(builder: @mutable Build) {
+machine selected_dependency(builder: @mutable BuildPlan) {
     let mutable selected_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "selected_source" });
     |dependency|::with_alias(@mutable selected_dependency, "selected");
     let selected_registration: DependencyRegistration = Build::dependency(builder, selected_dependency);
 }
 
-machine unselected_dependency(builder: @mutable Build) {
+machine unselected_dependency(builder: @mutable BuildPlan) {
     let mutable unselected_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "unselected_source" });
     |dependency|::with_alias(@mutable unselected_dependency, "unselected");
     let unselected_registration: DependencyRegistration = Build::dependency(builder, unselected_dependency);
 }
 
-machine requests(builder: @mutable Build) {
-    Build::application(builder, project_name());
+machine requests(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: project_name() };
     transition true {
         true -> selected_dependency(builder),
         false -> unselected_dependency(builder)

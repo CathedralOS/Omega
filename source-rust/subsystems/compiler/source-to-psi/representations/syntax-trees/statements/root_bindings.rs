@@ -5,7 +5,7 @@ use crate::SyntaxTrees;
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use source_text::SourceSpan;
 
-pub const BLOCK_VALUE_STATEMENT_ERROR: &str = "a block value holds `let` bindings, assignments and calls before its final expression; a `transition`, `crash`, `asm`, root or proof-output binding statement cannot appear in it";
+pub const BLOCK_VALUE_STATEMENT_ERROR: &str = "a block value holds `let` bindings, assignments, calls, `transition` and `crash` statements before its final expression; an `asm`, root or proof-output binding statement cannot appear in it";
 
 fn at(message: &'static str, span: SourceSpan) -> diagnostics::Diagnostic {
     diagnostics::Diagnostic::error(message).with_source_span(span)

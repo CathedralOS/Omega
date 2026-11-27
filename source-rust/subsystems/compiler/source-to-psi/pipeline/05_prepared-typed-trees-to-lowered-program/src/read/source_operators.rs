@@ -1,4 +1,5 @@
 //! Preserve an operator choice made by the actual body or contract reader.
+use crate::read::refuse_at;
 
 use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
@@ -15,8 +16,8 @@ use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 
 use super::Program;
 use super::clause_terms::ClauseUse;
+use crate::Unserved;
 use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
-use crate::{Unserved, refuse};
 
 /// Machine contracts name their entry State; source traversal owns the
 /// same clause under its uniquely registered machine declaration.
@@ -316,7 +317,11 @@ impl Program<'_> {
             // Range formation already selected on the original collection.
             // Its result can now be a window, a borrow, or a qualified view.
             (_, ExpressionNode::Indexed(indexed))
-                if self.typed.expression_table.range_node(indexed.index).is_some() =>
+                if self
+                    .typed
+                    .expression_table
+                    .range_node(indexed.index)
+                    .is_some() =>
             {
                 Ok(())
             }
@@ -522,9 +527,7 @@ impl Program<'_> {
             {
                 return Err(crate::reject(
                     machine,
-                    crate::SourceOrigin::of(
-                        typed.expression_table.source_span(expression),
-                    ),
+                    crate::SourceOrigin::of(typed.expression_table.source_span(expression)),
                     format!(
                         "no `[]` declaration accepts collection `{}` and index `{}`; a qualified index requires an exactly matching parameter or an explicit domain cast",
                         typed.display_type_reference_with_constraints(*collection),
@@ -560,13 +563,10 @@ impl Program<'_> {
         operands: &[Option<TypeReferenceHandle>],
         selected: numerics::intrinsics::CoreIntegerOperatorSignature,
     ) -> Checked<()> {
-        use numerics::intrinsics::{
-            CoreIntegerOperand, CoreIntegerOperatorSignature,
-        };
+        use numerics::intrinsics::{CoreIntegerOperand, CoreIntegerOperatorSignature};
         let mismatch = || {
-            refuse(
+            refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Expression(
                     "core operator application differs from its checked operand signature",
                 ),
@@ -611,7 +611,7 @@ impl Program<'_> {
         return_type: TypeReferenceHandle,
         expression: ExpressionHandle,
     ) -> Checked<Option<TypeReferenceHandle>> {
-        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
+        let unavailable = |detail| refuse_at(id, Unserved::Contract(detail));
         let typed = self.typed;
         match typed.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {

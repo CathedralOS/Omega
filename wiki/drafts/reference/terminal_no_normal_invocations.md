@@ -26,4 +26,4 @@ completion promise or authority.
 The owning representation is
 [Terminal control flow](../../../omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/termination.rs).
 Its canonical wire marker is documented in
-[encoding](../../spec/terminal-psi/encoding.md).
+[encoding](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md).

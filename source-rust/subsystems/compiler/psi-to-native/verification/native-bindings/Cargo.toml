@@ -8,9 +8,9 @@ version.workspace = true
 path = "bindings.rs"
 
 [dependencies]
+build-providers = { path = "../../../build/providers" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 layout = { path = "../../targets/layout" }
-provider-plans = { path = "../../../build/providers/plans" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 service-surface = { path = "../../../psi/interfaces/service-surface" }
 target = { path = "../../targets/target" }

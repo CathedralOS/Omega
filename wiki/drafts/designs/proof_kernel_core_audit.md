@@ -629,7 +629,7 @@ checked against the code but not built.
 | --- | --- | --- | --- |
 | L1 | **One term reader in stage 05.** One function reads an expression into a term at every position. `ClauseScope` supplies only what each name denotes there (a formal, the entry snapshot for `old`, the result, a field of the value being built). | the position axis: a term form served once is served in every clause, domain predicate, definition body and erased argument | readers per term form: 1; refusals that name a position: 0 |
 | L2 | **Four general term forms.** Add an application of a published declaration to argument terms, `Id` at a type, a constructor of a `data` case applied to its fields, and a projection of a field from a term. These are the four forms the old judge's term type had and `Proposition` lacks. The existing scalar, integer and float forms stay as the cases the arithmetic rules work on. | the operand axis: Identity for every type (C5), a call to a machine with no body, a definition with binders (C1) and a quotient relation (C10) become the same four forms, with one reader, one prover route (reflexivity, symmetry, transitivity, congruence, constructor injectivity) and one translation to the kernel | equality forms a new type needs: 0 |
-| L3 | **One signature table in the lowered program**, written by stage 05 and checked once by stage 06 with `check_signature`. Publication fills the three tables the wire format already specifies (indexed theorem rows, mathematical carriers and the Id formation catalog with its shared certificate, [encoding](../../spec/terminal-psi/encoding.md)) from that one table. The wire format does not change: [Psi claim admission](psi_claim_admission.md) says "No codec retirement". An earlier version of this row replaced the three wire tables; a reviewer pointed out that they are ratified. | a table and a wire reader per construct | writers per declaration kind: 1 |
+| L3 | **One signature table in the lowered program**, written by stage 05 and checked once by stage 06 with `check_signature`. Publication fills the three tables the wire format already specifies (indexed theorem rows, mathematical carriers and the Id formation catalog with its shared certificate, [encoding](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md)) from that one table. The wire format does not change: [Psi claim admission](psi_claim_admission.md) says "No codec retirement". An earlier version of this row replaced the three wire tables; a reviewer pointed out that they are ratified. | a table and a wire reader per construct | writers per declaration kind: 1 |
 | L4 | Done in #5715: **a shape the kernel cannot translate is refused.** `MathematicalCoreDecision` has only `Judged`; every translation error refuses the certificate. | a second basis of trust that nobody measures | accepted without the kernel's judgment: 0 |
 | L5 | **Typed identities in `ProofTerm`** in place of `type_identity: String`. | decisions keyed on text | text keys in `ProofTerm`: 0 |
 
@@ -989,9 +989,13 @@ none`, which a clause application now requires. What step 2 did not build:
   a receiver trusts the producer and does not replay carried certificates,
   so nothing would check a published one. A row for laws waits for a
   consumer that reads it.
-- **One table for step 1's goals.** A generic machine's Identity goal still
-  gets its own table per obligation in `equality::discharge`. Only the
-  declarations over data that contains itself are in the shared signature.
+- **One table for step 1's goals.** Built. Each generic check form with
+  const record parameters has one Identity table in the mathematical
+  signature: its carriers, the trait operations its clauses apply and the
+  laws its record parameters' traits state. Stage 06 checks it once and
+  `equality::discharge` extends it with each obligation's own inputs.
+  Concrete modules (closure, witnesses, arrivals) still declare their names
+  per obligation, since they have no trait operations to share.
 - **Projection, and fields of another type.** A field of a case is read only
   through the dispatch that binds it. Data whose case has a field of another
   type is refused, because that type has no carrier in the signature yet.
@@ -1111,7 +1115,7 @@ kernel, from the library file as it stands.
   the case, which `le_of_succ_le` and `pred_eq_succ` need). It also
   normalizes again after each rewrite. With that, the kernel judges every
   law in the file but the three below: 34 laws when the file's declarations
-  are compiled as a program (`every_law_of_nat_but_three_recursions_is_judged`).
+  are compiled as a program (`every_law_of_nat_but_division_and_gcd_is_judged`).
   The largest, `sub_lt_of_le`, took 42,717 kernel conversion steps of the
   65,536 budget when this landed; the next bullet brought the largest down
   to 5,628 (`sub_lt`).
@@ -1136,7 +1140,8 @@ kernel, from the library file as it stands.
   law, which a shared check would remove.
 - **`mod`, `div` and `gcd`** were not read at this step: their recursion is
   on `saturating_sub(a, b)`, not on a field of the dispatched case. Step 4
-  defines them by recursion on fuel (below).
+  defines them by recursion on fuel (below); `div` and `mod` have since
+  become structural.
 - **The two operator machines** were not read at this step. `<=` and `-`
   were written as machines the `Nat` declaration owns
   (`machine <= Nat::less_or_equal`), and compiling the file's declarations
@@ -1267,9 +1272,68 @@ starts with records.
   price: a law about such a machine is provable only if it holds for every
   amount of fuel, as `mod`'s bound does; a law that needs the fuel to be
   enough, such as `div(a, b) * b + mod(a, b) = a`, is not provable this way
-  and is refused. This implementation omitted the per-call decrease check. The
+  and is refused. The
   [computed descent ruling](../../spec/language/termination.md#computed-recursive-arguments-in-proofs)
-  requires it and specifies when an internal bound is sound.
+  requires a decrease check at each call and specifies when an internal bound
+  is sound.
+- **Computed descent (2026-11-27).** Each recursive call of a machine defined
+  on fuel now owes `saturating_sub(Succ(next), a) = Zero`, its ranked
+  argument strictly below the caller's, as a statement of its own. It is
+  stated over the variables in scope and proved from the machine's premises,
+  the citations read so far and, new, the equation each enclosing dispatch
+  keeps between its subject and the case (`saturating_sub(b, a) = Zero` in
+  `mod`'s recursive arm). Premises owed at calls use those equations too. The
+  order is recognized by what it computes: a machine read so far whose
+  definition is exactly core's `saturating_sub`, over data with one case
+  without fields and one with one field, so core `Nat` and a program's copy
+  of it qualify and a lookalike does not. Data without one, such as a
+  program's own `Peano` with no truncated subtraction, is refused. The
+  repeated-subtraction `mod` this audit describes is kept as a public
+  compiler fixture (`computed_descent/pass/repeated_subtraction_mod`); its
+  twin calling `mod(a, b)` is refused at that call. Still owed: the
+  well-foundedness of the order discharged once and a proof that the fuel
+  suffices.
+- **Structural division (2026-11-27).** Core `div` and `mod` are no longer
+  defined on fuel. Both read one structural helper, `divide_step(n, k, q, c)`,
+  which recurses on the dividend `n` one unit at a time while counting `c`
+  down from the divisor less one and bumping the quotient `q` when `c` runs
+  out; `div(a, b)` is its quotient and `mod(a, b)` its remainder. Its laws
+  `divide_reconstructs` and `divide_bounds` are proved by induction on `n`,
+  so `div_mod_reconstruction` (`div(a, b) * b + mod(a, b) = a`) and `mod`'s
+  strict bound hold on every admitted input. The prover now reduces a
+  projection of a pair, so a law can read a field of a computed record. Only
+  `gcd` still recurses at a computed value, on fuel with its descent checked.
+- **Structural gcd (2026-11-27).** `gcd` is no longer defined on fuel
+  either. It is `gcd_within(b, a, b)`: Euclid's algorithm with an explicit
+  bound on its steps, recursing on the bound alone. The divisor bounds the
+  steps because each remainder is strictly below its divisor
+  (`divide_bounds`). `gcd_within_agrees` proves by induction on the bound
+  that every bound at least the divisor gives the same answer, the source
+  form of "the counter suffices" in the computed descent ruling, and
+  `gcd_step` turns it into Euclid's step, `gcd(a, b) = gcd(b, mod(a, b))`
+  for a positive `b`. `le_trans` joins the order lemmas. Core now has no
+  machine defined on fuel. The compiler's fuel definition remains for a
+  program's own machine with computed descent; for those, the order's
+  well-foundedness and the sufficiency of the fuel are still not proved, so
+  their recursive equations are not available to a law. The termination
+  spec's "core proves once that this order is well founded" is not yet
+  true of the implementation.
+- **Fuel sufficiency (2026-11-27).** The fuel of a program's machine with
+  computed descent is now proved sufficient
+  ([design](computed_descent_recursion.md)). Each unit of fuel is guarded by
+  `x_r ∸ rest`, so extra fuel does nothing. Each machine on fuel carries two
+  laws stage 06 proves. Its fuel bound says any fuel reaching the ranked
+  argument gives the same result. Its recursive equation is the source
+  equation under its premises, and a law that calls the machine cites it. A
+  law that cites itself at a computed natural is proved by induction on
+  fuel that reaches its ranked formal. The order's facts are proved once, in
+  core: `succ_of_sub_between`, `not_succ_le_self`, `not_succ_le_zero`,
+  `le_of_succ_le_succ`, `not_lt_of_le_zero`, `le_of_lt_of_sub_between` and
+  `sub_self`. Each is recognized by its exact statement over the recognized
+  order, and an order without one is refused, naming it. This is the
+  implementation's form of "core proves once that this order is well
+  founded": the kernel has no accessibility predicate, so the step-counter
+  route of the spec is taken.
 - **A choice by a computed value** (`rat_eq`, `mod`) is a definition by
   cases of its own over its subject and the variables in scope, so the
   prover computes with it as with any other. In a law, a split on a computed
@@ -1303,6 +1367,58 @@ starts with records.
   state `cauchy_at` under the bounds it requires. With `cauchy.omg` added,
   the five files give 96 judged laws; its four take 1,297 to 4,674
   conversion steps.
+- **Machines passed to generic machines (2026-11-27).** A clause may pass
+  a concrete mathematical machine for a machine parameter:
+  `twice::<succ>(a)` is `twice`'s definition applied to `succ`'s, and the
+  kernel unfolds both. The machine must have exactly the parameter's
+  formals and result and no premise, since a machine with a premise is no
+  total function. One generic machine may cite another, at its own machine
+  parameters or at concrete machines; the cited law's premises are owed at
+  the machines it names, so citing `twice_keeps_a_fixed_point::<Other>`
+  where only `Step` is known to fix `a` is refused. A body's call at
+  concrete machines names the closed copy the typed trees made for it; a
+  generic machine's citation reads the selected machines from that copy's
+  specialization receipt and cites the generic law. Customers:
+  `generic_machine/pass/twice_at_a_concrete_machine` and
+  `generic_machine/pass/cited_at_its_own_machine`, each with its twin.
+- **Generic machines that dispatch (2026-11-27).** A generic mathematical
+  machine's body may dispatch once on a formal, and its laws may argue by
+  cases and induction like any other. Such a body is lowered and read by
+  the signature reader instead of the clause reader, and so is every
+  machine declared inside it. A call of a machine parameter is
+  `ExpressionKind::Applied` with that parameter as its head; a call of a
+  generic machine passes its machines first. In a definition by cases each
+  branch binds the machine parameters itself, ahead of the other formals,
+  so the branches stay closed and `FunctionCases` records the subject and
+  arity past them; the recursion passes the same machines on. A law's
+  `Cases` formal and a split's names count the machine parameters first.
+  A body that is not generic may call or cite a generic machine at
+  concrete machines through the same form: the call no longer names the
+  typed trees' closed copy. Customers: `generic_machine/pass/iterate_keeps_a_fixed_point`,
+  `pass/cited_by_an_ordinary_law` and `pass/called_by_an_ordinary_definition`,
+  each with its twin.
+- **Every generic mathematical body (2026-11-27).** A generic machine may
+  call itself at other machines: each branch of its definition by cases
+  binds the machine parameters, so the recursion passes whichever it
+  names, and a law's induction hypothesis is the law at those machines,
+  with its premises owed there. One that recurses on fuel takes its machine
+  parameters after the fuel in the definition over fuel, its laws over fuel
+  count them among the formals, and a dispatch on a computed value is a
+  definition over them and the formals alike. A call of a generic machine
+  that has a premise owes the premise, stated over its machine parameters
+  and formals, at the machines and arguments it passes. A law reads a
+  generic machine that states nothing in place, its machine parameters
+  standing for the machines the citation passes; such a machine is
+  lowered. Any other body the clause reader cannot read as terms is
+  lowered and read like any other body. A generic machine's own `result`
+  in its clauses is its definition at its machine parameters and formals.
+  Customers: `generic_machine/pass/alternate_keeps_two_fixed_points`,
+  `pass/pick_by_a_computed_value`, `pass/call_owes_its_premise` and
+  `pass/cited_through_a_generic_helper`, each with its twin, and
+  `gcd_then` and `mod_then` over `core/nat.omg` in stage 06's
+  `generic_machine` tests, a generic `gcd` and repeated-subtraction `mod`
+  on fuel with their twins. A concrete machine with a premise is still no
+  machine argument: it is no total function for the parameter to stand for.
 - **The order and subtraction operators (2026-11-25).** `nat.omg` declares
   `<=` and `-` as free public operator machines,
   `machine <= less_or_equal(left: Nat, right: Nat) -> bool` and
@@ -1319,13 +1435,10 @@ starts with records.
   program outside core imports both machines to select them by their
   tokens (`nat_order` fixtures).
 - **Not done:**
-  - A generic mathematical machine whose body dispatches, a citation of
-    one generic machine from another, and a concrete machine passed for a
-    machine parameter. Nothing in the library does any of these.
   - `extent.omg`'s contract over `IntervalSet<Nat>` (the plan's
     `extent.omg:219`) is a clause of a runtime boundary trait over generic
     data. It is read by the carrier clause reader when a program reaches
-    it, not into this signature. Step 5 did not move it (below).
+    it, not into this signature; Step 5 serves it there (below).
   - A refused law whose goal names a field inside one case of an induction
     prints `?` for that field.
 
@@ -1373,8 +1486,22 @@ type), and the clause's `ClauseScope` says what each name denotes there.
   result exists there.
 - **Kept, not yet known to be a rule.** These still name a position. Each
   may state a real rule, so none was removed:
-  - "call in a clause of a state other than the entry" (`unfold_definition`):
-    whether a clause may unfold a call of a machine's non-entry state.
+  - "call in a clause of a state other than the entry" (`unfold_definition`)
+    states a rule, and is now refused as that rule (2026-11-27). A call
+    "invokes its entry, not a saved activation or a private point inside its
+    body", and the source `state` declaration is retired
+    ([nested machines](../../spec/language/machines.md#nested-machines-and-identity)).
+    A clause's call is a call, so the same rule decides it. Resolution gives
+    a call only a machine or its entry state (`one::entry()` and
+    `one::helper()` resolve to nothing a call may name), so no source
+    program reaches the check. The three copies (`unfold`,
+    `unfold_definition` and `call_target_symbol` in `read/calls.rs`, which
+    raised "state other than the entry") are one: `clause_call_machine`
+    resolves the target through `call_target_symbol`, which refuses a
+    non-entry state with the `Violation`
+    `rejections::call_inside_a_machine_body` instead of "not supported yet"
+    (`a_call_runs_a_machine_from_its_entry_never_a_point_inside_it` in
+    `calls_visibility_tests.rs`).
   - "borrowed formal outside an admitted storage clause", "clause that
     projects a formal or result" and "extent without a structural subject"
     are no longer raised for a crash guard (2026-11-25). A published crash
@@ -1426,13 +1553,31 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     now supplies: an element of a fixed-length shared input crosses into a
     private helper like a record field, named by the read `items[0]` the
     helper's call states for that cell (`field_crossings`, 2026-11-25), so
-    `match_join` is accepted. A route
+    `match_join` is accepted. The root application is accepted
+    when checked over its own files, as `sample-gate` checks it
+    (`--build-input build.omg --build-input main.omg`). A bare
+    `omega --check main.omg` is refused for the place projects' errors, and
+    that is the rule, not a capture fault: a package checked with no source
+    list is its whole directory, unimported subdirectories included
+    ([validation subjects](../../spec/build/validation_subjects.md#admission-and-release)),
+    and a nested package owner comes from the admitted package graph, not
+    from a subdirectory's `build.omg` (`LogicalSourceInventory::parse`).
+    `validation_subjects.rs` pins both
+    (`an_explicit_inventory_leaves_a_nested_project_out_of_the_subject`,
+    2026-11-27). A route
     over an actual that lends a field (`@pair.items`) names that field
     path at the call, and one over an element chosen at run time
     (`@rows[row]`) names that element, its selector kept as an index
     (`terminal_semantics::canonical_read_projection`, 2026-11-25). A
-    forwarder over a `@mutable` formal is refused whether or not it writes
-    the guarded element (fails closed).
+    forwarder over a `@mutable` formal is accepted while nothing has written
+    the array it received (2026-11-27): where the whole input still reaches
+    the call from entry, every cell holds its entry contents, so the call's
+    route reads `items[index]` in the form the forwarder's own entry route
+    states (`Storage::entry_read` with `EntryContents::Unwritten`). A write
+    to the guarded element first is refused, and so, conservatively, is a
+    write to any other part of the array before the call
+    (`a_mutable_forwarder_covers_the_call_only_while_the_element_is_unwritten`
+    in stage 06's `indexed_and_member_contracts.rs`).
   - "case membership" in a machine clause (`read_clause`) refused a form
     the specification admits, and is now served where the clause states the
     test outright (2026-11-24). A case is a domain: "A case implicitly
@@ -1508,10 +1653,21 @@ type), and the clause's `ClauseScope` says what each name denotes there.
   `clause_term` now reads a comparison as the Boolean value it computes
   wherever a clause writes one. Propositions are still read by `read_clause`,
   a separate function.
-- **Not done:**
-  - `extent.omg`'s `core\Identity::<IntervalSet<Nat>>` contract
-    (`extent.omg:219`) needs Identity over a domain's content projection of
-    `old(@storage)`. Step 5 did not change how it is read.
+- **`extent.omg`'s interval law at a forwarder (2026-11-27).** The
+  contract `|proof|::Identity::<IntervalSet<Nat>>(Granted::content(old(@storage)), Granted::content(@result))`
+  on `VacantContentTransfer::transfer` and `ResidentContentTransfer::transfer`
+  was already read as a `ContentConservation` guarantee and instantiated at
+  each call (`boundary_calls::compositions`). A machine that forwards the
+  call and promises the same equation over its own input and result was
+  still refused: "content equation needs a proof for operations outside
+  unchanged structural forwarding". Forwarding (`forwarding.rs`) now treats
+  a boundary call like an owned direct call, and content ancestry
+  (`ancestry::boundary_input_origins`) relates the call's result claim to
+  the claim it consumed exactly where the boundary declares that projection
+  unchanged. A boundary that keeps `Granted` but declares no content law
+  relates nothing, so the same forwarder is refused
+  (`a_forwarder_restates_the_interval_law_its_boundary_call_declares` in
+  `content_projection_domains.rs`).
 
 **Step 7 as built (2026-11-24): a quotient of mathematical data, equal
 classes for related representatives, and operations on a quotient.** `data Sign = Representative %
@@ -1521,7 +1677,7 @@ same_sign> as SameSign;` is read into the mathematical signature when
 
 - **Formation.** The signature declares the relation as a definition and
   the quotient as the kernel's quotient of the carrier by it. The kernel's
-  nineteen quotient declarations come first in the signature because the
+  twenty quotient declarations come first in the signature because the
   kernel numbers them from zero. `value as Sign` in a clause is the class of
   `value`; nothing else makes a value of the quotient.
 - **The equivalence is checked, not trusted.** Each row of the selected
@@ -1550,36 +1706,60 @@ same_sign> as SameSign;` is read into the mathematical signature when
   recovered from the old corpus is `quotient/pass/lifted_operation` and
   `quotient/fail/lift_selects_another_theorem`, whose lift names a proved
   theorem that is not the congruence.
+- **Lift arguments (2026-11-27).** `Quotient::lift` passes each parameter
+  of the operation on representatives a formal as it is, or a value it
+  computes from the formals (a constant among them), so a formal may be
+  left out or passed twice. The congruence is stated of the operation's
+  parameters, so a computed argument is one value shared by both calls,
+  and a class formal passed twice is two class parameters, each with its
+  own two representatives and relation premise. The definition passes the
+  one class's representative to every class parameter and cites the
+  congruence's relation proof once per parameter. Only a formal is a class:
+  a computed argument of the quotient's type is refused, so `lift` always
+  eliminates a class the machine was given. A transport theorem is stated
+  over the congruence's binders, which reach no computed or left-out
+  formal, so such a lift selects none and owes that statement itself over
+  its formals; `define` still passes each formal in its place. Tests:
+  `an_operation_lifted_with_a_computed_or_omitted_argument_*`,
+  `an_operation_lifted_with_a_repeated_class_computes_at_a_class`,
+  `a_repeated_class_needs_a_congruence_for_each_pair`,
+  `a_lift_that_computes_an_argument_owes_its_transport_itself`,
+  `a_computed_argument_is_never_a_class`.
 - **Not done:**
-  - A lifted operation has no definition, so no clause may apply one. The
-    kernel's `lift` would define it when the representative operation
-    requires nothing; an operation that requires something needs the
-    dependent eliminator. The kernel's `lift` also takes a proof that the
-    result type is a set (`lift_declaration` in
-    `psi/semantics/proofs/mathematical/quotient.rs`). The kernel supplies
-    that for a quotient and for a proposition, not for data, so an
-    operation that returns data cannot be defined this way until identity
-    proofs of that data are shown unique. No program in the library or the
-    samples applies a lifted operation in a clause.
-  - `Quotient::lift` with a constant, a computed argument, an omitted formal
-    or a formal passed twice, which the specification permits.
+  - A lifted operation is a definition only where the kernel's `lift`
+    gives one (2026-11-27): one class in, a class or plain data out (the
+    quotient is a set by `setQ`, plain data by Hedberg's theorem), and an
+    operation on representatives that requires nothing. The definition is
+    `lift` of the operation at that class, with the selected congruence as
+    `respect` (through soundness when the result is a class). A proof
+    rewrites it with `lift`'s point computation, a theorem the scheme now
+    derives from `beta` (`QUOTIENT_LIFT_BETA`), so no conversion rule is
+    added. An operation that requires something of its representatives
+    needs the dependent eliminator, and one over two classes needs
+    function extensionality; a term that applies either is refused by
+    name, as is one returning `bool`.
   - Anything that needs the kernel's `effective` assumption (equal classes
     give related representatives). The specification allows it only for a
     relation shown to be a mere proposition, and requires the declaration to
     [select a closed `MereEquivalence`](../../spec/proofs/quotients.md#formation-and-representation).
     The reader still needs to consume that conformance.
     The compiler uses soundness only, which holds for any relation.
-  - A generic quotient, a quotient of data that has storage, and the
-    nineteen runtime quotient programs under
-    `samples/cli/facts/quotient_closed_literal/`. Checked on 2026-11-24,
-    two of its placements are refused in the ordinary reader for two
-    reasons, neither in the mathematical signature: "type quotient data
-    while reading the signature of `lifted`" (a class has no runtime form:
-    it would be stored as its representative, built by `as`, and read only
-    by `Quotient::lift`), and "machine declared requirement needs its
-    complete trait application" for `RepresentativeEquivalence satisfies
-    Equivalence<Representative, equivalent>`, whose second argument is a
-    proposition. These programs also pass `lift` a constant (`3i32`).
+  - A generic quotient, and a quotient of data that has storage in the
+    mathematical signature. The signature now declares generic data that
+    contains itself, with payloads (#6295), but a quotient's reader still
+    refuses generic quotient data. It states a record only of mathematical
+    data, never one with an `i32` field, so a law equating classes of
+    stored data is refused as "Identity of classes of a quotient of data
+    that has storage"
+    (`a_law_over_classes_of_stored_data_is_refused_by_name`). Ordinary
+    programs run a quotient of copyable,
+    custody-free data stored as its representative: all nineteen programs
+    under `samples/cli/facts/quotient_closed_literal/` pass the sample gate
+    on Linux x86-64 (2026-11-27), each invalid twin refused because its
+    `4i32` misses `representative`'s `amount == 3i32`. The reader names
+    the selected trait by its declaration, so `|relation|::Equivalence`
+    selects it, and package review reads the stored representative's type
+    from the declaration's carrier.
 
 **Step 6 as built (2026-11-24): data indexed by values, theorems over it and
 the machines that run with its evidence.** The three `source_indexed_*`
@@ -1666,7 +1846,12 @@ stages 03 and 04. What is built:
   three and the 39 older ones, are now listed with their statements
   in the [kernel metatheory](../../spec/proofs/kernel_metatheory.md#assumed-laws-of-the-integer-model);
   the [rule table](../../spec/proofs/classicality.md) lists only the rules a
-  certificate can cite, and none of these is one. A theorem may also rank
+  certificate can cite, and none of these is one. Since 2026-11-27 every
+  one of them, the older ones included, is evaluated as declared against
+  computed arithmetic with a wrong twin beside it
+  (`bounded_denotation/law_arithmetic.rs`); the ones the earlier tests named
+  for `DistributeAdd`, `ZeroRight` and `ZeroLeft` no longer exist on `main`,
+  and the new test covers those three as well. A theorem may also rank
   on its evidence (`terminates by evidence`), as the specification lets a
   proof "rank on mathematical structure". It then owes no arithmetic at its
   citations, because a step cites it only at a child of its case, a part of

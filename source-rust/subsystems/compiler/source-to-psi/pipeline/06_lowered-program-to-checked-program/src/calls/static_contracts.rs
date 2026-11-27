@@ -626,12 +626,14 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                     ));
                 }
                 members.push(member.requirement);
-                let mut arguments = Vec::new();
+                let mut seen = Vec::new();
                 for instance in &member.instances {
+                    let key = (instance.signature, &instance.arguments);
                     if instances.contains(&instance.machine)
-                        || arguments.contains(&instance.arguments)
+                        || seen.contains(&key)
+                        || !instance.signature.is_valid()
                         || !elaboration.requirements.contains(&instance.machine)
-                        || elaboration.machines.get(instance.machine) != Some(&member.signature)
+                        || elaboration.machines.get(instance.machine) != Some(&instance.signature)
                         || elaboration.value_arguments.get(instance.machine)
                             != Some(&instance.arguments)
                         || elaboration
@@ -645,7 +647,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                         ));
                     }
                     instances.push(instance.machine);
-                    arguments.push(instance.arguments.clone());
+                    seen.push(key);
                 }
             }
         }

@@ -1,7 +1,7 @@
 use main.omg as app;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "nested_result_summary");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "nested_result_summary" };
     Build::select_provider::<|app|::SelectedEvaluate, |app|::Evaluator>(builder, windows_x86_64);
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     Build::select_provider::<|app|::SelectedEvaluate, |app|::Evaluator>(builder, linux_x86_64);

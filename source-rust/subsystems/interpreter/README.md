@@ -4,6 +4,25 @@ This crate runs Terminal Psi. Start at [interpreter.rs](interpreter.rs). Executi
 [calls and outcomes](../../../wiki/spec/terminal-psi/calls_and_outcomes.md)
 and [structural ownership](../../../wiki/spec/terminal-psi/ownership.md) rules.
 
+The crate also owns the live storage ledgers under `memory/`: the
+[extent ledger](memory/extents/) (`extents`), the
+[live access checks](memory/storage-access/) (`storage_access`) and the
+[layout materializer](memory/materialization/mod.rs) (`storage_materialization`).
+The host runtime reaches the first two as `terminal_interpreter::extents` and
+`terminal_interpreter::storage_access`.
+
+Three crates under `host/` and `numeric-imports/` stay separate because
+`mbx xtask check-boundary` requires it:
+- `retained-image-runtime` is the only runtime package allowed to read the
+  completed native image (`native-artifact`); the host runtime may not.
+- `native-provider-sponsor` uses native image emission. The host runtime may
+  not depend on a native stage, and the source compiler, which depends on
+  this crate, may not reach native code.
+- `interpreter-numeric-imports` combines this crate with the native
+  `target-vocabulary`. The source compiler depends on this crate and may not
+  reach native code, and native stage 00 uses the numeric imports without
+  the host runtime.
+
 The product compiles a program before running it. The engine depends on its
 input representation and semantic checks, not on the compiler coordinator, so
 compile-time evaluation creates no dependency cycle.
@@ -81,6 +100,92 @@ reach static entailment from the execution layer. Prepared plans must keep
 the checks of predicates on actual values and the safety of concrete
 operations. Acceptance measures startup and steady-state costs; it does not
 assume closed predicate evaluation is always cheap.
+
+## Which execution refusals admission already covers
+
+The interpreter still refuses malformed programs while it runs them: 2,087
+production calls to `malformed()` and seven `VerifiedOperationContractInvalid`
+refusals check, one operation at a time, properties that a checked program
+cannot violate. This table records, for each family of refusals, whether
+loading already guarantees the property, so that later changes can move each
+check into admission once or delete it as covered. A check that depends on
+values only known while running stays in execution. Measured on `main`
+`47996c86b`.
+
+The table depends on what loading does today. A program reaches execution by
+one of two routes:
+
+- **Bytes** (`TerminalProgram::load`, `load_envelope`,
+  `TerminalExecution::start_artifact`). `decode_closed_parts`
+  (`psi/artifact/wire/src/semantic_module.rs`) decodes canonically, then runs
+  `validate_storage_foundation` and `validate_structural_foundation`
+  (`foundation_validation.rs`). The latter calls
+  `machine_foundations::validate_machine` and `validate_operation_foundation`
+  on every machine and operation. Decoding does **not** run the lowered-form
+  checker. These routes also take no host trust witness yet
+  ([admission plan](../../../wiki/drafts/designs/psi_claim_admission.md),
+  step 1), so they can receive bytes that no checker accepted.
+- **In process** (`TerminalProgram::borrow`, `retain`). The module comes from
+  this process's compiler after the lowered-form checker accepted it.
+  `ClosedTerminalModule::new` only seals it: `encode_closed_execution_module`
+  checks scalar qualifications and canonical order, not the foundation
+  validators above.
+
+So "covered" below means covered on both routes. A property that only the
+checker establishes is not covered on the bytes route until execution entries
+require trust. Until then, removing its refusal would let an unchecked artifact
+reach code that assumes it. Under AGENTS.md rule 2 such a check moves into a
+preparation pass that runs on every route. It is never just deleted. The
+[admission contract](../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+asks for exactly this split: preparation computes declaration-dependent check
+plans once, and dispatch checks only actual values ("actual bounds, storage
+liveness, access permissions, operand safety and admitted resource limits").
+
+### The six per-operation semantic re-checks
+
+| Site | What it checks | Already guaranteed? | Depends on run-time values? | Verdict |
+| --- | --- | --- | --- | --- |
+| `embedding/boundary_inputs.rs:78` `validate_access_view_referent` | A host-supplied access-view establishment names a referent type, path and canonical qualifications that the module declares. | No. The referent comes from the host's entry inputs, not from the program. | Yes: host input. It runs once per instantiation in `establish_access_view_inputs`, not per operation. | Keep. It is already admission of host input. |
+| `instructions/structural.rs:981` `validate_vacant_structural_local` | An `EstablishStructuralLocal` result names one declared storage type, carries no claims or establishments, and declares only memberships its shape allows. | Bytes route: yes, `validate_establish_structural_local` (`foundation_validation.rs:10429`) runs the same function against the base type catalog. In-process route: only the checker. Execution checks against `structural_types()`, which may substitute target-layout or scalar-geometry records. | No. It reads only the operation and the type catalog. | Move to preparation: run once per operation against the selected catalog, then delete the per-operation call. |
+| `instructions/structural.rs:1247` `content_transformations::validate_memberships` | A `TransformContent` result's memberships follow from its derivations and from the memberships the source value actually carries. | No. | Yes: the inherited memberships come from the staged runtime value. | Keep the comparison with the value's memberships. The derivation-only part could move to preparation if a later change splits the function. |
+| `memory/custody.rs:48` `validate_complete_claim_frontier` | A whole-value claim is complete over the live linear claims and stored cases under one place. | No. | Yes: live claims, the live affine frontier and stored cases. | Keep. Its `ClaimTypes::new` (line 27) moves to preparation (see below). |
+| `memory/custody.rs:554` `ClaimTypes::new` + `validate_owned_claim_frontier` | `ClaimTypes::new` sorts and classifies every structural type on every owned argument. The validator checks that the live claims under an owned argument form an exact frontier. | `ClaimTypes::new` on the base catalog: yes, `validate_intrinsic_claim_roots` (`psi/semantics/src/structural/owned_structure.rs:141`) builds it during `validate_storage_foundation`, after `StorageTypeGraph::validate_acyclic`. | `ClaimTypes::new`: no. The frontier: yes, live claims. | Build `ClaimTypes` once per admitted program over `structural_types()` and refuse there. Keep the frontier check. The same rebuild sits in `records_and_arrays.rs:445` (`stage_constructor_claims`). |
+| `memory/references.rs:1047` `validate_access_view_content` | A view lifecycle plan's content agrees with the module's declarations. | Bytes route: yes, `validate_access_lifecycle_plans` (`psi/semantics/src/access/access_lifecycles.rs:242`, called from `foundation_validation.rs:11758`) runs it on every plan. `admit_target_layouts` (`psi/execution-inputs/target-layouts/admission.rs:155`) only filters and clones those plans. In-process route: only the checker. | No. | Move to preparation once per plan, then delete. The neighbouring `access_result_contract` call is static in the same way. |
+
+### `VerifiedOperationContractInvalid`
+
+| Site | What it checks | Verdict |
+| --- | --- | --- |
+| `instructions/calls.rs:3096`, `:3122` | `CallStructural` and `CallStructuralWithScalarArguments` have a structural result. | Bytes route: yes, `validate_call_structural` (`foundation_validation.rs:576`) refuses a structural call without one. In-process route: only the checker. Static, so it moves to the preparation pass for family 2 below, then both sites go. |
+| `instructions/structural.rs:985` | The vacant-local re-check above. | Move to preparation. |
+| `memory/custody.rs:29`, `:64` | `ClaimTypes::new` failure, and the complete-claim frontier. | Prepared `ClaimTypes`; keep the frontier check. |
+| `memory/records_and_arrays.rs:449` | `ClaimTypes::new` failure. | Prepared `ClaimTypes`. |
+
+The `VerifiedOperationContractInvalid` variant itself is still used by the
+frontier check; deleting it comes after the other six sites move.
+
+### `malformed()` refusal families
+
+Counts come from classifying the five lines before each call by the first
+keyword family they match. They show where the work is, not a verdict per
+site. Each later change confirms the verdict for the sites it moves.
+
+| Family (sites) | What the refusals check | Already guaranteed? | Run-time? | Verdict |
+| --- | --- | --- | --- | --- |
+| 1. Operation kind (37) | `operation_kind!` and `let OperationKind::X = &operation.kind else` refuse when a helper receives a different operation. | Dispatch already chose the handler by the same tag; `dispatched_operation!` (`execution.rs:2791`) treats a mismatch as `unreachable!`. | No. | Delete where only the dispatcher calls the helper. Where several kinds share a helper, keep the match but make the other arm unreachable. |
+| 2. Result and operand kind (72) | An operation's result is structural or scalar as its kind requires. A scalar operand has the type the operation names. | Partly: per-kind validators in `validate_operation_foundation` (for example `validate_establish_structural_local`) check some kinds on the bytes route. The checker covers in-process programs. No general result-kind pass exists. | No. | Add one result-kind and operand-type pass to preparation, then make execution accessors infallible. |
+| 3. Declaration lookup (298) | A machine, block, boundary machine, structural type, descriptor, domain, identity or lifecycle plan named by an operation exists. | Partly: the foundation validators resolve many references (callees, attachment types, descriptors, boundary declarations, services). I found no decode check that every terminator's target block resolves, nor one general pass over every named declaration. | No. | Prepare dense tables for the referenced IDs once, refusing a missing one at admission. Execution then indexes them. |
+| 4. Frame value and place lookup (96) | A value or place an operation reads was defined earlier in the frame; the call stack has the expected depth. | No. Only the checker's dataflow proves definition before use; decoding has no such pass. | Mostly no. Definition before use is static. The call-stack depth checks belong to execution state. | Bytes route: keep until execution requires a trust witness, or add a definition-before-use pass to preparation. Then delete. |
+| 5. Static numeric conversion (part of 6) | An operation index, argument index or dispatch slot fits `u32` or `usize`. | Mostly: decoders bound counts by the remaining input, but no single function states the bound. | No. | Move to preparation with the result-kind pass, or fold into the table indexes of family 3. |
+| 6. Run-time bounds and arithmetic (368, includes 5) | Byte offsets, lengths, extents, element indexes and checked arithmetic on actual values. | No. | Yes. | Keep. The spec requires the interpreter to enforce actual bounds and operand safety. |
+| 7. Live storage, claims and loans (140) | A result place is not already in use, claims and loans are live, restorations match, reservations exist. | No. | Yes. | Keep: storage liveness and access permissions. |
+| 8. Host and provider input (625) | Values, storage, effects and results that the host or a provider supplies (`embedding/boundary_*.rs`, `memory/providers.rs`, `embedding/instance/storage_observation`). | No. | Yes. | Keep. Host adapters must enforce what they rely on. Declaration-dependent parts of a boundary's signature can move to preparation with family 3. |
+| 9. Operand and stored type agreement (449) | Operand types agree with each other and with the result; a stored field cell has the scalar type the operation names; element counts match. | Not on the bytes route; the checker types every operation. | Mostly no. Stored cell type is static for checked programs. | Same as family 2: one typing pass in preparation, then delete. A few of these sites compare actual stored contents and stay; each change names them. |
+
+Order of work: prepared `ClaimTypes` and the two re-checks the decoder
+already runs come first, because they need no new admission logic. Families 1
+and 3 follow, then the typing pass for families 2 and 9. Family 4 waits for
+the trust witness or a definition-before-use pass.
 
 ## Embedding contract and probe limits
 

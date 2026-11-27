@@ -1,15 +1,16 @@
 //! A reference is the existing canonical permission descriptor, with its
 //! exact referent and outer region. Its type establishes no backing or loan;
 //! formation, use and completion must retain those separate obligations.
+use crate::read::refuse_at;
 
 use crate::body::{Qualification, RecordType, StorageShape, ValueType};
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use semantic_vocabulary::MachineId;
-use terminal_check_tables::{Checked, Construct, Refusal};
+use terminal_check_tables::{Checked, Refusal};
 use terminal_psi::StructuralAccess;
 
 use super::{Program, places::RecordSource};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::{SourceOrigin, Unserved};
 
 impl Program<'_> {
     pub(super) fn reference_type(
@@ -19,9 +20,8 @@ impl Program<'_> {
     ) -> Checked<Option<ValueType>> {
         let table = &self.typed.type_reference_table;
         if !table.contains_type_reference(reference) {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Type("reference without its retained type occurrence"),
             ));
         }
@@ -33,9 +33,8 @@ impl Program<'_> {
         };
         let (referee, access) = (*referee, *access);
         if !table.contains_type_reference(referee) {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Type("reference without its retained referent"),
             ));
         }
@@ -44,7 +43,7 @@ impl Program<'_> {
         if self
             .source_scope
             .slice_application(self.typed, reference)
-            .map_err(|reason| refuse(machine, Construct::Machine, Unserved::Type(reason)))?
+            .map_err(|reason| refuse_at(machine, Unserved::Type(reason)))?
             .is_some()
         {
             return Ok(None);
@@ -67,9 +66,8 @@ impl Program<'_> {
             .and_then(|identity| self.typed.type_identity_text(identity))
             .filter(|identity| !identity.is_empty())
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("reference without its complete source type identity"),
                 )
             })?;
@@ -83,18 +81,16 @@ impl Program<'_> {
             .and_then(|identity| self.typed.type_identity_text(identity))
             .filter(|identity| !identity.is_empty())
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("reference without its declared storage identity"),
                 )
             })?;
         let referent = self.value_type(machine, referee)?;
         let qualification = referent.qualification();
         let bare = referent.qualified(Qualification::NONE).ok_or_else(|| {
-            refuse(
+            refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Type("reference to a rigid value without storage"),
             )
         })?;
@@ -118,9 +114,8 @@ impl Program<'_> {
                 })
         }) {
             if row.shape != shape {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("one reference identity has different referent storage"),
                 ));
             }
@@ -169,9 +164,8 @@ impl Program<'_> {
             return Ok(None);
         };
         let (_, nested) = self.region_tuple(regions).split_first().ok_or_else(|| {
-            refuse(
+            refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Type("reference without its outer lifetime"),
             )
         })?;
@@ -208,9 +202,8 @@ impl Program<'_> {
             return Ok(view);
         }
         let Some((referent, access)) = self.reference_referent(machine, expected)? else {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Typing("borrow without a reference destination"),
             ));
         };
@@ -238,9 +231,8 @@ impl Program<'_> {
             StructuralAccess::MutableBorrow => language_core::ReferenceAccess::Mutable,
             StructuralAccess::WriteOnlyBorrow => language_core::ReferenceAccess::WriteOnly,
             StructuralAccess::Owned => {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("reference descriptor with owned referent access"),
                 ));
             }
@@ -261,9 +253,8 @@ impl Program<'_> {
         // no permission to reinterpret either storage type.
         let presented = self.borrowed_argument_type(machine, slots, &value, referent, &formal)?;
         if !self.same_type(presented, referent) {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Typing("reference formation changes its referent type"),
             ));
         }
@@ -282,9 +273,8 @@ impl Program<'_> {
         source: crate::SourceOrigin,
     ) -> Checked<crate::Expression> {
         let Some((referent, _)) = self.reference_referent(machine, expected)? else {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Typing("reference formation without its destination descriptor"),
             ));
         };
@@ -292,9 +282,8 @@ impl Program<'_> {
             unreachable!()
         };
         let crate::ExpressionKind::Borrow { place, .. } = &value.kind else {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Typing("reference formation without its captured source"),
             ));
         };
@@ -320,9 +309,8 @@ impl Program<'_> {
             && (self.is_borrowed_view(value) || self.direct_element_view_formal(slots, place))
         {
             let outer = *self.region_tuple(value.regions()).first().ok_or_else(|| {
-                refuse(
+                refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("borrowed view without its backing lifetime"),
                 )
             })?;
@@ -343,9 +331,8 @@ impl Program<'_> {
     ) -> Checked<crate::body::Regions> {
         let storage = self.storage_loan_regions(machine, slots, place)?;
         let within = *self.region_tuple(storage).first().ok_or_else(|| {
-            refuse(
+            refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Type("loan of storage without its lifetime"),
             )
         })?;
@@ -371,18 +358,16 @@ impl Program<'_> {
             _ => return Ok(None),
         };
         let Some(ValueType::Record(row, _, regions)) = descriptor.result else {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Type("loan projection without its declared descriptor"),
             ));
         };
         let shape = &self.data_type(machine, row)?.shape;
         match (is_referent, shape) {
             (true, StorageShape::Reference { access, .. }) => Ok(Some((*access, regions))),
-            (true, _) => Err(refuse(
+            (true, _) => Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Type("reference crossing through a different structural type"),
             )),
             (
@@ -396,9 +381,8 @@ impl Program<'_> {
                 // An unqualified descriptor formal carries the caller's loan
                 // separately from the underlying element type's region tuple.
                 let invalid = || {
-                    refuse(
+                    refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Type("indexed view has no retained source access"),
                     )
                 };
@@ -441,9 +425,8 @@ impl Program<'_> {
         )?;
         if let Some(regions) = crossing {
             let outer = *self.region_tuple(regions).first().ok_or_else(|| {
-                refuse(
+                refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("reference crossing without its source lifetime"),
                 )
             })?;
@@ -463,9 +446,8 @@ impl Program<'_> {
                 OwnedStorageRoot::Temporary(occurrence)
             }
             _ => {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Expression("reference formation without an exact storage root"),
                 ));
             }

@@ -1,6 +1,6 @@
 use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "target_selected_implementation");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "target_selected_implementation" };
     Build::select_provider::<|app|::TargetConstants, |app|::WindowsConstants>(builder, windows_x86_64);
     Build::select_provider::<|app|::TargetConstants, |app|::LinuxConstants>(builder, linux_x86_64);
     Build::select_provider::<|app|::TargetConstants, |app|::LinuxConstants>(builder, linux_arm64);

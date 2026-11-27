@@ -3,8 +3,8 @@
 use super::core_relative_path;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use source_acquisition::capture::SourceFileSystem;
 use source_admission::{SourceFile, SourceResolutionStratum};
-use source_capture::SourceFileSystem;
 use source_compiler::SourceImportTarget;
 use source_provenance::DependencyScope;
 use source_text::SourceId;
@@ -135,9 +135,14 @@ fn bind_admitted(
             FileOwner::Root(_) => None,
         };
         if let Some(target) = target {
-            bindings.push(SourceScopedTopLevelBinding::product_file_import(
-                import.source, target, import.alias,
-            ).from_dependency(dependency));
+            bindings.push(
+                SourceScopedTopLevelBinding::product_file_import(
+                    import.source,
+                    target,
+                    import.alias,
+                )
+                .from_dependency(dependency),
+            );
         }
     }
     Ok(bindings)
@@ -215,9 +220,5 @@ pub(crate) fn build_product_file_imports(
             });
         }
     }
-    bind_admitted(
-        &storage.sources,
-        &aliases,
-        &storage.filesystem,
-    )
+    bind_admitted(&storage.sources, &aliases, &storage.filesystem)
 }

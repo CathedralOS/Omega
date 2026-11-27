@@ -18,7 +18,7 @@
 #[path = "support/prepared_package.rs"]
 mod package;
 
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use package::{Demand, integer, prepare, typed};
 use source_compiler::representations::source_state::TypedTrees;
 use source_compiler::test_support::preparation::{

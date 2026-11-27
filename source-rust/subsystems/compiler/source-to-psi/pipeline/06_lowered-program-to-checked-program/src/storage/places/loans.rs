@@ -3116,6 +3116,11 @@ impl<'a> Storage<'a> {
                 terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
                     self.foreign(Construct::Machine, detail)
                 }
+                terminal_semantics::plain_affine::Error::MissingActiveCase { .. } => self
+                    .unsupported(
+                        Construct::Machine,
+                        terminal_semantics::plain_affine::Error::missing_active_case_message(),
+                    ),
                 terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                     self.unsupported(Construct::Machine, detail)
                 }

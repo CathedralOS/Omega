@@ -10,8 +10,12 @@
 
 use arena::Handle;
 use calling_conventions::MachineRegister;
-use calling_conventions::frame_unwind::{FrameProtocolEffect, FrameProtocolStep, FunctionFrameUnwind};
-use image::{FinalFunctionUnwind, FinalImage, FinalImageMemory, FinalImageSection, FinalImageSymbol};
+use calling_conventions::frame_unwind::{
+    FrameProtocolEffect, FrameProtocolStep, FunctionFrameUnwind,
+};
+use image::{
+    FinalFunctionUnwind, FinalImage, FinalImageMemory, FinalImageSection, FinalImageSymbol,
+};
 use object_file::SymbolKind;
 use target::NativeTarget;
 
@@ -86,8 +90,12 @@ fn mapped(text: Vec<u8>, frame: FunctionFrameUnwind) -> (Vec<u8>, u32, u32) {
         ..Default::default()
     });
     image.symbol_table.entry_symbol = symbol;
-    image.function_unwinds.push(FinalFunctionUnwind { symbol, frame });
-    let bytes = image_pe::emit_pe_executable(image, 3).expect("emit image").bytes;
+    image
+        .function_unwinds
+        .push(FinalFunctionUnwind { symbol, frame });
+    let bytes = image_pe::emit_pe_executable(image, 3, target::WINDOWS_LOADER_STACK_RESERVE_BYTES)
+        .expect("emit image")
+        .bytes;
     let pe = u32_at(&bytes, 0x3c) as usize;
     let optional = pe + 24;
     let size_of_image = u32_at(&bytes, optional + 56) as usize;
@@ -104,7 +112,11 @@ fn mapped(text: Vec<u8>, frame: FunctionFrameUnwind) -> (Vec<u8>, u32, u32) {
         memory[rva..rva + raw_size].copy_from_slice(&bytes[raw..raw + raw_size]);
     }
     let directory = optional + 112 + 3 * 8;
-    (memory, u32_at(&bytes, directory), u32_at(&bytes, directory + 4))
+    (
+        memory,
+        u32_at(&bytes, directory),
+        u32_at(&bytes, directory + 4),
+    )
 }
 
 struct Unwound {
@@ -116,7 +128,13 @@ struct Unwound {
 
 /// Undo one frame at `pc_offset` into the function, whose stack pointer is
 /// `rsp_offset` bytes into `stack`.
-fn unwind(memory: &[u8], directory: (u32, u32), pc_offset: u64, stack: &[u64], rsp_offset: usize) -> Unwound {
+fn unwind(
+    memory: &[u8],
+    directory: (u32, u32),
+    pc_offset: u64,
+    stack: &[u64],
+    rsp_offset: usize,
+) -> Unwound {
     let base = memory.as_ptr() as u64;
     let table = memory[directory.0 as usize..].as_ptr();
     let mut context = Context([0; 0x4d0]);
@@ -157,7 +175,9 @@ fn unwind(memory: &[u8], directory: (u32, u32), pc_offset: u64, stack: &[u64], r
 #[test]
 fn windows_unwinder_restores_the_caller_from_prologue_body_and_epilogue() {
     // sub rsp, 40; mov [rsp], rbx; mov [rsp+8], r12; body; epilogue at 0x20.
-    let mut text = vec![0x48, 0x83, 0xec, 40, 0x48, 0x89, 0x1c, 0x24, 0x4c, 0x89, 0x64, 0x24, 8];
+    let mut text = vec![
+        0x48, 0x83, 0xec, 40, 0x48, 0x89, 0x1c, 0x24, 0x4c, 0x89, 0x64, 0x24, 8,
+    ];
     text.resize(0x20, 0x90);
     text.extend_from_slice(&[0x4c, 0x8b, 0x64, 0x24, 8, 0x48, 0x8b, 0x1c, 0x24]);
     let epilogue_add = text.len() as u64;
@@ -177,11 +197,17 @@ fn windows_unwinder_restores_the_caller_from_prologue_body_and_epilogue() {
     let caller = stack.as_ptr() as u64 + 48;
 
     let body = unwind(&memory, (directory, size), 0x18, &stack, 0);
-    assert_eq!((body.rip, body.rsp, body.rbx, body.r12), (0xcafe, caller, 0x5b5b, 0x1c1c));
+    assert_eq!(
+        (body.rip, body.rsp, body.rbx, body.r12),
+        (0xcafe, caller, 0x5b5b, 0x1c1c)
+    );
 
     // After `sub rsp` only: nothing saved yet, so registers keep their values.
     let early = unwind(&memory, (directory, size), 4, &stack, 0);
-    assert_eq!((early.rip, early.rsp, early.rbx, early.r12), (0xcafe, caller, 0xb0b0, 0x1212));
+    assert_eq!(
+        (early.rip, early.rsp, early.rbx, early.r12),
+        (0xcafe, caller, 0xb0b0, 0x1212)
+    );
 
     // At function entry the return address is at the stack pointer.
     let entry = unwind(&memory, (directory, size), 0, &stack, 40);
@@ -203,12 +229,18 @@ fn windows_unwinder_follows_chained_rows_through_a_long_probed_prologue() {
     let mut prologue = Vec::new();
     for _ in 0..64 {
         text.extend_from_slice(&[0x48, 0x81, 0xec, 0x00, 0x10, 0x00, 0x00]);
-        prologue.push(step(text.len() as u32, FrameProtocolEffect::AdjustStack { bytes: 4_096 }));
+        prologue.push(step(
+            text.len() as u32,
+            FrameProtocolEffect::AdjustStack { bytes: 4_096 },
+        ));
         text.extend_from_slice(&[0x80, 0x3c, 0x24, 0x00]);
         prologue.push(step(text.len() as u32, FrameProtocolEffect::Unchanged));
     }
     text.extend_from_slice(&[0x48, 0x89, 0xb4, 0x24, 0xf8, 0xff, 0x03, 0x00]);
-    prologue.push(step(text.len() as u32, saved(MachineRegister::X86Rsi, 0x3fff8)));
+    prologue.push(step(
+        text.len() as u32,
+        saved(MachineRegister::X86Rsi, 0x3fff8),
+    ));
     text.resize(text.len() + 32, 0x90);
     let frame = FunctionFrameUnwind {
         prologue,
@@ -226,6 +258,12 @@ fn windows_unwinder_follows_chained_rows_through_a_long_probed_prologue() {
     assert_eq!((body.rip, body.rsp), (0xfeed, caller));
 
     // In the second row's prologue after 27 pages: only those are undone.
-    let partial = unwind(&memory, (directory, size), 297, &stack, 0x40000 - 27 * 4_096);
+    let partial = unwind(
+        &memory,
+        (directory, size),
+        297,
+        &stack,
+        0x40000 - 27 * 4_096,
+    );
     assert_eq!((partial.rip, partial.rsp), (0xfeed, caller));
 }

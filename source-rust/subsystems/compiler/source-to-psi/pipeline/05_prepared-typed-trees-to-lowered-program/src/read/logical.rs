@@ -4,6 +4,7 @@
 //! keep their nominal premise; every domain keeps its complete declared theory.
 //! Unread theory refuses the witness before proof search, so failure under an
 //! approximation cannot reject source.
+use crate::read::refuse_at;
 
 use crate::qualifications::explain_policy_refusal;
 use crate::source_state::data::DataMember;
@@ -36,7 +37,7 @@ use crate::body::{
 };
 use crate::{
     CallableArrivalWitness, CallableInputOrigin, MachineNames, NominalPremiseOrigin, SourceOrigin,
-    Unserved, refuse,
+    Unserved,
 };
 
 fn identity(machine: MachineId, detail: &str) -> Refusal {
@@ -160,9 +161,8 @@ impl<'a> MathematicalAddressContext<'a> {
                 .filter(|model| model.is_mathematical())
                 .map(|model| model.carrier)
                 .ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Type("address without its binding's mathematical model"),
                     )
                 }),
@@ -258,9 +258,8 @@ impl MathematicalInputs {
                 continue;
             }
             if parameter.relevance != language_core::BindingRelevance::Relevant {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Parameter(
                         "erased mathematical formal without its evidence interpretation",
                     ),
@@ -269,9 +268,8 @@ impl MathematicalInputs {
             let crate::source_state::mathematical::MathematicalType::Ordinary(reference) =
                 typed.mathematical_type(parameter.ty)
             else {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Contract("higher-order mathematical premise input"),
                 ));
             };
@@ -509,18 +507,13 @@ impl<'a> LogicalScope<'a> {
                 None
             };
             if let Some(reason) = reason {
-                return Err(refuse(
-                    self.machine,
-                    Construct::Machine,
-                    Unserved::Contract(reason),
-                ));
+                return Err(refuse_at(self.machine, Unserved::Contract(reason)));
             }
         }
         let leaf = &self.inputs.leaves[position];
         let value = ValueId::new(position as u64 + 1).ok_or_else(|| {
-            refuse(
+            refuse_at(
                 self.machine,
-                Construct::Machine,
                 Unserved::Contract("logical value identity overflow"),
             )
         })?;
@@ -612,16 +605,14 @@ impl<'a> LogicalScope<'a> {
             let position = atoms
                 .binary_search_by(|key| key.cmp(&membership.key))
                 .map_err(|_| {
-                    refuse(
+                    refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Contract("logical membership correspondence"),
                     )
                 })?;
             let atom = PropositionId::new(position as u64 + 1).ok_or_else(|| {
-                refuse(
+                refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Contract("logical membership identity overflow"),
                 )
             })?;
@@ -667,9 +658,8 @@ impl<'a> LogicalScope<'a> {
                 SignatureContractKind::Requires => (&scope, &mut authored),
                 SignatureContractKind::Ensures => (&exit, &mut ensures),
                 SignatureContractKind::EnsuresForResultCase { .. } => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Contract("outcome-specific logical guarantee"),
                     ));
                 }
@@ -677,9 +667,8 @@ impl<'a> LogicalScope<'a> {
                 SignatureContractKind::Crashes { .. } => continue,
             };
             if contract.binding.is_some() {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Contract("unsupplied logical evidence"),
                 ));
             }
@@ -764,18 +753,16 @@ pub(super) fn scalar_type(
         .type_reference_table
         .contains_type_reference(reference)
     {
-        return Err(refuse(
+        return Err(refuse_at(
             machine,
-            Construct::Machine,
             Unserved::Type("logical input without an exact type"),
         ));
     }
     let TypeReferenceNode::Named { symbol, .. } =
         typed.type_reference_table.type_reference(reference)
     else {
-        return Err(refuse(
+        return Err(refuse_at(
             machine,
-            Construct::Machine,
             Unserved::Type("non-scalar mathematical formal"),
         ));
     };
@@ -785,13 +772,10 @@ pub(super) fn scalar_type(
             "mathematical input carrier has no exact declaration",
         ));
     }
-    let atom = typed.symbols.builtin_type_atom(*symbol).ok_or_else(|| {
-        refuse(
-            machine,
-            Construct::Machine,
-            Unserved::Type("non-builtin mathematical formal"),
-        )
-    })?;
+    let atom = typed
+        .symbols
+        .builtin_type_atom(*symbol)
+        .ok_or_else(|| refuse_at(machine, Unserved::Type("non-builtin mathematical formal")))?;
     if atom == symbols::BuiltinTypeAtom::Address {
         return Ok(ScalarType::Integer(address.carrier(machine)?.as_checking()));
     }
@@ -808,9 +792,8 @@ impl Inputs {
         member_arena: &mut Arena<SymbolHandle>,
     ) -> Checked<Self> {
         if parameters.len() != origins.len() {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Contract("logical input projection arity"),
             ));
         }
@@ -823,9 +806,8 @@ impl Inputs {
                 ));
             }
             if parameter.relevance != language_core::BindingRelevance::Relevant {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Parameter("erased logical input without supplied evidence"),
                 ));
             }
@@ -875,9 +857,8 @@ impl Inputs {
             )
             .is_eq()
         }) {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Contract("duplicate logical input occurrence"),
             ));
         }
@@ -901,9 +882,8 @@ impl Inputs {
             .type_reference_table
             .contains_type_reference(reference)
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Type("logical input without an exact type"),
             ));
         }
@@ -934,26 +914,23 @@ impl Inputs {
                 )?;
                 let declared = typed.type_reference_table.constraints(*constraints);
                 if declared.len() != constraints.len() {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Type("logical constraint span"),
                     ));
                 }
                 for constraint in declared {
                     let TypeConstraintNode::Domain(domain) = constraint else {
-                        return Err(refuse(
+                        return Err(refuse_at(
                             machine,
-                            Construct::Machine,
                             Unserved::Type("logical constraint theory"),
                         ));
                     };
                     if domain.subject
                         != crate::source_state::types::DomainConstraintSubject::Declared
                     {
-                        return Err(refuse(
+                        return Err(refuse_at(
                             machine,
-                            Construct::Machine,
                             Unserved::Contract(
                                 "non-declaration input qualification needs its own logical theory",
                             ),
@@ -962,9 +939,8 @@ impl Inputs {
                     let definition = typed
                         .domain_definition_for_instance(domain.symbol, domain.semantic_id)
                         .ok_or_else(|| {
-                            refuse(
+                            refuse_at(
                                 machine,
-                                Construct::Machine,
                                 Unserved::Contract("logical domain without its declaration"),
                             )
                         })?;
@@ -972,9 +948,8 @@ impl Inputs {
                         || !definition.type_parameters.is_empty()
                         || !definition.index_arguments.is_empty()
                     {
-                        return Err(refuse(
+                        return Err(refuse_at(
                             machine,
-                            Construct::Machine,
                             Unserved::Contract("applied or aliased logical domain theory"),
                         ));
                     }
@@ -990,9 +965,8 @@ impl Inputs {
                         crate::source_state::domain::DomainIssuance::Unrestricted => false,
                         crate::source_state::domain::DomainIssuance::Only(_) => true,
                         crate::source_state::domain::DomainIssuance::Planned(policy) => {
-                            let refusal = refuse(
+                            let refusal = refuse_at(
                                 machine,
-                                Construct::Machine,
                                 Unserved::Contract(
                                     "logical premise needs its complete domain access plan",
                                 ),
@@ -1009,9 +983,8 @@ impl Inputs {
                             || definition.cleanup_selection.is_some()
                             || !definition.operators.is_empty())
                     {
-                        return Err(refuse(
+                        return Err(refuse_at(
                             machine,
-                            Construct::Machine,
                             Unserved::Contract(
                                 "logical domain membership has unavailable non-predicate theory",
                             ),
@@ -1033,9 +1006,8 @@ impl Inputs {
                         .type_reference_table
                         .type_reference(definition.target_type)
                     else {
-                        return Err(refuse(
+                        return Err(refuse_at(
                             machine,
-                            Construct::Machine,
                             Unserved::Contract(
                                 "logical domain carrier has unavailable inherited constraints",
                             ),
@@ -1044,9 +1016,8 @@ impl Inputs {
                     if typed.symbols.builtin_type_atom(*symbol).is_none()
                         && typed.data_definition_by_symbol(*symbol).is_none()
                     {
-                        return Err(refuse(
+                        return Err(refuse_at(
                             machine,
-                            Construct::Machine,
                             Unserved::Contract(
                                 "logical domain carrier needs its alias constraints",
                             ),
@@ -1064,9 +1035,8 @@ impl Inputs {
                 access: language_core::ReferenceAccess::WriteOnly,
                 ..
             } => {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Parameter("write-only input has no readable entry snapshot"),
                 ));
             }
@@ -1099,9 +1069,8 @@ impl Inputs {
             }
             TypeReferenceNode::Named { symbol, .. } => {
                 let declaration = typed.data_definition_by_symbol(*symbol).ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Type("logical input without a data declaration"),
                     )
                 })?;
@@ -1112,35 +1081,25 @@ impl Inputs {
                     || !declaration.conformance_bounds.is_empty()
                     || declaration.supply_mode != language_core::DataSupplyMode::CheckedShape
                 {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Type("recursive, open or quotient logical input"),
                     ));
                 }
                 let members = typed.data_members(declaration);
                 if members.len() != declaration.members.len() {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Type("logical data member span"),
                     ));
                 }
                 expanding.push(*symbol);
                 for member in members {
                     let DataMember::Field(field) = member else {
-                        return Err(refuse(
-                            machine,
-                            Construct::Machine,
-                            Unserved::Type("logical case input"),
-                        ));
+                        return Err(refuse_at(machine, Unserved::Type("logical case input")));
                     };
                     if field.relevance != language_core::BindingRelevance::Relevant {
-                        return Err(refuse(
-                            machine,
-                            Construct::Machine,
-                            Unserved::Type("erased logical field"),
-                        ));
+                        return Err(refuse_at(machine, Unserved::Type("erased logical field")));
                     }
                     if !typed.symbols.symbols().nodes().is_valid(field.symbol) {
                         return Err(identity(
@@ -1175,11 +1134,7 @@ impl Inputs {
                 observed_through
             }
             _ => {
-                return Err(refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Type("logical input shape"),
-                ));
+                return Err(refuse_at(machine, Unserved::Type("logical input shape")));
             }
         };
         Ok(observed_through)
@@ -1197,7 +1152,7 @@ impl Inputs {
         fact: &ProofMembershipFact,
         atoms: &[NominalKey],
     ) -> Checked<(Proposition, crate::ClauseText)> {
-        let unserved = |what| refuse(machine, Construct::Machine, Unserved::Contract(what));
+        let unserved = |what| refuse_at(machine, Unserved::Contract(what));
         let logical = scope
             .logical
             .ok_or_else(|| unserved("membership without logical inputs"))?;
@@ -1323,9 +1278,8 @@ pub(crate) fn projected_arrival(
     let callee = MachineId::new(2).expect("nonzero identity");
     let required_parameters = typed.state_signature_parameters(required);
     if required_parameters.len() != required.parameters.len() {
-        return Err(refuse(
+        return Err(refuse_at(
             entry,
-            Construct::Machine,
             Unserved::Contract("incomplete source logical parameter inventory"),
         ));
     }
@@ -1336,9 +1290,8 @@ pub(crate) fn projected_arrival(
             .is_none_or(|parameter| parameter.symbol != occurrence.symbol)
             || previous.is_some_and(|previous| occurrence.ordinal <= previous)
         {
-            return Err(refuse(
+            return Err(refuse_at(
                 entry,
-                Construct::Machine,
                 Unserved::Contract("logical projection lost its exact source occurrence"),
             ));
         }
@@ -1354,28 +1307,23 @@ pub(crate) fn projected_arrival(
         &mut member_arena,
     )?;
     let machine = typed.machine(supplied).ok_or_else(|| {
-        refuse(
+        refuse_at(
             entry,
-            Construct::Machine,
             Unserved::Machine("logical callee without a declaration"),
         )
     })?;
-    let state = typed.machine_states(machine).first().ok_or_else(|| {
-        refuse(
-            entry,
-            Construct::Machine,
-            Unserved::Machine("logical callee without an entry"),
-        )
-    })?;
+    let state = typed
+        .machine_states(machine)
+        .first()
+        .ok_or_else(|| refuse_at(entry, Unserved::Machine("logical callee without an entry")))?;
     let actual_parameters = typed.state_parameters(state);
     if actual_parameters.len() != state.parameters.len()
         || typed.machine_contracts(machine).len() != machine.contracts.len()
         || typed.state_contracts(state).len() != state.contracts.len()
         || typed.state_signature_contracts(required).len() != required.contracts.len()
     {
-        return Err(refuse(
+        return Err(refuse_at(
             entry,
-            Construct::Machine,
             Unserved::Contract("incomplete logical callable inventory"),
         ));
     }
@@ -1383,9 +1331,8 @@ pub(crate) fn projected_arrival(
     if program.result_type(entry, required.return_type)?.is_some()
         || program.result_type(callee, state.return_type)?.is_some()
     {
-        return Err(refuse(
+        return Err(refuse_at(
             entry,
-            Construct::Machine,
             Unserved::Contract("projected refinement needs its complete result correspondence"),
         ));
     }
@@ -1410,9 +1357,8 @@ pub(crate) fn projected_arrival(
                 || !signature.conformance_bounds.is_empty()
                 || !signature.native_callback_parameters.is_empty()
             {
-                return Err(refuse(
+                return Err(refuse_at(
                     callee,
-                    Construct::Machine,
                     Unserved::Contract("logical interface needs its complete invocation telescope"),
                 ));
             }
@@ -1420,9 +1366,8 @@ pub(crate) fn projected_arrival(
                 .result_type(callee, signature.return_type)?
                 .is_some()
             {
-                return Err(refuse(
+                return Err(refuse_at(
                     callee,
-                    Construct::Machine,
                     Unserved::Contract(
                         "projected interface needs its complete result correspondence",
                     ),
@@ -1459,9 +1404,8 @@ pub(crate) fn projected_arrival(
             .access_view_plan_for_input_type_reference(parameter.type_reference)
             .is_some()
     }) {
-        return Err(refuse(
+        return Err(refuse_at(
             entry,
-            Construct::Machine,
             Unserved::Parameter("logical arrival without installed access-view establishment"),
         ));
     }
@@ -1492,9 +1436,8 @@ pub(crate) fn projected_arrival(
     for (position, declaration) in memberships.iter().enumerate() {
         let key = &declaration.key;
         let occurrence = required_parameters.get(key.formal).ok_or_else(|| {
-            refuse(
+            refuse_at(
                 entry,
-                Construct::Machine,
                 Unserved::Contract("logical nominal subject outside the source projection"),
             )
         })?;
@@ -1560,17 +1503,15 @@ pub(crate) fn projected_arrival(
                 path_order(&member_arena, required_inputs.leaves[*position].path, path)
             })
             .map_err(|_| {
-                refuse(
+                refuse_at(
                     entry,
-                    Construct::Machine,
                     Unserved::Contract("logical argument lost its exact source leaf"),
                 )
             })?;
         let position = required_inputs.lookup[position];
         if required_inputs.leaves[position].scalar != leaf.scalar {
-            return Err(refuse(
+            return Err(refuse_at(
                 entry,
-                Construct::Machine,
                 Unserved::Typing("logical argument carrier differs"),
             ));
         }

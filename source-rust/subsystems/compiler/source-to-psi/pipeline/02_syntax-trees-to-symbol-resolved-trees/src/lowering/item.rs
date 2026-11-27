@@ -314,6 +314,7 @@ fn lower_item_with_exposure(
                 definition,
             )?;
             let evaluated_value = if pending
+                || !definition.type_reference.is_valid()
                 || definition.preparation().pending_target_observation
                 || needs_destination
             {
@@ -350,8 +351,13 @@ fn lower_item_with_exposure(
                 )
                 .ok()
             };
-            let declared_type =
-                lower_type_reference_handle(lowerer, syntax_trees, definition.type_reference)?;
+            let declared_type = definition
+                .type_reference
+                .is_valid()
+                .then(|| {
+                    lower_type_reference_handle(lowerer, syntax_trees, definition.type_reference)
+                })
+                .transpose()?;
             let ordinal = lowerer.symbol_resolved_trees.roots.const_declarations.len();
             let declaration = lowerer.symbol_resolved_trees.roots.const_declarations.push(
                 crate::source_resolved::constant::ConstDeclaration {
@@ -371,7 +377,9 @@ fn lower_item_with_exposure(
                     evaluated_value,
                 },
             );
-            if let Some(sources) = &mut lowerer.equation_sources {
+            if definition.type_reference.is_valid()
+                && let Some(sources) = &mut lowerer.equation_sources
+            {
                 sources.declared_types.push((
                     crate::resolution::declarations::machine_equations::DeclaredTypeOrigin::Constant(ordinal),
                     definition.type_reference,

@@ -1,6 +1,6 @@
 //! Write the same canonical plan and service-schema bytes for hashing and retention.
 
-use crate::{ProviderBinding, ProviderIdentityTable};
+use crate::plans::{ProviderBinding, ProviderIdentityTable};
 use sha2::Digest;
 use sha2::Sha256;
 

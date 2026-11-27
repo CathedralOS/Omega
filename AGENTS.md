@@ -56,6 +56,19 @@ Omega has one specification in [wiki/spec/](wiki/spec/). Describe
 compiler-specific implementation status in the compiler's plan or layer
 contracts.
 
+**Only the two owners, Zac and Jarod, edit `wiki/spec/`** (owner ruling,
+2026-11-27). Agents read it and build what it says; they never add, change or delete text
+there, even to record a ruling or to match landed code. When a change would make
+a spec sentence inaccurate, don't make the change. Record the sentence, the
+proposed text and the reason in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md), and keep
+building to the current text.
+
+The Psi wire encoding (numeric tags, field layouts and format markers) is the
+compiler's file format, not specification. It lives beside the codec in
+[encoding.md](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md).
+Update it in the same PR as the codec change it describes; its tag tables are
+tested against the decoder by `mbx test -p terminal-wire --lib spec_tag_tables`.
+
 ## Bootstrap mandate
 
 For bootstrap construction work, [bootstrap/MINIMIZATION.md](bootstrap/MINIMIZATION.md)
@@ -209,6 +222,16 @@ are the one looking at it, it is yours: finish it or close it.
    copy of a data structure, an extra case, or a branch for one kind of
    location, the existing mechanism is too narrow. Widen that mechanism so one
    change fixes every program with the same cause, and do it in the same PR.
+7. **Treat a repeating pattern as a broken contract:** Check every change
+   against the spec and the layer contracts by default: `wiki/spec/`, each
+   stage's README, [stage trust](wiki/drafts/designs/stage_trust.md) and
+   [check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md).
+   When the same check, refusal or boilerplate appears dozens of times, first
+   ask which contract it breaks. Usually a stage re-derives or re-checks a
+   fact that another stage owns. Move the fact to its owner and delete the
+   copies; don't compress them into a helper. Update both stages' READMEs in
+   the same PR. For example, hundreds of "lost/changed its" refusals in stage
+   05 `read/` mean typing does not publish what lowering needs.
 
 ## The sample loop
 
@@ -235,6 +258,20 @@ test pins the exact result the program must produce (its output or its
 error), which records what the program asks of the compiler. Do not make a test pass by changing the
 program: a different fact, a looser bound or a different operation turns it
 into a different test, and passing that one proves nothing about the original.
+
+Tests follow the spec, not the current code (owner ruling, 2026-11-27). A
+structural change is expected to break tests that pin internals: intermediate
+tables, stage-to-stage forms, helper APIs, exact wording the spec doesn't fix,
+or a mechanism the change deletes. Rewrite, merge or delete those tests in the
+same PR. Never keep a design alive because a test reaches into it. History
+keeps every old test if one is needed again. What a refactor must keep is the
+spec-required behavior those tests stood for. That means a sample's output and
+exit code, a refusal the spec names, native/Psi agreement and release-gate
+contracts. Re-prove each on the new code, through the public surface where the
+old test reached into internals. Name the tests rewritten or deleted, and why,
+in the PR's `Proof:` line. Choose the change with better quality and yield
+(less code, faster and leaner compiles, the same spec behavior), not the one
+that breaks the fewest tests.
 
 ### No `.omg` file bloat
 

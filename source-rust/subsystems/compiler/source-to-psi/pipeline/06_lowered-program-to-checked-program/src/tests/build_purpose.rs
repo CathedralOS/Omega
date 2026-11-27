@@ -335,6 +335,35 @@ fn the_checker_judges_a_build_program_as_an_invocation() {
 }
 
 #[test]
+fn a_build_calls_two_overloads_from_the_same_source() {
+    use terminal_interpreter::{
+        TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalScalarValue,
+    };
+    let source = r"
+machine choose(value: u8) -> u8 { value }
+machine choose(value: bool) -> u8 { 19u8 }
+machine build_entry() -> bool {
+    let byte: u8 = choose(7u8);
+    let flag: u8 = choose(true);
+    byte == 7u8 && flag == 19u8
+}";
+    let RouteVerdict::Accepted(checked) = judge_build(source).unwrap() else {
+        panic!("both overloads must compile in the same Build");
+    };
+    let publication = checked.publish_invocation().unwrap();
+    let program = TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert!(matches!(
+        instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Boolean(true)
+        ))
+    ));
+}
+
+#[test]
 fn a_product_declaration_is_refused_as_a_build_entry() {
     let typed = frontier();
     let refusal = crate::lowering::elaborate_for(

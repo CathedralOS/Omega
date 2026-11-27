@@ -1,6 +1,7 @@
 //! Atomic syntax names an event, not an arithmetic expression over a prior
 //! load. Decode its retained carrier once, keeping the storage path separate
 //! from the operands and binding the prior only to the event's actual result.
+use crate::read::refuse_at;
 
 use crate::source_state::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableAtomicExpression,
@@ -10,15 +11,13 @@ use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use language_core::atomic::{AtomicExpressionResultCustody, AtomicOrderingPlan};
 use semantic_vocabulary::{AtomicCellType, IntegerSign, IntegerType, MachineId, ScalarType};
 use symbols::BuiltinTypeAtom;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 use terminal_psi::{AtomicAccessEvent, AtomicReadModifyWrite};
 
 use super::authority::Access;
 use super::{Program, Slot};
-use crate::body::{
-    Expression, ExpressionKind, RecordType, Statement, StorageShape, ValueType,
-};
-use crate::{SourceOrigin, Unserved, refuse, reject};
+use crate::body::{Expression, ExpressionKind, RecordType, Statement, StorageShape, ValueType};
+use crate::{SourceOrigin, Unserved, reject};
 
 impl Program<'_> {
     pub(super) fn atomic_type(
@@ -60,9 +59,8 @@ impl Program<'_> {
             .type_identity_text(self.typed.normalized_type_identity(reference))
             .filter(|name| !name.is_empty())
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Type("atomic storage without its builtin identity"),
                 )
             })?;
@@ -168,9 +166,8 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let AtomicOrderingPlan::Load(ordering) = atomic.ordering else {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Expression("atomic writing event outside its retained assignment"),
             ));
         };
@@ -313,9 +310,8 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Statement> {
         let AtomicOrderingPlan::Store(ordering) = atomic.ordering else {
-            return Err(refuse(
+            return Err(refuse_at(
                 machine,
-                Construct::Machine,
                 Unserved::Statement("atomic update without its observed-result binding"),
             ));
         };
@@ -432,9 +428,8 @@ impl Program<'_> {
                 (AtomicAccessEvent::Swap { value: 0, ordering }, atomic.value)
             }
             _ => {
-                return Err(refuse(
+                return Err(refuse_at(
                     machine,
-                    Construct::Machine,
                     Unserved::Statement("atomic exchange result custody"),
                 ));
             }

@@ -1,12 +1,11 @@
 //! Recognize radix, fractional, exponent and suffix boundaries without deciding a value type.
 
-use source_text::Span;
 use tokens::{FloatLiteralKind, IntegerLiteralKind, NumericBase, NumericLiteralKind, TokenKind};
 
-use crate::{ByteScanner, LexedToken, is_identifier_continue, is_identifier_start};
+use crate::{ByteScanner, is_identifier_continue, is_identifier_start};
 
 impl ByteScanner<'_> {
-    pub(crate) fn scan_number(&mut self, start: usize, first: u8) -> LexedToken {
+    pub(crate) fn scan_number(&mut self, first: u8) -> TokenKind {
         let base = match (first, self.peek()) {
             (b'0', Some(b'b' | b'B')) => NumericBase::Binary,
             (b'0', Some(b'o' | b'O')) => NumericBase::Octal,
@@ -63,10 +62,7 @@ impl ByteScanner<'_> {
                 has_suffix,
             })
         };
-        LexedToken {
-            kind: TokenKind::NumericLiteral(kind),
-            span: Span::new(start, self.offset),
-        }
+        TokenKind::NumericLiteral(kind)
     }
 
     fn scan_digits(&mut self, base: NumericBase) -> bool {

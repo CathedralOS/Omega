@@ -2,8 +2,8 @@ use main.omg as app;
 use {support}/values.omg as support;
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "unannotated_imported_boundary_call_through_local");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "unannotated_imported_boundary_call_through_local" };
     let support_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../support" }));
     Build::select_provider::<|support|::Mark, |app|::MarkerMark>(builder, linux_arm64);
     Build::select_provider::<|support|::Mark, |app|::MarkerMark>(builder, linux_x86_64);

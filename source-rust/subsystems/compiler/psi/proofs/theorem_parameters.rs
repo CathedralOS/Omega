@@ -12,6 +12,14 @@ pub struct TheoremContract {
     pub parameters: Vec<ValueDeclaration>,
     pub requires: Vec<Proposition>,
     pub ensures: Vec<Proposition>,
+    /// The contract's own proof parameters, in its header order, such as
+    /// `Inner` in `machine<Inner: NonzeroIsPositive>(n: u8)`. Each is a
+    /// complete contract with none of its own. A proof of the whole contract
+    /// receives one proof of each before it is applied, and its implication
+    /// is formed over them: mathematical_bindings.md, "If the contract itself
+    /// takes a proof parameter, that parameter belongs to the contract's own
+    /// header. The outer caller supplies one proof of the whole contract."
+    pub proof_parameters: Vec<TheoremContract>,
 }
 
 /// The proof position indexes the owning machine's erased proof formals.
@@ -40,6 +48,11 @@ pub struct TheoremApplication {
     pub source: TheoremSource,
     pub arguments: Vec<ScalarTerm>,
     pub requirements: Vec<ObligationId>,
+    /// One proof for each of the applied contract's own proof parameters, in
+    /// its header order, such as `inner` in `Step::<inner>(n)`. Each is
+    /// checked against that parameter's contract as an instantiation of a
+    /// cited theorem is. Empty when the contract has none.
+    pub instantiation: Vec<TheoremInstantiation>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +69,20 @@ pub struct TheoremCitation {
     pub machine: MachineId,
     pub site: InvocationSite,
     pub proof_position: u32,
+    pub source: TheoremSource,
+    pub derivations: Vec<CertificateEnvelope>,
+    /// A named source that declares proof parameters of its own receives one
+    /// supply for each, in its header order, such as `lifted::<inner>`. Each
+    /// is checked against the named machine's own alias, as a citation at an
+    /// invocation of that machine would be. Empty for every other source.
+    pub instantiation: Vec<TheoremInstantiation>,
+}
+
+/// One proof given to a cited theorem's own proof parameter. A named supply
+/// owes the same three derivations a citation does; a forwarded formal owes
+/// none and must state the same implication.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TheoremInstantiation {
     pub source: TheoremSource,
     pub derivations: Vec<CertificateEnvelope>,
 }

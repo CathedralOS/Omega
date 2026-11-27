@@ -3,8 +3,8 @@
 //! membership is neither a body judgment nor permission to execute source.
 
 use crate::source_state::TypedTrees;
-use source_provenance::DependencyScope;
 use semantic_vocabulary::PackageKeyIdentity;
+use source_provenance::DependencyScope;
 use symbols::SymbolHandle;
 
 pub fn contains(
@@ -33,26 +33,6 @@ pub fn contains(
         && requested)
 }
 
-/// A Build prefix owns the declarations whose resolved parent chain includes its entry.
-pub fn nested_in(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-    entry: source_text::SourceSpan,
-) -> bool {
-    let nodes = program.symbols.symbols().nodes();
-    if !nodes.is_valid(symbol) {
-        return false;
-    }
-    let mut owner = program.symbols.get(symbol).parent;
-    while nodes.is_valid(owner) {
-        if program.symbols.symbol_source_span(owner) == Some(entry) {
-            return true;
-        }
-        owner = program.symbols.get(owner).parent;
-    }
-    false
-}
-
 /// Locate the selected Build machine in the receiving package's admitted Build sources.
 pub fn rejoin_build_activation(
     program: &TypedTrees,
@@ -62,7 +42,10 @@ pub fn rejoin_build_activation(
     let symbol = source_symbol_table::source_symbols::rejoin_declaration(
         declaration,
         &program.symbols,
-        program.machines().iter().map(|machine| machine.symbol)
+        program
+            .machines()
+            .iter()
+            .map(|machine| machine.symbol)
             .filter(|&symbol| program.symbols.symbol_source_is_selected(symbol)),
     )?;
     // The built-in entry belongs to the toolchain, even after a package adopts its sources.

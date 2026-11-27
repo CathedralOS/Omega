@@ -44,8 +44,6 @@ mod call_observations;
 #[path = "embedding/layout_target.rs"]
 mod layout_target;
 pub use call_observations::{ObservedTerminalCall, TerminalCallObservation};
-#[path = "embedding/continuation.rs"]
-mod continuation;
 #[path = "embedding/program.rs"]
 mod embedding;
 #[path = "instructions/calls.rs"]
@@ -58,8 +56,14 @@ mod engine_execution;
 mod engine_structural;
 #[path = "instructions/terminators.rs"]
 mod engine_terminators;
+#[path = "memory/extents/mod.rs"]
+pub mod extents;
+#[path = "memory/storage-access/mod.rs"]
+pub mod storage_access;
 #[path = "memory/bytes_and_views.rs"]
 mod storage_bytes_and_views;
+#[path = "memory/materialization/mod.rs"]
+pub(crate) mod storage_materialization;
 #[path = "memory/primitives.rs"]
 mod storage_primitives;
 #[path = "memory/providers.rs"]
@@ -146,8 +150,8 @@ pub use embedding::adapters::{
     TerminalImportStructuralParameter, TerminalScalarImport, TerminalUnitImport,
 };
 pub use embedding::instance::{
-    TerminalBindingRejection, TerminalComponentBinding, TerminalEntryCall, TerminalEntryCalls,
-    TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError, TerminalObservationRoot,
+    TerminalBindingRejection, TerminalComponentBinding, TerminalInstance,
+    TerminalInstanceCloseError, TerminalInstanceError, TerminalObservationRoot,
     TerminalProcessExitAdmission, TerminalReturnedLoan, TerminalReturnedLoanError,
     TerminalStorageObservationError, TerminalStorageObservationValue,
 };

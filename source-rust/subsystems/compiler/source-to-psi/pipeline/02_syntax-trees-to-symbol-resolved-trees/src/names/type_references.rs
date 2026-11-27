@@ -266,13 +266,15 @@ mod assignment {
             .roots
             .const_declarations
             .for_each_mut(|declaration| {
-                assign_type_reference_symbol_with_locals_and_constraints(
-                    symbols,
-                    child_type_references,
-                    type_constraints,
-                    &[],
-                    &mut declaration.declared_type,
-                );
+                if let Some(declared_type) = &mut declaration.declared_type {
+                    assign_type_reference_symbol_with_locals_and_constraints(
+                        symbols,
+                        child_type_references,
+                        type_constraints,
+                        &[],
+                        declared_type,
+                    );
+                }
             });
         program
             .roots
@@ -1505,15 +1507,17 @@ mod value_expressions {
                     data_payload_fields: &declarations.data_payload_fields,
                     type_constraints: &program.tables.types.constraints,
                 };
-                assign_type_value_expression_symbols(
-                    symbols,
-                    &scope,
-                    &[],
-                    SymbolHandle::invalid(),
-                    &mut program.tables.bodies.expressions,
-                    &mut declarations.child_type_references,
-                    &mut declaration.declared_type,
-                );
+                if let Some(declared_type) = &mut declaration.declared_type {
+                    assign_type_value_expression_symbols(
+                        symbols,
+                        &scope,
+                        &[],
+                        SymbolHandle::invalid(),
+                        &mut program.tables.bodies.expressions,
+                        &mut declarations.child_type_references,
+                        declared_type,
+                    );
+                }
             });
         let mut resolve_declaration_type = |owner, formals, reference: &mut TypeReference| {
             let parameters = declarations.data_type_parameters.span_or_empty(formals);

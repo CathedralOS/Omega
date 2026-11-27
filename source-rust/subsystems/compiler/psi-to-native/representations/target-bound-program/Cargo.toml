@@ -8,6 +8,7 @@ version.workspace = true
 path = "bound_reach.rs"
 
 [dependencies]
+build-providers = { path = "../../../build/providers" }
 psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 target-provider-admission = { path = "../../verification/target-providers" }
 psi-authorization = { path = "../../../psi/artifact/authorization" }
@@ -15,8 +16,6 @@ psi-entry-memory = { path = "../../../psi/execution-inputs/entry-memory" }
 program-entry-contracts = { path = "../program-entry-contracts" }
 psi-publication-records = { path = "../../../psi/artifact/publication" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-selected-provider-plans = { path = "../../../build/providers/selections" }
-provider-plans = { path = "../../../build/providers/plans" }
 native-intrinsics = { path = "../../targets/intrinsics" }
 direct-boundary-bindings = { path = "../../verification/provider-correspondence/direct-boundaries" }
 provider-correspondence = { path = "../../verification/provider-correspondence" }

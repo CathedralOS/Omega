@@ -9,23 +9,18 @@ name = "terminal_interpreter"
 path = "interpreter.rs"
 
 [dependencies]
-evaluation-admission = { path = "../compiler/build/evaluation/authority/admission" }
+build-model = { path = "../compiler/build/model" }
 psi-scalar-applications = { path = "../compiler/psi/execution-inputs/scalar-applications" }
 psi-provider-selections = { path = "../compiler/psi/execution-inputs/providers" }
 psi-entry-memory = { path = "../compiler/psi/execution-inputs/entry-memory" }
 psi-target-layouts = { path = "../compiler/psi/execution-inputs/target-layouts" }
 access-vocabulary = { path = "../compiler/psi/access/policies" }
-storage-access = { path = "memory/storage-access" }
-storage-materialization = { path = "memory/materialization" }
 resource-bounds = { path = "../compiler/psi/semantics/storage-bounds" }
 extent-contracts = { path = "../compiler/psi/access/extents" }
-evaluation-contracts = { path = "../compiler/build/evaluation/accounting/contracts" }
 language-core = { path = "../compiler/foundation/language-core" }
 record-storage = { path = "../../foundation/record-storage" }
 access-admission = { path = "../compiler/psi/access/validated-placements" }
 arena = { path = "../../foundation/arena" }
-extents = { path = "memory/extents" }
-evaluation-accounting = { path = "../compiler/build/evaluation/accounting" }
 layout-plans = { path = "../compiler/psi/layouts/geometry" }
 semantic-vocabulary = { path = "../compiler/foundation/semantic-records" }
 numerics = { path = "../compiler/foundation/numerics" }
@@ -36,4 +31,5 @@ terminal-semantics = { path = "../compiler/psi/semantics" }
 closed-predicates = { path = "../compiler/psi/semantics/closed-predicates" }
 
 [dev-dependencies]
-evaluation-work = { path = "../compiler/build/evaluation/accounting/work" }
+access-admission = { path = "../compiler/psi/access/validated-placements", features = ["test-support"] }
+layout-plans = { path = "../compiler/psi/layouts/geometry", features = ["test-support"] }

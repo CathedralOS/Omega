@@ -120,7 +120,7 @@ fn capture_operands(
 ) -> ExpressionHandle {
     let node = expression_table(lowerer).expression(address).clone();
     match node {
-        ExpressionNode::Name(_) => address,
+        ExpressionNode::Name(_) | ExpressionNode::SavedSubject(_) => address,
         ExpressionNode::Unary(mut unary) if unary.operator == UnaryOperator::Dereference => {
             unary.operand = capture_operands(lowerer, unary.operand, capture, hoisted);
             set_expression(lowerer, address, ExpressionNode::Unary(unary));

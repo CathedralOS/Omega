@@ -13,3 +13,12 @@ pub(crate) fn report_unused_imports(imports: &project_build::FileImportAdvisorie
         eprintln!("{text}");
     }
 }
+
+pub(crate) fn report_unused_declarations(declarations: &project_build::DeclarationUsageAdvisories) {
+    let warnings = declarations.warnings();
+    if !warnings.is_empty() {
+        let mut text = String::new();
+        diagnostics::write_diagnostics(&mut text, &warnings).expect("writing to a String succeeds");
+        eprintln!("{text}");
+    }
+}

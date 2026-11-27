@@ -1,11 +1,12 @@
 //! Read structural equality of the proof-only IEEE meanings. Operands keep
 //! their scalar sources; neither an IEEE comparison nor equality of raw bits
 //! denotes this proposition.
+use crate::read::refuse_at;
 
+use crate::Unserved;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use crate::source_state::signature::SignatureContractKind;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
-use crate::{Unserved, refuse};
 use language_core::core_vocabulary::CoreVocabulary;
 use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
 use numerics::float_projection::FloatProjectionOperation;
@@ -16,7 +17,7 @@ use semantic_vocabulary::{
     ScalarType,
 };
 use symbols::{FixedCoreDeclaration, SymbolHandle};
-use terminal_check_tables::{Checked, Construct, Refusal};
+use terminal_check_tables::{Checked, Refusal};
 
 use super::clause_terms::ClauseUse;
 use super::{
@@ -33,7 +34,7 @@ enum Primitive {
 }
 
 fn unavailable(id: MachineId, detail: &'static str) -> Refusal {
-    refuse(id, Construct::Machine, Unserved::Contract(detail))
+    refuse_at(id, Unserved::Contract(detail))
 }
 
 fn intern(id: MachineId, values: &mut Vec<Value>, value: Value) -> Checked<Slot> {

@@ -5,10 +5,6 @@ public data BuildPath [copy] {
 }
 public data BuildSource {
 }
-// Caller-captured immutable slots. Only the admitted Build value carries the
-// runtime slot roster; constructing this empty shape grants no input access.
-public data BuildInputs {
-}
 public data BuildOutput {
 }
 public data BuildLog {

@@ -4,17 +4,18 @@
 //! ensures clause checks operand types and selects its actual operators; it
 //! does not prove that equality. The catalog keeps the complete normal-result
 //! meaning and result policy. Opaque mathematical types remain type references.
+use crate::read::refuse_at;
 
 use crate::source_state::declarations::intrinsic_requirements::IntrinsicRequirement;
 use crate::source_state::signature::SignatureContractKind;
 use semantic_vocabulary::{MachineId, ValueId};
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
 
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{Program, Slot, crash_cause, span};
 use crate::body::{CrashCeiling, Regions, Signature, ValueType};
-use crate::{Unserved, canonical, refuse};
+use crate::{Unserved, canonical};
 
 impl<'t> Program<'t> {
     pub(super) fn numeric_contract_sources(
@@ -23,7 +24,7 @@ impl<'t> Program<'t> {
         source: &IntrinsicRequirement<'t>,
         signature: &Signature,
     ) -> Checked<()> {
-        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
+        let unavailable = |detail| refuse_at(id, Unserved::Contract(detail));
         let slots: Vec<_> = source
             .parameters
             .iter()

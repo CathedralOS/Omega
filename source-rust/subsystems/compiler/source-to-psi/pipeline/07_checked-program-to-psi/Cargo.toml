@@ -8,6 +8,7 @@ autoexamples = false
 autobenches = false
 
 [dependencies]
+build-model = { path = "../../../build/model" }
 bundled-declarations = { path = "../../representations/source-files/bundled-declarations" }
 application-identity = { path = "../../../psi/identities/applications" }
 artifacts = { path = "../../../foundation/measurements" }
@@ -25,7 +26,6 @@ source-symbol-table = { path = "../../representations/symbol-resolved-trees/symb
 prepared-source = { path = "../../representations/prepared-source" }
 typed-trees = { path = "../../representations/typed-trees" }
 source-provenance = { path = "../../../foundation/source-provenance" }
-evaluation-receipts = { path = "../../../build/evaluation/receipts" }
 source-admission = { path = "../../representations/source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
 wire = { path = "../../../../../foundation/wire" }
@@ -43,7 +43,6 @@ terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
 
 [dev-dependencies]
-evaluation-admission = { path = "../../../build/evaluation/authority/admission" }
 psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
 symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }

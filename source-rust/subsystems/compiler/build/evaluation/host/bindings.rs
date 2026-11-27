@@ -51,7 +51,7 @@ pub struct TerminalBuildBindingHost {
     declarations_facet: Option<TerminalStructuralValue>,
     group_shape: Option<GroupShape>,
     tests_facet: Option<TerminalStructuralValue>, // The original Build's `tests` facet, when a test group is registered.
-    account: Option<evaluation_accounting::EvaluationInvocationAccount>,
+    account: Option<build_model::accounting::EvaluationInvocationAccount>,
     declarations: Arc<[Arc<ProductDeclarationRequest>]>,
     native_formations: Arc<[NativeBindingFormation]>,
     original: TerminalStructuralValue,
@@ -67,7 +67,7 @@ enum ActivationSelection {
 struct BindingState {
     pending: Vec<Option<source_compiler::publication::TerminalBuildSelectionRequest>>,
     executed: Vec<ActivationSelection>,
-    native_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
+    native_storage: Vec<build_model::accounting::EvaluationStorageLease>,
     awaiting_provider: Option<usize>,
     installed_providers: Vec<InstalledBuildProvider>,
     query: Option<product_queries::PendingQuery>,
@@ -109,7 +109,7 @@ fn lock_state(state: &Mutex<BindingState>) -> Result<MutexGuard<'_, BindingState
 impl BindingState {
     fn take_executed(
         &mut self,
-        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+        account: Option<&build_model::accounting::EvaluationInvocationAccount>,
     ) -> Result<Vec<ExecutedBuildSelection>, String> {
         if self.pending.iter().any(Option::is_some) || self.query.is_some() {
             return Err("Build binding activation ended with an uncommitted request".to_owned());
@@ -130,7 +130,7 @@ impl TerminalBuildBindingHost {
         bindings: &TerminalBuildBindings,
         requests: &source_compiler::publication::TerminalBuildRequests,
         original: TerminalStructuralValue,
-        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+        account: Option<&build_model::accounting::EvaluationInvocationAccount>,
         reflected_services: Arc<crate::host::requests::ReflectedServices>,
     ) -> Result<Arc<Self>, String> {
         let calls = bindings

@@ -14,7 +14,7 @@ fn artifact(label: &str) -> Arc<CanonicalTerminalArtifact> {
     Arc::new(CanonicalTerminalArtifact::from_parts(module, optimization, None).unwrap())
 }
 fn product(artifact: &Arc<CanonicalTerminalArtifact>) -> ProductScalarCompletion {
-    let completed = build_scalar_evaluation::prepare_scalar_applications(
+    let completed = build_time_evaluation::scalars::prepare_scalar_applications(
         artifact,
         Some(TARGET),
         None,
@@ -22,7 +22,7 @@ fn product(artifact: &Arc<CanonicalTerminalArtifact>) -> ProductScalarCompletion
         None,
         &mut Vec::new(),
         |_| {
-            Ok(build_scalar_evaluation::ScalarScopeEvaluation {
+            Ok(build_time_evaluation::scalars::ScalarScopeEvaluation {
                 application_roots: None,
                 targets: Some(terminal_target_context(artifact.view(), TARGET)),
                 providers: psi_provider_selections::admit_provider_installation(

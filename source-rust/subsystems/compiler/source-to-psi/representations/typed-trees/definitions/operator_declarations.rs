@@ -1692,14 +1692,20 @@ pub mod operator {
             // Custody comes from the exact authored catalog declaration.
             // A semantic declaration identity also contains its overload
             // signature, so a path-only comparison cannot authenticate it.
-            typed.symbols.sealed_intrinsic(operator.symbol)
-                == Some(
-                    language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement,
-                )
-                && typed.symbols.display_path(operator.symbol, "::")
-                    == format!("{}::{}", namespace.as_str(), name.as_str())
-                && typed.symbols.core_source(operator.symbol)
-                    == Some(language_core::core_vocabulary::CoreSource::FloatOperations)
+            if typed.symbols.core_source(operator.symbol)
+                != Some(language_core::core_vocabulary::CoreSource::FloatOperations)
+            {
+                return false;
+            }
+            let display_path = typed.symbols.display_path(operator.symbol, "::");
+            display_path
+                .strip_prefix(namespace.as_str())
+                .and_then(|rest| rest.strip_prefix("::"))
+                == Some(name.as_str())
+                && typed.symbols.sealed_declaration(operator.symbol, &display_path)
+                    == Some(
+                        language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement,
+                    )
         }
 
         #[cfg(test)]

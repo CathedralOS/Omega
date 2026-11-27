@@ -39,7 +39,7 @@ impl PreparedBuildMachineEntry {
     ) -> Result<T, String> {
         let (admitted, requirements) = self.admit_invocation(&produced, target)?;
         let sponsor = pure_terminal_invocation_account()?;
-        let mut meter = evaluation_work::sponsored_meter(sponsor, None)
+        let mut meter = build_model::work::sponsored_meter(sponsor, None)
             .map_err(|error| format!("source invocation meter: {error:?}"))?;
         let run = self.execute_invocation(
             &produced,
@@ -121,7 +121,7 @@ impl PreparedBuildMachineEntry {
         target: InvocationTarget<'_>,
     ) -> Result<
         (
-            evaluation_admission::AdmittedCompilerEvaluation,
+            build_model::admission::AdmittedCompilerEvaluation,
             terminal_interpreter::TerminalExecutionRequirements,
         ),
         String,
@@ -161,10 +161,9 @@ impl PreparedBuildMachineEntry {
             .admit(produced.view(), &authorities)?;
         use terminal_interpreter::TerminalProgram;
         let program = TerminalProgram::borrow(produced.view());
-        let unselected = psi_provider_selections::admit_provider_execution_installation(
-            produced.view(),
-            &[])
-        .map_err(|error| format!("source invocation provider admission: {error:?}"))?;
+        let unselected =
+            psi_provider_selections::admit_provider_execution_installation(produced.view(), &[])
+                .map_err(|error| format!("source invocation provider admission: {error:?}"))?;
         let layouts = Self::layout_supplies(produced, &unselected, target)?;
         let requirements = program
             .execution_requirements(layouts.as_ref())
@@ -199,16 +198,16 @@ impl PreparedBuildMachineEntry {
         }
         let requester = self.source.symbols.declaration_custody(self.requester);
         let source_selection = source_selection::InvocationSelection::new(self, view);
-        let admitted = evaluation_admission::admit_compiler_evaluation_with_source_consent(
+        let admitted = build_model::admission::admit_compiler_evaluation_with_source_consent(
             view,
             target.name,
             root,
             unselected,
             requester,
             self.authority.as_deref().map(|scope| scope as _),
-            source_selection
-                .as_ref()
-                .map(|selection| selection as &dyn evaluation_admission::InvocationSourceSelection),
+            source_selection.as_ref().map(|selection| {
+                selection as &dyn build_model::admission::InvocationSourceSelection
+            }),
         )?;
         admitted.require_invocation(view, target.name, selected)?;
         Ok((admitted, requirements))
@@ -261,12 +260,12 @@ impl PreparedBuildMachineEntry {
     fn execute_invocation(
         &self,
         produced: &production::ProducedTerminalProgram,
-        admitted: &evaluation_admission::AdmittedCompilerEvaluation,
+        admitted: &build_model::admission::AdmittedCompilerEvaluation,
         requirements: terminal_interpreter::TerminalExecutionRequirements,
         target: InvocationTarget<'_>,
-        meter: &mut evaluation_work::EvaluationWorkMeter,
+        meter: &mut build_model::work::EvaluationWorkMeter,
         observed_calls: &[terminal_interpreter::TerminalCallObservation],
-    ) -> Result<build_invocation::InvocationOutcome, String> {
+    ) -> Result<build_time_evaluation::invocations::InvocationOutcome, String> {
         let selected = produced
             .view()
             .module()
@@ -288,7 +287,8 @@ impl PreparedBuildMachineEntry {
             let targets = psi_target_layouts::terminal_target_context(view, name);
             let declaration = view
                 .module()
-                .scalars.scalar_applications
+                .scalars
+                .scalar_applications
                 .proof_scope
                 .callable_declaration(selected)
                 .ok_or("source scalar application has no exact invocation root")?;
@@ -309,27 +309,29 @@ impl PreparedBuildMachineEntry {
             Self::layout_supplies(produced, providers, target)?
                 .unwrap_or_else(|| terminal_interpreter::TerminalRuntimeSupplies::from(providers))
         };
-        Ok(build_invocation::ArtifactInvocation::bind(
-            build_invocation::InvocationInput {
-                code: view,
-                admission: admitted,
-                target: target.name,
-                layout_target: target.layout_target,
-                arguments: &self.arguments,
-                inputs: &self.input_values,
-                supplies: &installation,
-                scalars: scalars.as_ref(),
-                observed_calls,
-            },
-            meter,
-        )?
-        .execute())
+        Ok(
+            build_time_evaluation::invocations::ArtifactInvocation::bind(
+                build_time_evaluation::invocations::InvocationInput {
+                    code: view,
+                    admission: admitted,
+                    target: target.name,
+                    layout_target: target.layout_target,
+                    arguments: &self.arguments,
+                    inputs: &self.input_values,
+                    supplies: &installation,
+                    scalars: scalars.as_ref(),
+                    observed_calls,
+                },
+                meter,
+            )?
+            .execute(),
+        )
     }
 }
 pub(crate) fn pure_terminal_invocation_account()
--> Result<evaluation_accounting::EvaluationInvocationAccount, String> {
-    let limits = evaluation_contracts::BuildEvaluationSponsorLimits::new(
-        build_scalar_evaluation::PURE_PSI_WORK_BUDGET,
+-> Result<build_model::accounting::EvaluationInvocationAccount, String> {
+    let limits = build_model::contracts::BuildEvaluationSponsorLimits::new(
+        build_time_evaluation::scalars::PURE_PSI_WORK_BUDGET,
         1,
         1,
         1,
@@ -339,12 +341,15 @@ pub(crate) fn pure_terminal_invocation_account()
         u64::MAX,
     )
     .ok_or("pure invocation limits are invalid")?;
-    let measurement = evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi {
+    let measurement = build_model::contracts::EvaluationMeasurementIdentity::TerminalPsi {
         work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
-        storage_schedule: evaluation_contracts::TerminalStorageScheduleIdentity::CURRENT,
+        storage_schedule: build_model::contracts::TerminalStorageScheduleIdentity::CURRENT,
     };
-    evaluation_accounting::BuildEvaluationSponsor::new_with_measurement(limits, measurement)
+    build_model::accounting::BuildEvaluationSponsor::new_with_measurement(limits, measurement)
         .map_err(|error| format!("pure invocation sponsor: {error:?}"))?
-        .begin_invocation(measurement, build_scalar_evaluation::PURE_PSI_WORK_BUDGET)
+        .begin_invocation(
+            measurement,
+            build_time_evaluation::scalars::PURE_PSI_WORK_BUDGET,
+        )
         .map_err(|error| format!("pure invocation account: {error:?}"))
 }

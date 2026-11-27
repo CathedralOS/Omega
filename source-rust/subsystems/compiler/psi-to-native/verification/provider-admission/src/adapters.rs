@@ -30,7 +30,7 @@ impl AdmittedProgramProviderContext {
     pub(crate) fn new(
         psi: terminal_psi::TerminalPsiIdentity,
         profile: target::TargetProfile,
-        selected_plans: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected_plans: &build_providers::selections::SelectedProviderPlanFacts,
         providers: Option<&AdmittedProviderSelections>,
         entry_bridge: Option<(BoundaryMachineId, MachineId)>,
     ) -> Self {
@@ -47,7 +47,7 @@ impl AdmittedProgramProviderContext {
         &self,
         psi: terminal_psi::TerminalPsiIdentity,
         profile: target::TargetProfile,
-        selected_plans: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected_plans: &build_providers::selections::SelectedProviderPlanFacts,
     ) -> Result<(), String> {
         if self.psi != psi {
             return Err("program provider context names another Terminal artifact".into());
@@ -109,7 +109,7 @@ pub fn selected_synchronous_call_graph<'module>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+    use build_providers::plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
 
     fn plan() -> ProviderPlan {
         let mut plan = ProviderPlan {
@@ -150,8 +150,10 @@ mod tests {
         let mut other_plan = first_plan.clone();
         other_plan.provider_declaration = Some("SecondMap".into());
         assert_eq!(first_plan.identity_digest(), other_plan.identity_digest());
-        let facts =
-            |plan| selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap();
+        let facts = |plan| {
+            build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(vec![plan])
+                .unwrap()
+        };
         let first = facts(first_plan);
         let other = facts(other_plan);
         let adapters =

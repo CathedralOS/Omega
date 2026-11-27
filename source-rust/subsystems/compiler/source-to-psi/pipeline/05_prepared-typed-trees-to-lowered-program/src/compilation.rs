@@ -227,13 +227,15 @@ impl<'source> PreparedClosure<'source> {
                 ),
             )
         };
-        let mathematics = match mathematics_result {
-            Ok(mathematics) => mathematics,
-            Err(mut refused) => {
-                further.append(&mut refused);
-                Default::default()
-            }
-        };
+        let mut mathematics: terminal_check_tables::mathematics::MathematicalSignature =
+            match mathematics_result {
+                Ok(mathematics) => mathematics,
+                Err(mut refused) => {
+                    further.append(&mut refused);
+                    Default::default()
+                }
+            };
+        mathematics.identities = crate::identity_tables::of_forms(&forms);
         LoweredCompilationWithSource {
             source,
             program: TerminalCompilation::Prepared(PreparedCompilation {

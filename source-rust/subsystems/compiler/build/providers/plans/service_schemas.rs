@@ -7,8 +7,8 @@ coordinates are stored as `ProviderIdentityId` handles into the declaration's
 identity table.
 */
 
-use crate::digest_encoder::ProviderPlanDigestEncoder;
-use crate::{ProviderIdentityId, ProviderIdentityTable, ProviderPlanRow};
+use crate::plans::digest_encoder::ProviderPlanDigestEncoder;
+use crate::plans::{ProviderIdentityId, ProviderIdentityTable, ProviderPlanRow};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundaryCallingPlanCommitment([u8; 32]);

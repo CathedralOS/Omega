@@ -2,11 +2,11 @@
 // against the actual accepted invocation module. Host effects remain bounded
 // by structurally emitted compiler-owned Build protocol companions.
 
-use super::{BuildMachineExecutionMode, BuildMachineFilesystemScope};
 use super::build_value::BuildValueAdmission;
+use super::{BuildMachineExecutionMode, BuildMachineFilesystemScope};
+use build_model::values::BuildTimeValue;
 use diagnostics::Diagnostic;
 use filesystem_authority::FilesystemMetadataLayout;
-use build_time_values::BuildTimeValue;
 use symbols::SymbolHandle;
 
 pub struct SelectedBuildMachine {
@@ -50,10 +50,17 @@ pub fn admit_build_machine(
     invocation: source_compiler::CheckedBuildInvocation,
     machine_symbol: SymbolHandle,
     filesystem_scope: &mut BuildMachineFilesystemScope,
-) -> Result<(SelectedBuildMachine, source_compiler::PreparedBuildInvocation), Vec<Diagnostic>> {
+) -> Result<
+    (
+        SelectedBuildMachine,
+        source_compiler::PreparedBuildInvocation,
+    ),
+    Vec<Diagnostic>,
+> {
     let prepared = invocation.accepted();
     let typed = prepared.source();
-    let receiver = prepared.build_receiver(machine_symbol)
+    let receiver = prepared
+        .build_receiver(machine_symbol)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let machine = typed.machine(machine_symbol).ok_or_else(|| {
         vec![Diagnostic::error(
@@ -74,7 +81,7 @@ pub fn admit_build_machine(
     let publication = invocation.prepare_publication()?;
     let filesystem_reachable = publication.uses_build_filesystem();
 
-    let initial_build = value_admission.initial_value(filesystem_scope);
+    let initial_build = value_admission.initial_value();
     let execution_mode = if !filesystem_reachable {
         BuildMachineExecutionMode::Pure
     } else {

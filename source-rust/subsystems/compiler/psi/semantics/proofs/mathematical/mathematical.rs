@@ -40,17 +40,18 @@ pub use indexed_data::{
     IndexedField, IndexedInduction, IndexedInstance, IndexedValue,
 };
 pub use inductive::{declare_inductive_family, declare_mutual_inductive_family};
-pub use plain_data::PlainData;
+pub use plain_data::{GenericPlainData, GenericPlainField, PlainData, PlainField};
 pub use quotient::{
     EquivalenceProofs, QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE,
     QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM, QUOTIENT_ID_TRANS,
-    QUOTIENT_IND_PROP, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_PROJECT, QUOTIENT_PROP_IS_SET,
-    QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT, QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE,
-    QuotientFamily, quotient_scheme,
+    QUOTIENT_IND_PROP, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_LIFT_BETA, QUOTIENT_PROJECT,
+    QUOTIENT_PROP_IS_SET, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT,
+    QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE, QuotientFamily, quotient_scheme,
 };
 pub use signature::{
     Declaration, DeclarationKind, Signature, SignatureCheckError, assumption_closure,
-    check_signature, check_signature_with_attribution, judgment_assumption_closure,
+    check_signature, check_signature_with_attribution, extend_signature,
+    judgment_assumption_closure,
 };
 pub use substitution::{
     instantiate, instantiate_levels, relocate_constants, shift, substitute,
