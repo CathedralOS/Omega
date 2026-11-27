@@ -66,32 +66,107 @@ it instantiates. A reviewer verifies those citations before the framing.
 ## Open questions
 
 <a id="windows-handle-release-replay"></a>
-### 1. Does the product offer receiver admission, or does the Windows handle release proof wait?
+### 1. Does the first release offer receiver admission, and how does a receiver supply its policy?
 
-The permission contract says ordinary production requires no receiving policy,
-and "an explicitly requested deployment compatibility check applies the
-supplied policy". It also specifies the bounded proof that lets one Windows
-`CloseHandle` or `DuplicateHandle` call count as an ordinary release. The
-command-line contract defines no request that supplies a receiving policy.
+Jarod routed this question to Zac on 2026-11-27.
+
+#### Context
+
+Receiver admission lets whoever installs an Omega binary check, before running
+it, that the binary exercises only the dangerous authority their own policy
+allows (filesystem writes, process control, hardware and so on). The spec
+defines it as optional and separate from building: "Ordinary compilation and
+retained-Terminal lowering produce artifacts, not permission to install or
+execute them". The receiver "selects the policy's versioned package, exact
+dependency closure and concrete configuration independently of the offered
+program". It also defines the bounded proof that lets one Windows
+`CloseHandle` or `DuplicateHandle` call count as an ordinary release.
 [Production versus receiver admission](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission) ·
 [Bounded release proof](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof) ·
-[Command line](wiki/spec/build/command_line.md)
+[Installation boundary](wiki/spec/build/executable_installation.md) ·
+[Separate operation](wiki/spec/build/compiler_request.md)
 
-The 15 `windows_handle_*.rs` files in provider admission (12,501 lines)
-implement that proof. `checked_calls` returns before doing any work unless a
-receiving policy is present. `psi_to_native.rs:131`, the only place that builds
-the native compile request, passes `terminal_authority_permission_policy:
-None`, so only tests reach the proof. Physical behavior exclusions also
-consume this classification, but they do not run the proof.
+An earlier owner question, "Receiving-policy selection surface", asked how a
+project names that policy package. At the time every native build stopped at
+`Console::exit_process`, because the compiler defaulted to an empty
+deny-by-absence policy. `19879a59627b` (2026-09-17) closed it by making
+ordinary production need no policy. It chose no selection surface, so the
+question below is the part left open. Of its three options, the proof-carrying
+code policy was removed from the spec on 2026-10-15 (`5b15e5f1`), and a
+`--receiving-policy <file>` flag would bypass the package review and pinning
+the spec now requires.
+
+Implementation on `fe289158`:
+- `review_terminal_authority_closure` walks every reachable provider leaf on
+  every build and records its exact mechanism and classification. Package
+  review and `Build::exclude_physical_authority` consume that record.
+- `TerminalAuthorityPermissionPolicy` (version 1, deny-by-absence rows of
+  service schema, requirement and permitted disposition) and the check of
+  each leaf against it are written. The native artifact identity has a slot
+  for the policy's identity.
+- The 15 `windows_handle_*.rs` files (12,501 lines) implement the bounded
+  proof. `checked_calls` runs it only on a PE target, with a policy supplied,
+  for a `CloseHandle` or `DuplicateHandle` the ordinary classifier cannot
+  place.
+- `psi_to_native.rs:131`, the only place that builds the native request,
+  passes `terminal_authority_permission_policy: None`. Only
+  `build/tests/provider_publication.rs` reaches the policy check and the
+  proof. No release gate in
+  [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md)
+  names receiver admission.
+
+[Review entry](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_review.rs) ·
 [Proof entry](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_review/windows_handle_replay.rs) ·
-[Native request](source-rust/subsystems/compiler/psi-to-native/psi_to_native.rs) ·
-[Physical exclusions](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)
+[Native request](source-rust/subsystems/compiler/psi-to-native/psi_to_native.rs)
 
-**Recommend archiving the proof:** move `windows_handle_*.rs` to
-`_recycling/` and restore it with the request that first supplies a
-receiving policy. Alternatively, specify that request on the command line now
-and wire its policy through `psi_to_native`, which makes the proof reachable.
-Which should the product do?
+#### Problem statement
+
+The decision is product scope, not whether to keep one proof: the spec
+defines a complete optional feature that no user can request. Shipping it
+needs four things the spec leaves open:
+1. How a receiver names its policy package. Under the spec's review and
+   pinning requirement this is a declaration such as
+   `builder.receiving_policy(Source::Path { location: "../policy" })`
+   recorded in `omega.lock`.
+2. How a policy package writes its rows as Omega data.
+3. Who runs the check and when. The spec calls it a separate operation by the
+   receiver against the native artifact, but the code reviews inside the
+   producer's native compile. Either the receiver rebuilds, or an
+   `omega admit <artifact>` operation works from the artifact's retained
+   evidence.
+4. How the CLI reports the verdict or the refused leaf.
+
+#### Proposed solution
+
+**Recommended ruling:** "Receiver admission is not in the first release.
+Archive the 15 `windows_handle_*.rs` files to `_recycling/` and restore them
+with the first request that supplies a receiving policy. Keep the review
+walk, the policy type, the optional request field and the artifact identity
+slot."
+
+Take a program that opens a file with access zero and `OPEN_EXISTING`,
+queries it and calls `CloseHandle`:
+- `omega build`: under either choice it produces the artifact with no
+  receiver-admission claim. The ruling changes no observable behavior.
+- A receiver's admission request (a hypothetical surface): only shipping adds
+  it. The proof would let that **`CloseHandle`** count as an ordinary release,
+  so the policy needs no deletion row for it.
+
+Before archiving, confirm that physical behavior exclusions keep their
+classification without the proof files.
+
+#### Alternates
+
+- **Ship it before release.** Answer items 1–4, wire the policy from Build
+  into `psi_to_native`, and test all five hosted targets. This makes about
+  13,800 lines of review code live. It needs a named receiver, such as a
+  package registry, distribution or organization admitting Omega binaries,
+  under the `OWNER-BLOCKED` rule; none is recorded.
+- **Keep the proof in place, unreachable.** No work now, but 12,501 lines
+  reachable only from a test must keep compiling through every refactor.
+- **Archive the whole review policy path as well.** A cleaner cut, but
+  restoring it later re-plumbs Stage 02 and the artifact identity for about
+  1,300 lines saved.
 
 <a id="logical-sum-subjects"></a>
 ### 2. What does a sum input denote in a logical contract?
