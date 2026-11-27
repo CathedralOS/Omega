@@ -59,7 +59,12 @@ fn alignment_contracts_use_the_borrowed_location_across_a_call() {
 fn slice_alignment_contracts_require_a_live_first_element() {
     let program = "machine measured(cells: @[u64]) -> u64
         GUARD
-        ensures result == align_of(cells) { align_of(cells) }";
+        ensures result == align_of(cells) { align_of(cells) }
+        machine main() {
+            let words: [u64; 2] = [41u64, 42u64];
+            let window: @[u64] = @words[..];
+            let observed: u64 = measured(window);
+        }";
     let guarded = super::entryless::judged(
         &program.replace("GUARD", "requires cells.length > 0u64"),
         false,
@@ -74,15 +79,20 @@ fn slice_alignment_contracts_require_a_live_first_element() {
 }
 
 #[test]
-fn an_unwritten_mutable_view_keeps_its_alignment_when_lent_for_reading() {
+fn a_lent_view_keeps_the_alignment_of_its_unchanged_backing() {
     let program = "machine needs(values: @[u64])
         requires values.length > 0u64, align_of(values) >= 8u64 {}
-        machine forward(values: @mutable [u64])
+        machine forward(values: VIEW_TYPE)
         requires values.length > 0u64, align_of(values) >= 8u64 {
             needs(values);
         }";
-    let verdict = super::entryless::judged(program, false);
-    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    for view_type in ["@[u64]", "@mutable [u64]"] {
+        let verdict = super::entryless::judged(&program.replace("VIEW_TYPE", view_type), false);
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_)),
+            "{view_type}: {verdict:?}"
+        );
+    }
 }
 
 #[test]

@@ -138,24 +138,25 @@ impl Storage<'_> {
     ) -> Checked<Option<ScalarTerm>> {
         let concerns = Construct::Machine;
         let kind = self.root_kind(actual.root, concerns)?;
-        let input_access = match kind {
-            StructuralPlaceKind::Parameter { .. } => {
+        let (input_access, producer) = match kind {
+            StructuralPlaceKind::Parameter { .. } => (
                 terminal_psi::StructuralParameterDeclaration::find_by_place(
                     &self.lowered.structural_parameters,
                     actual.root,
                 )
-                .map(|input| input.access)
-            }
+                .map(|input| input.access),
+                None,
+            ),
             // A new iteration can establish the same local name at a new location.
             StructuralPlaceKind::OperationResult { producer, .. } => {
                 let (block, _) = self.graph.locate(ProgramPoint::AfterOperation(producer))?;
                 if self.graph.in_cycle(block)? {
                     return Ok(None);
                 }
-                None
+                (None, Some(producer))
             }
             StructuralPlaceKind::BlockParameter { block, .. } if !self.graph.in_cycle(block)? => {
-                None
+                (None, None)
             }
             _ => return Ok(None),
         };
@@ -205,10 +206,18 @@ impl Storage<'_> {
                 *access == StructuralAccess::SharedBorrow
                     && view_elements.first().is_none_or(|first| position < first)
             });
-            if input_access != Some(StructuralAccess::MutableBorrow)
-                || (crossings > 1 && !behind_shared_reference)
-                || self.storage_ever_written(actual.root)
-            {
+            let replaceable = match producer {
+                // The producer initializes its descriptor. Every other write
+                // reaching that root can replace the captured window.
+                Some(producer) => self
+                    .writes_reaching_root(actual.root)
+                    .any(|write| write.operation != producer),
+                None => {
+                    input_access != Some(StructuralAccess::MutableBorrow)
+                        || self.storage_ever_written(actual.root)
+                }
+            };
+            if (crossings > 1 && !behind_shared_reference) || replaceable {
                 return Ok(None);
             }
         }
@@ -227,5 +236,49 @@ impl Storage<'_> {
             }
         }
         Ok(ScalarTerm::structural_read(actual.root, observed, ty).ok())
+    }
+}
+
+impl AtCall<'_, '_> {
+    pub(super) fn bind_call_alignment(
+        &self,
+        actual: &Lineage,
+        formal: &terminal_psi::StructuralParameterDeclaration,
+        location: &[Projection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        // Lending a shared view captures its descriptor. Indexing that copy
+        // still measures the backing of the original descriptor.
+        if actual.segments.is_empty()
+            && matches!(
+                location.first(),
+                Some(Projection::Index(_) | Projection::Static(Static::FixedIndex(_)))
+            )
+            && is_shared_view(
+                &self
+                    .storage
+                    .declaration(formal.structural_type, self.concerns)
+                    .map_err(crate::Unbound::Refused)?
+                    .shape,
+            )
+            && let Reached::Input(source) = self.reaching_whole_root(actual.root)?
+            && source != actual.root
+        {
+            let term = self.storage.alignment_at_call(
+                self.tables,
+                &Lineage {
+                    root: source,
+                    segments: Vec::new(),
+                },
+                formal,
+                location,
+                ty,
+            );
+            if !matches!(term, Err(crate::Unbound::Unproved(_))) {
+                return term;
+            }
+        }
+        self.storage
+            .alignment_at_call(self.tables, actual, formal, location, ty)
     }
 }

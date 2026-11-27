@@ -1853,7 +1853,11 @@ impl<'a> Storage<'a> {
     /// lent view included, may reach storage of `root`: its destination or
     /// any address its backing may select.
     fn storage_ever_written(&self, root: PlaceId) -> bool {
-        self.log.iter().any(|row| {
+        self.writes_reaching_root(root).next().is_some()
+    }
+
+    fn writes_reaching_root(&self, root: PlaceId) -> impl Iterator<Item = &Logged> {
+        self.log.iter().filter(move |row| {
             row.destination.root == root
                 || row.backing.place.root == root
                 || row
@@ -8084,6 +8088,27 @@ impl<'a> AtCall<'_, 'a> {
         }
     }
 
+    /// Trace the whole value at a root through copies and incoming edges
+    /// to the input or operation that established it.
+    fn reaching_whole_root(&self, root: PlaceId) -> Result<Reached, crate::Unbound> {
+        let whole = Lineage {
+            root,
+            segments: Vec::new(),
+        };
+        let mut trace = self.storage.budget();
+        trace.observations = Observations::WholeInput;
+        self.storage
+            .reaching(
+                self.references,
+                self.tables,
+                Asked::Contents(&whole),
+                (self.block, self.up_to),
+                &mut trace,
+                self.concerns,
+            )
+            .map_err(crate::Unbound::Refused)
+    }
+
     /// An inline cell of a caller input that still holds its entry
     /// contents: a shared input always, a `@mutable` one when its whole
     /// contents reach this call from entry unchanged. A clause may name that
@@ -8094,23 +8119,7 @@ impl<'a> AtCall<'_, 'a> {
         path: &[semantic_vocabulary::ScalarReadProjection],
         ty: ScalarType,
     ) -> Result<Option<ScalarTerm>, crate::Unbound> {
-        let whole = Lineage {
-            root: actual.root,
-            segments: Vec::new(),
-        };
-        let mut trace = self.storage.budget();
-        trace.observations = Observations::WholeInput;
-        let reached = self
-            .storage
-            .reaching(
-                self.references,
-                self.tables,
-                Asked::Contents(&whole),
-                (self.block, self.up_to),
-                &mut trace,
-                self.concerns,
-            )
-            .map_err(crate::Unbound::Refused)?;
+        let reached = self.reaching_whole_root(actual.root)?;
         let contents = if reached == Reached::Input(actual.root) {
             EntryContents::Unwritten
         } else {
@@ -8133,23 +8142,7 @@ impl<'a> AtCall<'_, 'a> {
         if source == actual.root {
             return Ok(None);
         }
-        let source_whole = Lineage {
-            root: source,
-            segments: Vec::new(),
-        };
-        let mut trace = self.storage.budget();
-        trace.observations = Observations::WholeInput;
-        let source_reached = self
-            .storage
-            .reaching(
-                self.references,
-                self.tables,
-                Asked::Contents(&source_whole),
-                (self.block, self.up_to),
-                &mut trace,
-                self.concerns,
-            )
-            .map_err(crate::Unbound::Refused)?;
+        let source_reached = self.reaching_whole_root(source)?;
         let contents = if source_reached == Reached::Input(source) {
             EntryContents::Unwritten
         } else {
@@ -8834,9 +8827,7 @@ impl crate::Bindings for AtCall<'_, '_> {
         if let Some((semantic_vocabulary::ScalarReadProjection::Alignment, location)) =
             path.split_last()
         {
-            return self
-                .storage
-                .alignment_at_call(self.tables, &actual, formal, location, ty);
+            return self.bind_call_alignment(&actual, formal, location, ty);
         }
         let actual_type = self.storage.projection_type(&actual, self.concerns);
         if actual_type != Some(formal.structural_type)
