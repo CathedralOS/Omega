@@ -332,16 +332,20 @@ impl CanonicalTerminalArtifact {
     /// `psi_authorization::authorize_terminal_artifact` instead, which
     /// requires the host's producer trust. A repository test refuses any
     /// other caller. The returned artifact has the same bytes and identity;
-    /// the received original stays non-executable.
+    /// the received original stays non-executable. A received artifact also
+    /// passes its execution-only checks here, and fails if the lowered-form
+    /// checker would have refused it.
     #[doc(hidden)]
-    pub fn record_host_authorization(self: &std::sync::Arc<Self>) -> std::sync::Arc<Self> {
+    pub fn record_host_authorization(
+        self: &std::sync::Arc<Self>,
+    ) -> Result<std::sync::Arc<Self>, CodecError> {
         if !self.requires_host_trust() {
-            return std::sync::Arc::clone(self);
+            return Ok(std::sync::Arc::clone(self));
         }
-        std::sync::Arc::new(Self {
-            semantic_module: std::sync::Arc::new(self.semantic_module.host_admitted()),
+        Ok(std::sync::Arc::new(Self {
+            semantic_module: std::sync::Arc::new(self.semantic_module.host_admitted()?),
             ..Self::clone(self)
-        })
+        }))
     }
 
     pub fn view(&self) -> TerminalArtifactView<'_> {

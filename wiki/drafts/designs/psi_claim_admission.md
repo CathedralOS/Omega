@@ -9,7 +9,7 @@ tracking ID under **PROOF-KERNEL-CORE** in [TASKS.md](../../../TASKS.md).
 
 ## Existing implementation and scope
 
-Step 1 below has landed. Decoding marks a closed module as received, and the
+Steps 1 and 2 below have landed. Decoding marks a closed module as received, and the
 interpreter's `TerminalProgram::borrow` and `retain` refuse received code. Received
 Psi executes only through `TerminalProgram::admit`, `retain_authorized` or
 `TerminalExecution::start_artifact`, each of which takes the host's
@@ -18,10 +18,13 @@ the only code that makes an executable copy of received bytes. The byte-loading
 `TerminalProgram::load` and `load_envelope` are gone. CLI inspection has a 64 MiB
 input cap. Shared
 decoders bound counts against remaining bytes and cap nesting and strings, but
-loading has no overall enforceable work budget. Canonical decoding also runs
-module-foundation validation and dynamic-result admission, including descriptor
-and entailment analyses. Inspection and execution preparation therefore need
-distinct responsibilities, not a switch that bypasses structural checking.
+loading has no overall enforceable work budget. Canonical decoding keeps
+module-foundation validation, identity-formation shape and theorem-citation
+checks. The checker replays execution relies on (structural memberships,
+external-completion providers and dynamic view results) run once in
+`terminal_wire::sealing::prepare_received_execution` when the host authorizes a
+received artifact, so inspection skips them and no executed received module
+misses them.
 
 Primitive stores, reference contracts and boundary normal qualifications can
 repeat declaration-dependent entailment during execution. Individual searches

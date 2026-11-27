@@ -99,9 +99,12 @@ impl PartialEq for AuthorizedTerminalArtifact {
 
 impl Eq for AuthorizedTerminalArtifact {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ArtifactTrustError {
     ProducerTrustRequired,
+    /// The received artifact failed a check that execution relies on and
+    /// decoding skips, such as a structural membership the checker refuses.
+    ExecutionPreparation(terminal_codec::CodecError),
     ArtifactMismatch {
         authorized: TerminalArtifactIdentity,
         requested: TerminalArtifactIdentity,
@@ -113,6 +116,12 @@ impl std::fmt::Display for ArtifactTrustError {
         match self {
             Self::ProducerTrustRequired => formatter
                 .write_str("execution requires the host's acceptance of the actual producer"),
+            Self::ExecutionPreparation(reason) => {
+                write!(
+                    formatter,
+                    "received Psi cannot be prepared for execution: {reason}"
+                )
+            }
             Self::ArtifactMismatch {
                 authorized,
                 requested,
@@ -138,7 +147,9 @@ pub fn authorize_terminal_artifact(
     Ok(AuthorizedTerminalArtifact {
         // Received bytes become executable only here, beside the host's
         // decision. The caller's own copy stays received.
-        artifact: artifact.record_host_authorization(),
+        artifact: artifact
+            .record_host_authorization()
+            .map_err(ArtifactTrustError::ExecutionPreparation)?,
         producer_identity: Arc::clone(&producer.identity),
     })
 }
@@ -188,6 +199,74 @@ mod tests {
         assert!(!authorized.artifact().requires_host_trust());
         assert_eq!(authorized.artifact(), decoded.as_ref());
         assert!(decoded.requires_host_trust());
+    }
+
+    /// Decoding checks canonical form and structure, so a host can inspect an
+    /// artifact whose dynamic table disagrees with its interface. Execution
+    /// relies on the lowered-form checker's judgment of that table, so the
+    /// host's authorization replays it once and refuses the artifact.
+    #[test]
+    fn authorization_replays_execution_judgments_that_inspection_skips() {
+        use terminal_psi::{
+            TerminalDynamicInterface, TerminalDynamicSlot, TerminalDynamicTable,
+            TerminalIdentityTableBuilder,
+        };
+        let mut module = TerminalModule::declarations();
+        let mut identities = TerminalIdentityTableBuilder::default();
+        let interface = identities.intern("dispatched_interface");
+        let declaring = identities.intern("dispatched_trait");
+        let requirement = identities.intern("dispatched_requirement");
+        let implementation = identities.intern("dispatched_implementation");
+        module.identities = identities.build();
+        module
+            .execution
+            .dynamic_dispatch
+            .interfaces
+            .push(TerminalDynamicInterface {
+                id: 0,
+                identity: interface,
+                slots: vec![TerminalDynamicSlot {
+                    slot: 0,
+                    declaring_trait_identity: declaring,
+                    requirement_identity: requirement,
+                    family_tuple: Vec::new(),
+                    scalar_parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    entry_claim_paths: Vec::new(),
+                    result: terminal_psi::BoundaryMachineResult::Unit,
+                    result_claim_paths: Vec::new(),
+                    result_reference_regions: Vec::new(),
+                }],
+            });
+        // One slot, but the table names no row for it.
+        module
+            .execution
+            .dynamic_dispatch
+            .tables
+            .push(TerminalDynamicTable {
+                id: 0,
+                interface: 0,
+                implementation_identity: implementation,
+                rows: Vec::new(),
+            });
+        let optimization = build_identity_optimization_execution_record(&module).unwrap();
+        let produced = CanonicalTerminalArtifact::from_parts(module, optimization, None).unwrap();
+        let received =
+            Arc::new(CanonicalTerminalArtifact::from_bytes(&produced.to_bytes()).unwrap());
+        assert_eq!(
+            received
+                .semantic_module()
+                .execution
+                .dynamic_dispatch
+                .tables
+                .len(),
+            1
+        );
+        let producer = HostProducerTrust::accept("inspection test host");
+        assert!(matches!(
+            authorize_terminal_artifact(received, Some(&producer)),
+            Err(ArtifactTrustError::ExecutionPreparation(_))
+        ));
     }
 
     /// Only this crate may turn received bytes into executable code. Walk the

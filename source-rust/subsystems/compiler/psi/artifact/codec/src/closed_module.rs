@@ -77,13 +77,21 @@ impl ClosedTerminalModule {
     }
 
     /// The same program after the receiving host accepted it. Only the
-    /// authorization crate may call this, after binding its producer trust
+    /// authorization crate may reach this, after binding its producer trust
     /// to the exact artifact; a repository test keeps every other caller out.
-    pub(crate) fn host_admitted(&self) -> Self {
-        Self {
+    ///
+    /// Received code first passes the execution-only checks that decoding
+    /// skips (`terminal_wire::sealing::prepare_received_execution`). They
+    /// run once here, so inspection stays cheap and execution never sees a
+    /// received module that skipped them.
+    pub(crate) fn host_admitted(&self) -> Result<Self, CodecError> {
+        if self.received {
+            terminal_wire::sealing::prepare_received_execution(&self.module)?;
+        }
+        Ok(Self {
             received: false,
             ..self.clone()
-        }
+        })
     }
 
     pub fn module(&self) -> &TerminalModule {

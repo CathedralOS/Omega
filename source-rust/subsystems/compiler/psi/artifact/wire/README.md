@@ -89,6 +89,12 @@ does not fill in old rows or migrate older artifacts. Proof, envelope and
 installation markers are versioned separately. Current certificate-bearing
 forms are still carried and canonically decoded.
 
+Decoding checks canonical form and structure, which is all inspection needs.
+The lowered-form checker's judgments that execution relies on (structural
+memberships, external-completion providers and dynamic view results) run in
+`sealing::prepare_received_execution` instead, once, when the receiving host
+authorizes a received module for execution.
+
 Run the codec's tests with:
 
 ```sh
