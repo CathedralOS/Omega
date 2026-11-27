@@ -103,38 +103,3 @@ syscall/DLL knowledge into the compiler:
   knowledge (and cross-OS handle-release proofs) inside the compiler.
 
 Which boundary should Omega adopt?
-
-<a id="per-goal-proof-step-provision"></a>
-### 2. Which provision names the per-goal proof search budget?
-
-Stage 06 gives each proof goal a step budget: 100,000 steps, a step for each
-goal started and one for each known fact a case branch prepares again. Once
-one machine's checking has spent a full budget on goals that ran out, each
-later goal there gets 8,192. Without the budget, an unprovable arithmetic goal
-over many path facts searched for minutes, and the AV1 and WebP packages never
-finished checking. The largest passing proof in the compiler's tests takes
-under 27,000 steps.
-[Stage 06 README](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/README.md)
-
-The compiler request says that exhausting a named proof-search provision
-reports that provision's `Incomplete` code, and that a source-form or
-proof-search code may not be reused for another case. Codes 27–35 name the
-optional passes' provisions, and none of them fits this budget. So a goal that
-runs out of steps is reported as "mathematical proof budget exhausted", and
-the request ends `Reject` without a provision.
-[Unproved goal form publication](wiki/spec/build/compiler_request.md#unproved-goal-form-publication)
-
-**Recommend a new provision, code 37 `proof_search_goal_steps`.** Its limit
-would be 100,000, its coordinate space 3 (internal row), and its coordinate
-the identity of the obligation left unproved. A goal that runs out would then
-end the request `Incomplete`, like the other proof-search provisions. The
-other choice is to keep the budget unnamed and its outcome `Reject`. Which
-should it be?
-
-**Specification text, if adopted.** Add to the scalar-resource table:
-`| 37 | proof_search_goal_steps | 100,000 | 3 internal row | identity of the
-obligation left unproved |`. Add after the paragraph on codes 27–35:
-"`proof_search_goal_steps` bounds one required goal's proof search: a step for
-each goal it starts and one for each known fact a case branch prepares again.
-Once one machine's checking has spent a full limit on goals that ran out, each
-later goal in that machine has 8,192 steps."
