@@ -13,7 +13,7 @@ pub mod text_section;
 
 use crate::object_target_policy;
 use machine_code::{NormalizedForeignCallResolutionKind, PlacedNormalizedForeignCallResolution};
-use optimization_core::{OptimizationSelectionIdentity, TerminalRelocationFreeTextSectionIdentity};
+use optimization_core::OptimizationSelectionIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
@@ -99,7 +99,6 @@ pub struct RelocationFreeObjectUnresolvedForeignCall {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelocationFreeObjectPlan {
-    pub source_text_section: TerminalRelocationFreeTextSectionIdentity,
     pub psi: TerminalPsiIdentity,
     pub work_schedule: WorkScheduleIdentity,
     pub selected: SelectedInstructionPlanIdentity,
@@ -396,8 +395,7 @@ mod tests {
         RelocationFreeObjectRelocationRequirements, RelocationFreeObjectSymbolLinkage,
         RelocationFreeObjectSymbolPolicy, RelocationFreeObjectSymbolRole,
         RelocationFreeObjectTextSection, RelocationFreeObjectUnresolvedForeignCall,
-        SelectedInstructionPlanIdentity, TerminalPsiIdentity,
-        TerminalRelocationFreeTextSectionIdentity, WorkScheduleIdentity,
+        SelectedInstructionPlanIdentity, TerminalPsiIdentity, WorkScheduleIdentity,
         canonical_normalized_foreign_import_symbol_name, canonical_private_machine_symbol_name,
         validate_relocation_free_object,
     };
@@ -405,9 +403,6 @@ mod tests {
     fn plan() -> RelocationFreeObjectPlan {
         let machine = MachineId::new(7).unwrap();
         RelocationFreeObjectPlan {
-            source_text_section: TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(
-                b"text",
-            ),
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([4; 32]),

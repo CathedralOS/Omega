@@ -196,12 +196,14 @@ fn build_fixture() -> Fixture {
     entry_boundary.id = BoundaryMachineId::new(3).unwrap();
     entry_boundary.identity = entry_name;
     module
-        .interfaces.boundary_machines
+        .interfaces
+        .boundary_machines
         .extend([value_boundary, entry_boundary]);
     module.interfaces.provider_candidates[0].boundary = BoundaryMachineId::new(2).unwrap();
     module.interfaces.provider_candidates[0].candidate = MachineId::new(3).unwrap();
     module
-        .interfaces.callback_applications
+        .interfaces
+        .callback_applications
         .push(TerminalCallbackApplication {
             application_index: 0,
             registrar_machine: MachineId::new(1).unwrap(),
@@ -218,47 +220,55 @@ fn build_fixture() -> Fixture {
     let inbound = calling_application(ENTRY, false);
     for (boundary, application) in [(1, &registrar), (3, &inbound)] {
         let callback = boundary == 1;
-        module.interfaces.calling_signatures.push(CallingSignatureDeclaration {
-            boundary: BoundaryMachineId::new(boundary).unwrap(),
-            application: Ok(application.abi.id()),
-        });
-        module.interfaces.calling_abi_signatures.push(CallingAbiDeclaration {
-            id: application.abi.id(),
-            requirement_identity: identities.intern(&application.requirement_identity),
-            declaring_application: owner,
-            operands: Vec::new(),
-            formals: Vec::new(),
-            default_eligible: true,
-            physical_owner: Ok(semantic_vocabulary::CallingDeclarationOwner::TopLevelRequirement),
-            storage: Ok(CallingAbiStorage {
-                parameters: Vec::new(),
-                result: None,
-                telescope: CallingSignatureTelescope {
+        module
+            .interfaces
+            .calling_signatures
+            .push(CallingSignatureDeclaration {
+                boundary: BoundaryMachineId::new(boundary).unwrap(),
+                application: Ok(application.abi.id()),
+            });
+        module
+            .interfaces
+            .calling_abi_signatures
+            .push(CallingAbiDeclaration {
+                id: application.abi.id(),
+                requirement_identity: identities.intern(&application.requirement_identity),
+                declaring_application: owner,
+                operands: Vec::new(),
+                formals: Vec::new(),
+                default_eligible: true,
+                physical_owner: Ok(
+                    semantic_vocabulary::CallingDeclarationOwner::TopLevelRequirement,
+                ),
+                storage: Ok(CallingAbiStorage {
                     parameters: Vec::new(),
-                    binders: if callback {
-                        vec![CallingCallbackBinder {
-                            binder: StaticMachineBinderId::new(1).unwrap(),
-                            requirement: callback_requirement_id(ENTRY),
-                            requirement_identity: entry_name,
-                            static_machine_ordinal: 0,
-                            invokes_synchronously: true,
-                        }]
-                    } else {
-                        Vec::new()
+                    result: None,
+                    telescope: CallingSignatureTelescope {
+                        parameters: Vec::new(),
+                        binders: if callback {
+                            vec![CallingCallbackBinder {
+                                binder: StaticMachineBinderId::new(1).unwrap(),
+                                requirement: callback_requirement_id(ENTRY),
+                                requirement_identity: entry_name,
+                                static_machine_ordinal: 0,
+                                invokes_synchronously: true,
+                            }]
+                        } else {
+                            Vec::new()
+                        },
+                        direct_callbacks: if callback {
+                            vec![CallingDirectCallback {
+                                identity: NativeParameterId::new(3).unwrap(),
+                                native_ordinal: 0,
+                                binder: StaticMachineBinderId::new(1).unwrap(),
+                                requirement: callback_requirement_id(ENTRY),
+                            }]
+                        } else {
+                            Vec::new()
+                        },
                     },
-                    direct_callbacks: if callback {
-                        vec![CallingDirectCallback {
-                            identity: NativeParameterId::new(3).unwrap(),
-                            native_ordinal: 0,
-                            binder: StaticMachineBinderId::new(1).unwrap(),
-                            requirement: callback_requirement_id(ENTRY),
-                        }]
-                    } else {
-                        Vec::new()
-                    },
-                },
-            }),
-        });
+                }),
+            });
     }
     let locator = target::normalize_foreign_locator(
         target::ForeignLocatorCandidate::PeByName {
@@ -332,7 +342,9 @@ fn build_fixture() -> Fixture {
             },
         });
     let provider_type = plan.provider_type.clone();
-    let selected = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap();
+    let selected =
+        selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![plan])
+            .unwrap();
     let identity =
         function_identity::MachineFunctionIdentity::callback_thunk(artifact.view().identity(), 0)
             .unwrap();
@@ -341,8 +353,11 @@ fn build_fixture() -> Fixture {
         0,
         OperationId::new(1).unwrap(),
         identity,
-        provider_correspondence::callbacks::TerminalCallbackThunkArtifact::for_application(Arc::clone(&artifact), 0)
-            .unwrap(),
+        provider_correspondence::callbacks::TerminalCallbackThunkArtifact::for_application(
+            Arc::clone(&artifact),
+            0,
+        )
+        .unwrap(),
         inbound.plan.plan().clone(),
         Vec::new(),
     );
@@ -422,18 +437,15 @@ fn check_callback_publication(retain_body_source: bool) {
     use crate::driver::image::plan_callables::inspect_private_body_demand;
     use artifact_lowering::test_support::NativeExecutionSelection;
     use artifact_lowering::{
-        NativeAdmissionRequest, VerifiedNativeArtifactInput,
-        admit_prepared_native_realization,
+        NativeAdmissionRequest, VerifiedNativeArtifactInput, admit_prepared_native_realization,
     };
     use provider_admission::{
         ProviderAdmissionRequest, current_terminal_authority_policy,
         prepare_source_evaluated_bindings,
     };
     let fixture = build_fixture();
-    let adapters = provider_admission::retain_selected_provider_adapters(
-        &fixture.selected,
-    )
-    .unwrap();
+    let adapters =
+        provider_admission::retain_selected_provider_adapters(&fixture.selected).unwrap();
     let artifact = &fixture.artifact;
     let demands = terminal_psi::TerminalBoundaryApplicationDemands::new(
         artifact.manifest().semantic(),
@@ -535,15 +547,16 @@ fn check_callback_publication(retain_body_source: bool) {
                 .contains("referenced private function has no original placement")
         }));
         let occurrence = &fixture.occurrences[0];
-        let substituted = provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal::new(
-            occurrence.placement_index(),
-            occurrence.application_index(),
-            OperationId::new(99).unwrap(),
-            occurrence.callback_thunk_identity(),
-            occurrence.callback_thunk_artifact().clone(),
-            occurrence.boundary_entry_plan().clone(),
-            occurrence.entry_parameters().to_vec(),
-        );
+        let substituted =
+            provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal::new(
+                occurrence.placement_index(),
+                occurrence.application_index(),
+                OperationId::new(99).unwrap(),
+                occurrence.callback_thunk_identity(),
+                occurrence.callback_thunk_artifact().clone(),
+                occurrence.boundary_entry_plan().clone(),
+                occurrence.entry_parameters().to_vec(),
+            );
         let wrong = inspect_private_body_demand(&[substituted], &[target]).unwrap_err();
         assert!(wrong.iter().any(|error| {
             error
@@ -577,7 +590,7 @@ fn check_callback_publication(retain_body_source: bool) {
         .find(|resolution| !resolution.callback_materializations.is_empty())
         .expect("the placed registrar carries its callback address");
     registrar.callback_materializations[0].code_section_offset += 1;
-    assert_ne!(section.identity, edited.recomputed_identity());
+    assert_ne!(*section, edited);
 
     let bindings = object.publication().bindings();
     let mut missing_import = bindings.clone();
@@ -631,11 +644,19 @@ fn check_callback_publication(retain_body_source: bool) {
         let source = retained.publication();
         let inspect = |relocations: &object_file::RelocationPlan| {
             object_file::body_object::imports::readback(
-                &source, &sections.object, relocations, &sections.functions,
+                &source,
+                &sections.object,
+                relocations,
+                &sections.functions,
             )
         };
-        assert_eq!(inspect(&sections.relocations).unwrap(), sections.foreign_calls);
-        let (field, _) = sections.relocations.records()
+        assert_eq!(
+            inspect(&sections.relocations).unwrap(),
+            sections.foreign_calls
+        );
+        let (field, _) = sections
+            .relocations
+            .records()
             .find(|(_, row)| row.symbol_handle == symbol)
             .expect("the body materializes its callback address");
         let mut redirected = sections.relocations.clone();
@@ -647,9 +668,12 @@ fn check_callback_publication(retain_body_source: bool) {
             .unwrap()
             .symbol;
         redirected.records.get_mut(field).symbol_handle = registrar;
-        assert!(matches!(inspect(&redirected), Err(object_file::body_object::Error::Mismatch(
-            "fragment import callback relocation differs"
-        ))));
+        assert!(matches!(
+            inspect(&redirected),
+            Err(object_file::body_object::Error::Mismatch(
+                "fragment import callback relocation differs"
+            ))
+        ));
         assert_eq!(sections.relocations, *object.relocations());
         assert_eq!(sections.text_bytes, object.text_bytes());
         assert_eq!(sections.foreign_calls, object.foreign_calls());

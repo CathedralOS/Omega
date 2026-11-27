@@ -24,9 +24,7 @@ pub use decisions::{
     psi_target_neutral_decision_target_identity,
 };
 pub use identities::{
-    AcceptedObligationFactIdentity, CanonicalIdentityEncoder, FunctionFragmentEmissionIdentity,
-    FunctionFragmentEmissionManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
-    FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity,
+    AcceptedObligationFactIdentity, CanonicalIdentityEncoder, NativeOptimizationProjectionIdentity,
     OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationDecisionSchemaIdentity, OptimizationDecisionTargetIdentity,
     OptimizationIdentityBundle, OptimizationIdentityBundleIdentity, OptimizationPassIdentity,
@@ -37,8 +35,7 @@ pub use identities::{
     PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
     PrePhysicalOptimizationManifestIdentity, ScalarConstantFactIdentity,
     SelectedLoweringOptimizationCompletionIdentity, TargetCostModelIdentity,
-    TerminalRelocationFreeTextSectionIdentity, TransformationLedgerIdentity,
-    ValueRangeFactIdentity,
+    TransformationLedgerIdentity, ValueRangeFactIdentity,
 };
 pub(crate) use manifest::OptimizationFactReferenceDecodeError;
 pub use manifest::{

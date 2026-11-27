@@ -2987,8 +2987,7 @@ pub(crate) mod replay {
 
     impl PartialEq for FragmentReplay {
         fn eq(&self, other: &Self) -> bool {
-            self.object.object() == other.object.object()
-                && self.object.custody() == other.object.custody()
+            self.object.object() == other.object.object() && self.object.same_text(&other.object)
         }
     }
 

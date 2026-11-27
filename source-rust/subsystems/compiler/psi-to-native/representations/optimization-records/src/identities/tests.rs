@@ -3,9 +3,8 @@
 // round-trips.
 
 use super::{
-    FunctionFragmentTextSectionManifestIdentity,
-    FunctionRelativeOptimizationRealizationManifestIdentity, IDENTITY_WIDTH, IdentityDecodeError,
-    OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
+    IDENTITY_WIDTH, IdentityDecodeError, OptimizationCandidateIdentity,
+    OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationDecisionSchemaIdentity, OptimizationDecisionTargetIdentity,
     OptimizationIdentityBundle, OptimizationIdentityBundleIdentity, OptimizationPassIdentity,
     OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationUnitIdentity,
@@ -13,7 +12,7 @@ use super::{
     OptimizedAbstractPlanProjectionIdentity, PostAllocationOptimizationManifestIdentity,
     PreAllocationOptimizationCompletionIdentity, ScalarConstantFactIdentity,
     SelectedLoweringOptimizationCompletionIdentity, TargetCostModelIdentity,
-    TerminalRelocationFreeTextSectionIdentity, TransformationLedgerIdentity,
+    TransformationLedgerIdentity,
 };
 use super::{
     bundle::IdentityBundleDecodeError, rules_and_facts::DuplicateOptimizationRuleIdentity,
@@ -58,10 +57,6 @@ fn identity_domains_are_distinct_for_equal_canonical_bytes() {
         PostAllocationOptimizationManifestIdentity::from_canonical_bytes(b"same").bytes(),
         SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"same").bytes(),
         PreAllocationOptimizationCompletionIdentity::from_canonical_bytes(b"same").bytes(),
-        FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(b"same")
-            .bytes(),
-        TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"same").bytes(),
-        FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(b"same").bytes(),
         OptimizationDecisionIdentity::from_canonical_bytes(b"same").bytes(),
         OptimizationDecisionSchemaIdentity::from_canonical_bytes(b"same").bytes(),
         OptimizationDecisionTargetIdentity::from_canonical_bytes(b"same").bytes(),
