@@ -5,11 +5,11 @@ use crate::{
     Checked, Construct, Discharged, Graph, MachineId, MachineTables, RefusalReason, refusal,
 };
 use terminal_check_tables::obligations::{MembershipSubject, ObligationKind};
-use terminal_psi::TerminalModule;
 use terminal_semantics::{MembershipTest, TestedMembership};
 
+/// Reads the reference rows from the module's shared `analyses`.
 pub(crate) fn judge(
-    module: &TerminalModule,
+    analyses: &terminal_semantics::ModuleAnalyses<'_>,
     machine: MachineId,
     graph: &Graph,
     tables: &MachineTables,
@@ -53,15 +53,16 @@ pub(crate) fn judge(
         });
         obligations.push((index, id));
     }
-    let answered =
-        terminal_semantics::test_memberships(module, machine, &questions).map_err(|detail| {
+    let answered = terminal_semantics::test_memberships_in(analyses, machine, &questions).map_err(
+        |detail| {
             refusal(
                 RefusalReason::ForeignIdentity,
                 machine,
                 Construct::Machine,
                 detail,
             )
-        })?;
+        },
+    )?;
     let verdicts = obligations.into_iter().zip(answered).map(|((index, id), held)| {
         let result = if held {
             Ok(Discharged::RetainedMembership)

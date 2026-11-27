@@ -711,6 +711,7 @@ pub(crate) fn finish_discharge<'m>(
     prepared: PreparedDischarge<'_>,
     carried: &[Carried<'_>],
     verified: Option<&'m VerifiedAffine>,
+    analyses: &'m terminal_semantics::ModuleAnalyses<'_>,
     affine: &'m terminal_semantics::plain_affine::AffineSummaries<'m>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
@@ -744,20 +745,32 @@ pub(crate) fn finish_discharge<'m>(
         module.types.structural_types.iter(),
     );
     // Each machine's borrowed-storage replay reaches the same callees; the
-    // module replays each of them once for all its machines. The cleanup
-    // catalog and the type index describe the module alone, so every
-    // machine check reads the same ones.
+    // module replays each of them once for all its machines. The analyses
+    // and the cleanup catalog describe the module alone, so every machine
+    // check reads the same ones. The analyses must be the module's own: a
+    // bundle over another module would answer about other bodies.
+    if !std::ptr::eq(analyses.module(), module) {
+        let first = module
+            .machines
+            .first()
+            .map_or(MachineId::new(1).expect("one is nonzero"), |machine| {
+                machine.id
+            });
+        return Err(refusal(
+            RefusalReason::ForeignIdentity,
+            first,
+            Construct::Machine,
+            "the machine checks received the analyses of another module",
+        ));
+    }
     let summaries = ModuleReplays {
-        module,
+        analyses,
         borrowed_storage: terminal_semantics::descriptor_results::ModuleSummaries::borrowed_storage(
             module,
             formed.nominal_calls(),
         ),
         affine,
         cleanup_catalog: owned_cleanup::Catalog::new(module),
-        type_index: terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
-            &module.types.structural_types,
-        ),
         received_claims: verified.map_or(&[][..], |verified| verified.claims.as_slice()),
     };
     let machines =
@@ -843,6 +856,18 @@ pub(crate) fn discharge_inner(
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
     let prepared = prepare_discharge(elaboration, laws, None, activity)?;
+    let module = &elaboration.module;
+    let analyses = terminal_semantics::ModuleAnalyses::new(module).map_err(|error| {
+        refusal(
+            RefusalReason::Unsupported,
+            error.machine(),
+            error
+                .operation(module)
+                .map(Construct::Operation)
+                .unwrap_or(Construct::Machine),
+            &error.in_module(module),
+        )
+    })?;
     let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
     let discharged = finish_discharge(
         ElaborationView {
@@ -857,10 +882,12 @@ pub(crate) fn discharge_inner(
         prepared,
         carried,
         None,
+        &analyses,
         &summaries,
         activity,
     )?;
     drop(summaries);
+    drop(analyses);
     publish_rankings(&mut elaboration.module, &discharged.machines)?;
     Ok(discharged)
 }
@@ -966,7 +993,7 @@ fn machine(
     law_instances: equality::LawScope<'_>,
     proved: &[(MachineId, &laws::LawJudgment)],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
-    summaries: &ModuleReplays<'_>,
+    summaries: &ModuleReplays<'_, '_>,
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
@@ -989,6 +1016,7 @@ fn machine(
         |prepared, tables| {
             check_prepared_machine(
                 prepared,
+                summaries.analyses,
                 inhabitation,
                 tables,
                 unreached,
@@ -1008,9 +1036,13 @@ fn machine(
     Ok(discharge)
 }
 
+/// `analyses` are those of `prepared`'s module (`finish_discharge` checks
+/// it), so the semantic judgments below read the descriptor rows the module's
+/// other checks already adapted.
 #[allow(clippy::too_many_arguments)]
 fn check_prepared_machine(
     mut prepared: PreparedMachine<'_, '_>,
+    analyses: &terminal_semantics::ModuleAnalyses<'_>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     tables: &mut MachineTables,
     unreached: &[ValueId],
@@ -1024,14 +1056,14 @@ fn check_prepared_machine(
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     let (module, id) = (prepared.module, prepared.id);
-    for (index, verdict) in membership_tests::judge(module, id, prepared.graph, tables)? {
+    for (index, verdict) in membership_tests::judge(analyses, id, prepared.graph, tables)? {
         decided[index] = Some(verdict);
     }
     // Loans are judged by structure, not proved (`places::loans`).
     let (lent, conflicts) =
         prepared
             .storage
-            .loans(prepared.references, module, tables, borrow_ends)?;
+            .loans(prepared.references, analyses, tables, borrow_ends)?;
     for (obligation, verdict) in lent {
         let slot = decided
             .get_mut(usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX))
@@ -1069,7 +1101,7 @@ fn check_prepared_machine(
     // A machine stage 04 generated takes each one its generic form proved,
     // and searches only where none is carried (`discharge_carrying`).
     let carrier = carried.and_then(|carried| carried.carrier(tables, lowered, module));
-    let mut layout_conditions = terminal_semantics::layout_call_conditions(module, lowered)
+    let mut layout_conditions = terminal_semantics::layout_call_conditions_in(analyses, lowered)
         .map_err(|detail| {
             refusal(
                 RefusalReason::ForeignIdentity,
@@ -1080,7 +1112,7 @@ fn check_prepared_machine(
         })?
         .into_iter()
         .peekable();
-    let mut target_ranges = terminal_semantics::target_scalar_ranges(module, lowered, types)
+    let mut target_ranges = terminal_semantics::target_scalar_ranges_in(analyses, lowered, types)
         .map_err(|detail| {
             refusal(
                 RefusalReason::ForeignIdentity,
@@ -1091,10 +1123,11 @@ fn check_prepared_machine(
         })?
         .into_iter()
         .peekable();
-    let content_returns = terminal_semantics::content_transformations::forwarding::checked_returns(
-        module, lowered,
-    )
-    .map_err(|detail| refusal(RefusalReason::Unestablished, id, Construct::Machine, detail))?;
+    let content_returns =
+        terminal_semantics::content_transformations::forwarding::checked_returns_in(
+            analyses, lowered,
+        )
+        .map_err(|detail| refusal(RefusalReason::Unestablished, id, Construct::Machine, detail))?;
     let mut knowledge = KnowledgeIndex::new(graph, tables, id)?;
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_some() {
@@ -1727,49 +1760,50 @@ fn fill_knowledge<'a>(
     Ok(())
 }
 
-/// The callee summaries one module's machine checks share, so each callee
-/// is replayed once per module rather than once per checked caller. The two
-/// tables serve graphs built differently, and a summary from one does not
-/// describe the other's rows.
-pub(crate) struct ModuleReplays<'m> {
-    /// The module every table here was built from. A check of any other
-    /// module, even an equal copy, builds its own.
-    module: &'m TerminalModule,
-    /// For each machine check's own borrowed-storage graph, which includes
-    /// the module's nominal calls.
-    borrowed_storage: terminal_semantics::descriptor_results::ModuleSummaries<'m>,
+/// What one module's machine checks share: the module's analyses (its
+/// descriptor rows, type index and borrowed-storage summaries) and the
+/// callee summaries of graphs the analyses do not share, so each callee is
+/// replayed once per module rather than once per checked caller. Each
+/// summary table serves graphs built one way, and a summary from one does
+/// not describe another's rows.
+pub(crate) struct ModuleReplays<'r, 'm> {
+    /// Built from the module every table here was built from. A check of
+    /// any other module, even an equal copy, builds its own.
+    analyses: &'r terminal_semantics::ModuleAnalyses<'m>,
+    /// For each machine check's own borrowed-storage graph when the module's
+    /// nominal calls or scoped requirement addresses make the analyses' rows
+    /// the wrong ones (`places::reference_graph_with_generic_calls`).
+    borrowed_storage: terminal_semantics::descriptor_results::ModuleSummaries<'r>,
     /// For the affine claim walk of each machine (`minted`), whose graph
     /// has no nominal calls.
-    affine: &'m terminal_semantics::plain_affine::AffineSummaries<'m>,
+    affine: &'r terminal_semantics::plain_affine::AffineSummaries<'r>,
     /// The module's cleanup machines and types by identity, or why they
     /// have none; `minted` refuses each machine with that reason.
-    cleanup_catalog: Result<owned_cleanup::Catalog<'m>, &'static str>,
-    /// The module's structural declarations by identity (`places::Storage`).
-    type_index: terminal_semantics::descriptor_lifetimes::StructuralTypeIndex<'m>,
+    cleanup_catalog: Result<owned_cleanup::Catalog<'r>, &'static str>,
     /// What the affine check received for each machine's claim walk, sorted
     /// by machine; empty when no affine check ran on this module.
-    received_claims: &'m [(MachineId, minted::ReceivedClaims)],
+    received_claims: &'r [(MachineId, minted::ReceivedClaims)],
 }
 
-impl<'m> ModuleReplays<'m> {
+impl<'r, 'm> ModuleReplays<'r, 'm> {
     fn built_from(&self, module: &TerminalModule) -> bool {
-        std::ptr::eq(self.module, module)
+        std::ptr::eq(self.analyses.module(), module)
+    }
+
+    /// The module's analyses, when these replays were built from `module`.
+    pub(crate) fn analyses(
+        &self,
+        module: &TerminalModule,
+    ) -> Option<&'r terminal_semantics::ModuleAnalyses<'m>> {
+        self.built_from(module).then_some(self.analyses)
     }
 
     /// The cleanup catalog, when these replays were built from `module`.
     pub(crate) fn cleanup_catalog(
         &self,
         module: &TerminalModule,
-    ) -> Option<&Result<owned_cleanup::Catalog<'m>, &'static str>> {
+    ) -> Option<&Result<owned_cleanup::Catalog<'r>, &'static str>> {
         self.built_from(module).then_some(&self.cleanup_catalog)
-    }
-
-    /// The type index, when these replays were built from `module`.
-    fn type_index(
-        &self,
-        module: &TerminalModule,
-    ) -> Option<&terminal_semantics::descriptor_lifetimes::StructuralTypeIndex<'m>> {
-        self.built_from(module).then_some(&self.type_index)
     }
 
     /// What the affine check received for `machine`'s claim walk over
@@ -1794,11 +1828,13 @@ impl<'m> ModuleReplays<'m> {
 /// and the proposition context; filling the knowledge table on the way.
 // Checking reads the graph and context; test support also reads the rest.
 #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
-pub(crate) struct Prepared {
+pub(crate) struct Prepared<'r> {
     pub(crate) types: IdTable<ValueId, ScalarType>,
     pub(crate) graph: Graph,
     pub(crate) context: PropositionContext,
-    reference_graph: Vec<terminal_semantics::descriptor_results::DescriptorMachine>,
+    /// The machine's borrowed-storage closure; shared rows borrow the
+    /// module's analyses.
+    reference_graph: terminal_semantics::DescriptorRows<'r>,
     ranking_bindings: rankings::Bindings,
 }
 
@@ -1874,7 +1910,7 @@ impl PreparedMachine<'_, '_> {
     }
 }
 
-impl Prepared {
+impl Prepared<'_> {
     #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
     fn references<'a>(
         &'a self,
@@ -1882,7 +1918,7 @@ impl Prepared {
     ) -> terminal_semantics::descriptor_results::DescriptorAnalysis<'a> {
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             types,
-            &self.reference_graph,
+            self.reference_graph.view(),
         )
     }
 }
@@ -1894,7 +1930,7 @@ pub(crate) fn prepare(
     formed: formation::FormedModule<'_>,
     id: MachineId,
     tables: &mut MachineTables,
-) -> Checked<Prepared> {
+) -> Checked<Prepared<'static>> {
     let module = formed.source();
     let inhabitation = prepare_inhabitation(module, id)?;
     with_prepared_machine(formed, id, tables, &inhabitation, None, |_, _| Ok(()))
@@ -1920,14 +1956,14 @@ fn prepare_inhabitation(
 
 /// Keep analysis within one invocation while a caller checks the prepared
 /// machine. The returned values own no borrow of this local working state.
-fn with_prepared_machine<Outcome>(
+fn with_prepared_machine<'r, Outcome>(
     formed: formation::FormedModule<'_>,
     id: MachineId,
     tables: &mut MachineTables,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-    summaries: Option<&ModuleReplays<'_>>,
+    summaries: Option<&ModuleReplays<'r, '_>>,
     check: impl FnOnce(PreparedMachine<'_, '_>, &mut MachineTables) -> Checked<Outcome>,
-) -> Checked<(Prepared, Outcome)> {
+) -> Checked<(Prepared<'r>, Outcome)> {
     let module = formed.source();
     let machines = &module.machines;
     let lowered = terminal_machine(machines, id, id)?;
@@ -1940,31 +1976,48 @@ fn with_prepared_machine<Outcome>(
     minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation, summaries)?;
     let graph = Graph::new(id, lowered, tables)?;
     theorems::validate(module, lowered, tables, &graph)?;
+    // A machine check of the module the replays were built from reads the
+    // module's analyses. Inference checks a module it is still editing, so
+    // it builds this machine's closure and type index alone.
+    let shared = summaries.and_then(|summaries| {
+        summaries
+            .analyses(module)
+            .map(|analyses| (analyses, summaries))
+    });
     let reference_graph = places::reference_graph_with_generic_calls(
         module,
+        shared.map(|(analyses, _)| analyses),
         id,
         formed.nominal_calls(),
         formed.schemas,
     )?;
     let (context, ranking_bindings, result) = {
-        let mut references =
-            terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-                &module.types.structural_types,
-                &reference_graph,
-            );
-        // The graph is this module's closure with its nominal calls, which
-        // is what the module's shared summaries were replayed from.
-        if let Some(summaries) = summaries {
-            references.share_summaries(&summaries.borrowed_storage, formed.nominal_calls());
-        }
         let own_index;
-        let type_index = match summaries.and_then(|summaries| summaries.type_index(module)) {
-            Some(shared) => shared,
+        let (mut references, type_index) = match shared {
+            Some((analyses, summaries)) => {
+                let mut references = analyses.analysis(
+                    terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                    &reference_graph,
+                );
+                // The analyses share summaries over the rows they share.
+                // Rows built with the module's nominal calls share the
+                // summaries replayed from those same rows.
+                if let terminal_semantics::DescriptorRows::Owned(_) = &reference_graph {
+                    references.share_summaries(&summaries.borrowed_storage, formed.nominal_calls());
+                }
+                (references, analyses.types())
+            }
             None => {
                 own_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
                     &module.types.structural_types,
                 );
-                &own_index
+                (
+                    terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+                        &module.types.structural_types,
+                        reference_graph.view(),
+                    ),
+                    &own_index,
+                )
             }
         };
         let storage = places::Storage::new(

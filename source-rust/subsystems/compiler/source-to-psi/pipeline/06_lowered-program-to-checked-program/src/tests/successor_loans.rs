@@ -411,7 +411,12 @@ machine entry(first: bool) -> bool {
     )
     .unwrap();
     let (_, conflicts) = storage
-        .loans(&mut references, module, tables, None)
+        .loans(
+            &mut references,
+            &terminal_semantics::ModuleAnalyses::new(module).unwrap(),
+            tables,
+            None,
+        )
         .unwrap();
     assert!(
         conflicts
@@ -684,7 +689,12 @@ machine main() crashes Trap {
     // Exercise the independent edge guard, rather than rejecting the forged
     // affine schedule before loan checking or borrowing a pre-mutation plan.
     let refusal = storage
-        .loans(&mut references, module, tables, None)
+        .loans(
+            &mut references,
+            &terminal_semantics::ModuleAnalyses::new(module).unwrap(),
+            tables,
+            None,
+        )
         .expect_err("cleanup cannot destroy a newly captured borrow's owner");
     assert_eq!(refusal.reason, RefusalReason::Conflict);
     assert_eq!(refusal.site.in_machine().unwrap().0, identity);
@@ -1291,7 +1301,12 @@ requires index < 2 {
     )
     .unwrap();
     let (loans, conflicts) = storage
-        .loans(&mut references, module, tables, None)
+        .loans(
+            &mut references,
+            &terminal_semantics::ModuleAnalyses::new(module).unwrap(),
+            tables,
+            None,
+        )
         .unwrap();
     assert!(
         loans.is_empty(),

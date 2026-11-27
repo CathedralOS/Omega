@@ -1004,19 +1004,25 @@ fn examine(
     let prepared = match crate::prepare_discharge(&mut elaboration, laws, identities, activity) {
         Ok(prepared) => prepared,
         Err(refused) => {
+            let analyses = terminal_semantics::ModuleAnalyses::new(&elaboration.module)
+                .map_err(|error| no_shared_analyses(&elaboration, error))?;
             let summaries =
                 terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
-            let _ = check_affine(&elaboration, &summaries, further)?;
+            let _ = check_affine(&elaboration, &analyses, &summaries, further)?;
             return Err(fall_back_or_defect(
                 Roster::of(&elaboration).locate(refused),
             ));
         }
     };
-    // Build `AffineSummaries` once after `prepare_discharge` finishes editing
-    // contracts and theorem citations, and share it across `candidates_sharing`,
-    // `plan_affine_machines`, and `minted::follow_the_lowered_form`.
+    // `prepare_discharge` made the last edit to the module before the
+    // rankings are published. Build the shared analyses and the affine
+    // summary table once here, and let the affine check and every machine
+    // check read them.
+    let analyses = terminal_semantics::ModuleAnalyses::new(&elaboration.module)
+        .map_err(|error| no_shared_analyses(&elaboration, error))?;
     let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
-    let (affine_unestablished, verified) = check_affine(&elaboration, &summaries, further)?;
+    let (affine_unestablished, verified) =
+        check_affine(&elaboration, &analyses, &summaries, further)?;
     let finished = crate::finish_discharge(
         crate::ElaborationView {
             module: &elaboration.module,
@@ -1030,10 +1036,12 @@ fn examine(
         prepared,
         carried,
         Some(&verified),
+        &analyses,
         &summaries,
         activity,
     );
     drop(summaries);
+    drop(analyses);
     match finished.and_then(|discharged| {
         crate::publish_rankings(&mut elaboration.module, &discharged.machines)?;
         Ok(discharged)
@@ -1050,8 +1058,31 @@ fn examine(
     }
 }
 
+/// The verdict on a closure whose module has no shared analyses because it
+/// declares one machine twice. The affine check's reference-end candidates
+/// refused such a module first, with this same refusal, before the affine
+/// check and the machine checks shared one bundle.
+fn no_shared_analyses(
+    elaboration: &Elaboration,
+    error: terminal_semantics::descriptor_results::DescriptorGraphError,
+) -> Checked<RouteVerdict> {
+    let module = &elaboration.module;
+    fall_back_or_defect(
+        Roster::of(elaboration).locate(refusal(
+            RefusalReason::Unsupported,
+            error.machine(),
+            error
+                .operation(module)
+                .map(Construct::Operation)
+                .unwrap_or(Construct::Machine),
+            &error.in_module(module),
+        )),
+    )
+}
+
 fn check_affine(
     elaboration: &Elaboration,
+    analyses: &terminal_semantics::ModuleAnalyses<'_>,
     summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
     further: &mut Vec<Refusal>,
 ) -> Result<(Vec<UnestablishedUse>, crate::VerifiedAffine), Checked<RouteVerdict>> {
@@ -1062,24 +1093,25 @@ fn check_affine(
     // goes on with the next machine, and the first such refusal becomes the
     // verdict with the rest beside it.
     let mut unsupported = Unsupported::default();
-    let reference_ends =
-        terminal_semantics::reference_ends::candidates_sharing(&elaboration.module, summaries)
-            .map_err(|error| {
-                fall_back_or_defect(
-                    Roster::of(elaboration).locate(refusal(
-                        RefusalReason::Unsupported,
-                        error.machine,
-                        error
-                            .operation
-                            .map(Construct::Operation)
-                            .unwrap_or(Construct::Machine),
-                        &error.detail,
-                    )),
-                )
-            })?;
+    let reference_ends = terminal_semantics::reference_ends::candidates_sharing_in(
+        analyses, summaries,
+    )
+    .map_err(|error| {
+        fall_back_or_defect(
+            Roster::of(elaboration).locate(refusal(
+                RefusalReason::Unsupported,
+                error.machine,
+                error
+                    .operation
+                    .map(Construct::Operation)
+                    .unwrap_or(Construct::Machine),
+                &error.detail,
+            )),
+        )
+    })?;
     // Plans are computed on the workers, then read in machine order: the
     // first deciding refusal and the noted machines are those one pass meets.
-    let plans = plan_affine_machines(&elaboration.module, summaries, &reference_ends);
+    let plans = plan_affine_machines(analyses, summaries, &reference_ends);
     for (machine, planned) in plans {
         let plan = match planned {
             Some(Ok((plan, received))) => {
@@ -1176,13 +1208,14 @@ impl AffineRefusal {
     }
 }
 
-/// The affine plan of every machine of `module`, in machine order. Each plan
-/// reads only the shared module and that machine's reference-end candidates,
-/// so the machines are planned on the invocation's workers. A machine after
-/// one whose refusal decides the verdict may be skipped (`None`); reading in
-/// machine order returns at that refusal before it reaches a skipped machine.
+/// The affine plan of every machine of the bundle's module, in machine
+/// order. Each plan reads only the shared analyses and that machine's
+/// reference-end candidates, so the machines are planned on the invocation's
+/// workers. A machine after one whose refusal decides the verdict may be
+/// skipped (`None`); reading in machine order returns at that refusal before
+/// it reaches a skipped machine.
 fn plan_affine_machines(
-    module: &terminal_psi::TerminalModule,
+    analyses: &terminal_semantics::ModuleAnalyses<'_>,
     summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
     reference_ends: &arena::IdTable<MachineId, terminal_semantics::reference_ends::Candidates>,
 ) -> Vec<(
@@ -1198,8 +1231,8 @@ fn plan_affine_machines(
     >,
 )> {
     let plan =
-        |machine: MachineId| affine_plan(module, summaries, machine, reference_ends.get(machine));
-    let machines = &module.machines;
+        |machine: MachineId| affine_plan(analyses, summaries, machine, reference_ends.get(machine));
+    let machines = &analyses.module().machines;
     if worker_budget::current_workers() == 1 || machines.len() < 2 {
         let mut plans = Vec::with_capacity(machines.len());
         for machine in machines {
@@ -1236,9 +1269,9 @@ fn plan_affine_machines(
 /// explicit last-use disposition, and its owned values are used affinely.
 /// Beside it, what the claim receiver (`minted::follow_the_lowered_form`)
 /// reads from `MachineAffine::verify_claims` on this same module. All the
-/// walks read one descriptor graph built from `machine`.
+/// walks read `machine`'s borrowed-storage closure from the shared analyses.
 fn affine_plan(
-    module: &terminal_psi::TerminalModule,
+    analyses: &terminal_semantics::ModuleAnalyses<'_>,
     summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
     machine: MachineId,
     candidates: Option<&terminal_semantics::reference_ends::Candidates>,
@@ -1257,9 +1290,12 @@ fn affine_plan(
             "reference disposition lost its machine",
         )))
     })?;
-    let walks =
-        terminal_semantics::plain_affine::MachineAffine::new(module, machine, Some(summaries))
-            .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
+    let walks = terminal_semantics::plain_affine::MachineAffine::from_analyses(
+        analyses,
+        machine,
+        Some(summaries),
+    )
+    .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
     let ends = walks
         .plan_reference_ends(candidates)
         .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
@@ -1606,20 +1642,31 @@ fn conclude(
         }
     }
     let mut array_extent_conditions = Vec::new();
+    // The publications above edited the module, so the machine checks'
+    // analyses no longer describe it. One bundle over the edited module
+    // serves every machine here. Without one (a machine declared twice),
+    // each machine asks alone, as before.
+    let analyses = terminal_semantics::ModuleAnalyses::new(&elaboration.module).ok();
     for machine in &elaboration.module.machines {
-        let machine_conditions =
-            match terminal_semantics::array_extent_literal_conditions(&elaboration.module, machine)
-            {
-                Ok(conditions) => conditions,
-                Err(detail) => {
-                    return fall_back_or_defect(refusal(
-                        RefusalReason::ForeignIdentity,
-                        machine.id,
-                        Construct::Machine,
-                        detail,
-                    ));
-                }
-            };
+        let conditions = match &analyses {
+            Some(analyses) => {
+                terminal_semantics::array_extent_literal_conditions_in(analyses, machine)
+            }
+            None => {
+                terminal_semantics::array_extent_literal_conditions(&elaboration.module, machine)
+            }
+        };
+        let machine_conditions = match conditions {
+            Ok(conditions) => conditions,
+            Err(detail) => {
+                return fall_back_or_defect(refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine.id,
+                    Construct::Machine,
+                    detail,
+                ));
+            }
+        };
         for condition in machine_conditions {
             let terminal_psi::ScalarConditionSubject::Declaration(owner) = condition.subject else {
                 return fall_back_or_defect(refusal(
@@ -1632,6 +1679,7 @@ fn conclude(
             array_extent_conditions.push((owner, condition));
         }
     }
+    drop(analyses);
     let applications = &mut elaboration.module.scalars.scalar_applications;
     for (owner, condition) in array_extent_conditions {
         if !applications.conditions.predicates().contains(&condition) {

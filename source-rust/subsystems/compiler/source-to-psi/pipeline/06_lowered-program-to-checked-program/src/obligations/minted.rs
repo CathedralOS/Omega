@@ -829,7 +829,7 @@ pub(crate) fn follow_the_lowered_form(
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-    replays: Option<&crate::ModuleReplays<'_>>,
+    replays: Option<&crate::ModuleReplays<'_, '_>>,
 ) -> Checked<()> {
     values_are_declared(id, lowered, tables)?;
     let returned =
@@ -884,13 +884,25 @@ pub(crate) fn follow_the_lowered_form(
     let claims = match replays.and_then(|replays| replays.received_claims(module, id)) {
         Some(received) => received.as_ref().map_err(Clone::clone)?,
         None => {
-            own_claims = terminal_semantics::plain_affine::MachineAffine::new(
-                module,
-                id,
-                replays.map(|replays| replays.affine),
-            )
-            .and_then(|walks| walks.verify_claims())
-            .map_err(|error| affine_refusal(id, error))?;
+            // A machine check of this module walks the closure the module's
+            // analyses share; any other caller's walk builds its own.
+            let walks = match replays.and_then(|replays| {
+                replays
+                    .analyses(module)
+                    .map(|analyses| (analyses, replays.affine))
+            }) {
+                Some((analyses, affine)) => {
+                    terminal_semantics::plain_affine::MachineAffine::from_analyses(
+                        analyses,
+                        id,
+                        Some(affine),
+                    )
+                }
+                None => terminal_semantics::plain_affine::MachineAffine::new(module, id, None),
+            };
+            own_claims = walks
+                .and_then(|walks| walks.verify_claims())
+                .map_err(|error| affine_refusal(id, error))?;
             &own_claims
         }
     };

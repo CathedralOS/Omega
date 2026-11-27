@@ -265,16 +265,24 @@ fn competing_borrows(
 pub(crate) fn reference_graph(
     module: &terminal_psi::TerminalModule,
     machine: semantic_vocabulary::MachineId,
-) -> Checked<Vec<terminal_semantics::descriptor_results::DescriptorMachine>> {
-    reference_graph_with_generic_calls(module, machine, &[], &[])
+) -> Checked<terminal_semantics::DescriptorRows<'static>> {
+    reference_graph_with_generic_calls(module, None, machine, &[], &[])
 }
 
-pub(crate) fn reference_graph_with_generic_calls(
+/// The machine's borrowed-storage closure with the module's generic calls.
+///
+/// `analyses`, when given over `module`, share their rows when the generic
+/// calls ask for none of their own: with no nominal call types and no scoped
+/// requirement address, adapting a body with the generic calls reads the
+/// same inputs as adapting it with none, which is how the analyses adapt
+/// their rows. Otherwise the closure is adapted for these inputs alone.
+pub(crate) fn reference_graph_with_generic_calls<'r>(
     module: &terminal_psi::TerminalModule,
+    analyses: Option<&'r terminal_semantics::ModuleAnalyses<'_>>,
     machine: semantic_vocabulary::MachineId,
     nominal_calls: &[terminal_psi::generic_calls::NominalCallType],
     schemas: &[terminal_check_tables::contracts::StaticSchemaQuestion],
-) -> Checked<Vec<terminal_semantics::descriptor_results::DescriptorMachine>> {
+) -> Checked<terminal_semantics::DescriptorRows<'r>> {
     let lowered = module.machine(machine).ok_or_else(|| {
         crate::refusal(
             RefusalReason::ForeignIdentity,
@@ -314,15 +322,29 @@ pub(crate) fn reference_graph_with_generic_calls(
             })
         });
     if !demanded {
-        return Ok(Vec::new());
+        return Ok(terminal_semantics::DescriptorRows::Owned(Vec::new()));
+    }
+    let scoped =
+        terminal_check_tables::contracts::scoped_requirement_addresses(&module.machines, schemas);
+    if let Some(analyses) = analyses.filter(|analyses| std::ptr::eq(analyses.module(), module))
+        && nominal_calls.is_empty()
+        && scoped.values().all(|positions| positions.is_empty())
+    {
+        return analyses
+            .descriptor_closure(
+                terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                [machine],
+            )
+            .map_err(|error| graph_refusal(module, error));
     }
     terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_with_generic_calls(
         module,
         [machine],
         &[],
         nominal_calls,
-        &terminal_check_tables::contracts::scoped_requirement_addresses(&module.machines, schemas),
+        &scoped,
     )
+    .map(terminal_semantics::DescriptorRows::Owned)
     .map_err(|error| graph_refusal(module, error))
 }
 
@@ -2436,6 +2458,7 @@ impl<'a> Storage<'a> {
     fn borrow_header_ends(
         &self,
         flow: &mut BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+        analyses: &terminal_semantics::ModuleAnalyses<'_>,
         verified: Option<&[(EdgeId, PlaceId)]>,
     ) -> Vec<BorrowedHeaderEnd> {
         let mut selected = Vec::new();
@@ -2462,8 +2485,9 @@ impl<'a> Storage<'a> {
             None => {
                 // Direct discharge callers have no examined closure yet.
                 // A missing schedule can confer no implicit retirement.
-                let Ok(plan) =
-                    terminal_semantics::plain_affine::verify_in(self.module, self.machine)
+                let Ok(plan) = analyses
+                    .affine(self.machine)
+                    .and_then(|walks| walks.verify())
                 else {
                     return selected;
                 };
@@ -2512,10 +2536,11 @@ impl<'a> Storage<'a> {
     fn formed(
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
-        module: &terminal_psi::TerminalModule,
+        analyses: &terminal_semantics::ModuleAnalyses<'_>,
         tables: &MachineTables,
         borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     ) -> Checked<FormedLoans> {
+        let module = analyses.module();
         let mut claimed = vec![false; tables.obligations.len()];
         let mut formed = Vec::new();
         let returns_reference = self.lowered.result.structural().is_some_and(|result| {
@@ -2560,7 +2585,7 @@ impl<'a> Storage<'a> {
         };
         let header_ends = flow
             .as_mut()
-            .map(|flow| self.borrow_header_ends(flow, borrow_ends))
+            .map(|flow| self.borrow_header_ends(flow, analyses, borrow_ends))
             .unwrap_or_default();
         let flow_predecessors = flow
             .as_ref()
@@ -3066,19 +3091,22 @@ impl<'a> Storage<'a> {
     /// The verdict on every `Loan` row, and each conflict found. A loan
     /// that may be formed is `Ok`; one that may not is a `Conflict`
     /// refusal, listed once in the conflicts with what it conflicts with.
+    ///
+    /// `analyses` are those of this machine's module.
     pub(crate) fn loans(
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
-        module: &terminal_psi::TerminalModule,
+        analyses: &terminal_semantics::ModuleAnalyses<'_>,
         tables: &MachineTables,
         borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
+        let module = analyses.module();
         self.reference_results(references, module)?;
         let FormedLoans {
             loans: mut formed,
             header_ends,
             flow,
-        } = self.formed(references, module, tables, borrow_ends)?;
+        } = self.formed(references, analyses, tables, borrow_ends)?;
         let addresses =
             terminal_semantics::plain_affine::borrowed_address_liveness(self.lowered, self.types)
                 .map_err(|error| match error {
