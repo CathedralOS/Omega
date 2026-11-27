@@ -1,11 +1,13 @@
 //! Evaluate each checked scalar equation once. Named values in an equation
 //! refer to its immediate inputs only; reusing a result never copies its tree.
+mod helpers;
+
 use super::{Observation, Operand, Scalar, Subject};
 use crate::synchronization::progress::ScalarFact;
 use semantic_vocabulary::{ScalarTerm, ScalarType, ValueId};
 use terminal_psi::Operation;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Input {
     Supplied(Operand),
     Previous(usize),
@@ -14,8 +16,12 @@ pub(super) enum Input {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Step {
     Load(Subject, ScalarType),
+    UnresolvedCall {
+        reads_cell: bool,
+    },
     Apply {
         term: ScalarTerm,
+        can_trap: bool,
         inputs: Vec<(ValueId, Input)>,
         reads_cell: bool,
     },
@@ -37,7 +43,7 @@ impl Expressions {
     pub(super) fn reads_cell(&self, root: usize) -> bool {
         match &self.steps[root] {
             Step::Load(..) => true,
-            Step::Apply { reads_cell, .. } => *reads_cell,
+            Step::Apply { reads_cell, .. } | Step::UnresolvedCall { reads_cell } => *reads_cell,
         }
     }
 
@@ -66,16 +72,28 @@ impl Expressions {
         }
         self.steps.push(Step::Apply {
             term,
+            can_trap: matches!(
+                operation.kind,
+                terminal_psi::OperationKind::TrappingInteger { .. }
+            ),
             inputs,
             reads_cell,
         });
         Some(self.steps.len() - 1)
     }
 
+    fn unresolved_call(&mut self, arguments: Vec<Input>) -> Input {
+        let reads_cell = arguments
+            .into_iter()
+            .any(|input| matches!(input, Input::Previous(i) if self.reads_cell(i)));
+        self.steps.push(Step::UnresolvedCall { reads_cell });
+        Input::Previous(self.steps.len() - 1)
+    }
+
     pub(super) fn subjects(&mut self) -> impl Iterator<Item = &mut Subject> {
         self.steps.iter_mut().filter_map(|step| match step {
             Step::Load(subject, _) => Some(subject),
-            Step::Apply { .. } => None,
+            Step::Apply { .. } | Step::UnresolvedCall { .. } => None,
         })
     }
 
@@ -96,12 +114,18 @@ impl Expressions {
         &self,
         cell: impl Fn(&Subject, ScalarType) -> ResultWord,
         formal: impl Fn(Operand) -> Option<Scalar>,
-    ) -> Vec<ResultWord> {
+    ) -> Result<Vec<ResultWord>, Observation> {
         let mut results: Vec<ResultWord> = Vec::with_capacity(self.steps.len());
         for step in &self.steps {
             let answer = match step {
                 Step::Load(subject, ty) => cell(subject, *ty),
-                Step::Apply { term, inputs, .. } => {
+                Step::UnresolvedCall { .. } => return Err(Observation::Unproved),
+                Step::Apply {
+                    term,
+                    inputs,
+                    can_trap,
+                    ..
+                } => {
                     let mut bindings = Vec::with_capacity(inputs.len());
                     let mut unknown: Option<Observation> = None;
                     for (id, input) in inputs {
@@ -118,15 +142,19 @@ impl Expressions {
                             }
                         }
                     }
-                    match unknown {
+                    let answer = match unknown {
                         Some(cause) => Err(cause),
                         None => evaluate(term, &bindings).ok_or(Observation::Unproved),
+                    };
+                    if *can_trap && answer.is_err() {
+                        return Err(Observation::Unproved);
                     }
+                    answer
                 }
             };
             results.push(answer);
         }
-        results
+        Ok(results)
     }
 }
 

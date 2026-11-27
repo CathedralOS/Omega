@@ -147,7 +147,12 @@ impl Predicate {
         formal: impl Fn(Operand) -> Option<Scalar>,
     ) -> Observation {
         let mut answers = vec![Observation::Known(false); self.nodes.len() + 1];
-        let computed = self.expressions.evaluate(cell, formal);
+        // An opaque call or possible trap can prevent this iteration from
+        // reaching its retry. A later comparison cannot establish completion.
+        let computed = match self.expressions.evaluate(cell, formal) {
+            Ok(values) => values,
+            Err(unknown) => return unknown,
+        };
         let mut words = StableWords::default();
         for (index, node) in self.nodes.iter().enumerate() {
             if let Node::Computed(id) = node {
