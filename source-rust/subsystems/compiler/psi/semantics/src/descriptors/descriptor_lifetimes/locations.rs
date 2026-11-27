@@ -286,22 +286,38 @@ fn descriptor_location_with<'a, L: crate::StructuralDeclarations<'a>>(
     let mut tip = Some(root_type);
     let mut case_fields = None;
     for segment in path {
+        if let StructuralPathSegment::RepresentationView {
+            structural_type,
+            stored_scalar,
+        } = segment
+        {
+            if case_fields.is_some()
+                || tip.is_some_and(|root| {
+                    types.unique(root).is_none_or(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::Opaque
+                                | StructuralTypeShape::Reference { .. }
+                                | StructuralTypeShape::AtomicCell(_)
+                        )
+                    })
+                })
+            {
+                return None;
+            }
+            tip = Some(
+                types
+                    .representation_view(*structural_type, *stored_scalar)?
+                    .id,
+            );
+            result.path.push(DescriptorPathSegment::RepresentationView {
+                structural_type: *structural_type,
+                stored_scalar: *stored_scalar,
+            });
+            continue;
+        }
         let declaration = types.unique(tip?)?;
         let canonical = match segment {
-            StructuralPathSegment::RepresentationView {
-                structural_type,
-                stored_scalar,
-            } if case_fields.is_none() => {
-                tip = Some(
-                    types
-                        .representation_view(*structural_type, *stored_scalar)?
-                        .id,
-                );
-                DescriptorPathSegment::RepresentationView {
-                    structural_type: *structural_type,
-                    stored_scalar: *stored_scalar,
-                }
-            }
             StructuralPathSegment::Referent if case_fields.is_none() => {
                 let StructuralTypeShape::Reference { referent, .. } = declaration.shape
                 else {
@@ -451,6 +467,37 @@ pub fn view_element_descriptor_prefix(
     let mut case_fields = None;
     let mut element = None;
     for (position, segment) in path.iter().enumerate() {
+        if let DescriptorPathSegment::RepresentationView {
+            structural_type,
+            stored_scalar,
+        } = segment
+        {
+            if case_fields.is_some() {
+                return Err("a loan path has no exact typed projection");
+            }
+            if let Some(root) = tip {
+                let owner = declaration(types, root)
+                    .ok_or("a loan path has no exact structural declaration")?;
+                if matches!(
+                    owner.shape,
+                    StructuralTypeShape::Opaque
+                        | StructuralTypeShape::Reference { .. }
+                        | StructuralTypeShape::AtomicCell(_)
+                ) {
+                    return Err("a loan path has no exact typed projection");
+                }
+            }
+            tip = Some(
+                crate::representation_view_declaration(
+                    types.iter(),
+                    *structural_type,
+                    *stored_scalar,
+                )
+                .ok_or("a loan presentation has no exact declaration")?
+                .id,
+            );
+            continue;
+        }
         let owner = declaration(types, tip.ok_or("a loan path crosses a scalar leaf")?)
             .ok_or("a loan path has no exact structural declaration")?;
         if case_fields.is_none()
@@ -510,18 +557,6 @@ pub fn view_element_descriptor_prefix(
                     _ => return Err("a loan index has no array or view owner"),
                 }
             }
-            DescriptorPathSegment::RepresentationView {
-                structural_type,
-                stored_scalar,
-            } if case_fields.is_none() => Some(
-                crate::representation_view_declaration(
-                    types.iter(),
-                    *structural_type,
-                    *stored_scalar,
-                )
-                .ok_or("a loan presentation has no exact declaration")?
-                .id,
-            ),
             // Extent observations name the descriptor's storage, not
             // its separately borrowed bytes.
             DescriptorPathSegment::Extent => return Ok(element),
@@ -572,22 +607,38 @@ fn resolved_path_with<'a, L: crate::StructuralDeclarations<'a>>(
     let mut tip = Some(root_type);
     let mut case_fields = None;
     for segment in path {
+        if let DescriptorPathSegment::RepresentationView {
+            structural_type,
+            stored_scalar,
+        } = segment
+        {
+            if case_fields.is_some()
+                || tip.is_some_and(|root| {
+                    types.unique(root).is_none_or(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::Opaque
+                                | StructuralTypeShape::Reference { .. }
+                                | StructuralTypeShape::AtomicCell(_)
+                        )
+                    })
+                })
+            {
+                return None;
+            }
+            tip = Some(
+                types
+                    .representation_view(*structural_type, *stored_scalar)?
+                    .id,
+            );
+            result.push(StructuralPathSegment::RepresentationView {
+                structural_type: *structural_type,
+                stored_scalar: *stored_scalar,
+            });
+            continue;
+        }
         let declaration = types.unique(tip?)?;
         result.push(match segment {
-            DescriptorPathSegment::RepresentationView {
-                structural_type,
-                stored_scalar,
-            } if case_fields.is_none() => {
-                tip = Some(
-                    types
-                        .representation_view(*structural_type, *stored_scalar)?
-                        .id,
-                );
-                StructuralPathSegment::RepresentationView {
-                    structural_type: *structural_type,
-                    stored_scalar: *stored_scalar,
-                }
-            }
             DescriptorPathSegment::Referent if case_fields.is_none() => {
                 let StructuralTypeShape::Reference { referent, .. } = declaration.shape
                 else {
@@ -662,18 +713,34 @@ fn resolved_tip_with<'a, L: crate::StructuralDeclarations<'a>>(
     let mut tip = Some(root_type);
     let mut case_fields = None;
     for (index, segment) in path.iter().enumerate() {
+        if let DescriptorPathSegment::RepresentationView {
+            structural_type,
+            stored_scalar,
+        } = segment
+        {
+            if case_fields.is_some()
+                || tip.is_some_and(|root| {
+                    types.unique(root).is_none_or(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::Opaque
+                                | StructuralTypeShape::Reference { .. }
+                                | StructuralTypeShape::AtomicCell(_)
+                        )
+                    })
+                })
+            {
+                return None;
+            }
+            tip = Some(
+                types
+                    .representation_view(*structural_type, *stored_scalar)?
+                    .id,
+            );
+            continue;
+        }
         let declaration = types.unique(tip?)?;
         match segment {
-            DescriptorPathSegment::RepresentationView {
-                structural_type,
-                stored_scalar,
-            } if case_fields.is_none() => {
-                tip = Some(
-                    types
-                        .representation_view(*structural_type, *stored_scalar)?
-                        .id,
-                );
-            }
             DescriptorPathSegment::Referent if case_fields.is_none() => {
                 let StructuralTypeShape::Reference { referent, .. } = declaration.shape else {
                     return None;
