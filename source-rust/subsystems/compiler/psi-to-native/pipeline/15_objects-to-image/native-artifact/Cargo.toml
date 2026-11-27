@@ -36,7 +36,6 @@ target-x86_64 = { path = "../../../targets/target-x86_64" }
 image-macho = { path = "../image-macho" }
 image-emission = { path = "../image-emission" }
 installation-conditions = { path = "../../../verification/installation-admission/conditions" }
-operation-evidence = { path = "../../../representations/operation-evidence" }
 machine-code = { path = "../../../representations/machine-code" }
 object-file = { path = "../../14_placed-functions-to-objects" }
 optimization-core = { path = "../../../representations/optimization-records" }

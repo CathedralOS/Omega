@@ -8,7 +8,6 @@ version.workspace = true
 name = "image_emission"
 
 [dependencies]
-structural-storage-queries = { path = "../../../representations/structural-storage/queries" }
 native-execution-reach = { path = "../../../representations/target-bound-program/execution-reach" }
 psi-publication-records = { path = "../../../../psi/artifact/publication" }
 psi-entry-memory = { path = "../../../../psi/execution-inputs/entry-memory" }
@@ -16,26 +15,21 @@ sha2 = "0.10.9"
 physical-recipes = { path = "../../../representations/selected-instructions/physical-recipes" }
 physical-program = { path = "../../../representations/post-allocation-machine/body-facts" }
 installation-admission = { path = "../../../verification/installation-admission" }
-register-homes = { path = "../../../representations/register-homes" }
 wire = { path = "../../../../../../foundation/wire" }
 target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
 verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
-language-core = { path = "../../../../foundation/language-core" }
 provider-admission = { path = "../../../verification/provider-admission" }
 register-model = { path = "../../../targets/register-model" }
 post-allocation-machine = { path = "../../../representations/post-allocation-machine" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 arena = { path = "../../../../../../foundation/arena" }
-optimization-core = { path = "../../../representations/optimization-records" }
 program-entry-contracts = { path = "../../../representations/program-entry-contracts" }
 legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
 selected-instructions = { path = "../../../representations/selected-instructions" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 abstract-operations = { path = "../../../representations/abstract-operations" }
-optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
 optimization-unit-semantics = { path = "../../../representations/abstract-operations/optimization-unit-semantics" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
-layout-plans = { path = "../../../../psi/layouts/geometry" }
 image = { path = "../image" }
 image-elf = { path = "../image-elf" }
 image-macho = { path = "../image-macho" }
@@ -58,6 +52,3 @@ entry-planning = { path = "../../09_post-allocation-machine-to-framed-machine/en
 frame-planning = { package = "post-allocation-machine-to-framed-machine", path = "../../09_post-allocation-machine-to-framed-machine" }
 native-encoding = { path = "../../11_bound-framed-machine-to-selected-form-encoding" }
 isa-x86_64 = { path = "../../11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
-optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
-layout-plans = { path = "../../../../psi/layouts/geometry" }
-optimization-core = { path = "../../../representations/optimization-records" }

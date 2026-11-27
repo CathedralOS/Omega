@@ -34,10 +34,7 @@ target-validated import identity.
 `image-elf`, `image-pe`, `image-macho`, and `image-emission` consume
 `FinalImage`, `apply_relocations`, `place_executable_regions`, and
 `place_data_regions` to produce and verify executable and shared-component
-containers. Notice that `CompilerEntryRegionBindingEvidence` and
-`CompilerEntryFootprintBindingEvidence` are destructured through field access
-in `native-artifact` without naming their types directly, so both carriers
-remain load-bearing across crate boundaries.
+containers.
 */
 
 macro_rules! image_digest {
@@ -298,13 +295,7 @@ pub use final_image::{
     place_executable_extent, place_executable_regions, validate_placed_data_region_inventory,
     validate_placed_executable_region_inventory,
 };
-pub use output::{
-    CompilerEntryFootprintBindingDigest, CompilerEntryRegionBindingDigest,
-    CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
-    CompilerTextValidationEvidence, EmittedImageOutput, EncodedCompilerTextDigest,
-    ExecutableImageOutput, FinalCompilerTextDigest, ImageOutputKind,
-    emitted_direct_executable_output,
-};
+pub use output::{EmittedImageOutput, ExecutableImageOutput, emitted_direct_executable_output};
 pub use relocation_envelope::validate_final_text_relocation_envelope;
 pub use relocations::{apply_relocations, validate_relative_relocation_target};
 pub use slot_thunk::SlotThunkIsa;

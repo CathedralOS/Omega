@@ -8,9 +8,7 @@ version.workspace = true
 name = "image_elf"
 
 [dependencies]
-calling-conventions = { path = "../../../targets/calling-conventions" }
 machine-code = { path = "../../../representations/machine-code" }
-wire = { path = "../../../../../../foundation/wire" }
 arena = { path = "../../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 image = { path = "../image" }
