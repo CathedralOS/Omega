@@ -663,47 +663,17 @@ pub(crate) mod installed_table {
     ) -> Result<Vec<u8>, Err> {
         assemble_labeled_stream(&cpu_stream(r, g, false)?, emit).map_err(Err::Encoding)
     }
-    pub fn validate_x86_64_installed_cpu_state_check(
-        r: X86InstalledCpuStateRegisters,
-        g: X86InstalledCpuStateGeometry,
-        bytes: &[u8],
-    ) -> Result<(), Err> {
-        if bytes != encode_x86_64_installed_cpu_state_check(r, g)? {
-            return Err(Err::ReplayMismatch);
-        }
-        Ok(())
-    }
     pub fn encode_x86_64_installed_task_commit(
         r: X86InstalledTaskCommitRegisters,
         g: X86InstalledCpuStateGeometry,
     ) -> Result<Vec<u8>, Err> {
         assemble_labeled_stream(&commit_stream(r, g)?, emit).map_err(Err::Encoding)
     }
-    pub fn validate_x86_64_installed_task_commit(
-        r: X86InstalledTaskCommitRegisters,
-        g: X86InstalledCpuStateGeometry,
-        bytes: &[u8],
-    ) -> Result<(), Err> {
-        if bytes != encode_x86_64_installed_task_commit(r, g)? {
-            return Err(Err::ReplayMismatch);
-        }
-        Ok(())
-    }
     pub fn encode_x86_64_installed_table_publication(
         r: X86InstalledTablePublicationRegisters,
         table_bytes: u32,
     ) -> Result<Vec<u8>, Err> {
         assemble_labeled_stream(&pub_stream(r, table_bytes)?, emit).map_err(Err::Encoding)
-    }
-    pub fn validate_x86_64_installed_table_publication(
-        r: X86InstalledTablePublicationRegisters,
-        table_bytes: u32,
-        bytes: &[u8],
-    ) -> Result<(), Err> {
-        if bytes != encode_x86_64_installed_table_publication(r, table_bytes)? {
-            return Err(Err::ReplayMismatch);
-        }
-        Ok(())
     }
 }
 

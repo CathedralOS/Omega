@@ -220,6 +220,5 @@ pub use selected_form_encoding::register_access::installed_table::{
     X86InstalledCpuStateGeometry, X86InstalledCpuStateRegisters, X86InstalledTableEncodingError,
     X86InstalledTablePublicationRegisters, X86InstalledTaskCommitRegisters,
     encode_x86_64_installed_cpu_state_check, encode_x86_64_installed_table_publication,
-    encode_x86_64_installed_task_commit, validate_x86_64_installed_cpu_state_check,
-    validate_x86_64_installed_table_publication, validate_x86_64_installed_task_commit,
+    encode_x86_64_installed_task_commit,
 };
