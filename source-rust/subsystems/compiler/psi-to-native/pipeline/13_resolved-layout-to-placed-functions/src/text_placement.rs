@@ -1,19 +1,18 @@
 /*
-We place frame-applied function fragments into a single dense text section,
-resolve every ordinary internal machine call in section coordinates, and seal
-the v10 text-section manifest and custody receipt.
+We place frame-applied function fragments into a single dense text section and
+resolve every ordinary internal machine call in section coordinates.
 
 `stage_optimized_fixed_frame_text_section` validates per-architecture span
 alignment, concatenates framed function fragments in validated order without
-padding, patches internal machine call displacements (`resolve`), records
+padding, patches internal machine call displacements (`resolve`), and records
 section-relative foreign-call and image-address relocation fields
-(`resolve_foreign`, `place_image_address`), and seals
-`ValidatedFunctionFragmentTextSectionManifest` alongside
-`StagedFixedFrameTextSectionCustodyReceipt`.
-`validate_optimized_fixed_frame_text_section` replays frame-application custody,
-independently verifies every placed span, patched call field, and unchanged byte
-range (`validate_fragment_text_section`), and checks the manifest statistics and
-custody receipt.
+(`resolve_foreign`, `place_image_address`). The placed text carries the
+optimization selections the object records.
+`validate_optimized_fixed_frame_text_section` replays the retained frame
+application, independently verifies every placed span, patched call field, and
+unchanged byte range (`validate_fragment_text_section`), checks that every
+internal call was resolved, and compares the carried selections with the
+retained realization's.
 */
 
 use crate::code_layout::requested_native_code_layouts;
@@ -24,8 +23,7 @@ use crate::frame_application::{
 };
 use machine_code::code_layout::{NativeCodeLayout, NativeCodeLayoutError};
 use machine_code::{
-    FunctionFragment, FunctionFragmentControlProvenance, FunctionFragmentEmissionManifest,
-    FunctionFragmentEmissionPlan, FunctionFragmentFrameApplicationIdentity,
+    FunctionFragment, FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
     FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
     FunctionFragmentInternalMachineFixupState, FunctionFragmentNormalizedForeignCallFixup,
     FunctionFragmentNormalizedForeignCallFixupKind,
@@ -36,14 +34,7 @@ use machine_code::{
     PlacedNormalizedForeignCallResolution, RelocationFreeTextSectionPlacement,
     TextSectionPlacementPolicy, TextSectionRelocationRequirements,
 };
-pub use machine_code::{
-    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
-    FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
-};
-use optimization_core::{
-    FunctionFragmentEmissionIdentity, FunctionFragmentTextSectionManifestIdentity,
-    TerminalRelocationFreeTextSectionIdentity,
-};
+use optimization_core::OptimizationSelectionIdentity;
 use selected_instructions::{MachineAlternativeKey, SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{MachineId, OperationId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -54,18 +45,16 @@ pub(super) fn stage_optimized_fixed_frame_text_section<Contracts>(
     source: StagedFunctionFragmentFrameApplication,
     contracts: machine_code::layout::FramePlacementContracts<Contracts>,
 ) -> Result<FunctionPlacement<Contracts>, RelocationFreeTextSectionPlacementError> {
-    let (text_section, manifest) = compute_fixed_frame(&source)?;
+    let text_section = place_fixed_frame(source.fragments())?;
     let native_layouts =
         requested_native_code_layouts(&text_section, &source.application().functions);
-    let custody = fixed_frame_receipt(&source, &manifest, &text_section);
     let text = StagedOptimizedFixedFrameTextSection {
         contracts: contracts.publication,
         encoded: contracts.encoded,
         body: Arc::clone(&source.placed_body),
         text_section: Arc::new(text_section),
         native_layouts,
-        manifest,
-        custody,
+        selections: realization_selections(&source),
     };
     Ok(FunctionPlacement {
         text,
@@ -94,45 +83,38 @@ impl<Contracts> FunctionPlacement<Contracts> {
 pub fn validate_optimized_fixed_frame_text_section<Contracts>(
     staged: &StagedOptimizedFixedFrameTextSection<Contracts>,
     original: &StagedFunctionFragmentFrameApplication,
-) -> Result<StagedFixedFrameTextSectionCustodyReceipt, RelocationFreeTextSectionPlacementError> {
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
     if staged.body.as_ref() != original.placed_body.as_ref() {
         return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
     validate_function_fragment_frame_application(original)
         .map_err(RelocationFreeTextSectionPlacementError::FrameSource)?;
     check_placed_section(original.fragments(), &staged.text_section)?;
-    check_manifest_fields(
-        original.source().manifest().record(),
-        FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
-        original.receipt().identity(),
-        &staged.text_section,
-        original.fragments(),
-        staged.manifest.record(),
-    )?;
+    check_internal_calls_resolved(&staged.text_section, original.fragments())?;
+    if staged.selections != realization_selections(original) {
+        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
+    }
     if staged.native_layouts
         != requested_native_code_layouts(&staged.text_section, &original.application().functions)
     {
         return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
-    let expected_receipt = fixed_frame_receipt(original, &staged.manifest, &staged.text_section);
-    if staged.custody != expected_receipt {
-        return Err(RelocationFreeTextSectionPlacementError::ReceiptMismatch);
-    }
-    Ok(expected_receipt)
+    Ok(())
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedFunctionFragmentTextSectionManifest {
-    record: Arc<FunctionFragmentTextSectionManifest>, // Sealed v10 text-section manifest record.
+/// The object records the selections the realization was optimized under.
+fn realization_selections(
+    source: &StagedFunctionFragmentFrameApplication,
+) -> OptimizationSelectionIdentity {
+    source
+        .source()
+        .source()
+        .function_relative_manifest()
+        .record()
+        .selections
 }
 
-impl ValidatedFunctionFragmentTextSectionManifest {
-    pub fn record(&self) -> &FunctionFragmentTextSectionManifest {
-        &self.record
-    }
-}
-
-/// Placed text carries its code and identities. Only an audit can retain the working layout.
+/// Placed text carries its code and selections. Only an audit can retain the working layout.
 /// ```compile_fail,E0599
 /// fn recover_layout<C>(text: &function_layout::StagedOptimizedFixedFrameTextSection<C>) {
 ///     let _ = text.source();
@@ -146,8 +128,7 @@ pub struct StagedOptimizedFixedFrameTextSection<Contracts> {
     body: Arc<crate::PlacedBodyEvidence>,
     text_section: Arc<RelocationFreeTextSectionPlacement>, // Placed dense text section with resolved internal calls.
     native_layouts: Result<Arc<[NativeCodeLayout]>, NativeCodeLayoutError>,
-    manifest: ValidatedFunctionFragmentTextSectionManifest, // Sealed text-section manifest.
-    custody: StagedFixedFrameTextSectionCustodyReceipt, // Custody receipt binding frame application, section, and manifest.
+    selections: OptimizationSelectionIdentity, // Selections the placed code was optimized under.
 }
 
 impl<Contracts> StagedOptimizedFixedFrameTextSection<Contracts> {
@@ -186,17 +167,9 @@ impl<Contracts> StagedOptimizedFixedFrameTextSection<Contracts> {
         self.native_layouts.clone()
     }
 
-    pub const fn manifest(&self) -> &ValidatedFunctionFragmentTextSectionManifest {
-        &self.manifest
+    pub const fn selections(&self) -> OptimizationSelectionIdentity {
+        self.selections
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedFixedFrameTextSectionCustodyReceipt {
-    frame_application: FunctionFragmentFrameApplicationIdentity, // Upstream frame-application receipt identity.
-    fragments: FunctionFragmentEmissionIdentity, // Source framed fragment-plan identity.
-    text_section: TerminalRelocationFreeTextSectionIdentity, // Placed text-section identity.
-    manifest: FunctionFragmentTextSectionManifestIdentity, // Sealed text-section manifest identity.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -206,15 +179,12 @@ pub enum RelocationFreeTextSectionPlacementError {
     DuplicateFunction(MachineId),
     MissingSemanticEntry(MachineId),
     OffsetOverflow,
-    StatisticsOverflow,
     SourceShapeMismatch,
     MisalignedAarch64Span,
     UnresolvedInternalMachineFixups,
     MissingInternalMachineTarget(MachineId),
     InternalCallOutOfRange,
     ArtifactMismatch,
-    ManifestMismatch,
-    ReceiptMismatch,
 }
 
 diagnostics::failed_display!(
@@ -223,129 +193,6 @@ diagnostics::failed_display!(
 );
 
 impl std::error::Error for RelocationFreeTextSectionPlacementError {}
-
-fn compute_fixed_frame(
-    source: &StagedFunctionFragmentFrameApplication,
-) -> Result<
-    (
-        RelocationFreeTextSectionPlacement,
-        ValidatedFunctionFragmentTextSectionManifest,
-    ),
-    RelocationFreeTextSectionPlacementError,
-> {
-    let fragments = source.fragments();
-    let source_manifest = source.source().manifest().record();
-    let text_section = place_fixed_frame(source.fragments())?;
-    let manifest = seal_manifest(
-        source_manifest,
-        FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
-        source.receipt().identity(),
-        &text_section,
-        fragments,
-    )?;
-    Ok((text_section, manifest))
-}
-
-fn seal_manifest(
-    source_manifest: &FunctionFragmentEmissionManifest,
-    stage: FunctionFragmentTextSectionStage,
-    frame_application: FunctionFragmentFrameApplicationIdentity,
-    text_section: &RelocationFreeTextSectionPlacement,
-    fragments: &FunctionFragmentEmissionPlan,
-) -> Result<ValidatedFunctionFragmentTextSectionManifest, RelocationFreeTextSectionPlacementError> {
-    let statistics = text_section_statistics(text_section, fragments)?;
-    let unavailable = FunctionFragmentTextSectionUnavailableData::Unavailable;
-    let mut record = FunctionFragmentTextSectionManifest {
-        identity: FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(b"pending"),
-        stage,
-        frame_application,
-        source_fragment_manifest: source_manifest.identity,
-        source_realization: source_manifest.source_realization,
-        selections: source_manifest.selections,
-        psi: source_manifest.psi,
-        work_schedule: source_manifest.work_schedule,
-        selected: source_manifest.selected,
-        post_allocation_manifest: source_manifest.post_allocation_manifest,
-        post_allocation_machine: source_manifest.post_allocation_machine,
-        final_pre_layout: source_manifest.final_pre_layout,
-        final_resolved_layout: source_manifest.final_resolved_layout,
-        whole_function_exit_contract: source_manifest.whole_function_exit_contract,
-        fragments: fragments.identity,
-        target: source_manifest.target,
-        semantic_entry: text_section.semantic_entry,
-        semantic_entry_offset: text_section.semantic_entry_offset,
-        access_policy: text_section.policy,
-        text_section: text_section.identity,
-        relocation_requirements: text_section.relocation_requirements,
-        statistics,
-        symbols: unavailable,
-        object_container: unavailable,
-        external_entry_bridge: unavailable,
-        executable_image: unavailable,
-        installation: unavailable,
-        publication: unavailable,
-    };
-    record.identity = record.recomputed_identity();
-    Ok(ValidatedFunctionFragmentTextSectionManifest {
-        record: Arc::new(record),
-    })
-}
-
-fn fixed_frame_receipt(
-    source: &StagedFunctionFragmentFrameApplication,
-    manifest: &ValidatedFunctionFragmentTextSectionManifest,
-    section: &RelocationFreeTextSectionPlacement,
-) -> StagedFixedFrameTextSectionCustodyReceipt {
-    StagedFixedFrameTextSectionCustodyReceipt {
-        frame_application: source.receipt().identity(),
-        fragments: section.source_fragments,
-        text_section: section.identity,
-        manifest: manifest.record.identity,
-    }
-}
-
-fn check_manifest_fields(
-    source: &FunctionFragmentEmissionManifest,
-    stage: FunctionFragmentTextSectionStage,
-    frame_application: FunctionFragmentFrameApplicationIdentity,
-    section: &RelocationFreeTextSectionPlacement,
-    fragments: &FunctionFragmentEmissionPlan,
-    candidate: &FunctionFragmentTextSectionManifest,
-) -> Result<(), RelocationFreeTextSectionPlacementError> {
-    if candidate.identity != candidate.recomputed_identity()
-        || candidate.stage != stage
-        || candidate.frame_application != frame_application
-        || candidate.source_fragment_manifest != source.identity
-        || candidate.source_realization != source.source_realization
-        || candidate.selections != source.selections
-        || candidate.psi != source.psi
-        || candidate.work_schedule != source.work_schedule
-        || candidate.selected != source.selected
-        || candidate.post_allocation_manifest != source.post_allocation_manifest
-        || candidate.post_allocation_machine != source.post_allocation_machine
-        || candidate.final_pre_layout != source.final_pre_layout
-        || candidate.final_resolved_layout != source.final_resolved_layout
-        || candidate.whole_function_exit_contract != source.whole_function_exit_contract
-        || candidate.target != source.target
-        || candidate.semantic_entry != section.semantic_entry
-        || candidate.semantic_entry_offset != section.semantic_entry_offset
-        || candidate.relocation_requirements != section.relocation_requirements
-        || candidate.fragments != fragments.identity
-        || candidate.access_policy != section.policy
-        || candidate.text_section != section.identity
-        || candidate.statistics != text_section_statistics(section, fragments)?
-        || candidate.symbols != FunctionFragmentTextSectionUnavailableData::Unavailable
-        || candidate.object_container != FunctionFragmentTextSectionUnavailableData::Unavailable
-        || candidate.external_entry_bridge
-            != FunctionFragmentTextSectionUnavailableData::Unavailable
-        || candidate.executable_image != FunctionFragmentTextSectionUnavailableData::Unavailable
-        || candidate.installation != FunctionFragmentTextSectionUnavailableData::Unavailable
-        || candidate.publication != FunctionFragmentTextSectionUnavailableData::Unavailable
-    {
-        return Err(RelocationFreeTextSectionPlacementError::ManifestMismatch);
-    }
-    Ok(())
-}
 
 fn validate_invocation_site(
     site: semantic_vocabulary::InvocationSite,
@@ -370,56 +217,19 @@ fn usize_to_u64(value: usize) -> Result<u64, RelocationFreeTextSectionPlacementE
     u64::try_from(value).map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)
 }
 
-pub(crate) fn text_section_statistics(
+/// Every internal machine call in the fragments must be patched in the section.
+fn check_internal_calls_resolved(
     section: &RelocationFreeTextSectionPlacement,
     fragments: &FunctionFragmentEmissionPlan,
-) -> Result<FunctionFragmentTextSectionStatistics, RelocationFreeTextSectionPlacementError> {
-    let mut result = FunctionFragmentTextSectionStatistics {
-        functions: usize_to_u64(section.functions.len())?,
-        bytes: section.byte_count,
-        ..FunctionFragmentTextSectionStatistics::default()
-    };
-    for function in &section.functions {
-        result.blocks = result
-            .blocks
-            .checked_add(usize_to_u64(function.blocks.len())?)
-            .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
-        for block in &function.blocks {
-            result.instruction_spans = result
-                .instruction_spans
-                .checked_add(usize_to_u64(block.instructions.len())?)
-                .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
-            for row in &block.instructions {
-                result.zero_byte_instruction_spans = result
-                    .zero_byte_instruction_spans
-                    .checked_add(u64::from(row.byte_count == 0))
-                    .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
-            }
-        }
-    }
-    result.source_internal_machine_fixups = fragments
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
+    let source = fragments
         .instructions()
         .filter(|instruction| instruction.internal_machine_fixup.is_some())
-        .count()
-        .try_into()
-        .map_err(|_| RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
-    result.resolved_internal_machine_fixups =
-        usize_to_u64(section.resolved_internal_machine_calls.len())?;
-    result.relocation_requirements = usize_to_u64(
-        section
-            .unresolved_normalized_foreign_calls
-            .len()
-            .checked_add(section.unresolved_image_addresses.len())
-            .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?,
-    )?;
-    result.remaining_internal_machine_fixups = result
-        .source_internal_machine_fixups
-        .checked_sub(result.resolved_internal_machine_fixups)
-        .ok_or(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups)?;
-    if result.remaining_internal_machine_fixups != 0 {
+        .count();
+    if source != section.resolved_internal_machine_calls.len() {
         return Err(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups);
     }
-    Ok(result)
+    Ok(())
 }
 
 fn validate_alignment(
@@ -671,9 +481,7 @@ fn place_fixed_frame(
         return Err(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups);
     }
 
-    let mut section = RelocationFreeTextSectionPlacement {
-        identity: TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"pending"),
-        source_fragments: fragments.identity,
+    Ok(RelocationFreeTextSectionPlacement {
         psi: fragments.psi,
         work_schedule: fragments.work_schedule,
         selected: fragments.selected,
@@ -695,9 +503,7 @@ fn place_fixed_frame(
         },
         unresolved_normalized_foreign_calls: unresolved_foreign,
         unresolved_image_addresses: unresolved_addresses,
-    };
-    section.identity = section.recomputed_identity();
-    Ok(section)
+    })
 }
 
 fn check_address_fields(
@@ -1120,9 +926,7 @@ fn check_placed_section(
         Architecture::X86_64 => 1,
         Architecture::Aarch64 => 4,
     };
-    if section.identity != section.recomputed_identity()
-        || section.source_fragments != fragments.identity
-        || section.psi != fragments.psi
+    if section.psi != fragments.psi
         || section.work_schedule != fragments.work_schedule
         || section.selected != fragments.selected
         || section.target != fragments.target

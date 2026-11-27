@@ -69,7 +69,6 @@ pub use machine_code::{
     PlacedFunctionFragment, PlacedInstructionSpan, PlacedInternalMachineCallResolution,
     PlacedNormalizedForeignCallResolution, RelocationFreeTextSectionPlacement,
     TextSectionPlacementPolicy, TextSectionRelocationRequirements,
-    relocation_free_text_section_identity,
 };
 pub use names::{
     entry_symbol_name, normalized_foreign_import_symbol_name, normalized_import_symbol_name,

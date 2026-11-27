@@ -15,15 +15,14 @@ mod frames;
 pub use frames::{
     CalleeSaveFrameSlot, FrameProtocolByteSpan, FrameProtocolStepSpan, FrameUnwindPlan,
     FrameUnwindRestore, FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol,
-    FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationIdentity,
-    FunctionNonAuthoritativeCalleeSaveStorage, FunctionTargetFrameLayout,
-    FunctionTargetFrameProtocolEncoding, LocalStorageFrameSlot, NonAuthoritativeCalleeSaveSlot,
-    NonAuthoritativeCalleeSaveSlotId, NonAuthoritativeCalleeSaveStorageIdentity,
-    NonAuthoritativeCalleeSaveStoragePlan, NonAuthoritativeCalleeSaveStoragePolicy,
-    OutgoingAbiFrameArea, ReturnAddressFrameCustody, StackProbePlan, TargetFrameLayoutIdentity,
-    TargetFrameLayoutPlan, TargetFrameLayoutPolicy, TargetFrameProtocolEncodingIdentity,
-    TargetFrameProtocolEncodingPlan, TargetFrameProtocolEncodingPolicy,
-    function_fragment_frame_application_identity, target_frame_layout_identity,
+    FunctionFragmentFrameApplication, FunctionNonAuthoritativeCalleeSaveStorage,
+    FunctionTargetFrameLayout, FunctionTargetFrameProtocolEncoding, LocalStorageFrameSlot,
+    NonAuthoritativeCalleeSaveSlot, NonAuthoritativeCalleeSaveSlotId,
+    NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePlan,
+    NonAuthoritativeCalleeSaveStoragePolicy, OutgoingAbiFrameArea, ReturnAddressFrameCustody,
+    StackProbePlan, TargetFrameLayoutIdentity, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
+    TargetFrameProtocolEncodingIdentity, TargetFrameProtocolEncodingPlan,
+    TargetFrameProtocolEncodingPolicy, target_frame_layout_identity,
     target_frame_protocol_encoding_identity,
 };
 

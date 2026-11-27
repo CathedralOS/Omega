@@ -3,24 +3,21 @@ use machine_code::fragment_origins::{
 };
 /*
 We project a validated function-relative realization's resolved machine layout
-into unplaced function fragments and seal their v10 manifest custody.
+into unplaced function fragments.
 
 The resolved program supplies the frame, register environment and encoded instructions.
 Original allocation and layout inputs accompany it only for explicit verification.
 `stage_optimized_function_fragment_emission` projects each function's fragment
 bytes, block and instruction spans, semantic control provenance, and
-function-relative fixup coordinates (`emit_resolved_function_fragments`), and
-seals `ValidatedFunctionFragmentEmissionManifest` together with
-`StagedFunctionFragmentEmissionCustodyReceipt`.
-`validate_optimized_function_fragment_emission` independently replays source
-custody, checks fragment bytes, spans, control provenance, and fixup shifts
-without constructing a replacement fragment plan, and verifies the manifest
-statistics and custody receipt.
+function-relative fixup coordinates (`emit_resolved_function_fragments`).
+`validate_optimized_function_fragment_emission` independently replays the source
+realization and checks fragment bytes, spans, control provenance, and fixup
+shifts against the retained resolved layout without constructing a replacement
+fragment plan.
 */
 
 use crate::function_realization::{
-    FunctionRelativeOptimizationRealizationError, FunctionRelativeOptimizationRealizationManifest,
-    StagedFixedFrameFunctionRelativeRealization,
+    FunctionRelativeOptimizationRealizationError, StagedFixedFrameFunctionRelativeRealization,
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     validate_fixed_frame_function_relative_realization,
 };
@@ -28,24 +25,15 @@ use crate::function_realization::{
 use machine_code::FunctionFragmentSuccessorProvenance;
 use machine_code::{
     FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentBranchEvidence,
-    FunctionFragmentConditionalBranchEvidence, FunctionFragmentControlProvenance,
-    FunctionFragmentEmissionPlan, FunctionFragmentInstructionSpan,
-    FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
-    FunctionFragmentInternalMachineFixupState, FunctionFragmentNormalizedForeignCallFixup,
-    FunctionFragmentNormalizedForeignCallFixupKind,
+    FunctionFragmentConditionalBranchEvidence, FunctionFragmentEmissionPlan,
+    FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
+    FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
+    FunctionFragmentNormalizedForeignCallFixup, FunctionFragmentNormalizedForeignCallFixupKind,
     FunctionFragmentNormalizedForeignCallFixupState, ResolvedBranchEvidence, ResolvedMachineLayout,
     ResolvedMachineProgram, ResolvedSelectedBlockLayout, ResolvedSelectedFormRow,
     ResolvedSelectedFunctionLayout, SelectedFormInternalMachineFixupKind,
     SelectedFormInternalMachineFixupState, SelectedFormNormalizedForeignCallFixupKind,
     SelectedFormNormalizedForeignCallFixupState,
-};
-pub use machine_code::{
-    FunctionFragmentEmissionManifest, FunctionFragmentEmissionStage,
-    FunctionFragmentEmissionStatistics, FunctionFragmentEmissionUnavailableData,
-};
-use optimization_core::{
-    FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
-    FunctionRelativeOptimizationRealizationManifestIdentity,
 };
 #[cfg(test)]
 use selected_instructions::{
@@ -55,50 +43,27 @@ use selected_instructions::{
 use semantic_vocabulary::MachineId;
 use std::sync::Arc;
 
-type Emission = (
-    FunctionFragmentEmissionPlan,
-    ValidatedFunctionFragmentEmissionManifest,
-);
-
 pub fn stage_optimized_function_fragment_emission(
     source: StagedOptimizedFunctionFragmentEmissionSource,
 ) -> Result<StagedOptimizedFunctionFragmentEmission, FunctionFragmentEmissionError> {
-    let (fragments, manifest) = compute(&source)?;
-    let custody = receipt(&manifest, &fragments);
+    let fragments = compute(&source)?;
     Ok(StagedOptimizedFunctionFragmentEmission {
         frame_input: FragmentFrameInput::from_layout(source.program()),
         source,
         fragments: Arc::new(fragments),
-        manifest,
-        custody,
     })
 }
 
 pub(crate) fn validate_optimized_function_fragment_emission(
     staged: &StagedOptimizedFunctionFragmentEmission,
-) -> Result<StagedFunctionFragmentEmissionCustodyReceipt, FunctionFragmentEmissionError> {
+) -> Result<(), FunctionFragmentEmissionError> {
     validate_source(&staged.source)?;
     if staged.frame_input != FragmentFrameInput::from_layout(staged.source.program()) {
         return Err(FunctionFragmentEmissionError::ArtifactMismatch);
     }
+    check_roots(&staged.source, &staged.fragments)?;
     validate_resolved_function_fragments(staged.source.program(), &staged.fragments)?;
-    validate_manifest(staged)?;
-    let expected = receipt(&staged.manifest, &staged.fragments);
-    if staged.custody != expected {
-        return Err(FunctionFragmentEmissionError::ReceiptMismatch);
-    }
-    Ok(expected)
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedFunctionFragmentEmissionManifest {
-    record: Arc<FunctionFragmentEmissionManifest>, // Sealed v10 function-fragment manifest record.
-}
-
-impl ValidatedFunctionFragmentEmissionManifest {
-    pub fn record(&self) -> &FunctionFragmentEmissionManifest {
-        &self.record
-    }
+    Ok(())
 }
 
 /// The fields carried from resolved layout into frame application and object readback.
@@ -134,8 +99,6 @@ pub struct StagedOptimizedFunctionFragmentEmission {
     pub(super) frame_input: FragmentFrameInput,
     source: StagedOptimizedFunctionFragmentEmissionSource, // Retained current program and replay source inputs.
     fragments: Arc<FunctionFragmentEmissionPlan>, // Unplaced function fragments projected from layout.
-    manifest: ValidatedFunctionFragmentEmissionManifest, // Sealed fragment emission manifest.
-    custody: StagedFunctionFragmentEmissionCustodyReceipt, // Custody receipt binding realization, fragments, and manifest.
 }
 
 impl StagedOptimizedFunctionFragmentEmission {
@@ -146,17 +109,6 @@ impl StagedOptimizedFunctionFragmentEmission {
     pub fn fragments(&self) -> &FunctionFragmentEmissionPlan {
         &self.fragments
     }
-
-    pub const fn manifest(&self) -> &ValidatedFunctionFragmentEmissionManifest {
-        &self.manifest
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedFunctionFragmentEmissionCustodyReceipt {
-    source_realization: FunctionRelativeOptimizationRealizationManifestIdentity, // Upstream realization manifest identity.
-    fragments: FunctionFragmentEmissionIdentity, // Projected function-fragment plan identity.
-    manifest: FunctionFragmentEmissionManifestIdentity, // Sealed fragment-emission manifest identity.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -167,11 +119,8 @@ pub enum FunctionFragmentEmissionError {
     MissingBlock(selected_instructions::SelectedBlockId),
     MissingInstruction(selected_instructions::SelectedInstructionId),
     OffsetOverflow,
-    StatisticsOverflow,
     RootMismatch,
     ArtifactMismatch,
-    ManifestMismatch,
-    ReceiptMismatch,
 }
 
 diagnostics::failed_display!(
@@ -253,196 +202,31 @@ fn validate_source(
     Ok(())
 }
 
-fn receipt(
-    manifest: &ValidatedFunctionFragmentEmissionManifest,
-    fragments: &FunctionFragmentEmissionPlan,
-) -> StagedFunctionFragmentEmissionCustodyReceipt {
-    StagedFunctionFragmentEmissionCustodyReceipt {
-        source_realization: manifest.record.source_realization,
-        fragments: fragments.identity,
-        manifest: manifest.record.identity,
-    }
-}
-
 fn compute(
     source: &StagedOptimizedFunctionFragmentEmissionSource,
-) -> Result<Emission, FunctionFragmentEmissionError> {
+) -> Result<FunctionFragmentEmissionPlan, FunctionFragmentEmissionError> {
     let fragments = emit_resolved_function_fragments(source.program())?;
-    let source_manifest = source.function_relative_manifest().record();
-    if source.post_allocation_manifest().record().selected != fragments.selected
-        || source_manifest.selected != fragments.selected
-        || source_manifest.resolved_layout != source.program().layout.identity
-    {
-        return Err(FunctionFragmentEmissionError::RootMismatch);
-    }
-    seal_manifest(fragments, source_manifest)
+    check_roots(source, &fragments)?;
+    Ok(fragments)
 }
 
-fn seal_manifest(
-    fragments: FunctionFragmentEmissionPlan,
-    source: &FunctionRelativeOptimizationRealizationManifest,
-) -> Result<Emission, FunctionFragmentEmissionError> {
-    let statistics = function_fragment_emission_statistics(&fragments)?;
-    let stage = if statistics.unresolved_internal_machine_fixups == 0 {
-        FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1
-    } else {
-        FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1
-    };
-    Ok(seal_with_statistics(fragments, source, stage, statistics))
-}
-
-fn seal_with_statistics(
-    fragments: FunctionFragmentEmissionPlan,
-    source: &FunctionRelativeOptimizationRealizationManifest,
-    stage: FunctionFragmentEmissionStage,
-    statistics: FunctionFragmentEmissionStatistics,
-) -> Emission {
-    let unavailable = FunctionFragmentEmissionUnavailableData::Unavailable;
-    let mut record = FunctionFragmentEmissionManifest {
-        identity: FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"pending"),
-        stage,
-        source_realization: source.identity,
-        selections: source.selections,
-        psi: fragments.psi,
-        work_schedule: fragments.work_schedule,
-        selected: fragments.selected,
-        post_allocation_manifest: source.post_allocation_manifest,
-        post_allocation_machine: source.post_allocation_machine,
-        final_pre_layout: source.pre_layout,
-        final_resolved_layout: source.resolved_layout,
-        whole_function_exit_contract: source.whole_function_exit_contract,
-        fragments: fragments.identity,
-        target: fragments.target,
-        statistics,
-        section_placement: unavailable,
-        symbols: unavailable,
-        object_relocations: unavailable,
-        executable_image: unavailable,
-        installation: unavailable,
-        publication: unavailable,
-    };
-    record.identity = record.recomputed_identity();
-    (
-        fragments,
-        ValidatedFunctionFragmentEmissionManifest {
-            record: Arc::new(record),
-        },
-    )
-}
-
-fn validate_manifest(
-    staged: &StagedOptimizedFunctionFragmentEmission,
+/// The realization, its allocation facts and the fragments must all describe
+/// the same selected program and resolved layout.
+fn check_roots(
+    source: &StagedOptimizedFunctionFragmentEmissionSource,
+    fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<(), FunctionFragmentEmissionError> {
-    let current = &staged.source;
-    let source = current.function_relative_manifest().record();
-    let fragments = &staged.fragments;
-    let record = staged.manifest.record();
-    let counts = function_fragment_emission_statistics(fragments)?;
-    let stage = if counts.unresolved_internal_machine_fixups == 0 {
-        FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1
-    } else {
-        FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1
-    };
-    let unavailable = FunctionFragmentEmissionUnavailableData::Unavailable;
-    if source.selected != fragments.selected
-        || source.resolved_layout != current.program().layout.identity
-        || current.post_allocation_manifest().record().selected != fragments.selected
+    let realization = source.function_relative_manifest().record();
+    if source.post_allocation_manifest().record().selected != fragments.selected
+        || realization.selected != fragments.selected
+        || realization.resolved_layout != source.program().layout.identity
     {
         return Err(FunctionFragmentEmissionError::RootMismatch);
-    }
-    if record.identity != record.recomputed_identity()
-        || record.stage != stage
-        || record.source_realization != source.identity
-        || record.selections != source.selections
-        || record.psi != fragments.psi
-        || record.work_schedule != fragments.work_schedule
-        || record.selected != fragments.selected
-        || record.post_allocation_manifest != source.post_allocation_manifest
-        || record.post_allocation_machine != source.post_allocation_machine
-        || record.final_pre_layout != source.pre_layout
-        || record.final_resolved_layout != source.resolved_layout
-        || record.whole_function_exit_contract != source.whole_function_exit_contract
-        || record.fragments != fragments.identity
-        || record.target != fragments.target
-        || record.statistics != counts
-        || record.section_placement != unavailable
-        || record.symbols != unavailable
-        || record.object_relocations != unavailable
-        || record.executable_image != unavailable
-        || record.installation != unavailable
-        || record.publication != unavailable
-    {
-        return Err(FunctionFragmentEmissionError::ManifestMismatch);
     }
     Ok(())
 }
 
 pub(crate) use machine_code::fragment_origins::ResolvedFragmentEmissionError;
-
-pub(crate) fn function_fragment_emission_statistics(
-    fragments: &FunctionFragmentEmissionPlan,
-) -> Result<FunctionFragmentEmissionStatistics, FunctionFragmentEmissionError> {
-    let mut result = FunctionFragmentEmissionStatistics {
-        functions: u64::try_from(fragments.functions.len())
-            .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?,
-        ..FunctionFragmentEmissionStatistics::default()
-    };
-    for function in &fragments.functions {
-        result.bytes = result
-            .bytes
-            .checked_add(function.byte_count)
-            .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
-        result.blocks = result
-            .blocks
-            .checked_add(
-                u64::try_from(function.blocks.len())
-                    .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?,
-            )
-            .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
-        for block in &function.blocks {
-            result.instruction_spans = result
-                .instruction_spans
-                .checked_add(
-                    u64::try_from(block.instructions.len())
-                        .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?,
-                )
-                .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
-            for row in &block.instructions {
-                result.zero_byte_instruction_spans += u64::from(row.bytes.is_empty());
-                result.resolved_conditional_branches += u64::from(
-                    row.branch
-                        .as_deref()
-                        .and_then(FunctionFragmentBranchEvidence::as_conditional)
-                        .is_some(),
-                );
-                result.unresolved_internal_machine_fixups = result
-                    .unresolved_internal_machine_fixups
-                    .checked_add(u64::from(row.internal_machine_fixup.is_some()))
-                    .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
-                let mut work = row.provenance.work.len();
-                if let FunctionFragmentControlProvenance::ConditionalBranch {
-                    when_taken,
-                    when_fallthrough,
-                    ..
-                } = &row.control
-                {
-                    work = work
-                        .checked_add(when_taken.work.len())
-                        .and_then(|work| work.checked_add(when_fallthrough.work.len()))
-                        .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
-                }
-                result.logical_work_settlements = result
-                    .logical_work_settlements
-                    .checked_add(
-                        u64::try_from(work)
-                            .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?,
-                    )
-                    .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
-            }
-        }
-    }
-    Ok(result)
-}
 
 pub(crate) fn emit_resolved_function_fragments(
     program: &ResolvedMachineProgram,
@@ -453,7 +237,6 @@ pub(crate) fn emit_resolved_function_fragments(
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
     let mut fragments = FunctionFragmentEmissionPlan {
-        identity: FunctionFragmentEmissionIdentity::from_canonical_bytes(b"pending"),
         psi: selected.psi,
         work_schedule: selected.work_schedule,
         selected: layout.selected,
@@ -472,8 +255,6 @@ pub(crate) fn emit_resolved_function_fragments(
             .functions
             .push(emit_ordinary_function(function, resolved)?);
     }
-
-    fragments.identity = fragments.recomputed_identity();
     Ok(fragments)
 }
 
@@ -746,9 +527,7 @@ pub(crate) fn validate_resolved_function_fragments(
             && layout.target == selected.target
             && fragments.entry == selected.entry,
     )?;
-    check_ordinary_fragments(selected, layout, fragments)?;
-
-    require(fragments.identity == fragments.recomputed_identity())
+    check_ordinary_fragments(selected, layout, fragments)
 }
 
 fn require(condition: bool) -> Result<(), ResolvedFragmentEmissionError> {
@@ -1045,13 +824,15 @@ mod tests {
     }
 
     use super::{
-        FunctionFragmentControlProvenance, FunctionFragmentInternalMachineFixupState,
-        FunctionFragmentSuccessorProvenance, ResolvedFragmentEmissionError,
-        ResolvedSelectedBlockLayout, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
-        SelectedFormInternalMachineFixupState, SelectedFunction, SelectedInstruction,
-        SelectedInstructionKind, SelectedSuccessor, SelectedTerminator,
+        FunctionFragmentInternalMachineFixupState, FunctionFragmentSuccessorProvenance,
+        ResolvedFragmentEmissionError, ResolvedSelectedBlockLayout, ResolvedSelectedFormRow,
+        ResolvedSelectedFunctionLayout, SelectedFormInternalMachineFixupState, SelectedFunction,
+        SelectedInstruction, SelectedInstructionKind, SelectedSuccessor, SelectedTerminator,
     };
-    use machine_code::{SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind};
+    use machine_code::{
+        FunctionFragmentControlProvenance, SelectedFormInternalMachineFixup,
+        SelectedFormInternalMachineFixupKind,
+    };
     use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, SelectedBlock, SelectedBlockId,

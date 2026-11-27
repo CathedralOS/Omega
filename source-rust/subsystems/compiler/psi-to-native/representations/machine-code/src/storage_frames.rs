@@ -11,10 +11,7 @@ unwind rosters (`FrameUnwindPlan`) are independently replayed by the backend.
 */
 
 use calling_conventions::frame_unwind::{FrameProtocolEffect, FrameProtocolStep};
-use optimization_core::{
-    FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
-    OptimizationWorkBudget, OptimizationWorkUsage,
-};
+use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use post_allocation_machine::PostAllocationMachineIdentity;
 use register_homes::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedUnitRequirement,
@@ -34,9 +31,6 @@ use crate::identity_encoding::encode_nested_identity;
 register_homes::identity_newtype! { pub struct NonAuthoritativeCalleeSaveStorageIdentity([u8; 32]); }
 register_homes::identity_newtype! { pub struct TargetFrameLayoutIdentity([u8; 32]); }
 register_homes::identity_newtype! { pub struct TargetFrameProtocolEncodingIdentity([u8; 32]); }
-register_homes::identity_newtype! { pub struct FunctionFragmentFrameApplicationIdentity([u8; 32]); }
-
-const FRAME_APPLICATION_SCHEMA: &[u8] = b"omega.function-fragment-frame-application.v3";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NonAuthoritativeCalleeSaveStoragePolicy {
@@ -267,18 +261,9 @@ pub struct FunctionAppliedFrameProtocol {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFragmentFrameApplication {
-    pub identity: FunctionFragmentFrameApplicationIdentity,
-    pub source_fragment_manifest: FunctionFragmentEmissionManifestIdentity,
-    pub source_fragments: FunctionFragmentEmissionIdentity,
     pub frame_protocol: TargetFrameProtocolEncodingIdentity,
     pub functions: Vec<FunctionAppliedFrameProtocol>,
     pub fragments: FunctionFragmentEmissionPlan,
-}
-
-impl FunctionFragmentFrameApplication {
-    pub fn recomputed_identity(&self) -> FunctionFragmentFrameApplicationIdentity {
-        function_fragment_frame_application_identity(self)
-    }
 }
 
 pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutIdentity {
@@ -418,29 +403,4 @@ pub fn target_frame_protocol_encoding_identity(
         }
     }
     TargetFrameProtocolEncodingIdentity::from_bytes(hasher.finish())
-}
-
-pub fn function_fragment_frame_application_identity(
-    application: &FunctionFragmentFrameApplication,
-) -> FunctionFragmentFrameApplicationIdentity {
-    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(FRAME_APPLICATION_SCHEMA);
-    hasher.raw(&application.source_fragment_manifest.bytes());
-    hasher.raw(&application.source_fragments.bytes());
-    hasher.raw(&application.frame_protocol.bytes());
-    hasher.u64(application.functions.len() as u64);
-    for row in &application.functions {
-        hasher.raw(&row.machine.get().to_le_bytes());
-        hasher.raw(&row.prologue_function_offset.to_le_bytes());
-        hasher.raw(&row.prologue_byte_count.to_le_bytes());
-        hasher.u64(row.epilogues.len() as u64);
-        for epilogue in &row.epilogues {
-            hasher.raw(&epilogue.block.0.to_le_bytes());
-            hasher.raw(&epilogue.return_instruction.0.to_le_bytes());
-            hasher.raw(&epilogue.psi_return_edge.get().to_le_bytes());
-            hasher.raw(&epilogue.function_offset.to_le_bytes());
-            hasher.raw(&epilogue.byte_count.to_le_bytes());
-        }
-    }
-    hasher.raw(&application.fragments.identity.bytes());
-    FunctionFragmentFrameApplicationIdentity::from_bytes(hasher.finish())
 }
