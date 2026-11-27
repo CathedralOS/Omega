@@ -662,12 +662,12 @@ fn seal_storage(
 }
 
 pub fn prepare_frame_demands(
-    machine: &PostAllocationMachinePlan,
+    machine: &Arc<PostAllocationMachinePlan>,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<machine_code::frame_demands::MachineFrameDemands, TargetFrameLayoutError> {
     use machine_code::frame_demands::*;
     Ok(MachineFrameDemands {
-        identity: machine.identity,
+        plan: Arc::clone(machine),
         selected: machine.selected,
         homes: machine.homes,
         post_allocation_manifest: machine.post_allocation_manifest,
@@ -736,7 +736,7 @@ fn validate_frame_roots(
     environment: &ValidatedTargetRegisterEnvironment,
     candidate: &TargetFrameLayoutPlan,
 ) -> Result<(), TargetFrameLayoutError> {
-    if candidate.post_allocation_machine != machine.identity
+    if candidate.post_allocation_machine != machine.plan
         || candidate.callee_saved_requirements != requirements.identity()
         || candidate.callee_save_storage != storage.receipt().identity()
         || candidate.register_environment != environment.identity()

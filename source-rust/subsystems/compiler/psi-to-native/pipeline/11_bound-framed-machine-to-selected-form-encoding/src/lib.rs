@@ -15,9 +15,7 @@ use machine_code::{
     SelectedFormEncodedRowStore, SelectedFormEncoding, SelectedFormEncodingCounts,
     SelectedFormEncodingIdentity, SelectedFormEncodingRow, TargetFrameLayoutPlan,
 };
-use post_allocation_machine::{
-    PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
-};
+use post_allocation_machine::PostAllocationMachinePlan;
 use selected_instructions::{SelectedInstructionPlanIdentity, terminator_instruction};
 use std::sync::Arc;
 
@@ -151,14 +149,8 @@ impl<Contracts> StagedOptimizedSelectedFormEncoding<Contracts> {
         self.current.encoding.selected
     }
 
-    pub fn machine(&self) -> PostAllocationMachineIdentity {
-        self.current.encoding.machine
-    }
-
-    pub fn post_allocation_machine_optimization(
-        &self,
-    ) -> Option<PostAllocationMachineOptimizationCustody> {
-        self.current.encoding.post_allocation_machine_optimization
+    pub fn machine(&self) -> &Arc<PostAllocationMachinePlan> {
+        &self.current.encoding.machine
     }
 
     pub fn identity(&self) -> SelectedFormEncodingIdentity {
@@ -241,8 +233,7 @@ fn compute(
     let counts = counts_of(&rows)?;
     let mut program = SelectedFormEncoding {
         selected: machine.selected,
-        machine: machine.identity,
-        post_allocation_machine_optimization: None,
+        machine: Arc::clone(machine),
         identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
         rows,
         encoded: Arc::new(encoded),

@@ -1,6 +1,6 @@
 /*
 Whole-function exit contracts (`WholeFunctionExitContract`) and their canonical SHA-256 identity
-(`WholeFunctionExitContractIdentity`, schema `omega.terminal.whole-function-exit-contract.v15\0`).
+(`WholeFunctionExitContractIdentity`, schema `omega.terminal.whole-function-exit-contract.v16\0`).
 
 Every emitted machine function must account for how its frame, stack delta, callee-saved register
 units, returns (`WholeFunctionReturnEvidence`), process exits (`WholeFunctionProcessExitEvidence`),
@@ -8,8 +8,8 @@ and traps (`WholeFunctionCrashEvidence`) terminate execution under the target AB
 and frame disposition (`WholeFunctionFrameDisposition`). Recording this exit contract alongside its
 upstream layout custody (`WholeFunctionExitLayoutCustody`) lets fragment and text-section admission
 verify return/epilogue correspondence without re-running frame layout synthesis. The contract
-holds the resolved layout and frame plan it was built from; checks compare those plans, and the
-identity digest covers only the contract's own evidence and roots.
+holds the machine plan, resolved layout and frame plan it was built from; checks compare those
+plans, and the identity digest covers only the contract's own evidence and roots.
 */
 
 use optimization_core::Optimization;
@@ -166,7 +166,7 @@ pub struct WholeFunctionExitContract {
     pub identity: WholeFunctionExitContractIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
-    pub post_allocation_machine: post_allocation_machine::PostAllocationMachineIdentity,
+    pub post_allocation_machine: std::sync::Arc<post_allocation_machine::PostAllocationMachinePlan>,
     pub register_environment: register_model::TargetRegisterEnvironmentIdentity,
     pub physical_register_model: register_model::PhysicalRegisterModelIdentity,
     pub pre_layout: SelectedFormEncodingIdentity,
@@ -197,7 +197,7 @@ impl WholeFunctionExitContract {
     }
 }
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v15\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v16\0";
 
 pub fn whole_function_exit_contract_identity(
     contract: &WholeFunctionExitContract,
@@ -205,7 +205,6 @@ pub fn whole_function_exit_contract_identity(
     let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(CONTRACT_SCHEMA);
     hasher.raw(&contract.selected.bytes());
     hasher.raw(&contract.post_allocation_manifest.bytes());
-    hasher.raw(&contract.post_allocation_machine.bytes());
     hasher.raw(&contract.register_environment.bytes());
     hasher.raw(&contract.physical_register_model.bytes());
     hasher.raw(&contract.pre_layout.bytes());

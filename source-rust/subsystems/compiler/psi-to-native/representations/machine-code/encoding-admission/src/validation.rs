@@ -85,7 +85,7 @@ pub(super) fn validate(
     frame: Option<&TargetFrameLayoutPlan>,
     artifact: &SelectedFormEncoding,
 ) -> Result<(), Error> {
-    let machine = &*selected.machine;
+    let machine = &selected.machine;
     let physical = selected.physical();
     frame_address::validate_frame_root(machine, frame)?;
     if artifact.frame.as_deref() != frame {
@@ -97,10 +97,7 @@ pub(super) fn validate(
     if machine.physical_register_model != physical.identity() {
         return Err(Error::PhysicalModelMismatch);
     }
-    if artifact.machine != machine.identity {
-        return Err(Error::ArtifactMismatch);
-    }
-    if artifact.post_allocation_machine_optimization.is_some() {
+    if artifact.machine != *machine {
         return Err(Error::ArtifactMismatch);
     }
 
@@ -1050,7 +1047,6 @@ mod tests {
     use machine_code::{
         SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
     };
-    use post_allocation_machine::PostAllocationMachineIdentity;
     use selected_instructions::SelectedInstructionPlanIdentity;
 
     use super::{Error, validate_aggregate};
@@ -1059,8 +1055,7 @@ mod tests {
     fn raw_encoding_rejects_reauthenticated_counts_and_stale_identity() {
         let mut program = SelectedFormEncoding {
             selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
-            machine: PostAllocationMachineIdentity::from_bytes([2; 32]),
-            post_allocation_machine_optimization: None,
+            machine: post_allocation_machine::test_support::placeholder_plan(),
             identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
             rows: vec![],
             encoded: Default::default(),

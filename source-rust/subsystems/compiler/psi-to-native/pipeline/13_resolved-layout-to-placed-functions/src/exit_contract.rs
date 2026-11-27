@@ -23,7 +23,7 @@ use machine_code::FunctionFragmentControlProvenance as Control;
 #[cfg(test)]
 use machine_code::SelectedFormDecodedFootprint;
 use machine_code::exit_requirements::{
-    EncodedExitRequirements, ExitEncoding, ExitInstructionDisposition, ExitInstructionEncoding,
+    EncodedExitRequirements, ExitInstructionDisposition, ExitInstructionEncoding,
     ExitInstructionForm, ExitRowRequirements, ExitSourceRequirements, NonReturnRequirements,
     ProcessExitRequirements, TrapRequirements,
 };
@@ -116,7 +116,7 @@ pub(crate) fn validate_exit_record_for_current_layout(
     contract: &StagedWholeFunctionExitContract,
 ) -> Result<(), WholeFunctionExitContractError> {
     let custody = program.custody;
-    validate_layout_custody(&program.exit_requirements.encoding, program.layout, custody)?;
+    validate_layout_custody(custody)?;
     let inputs = ValidationInputs {
         selected: program.fragment_origins,
         machine: program.frame_demands,
@@ -146,11 +146,11 @@ fn compute_inner(
         MissingInstruction, NonReturnControlEffect, NonReturnStackEffect, OffsetOverflow,
         RootMismatch,
     };
-    validate_layout_custody(encoding, layout, layout_custody)?;
+    validate_layout_custody(layout_custody)?;
     if encoding.selected != machine.selected
         || layout.selected() != machine.selected
-        || encoding.machine != machine.identity
-        || layout.machine() != machine.identity
+        || encoding.machine != machine.plan
+        || *layout.machine() != machine.plan
         || layout.pre_layout() != encoding.identity
         || selected_plan.target != machine.target
         || layout.target() != machine.target
@@ -168,7 +168,7 @@ fn compute_inner(
     let (ordinary_policy, frame_disposition) = match frame_inputs {
         None => (frameless_policy, WholeFunctionFrameDisposition::FramelessV1),
         Some((frame, protocol)) => {
-            if frame.post_allocation_machine != machine.identity
+            if frame.post_allocation_machine != machine.plan
                 || frame.register_environment != machine.register_environment
                 || frame.physical_register_model != machine.physical_register_model
                 || frame.target != target
@@ -531,7 +531,7 @@ fn compute_inner(
         identity: WholeFunctionExitContractIdentity::from_bytes([0; 32]),
         selected: machine.selected,
         post_allocation_manifest: machine.post_allocation_manifest,
-        post_allocation_machine: machine.identity,
+        post_allocation_machine: Arc::clone(&machine.plan),
         register_environment: machine.register_environment,
         physical_register_model: machine.physical_register_model,
         pre_layout: encoding.identity,
@@ -576,8 +576,8 @@ fn check_validation_context(
     let encoding = &exits.encoding;
     if encoding.selected != machine.selected
         || layout.selected() != machine.selected
-        || encoding.machine != machine.identity
-        || layout.machine() != machine.identity
+        || encoding.machine != machine.plan
+        || *layout.machine() != machine.plan
         || layout.pre_layout() != encoding.identity
         || selected.target != machine.target
         || layout.target() != machine.target
@@ -612,7 +612,7 @@ fn check_validation_context(
         _ => return Err(WholeFunctionExitContractError::InvalidConvention),
     };
     let disposition = if let Some((frame, protocol)) = frame {
-        if frame.plan().post_allocation_machine != machine.identity
+        if frame.plan().post_allocation_machine != machine.plan
             || frame.plan().register_environment != machine.register_environment
             || frame.plan().physical_register_model != machine.physical_register_model
             || frame.plan().target != machine.target
@@ -646,7 +646,7 @@ fn check_validation_context(
     require_artifact(
         contract.selected == machine.selected
             && contract.post_allocation_manifest == machine.post_allocation_manifest
-            && contract.post_allocation_machine == machine.identity
+            && contract.post_allocation_machine == machine.plan
             && contract.register_environment == machine.register_environment
             && contract.physical_register_model == machine.physical_register_model
             && contract.pre_layout == encoding.identity
@@ -1060,17 +1060,13 @@ fn check_claimed_return(
 }
 
 fn validate_layout_custody(
-    encoding: &ExitEncoding,
-    layout: &ResolvedMachineLayout,
     custody: WholeFunctionExitLayoutCustody,
 ) -> Result<(), WholeFunctionExitContractError> {
     if !matches!(
         custody,
         WholeFunctionExitLayoutCustody::BaselineNearLayoutV1
             | WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { .. }
-    ) || encoding.has_machine_optimization
-        || layout.post_allocation_machine_optimization().is_some()
-    {
+    ) {
         return Err(WholeFunctionExitContractError::OptimizationCustodyMismatch);
     }
     Ok(())
@@ -1905,8 +1901,7 @@ mod tests {
             selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
             post_allocation_manifest:
                 optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes([2; 32]),
-            post_allocation_machine:
-                post_allocation_machine::PostAllocationMachineIdentity::from_bytes([3; 32]),
+            post_allocation_machine: post_allocation_machine::test_support::placeholder_plan(),
             register_environment: register_model::TargetRegisterEnvironmentIdentity::from_bytes(
                 [4; 32],
             ),

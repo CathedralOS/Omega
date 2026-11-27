@@ -21,9 +21,7 @@ or canonical SHA-256 identity hashing (`SelectedFormEncodingIdentity`).
 mod identity;
 
 use crate::SelectedFormInternalMachineFixup;
-use post_allocation_machine::{
-    PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
-};
+use post_allocation_machine::PostAllocationMachinePlan;
 use register_model::{RegisterUnitId, RegisterViewId};
 use selected_instructions::{MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionId};
 use std::collections::HashMap;
@@ -33,8 +31,7 @@ use std::sync::{Arc, Weak};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedFormEncoding {
     pub selected: selected_instructions::SelectedInstructionPlanIdentity,
-    pub machine: PostAllocationMachineIdentity,
-    pub post_allocation_machine_optimization: Option<PostAllocationMachineOptimizationCustody>,
+    pub machine: Arc<PostAllocationMachinePlan>,
     pub identity: SelectedFormEncodingIdentity,
     pub rows: Vec<SelectedFormEncodingRow>,
     pub encoded: Arc<SelectedFormEncodedRowStore>,
@@ -47,14 +44,8 @@ impl SelectedFormEncoding {
         self.selected
     }
 
-    pub const fn machine(&self) -> PostAllocationMachineIdentity {
-        self.machine
-    }
-
-    pub const fn post_allocation_machine_optimization(
-        &self,
-    ) -> Option<PostAllocationMachineOptimizationCustody> {
-        self.post_allocation_machine_optimization
+    pub fn machine(&self) -> &Arc<PostAllocationMachinePlan> {
+        &self.machine
     }
 
     pub const fn identity(&self) -> SelectedFormEncodingIdentity {
@@ -76,8 +67,6 @@ impl SelectedFormEncoding {
     pub fn recomputed_identity(&self) -> SelectedFormEncodingIdentity {
         identity::encoding_identity(
             self.selected,
-            self.machine,
-            self.post_allocation_machine_optimization,
             &self.rows,
             &self.encoded,
             self.frame.as_deref(),

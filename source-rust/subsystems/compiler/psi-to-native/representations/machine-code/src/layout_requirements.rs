@@ -10,7 +10,7 @@ use semantic_vocabulary::{BoundaryMachineId, EdgeId, MachineId};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedLayoutRequirements {
     pub selected: selected_instructions::SelectedInstructionPlanIdentity,
-    pub machine: post_allocation_machine::PostAllocationMachineIdentity,
+    pub machine: std::sync::Arc<post_allocation_machine::PostAllocationMachinePlan>,
     pub target: target::NativeTarget,
     pub functions: Vec<EncodedLayoutFunction>,
     pub alternatives: Vec<EncodedFunctionAlternatives>,

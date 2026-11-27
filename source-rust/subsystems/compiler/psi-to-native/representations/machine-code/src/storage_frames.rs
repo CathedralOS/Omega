@@ -12,7 +12,7 @@ unwind rosters (`FrameUnwindPlan`) are independently replayed by the backend.
 
 use calling_conventions::frame_unwind::{FrameProtocolEffect, FrameProtocolStep};
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use post_allocation_machine::PostAllocationMachineIdentity;
+use post_allocation_machine::PostAllocationMachinePlan;
 use register_homes::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedUnitRequirement,
 };
@@ -23,6 +23,7 @@ use register_model::{
 };
 use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{EdgeId, MachineId};
+use std::sync::Arc;
 use target::NativeTarget;
 
 use crate::FunctionFragmentEmissionPlan;
@@ -174,7 +175,7 @@ impl FunctionTargetFrameLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetFrameLayoutPlan {
-    pub post_allocation_machine: PostAllocationMachineIdentity,
+    pub post_allocation_machine: Arc<PostAllocationMachinePlan>,
     pub callee_saved_requirements: AllocatedCalleeSavedRequirementIdentity,
     pub callee_save_storage: NonAuthoritativeCalleeSaveStorageIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,

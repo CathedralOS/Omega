@@ -8,6 +8,9 @@ version.workspace = true
 name = "post_allocation_machine"
 path = "src/lib.rs"
 
+[features]
+test-support = []
+
 [dependencies]
 calling-conventions = { path = "../../targets/calling-conventions" }
 wire = { path = "../../../../../foundation/wire" }
@@ -20,7 +23,6 @@ register-environment = { path = "../../targets/register-environment" }
 selected-instructions = { path = "../selected-instructions" }
 target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-sha2 = "0.10.9"
 
 [dev-dependencies]
 target-x86_64 = { path = "../../targets/target-x86_64" }

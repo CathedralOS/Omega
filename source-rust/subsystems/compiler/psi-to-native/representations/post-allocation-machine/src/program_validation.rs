@@ -7,9 +7,7 @@ use selected_instructions::{
     CurrentSelectedProgram, selected_instruction_plan_identity, terminator_instruction,
 };
 
-use crate::{
-    PostAllocationMachinePlan, PostAllocationMachineProgram, post_allocation_machine_identity,
-};
+use crate::{PostAllocationMachinePlan, PostAllocationMachineProgram};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalProgramValidationError {
@@ -60,9 +58,7 @@ pub fn validate_current_program(
     {
         return Err(Error::SourceMismatch);
     }
-    if program.machine.as_ref() != machine
-        || machine.identity != post_allocation_machine_identity(machine)
-    {
+    if program.machine.as_ref() != machine {
         return Err(Error::MachineMismatch);
     }
     if &program.environment != environment
@@ -114,9 +110,6 @@ pub fn validate_current_program_integrity(
 ) -> Result<(), PhysicalProgramValidationError> {
     use PhysicalProgramValidationError as Error;
     let machine = &program.machine;
-    if machine.identity != post_allocation_machine_identity(machine) {
-        return Err(Error::MachineMismatch);
-    }
     if machine.register_environment != program.environment.identity()
         || machine.physical_register_model != program.physical().identity()
         || machine.target != program.environment.target()
@@ -185,7 +178,6 @@ pub fn validate_current_program_integrity(
                 .selections()
                 .for_phase(optimization_core::OptimizationExecutionPhase::PostAllocationMachine)
                 .identity()
-        || program.phase.result() != machine.identity
     {
         return Err(Error::PhaseMismatch);
     }
@@ -214,14 +206,14 @@ mod tests {
 
     use super::{
         CurrentSelectedProgram, PostAllocationMachinePlan, PostAllocationMachineProgram,
-        post_allocation_machine_identity, selected_instruction_plan_identity,
+        selected_instruction_plan_identity,
     };
     use super::{
         PhysicalProgramReplay, PhysicalProgramValidationError as Error, validate_current_program,
     };
     use crate::{
         MachineAlternativeChoiceRule, PostAllocationMachineBlock, PostAllocationMachineFunction,
-        PostAllocationMachineIdentity, PostAllocationMachineInstruction,
+        PostAllocationMachineInstruction,
     };
 
     fn fixture() -> (SelectedInstructionPlan, PostAllocationMachineProgram) {
@@ -299,7 +291,6 @@ mod tests {
             .into(),
         };
         let mut machine = PostAllocationMachinePlan {
-            identity: PostAllocationMachineIdentity::from_bytes([0; 32]),
             selected: selected_instruction_plan_identity(&selected),
             effects: PreAllocationMachineEffectIdentity::from_bytes([2; 32]),
             ranges: LiveRangeIdentity::from_bytes([3; 32]),
@@ -324,7 +315,6 @@ mod tests {
                 }],
             }],
         };
-        machine.identity = post_allocation_machine_identity(&machine);
         let budget =
             optimization_core::OptimizationWorkBudget::new(100, 100, 100, 100, 100).unwrap();
         let selections = optimization_core::OptimizationSelections::default();
@@ -358,7 +348,6 @@ mod tests {
         };
         publication_record.identity = publication_record.recomputed_identity();
         machine.post_allocation_manifest = publication_record.identity;
-        machine.identity = post_allocation_machine_identity(&machine);
         let publication = Arc::new(register_homes::AllocationPublicationFacts::retain(
             publication_record,
             selections.clone(),
@@ -369,7 +358,6 @@ mod tests {
             selections
                 .for_phase(optimization_core::OptimizationExecutionPhase::PostAllocationMachine)
                 .identity(),
-            machine.identity,
         );
         let convention = register_environment::selected_abi_preservation(&environment).unwrap();
         let preservation_plan = register_homes::AllocatedCalleeSavedRequirementPlan {
@@ -453,7 +441,6 @@ mod tests {
             selections
                 .for_phase(optimization_core::OptimizationExecutionPhase::PostAllocationMachine)
                 .identity(),
-            program.machine.identity,
         );
         program.identity = program.recomputed_identity();
         assert_eq!(super::validate_current_program_integrity(&program), Ok(()));
@@ -467,10 +454,13 @@ mod tests {
     fn rehashed_phase_roots_cannot_replace_the_original_completion() {
         let (selected, mut program) = fixture();
         let admitted = program.clone();
+        let other = optimization_core::OptimizationSelections::new([
+            optimization_core::Optimization::X86RelaxConditionalBranchesToRel8V1,
+        ])
+        .unwrap();
         program.phase = crate::PostAllocationMachinePhaseReceipt::from_parts(
             program.phase.complete_selection(),
-            program.phase.phase_selections(),
-            crate::PostAllocationMachineIdentity::from_bytes([44; 32]),
+            other.identity(),
         );
         program.identity = program.recomputed_identity();
         assert_eq!(
@@ -530,7 +520,6 @@ mod tests {
         let (selected, mut program) = fixture();
         let machine = Arc::make_mut(&mut program.machine);
         machine.functions[0].blocks[0].instructions[0].instruction = SelectedInstructionId(8);
-        machine.identity = post_allocation_machine_identity(machine);
         program.identity = program.recomputed_identity();
         // A canonical machine body still has to join its operation column.
         // The separate substitution control checks replacement of the owner.
@@ -550,7 +539,6 @@ mod tests {
             .alternative
             .key
             .variant += 1;
-        machine.identity = post_allocation_machine_identity(machine);
         program.identity = program.recomputed_identity();
         assert_eq!(
             validate_current_program(&program, replay(&selected, &admitted)),

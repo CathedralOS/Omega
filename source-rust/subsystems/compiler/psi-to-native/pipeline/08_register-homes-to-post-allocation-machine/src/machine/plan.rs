@@ -25,8 +25,8 @@ use std::sync::Arc;
 
 use post_allocation_machine::{
     MachineAlternativeChoiceRule, PhysicalAddressOperation as Address, PhysicalOperandFootprint,
-    PostAllocationMachineBlock, PostAllocationMachineFunction, PostAllocationMachineIdentity,
-    PostAllocationMachineInstruction, PostAllocationMachinePlan, post_allocation_machine_identity,
+    PostAllocationMachineBlock, PostAllocationMachineFunction, PostAllocationMachineInstruction,
+    PostAllocationMachinePlan,
 };
 use register_homes::{
     AllocatedProgramFacts, FunctionRegisterHomes, RegisterHomePlan, VirtualRegisterHome,
@@ -112,7 +112,6 @@ pub enum PostAllocationMachineError {
     AmbiguousApplicableAlternatives {
         instruction: u32,
     },
-    IdentityMismatch,
 }
 
 stage_error_display!(
@@ -139,8 +138,7 @@ pub(crate) fn compute_post_allocation_machine_plan(
         allocation.homes,
         sources.physical,
     )?;
-    let mut plan = PostAllocationMachinePlan {
-        identity: PostAllocationMachineIdentity::from_bytes([0; 32]),
+    Ok(PostAllocationMachinePlan {
         selected: allocation.selected.identity,
         effects: allocation.effects.identity,
         ranges: allocation.ranges_identity,
@@ -154,9 +152,7 @@ pub(crate) fn compute_post_allocation_machine_plan(
         machine_effect_catalog: allocation.effects.machine_effect_catalog,
         choice_rule: MachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1,
         functions,
-    };
-    plan.identity = post_allocation_machine_identity(&plan);
-    Ok(plan)
+    })
 }
 
 fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachineError> {

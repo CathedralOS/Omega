@@ -20,9 +20,7 @@ pub use relaxation_record::X86BranchRelaxationRecord;
 
 use std::sync::Arc;
 
-use post_allocation_machine::{
-    PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
-};
+use post_allocation_machine::PostAllocationMachinePlan;
 use selected_instructions::{
     MachineAlternativeKey, MachineEncodedEffects, SelectedBlockId, SelectedInstructionId,
     SelectedInstructionPlanIdentity,
@@ -58,10 +56,10 @@ pub use text_section::{
 };
 
 /// Retains the exact input joins for a layout without retaining its earlier rows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedLayoutRoots {
     pub selected: SelectedInstructionPlanIdentity,
-    pub machine: PostAllocationMachineIdentity,
+    pub machine: Arc<PostAllocationMachinePlan>,
     pub pre_layout: SelectedFormEncodingIdentity,
 }
 
@@ -174,9 +172,8 @@ pub struct ResolvedSelectedFunctionLayout {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedMachineLayout {
     pub selected: SelectedInstructionPlanIdentity,
-    pub machine: PostAllocationMachineIdentity,
+    pub machine: Arc<PostAllocationMachinePlan>,
     pub pre_layout: SelectedFormEncodingIdentity,
-    pub post_allocation_machine_optimization: Option<PostAllocationMachineOptimizationCustody>,
     pub target: NativeTarget,
     pub policy: SelectedFunctionLayoutPolicy,
     pub functions: Vec<ResolvedSelectedFunctionLayout>,
@@ -186,7 +183,7 @@ impl ResolvedMachineLayout {
     pub fn roots(&self) -> ResolvedLayoutRoots {
         ResolvedLayoutRoots {
             selected: self.selected,
-            machine: self.machine,
+            machine: Arc::clone(&self.machine),
             pre_layout: self.pre_layout,
         }
     }
@@ -195,18 +192,12 @@ impl ResolvedMachineLayout {
         self.selected
     }
 
-    pub fn machine(&self) -> PostAllocationMachineIdentity {
-        self.machine
+    pub fn machine(&self) -> &Arc<PostAllocationMachinePlan> {
+        &self.machine
     }
 
     pub fn pre_layout(&self) -> SelectedFormEncodingIdentity {
         self.pre_layout
-    }
-
-    pub fn post_allocation_machine_optimization(
-        &self,
-    ) -> Option<PostAllocationMachineOptimizationCustody> {
-        self.post_allocation_machine_optimization
     }
 
     pub fn target(&self) -> NativeTarget {
@@ -362,13 +353,12 @@ pub mod evidence {
             X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
         };
 
-        const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v11";
-        const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v4";
+        const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v12";
+        const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v5";
 
         #[derive(Clone, Copy)]
         pub struct RevisionRoots {
             pub selected: selected_instructions::SelectedInstructionPlanIdentity,
-            pub machine: post_allocation_machine::PostAllocationMachineIdentity,
             pub pre_layout: crate::SelectedFormEncodingIdentity,
             pub target: NativeTarget,
         }
@@ -438,7 +428,6 @@ pub mod evidence {
             roots: RevisionRoots,
         ) {
             hasher.raw(&roots.selected.bytes());
-            hasher.raw(&roots.machine.bytes());
             hasher.raw(&roots.pre_layout.bytes());
             hasher.raw(&roots.target.identity_bytes());
         }
@@ -760,10 +749,10 @@ impl<Contracts> EncodedBodyPublication<Contracts> {
         program: &EncodedMachineProgram,
         physical: Option<std::sync::Arc<post_allocation_machine::PostAllocationMachineProgram>>,
     ) -> Result<Self, &'static str> {
-        if physical
-            .as_ref()
-            .is_some_and(|original| original.identity != program.context.identity)
-        {
+        if physical.as_ref().is_some_and(|original| {
+            original.identity != program.context.identity
+                || original.machine != program.context.plan
+        }) {
             return Err("original physical instructions differ from the encoded program");
         }
         Ok(Self {

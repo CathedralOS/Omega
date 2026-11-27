@@ -110,10 +110,10 @@ artifact or a foreign-package boundary reads it.
 
 | Identity | Readers that matter | Decision |
 | --- | --- | --- |
-| `RelocationFreeObjectPlanIdentity`, the `OMGTRO` container and `OMGTOM` manifest (stage 14) | own receipts; container decoded only to re-check its own codec under a validator | delete; structural object checks stay |
+| `RelocationFreeObjectPlanIdentity`, the `OMGTRO` container and `OMGTOM` manifest (stage 14) | own receipts; container decoded only to re-check its own codec under a validator | deleted; structural object checks stay |
 | `ResolvedSelectedFormLayoutIdentity`, `TargetFrameLayoutIdentity` (machine-code, 09–13) | receipts; validator compares baseline layout | deleted; carriers share the frame and layout plans and checks compare those plans and the baseline roots |
 | Fragment, frame-application and text-section identities, their manifests and the realization manifest identity (machine-code, 13–14) | own receipts; object custody compared between publications | deleted; validators compare the retained text section and selections |
-| `PostAllocationMachineIdentity` (08, 11) | `FixedFrameCorrespondence` compares retained program | delete; validator compares structurally |
+| `PostAllocationMachineIdentity`, `PostAllocationMachineOptimizationCustody` (08–13) | receipts; `FixedFrameCorrespondence` compares retained program | deleted; encodings, layouts, frame plans and exit contracts share the plan and checks compare it; the physical-program digest no longer hashes it |
 | `FixedPrecolored*PlanIdentity`, register-homes receipts (06–07) | sibling receipts only | deleted |
 | `SelectedInstructionPlanIdentity`, `RetainedPlanPrefix`, effects identities (05–06) | receipts; validators compare retained program | delete; validators compare structurally |
 | `OptimizationUnitIdentity` (04) | the unoptimized program record and its pre-physical manifest, fact keys | keep as the one unit hash |

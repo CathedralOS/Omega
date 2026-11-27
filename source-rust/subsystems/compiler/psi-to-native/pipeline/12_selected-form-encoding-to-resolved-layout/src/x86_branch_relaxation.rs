@@ -100,7 +100,6 @@ fn malformed(instruction: SelectedInstructionId) -> OptimizedX86BranchRelaxation
 fn revision_roots(source: &ResolvedMachineLayout) -> RevisionRoots {
     RevisionRoots {
         selected: source.selected(),
-        machine: source.machine(),
         pre_layout: source.pre_layout(),
         target: source.target(),
     }
@@ -130,7 +129,7 @@ fn finish_artifact(
     Ok(StagedOptimizedX86BranchRelaxation {
         record: X86BranchRelaxationRecord {
             selected: source.selected(),
-            machine: source.machine(),
+            machine: Arc::clone(source.machine()),
             pre_layout: source.pre_layout(),
             target: source.target(),
             policy,
@@ -1244,9 +1243,6 @@ mod tests {
                 selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
                     [2; 32],
                 ),
-                machine: post_allocation_machine::PostAllocationMachineIdentity::from_bytes(
-                    [3; 32],
-                ),
                 pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
                 target: NativeTarget::linux_x64(),
             };
@@ -1485,7 +1481,6 @@ mod tests {
     fn sweep_roots() -> RevisionRoots {
         RevisionRoots {
             selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([12; 32]),
-            machine: post_allocation_machine::PostAllocationMachineIdentity::from_bytes([13; 32]),
             pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([14; 32]),
             target: NativeTarget::linux_x64(),
         }
@@ -1529,9 +1524,8 @@ mod tests {
         let roots = sweep_roots();
         let baseline = machine_code::ResolvedMachineLayout {
             selected: roots.selected,
-            machine: roots.machine,
+            machine: post_allocation_machine::test_support::placeholder_plan(),
             pre_layout: roots.pre_layout,
-            post_allocation_machine_optimization: None,
             target: roots.target,
             policy: machine_code::SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
             functions: vec![function(1)],
@@ -1594,6 +1588,19 @@ mod tests {
         let mut changed = record.clone();
         changed.selected =
             selected_instructions::SelectedInstructionPlanIdentity::from_bytes([99; 32]);
+        assert_eq!(
+            verify(&changed),
+            Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
+        );
+        // A record naming another machine plan does not belong to this baseline.
+        let mut changed = record.clone();
+        std::sync::Arc::make_mut(&mut changed.machine).functions =
+            vec![post_allocation_machine::PostAllocationMachineFunction {
+                machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                local_storage_slots: Vec::new(),
+                outgoing_arguments: Vec::new(),
+                blocks: Vec::new(),
+            }];
         assert_eq!(
             verify(&changed),
             Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
