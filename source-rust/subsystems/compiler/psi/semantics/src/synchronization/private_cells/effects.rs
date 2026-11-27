@@ -5,9 +5,8 @@
 mod calls;
 mod guards;
 mod receive;
-mod selector;
 mod sequence;
-use selector::Selector;
+use super::condition::Selector;
 
 use super::activation::Bindings;
 use super::storage::{Storage, Stored};

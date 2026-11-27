@@ -146,7 +146,20 @@ pub(super) fn entry_scalars(
     for formal in &machine.parameters {
         values.insert(formal.id, ScalarFact::EntryInput(*formal));
     }
-    let mut pending: Vec<_> = machine.requires.iter().collect();
+    scalar_equalities(&machine.requires, |input, literal| {
+        if matches!(values.get(&input), Some(ScalarFact::EntryInput(formal)) if formal.scalar_type == literal.ty())
+        {
+            values.insert(input, literal);
+        }
+    });
+    values
+}
+
+fn scalar_equalities(
+    requires: &[Proposition],
+    mut visit: impl FnMut(semantic_vocabulary::ValueId, ScalarFact),
+) {
+    let mut pending: Vec<_> = requires.iter().collect();
     while let Some(clause) = pending.pop() {
         match clause {
             Proposition::Conjunction(clauses) => pending.extend(clauses),
@@ -155,23 +168,36 @@ pub(super) fn entry_scalars(
                     let ScalarTerm::Value { id, scalar_type } = subject else {
                         continue;
                     };
-                    if !matches!(values.get(id), Some(ScalarFact::EntryInput(input)) if *scalar_type == input.scalar_type)
-                    {
-                        continue;
-                    }
                     if let Some((ty, value)) =
                         crate::inhabitation::known_scalar_value_with(expression, |_| None)
                         && ty == *scalar_type
-                        && let Some(fact) = ScalarFact::from_integer(ty, value)
+                        && let Some(literal) = ScalarFact::from_integer(ty, value)
                     {
-                        values.insert(*id, fact);
+                        visit(*id, literal);
                     }
                 }
             }
             _ => {}
         }
     }
-    values
+}
+
+impl ScalarFact {
+    pub(super) fn under(self, requires: &[Proposition]) -> Self {
+        let Self::EntryInput(formal) = self else {
+            return self;
+        };
+        if requires.is_empty() {
+            return self;
+        }
+        let mut value = self;
+        scalar_equalities(requires, |subject, literal| {
+            if subject == formal.id && literal.ty() == formal.scalar_type {
+                value = literal;
+            }
+        });
+        value
+    }
 }
 
 impl Operand {
@@ -229,12 +255,17 @@ impl SpinCondition {
     }
 
     pub(super) fn failure(
-        self,
+        mut self,
         initial: Option<ScalarFact>,
         pivot_input: Option<ValueDeclaration>,
         update: Option<CellUpdate<ScalarFact>>,
         requires: &[Proposition],
     ) -> Option<ProgressFailure> {
+        let pivot = pivot_input.map(|input| ScalarFact::EntryInput(input).under(requires));
+        if let Some(ScalarFact::Literal(literal)) = pivot {
+            self.comparison.pivot = Operand::Literal(literal);
+        }
+        let initial = initial.map(|value| value.under(requires));
         // An entry argument is equal to itself even when its bits are unknown.
         let blocks = |value| match value {
             ScalarFact::Literal(value) => self.matches(value),

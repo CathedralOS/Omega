@@ -66,9 +66,9 @@ pub(super) fn apply(
             let orbit = cell.update.try_map(|operand| resolve(operand)?.literal());
             let stored = memory.get(&location);
             let shared = location.includes_shared();
-            let trip = |prior: Option<ScalarFact>| {
+            let trip = |prior: Option<ScalarFact>, requires: &[Proposition]| {
                 if condition
-                    .failure(prior, input, Some(CellUpdate::Observe), requirements)
+                    .failure(prior, input, Some(CellUpdate::Observe), requires)
                     .is_none()
                 {
                     let updated = orbit.and_then(|update| update.next(prior?.literal()?));
@@ -79,18 +79,18 @@ pub(super) fn apply(
                 }
                 orbit?.trip(condition, prior.and_then(ScalarFact::literal))
             };
-            let assess = |prior| match trip(prior) {
+            let assess = |prior, requires: &[Proposition]| match trip(prior, requires) {
                 Some(Trip::Stuck) => Some(ProgressFailure::Deadlock),
                 Some(Trip::Returns(_)) => None,
                 None => Some(ProgressFailure::Unproved),
             };
-            let observation = classify_entries(memory, &location, ty, assess);
+            let observation = classify_entries(memory, &location, ty, requirements, assess);
             require_progress(observation, scope)?;
-            let updated = match trip(None) {
+            let updated = match trip(None, requirements) {
                 Some(Trip::Returns(Some(word))) if !stored.includes_pending_provider() => {
                     Stored::Scalar(ScalarFact::Literal(word))
                 }
-                _ => stored.map_scalars(ty, |old| match trip(Some(old))? {
+                _ => stored.map_scalars(ty, |old| match trip(Some(old), requirements)? {
                     Trip::Returns(Some(value)) => Some(ScalarFact::Literal(value)),
                     _ => None,
                 }),
@@ -164,7 +164,8 @@ pub(super) fn classify(
         memory,
         location,
         condition.comparison.pivot.scalar_type(),
-        |initial| condition.failure(initial, pivot_input, update, requirements),
+        requirements,
+        |initial, facts| condition.failure(initial, pivot_input, update, facts),
     )
 }
 
@@ -172,9 +173,11 @@ fn classify_entries(
     memory: &Storage,
     location: &super::storage::Location,
     ty: semantic_vocabulary::ScalarType,
-    failure: impl Fn(Option<ScalarFact>) -> Option<ProgressFailure>,
+    requirements: &[Proposition],
+    failure: impl Fn(Option<ScalarFact>, &[Proposition]) -> Option<ProgressFailure>,
 ) -> Observation {
-    let assess = |stored: &Stored| observation(stored, ty, &failure);
+    let common = memory.requirements(requirements);
+    let assess = |stored: &Stored| observation(stored, ty, &common, &failure);
     let result = assess(&memory.get(location));
     if result != Observation::Known(false)
         && memory.only_caller_can_block(location, |stored| {
@@ -190,16 +193,23 @@ fn classify_entries(
 fn observation(
     stored: &Stored,
     ty: semantic_vocabulary::ScalarType,
-    failure: impl Fn(Option<ScalarFact>) -> Option<ProgressFailure>,
+    common: &[Proposition],
+    failure: impl Fn(Option<ScalarFact>, &[Proposition]) -> Option<ProgressFailure>,
 ) -> Observation {
     let mut all_block = true;
     let mut can_block = false;
-    let visited = stored.visit_scalars(ty, |value| {
-        let cause = failure(Some(value));
+    let visited = stored.visit_witnesses(ty, |value, when| {
+        let mut facts = std::borrow::Cow::Borrowed(common);
+        if !when.is_empty() {
+            facts
+                .to_mut()
+                .extend(when.iter().filter_map(|condition| condition.proposition()));
+        }
+        let cause = failure(Some(value), &facts);
         all_block &= cause == Some(ProgressFailure::Deadlock);
         can_block |= cause.is_some();
     });
-    let unresolved = failure(None);
+    let unresolved = failure(None, common);
     let unresolved_can_block = unresolved.is_some();
     if stored.includes_pending_provider() && unresolved_can_block {
         return if can_block {

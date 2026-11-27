@@ -17,10 +17,11 @@ impl NormalEffects {
         requirements: &[Proposition],
         scope: ProgressScope,
     ) -> Option<Result<(), ProgressFailure>> {
+        let entry = memory.requirements(requirements);
         let possible = |path: &ReturnPath| {
             let mut inputs = Vec::new();
             for condition in &path.when {
-                if let Some(answer) = condition.selector.answer(&scalar, requirements) {
+                if let Some(answer) = condition.selector.answer(&scalar, &entry) {
                     if answer != condition.answer {
                         return false;
                     }
@@ -89,6 +90,11 @@ impl ReturnPath {
         requirements: &[Proposition],
         scope: ProgressScope,
     ) -> Option<Result<(), ProgressFailure>> {
+        for decision in &self.when {
+            if let Some(condition) = decision.selector.actual_inputs(scalar) {
+                memory.assume(condition.selected(decision.answer));
+            }
+        }
         let locate = |memory: &Storage, subject: &Subject| {
             let actual = actuals.get(subject.parameter)?;
             if actual.access == terminal_psi::StructuralAccess::Owned {
@@ -97,6 +103,11 @@ impl ReturnPath {
             let root = memory.locate(bindings, actual.place, &actual.path)?;
             memory.project(root, &subject.fixed_path()?)
         };
+        for decision in &self.when {
+            if let Some(test) = decision.selector.actual_inputs(scalar) {
+                memory.assume(test.selected(decision.answer));
+            }
+        }
         for event in &self.events {
             match event {
                 Effect::Acquire(acquisition) => {
