@@ -762,3 +762,45 @@ fn a_theorem_proved_from_another_equality_cannot_supply_the_alias() {
     let verdict = Program::of(&source).judged(|_| {});
     assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
 }
+fn at_an_address(source: &str) -> String {
+    source
+        .replace("n: u8", "n: address")
+        .replace("1u8", "1")
+        .replace("0u8;", "0;")
+        .replace("!= 0u8", "!= 0")
+}
+
+#[test]
+fn an_address_theorem_supplies_the_alias() {
+    let source = at_an_address(ONE_IS_NONZERO);
+    assert!(source.contains("machine(n: address)"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn an_address_theorem_from_another_equality_cannot_supply_the_alias() {
+    let source = at_an_address(ONE_IS_NONZERO).replacen(
+        "machine one_is_nonzero(n: address)\nrequires n == 1",
+        "machine one_is_nonzero(n: address)\nrequires n == 2",
+        1,
+    );
+    assert!(source.contains("requires n == 2"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// An address has no scalar carrier bound, so `n != 0` does not give `n > 0`.
+#[test]
+fn an_address_theorem_cannot_use_a_carrier_bound_it_does_not_have() {
+    let source = at_an_address(ONE_IS_NONZERO)
+        .replace("requires n == 1", "requires n != 0")
+        .replace("ensures n != 0", "ensures n > 0")
+        .replace("(1)", "(7)");
+    assert!(source.contains("ensures n > 0"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(
+        format!("{verdict:?}").contains("value has no bound"),
+        "{verdict:?}"
+    );
+}

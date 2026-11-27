@@ -489,11 +489,10 @@ impl Program<'_> {
                 ));
             };
             if !matches!(scalar_type, ScalarType::Boolean)
-                && !matches!(scalar_type, ScalarType::Integer(integer)
-                    if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && !integer.is_address())
+                && !matches!(scalar_type, ScalarType::Integer(integer) if integer.bits().is_some())
             {
                 return Err(unavailable(
-                    "logical theorem input has no fixed integer or Boolean denotation",
+                    "logical theorem input has no closed-width integer or Boolean denotation",
                 ));
             }
             formals.push(ValueDeclaration {
