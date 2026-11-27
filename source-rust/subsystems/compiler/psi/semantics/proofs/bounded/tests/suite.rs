@@ -21,6 +21,7 @@ mod predicate_denotation;
 mod quotient_at_most_dividend;
 mod remainder_within_dividend;
 mod source_checked_authority;
+mod sum_subjects;
 mod theorem_certificate_admission;
 mod theorem_parameters;
 mod value_equality_transport;

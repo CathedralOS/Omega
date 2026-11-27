@@ -666,6 +666,7 @@ impl Program<'_> {
         };
         let expected = terminal_semantics::theorems::contract_type(
             &contract,
+            &terminal_semantics::theorems::no_sums,
             &mut proof_admission::Budget::default(),
         )
         .map_err(unavailable)?;

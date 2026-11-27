@@ -5,7 +5,7 @@ use crate::calls::callable_refinement::conjunction;
 use crate::substitution::clauses::{ClauseBindings, substitute_clause};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ContentPlaceVersion, MachineId, PlaceId, Proposition,
-    PropositionContext, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
+    PropositionContext, ScalarTerm, ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
 };
 use std::borrow::Cow;
 use terminal_psi::{
@@ -15,14 +15,43 @@ use terminal_psi::{
 
 pub mod data_subjects;
 
+/// The declaration of each sum a contract's sum subjects name, such as
+/// `module_sums` gives from a module's structural types.
+pub type SumShapes<'a> =
+    dyn Fn(StructuralTypeId) -> Result<proof_admission::DataSubjectShape, &'static str> + 'a;
+
+/// The sums of a module's structural types (`data_subjects::sum_shape`).
+pub fn module_sums(
+    module: &TerminalModule,
+) -> impl Fn(StructuralTypeId) -> Result<proof_admission::DataSubjectShape, &'static str> + '_ {
+    move |sum| data_subjects::sum_shape(module, sum)
+}
+
+/// For a producer that has no sum declarations to give.
+pub fn no_sums(_: StructuralTypeId) -> Result<proof_admission::DataSubjectShape, &'static str> {
+    Err("logical contract's sum subject has no declaration here")
+}
+
 pub fn contract_type(
     contract: &TheoremContract,
+    sums: &SumShapes<'_>,
     budget: &mut proof_admission::Budget,
 ) -> Result<proof_admission::BoundedImplicationType, &'static str> {
     let subjects = contract_subjects(contract)?;
-    let hypotheses = hypothesis_types(contract, budget)?;
+    let data = contract
+        .data_subjects
+        .iter()
+        .map(|subject| {
+            Ok(proof_admission::DataSubject {
+                place: subject.place,
+                shape: sums(subject.structural_type)?,
+            })
+        })
+        .collect::<Result<Vec<_>, &'static str>>()?;
+    let hypotheses = hypothesis_types(contract, sums, budget)?;
     proof_admission::denote_bounded_implication_type(
         &subjects,
+        &data,
         &hypotheses,
         &contract.requires,
         &conjunction(contract.ensures.clone()),
@@ -34,17 +63,23 @@ pub fn contract_type(
 /// The closed implication of each of the contract's own proof parameters.
 fn hypothesis_types(
     contract: &TheoremContract,
+    sums: &SumShapes<'_>,
     budget: &mut proof_admission::Budget,
 ) -> Result<Vec<proof_admission::BoundedImplicationType>, &'static str> {
     contract
         .proof_parameters
         .iter()
-        .map(|nested| contract_type(nested, budget))
+        .map(|nested| contract_type(nested, sums, budget))
         .collect()
 }
 
 /// Check the stored contract's subject and clause vocabulary without proving a judgment.
 /// Its own proof parameters are checked the same way, and take none of their own.
+///
+/// A sum subject's clauses may test its case, read a payload field of a case
+/// (`StructuralRead` under `Case(c), Field(f)`), and state an Identity of two
+/// whole sum subjects. Whether each names its declaration's cases, fields and
+/// carriers is decided as `contract_type` denotes it.
 pub fn contract_subjects(
     contract: &TheoremContract,
 ) -> Result<Vec<(ValueId, ScalarType)>, &'static str> {
@@ -64,15 +99,18 @@ pub fn contract_subjects(
         }
         subjects.push((formal.id, formal.scalar_type));
     }
-    for (position, subject) in contract.data_subjects.iter().enumerate() {
-        if subject.place.get() != position as u64 + 1 {
+    let mut places = Vec::with_capacity(contract.data_subjects.len());
+    for (position, subject) in (0..).zip(&contract.data_subjects) {
+        if subject.place.get() != u64::from(position) + 1 {
             return Err("logical contract has another sum subject telescope");
         }
+        places.push((
+            subject.place,
+            semantic_vocabulary::StructuralPlaceKind::Parameter { position },
+        ));
     }
-    if !contract.data_subjects.is_empty() {
-        return Err("logical contract's sum subject has no mathematical denotation yet");
-    }
-    let context = PropositionContext::from_value_types(subjects.iter().copied())
+    let is_sum = |place: PlaceId| contract.data_subjects.iter().any(|s| s.place == place);
+    let context = PropositionContext::from_value_types_and_places(subjects.iter().copied(), places)
         .map_err(|_| "logical subjects do not form a proposition context")?;
     let mut pending: Vec<_> = contract.requires.iter().chain(&contract.ensures).collect();
     while let Some(clause) = pending.pop() {
@@ -89,6 +127,19 @@ pub fn contract_subjects(
             | Proposition::IntegerMathLessThan(..)
             | Proposition::IntegerMathLessOrEqual(..)
             | Proposition::ScalarIeeeFloatComparison { .. } => {}
+            Proposition::StructuralCaseMembership { subject, .. }
+                if is_sum(subject.root()) && subject.path().is_empty() => {}
+            Proposition::DeclarationIdentity(identity)
+                if identity.values.len() == 2
+                    && identity.values.iter().all(|value| {
+                        matches!(
+                            (&value.carrier, &value.operand),
+                            (
+                                semantic_vocabulary::ClauseCarrier::Structural(_),
+                                semantic_vocabulary::ClauseOperand::Input(input),
+                            ) if is_sum(input.root()) && input.path().is_empty()
+                        )
+                    }) => {}
             Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
                 pending.extend(parts)
             }
@@ -465,7 +516,14 @@ pub fn citation_goals(
         supplied,
         formals,
         instantiated,
-        |contract| contract_type(contract, &mut proof_admission::Budget::default()).map(drop),
+        |contract| {
+            contract_type(
+                contract,
+                &module_sums(module),
+                &mut proof_admission::Budget::default(),
+            )
+            .map(drop)
+        },
     )
 }
 
@@ -754,6 +812,9 @@ pub fn denote_citation(
     budget: &mut proof_admission::Budget,
 ) -> Result<proof_admission::BoundedTheorem, &'static str> {
     use terminal_psi::{ProofNode, ProofRule};
+    if !expected.data_subjects.is_empty() {
+        return Err("theorem citation over a sum subject has no case analysis yet");
+    }
     let goals = citation_goals(module, expected, supplied, formals, instantiated)?;
     let subjects: Vec<_> = expected
         .parameters
@@ -804,7 +865,7 @@ pub fn denote_citation(
     let ensures = apply(actual, requires)?;
     let refinement = apply(refinement, aliases)?;
     let proof = apply(refinement, ensures)?;
-    let hypotheses = hypothesis_types(expected, budget)?;
+    let hypotheses = hypothesis_types(expected, &module_sums(module), budget)?;
     proof_admission::verify_bounded_theorem(
         &subjects,
         &hypotheses,
@@ -861,10 +922,61 @@ mod premise_tests {
     }
 
     #[test]
-    fn a_sum_subject_is_refused_until_it_has_a_denotation() {
+    fn a_sum_subject_is_a_subject_whose_type_needs_its_declaration() {
+        let with = contract(&[1]);
+        assert_eq!(contract_subjects(&with).unwrap().len(), 1);
         assert_eq!(
-            contract_subjects(&contract(&[1])),
-            Err("logical contract's sum subject has no mathematical denotation yet")
+            contract_type(&with, &no_sums, &mut proof_admission::Budget::default()).err(),
+            Some("logical contract's sum subject has no declaration here")
+        );
+    }
+
+    fn choice(sum: StructuralTypeId) -> Result<proof_admission::DataSubjectShape, &'static str> {
+        let u8_type = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                .unwrap(),
+        );
+        Ok(proof_admission::DataSubjectShape {
+            structural_type: sum,
+            cases: [1, 2]
+                .into_iter()
+                .map(|raw| {
+                    (
+                        StructuralCaseId::new(raw).unwrap(),
+                        vec![(
+                            semantic_vocabulary::StructuralFieldId::new(raw).unwrap(),
+                            proof_admission::DataFieldShape::Scalar(u8_type),
+                        )],
+                    )
+                })
+                .collect(),
+        })
+    }
+
+    fn case_test(place: u64) -> Proposition {
+        Proposition::StructuralCaseMembership {
+            subject: semantic_vocabulary::StructuralCaseSubject::new(
+                PlaceId::new(place).unwrap(),
+                Vec::new(),
+            ),
+            case: StructuralCaseId::new(1).unwrap(),
+        }
+    }
+
+    #[test]
+    fn a_case_test_of_a_sum_subject_has_a_type_over_its_declaration() {
+        let mut tested = contract(&[1]);
+        tested.requires = vec![case_test(1)];
+        contract_type(&tested, &choice, &mut proof_admission::Budget::default()).unwrap();
+    }
+
+    #[test]
+    fn a_case_test_names_a_sum_subject() {
+        let mut tested = contract(&[1]);
+        tested.requires = vec![case_test(2)];
+        assert_eq!(
+            contract_subjects(&tested).err(),
+            Some("logical clause names another subject or carrier")
         );
     }
 

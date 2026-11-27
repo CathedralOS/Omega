@@ -300,8 +300,11 @@ pub fn validate_theorem_supply_sites(module: &TerminalModule) -> Result<(), &'st
 /// and its independent mathematical type before the checker uses it.
 pub fn validate_theorem_parameters(module: &TerminalModule) -> Result<(), &'static str> {
     validate_parameters_with(module, |contract, stored| {
-        let expected =
-            terminal_semantics::theorems::contract_type(contract, &mut Budget::default())?;
+        let expected = terminal_semantics::theorems::contract_type(
+            contract,
+            &terminal_semantics::theorems::module_sums(module),
+            &mut Budget::default(),
+        )?;
         let key = crate::theorem_implication_key(
             &expected.arena,
             &mathematical_kernel::MathematicalCertificate {
@@ -695,8 +698,15 @@ fn recorded_supply(
 }
 
 /// The canonical identity of a contract's complete implication.
-fn implication_key(contract: &terminal_psi::TheoremContract) -> Result<Vec<u8>, &'static str> {
-    let expected = terminal_semantics::theorems::contract_type(contract, &mut Budget::default())?;
+fn implication_key(
+    module: &TerminalModule,
+    contract: &terminal_psi::TheoremContract,
+) -> Result<Vec<u8>, &'static str> {
+    let expected = terminal_semantics::theorems::contract_type(
+        contract,
+        &terminal_semantics::theorems::module_sums(module),
+        &mut Budget::default(),
+    )?;
     crate::theorem_implication_key(
         &expected.arena,
         &mathematical_kernel::MathematicalCertificate {
@@ -738,7 +748,7 @@ fn validate_application_supplies(
         .iter()
         .zip(&application.instantiation)
     {
-        let key = implication_key(expected)?;
+        let key = implication_key(module, expected)?;
         match supply.source {
             TheoremSource::Formal(source) => {
                 if !supply.derivations.is_empty() {
