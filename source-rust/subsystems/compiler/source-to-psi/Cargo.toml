@@ -211,6 +211,11 @@ path = "pipeline/06_lowered-program-to-checked-program/tests/runtime_callables.r
 required-features = ["test-support"]
 
 [[test]]
+name = "checking_borrowed_clause_calls"
+path = "pipeline/06_lowered-program-to-checked-program/tests/borrowed_clause_calls.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "checking_call_contract_inputs"
 path = "pipeline/06_lowered-program-to-checked-program/tests/call_contract_inputs.rs"
 required-features = ["test-support"]
