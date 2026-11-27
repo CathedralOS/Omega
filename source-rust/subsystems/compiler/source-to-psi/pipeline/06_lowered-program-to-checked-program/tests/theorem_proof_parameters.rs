@@ -420,23 +420,109 @@ fn an_instance_with_a_narrower_premise_cannot_supply_the_alias() {
     );
 }
 
-#[test]
-fn a_theorem_given_its_own_proof_is_refused_by_name() {
-    let source = ORIGINAL
+/// `lifted` proves `NonzeroIsPositive` itself, given a proof of it.
+fn given_its_own_proof(citation: &str) -> String {
+    ORIGINAL
         .replace(
             "machine only_seven",
             "machine lifted<Inner: NonzeroIsPositive>(n: u8)\nrequires n != 0u8\nensures n > 0u8\n{\n    Inner(n);\n}\n\nmachine only_seven",
         )
         .replace(
             "use_step::<nonzero_is_positive>(7u8)",
-            "use_step::<lifted::<nonzero_is_positive>>(7u8)",
+            &format!("use_step::<{citation}>(7u8)"),
+        )
+}
+
+#[test]
+fn a_theorem_given_its_own_proof_supplies_the_alias() {
+    let program = Program::of(&given_its_own_proof("lifted::<nonzero_is_positive>"));
+    let verdict = program.judged(|elaboration| {
+        let [citation] = elaboration.module.proofs.theorem_citations.as_slice() else {
+            panic!("one citation");
+        };
+        assert!(
+            matches!(
+                citation.instantiation.as_slice(),
+                [terminal_psi::TheoremInstantiation {
+                    source: terminal_psi::TheoremSource::Named(_),
+                    ..
+                }]
+            ),
+            "the citation keeps the proof it gives `lifted`: {citation:?}"
         );
-    let refusal = format!(
-        "{:?}",
-        Program::try_of(&[("product/main.omg", &source)]).err()
-    );
+    });
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_given_a_narrower_proof_cannot_supply_the_alias() {
+    // `only_seven` cannot stand in for `lifted`'s own `Inner`.
+    let verdict = Program::of(&given_its_own_proof("lifted::<only_seven>")).judged(|_| {});
     assert!(
-        refusal.contains("a theorem given its own proof arguments"),
-        "{refusal}"
+        format!("{verdict:?}").contains(
+            "proof given to the cited theorem does not establish its own aliased contract"
+        ),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn a_citation_cannot_drop_the_proof_it_gives_the_cited_theorem() {
+    let program = Program::of(&given_its_own_proof("lifted::<nonzero_is_positive>"));
+    let verdict = program.judged(|elaboration| {
+        elaboration.module.proofs.theorem_citations[0]
+            .instantiation
+            .clear();
+    });
+    assert!(
+        format!("{verdict:?}")
+            .contains("cited theorem needs one logical supply for each of its own proof formals"),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn decoding_keeps_the_proof_given_to_the_cited_theorem_and_its_check() {
+    use source_compiler::test_support::checking::{RouteVerdict, judge};
+
+    let program = Program::of(&given_its_own_proof("lifted::<nonzero_is_positive>"));
+    let RouteVerdict::Accepted(accepted) = judge(Ok(program.elaboration().clone())).unwrap() else {
+        panic!("the instantiated citation must reach publication");
+    };
+    let module = accepted.prepare_publication().unwrap().module().clone();
+    let decoded =
+        terminal_codec::decode_module(&terminal_codec::encode_module(&module).unwrap()).unwrap();
+    assert_eq!(
+        decoded.proofs.theorem_citations,
+        module.proofs.theorem_citations
+    );
+    terminal_codec::validate_theorem_evidence(&decoded, &mut proof_admission::Budget::default())
+        .unwrap();
+
+    // The inner proof's derivation is checked by the validator too.
+    let mut forged = module.clone();
+    forged.proofs.theorem_citations[0].instantiation[0].derivations[0]
+        .proof
+        .rule = terminal_psi::ProofRule::Primitive(terminal_psi::PrimitiveJudgment::Truth);
+    assert!(
+        terminal_codec::validate_theorem_evidence(&forged, &mut proof_admission::Budget::default())
+            .is_err()
+    );
+
+    // A changed inner judgment no longer decodes.
+    forged = module;
+    forged.proofs.theorem_citations[0].instantiation[0].derivations[0]
+        .proof
+        .conclusion = semantic_vocabulary::Proposition::Truth;
+    let error = terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+        .unwrap_err();
+    assert!(
+        matches!(
+            error,
+            terminal_codec::CodecError::MalformedStructuralFoundation(
+                "theorem derivation lost its declared judgment or role"
+            )
+        ),
+        "{error:?}"
     );
 }

@@ -83,7 +83,8 @@ mod theorem_parameter_wire {
     };
     use psi_callable_encoding::signatures::Declaration;
     use terminal_psi::{
-        TheoremApplication, TheoremCitation, TheoremContract, TheoremParameter, TheoremSource,
+        TheoremApplication, TheoremCitation, TheoremContract, TheoremInstantiation,
+        TheoremParameter, TheoremSource,
     };
 
     wire_enum! {
@@ -116,6 +117,11 @@ mod theorem_parameter_wire {
             machine: Id,
             site: InvocationSite,
             proof_position: U32,
+            source: Source,
+            derivations: List<Certificate>,
+            instantiation: List<Instantiation>,
+        }
+        Instantiation: TheoremInstantiation {
             source: Source,
             derivations: List<Certificate>,
         }

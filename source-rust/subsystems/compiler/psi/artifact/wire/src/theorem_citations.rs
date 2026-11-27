@@ -92,6 +92,9 @@ pub fn theorem_citation_actual(
         .ok_or("theorem supply has no expected mathematical carrier")?;
     match citation.source {
         TheoremSource::Formal(position) => {
+            if !citation.instantiation.is_empty() {
+                return Err("forwarded theorem acquired an instantiation");
+            }
             validate_forwarded_theorem(module, citation, &context, position, &carrier.carrier_key)?;
             Ok(ProofTerm::InvocationFormal { position })
         }
@@ -99,9 +102,47 @@ pub fn theorem_citation_actual(
             let supplied = module
                 .machine(source)
                 .ok_or("cited theorem has no independently checked source machine")?;
+            for (position, supply) in citation.instantiation.iter().enumerate() {
+                validate_instantiation(
+                    module,
+                    context.owner,
+                    source,
+                    position,
+                    supply,
+                    |expected, key| match supply.source {
+                        TheoremSource::Formal(_) => Ok(()),
+                        TheoremSource::Named(inner) => {
+                            let inner = module
+                                .machine(inner)
+                                .ok_or("instantiating theorem has no source machine")?;
+                            let theorem = terminal_semantics::theorems::denote_citation(
+                                expected,
+                                &inner.contract,
+                                0,
+                                &supply.derivations,
+                                budget,
+                            )?;
+                            if crate::theorem_implication_key(
+                                &theorem.denotation.arena,
+                                &theorem.denotation.certificate,
+                            )
+                            .map_err(
+                                |_| "instantiating theorem has no canonical mathematical type",
+                            )? != key
+                            {
+                                return Err(
+                                    "instantiating theorem proves another complete implication",
+                                );
+                            }
+                            Ok(())
+                        }
+                    },
+                )?;
+            }
             let theorem = terminal_semantics::theorems::denote_citation(
                 &context.parameter.contract,
                 &supplied.contract,
+                citation.instantiation.len(),
                 &citation.derivations,
                 budget,
             )?;
@@ -332,7 +373,7 @@ pub(crate) fn validate_received_theorems(module: &TerminalModule) -> Result<(), 
             .ok_or("call lost an explicit theorem argument")?;
         match (citation.source, actual) {
             (TheoremSource::Formal(source), ProofTerm::InvocationFormal { position })
-                if source == *position =>
+                if source == *position && citation.instantiation.is_empty() =>
             {
                 validate_forwarded_theorem(
                     module,
@@ -352,22 +393,35 @@ pub(crate) fn validate_received_theorems(module: &TerminalModule) -> Result<(), 
                 let supplied = module
                     .machine(source)
                     .ok_or("cited theorem has no source machine")?;
+                for (position, supply) in citation.instantiation.iter().enumerate() {
+                    validate_instantiation(
+                        module,
+                        context.owner,
+                        source,
+                        position,
+                        supply,
+                        |expected, _| {
+                            let TheoremSource::Named(inner) = supply.source else {
+                                return Ok(());
+                            };
+                            let inner = module
+                                .machine(inner)
+                                .ok_or("instantiating theorem has no source machine")?;
+                            let goals = terminal_semantics::theorems::recorded_citation_goals(
+                                expected,
+                                &inner.contract,
+                                0,
+                            )?;
+                            recorded_roles(&supply.derivations, goals)
+                        },
+                    )?;
+                }
                 let goals = terminal_semantics::theorems::recorded_citation_goals(
                     &context.parameter.contract,
                     &supplied.contract,
+                    citation.instantiation.len(),
                 )?;
-                if citation.derivations.len() != goals.len()
-                    || citation.derivations.iter().zip(goals).enumerate().any(
-                        |(index, (derivation, goal))| {
-                            derivation.identity.get() != index as u64 + 1
-                                || derivation.proof_system_marker
-                                    != terminal_psi::ProofSystemMarker::CURRENT
-                                || derivation.proof.conclusion != goal
-                        },
-                    )
-                {
-                    return Err("theorem derivation lost its declared judgment or role");
-                }
+                recorded_roles(&citation.derivations, goals)?;
                 let decoded = crate::decode_mathematical_certificate(certificate)
                     .map_err(|_| "theorem supply has no canonical mathematical certificate")?;
                 if module.identities.text(expected.type_identity) != Some(type_identity.as_str())
@@ -529,4 +583,84 @@ fn validate_application_subjects(
         }
     }
     Ok(())
+}
+
+/// The recorded derivations keep their roles and declared judgments.
+fn recorded_roles(
+    derivations: &[terminal_psi::CertificateEnvelope],
+    goals: [semantic_vocabulary::Proposition; 3],
+) -> Result<(), &'static str> {
+    if derivations.len() != goals.len()
+        || derivations
+            .iter()
+            .zip(goals)
+            .enumerate()
+            .any(|(index, (derivation, goal))| {
+                derivation.identity.get() != index as u64 + 1
+                    || derivation.proof_system_marker != terminal_psi::ProofSystemMarker::CURRENT
+                    || derivation.proof.conclusion != goal
+            })
+    {
+        return Err("theorem derivation lost its declared judgment or role");
+    }
+    Ok(())
+}
+
+/// One supply for the cited machine's own proof formal at `position`. It answers
+/// that formal's alias: a forwarded formal of the citing machine must state the
+/// same implication and carry no derivation, and a named supply is handed to
+/// `check` with the alias contract and its expected implication key.
+fn validate_instantiation(
+    module: &TerminalModule,
+    owner: &terminal_psi::TerminalMachine,
+    cited: semantic_vocabulary::MachineId,
+    position: usize,
+    supply: &terminal_psi::TheoremInstantiation,
+    check: impl FnOnce(&terminal_psi::TheoremContract, &[u8]) -> Result<(), &'static str>,
+) -> Result<(), &'static str> {
+    let position = u32::try_from(position).map_err(|_| "theorem instantiation overflow")?;
+    let parameter = terminal_semantics::theorems::parameter(module, cited, position)?;
+    let cited_machine = module
+        .machine(cited)
+        .ok_or("instantiated theorem has no source machine")?;
+    let key = carrier_key(
+        module,
+        &cited_machine.contract.erased_proof_formals[position as usize],
+    )?;
+    match supply.source {
+        TheoremSource::Formal(source) => {
+            if !supply.derivations.is_empty() {
+                return Err("forwarded theorem acquired an unrelated derivation");
+            }
+            terminal_semantics::theorems::parameter(module, owner.id, source)?;
+            let formal = owner
+                .contract
+                .erased_proof_formals
+                .get(source as usize)
+                .ok_or("forwarded theorem has no exact invocation formal")?;
+            if carrier_key(module, formal)? != key {
+                return Err("forwarded theorem has another complete implication");
+            }
+            Ok(())
+        }
+        TheoremSource::Named(inner) => {
+            if inner == cited {
+                return Err("an instantiated theorem cannot supply its own proof formal");
+            }
+            check(&parameter.contract, key)
+        }
+    }
+}
+
+fn carrier_key<'a>(
+    module: &'a TerminalModule,
+    formal: &terminal_psi::ErasedProofFormal,
+) -> Result<&'a [u8], &'static str> {
+    module
+        .types
+        .mathematical_carriers
+        .iter()
+        .find(|row| row.type_identity == formal.type_identity)
+        .map(|row| row.carrier_key.as_slice())
+        .ok_or("theorem formal has no mathematical carrier")
 }

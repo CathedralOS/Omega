@@ -42,6 +42,12 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 299 ends each [theorem supply](#logical-theorem-parameters) with its
+counted instantiation: one proof for each of the cited theorem's own proof
+formals, as in `lifted::<inner>`. Readers reject earlier markers before
+reading the payload, so a saved program from marker 298 or earlier must be
+rebuilt.
+
 Marker 297 adds the packed integer operations. Each row carries a structural
 result and one or two shared structural arguments. The operation determines
 the element type and extent of each input and the result. Readers check the
@@ -2884,7 +2890,8 @@ and its implication is its `requires` and `ensures`.
 | theorem contract | counted scalar formal declarations + counted requires propositions + counted ensures propositions |
 | theorem parameter | owner machine id + `u32` proof position + theorem contract |
 | theorem application | owner machine id + edge id + successor block id + proof source + counted fixed scalar subjects + counted premise obligation ids |
-| theorem supply | caller machine id + invocation site + `u32` proof position + proof source + counted certificate envelopes |
+| theorem supply | caller machine id + invocation site + `u32` proof position + proof source + counted certificate envelopes + counted theorem instantiations |
+| theorem instantiation | proof source + counted certificate envelopes |
 | proof source | `u8`: 1 + cited machine id; 2 + `u32` caller proof-formal position |
 
 An application supplies every substituted premise on its edge. Only its unique
@@ -2906,6 +2913,15 @@ under [publication and separate consumption](product.md#publication-and-separate
 proof formal, carries no new derivation, and must have the same complete type.
 The selected theorem remains derivation provenance; it does not select runtime
 code or determine Strict proof identity.
+
+A named supply whose machine declares proof formals of its own carries one
+instantiation for each, in that machine's header order, and only such a supply
+carries any. Its cited implication is still derived from its contract alone.
+Each instantiation answers the cited machine's own formal at that position: a
+named one retains the same three derivations against that formal's contract,
+and a forwarded one names the caller's exact proof formal, carries no
+derivation and must have the same complete type as the cited machine's formal.
+An instantiation cannot itself be instantiated or name the cited machine.
 
 ### Closed conformance applications
 

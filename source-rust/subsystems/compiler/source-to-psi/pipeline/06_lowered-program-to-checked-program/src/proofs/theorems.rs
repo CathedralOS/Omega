@@ -177,7 +177,7 @@ pub(crate) fn finalize_citations(
     module: &mut TerminalModule,
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
-    use semantic_vocabulary::{InvocationSite, ObligationId};
+    use semantic_vocabulary::InvocationSite;
     use terminal_psi::{OperationKind, TheoremSource};
     let mut prepared = Vec::with_capacity(module.proofs.theorem_citations.len());
     for (index, row) in module.proofs.theorem_citations.iter().enumerate() {
@@ -201,28 +201,44 @@ pub(crate) fn finalize_citations(
             let goals = terminal_semantics::theorems::citation_goals(
                 &context.parameter.contract,
                 &supplied.contract,
+                citation.instantiation.len(),
             )
             .map_err(invalid)?;
-            let declarations: Vec<_> = context
-                .parameter
-                .contract
-                .parameters
-                .iter()
-                .map(|formal| (formal.id, formal.scalar_type))
-                .collect();
-            let proposition_context = semantic_vocabulary::PropositionContext::from_value_types(
-                declarations.iter().copied(),
-            )
-            .map_err(|_| invalid("theorem subjects have no proposition context"))?;
-            for (position, goal) in goals.iter().enumerate() {
-                let obligation = ObligationId::new(position as u64 + 1)
-                    .ok_or_else(|| invalid("theorem derivation role overflow"))?;
-                citation.derivations.push(crate::derive_contract_obligation(
-                    row.machine.into(), &proposition_context, obligation, goal, &declarations, activity,
-                ).map_err(|mut error| {
-                    error.detail = format!("explicit proof argument does not establish the complete aliased contract: {}", error.detail);
-                    error
-                })?);
+            citation.derivations = derive_citation(
+                row.machine,
+                &context.parameter.contract,
+                &goals,
+                "explicit proof argument does not establish the complete aliased contract",
+                activity,
+            )?;
+            // Each proof the citation gives the cited theorem answers that
+            // theorem's own alias, exactly as at an invocation of it.
+            for (position, supply) in citation.instantiation.iter_mut().enumerate() {
+                let TheoremSource::Named(inner) = supply.source else {
+                    continue;
+                };
+                if !supply.derivations.is_empty() {
+                    continue;
+                }
+                let position = crate::position(position, row.machine)?;
+                let expected = terminal_semantics::theorems::parameter(module, source, position)
+                    .map_err(invalid)?;
+                let inner = module
+                    .machine(inner)
+                    .ok_or_else(|| invalid("instantiating theorem has no source machine"))?;
+                let goals = terminal_semantics::theorems::citation_goals(
+                    &expected.contract,
+                    &inner.contract,
+                    0,
+                )
+                .map_err(invalid)?;
+                supply.derivations = derive_citation(
+                    row.machine,
+                    &expected.contract,
+                    &goals,
+                    "proof given to the cited theorem does not establish its own aliased contract",
+                    activity,
+                )?;
             }
         }
         let actual = terminal_codec::theorem_citation_actual(
@@ -334,4 +350,50 @@ pub(crate) fn finalize_citations(
     }
     terminal_codec::validate_theorem_supply_sites(module)
         .map_err(|reason| module_refusal(module, reason))
+}
+
+/// Prove a citation's three goals over the alias's subjects.
+fn derive_citation(
+    owner: MachineId,
+    expected: &terminal_psi::TheoremContract,
+    goals: &[Proposition; 3],
+    failure: &str,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<Vec<terminal_psi::CertificateEnvelope>> {
+    let invalid = |reason| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            owner,
+            Construct::Machine,
+            reason,
+        )
+    };
+    let declarations: Vec<_> = expected
+        .parameters
+        .iter()
+        .map(|formal| (formal.id, formal.scalar_type))
+        .collect();
+    let proposition_context =
+        semantic_vocabulary::PropositionContext::from_value_types(declarations.iter().copied())
+            .map_err(|_| invalid("theorem subjects have no proposition context"))?;
+    let mut derivations = Vec::with_capacity(goals.len());
+    for (position, goal) in goals.iter().enumerate() {
+        let obligation = semantic_vocabulary::ObligationId::new(position as u64 + 1)
+            .ok_or_else(|| invalid("theorem derivation role overflow"))?;
+        derivations.push(
+            crate::derive_contract_obligation(
+                owner.into(),
+                &proposition_context,
+                obligation,
+                goal,
+                &declarations,
+                activity,
+            )
+            .map_err(|mut error| {
+                error.detail = format!("{failure}: {}", error.detail);
+                error
+            })?,
+        );
+    }
+    Ok(derivations)
 }

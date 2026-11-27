@@ -19,19 +19,113 @@ pub(crate) struct PreparedTheoremParameter {
 }
 
 impl Program<'_> {
+    /// One proof argument. Stage 04 closes an instantiated citation into the
+    /// machine generated for its arguments; one it leaves open, such as
+    /// `lifted::<inner>`, gives the cited theorem its own proof arguments.
+    /// Those are read as proof arguments of this same caller, one per proof
+    /// parameter of the cited theorem, and stage 06 checks each against that
+    /// theorem's own alias.
     pub(super) fn theorem_argument(
+        &mut self,
+        id: MachineId,
+        argument: &crate::source_state::expression::StaticMachineArgument,
+    ) -> Checked<crate::body::ProofSupply> {
+        if !(argument.authored_machine_application.is_valid() && argument.application.is_some()) {
+            return self
+                .theorem_source(id, argument)
+                .map(crate::body::ProofSupply::plain);
+        }
+        let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
+        let typed = self.typed;
+        if argument.const_literal.is_some() || argument.evidence_projection.is_some() {
+            return Err(unavailable(
+                "proof supply needs its complete explicit theorem citation",
+            ));
+        }
+        let selection = argument
+            .authored_selection
+            .and_then(|occurrence| typed.authored_declaration_selections().get(occurrence))
+            .ok_or_else(|| unavailable("proof citation has no exact authored selection"))?;
+        if selection.kind()
+            != crate::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
+        {
+            return Err(unavailable("proof citation has another authored role"));
+        }
+        let target = self.entered_machine(argument.symbol).ok_or_else(|| {
+            unavailable("logical argument is not a named theorem or proof formal")
+        })?;
+        let machine = typed
+            .machine_by_symbol(target)
+            .ok_or_else(|| unavailable("named theorem has no complete source declaration"))?;
+        let handle = argument.authored_machine_application;
+        if !typed
+            .expression_table
+            .static_machine_application_is_valid(handle)
+            || typed
+                .expression_table
+                .static_machine_application(handle)
+                .binding_declaration
+                != target
+        {
+            return Err(unavailable(
+                "instantiated theorem citation lost its exact retained application",
+            ));
+        }
+        let parameters = typed.machine_type_parameters(machine);
+        if parameters.is_empty()
+            || !machine.conformance_bounds.is_empty()
+            || parameters.iter().any(|parameter| {
+                !matches!(
+                    parameter.kind,
+                    crate::source_state::data::TypeParameterKind::Proof { .. }
+                )
+            })
+        {
+            return Err(unavailable(
+                "instantiated theorem citation needs its complete logical correspondence",
+            ));
+        }
+        let bindings = typed
+            .expression_table
+            .static_machine_application_bindings(handle);
+        let mut instantiation = Vec::with_capacity(parameters.len());
+        for parameter in parameters.iter() {
+            let mut matching = bindings
+                .iter()
+                .filter(|binding| binding.parameter == parameter.symbol);
+            let (Some(binding), None) = (matching.next(), matching.next()) else {
+                return Err(unavailable(
+                    "cited theorem's proof parameter has no unique explicit actual",
+                ));
+            };
+            let crate::source_state::static_applications::StaticMachineBindingValue::Proof(inner) =
+                &binding.value
+            else {
+                return Err(unavailable(
+                    "cited theorem's proof parameter was supplied with an executable or type binding",
+                ));
+            };
+            // One level: a supply nested inside an instantiation is read with
+            // `theorem_source`, which refuses its own instantiation by name.
+            instantiation.push(self.theorem_source(id, inner)?);
+        }
+        self.visible_to(id, target)?;
+        Ok(crate::body::ProofSupply {
+            source: terminal_psi::TheoremSource::Named(self.machine(target)?),
+            instantiation,
+        })
+    }
+
+    fn theorem_source(
         &mut self,
         id: MachineId,
         argument: &crate::source_state::expression::StaticMachineArgument,
     ) -> Checked<terminal_psi::TheoremSource> {
         let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
         let typed = self.typed;
-        // Stage 04 closes an instantiated citation into the machine generated
-        // for its arguments. One left open supplies the cited theorem's own
-        // proof parameters, whose citations have no invocation to check at.
         if argument.authored_machine_application.is_valid() && argument.application.is_some() {
             return Err(unavailable(
-                "citing a theorem given its own proof arguments needs those citations checked",
+                "a theorem given its own proof arguments cannot itself be given to another inside a citation",
             ));
         }
         if !typed.symbols.symbols().nodes().is_valid(argument.symbol)
