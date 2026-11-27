@@ -247,12 +247,20 @@ impl Stored {
             }
             CellUpdate::CompareExchange { expected, .. } => expected,
         };
+        self.map_scalars(expected.scalar_type(), |prior| match prior {
+            ScalarFact::Literal(bits) => Some(ScalarFact::Literal(update.apply(bits))),
+            ScalarFact::EntryInput(_) => None,
+        })
+    }
+
+    pub(in super::super) fn map_scalars(
+        &self,
+        ty: ScalarType,
+        mut apply: impl FnMut(ScalarFact) -> Option<ScalarFact>,
+    ) -> Self {
         let mut result: Option<Self> = None;
-        let mapped = self.visit_scalars(expected.scalar_type(), |prior| {
-            let value = match prior {
-                ScalarFact::Literal(bits) => Self::Scalar(ScalarFact::Literal(update.apply(bits))),
-                ScalarFact::EntryInput(_) => Self::Unknown,
-            };
+        let mapped = self.visit_scalars(ty, |prior| {
+            let value = Self::from(apply(prior));
             if let Some(existing) = &mut result {
                 existing.join(&value);
             } else {

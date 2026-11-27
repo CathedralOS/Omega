@@ -169,3 +169,37 @@ fn an_exchange_in_the_entry_supplies_the_actual_bits_and_case_to_a_later_wait() 
         .replace("::Exchanged -> finished()", "::Exchanged -> acquire(@flag)");
     program::assert_silent_return(&format!("{library}{released}"));
 }
+
+#[test]
+fn atomic_read_modify_write_returns_the_old_word_and_installs_the_typed_result() {
+    let source = include_str!(
+        "../../../tests/fixtures/synchronization/reject/read_modify_write_before_wait/main.omg"
+    );
+    for (initial, operation) in [
+        (0, "fetch_or(1"),
+        (3, "fetch_and(1"),
+        (u32::MAX, "fetch_xor(4294967294"),
+        (u32::MAX, "fetch_add(2"),
+        (0, "fetch_sub(4294967295"),
+    ] {
+        let held = source
+            .replace("held.store(0", &format!("held.store({initial}"))
+            .replace("fetch_or(1", operation)
+            .replace("prior == 0", &format!("prior == {initial}"));
+        let (output, diagnostic) = program::invoke(&held, &["--check"]);
+        assert!(!output.status.success(), "{operation}: {diagnostic}");
+        assert!(
+            diagnostic.contains("synchronization deadlock"),
+            "{operation}: {diagnostic}"
+        );
+    }
+    // Updating a different cell leaves the flag clear. Clearing a flag that
+    // started held enables the same wait and still returns the old word.
+    program::assert_silent_return(&source.replace("held.fetch_or", "other.fetch_or"));
+    program::assert_silent_return(
+        &source
+            .replace("held.store(0", "held.store(1")
+            .replace("fetch_or(1", "fetch_and(0")
+            .replace("prior == 0", "prior == 1"),
+    );
+}
