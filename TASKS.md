@@ -92,7 +92,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Pipeline route
 
-- **STAGE-05-DEFAULT-REWRITES.** Stop Stage 05 from running call inlining and vector promotion on every build; [exact selection](wiki/spec/build/optimizations.md#exact-selection) forbids a compiler default from enabling an optimization. First compile the samples on each hosted target with each rewrite turned off, to find any part a target cannot lower without; that part is legalization and stays in Stage 05. Give the rest `SelectedLowering` catalog entries with their own validators, off by default. Ends when the unconditional calls in [`selection.rs`](source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection.rs) are gone.
 - **PIPELINE-ARCHITECTURE-ENFORCEMENT.** (covers **LOC-VALUE-CUSTODY**, **IMAGE-SELF-REPLAY-DELETED**) Check the [source and native pipelines](source-rust/subsystems/compiler/README.md) through the shipped compiler entry for multiple targets, multiple callable roots and independently produced components.
   - Trace value custody from checked Psi through native verification on this route. Qualify the resulting executable on `linux_x86_64`.
   - Verify Build effects execute once per admitted context and that matching targets share the checked source and portable program. Exercise differing grants, source inputs and execution profiles under the [dependency context rules](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse).

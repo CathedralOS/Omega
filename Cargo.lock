@@ -2748,7 +2748,9 @@ dependencies = [
 name = "selected-instructions-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
+ "calling-conventions",
  "operation-evidence",
+ "operation-operands",
  "optimization-core",
  "physical-program",
  "register-environment",

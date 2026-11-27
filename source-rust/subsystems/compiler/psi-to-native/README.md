@@ -82,23 +82,32 @@ requires each optimization to have one phase owner. It leaves the list of
 phases to this compiler. That list is `OptimizationExecutionPhase` in
 [`optimization-selections`](../foundation/optimization-selections/src/lib.rs). The
 table shows each phase's catalog entry count and the native stages that name the
-phase, measured on `baa76c5b222e` (after archiving Stage 03).
+phase, measured on `baa76c5b222e` (after archiving Stage 03), with the two
+`SelectedLowering` entries added since.
 
 | Phase | Catalog entries | Stages naming it |
 | --- | --- | --- |
 | `Psi` | 9 | none; runs before Terminal Psi publication |
 | `TargetOperations` | 2 | 04 (rewrites applied in 05) |
-| `SelectedLowering` | 23 | 06, 07, 12, 13 |
+| `SelectedLowering` | 25 | 06, 07, 12, 13 |
 | `PreAllocation` | 10 | 06, 07 |
 | `AllocationRecovery` | 2 | 06, 07, 13 |
 | `PostAllocationMachine` | 9 | 08, 13 |
 | `FunctionRelativeLayout` | 1 | 12, 13 |
 
-Stage 05 also runs call inlining (`selection_inlining.rs`) and vector promotion
-(`selection_vector_promotion.rs`) on every build without a catalog entry. The
-contract forbids a compiler default from enabling an optimization, so every
-part a target can lower without belongs in the catalog, off by default.
-`TASKS.md` **STAGE-05-DEFAULT-REWRITES** tracks that split.
+Call inlining and vector promotion run only when a build selects them, as the
+`SelectedLowering` entries `SelectedAcyclicCallInliningV1` and
+`SelectedPackedVectorPromotionV1`. Stage 05 used to run both on every build,
+which the contract forbids. Stage 06 now runs them before the pair-rule
+literal folds, without starting those folds when no pair rule is selected
+([`structural_rewrites.rs`](pipeline/06_selected-instructions-to-selected-instructions/src/selected_rewrites/structural_rewrites.rs)).
+Their replay validator, `SelectedInstructionRewriteReplay`, re-executes each
+step and checks each rewrite's postconditions. No part of either rewrite is
+legalization. Every hosted target compiled the test fixtures and the
+dependency-free samples with both turned off, and x86-64 runs every packed
+operation in its memory form. Promotion needs 128-bit packed register forms,
+which only x86-64 has, so a build that selects it for an AArch64 target is
+refused by name.
 
 ## Plan identities
 
