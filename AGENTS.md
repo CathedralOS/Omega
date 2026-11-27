@@ -289,7 +289,11 @@ beside that test.
 2. **Keep the assigned outcome on the warm worktree:** Reproduce the failure,
    repair its cause, and test and review the change before merge. After merge,
    confirm publication with the [landing guide](wiki/development/landing.md#confirm-publication-and-continue).
-   A merge alone calls for no compiler build or test rerun.
+   Just before merging, compile your head merged with the current main
+   (`mbx check` on the touched crates and their direct consumers), and again on
+   main right after the merge; repair a broken main at once
+   ([how](wiki/development/landing.md#squash-merge-after-admission)). A merge
+   calls for no further build or test rerun.
    When running with subagents, the coordinator chooses work from `TASKS.md`,
    acquires worktrees and registers claims. Each worker traces the failure,
    repairs and validates the change, and lands its PR in its own context window.
@@ -538,7 +542,8 @@ reads the allowed lanes from this table:
   `tests/omega/` directory empty.
 - **No direct pushes to `main` and no chasing `main`:** Land only through
   squash-merged PRs. Rebase only on actual conflicts or
-  needed prerequisites.
+  needed prerequisites. The merged-result compile check before merging is a
+  local trial merge that is never pushed, not a rebase.
 - **Claims are informational (`cargo xtask claims`):** Register claims
   before editing shared paths. For work outside the registered paths, take a
   supplemental claim; `claims note` updates progress and the lease, not the

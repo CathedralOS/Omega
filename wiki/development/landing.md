@@ -78,8 +78,26 @@ gh pr checks NUMBER
 gh pr view NUMBER --json state,headRefOid,isDraft,mergeable
 ```
 
-When `admission` has passed and the PR can merge, squash-merge the exact head
-you reviewed. Pass the PR body as the squash commit body so the explanation and
+`admission` does not compile the merged result, so two PRs that each compile
+can still break main when they land minutes apart. Several agents merge at once,
+and on 2026-11-27 four PRs in one hour left stage 05 without a needed import.
+Just before merging, compile your head merged with the current main, locally
+and without pushing:
+
+```text
+git fetch origin main
+git merge --no-commit --no-ff origin/main
+mbx check -p CRATE --all-targets < /dev/null   # each touched crate and its direct consumers
+git merge --abort
+```
+
+If it fails, fix the cause on your branch first. Right after the merge, run the
+same `mbx check` once on the fetched main. If main fails to compile, repair it
+at once in a follow-up PR and tell the agents whose recent merges touched the
+same files.
+
+When `admission` has passed, the merged-result check compiles and the PR can
+merge, squash-merge the exact head you reviewed. Pass the PR body as the squash commit body so the explanation and
 model-audit line survive on main:
 
 ```text
@@ -93,8 +111,9 @@ The JSON file supplies `sha` with the reviewed full head, `merge_method` with
 Check admission first and read back the result. If the response is unclear,
 check the PR before another merge request.
 
-Resolve actual conflicts or failed checks. Do not rebase, rebuild or rerun checks
-only because main moved. Rerun the affected checks after source changes,
+Resolve actual conflicts or failed checks. Apart from the merged-result
+compile check above, do not rebase, rebuild or rerun checks only because main
+moved. Rerun the affected checks after source changes,
 conflict resolutions or changed assumptions. Never use administrator
 bypass or change repository settings to land a PR.
 
