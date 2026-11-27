@@ -44,9 +44,10 @@ checked. Do not reopen a settled rule because its implementation is unfinished.
 | Answers | What do I write? | What is true in every case? |
 | Leads with | A code sample | The rule |
 | Covers | What most code needs | Complete behavior, including rejection and why |
-| When incomplete | Link to the rule | Repair the contract or escalate the actual choice |
+| When incomplete | Link to the rule | Escalate the actual choice; only the owners, Zac and Jarod, edit it |
 
-Language changes update the specification and examples they invalidate. Guides
+Language changes update the specification and examples they invalidate; only
+the owners, Zac and Jarod, edit the specification. Guides
 illustrate the rule rather than maintain another exception list. Proof failures
 also need precise terminology: unsupported implementation, a missing required
 automatic discharge, an unestablished goal and resource exhaustion are distinct

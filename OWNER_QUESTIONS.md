@@ -1,9 +1,10 @@
 # Owner Questions
 
-Only the owner answers an entry. The owner's word in a session is the
-ruling: write it into the specification, remove the entry, and build it; that
-is what the owner asked for. Otherwise agents add questions and may research
-existing ones, but do not settle a question themselves.
+Only the two owners, Zac and Jarod, answer an entry. An owner's word in a
+session is the ruling. Only the owners write a ruling into the specification;
+agents never edit `wiki/spec/`. Once the specification states the ruling, an
+agent removes the entry and builds it. Otherwise agents add questions and may
+research existing ones, but do not settle a question themselves.
 
 Only unresolved owner-level language or architecture decisions belong here.
 Settled decisions live in the specification and language guide; implementation
