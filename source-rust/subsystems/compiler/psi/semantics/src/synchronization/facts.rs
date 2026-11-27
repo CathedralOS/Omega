@@ -15,6 +15,15 @@ impl<K: Ord, V> Facts<K, V> {
         Some(&self.0[position].1)
     }
 
+    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        let index = self.0.binary_search_by(|row| row.0.cmp(key)).ok()?;
+        Some(&mut self.0[index].1)
+    }
+
+    pub fn entries(&self) -> impl Iterator<Item = (&K, &V)> {
+        self.0.iter().map(|(key, value)| (key, value))
+    }
+
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
         match self.0.binary_search_by(|row| row.0.cmp(&key)) {
             Ok(i) => Some(std::mem::replace(&mut self.0[i].1, value)),

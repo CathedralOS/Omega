@@ -1,0 +1,21 @@
+// A mismatch keeps the old word and retries. Only a committed exchange acquires it.
+use {omega}/language/core/layout.omg;
+
+data Flag { held: AtomicU32; }
+
+machine acquire(flag: @Flag) {
+    let attempt: |layout|::AtomicCompareExchangeOutcome<u32> =
+        flag.held.compare_exchange(0, 1, ReceivePublish, Receive);
+    transition attempt {
+        |layout|::AtomicCompareExchangeOutcome::Exchanged -> acquired(),
+        |layout|::AtomicCompareExchangeOutcome::Mismatched { observed } -> acquire(flag)
+    }
+    machine acquired() {}
+}
+
+machine main() {
+    let mutable flag: Flag;
+    acquire(@flag);
+    flag.held.store(0, Publish);
+    acquire(@flag);
+}

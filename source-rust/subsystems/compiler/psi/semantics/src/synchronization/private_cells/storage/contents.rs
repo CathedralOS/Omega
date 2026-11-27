@@ -4,7 +4,8 @@
 use super::Location;
 use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::progress::ScalarFact;
-use semantic_vocabulary::ScalarType;
+use crate::synchronization::spin::CellUpdate;
+use semantic_vocabulary::{ScalarType, StructuralCaseId};
 use std::sync::Arc;
 use terminal_psi::StructuralPathSegment as Segment;
 
@@ -24,11 +25,58 @@ pub(in super::super) enum Stored {
 
 #[derive(Clone)]
 pub(in super::super) struct Aggregate {
+    tags: Vec<StructuralCaseId>,
     zeroed: bool,
     fields: Vec<(Segment, Stored)>,
 }
 
 impl Stored {
+    pub(in super::super) fn variant(case: StructuralCaseId) -> Self {
+        Self::Aggregate(Arc::new(Aggregate {
+            tags: vec![case],
+            zeroed: false,
+            fields: Vec::new(),
+        }))
+    }
+
+    pub(in super::super) fn tags(&self) -> &[StructuralCaseId] {
+        match self {
+            Self::Aggregate(value) => &value.tags,
+            _ => &[],
+        }
+    }
+
+    pub(in super::super) fn tag(&self) -> Option<StructuralCaseId> {
+        match self.tags() {
+            [tag] => Some(*tag),
+            _ => None,
+        }
+    }
+
+    pub(in super::super) fn select_case(&self, case: StructuralCaseId) -> Self {
+        let mut result = match self {
+            Self::Aggregate(aggregate) => aggregate.clone(),
+            _ => Arc::new(Aggregate {
+                tags: Vec::new(),
+                zeroed: matches!(self, Self::Zero),
+                fields: Vec::new(),
+            }),
+        };
+        let value = Arc::make_mut(&mut result);
+        value.tags.clear();
+        value.tags.push(case);
+        Self::Aggregate(result)
+    }
+
+    pub(super) fn project(&self, path: &[Segment]) -> &Self {
+        path.iter().fold(self, |value, field| value.field(field))
+    }
+
+    pub(super) fn project_mut(&mut self, path: &[Segment]) -> &mut Self {
+        path.iter()
+            .fold(self, |value, field| value.field_mut(field))
+    }
+
     pub(super) fn field(&self, key: &Segment) -> &Self {
         match self {
             Self::Zero => &Self::Zero,
@@ -51,6 +99,7 @@ impl Stored {
     pub(super) fn field_mut(&mut self, key: &Segment) -> &mut Self {
         if !matches!(self, Self::Aggregate(_)) {
             *self = Self::Aggregate(Arc::new(Aggregate {
+                tags: Vec::new(),
                 zeroed: matches!(self, Self::Zero),
                 fields: Vec::new(),
             }));
@@ -79,11 +128,23 @@ impl Stored {
 
     // Identical cells keep all values established at incoming edges. Zero
     // remains untyped until a checked operation supplies its scalar type.
-    pub(super) fn join(&mut self, other: &Self) {
+    pub(in super::super) fn join(&mut self, other: &Self) {
+        self.join_with(other, &mut Location::join);
+    }
+
+    pub(super) fn join_with(
+        &mut self,
+        other: &Self,
+        borrow: &mut impl FnMut(&mut Location, &Location),
+    ) {
         match (&*self, other) {
             (Self::Unknown, _) | (Self::Zero, Self::Zero) => return,
             (Self::Scalar(a), Self::Scalar(b)) if a == b => return,
-            (Self::Reference(a), Self::Reference(b)) if a == b => return,
+            (Self::Reference(a), Self::Reference(b)) => {
+                let mut home = a.clone();
+                borrow(&mut home, b);
+                *self = Self::Reference(home);
+            }
             (Self::Aggregate(a), Self::Aggregate(b)) if Arc::ptr_eq(a, b) => return,
             (Self::Aggregate(_) | Self::Zero, Self::Aggregate(_) | Self::Zero) => {
                 let fields = |value: &Self| match value {
@@ -97,7 +158,15 @@ impl Stored {
                 let zeroed = |value: &Self| {
                     matches!(value, Self::Zero) || matches!(value, Self::Aggregate(a) if a.zeroed)
                 };
+                let mut tags = Vec::new();
+                if !self.tags().is_empty() && !other.tags().is_empty() {
+                    tags.extend_from_slice(self.tags());
+                    tags.extend_from_slice(other.tags());
+                    tags.sort_unstable();
+                    tags.dedup();
+                }
                 let mut result = Self::Aggregate(Arc::new(Aggregate {
+                    tags,
                     zeroed: zeroed(self) && zeroed(other),
                     fields: Vec::new(),
                 }));
@@ -106,8 +175,25 @@ impl Stored {
                 keys.sort_unstable();
                 keys.dedup();
                 for key in keys {
-                    let mut value = self.field(&key).clone();
-                    value.join(other.field(&key));
+                    // A payload field is available only in its own case. A
+                    // predecessor that constructed another case contributes
+                    // no value to this field.
+                    let admits = |v: &Self| match &key {
+                        Segment::Case(tag) if !v.tags().is_empty() => {
+                            v.tags().binary_search(tag).is_ok()
+                        }
+                        _ => true,
+                    };
+                    let value = match (admits(self), admits(other)) {
+                        (true, true) => {
+                            let mut value = self.field(&key).clone();
+                            value.join_with(other.field(&key), borrow);
+                            value
+                        }
+                        (true, false) => self.field(&key).clone(),
+                        (false, true) => other.field(&key).clone(),
+                        (false, false) => continue,
+                    };
                     *result.field_mut(&key) = value;
                 }
                 *self = result;
@@ -145,6 +231,35 @@ impl Stored {
             }
             _ => *self = Self::Unknown,
         }
+    }
+
+    /// Apply the instruction's transfer independently to every admitted
+    /// resident. A mismatch preserves the actual observed word.
+    pub(in super::super::super) fn after_update(&self, update: CellUpdate) -> Self {
+        let expected = match update {
+            CellUpdate::Observe => return self.clone(),
+            CellUpdate::Replace(value) => return Self::Scalar(ScalarFact::Literal(value)),
+            CellUpdate::CompareExchange {
+                expected,
+                replacement,
+            } if expected == replacement => {
+                return self.clone();
+            }
+            CellUpdate::CompareExchange { expected, .. } => expected,
+        };
+        let mut result: Option<Self> = None;
+        let mapped = self.visit_scalars(expected.scalar_type(), |prior| {
+            let value = match prior {
+                ScalarFact::Literal(bits) => Self::Scalar(ScalarFact::Literal(update.apply(bits))),
+                ScalarFact::EntryInput(_) => Self::Unknown,
+            };
+            if let Some(existing) = &mut result {
+                existing.join(&value);
+            } else {
+                result = Some(value);
+            }
+        });
+        mapped.and(result).unwrap_or_default()
     }
 
     pub(in super::super) fn visit_scalars(

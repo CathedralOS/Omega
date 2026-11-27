@@ -2,17 +2,18 @@
 //! arguments identify the same allocation across checked calls and jumps.
 
 mod activation;
+mod aggregate;
 mod control;
 mod storage;
+mod successor;
 
-use super::progress::{PrivateWaitFailure, ProgressFailure, ScalarFact, entry_scalars};
+use super::progress::{PrivateWaitFailure, ProgressFailure, entry_scalars};
 use super::selected::Summaries;
-use super::spin::SpinWait;
-use crate::entry_values::TerminalScalarValue as Scalar;
-use activation::{Bindings, Destination, Frame};
+use super::spin::{CellUpdate, SpinWait};
+use activation::{Bindings, Destination, Frame, ScalarArguments};
 use control::{Execution, Frontier};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
-use storage::{Storage, Stored};
+use storage::Storage;
 use terminal_psi::{
     StructuralAccess, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
     Terminator,
@@ -73,11 +74,7 @@ pub fn private_wait_failure(
             &selected_entry.requires,
         ) {
             Some(Advance::Continue) => paths.queue(path),
-            Some(Advance::Fork) => {
-                let other = path.fork()?;
-                paths.queue(other);
-                paths.queue(path);
-            }
+            Some(Advance::Fork(arms)) => path.fork(&arms, |arm| paths.queue(arm)),
             Some(Advance::Blocked(failure)) if failure.cause == ProgressFailure::Deadlock => {
                 return Some(failure);
             }
@@ -92,7 +89,7 @@ pub fn private_wait_failure(
 
 enum Advance {
     Continue,
-    Fork,
+    Fork(std::borrow::Cow<'static, [usize]>),
     Blocked(PrivateWaitFailure),
 }
 
@@ -123,7 +120,7 @@ fn advance<'m>(
                             memory,
                             &callee.parameters,
                             &callee.structural_parameters,
-                            call.arguments,
+                            ScalarArguments::Values(call.arguments),
                             call.structural_arguments,
                         )?;
                         let return_to = Destination::of(op);
@@ -145,7 +142,7 @@ fn advance<'m>(
             let mut all_block = true;
             let mut can_block = false;
             let mut observe = |initial| {
-                let failure = spin.while_value.failure(initial, spin.writes, requirements);
+                let failure = spin.while_value.failure(initial, spin.update, requirements);
                 all_block &= failure == Some(ProgressFailure::Deadlock);
                 can_block |= failure.is_some();
             };
@@ -170,56 +167,15 @@ fn advance<'m>(
                     cause,
                 }));
             }
-            if let Some(value) = spin.writes {
-                memory.set(&location, Stored::Scalar(ScalarFact::Literal(value)));
+            if spin.update != CellUpdate::Observe {
+                let next = memory.get(&location).after_update(spin.update);
+                memory.set(&location, next);
             }
             continue;
         }
-        let (successor, cleanup) = match &frame.block.terminator {
-            Terminator::Jump {
-                target,
-                arguments,
-                structural_arguments,
-                cleanup_actions,
-                ..
-            } => (
-                Some((*target, arguments, structural_arguments)),
-                cleanup_actions,
-            ),
-            Terminator::Conditional {
-                condition,
-                when_true,
-                when_false,
-            } => {
-                let answer = match frame.bindings.values.get(condition) {
-                    Some(ScalarFact::Literal(Scalar::Boolean(value))) => *value,
-                    _ => match frame.selected_arm {
-                        Some(value) => {
-                            frame
-                                .bindings
-                                .values
-                                .insert(*condition, ScalarFact::Literal(Scalar::Boolean(value)));
-                            value
-                        }
-                        None => return Some(Advance::Fork),
-                    },
-                };
-                let edge = if answer { when_true } else { when_false };
-                (
-                    Some((edge.target, &edge.arguments, &edge.structural_arguments)),
-                    &edge.cleanup_actions,
-                )
-            }
-            Terminator::ReturnUnit {
-                cleanup_actions, ..
-            }
-            | Terminator::Return {
-                cleanup_actions, ..
-            }
-            | Terminator::ReturnStructural {
-                cleanup_actions, ..
-            } => (None, cleanup_actions),
-            _ => return None,
+        let cleanup = match successor::prepare(module, frame, memory)? {
+            successor::Selection::Fork(arms) => return Some(Advance::Fork(arms)),
+            successor::Selection::Ready(actions) => actions,
         };
         if let Some(action) = cleanup.get(frame.cleanup_cursor) {
             frame.cleanup_cursor += 1;
@@ -229,7 +185,7 @@ fn advance<'m>(
                     memory,
                     &callee.parameters,
                     &callee.structural_parameters,
-                    &[],
+                    ScalarArguments::Values(&[]),
                     std::slice::from_ref(&invocation.subject),
                 )?;
                 if stack.iter().any(|active| active.machine.id == callee.id) {
@@ -239,8 +195,8 @@ fn advance<'m>(
             }
             continue;
         }
-        if let Some((target, scalars, places)) = successor {
-            frame.jump(target, scalars, places, memory)?;
+        if frame.arrival.is_some() {
+            frame.arrive()?;
             return Some(Advance::Continue);
         }
         let frame = stack.pop()?;
@@ -254,7 +210,7 @@ fn advance<'m>(
                 }
                 (Destination::Structural(dest), Terminator::ReturnStructural { source, .. }) => {
                     let location = frame.bindings.places.get(source)?;
-                    let returned = memory.allocate(memory.get(location).clone());
+                    let returned = memory.allocate(memory.get(location));
                     caller.bindings.places.insert(dest, returned);
                 }
                 _ => return None,
