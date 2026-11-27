@@ -1755,8 +1755,8 @@ same_sign> as SameSign;` is read into the mathematical signature when
   of its domain the goal names, as written or computed, and the
   applications that are `Pi`s again in turn (at most 64 applications), so
   a cited law's premise at a computed index such as `S(m)` is met at that
-  index. Nothing proves a `Pi` conclusion yet: how source does it is
-  [an owner question](../../../OWNER_QUESTIONS.md#for-every-conclusion). The
+  index. The checker still needs to establish `Pi` conclusions through
+  [pointwise theorem citations](../../spec/proofs/mathematical_bindings.md#pointwise-theorem-citations). The
   `Real` quotient's relation needs this, and the
   [boxed squash of its relation](../../spec/proofs/quotients.md#set-quotient-foundation).
   Tests: `tests::for_every`.
