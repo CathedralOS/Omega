@@ -2518,8 +2518,6 @@ dependencies = [
  "target",
  "target-vocabulary",
  "terminal-psi",
- "terminal-semantics",
- "terminal-wire",
  "wire",
 ]
 
@@ -2722,7 +2720,6 @@ dependencies = [
  "target",
  "target-vocabulary",
  "terminal-psi",
- "terminal-wire",
  "wire",
 ]
 

@@ -7,9 +7,8 @@ domain-separated identities.
 
 use ::selected_instructions::{
     FixedViewCopyIdentity, LiveRangeIdentity, LiveRangePoint, SelectedBlockId,
-    SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
-    SelectedInstructionProvenance, VirtualFixedConstraintSite, VirtualRegisterId,
-    VirtualRegisterOrigin, selected_instruction_plan_identity,
+    SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionProvenance,
+    VirtualFixedConstraintSite, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use operation_evidence::provenance::{
     PsiProvenance, ValueDefinitionSite, encode_value_definition_site_identity,
@@ -21,6 +20,7 @@ use register_model::{
 use semantic_vocabulary::{
     IntegerSign, IntegerValue, MachineId, ScalarType, ValueId, WorkScheduleIdentity,
 };
+use std::sync::Arc;
 
 use crate::codec_bytes::{domain_identity, length, list, option, push_encoded};
 use crate::{
@@ -61,7 +61,7 @@ pub enum RecoveryClassificationPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecoveryClassificationPlan {
-    pub selected: SelectedInstructionPlanIdentity,
+    pub selected: Arc<SelectedInstructionPlan>,
     pub spill_choices: SpillChoiceIdentity,
     pub ranges: LiveRangeIdentity,
     pub legality: AllocationLegalityIdentity,
@@ -140,7 +140,7 @@ pub fn recovery_classification_identity(
     plan: &RecoveryClassificationPlan,
 ) -> RecoveryClassificationIdentity {
     RecoveryClassificationIdentity(domain_identity(
-        b"omega.terminal-recovery-classification.v7\0",
+        b"omega.terminal-recovery-classification.v8\0",
         &encode_terminal_recovery_classification_content(plan),
     ))
 }
@@ -149,7 +149,6 @@ pub(crate) fn encode_terminal_recovery_classification_content(
     plan: &RecoveryClassificationPlan,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.spill_choices.bytes());
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.legality.bytes());
@@ -436,7 +435,7 @@ pub enum PressureRematerializationPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedViewCopyPlan {
-    pub source_selected: SelectedInstructionPlanIdentity,
+    pub source_selected: Arc<SelectedInstructionPlan>,
     pub source_ranges: LiveRangeIdentity,
     pub source_legality: AllocationLegalityIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
@@ -445,7 +444,7 @@ pub struct FixedViewCopyPlan {
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
     pub copies: Vec<FixedViewCopy>,
-    pub transformed: std::sync::Arc<SelectedInstructionPlan>,
+    pub transformed: Arc<SelectedInstructionPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -474,7 +473,6 @@ pub struct FixedViewCopyDestination {
 
 pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(&plan.source_selected.bytes());
     bytes.extend_from_slice(&plan.source_ranges.bytes());
     bytes.extend_from_slice(&plan.source_legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
@@ -513,9 +511,8 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
         bytes.push(copy.copy_constraint.family.tag());
         crate::codec_bytes::push_encoded(&mut bytes, copy.copy_constraint.variant.to_le_bytes());
     }
-    bytes.extend_from_slice(&selected_instruction_plan_identity(&plan.transformed).bytes());
     FixedViewCopyIdentity::from_bytes(crate::codec_bytes::domain_identity(
-        b"omega.terminal-fixed-view-copies.v11\0",
+        b"omega.terminal-fixed-view-copies.v12\0",
         &bytes,
     ))
 }
@@ -533,9 +530,9 @@ mod tests {
     use crate::AllocationLegalityIdentity;
     use ::selected_instructions::{
         LiveRangeIdentity, LiveRangePoint, LivenessPosition, SelectedBlockId,
-        SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
-        SelectedInstructionProvenance, VirtualFixedConstraintSite, VirtualRegisterId,
-        VirtualRegisterOrigin,
+        SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionProvenance,
+        VirtualFixedConstraintSite, VirtualRegisterId, VirtualRegisterOrigin,
+        test_support::placeholder_plan,
     };
     use operation_evidence::provenance::{PsiProvenance, ValueDefinitionSite, WorkSettlement};
     use optimization_core::{
@@ -555,7 +552,7 @@ mod tests {
         let operation = OperationId::new(8).unwrap();
         let value = ValueId::new(9).unwrap();
         RecoveryClassificationPlan {
-            selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
+            selected: placeholder_plan(1),
             spill_choices: SpillChoiceIdentity::from_bytes([2; 32]),
             ranges: LiveRangeIdentity::from_bytes([3; 32]),
             legality: AllocationLegalityIdentity::from_bytes([4; 32]),
@@ -757,7 +754,7 @@ mod tests {
 
     fn fixed_view_copy_plan() -> FixedViewCopyPlan {
         FixedViewCopyPlan {
-            source_selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"s"),
+            source_selected: placeholder_plan(1),
             source_ranges: LiveRangeIdentity::from_bytes([2; 32]),
             source_legality: AllocationLegalityIdentity::from_bytes([3; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
@@ -828,14 +825,10 @@ mod tests {
     }
 
     #[test]
-    fn fixed_view_copy_identity_binds_roots_work_copy_rows_and_transformed_plan() {
+    fn fixed_view_copy_identity_binds_roots_work_and_copy_rows() {
         let baseline = fixed_view_copy_identity(&fixed_view_copy_plan());
         assert_eq!(baseline, fixed_view_copy_identity(&fixed_view_copy_plan()));
         let mutations: Vec<FixedViewCopyMutation> = vec![
-            |plan| {
-                plan.source_selected =
-                    SelectedInstructionPlanIdentity::from_canonical_bytes(b"changed")
-            },
             |plan| plan.source_ranges = LiveRangeIdentity::from_bytes([13; 32]),
             |plan| plan.source_legality = AllocationLegalityIdentity::from_bytes([14; 32]),
             |plan| {
@@ -868,14 +861,22 @@ mod tests {
             |plan| plan.copies[0].copy_constraint.variant += 1,
             |plan| plan.copies.clear(),
             |plan| plan.copies[0].destinations.clear(),
-            |plan| {
-                std::sync::Arc::make_mut(&mut plan.transformed).entry = MachineId::new(2).unwrap()
-            },
         ];
         for mutate in mutations {
             let mut changed = fixed_view_copy_plan();
             mutate(&mut changed);
             assert_ne!(baseline, fixed_view_copy_identity(&changed));
         }
+    }
+
+    #[test]
+    fn fixed_view_copy_plans_compare_their_source_and_transformed_programs() {
+        let baseline = fixed_view_copy_plan();
+        let mut changed = fixed_view_copy_plan();
+        changed.source_selected = placeholder_plan(2);
+        assert_ne!(baseline, changed);
+        let mut changed = fixed_view_copy_plan();
+        std::sync::Arc::make_mut(&mut changed.transformed).entry = MachineId::new(2).unwrap();
+        assert_ne!(baseline, changed);
     }
 }

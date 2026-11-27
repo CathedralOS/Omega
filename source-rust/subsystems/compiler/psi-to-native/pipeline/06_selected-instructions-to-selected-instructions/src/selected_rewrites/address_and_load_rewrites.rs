@@ -278,7 +278,6 @@ pub(crate) mod address_fold {
     use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
         AddressFoldIdentity, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-        SelectedInstructionPlanIdentity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::sync::Arc;
@@ -294,7 +293,7 @@ pub(crate) mod address_fold {
         address_fold_identity,
         AddressFoldIdentity,
         AddressFoldReceipt,
-        b"omega.terminal-address-fold.v1\0",
+        b"omega.terminal-address-fold.v2\0",
         "address-fold",
         access,
     );
@@ -1295,10 +1294,7 @@ pub(crate) mod load_forwarding {
         load: SelectedInstructionId,
         proposed: SelectedInstructionPlan,
     ) -> Result<ValidatedStoredLoadForwarding, StoredLoadForwardingError> {
-        let transformed_selected = selected_instruction_plan_identity(&proposed);
-        let mut canonical = b"omega.stored-load-forwarding.v1".to_vec();
-        canonical.extend_from_slice(&source.selected_identity().bytes());
-        canonical.extend_from_slice(&transformed_selected.bytes());
+        let mut canonical = b"omega.stored-load-forwarding.v2".to_vec();
         canonical.extend_from_slice(&source.optimization_unit_identity().bytes());
         crate::selected_rewrites::codec_bytes::push_encoded(
             &mut canonical,
@@ -1326,8 +1322,7 @@ pub(crate) mod load_forwarding {
     use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
     use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
-        SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
-        StoredLoadForwardingIdentity, selected_instruction_plan_identity,
+        SelectedInstructionId, SelectedInstructionPlan, StoredLoadForwardingIdentity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::sync::Arc;
@@ -1339,8 +1334,8 @@ pub(crate) mod load_forwarding {
         identity: StoredLoadForwardingIdentity,
         function_index: usize,
         load: SelectedInstructionId,
-        source_selected: SelectedInstructionPlanIdentity,
-        transformed_selected: SelectedInstructionPlanIdentity,
+        source_selected: Arc<SelectedInstructionPlan>,
+        transformed_selected: Arc<SelectedInstructionPlan>,
         optimization_unit: OptimizationUnitIdentity,
         work_schedule: WorkScheduleIdentity,
     }

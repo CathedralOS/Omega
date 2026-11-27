@@ -151,8 +151,8 @@ use register_model::{
 };
 use selected_instructions::{
     CurrentSelectedProgram, LiveRangeIdentity, LiveRangePlan, PreAllocationMachineEffectPlan,
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
-    SelectedInstructionPlanIdentity, VirtualFixedConstraintSite, VirtualRegisterId,
+    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan, VirtualFixedConstraintSite,
+    VirtualRegisterId,
 };
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
@@ -394,17 +394,17 @@ pub struct FunctionAllocatedCalleeSavedRequirements {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AllocatedCalleeSavedRequirementPlan {
-    pub selected: SelectedInstructionPlanIdentity, // Selected instruction plan digest
-    pub homes: RegisterHomeIdentity,               // Register-home plan digest
+    pub selected: Arc<SelectedInstructionPlan>, // Selected instruction plan
+    pub homes: RegisterHomeIdentity,            // Register-home plan digest
     pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity, // Manifest digest
     pub register_environment: TargetRegisterEnvironmentIdentity, // Register environment digest
     pub physical_register_model: PhysicalRegisterModelIdentity, // Physical register model digest
-    pub target: NativeTarget,                      // Target architecture and format
-    pub abi: FrameAbiPreservationConvention,       // Frame ABI preservation convention
-    pub callee_saved_units: Vec<RegisterUnitId>,   // ABI callee-saved register units
+    pub target: NativeTarget,                   // Target architecture and format
+    pub abi: FrameAbiPreservationConvention,    // Frame ABI preservation convention
+    pub callee_saved_units: Vec<RegisterUnitId>, // ABI callee-saved register units
     pub policy: AllocatedCalleeSavedRequirementPolicy, // Requirement derivation policy
-    pub budget: OptimizationWorkBudget,            // Optimization work budget
-    pub usage: OptimizationWorkUsage,              // Optimization work usage
+    pub budget: OptimizationWorkBudget,         // Optimization work budget
+    pub usage: OptimizationWorkUsage,           // Optimization work usage
     pub functions: Vec<FunctionAllocatedCalleeSavedRequirements>, // Per-function requirements
 }
 
@@ -440,8 +440,7 @@ pub fn allocated_callee_saved_requirement_identity(
     plan: &AllocatedCalleeSavedRequirementPlan,
 ) -> AllocatedCalleeSavedRequirementIdentity {
     let mut hasher =
-        digest_encoder::DomainDigestEncoder::new(b"omega.allocated-callee-saved-requirements.v2");
-    hasher.raw(&plan.selected.bytes());
+        digest_encoder::DomainDigestEncoder::new(b"omega.allocated-callee-saved-requirements.v3");
     hasher.raw(&plan.homes.bytes());
     hasher.raw(&plan.post_allocation_manifest.bytes());
     hasher.raw(&plan.register_environment.bytes());

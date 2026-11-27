@@ -138,9 +138,9 @@ pub(crate) fn compute_post_allocation_machine_plan(
         allocation.homes,
         sources.physical,
     )?;
+    // `validate_roots` proved the effects plan names this selected program.
     Ok(PostAllocationMachinePlan {
-        selected: allocation.selected.identity,
-        effects: allocation.effects.identity,
+        selected: Arc::clone(&allocation.effects.selected),
         ranges: allocation.ranges_identity,
         legality: allocation.legality_identity,
         homes: allocation.homes_identity,
@@ -174,7 +174,7 @@ fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachine
         ..
     } = allocation;
     let manifest = allocation.publication.record();
-    if effects.selected != selected.identity || ranges.selected != selected.identity {
+    if *effects.selected != *selected.plan || *ranges.selected != *selected.plan {
         return Err(PostAllocationMachineError::SelectedRootMismatch);
     }
     if effects.optimization_unit != selected.optimization_unit
@@ -200,7 +200,7 @@ fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachine
         return Err(PostAllocationMachineError::RegisterEnvironmentMismatch);
     }
     if manifest.target != selected.plan.target
-        || manifest.selected != selected.identity
+        || *manifest.selected != *selected.plan
         || manifest.ranges != ranges_identity
         || manifest.legality != legality_identity
         || manifest.homes != homes_identity
@@ -209,7 +209,7 @@ fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachine
         return Err(PostAllocationMachineError::PostAllocationManifestMismatch);
     }
     let preservation = allocation.preservation.plan();
-    if preservation.selected != selected.identity
+    if *preservation.selected != *selected.plan
         || preservation.homes != homes_identity
         || preservation.post_allocation_manifest != manifest.identity
         || preservation.register_environment != register_environment

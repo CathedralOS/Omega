@@ -15,7 +15,6 @@ use target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86BranchRelaxationRecord {
-    pub selected: selected_instructions::SelectedInstructionPlanIdentity, // Upstream selected-instruction plan identity.
     pub machine: Arc<post_allocation_machine::PostAllocationMachinePlan>, // Upstream post-allocation machine plan.
     pub pre_layout: crate::SelectedFormEncodingIdentity, // Upstream pre-layout encoding identity.
     pub target: NativeTarget, // Target platform for which relaxation was performed.
@@ -30,10 +29,6 @@ pub struct X86BranchRelaxationRecord {
 }
 
 impl X86BranchRelaxationRecord {
-    pub const fn selected(&self) -> selected_instructions::SelectedInstructionPlanIdentity {
-        self.selected
-    }
-
     pub fn machine(&self) -> &Arc<post_allocation_machine::PostAllocationMachinePlan> {
         &self.machine
     }

@@ -36,8 +36,7 @@ pub(crate) fn validate(
     let selected_plan = selected;
     let machine = selected;
     let machine_plan = machine;
-    if pre_layout.selected() != machine.selected
-        || *pre_layout.machine() != machine.machine
+    if *pre_layout.machine() != machine.machine
         || selected_plan.target != machine_plan.target
         || selected_plan.target.architecture != physical.model().architecture
         || selected_plan.functions.len() != machine_plan.alternatives.len()
@@ -64,8 +63,7 @@ fn validate_roots(
     policy: SelectedFunctionLayoutPolicy,
     artifact: &ResolvedMachineLayout,
 ) -> Result<(), Error> {
-    if artifact.selected() != machine.selected
-        || *artifact.machine() != machine.machine
+    if *artifact.machine() != machine.machine
         || artifact.pre_layout() != pre_layout.identity()
         || artifact.target() != selected.target
         || artifact.policy() != policy

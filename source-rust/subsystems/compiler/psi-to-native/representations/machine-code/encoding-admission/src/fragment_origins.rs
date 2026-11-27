@@ -15,7 +15,7 @@ pub fn prepare_fragment_origins(
     FragmentOrigins {
         psi: program.psi,
         work_schedule: program.work_schedule,
-        selected: program.machine.selected,
+        selected: std::sync::Arc::clone(&program.machine.selected),
         target: program.target,
         entry: program.entry,
         functions: program

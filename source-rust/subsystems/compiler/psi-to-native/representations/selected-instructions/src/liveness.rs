@@ -22,8 +22,7 @@ mod identity {
             "one digest per liveness function"
         );
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(b"omega.terminal-register-liveness.v11\0");
-        bytes.extend_from_slice(&plan.selected.bytes());
+        bytes.extend_from_slice(b"omega.terminal-register-liveness.v12\0");
         bytes.extend_from_slice(&plan.optimization_unit.bytes());
         crate::codec_bytes::push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
         bytes.extend_from_slice(&plan.target.identity_bytes());
@@ -433,9 +432,7 @@ mod identity {
 }
 pub use identity::{liveness_function_digest, liveness_identity_from_digests};
 
-use crate::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
-};
+use crate::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 use arena::{Arena, HandleSpan};
 use optimization_core::OptimizationUnitIdentity;
 use register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId, RegisterViewId};
@@ -449,7 +446,7 @@ crate::identity::sha256_identity!(LivenessIdentity);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LivenessPlan {
-    pub selected: SelectedInstructionPlanIdentity,
+    pub selected: std::sync::Arc<crate::SelectedInstructionPlan>,
     pub optimization_unit: OptimizationUnitIdentity,
     pub work_schedule: WorkScheduleIdentity,
     pub target: NativeTarget,

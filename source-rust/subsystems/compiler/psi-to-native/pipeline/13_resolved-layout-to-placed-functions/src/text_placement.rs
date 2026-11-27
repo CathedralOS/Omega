@@ -484,7 +484,7 @@ fn place_fixed_frame(
     Ok(RelocationFreeTextSectionPlacement {
         psi: fragments.psi,
         work_schedule: fragments.work_schedule,
-        selected: fragments.selected,
+        selected: Arc::clone(&fragments.selected),
         target: fragments.target,
         semantic_entry: fragments.entry,
         semantic_entry_offset,

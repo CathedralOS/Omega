@@ -1,5 +1,6 @@
 //! Physical forms retain the exact immutable instruction and function-contract
-//! chunks they still use, without retaining a selected-program container.
+//! chunks they still use. The machine plan shares the final selected program
+//! whose rows these are; no earlier program is retained.
 
 use std::sync::Arc;
 
@@ -45,12 +46,12 @@ impl PostAllocationMachineProgram {
         self.environment.physical()
     }
 
-    /// Bind the current instruction/contract chunks and settled roots. The
-    /// machine plan is not hashed: every record that meets it shares the plan
-    /// and compares it directly.
+    /// Bind the settled roots. Neither the machine plan nor the function rows
+    /// are hashed: every record that meets them shares them and compares them
+    /// directly.
     pub fn recomputed_identity(&self) -> [u8; 32] {
         let mut digest =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.physical-machine-program.v4\0");
+            crate::digest_encoder::DomainDigestEncoder::new(b"omega.physical-machine-program.v5\0");
         digest.raw(self.psi.program_fingerprint.as_bytes());
         digest.raw(&self.psi.vocabulary_marker.get().to_le_bytes());
         digest.raw(&self.work_schedule.marker().to_le_bytes());
@@ -63,9 +64,6 @@ impl PostAllocationMachineProgram {
         digest.raw(&self.phase.complete_selection().bytes());
         digest.raw(&self.phase.phase_selections().bytes());
         digest.u64(self.functions.len() as u64);
-        for function in self.functions.identity_digests() {
-            digest.raw(&function);
-        }
         digest.finish()
     }
 }

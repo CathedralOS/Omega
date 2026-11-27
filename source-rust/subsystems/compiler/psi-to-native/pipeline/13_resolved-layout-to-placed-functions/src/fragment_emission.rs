@@ -233,13 +233,13 @@ pub(crate) fn emit_resolved_function_fragments(
 ) -> Result<FunctionFragmentEmissionPlan, ResolvedFragmentEmissionError> {
     let selected = &program.fragment_origins;
     let layout = &program.layout;
-    if selected.target != layout.target || layout.selected != selected.selected {
+    if selected.target != layout.target || layout.machine.selected != selected.selected {
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
     let mut fragments = FunctionFragmentEmissionPlan {
         psi: selected.psi,
         work_schedule: selected.work_schedule,
-        selected: layout.selected,
+        selected: Arc::clone(&layout.machine.selected),
         target: selected.target,
         entry: selected.entry,
         functions: Vec::new(),
@@ -521,8 +521,8 @@ pub(crate) fn validate_resolved_function_fragments(
     require(
         fragments.psi == selected.psi
             && fragments.work_schedule == selected.work_schedule
-            && fragments.selected == layout.selected
-            && layout.selected == selected.selected
+            && fragments.selected == layout.machine.selected
+            && layout.machine.selected == selected.selected
             && fragments.target == selected.target
             && layout.target == selected.target
             && fragments.entry == selected.entry,

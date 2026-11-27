@@ -13,9 +13,7 @@ byte-literal image addresses (`PlacedImageAddress`) retain their unresolved
 object-relocation coordinates for object construction.
 */
 
-use selected_instructions::{
-    MachineAlternativeKey, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
-};
+use selected_instructions::{MachineAlternativeKey, SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
@@ -36,7 +34,7 @@ pub enum TextSectionRelocationRequirements {
 pub struct RelocationFreeTextSectionPlacement {
     pub psi: TerminalPsiIdentity,
     pub work_schedule: WorkScheduleIdentity,
-    pub selected: SelectedInstructionPlanIdentity,
+    pub selected: std::sync::Arc<selected_instructions::SelectedInstructionPlan>,
     pub target: NativeTarget,
     pub semantic_entry: MachineId,
     pub semantic_entry_offset: u64,

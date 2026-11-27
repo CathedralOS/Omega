@@ -140,7 +140,6 @@ pub fn prepare_exit_requirements(
     Ok(EncodedExitRequirements {
         abi,
         encoding: ExitEncoding {
-            selected: encoding.selected(),
             machine: std::sync::Arc::clone(encoding.machine()),
             identity: encoding.identity(),
             frame: encoding.frame.clone(),

@@ -1461,7 +1461,7 @@ pub mod compute {
             .map(|(index, (selected, live))| compute_function(index, selected, live).map(Arc::new))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(LiveRangePlan {
-            selected: selected.selected_identity(),
+            selected: selected.shared_selected_plan(),
             liveness: liveness.receipt().identity(),
             optimization_unit: selected.optimization_unit_identity(),
             work_schedule: selected.work_schedule_identity(),
@@ -1537,7 +1537,6 @@ pub(crate) mod validate {
         ) -> LiveRangeValidationReceipt {
             LiveRangeValidationReceipt {
                 identity: live_range_identity_from_digests(plan, function_digests),
-                selected: plan.selected,
                 liveness: plan.liveness,
                 optimization_unit: plan.optimization_unit,
                 work_schedule: plan.work_schedule,
@@ -1560,9 +1559,7 @@ pub(crate) mod validate {
         selected: &impl crate::SelectedProgramView,
         liveness: &ValidatedLiveness,
     ) -> Result<(), LiveRangeError> {
-        if liveness.plan().selected != selected.selected_identity()
-            || liveness.receipt().selected() != selected.selected_identity()
-        {
+        if *liveness.plan().selected != *selected.selected_plan() {
             return Err(LiveRangeError::RootMismatch);
         }
         Ok(())
@@ -1571,9 +1568,7 @@ pub(crate) mod validate {
 
 use crate::LivenessError;
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{
-    LiveRangeIdentity, LiveRangePlan, LivenessIdentity, SelectedInstructionPlanIdentity,
-};
+use selected_instructions::{LiveRangeIdentity, LiveRangePlan, LivenessIdentity};
 use semantic_vocabulary::WorkScheduleIdentity;
 
 pub fn analyze_live_ranges<S: SelectedProgramView>(
@@ -1614,7 +1609,6 @@ mod staging {
         ) -> StagedOptimizedLiveRangeCustodyReceipt {
             StagedOptimizedLiveRangeCustodyReceipt {
                 core: upstream.core(),
-                selected: upstream.selected(),
                 liveness: upstream.liveness(),
                 ranges: ranges.identity(),
             }
@@ -1628,9 +1622,9 @@ mod staging {
         PrePhysicalOptimizationManifestIdentity,
     };
     use register_environment::ValidatedTargetRegisterEnvironment;
+    use selected_instructions::LiveRangeIdentity;
     use selected_instructions::SelectedProgram;
     use selected_instructions::StagedOptimizedCustodyCore;
-    use selected_instructions::{LiveRangeIdentity, SelectedInstructionPlanIdentity};
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use terminal_psi::TerminalPsiIdentity;
 
@@ -1640,7 +1634,7 @@ mod staging {
         liveness: StagedOptimizedLiveness,
         ranges: ValidatedLiveRanges,
     ) -> Result<StagedOptimizedLiveRanges, OptimizedLiveRangeCustodyError> {
-        if ranges.receipt().selected() != liveness.selected().identity
+        if *ranges.plan().selected != *liveness.selected().plan
             || ranges.receipt().liveness() != liveness.liveness().receipt().identity()
         {
             return Err(OptimizedLiveRangeCustodyError::AnalysisMismatch);
@@ -1689,7 +1683,6 @@ mod staging {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct StagedOptimizedLiveRangeCustodyReceipt {
         core: StagedOptimizedCustodyCore,
-        selected: SelectedInstructionPlanIdentity,
         liveness: selected_instructions::LivenessIdentity,
         ranges: LiveRangeIdentity,
     }
@@ -1698,7 +1691,6 @@ mod staging {
         selected_instructions::staging_custody_core_accessors!();
 
         receipt_accessor_rows!(StagedOptimizedLiveRangeCustodyReceipt {
-            selected: SelectedInstructionPlanIdentity,
             liveness: selected_instructions::LivenessIdentity,
             ranges: LiveRangeIdentity,
         });
@@ -1726,7 +1718,6 @@ copy_receipt! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct LiveRangeValidationReceipt {
         pub(crate) identity: LiveRangeIdentity,
-        pub(crate) selected: SelectedInstructionPlanIdentity,
         pub(crate) liveness: LivenessIdentity,
         pub(crate) optimization_unit: OptimizationUnitIdentity,
         pub(crate) work_schedule: WorkScheduleIdentity,

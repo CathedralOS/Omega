@@ -17,8 +17,9 @@ use selected_instructions::{
     CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
     FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
     PressureRematerializationIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
-    SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity,
+    SelectedInstructionPlan, StoredLoadForwardingIdentity,
 };
+use std::sync::Arc;
 use target::NativeTarget;
 use wire::digest_encoder::hex;
 
@@ -50,12 +51,17 @@ pub struct PostAllocationStatistics {
     pub fixed_view_transitions: u64,  // Remaining fixed-view transitions
 }
 
+/// One rewrite in the ordered ledger. A rule rewrite records its receipt
+/// identity. A runtime recovery step records only its kind: its receipt holds
+/// nothing but the programs it read and wrote, and keeping every intermediate
+/// program here would hold one function copy per step until the image is
+/// written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PostAllocationSelectedTransformation {
-    RuntimeSpill(SelectedInstructionPlanIdentity),
-    RuntimeRematerialization(SelectedInstructionPlanIdentity),
-    RuntimeSplit(SelectedInstructionPlanIdentity),
-    FixedOccurrences(SelectedInstructionPlanIdentity),
+    RuntimeSpill,
+    RuntimeRematerialization,
+    RuntimeSplit,
+    FixedOccurrences,
     FixedViewCopy(FixedViewCopyIdentity),
     LiteralFold(LiteralFoldIdentity),
     PressureRematerialization(PressureRematerializationIdentity),
@@ -72,22 +78,29 @@ pub enum PostAllocationSelectedTransformation {
 }
 
 macro_rules! selected_transformation_rows {
-    ($( $tag:literal => $variant:ident($identity:ty) as $kind:literal; )*) => {
+    (
+        runtime { $( $runtime_tag:literal => $runtime:ident as $runtime_kind:literal; )* }
+        receipts { $( $tag:literal => $variant:ident as $kind:literal; )* }
+    ) => {
         impl PostAllocationSelectedTransformation {
-            pub(super) fn wire_tag(&self) -> u8 {
+            pub fn wire_tag(&self) -> u8 {
                 match self {
+                    $( Self::$runtime => $runtime_tag, )*
                     $( Self::$variant(_) => $tag, )*
                 }
             }
 
-            pub(super) fn identity_bytes(&self) -> [u8; 32] {
+            /// The receipt digest of a rule rewrite; `None` for a runtime step.
+            pub fn identity_bytes(&self) -> Option<[u8; 32]> {
                 match self {
-                    $( Self::$variant(identity) => identity.bytes(), )*
+                    $( Self::$runtime => None, )*
+                    $( Self::$variant(identity) => Some(identity.bytes()), )*
                 }
             }
 
             pub(super) fn kind(&self) -> &'static str {
                 match self {
+                    $( Self::$runtime => $runtime_kind, )*
                     $( Self::$variant(_) => $kind, )*
                 }
             }
@@ -96,23 +109,27 @@ macro_rules! selected_transformation_rows {
 }
 
 selected_transformation_rows! {
-    1 => FixedViewCopy(FixedViewCopyIdentity) as "fixed-view-copy";
-    2 => LiteralFold(LiteralFoldIdentity) as "literal-fold";
-    3 => PressureRematerialization(PressureRematerializationIdentity) as "pressure-rematerialization";
-    4 => RuntimeSpill(SelectedInstructionPlanIdentity) as "runtime-spill";
-    5 => RuntimeRematerialization(SelectedInstructionPlanIdentity) as "runtime-rematerialization";
-    6 => CopyRemoval(CopyRemovalIdentity) as "copy-removal";
-    7 => RedundantExtension(RedundantExtensionIdentity) as "redundant-extension";
-    8 => AddressFold(AddressFoldIdentity) as "address-fold";
-    9 => ConstantBoolean(ConstantBooleanIdentity) as "constant-boolean";
-    10 => ConstantBranch(ConstantBranchIdentity) as "constant-branch";
-    11 => DeadCompare(DeadCompareIdentity) as "dead-compare";
-    12 => RedundantCompare(RedundantCompareIdentity) as "redundant-compare";
-    13 => EquivalentCompare(EquivalentCompareIdentity) as "equivalent-compare";
-    14 => RuntimeSplit(SelectedInstructionPlanIdentity) as "runtime-split";
-    15 => CopiedCallOperand(CopiedCallOperandIdentity) as "copied-call-operand";
-    16 => StoredLoadForwarding(StoredLoadForwardingIdentity) as "stored-load-forwarding";
-    17 => FixedOccurrences(SelectedInstructionPlanIdentity) as "fixed-occurrences";
+    runtime {
+        4 => RuntimeSpill as "runtime-spill";
+        5 => RuntimeRematerialization as "runtime-rematerialization";
+        14 => RuntimeSplit as "runtime-split";
+        17 => FixedOccurrences as "fixed-occurrences";
+    }
+    receipts {
+        1 => FixedViewCopy as "fixed-view-copy";
+        2 => LiteralFold as "literal-fold";
+        3 => PressureRematerialization as "pressure-rematerialization";
+        6 => CopyRemoval as "copy-removal";
+        7 => RedundantExtension as "redundant-extension";
+        8 => AddressFold as "address-fold";
+        9 => ConstantBoolean as "constant-boolean";
+        10 => ConstantBranch as "constant-branch";
+        11 => DeadCompare as "dead-compare";
+        12 => RedundantCompare as "redundant-compare";
+        13 => EquivalentCompare as "equivalent-compare";
+        15 => CopiedCallOperand as "copied-call-operand";
+        16 => StoredLoadForwarding as "stored-load-forwarding";
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,7 +138,7 @@ pub struct PostAllocationOptimizationManifest {
     pub stage: PostAllocationManifestStage,                   // Manifest pipeline stage
     pub pre_physical: PrePhysicalOptimizationManifestIdentity, // Pre-physical manifest digest
     pub target: NativeTarget,                                 // Target architecture and format
-    pub selected: SelectedInstructionPlanIdentity,            // Final selected plan digest
+    pub selected: Arc<SelectedInstructionPlan>,               // Final selected plan
     pub selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>, // Optional selected-lowering completion
     pub pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>, // Optional pre-allocation completion
     pub selected_transformations: Vec<PostAllocationSelectedTransformation>, // Ordered physical-form rewrites
@@ -141,7 +158,7 @@ pub struct PostAllocationOptimizationManifest {
 impl PostAllocationOptimizationManifest {
     pub fn recomputed_identity(&self) -> PostAllocationOptimizationManifestIdentity {
         let mut canonical = Vec::new();
-        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v7\0");
+        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v8\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         PostAllocationOptimizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -163,7 +180,6 @@ impl PostAllocationOptimizationManifest {
             self.target.architecture, self.target.object_format
         )
         .unwrap();
-        writeln!(output, "selected plan: {}", hex(&self.selected.bytes())).unwrap();
         match self.selected_lowering_completion {
             Some(identity) => writeln!(
                 output,
@@ -189,12 +205,19 @@ impl PostAllocationOptimizationManifest {
         )
         .unwrap();
         for (index, transformation) in self.selected_transformations.iter().enumerate() {
-            writeln!(
-                output,
-                "selected transformation {index}: {} {}",
-                transformation.kind(),
-                hex(&transformation.identity_bytes())
-            )
+            match transformation.identity_bytes() {
+                Some(identity) => writeln!(
+                    output,
+                    "selected transformation {index}: {} {}",
+                    transformation.kind(),
+                    hex(&identity)
+                ),
+                None => writeln!(
+                    output,
+                    "selected transformation {index}: {}",
+                    transformation.kind()
+                ),
+            }
             .unwrap();
         }
         writeln!(output, "register homes: {}", hex(&self.homes.bytes())).unwrap();
@@ -249,7 +272,6 @@ fn encode_manifest_content(manifest: &PostAllocationOptimizationManifest) -> Vec
     });
     canonical.extend_from_slice(&manifest.pre_physical.bytes());
     canonical.extend_from_slice(&manifest.target.wire_identity_bytes());
-    canonical.extend_from_slice(&manifest.selected.bytes());
     match manifest.selected_lowering_completion {
         Some(identity) => {
             canonical.push(1);
@@ -271,7 +293,9 @@ fn encode_manifest_content(manifest: &PostAllocationOptimizationManifest) -> Vec
     );
     for transformation in &manifest.selected_transformations {
         canonical.push(transformation.wire_tag());
-        canonical.extend_from_slice(&transformation.identity_bytes());
+        if let Some(identity) = transformation.identity_bytes() {
+            canonical.extend_from_slice(&identity);
+        }
     }
     canonical.extend_from_slice(&manifest.liveness.bytes());
     canonical.extend_from_slice(&manifest.ranges.bytes());
@@ -327,7 +351,7 @@ mod tests {
     use register_model::TargetRegisterEnvironmentIdentity;
     use selected_instructions::{
         CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity,
-        LivenessIdentity, PressureRematerializationIdentity, SelectedInstructionPlanIdentity,
+        LivenessIdentity, PressureRematerializationIdentity, test_support::placeholder_plan,
     };
     use target::NativeTarget;
 
@@ -339,7 +363,7 @@ mod tests {
             stage: PostAllocationManifestStage::RegisterHomes,
             pre_physical: PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"pre"),
             target: NativeTarget::linux_x64(),
-            selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"selected"),
+            selected: placeholder_plan(1),
             selected_lowering_completion: None,
             pre_allocation_completion: None,
             selected_transformations: Vec::new(),
@@ -369,18 +393,21 @@ mod tests {
     fn executable_runtime_spill_manifest_binds_order_and_realized_storage() {
         let mut spilled = record();
         spilled.selected_transformations = vec![
-            PostAllocationSelectedTransformation::RuntimeSpill(
-                SelectedInstructionPlanIdentity::from_bytes([7; 32]),
-            ),
-            PostAllocationSelectedTransformation::RuntimeSpill(
-                SelectedInstructionPlanIdentity::from_bytes([8; 32]),
-            ),
+            PostAllocationSelectedTransformation::RuntimeSpill,
+            PostAllocationSelectedTransformation::LiteralFold(LiteralFoldIdentity::from_bytes(
+                [7; 32],
+            )),
         ];
         spilled.spills = PostAllocationSpillStatus::RealizedInSelectedProgram;
         spilled.identity = spilled.recomputed_identity();
         let mut reordered = spilled.clone();
         reordered.selected_transformations.reverse();
         assert_ne!(reordered.recomputed_identity(), spilled.identity);
+        let mut repeated = spilled.clone();
+        repeated
+            .selected_transformations
+            .push(PostAllocationSelectedTransformation::RuntimeSpill);
+        assert_ne!(repeated.recomputed_identity(), spilled.identity);
         let mut missing_storage = spilled.clone();
         missing_storage.spills = PostAllocationSpillStatus::NotRequiredForValidatedHomePlan;
         assert_ne!(missing_storage.recomputed_identity(), spilled.identity);
@@ -388,14 +415,12 @@ mod tests {
 
     #[test]
     fn runtime_split_manifest_is_distinct_from_storage_steps() {
-        let identity = SelectedInstructionPlanIdentity::from_bytes([9; 32]);
         let mut split = record();
-        split.selected_transformations =
-            vec![PostAllocationSelectedTransformation::RuntimeSplit(identity)];
+        split.selected_transformations = vec![PostAllocationSelectedTransformation::RuntimeSplit];
         split.identity = split.recomputed_identity();
         for other in [
-            PostAllocationSelectedTransformation::RuntimeSpill(identity),
-            PostAllocationSelectedTransformation::RuntimeRematerialization(identity),
+            PostAllocationSelectedTransformation::RuntimeSpill,
+            PostAllocationSelectedTransformation::RuntimeRematerialization,
         ] {
             let mut relabeled = split.clone();
             relabeled.selected_transformations = vec![other];
@@ -414,9 +439,6 @@ mod tests {
                     PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"other")
             },
             |record| record.target = NativeTarget::linux_arm64(),
-            |record| {
-                record.selected = SelectedInstructionPlanIdentity::from_canonical_bytes(b"other")
-            },
             |record| {
                 record.selected_lowering_completion = Some(
                     SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(
@@ -479,6 +501,10 @@ mod tests {
             mutate(&mut changed);
             assert_ne!(baseline.identity, changed.recomputed_identity());
         }
+        // The final program is shared, not hashed; the record comparison sees it.
+        let mut reselected = baseline.clone();
+        reselected.selected = placeholder_plan(2);
+        assert_ne!(reselected, baseline);
         let text = baseline.render_text();
         assert!(text.contains("spills: not required"));
         assert!(text.contains("publication: unavailable"));

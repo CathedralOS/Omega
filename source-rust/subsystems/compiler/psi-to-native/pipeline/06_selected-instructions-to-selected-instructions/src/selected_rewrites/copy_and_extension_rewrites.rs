@@ -663,7 +663,7 @@ pub(crate) mod copied_call_operand {
     use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
         CopiedCallOperandIdentity, PreparedMachineEffectCatalog, SelectedInstructionId,
-        SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+        SelectedInstructionPlan,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::sync::Arc;
@@ -672,7 +672,7 @@ pub(crate) mod copied_call_operand {
         copied_call_operand_identity,
         CopiedCallOperandIdentity,
         CopiedCallOperandReceipt,
-        b"omega.terminal-copied-call-operand.v1\0",
+        b"omega.terminal-copied-call-operand.v2\0",
         "copied-call-operand",
         producer,
         call,
@@ -682,8 +682,8 @@ pub(crate) mod copied_call_operand {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct CopiedCallOperandReceipt {
-        source_selected: SelectedInstructionPlanIdentity,
-        transformed_selected: SelectedInstructionPlanIdentity,
+        source_selected: Arc<SelectedInstructionPlan>,
+        transformed_selected: Arc<SelectedInstructionPlan>,
         function_index: usize,
         producer: SelectedInstructionId,
         call: SelectedInstructionId,
@@ -1243,7 +1243,6 @@ pub(crate) mod copy_removal {
     use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
         CopyRemovalIdentity, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-        SelectedInstructionPlanIdentity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::sync::Arc;
@@ -1259,7 +1258,7 @@ pub(crate) mod copy_removal {
         copy_removal_identity,
         CopyRemovalIdentity,
         CopyRemovalReceipt,
-        b"omega.terminal-copy-removal.v1\0",
+        b"omega.terminal-copy-removal.v2\0",
         "copy-removal",
         copy,
     );
@@ -1603,7 +1602,7 @@ pub(crate) mod redundant_extension {
     use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
         RedundantExtensionIdentity, SelectedFunction, SelectedInstructionId,
-        SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+        SelectedInstructionPlan,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::sync::Arc;
@@ -1619,7 +1618,7 @@ pub(crate) mod redundant_extension {
         redundant_extension_identity,
         RedundantExtensionIdentity,
         RedundantExtensionReceipt,
-        b"omega.terminal-redundant-extension-removal.v1\0",
+        b"omega.terminal-redundant-extension-removal.v2\0",
         "redundant-extension",
         extension,
     );

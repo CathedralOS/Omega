@@ -21,8 +21,7 @@ mod identity {
             "one digest per live-range function"
         );
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v12\0");
-        bytes.extend_from_slice(&plan.selected.bytes());
+        bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v13\0");
         bytes.extend_from_slice(&plan.liveness.bytes());
         bytes.extend_from_slice(&plan.optimization_unit.bytes());
         crate::codec_bytes::push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
@@ -898,9 +897,7 @@ mod interference {
 pub use identity::{live_range_function_digest, live_range_identity_from_digests};
 pub use interference::VirtualInterferences;
 
-use crate::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
-};
+use crate::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 use optimization_core::OptimizationUnitIdentity;
 use register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId, RegisterViewId};
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, WorkScheduleIdentity};
@@ -915,7 +912,7 @@ crate::identity::sha256_identity!(LiveRangeIdentity);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiveRangePlan {
-    pub selected: SelectedInstructionPlanIdentity,
+    pub selected: std::sync::Arc<crate::SelectedInstructionPlan>,
     pub liveness: LivenessIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
     pub work_schedule: WorkScheduleIdentity,

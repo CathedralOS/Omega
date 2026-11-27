@@ -65,7 +65,7 @@ mod selected_input {
     };
     use optimization_core::OptimizationUnitIdentity;
     use selected_instruction_analyses::{SelectedProgramView, validated_selected_analysis};
-    use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+    use selected_instructions::SelectedInstructionPlan;
     use semantic_vocabulary::WorkScheduleIdentity;
 
     pub use selected_instruction_analyses::ValidatedSelectedAnalysis;
@@ -84,10 +84,6 @@ mod selected_input {
 
         fn selected_plan(&self) -> &SelectedInstructionPlan {
             &self.plan().transformed
-        }
-
-        fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-            self.receipt().transformed_selected()
         }
 
         fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {

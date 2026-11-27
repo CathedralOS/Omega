@@ -86,24 +86,6 @@ impl SelectedCallTarget {
             Self::Callable { .. } => Some(0),
         }
     }
-
-    pub fn encode_identity(self, bytes: &mut Vec<u8>) {
-        match self {
-            Self::Machine(machine) => {
-                bytes.push(0);
-                crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
-            }
-            Self::Callable { contract } => {
-                bytes.push(2);
-                crate::codec_bytes::push_encoded(bytes, contract.get().to_le_bytes());
-            }
-            Self::Dynamic { interface, slot } => {
-                bytes.push(1);
-                crate::codec_bytes::push_encoded(bytes, interface.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, slot.to_le_bytes());
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -594,7 +594,6 @@ pub(crate) mod constant_boolean {
     use selected_instructions::{
         ConstantBooleanIdentity, MachineSemanticKind, PreparedMachineEffectCatalog,
         SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-        SelectedInstructionPlanIdentity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::collections::BTreeSet;
@@ -611,7 +610,7 @@ pub(crate) mod constant_boolean {
         constant_boolean_identity,
         ConstantBooleanIdentity,
         ConstantBooleanReceipt,
-        b"omega.terminal-constant-boolean-fold.v1\0",
+        b"omega.terminal-constant-boolean-fold.v2\0",
         "constant-boolean",
         materialization,
     );
@@ -1202,7 +1201,7 @@ pub(crate) mod constant_branch {
     use register_model::RegisterUnitId;
     use selected_instructions::{
         ConstantBranchIdentity, PreparedMachineEffectCatalog, SelectedFunction,
-        SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+        SelectedInstructionId, SelectedInstructionPlan,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::collections::BTreeSet;
@@ -1219,7 +1218,7 @@ pub(crate) mod constant_branch {
         constant_branch_identity,
         ConstantBranchIdentity,
         ConstantBranchReceipt,
-        b"omega.terminal-constant-branch-fold.v1\0",
+        b"omega.terminal-constant-branch-fold.v2\0",
         "constant-branch",
         branch,
     );
@@ -1965,7 +1964,7 @@ pub(crate) mod dead_compare {
         use register_environment::ValidatedTargetRegisterEnvironment;
         use selected_instructions::{
             EquivalentCompareIdentity, SelectedFunction, SelectedInstructionId,
-            SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+            SelectedInstructionPlan,
         };
         use semantic_vocabulary::WorkScheduleIdentity;
 
@@ -1985,7 +1984,7 @@ pub(crate) mod dead_compare {
             equivalent_compare_identity,
             EquivalentCompareIdentity,
             EquivalentCompareReceipt,
-            b"omega.terminal-equivalent-compare-removal.v1\0",
+            b"omega.terminal-equivalent-compare-removal.v2\0",
             "equivalent-compare",
             compare,
         );
@@ -2108,7 +2107,7 @@ pub(crate) mod dead_compare {
         use register_environment::ValidatedTargetRegisterEnvironment;
         use selected_instructions::{
             RedundantCompareIdentity, SelectedFunction, SelectedInstructionId,
-            SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+            SelectedInstructionPlan,
         };
         use semantic_vocabulary::WorkScheduleIdentity;
 
@@ -2128,7 +2127,7 @@ pub(crate) mod dead_compare {
             redundant_compare_identity,
             RedundantCompareIdentity,
             RedundantCompareReceipt,
-            b"omega.terminal-redundant-compare-removal.v1\0",
+            b"omega.terminal-redundant-compare-removal.v2\0",
             "redundant-compare",
             compare,
         );
@@ -2204,7 +2203,6 @@ pub(crate) mod dead_compare {
     use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
         DeadCompareIdentity, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-        SelectedInstructionPlanIdentity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
 
@@ -2232,7 +2230,7 @@ pub(crate) mod dead_compare {
         dead_compare_identity,
         DeadCompareIdentity,
         DeadCompareReceipt,
-        b"omega.terminal-dead-compare-removal.v1\0",
+        b"omega.terminal-dead-compare-removal.v2\0",
         "dead-compare",
         compare,
     );

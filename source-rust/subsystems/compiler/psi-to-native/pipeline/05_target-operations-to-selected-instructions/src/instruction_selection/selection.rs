@@ -1358,16 +1358,12 @@ pub(crate) mod foreign_scalar_backings {
 pub(crate) mod identity {
     use crate::input::BoundExecutionPlan;
     use crate::instruction_selection::selection::model::SelectedInstructionValidationReceipt;
-    use selected_instructions::SelectedInstructionPlan;
-    use selected_instructions::selected_instruction_plan_identity;
 
     pub(crate) fn receipt(
-        plan: &SelectedInstructionPlan,
         legalized: &BoundExecutionPlan<'_>,
     ) -> SelectedInstructionValidationReceipt {
         let preparation = legalized.receipt();
         SelectedInstructionValidationReceipt {
-            identity: selected_instruction_plan_identity(plan),
             optimization_unit: preparation.optimization_unit(),
             work_schedule: preparation.work_schedule(),
         }
@@ -1444,7 +1440,7 @@ pub(crate) mod integer_conversion {
 pub(in crate::instruction_selection) use crate::instruction_selection::selection_inputs::literal_compare_input;
 pub(crate) mod model {
     use register_model::RegisterConstraintKey;
-    use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+    use selected_instructions::SelectedInstructionPlan;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ValidatedSelectedInstructions {
@@ -1469,16 +1465,11 @@ pub(crate) mod model {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct SelectedInstructionValidationReceipt {
-        pub(crate) identity: SelectedInstructionPlanIdentity,
         pub(crate) optimization_unit: optimization_core::OptimizationUnitIdentity,
         pub(crate) work_schedule: semantic_vocabulary::WorkScheduleIdentity,
     }
 
     impl SelectedInstructionValidationReceipt {
-        pub const fn identity(self) -> SelectedInstructionPlanIdentity {
-            self.identity
-        }
-
         pub const fn optimization_unit(self) -> optimization_core::OptimizationUnitIdentity {
             self.optimization_unit
         }
@@ -1931,7 +1922,7 @@ pub(crate) fn select_bound_instructions(
 ) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
     let constraints = super::register_constraints::selection_constraints(legalized, environment);
     let plan = build_plan(legalized, &constraints, environment)?;
-    let receipt = identity::receipt(&plan, legalized);
+    let receipt = identity::receipt(legalized);
     Ok(ValidatedSelectedInstructions {
         plan: plan.into(),
         receipt,

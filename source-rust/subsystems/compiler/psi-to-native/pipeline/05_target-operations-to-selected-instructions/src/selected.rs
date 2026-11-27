@@ -45,7 +45,6 @@ impl StagedOptimizedSelectedInstructions {
         let receipt = self.selected.receipt();
         selected_instructions::SelectedProgram {
             plan: self.selected.shared_plan(),
-            identity: receipt.identity(),
             optimization_unit: receipt.optimization_unit(),
             work_schedule: receipt.work_schedule(),
         }

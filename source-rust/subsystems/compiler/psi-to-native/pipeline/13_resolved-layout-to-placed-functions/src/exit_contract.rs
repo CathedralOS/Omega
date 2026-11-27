@@ -116,7 +116,6 @@ pub(crate) fn validate_exit_record_for_current_layout(
     contract: &StagedWholeFunctionExitContract,
 ) -> Result<(), WholeFunctionExitContractError> {
     let custody = program.custody;
-    validate_layout_custody(custody)?;
     let inputs = ValidationInputs {
         selected: program.fragment_origins,
         machine: program.frame_demands,
@@ -146,10 +145,7 @@ fn compute_inner(
         MissingInstruction, NonReturnControlEffect, NonReturnStackEffect, OffsetOverflow,
         RootMismatch,
     };
-    validate_layout_custody(layout_custody)?;
-    if encoding.selected != machine.selected
-        || layout.selected() != machine.selected
-        || encoding.machine != machine.plan
+    if encoding.machine != machine.plan
         || *layout.machine() != machine.plan
         || layout.pre_layout() != encoding.identity
         || selected_plan.target != machine.target
@@ -529,7 +525,6 @@ fn compute_inner(
 
     let mut contract = WholeFunctionExitContract {
         identity: WholeFunctionExitContractIdentity::from_bytes([0; 32]),
-        selected: machine.selected,
         post_allocation_manifest: machine.post_allocation_manifest,
         post_allocation_machine: Arc::clone(&machine.plan),
         register_environment: machine.register_environment,
@@ -574,9 +569,7 @@ fn check_validation_context(
         contract,
     } = inputs;
     let encoding = &exits.encoding;
-    if encoding.selected != machine.selected
-        || layout.selected() != machine.selected
-        || encoding.machine != machine.plan
+    if encoding.machine != machine.plan
         || *layout.machine() != machine.plan
         || layout.pre_layout() != encoding.identity
         || selected.target != machine.target
@@ -644,8 +637,7 @@ fn check_validation_context(
         WholeFunctionFrameDisposition::FramelessV1
     };
     require_artifact(
-        contract.selected == machine.selected
-            && contract.post_allocation_manifest == machine.post_allocation_manifest
+        contract.post_allocation_manifest == machine.post_allocation_manifest
             && contract.post_allocation_machine == machine.plan
             && contract.register_environment == machine.register_environment
             && contract.physical_register_model == machine.physical_register_model
@@ -1055,19 +1047,6 @@ fn check_claimed_return(
             )?;
         }
         _ => return Err(ArtifactMismatch),
-    }
-    Ok(())
-}
-
-fn validate_layout_custody(
-    custody: WholeFunctionExitLayoutCustody,
-) -> Result<(), WholeFunctionExitContractError> {
-    if !matches!(
-        custody,
-        WholeFunctionExitLayoutCustody::BaselineNearLayoutV1
-            | WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { .. }
-    ) {
-        return Err(WholeFunctionExitContractError::OptimizationCustodyMismatch);
     }
     Ok(())
 }
@@ -1882,14 +1861,12 @@ fn assert_non_return_refused(message: &str, case: NonReturnCase<'_>) {
 mod tests {
     use super::*;
     use machine_code::{SelectedFormEncodingIdentity, X86BranchRelaxationIdentity};
-    use optimization_core::Optimization;
     use post_allocation_machine::PhysicalAddressOperation;
     use selected_instructions::{
         AtomicForm, AtomicWidth, FloatResultPolicyForm, IeeeFloatArithmeticForm,
         IeeeFloatArithmeticOperation, IeeeFloatFormat, IeeeFloatIntegerCarrier,
         IeeeFloatToIntegerDomain, LocalStorageSlotId, MachineAlternativeKey, MachineSemanticKind,
-        SelectedInstructionPlanIdentity, SelectedOperand, VirtualRegister, VirtualRegisterId,
-        VirtualRegisterOrigin,
+        SelectedOperand, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
     };
     use semantic_vocabulary::{BoundaryMachineId, OperationId, ScalarType, ValueId};
 
@@ -1898,7 +1875,6 @@ mod tests {
     ) -> WholeFunctionExitContract {
         let mut contract = WholeFunctionExitContract {
             identity: WholeFunctionExitContractIdentity::from_bytes([0; 32]),
-            selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
             post_allocation_manifest:
                 optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes([2; 32]),
             post_allocation_machine: post_allocation_machine::test_support::placeholder_plan(),
@@ -1955,7 +1931,7 @@ mod tests {
     }
 
     #[test]
-    fn layout_custody_and_optimization_receipts_are_identity_bound() {
+    fn layout_custody_and_frame_disposition_are_identity_bound() {
         let baseline = contract_with_custody(WholeFunctionExitLayoutCustody::BaselineNearLayoutV1);
         let relaxed = contract_with_custody(
             WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
@@ -1965,30 +1941,6 @@ mod tests {
         let another_relaxation = contract_with_custody(
             WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
                 relaxation: X86BranchRelaxationIdentity::from_bytes([9; 32]),
-            },
-        );
-        let movn = contract_with_custody(
-            WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
-                optimization: Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
-                artifact_identity: [8; 32],
-            },
-        );
-        let another_movn = contract_with_custody(
-            WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
-                optimization: Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
-                artifact_identity: [9; 32],
-            },
-        );
-        let generic_xor = contract_with_custody(
-            WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
-                optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
-                artifact_identity: [8; 32],
-            },
-        );
-        let another_generic_leaf = contract_with_custody(
-            WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
-                optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
-                artifact_identity: [9; 32],
             },
         );
         let mut framed = baseline.clone();
@@ -2001,12 +1953,6 @@ mod tests {
 
         assert_ne!(baseline.identity, relaxed.identity);
         assert_ne!(relaxed.identity, another_relaxation.identity);
-        assert_ne!(baseline.identity, movn.identity);
-        assert_ne!(relaxed.identity, movn.identity);
-        assert_ne!(movn.identity, another_movn.identity);
-        assert_ne!(baseline.identity, generic_xor.identity);
-        assert_ne!(generic_xor.identity, movn.identity);
-        assert_ne!(generic_xor.identity, another_generic_leaf.identity);
         assert_ne!(baseline.identity, framed.identity);
         let mut windows = framed.clone();
         windows.policy = WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1;

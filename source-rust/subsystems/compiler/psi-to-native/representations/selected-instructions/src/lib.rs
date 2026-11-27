@@ -27,9 +27,10 @@
   coalescing) can transform the program before physical home assignment. Because
   register-pressure recovery evaluates and validates one candidate rewrite per
   step, `SelectedFunctions` and `SelectedBlocks` store functions and blocks in
-  copy-on-write `Arc` entries that retain their lazy SHA-256 identity digests,
-  pre-encoded byte chunks, and mechanical bitset lookups across clones,
-  detaching and invalidating only the function and blocks a rewrite mutates.
+  copy-on-write `Arc` entries that retain their mechanical bitset lookups
+  across clones, detaching and invalidating only the function and blocks a
+  rewrite mutates. No stage hashes a selected plan: a stage that must name the
+  plan it read shares its `Arc<SelectedInstructionPlan>` and compares it.
 */
 
 /*
@@ -50,6 +51,7 @@ pub(crate) mod codec_bytes {
         push_encoded(bytes, (length as u64).to_le_bytes());
     }
 
+    #[cfg(test)]
     pub(crate) fn encode_le_list<T, const N: usize>(
         bytes: &mut Vec<u8>,
         values: &[T],
@@ -64,9 +66,6 @@ pub(crate) mod codec_bytes {
 
 pub(crate) use ::wire::digest_encoder;
 
-#[cfg(feature = "test-support")]
-pub mod fixture;
-
 mod atomic;
 mod blocks;
 pub mod calls;
@@ -76,14 +75,12 @@ pub mod effects;
 mod functions;
 pub mod identity;
 pub mod instructions;
-pub mod kind_encoding;
 pub mod live_ranges;
 pub mod liveness;
-pub mod plan_identity;
 mod program_contracts;
 pub mod provenance;
 pub mod structural_case;
-pub mod terminator_encoding;
+pub mod test_support;
 pub mod values;
 
 #[doc(hidden)]
@@ -117,20 +114,20 @@ pub use effects::{
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     MachineIdentityBytes, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, PreAllocationMachineEffectIdentity,
-    PreAllocationMachineEffectPlan, PreparedMachineEffectCatalog, alternative_family_tag,
-    canonical_machine_effect_catalog, encode_machine_alternative_identity,
-    encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity,
-    machine_effect_catalog_identity, pre_allocation_machine_effect_identity, saturating_family_tag,
-    trapping_family_tag, validate_isa_machine_effect_catalog, validate_machine_effect_catalog,
+    MachineSizeKnowledge, MachineTrapBehavior, PreAllocationMachineEffectPlan,
+    PreparedMachineEffectCatalog, alternative_family_tag, canonical_machine_effect_catalog,
+    encode_machine_alternative_identity, encode_machine_alternative_key_identity,
+    encode_machine_encoded_effects_identity, machine_effect_catalog_identity,
+    saturating_family_tag, trapping_family_tag, validate_isa_machine_effect_catalog,
+    validate_machine_effect_catalog,
 };
-pub use functions::{AppendOnlyRows, SelectedFunctions};
+pub use functions::SelectedFunctions;
 pub use identity::{
     AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity,
     CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
     FixedViewCopyIdentity, LiteralFoldIdentity, PressureRematerializationIdentity,
     RedundantCompareIdentity, RedundantExtensionIdentity, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity, VirtualRegisterId,
+    StoredLoadForwardingIdentity, VirtualRegisterId,
 };
 pub use instructions::{
     AccessorScalarForm, FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatArithmeticForm,
@@ -153,7 +150,6 @@ pub use liveness::{
     LivenessPlan, LivenessPosition, OperandPosition, SuccessorLiveness, liveness_function_digest,
     liveness_identity_from_digests,
 };
-pub use plan_identity::selected_instruction_plan_identity;
 pub use program_contracts::SelectedProgramContracts;
 pub use provenance::SelectedInstructionProvenance;
 pub use structural_case::{
@@ -197,7 +193,6 @@ impl SelectedInstructionPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgram {
     pub plan: std::sync::Arc<SelectedInstructionPlan>,
-    pub identity: SelectedInstructionPlanIdentity,
     pub optimization_unit: optimization_core::OptimizationUnitIdentity,
     pub work_schedule: WorkScheduleIdentity,
 }
@@ -209,10 +204,6 @@ impl SelectedProgram {
 
     pub fn shared_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
         std::sync::Arc::clone(&self.plan)
-    }
-
-    pub const fn identity(&self) -> SelectedInstructionPlanIdentity {
-        self.identity
     }
 
     pub const fn optimization_unit(&self) -> optimization_core::OptimizationUnitIdentity {
@@ -227,7 +218,6 @@ impl SelectedProgram {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CurrentSelectedProgram<'plan> {
     pub plan: &'plan SelectedInstructionPlan,
-    pub identity: SelectedInstructionPlanIdentity,
     pub optimization_unit: optimization_core::OptimizationUnitIdentity,
     pub work_schedule: WorkScheduleIdentity,
 }

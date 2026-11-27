@@ -1324,7 +1324,7 @@ mod tests {
     };
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, SelectedBlockId, SelectedInstructionId,
-        SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
+        SelectedInstructionProvenance,
     };
     use semantic_vocabulary::{EdgeId, MachineId, WorkScheduleIdentity};
     use target::NativeTarget;
@@ -1506,7 +1506,7 @@ mod tests {
                 program_fingerprint: SemanticFingerprint::from_bytes([3; 32]),
             },
             work_schedule: WorkScheduleIdentity::new(1).unwrap(),
-            selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"selected"),
+            selected: selected_instructions::test_support::placeholder_plan(1),
             target: NativeTarget::linux_x64(),
             entry: machine,
             functions: vec![FunctionFragment {

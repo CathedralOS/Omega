@@ -21,8 +21,6 @@ runtime-abi = { path = "../../targets/runtime-abi" }
 selected-instructions = { path = "../selected-instructions" }
 provider-stack-contribution = { path = "../../verification/provider-admission/same-stack" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-terminal-semantics = { path = "../../../psi/semantics" }
-terminal-wire = { path = "../../../psi/artifact/wire" }
 terminal-psi = { path = "../../../psi" }
 sha2 = "0.10.9"
 
