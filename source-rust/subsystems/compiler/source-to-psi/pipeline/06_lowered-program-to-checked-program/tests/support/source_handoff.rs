@@ -320,6 +320,16 @@ fn verdict(verdict: Result<RouteVerdict, CompilationRefusal>) -> Verdict {
             exceeded: exceeded.iter().map(|call| call.statement.clone()).collect(),
             formations: formations.len(),
         }),
+        // A goal outside the prover's forms leaves the program unjudged at
+        // that obligation; it is not accepted.
+        Ok(RouteVerdict::Incomplete(unproved)) => Verdict::Rejected(Rejection {
+            violations: Vec::new(),
+            unproved: unproved.iter().map(|owed| owed.statement.clone()).collect(),
+            unestablished: Vec::new(),
+            conflicts: Vec::new(),
+            exceeded: Vec::new(),
+            formations: 0,
+        }),
         Ok(RouteVerdict::FallBack(refusal)) => Verdict::Unserved(refusal),
         Err(CompilationRefusal::Elaboration(refusal)) => Verdict::Refused(refusal),
         other => panic!("{other:?}"),

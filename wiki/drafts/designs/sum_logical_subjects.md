@@ -55,6 +55,9 @@ unsupported shape is refused by name.
    and at each case its own test computes to `0 = 0`. The rule is checked
    only over a theorem's sum input, where the declaration is bound. The
    cited machine must still return without running anything.
+   A machine's own `requires` and `ensures` may state the split too: stage
+   05 names the case of each whole structural formal its clauses test, so
+   the checker reads the test through that entry name.
 5. **Application.** Where the law is applied, the checker builds the actual
    value as the constructor of the case known at the edge, applied to the
    payload values reaching it. The premise then reduces to scalar

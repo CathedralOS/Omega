@@ -108,7 +108,56 @@ impl Lowering<'_> {
             bindings,
             result,
             argument_types,
-        )
+        )?;
+        self.name_tested_cases(clause, bindings, result)
+    }
+
+    /// Name the case of each whole structural formal a clause tests, as an
+    /// input's case is named where the body reads it. A test beneath `||`
+    /// or `ensures` then reads that entry name, even when the body never
+    /// touches the formal. A test of a field's case is left to the readers
+    /// that name it, and refused by name where none does.
+    fn name_tested_cases(
+        &mut self,
+        clause: &Proposition,
+        bindings: &[(PlaceId, ExactPlaceId)],
+        result: Option<PlaceId>,
+    ) -> Checked<()> {
+        let mut pending = vec![clause];
+        while let Some(clause) = pending.pop() {
+            match clause {
+                Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
+                    pending.extend(parts.iter().rev())
+                }
+                Proposition::Implication {
+                    premise,
+                    conclusion,
+                } => {
+                    pending.push(conclusion);
+                    pending.push(premise);
+                }
+                Proposition::IsMere(inner) => pending.push(inner),
+                Proposition::StructuralCaseMembership { subject, .. }
+                    if subject.path().is_empty() && Some(subject.root()) != result =>
+                {
+                    let Some(&(_, leaf)) = bindings
+                        .iter()
+                        .find(|(formal, _)| *formal == subject.root())
+                    else {
+                        continue;
+                    };
+                    let (root, segments) = self.lineage(leaf)?;
+                    if !segments.is_empty() {
+                        continue;
+                    }
+                    if let Some(&(_, sum)) = self.roots.get(root) {
+                        self.initial_case(leaf, sum)?;
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
     }
 
     fn name_observations(
