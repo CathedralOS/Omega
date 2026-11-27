@@ -458,10 +458,13 @@ impl Program<'_> {
                         return Err(unavailable("applied name used as a plain scalar term"));
                     }
                     ExpressionNode::Name(path)
-                        if self.typed.named_const_declaration(path).is_some_and(|constant| {
-                            constant.pending_target_observation
-                                && constant.evaluated_value.is_none()
-                        }) =>
+                        if self
+                            .typed
+                            .named_const_declaration(path)
+                            .is_some_and(|constant| {
+                                constant.pending_target_observation
+                                    && constant.evaluated_value.is_none()
+                            }) =>
                     {
                         let constant = self
                             .typed
@@ -1628,10 +1631,16 @@ impl Program<'_> {
                                 .closed_requirement_application(target)
                                 .map_or(target, |row| row.template)
                         });
+                    let realization = supplier
+                        .and_then(|supplier| self.closed_conformance_requirement(supplier, target))
+                        .transpose()
+                        .map_err(unavailable)?;
                     let signature = if let Some(parameter) = parameter {
                         Some(parameter)
                     } else if let Some((_, signature)) = &bodyless {
                         Some(signature)
+                    } else if let Some(realization) = &realization {
+                        Some(realization)
                     } else if let Some(supplier) = supplier {
                         let lexical = typed.symbols.get(supplier).parent;
                         if receiver.is_some()
@@ -1711,7 +1720,25 @@ impl Program<'_> {
                     }
                     let mut arguments = Vec::with_capacity(actuals.len());
                     for (formal, &actual) in parameters.iter().zip(actuals) {
-                        let ty = self.value_type(id, formal.type_reference)?;
+                        // A shared borrowed formal (`left: @T`) observes the
+                        // lent value, so its operand is that value at `T`.
+                        let observed = match typed
+                            .type_reference_table
+                            .type_reference(formal.type_reference)
+                        {
+                            crate::source_state::types::TypeReferenceNode::Reference {
+                                referee,
+                                access: language_core::ReferenceAccess::Shared,
+                                ..
+                            } if !formal.is_mutable => *referee,
+                            crate::source_state::types::TypeReferenceNode::Reference { .. } => {
+                                return Err(unavailable(
+                                    "clause application lends a value for change",
+                                ));
+                            }
+                            _ => formal.type_reference,
+                        };
+                        let ty = self.value_type(id, observed)?;
                         arguments.push(
                             self.clause_term(id, scope, actual, ClauseUse::Operand(ty, values))?
                                 .operand(id)?,
@@ -1783,6 +1810,53 @@ impl Program<'_> {
                         ))
                     }
                 }
+                // A shared borrow handed to an operation that observes it,
+                // as `a == b` lends both operands to the selected `equals`,
+                // names the value it observes: a by-value formal itself, or
+                // the referent at a borrowed formal's place, read at the
+                // clause's point like `$a`.
+                (ExpressionNode::Borrow(borrow), Some(expected))
+                    if !self.mathematical
+                        && borrow.access == language_core::ReferenceAccess::Shared =>
+                {
+                    let target = borrow.target;
+                    if let ExpressionNode::Name(path) = table.expression(target)
+                        && !path.static_application.is_valid()
+                        && !path.reserved_result_of.is_valid()
+                        && table.name_path_members(path.members).len() == 1
+                        && let Some((position, slot)) = scope
+                            .slots
+                            .iter()
+                            .enumerate()
+                            .find(|(_, slot)| slot.symbol == path.symbol)
+                        && slot.borrowed.is_some()
+                    {
+                        // As for `$a` below: only a shared loan keeps the
+                        // referent the clause names.
+                        if slot.value_type != expected
+                            || slot.borrowed.as_ref().is_some_and(|borrowed| {
+                                *borrowed != language_core::ReferenceAccess::Shared
+                            })
+                            || slot.erased
+                            || matches!(expected, ValueType::Rigid(_))
+                        {
+                            return Err(unavailable(
+                                "Identity operand has no exact input observation",
+                            ));
+                        }
+                        ClauseOperand::Input(semantic_vocabulary::StructuralCaseSubject::new(
+                            formal_place(id, scope.slots, position)?,
+                            Vec::new(),
+                        ))
+                    } else {
+                        return self.clause_term(
+                            id,
+                            scope,
+                            target,
+                            ClauseUse::Operand(expected, values),
+                        );
+                    }
+                }
                 // Explicit dereference (`$a`) of a borrowed structural formal
                 // names the referent's value at that formal's place.
                 (ExpressionNode::Unary(unary), Some(expected))
@@ -1799,7 +1873,15 @@ impl Program<'_> {
                         .enumerate()
                         .find(|(_, slot)| slot.symbol == path.symbol)
                         .ok_or_else(|| unavailable("Identity operand has no bound formal"))?;
-                    if slot.value_type != expected || slot.borrowed.is_none() {
+                    // The Input is the referent at entry. Only a shared loan
+                    // keeps it there: the machine may write through a
+                    // `@mutable` formal, after which a fact about the entry
+                    // value says nothing of the referent a call observes.
+                    if slot.value_type != expected
+                        || slot.borrowed.as_ref().is_none_or(|borrowed| {
+                            *borrowed != language_core::ReferenceAccess::Shared
+                        })
+                    {
                         return Err(unavailable(
                             "Identity operand has no exact input observation",
                         ));
@@ -2086,5 +2168,122 @@ impl Program<'_> {
                 }),
         )?;
         Ok(term)
+    }
+}
+
+impl Program<'_> {
+    /// The operation a clause names when it calls a row of a closed named
+    /// implementation, such as `CoinByValue::equals` or `a == b` over data
+    /// whose selected comparison is that row: the requirement's applied
+    /// header with the selected member's own written envelope. A requirement
+    /// that omits `reaches`, `crashes` or `terminates` defers to the selected
+    /// member (generics.md), so `Equatable`'s bare `equals` admits a member
+    /// written `reaches none crashes none terminates` and no other. `None`
+    /// when `supplier` is not such an implementation, so the caller tries its
+    /// other suppliers. The term keeps the implementation as its supplier,
+    /// so two implementations of one requirement are different operations
+    /// (contracts.md, "Equality bridges and comparison facts": "Recognize
+    /// the checked law's form and exact applied equality row, not its name
+    /// or another visible implementation for the same `T`").
+    fn closed_conformance_requirement(
+        &self,
+        supplier: SymbolHandle,
+        requirement: SymbolHandle,
+    ) -> Option<Result<crate::source_state::signature::StateSignature, &'static str>> {
+        let typed = self.typed;
+        let conformance = typed.conformance_by_symbol(supplier)?;
+        Some((|| {
+            if !conformance.type_parameters.is_empty()
+                || !conformance.lifetime_parameters.is_empty()
+            {
+                return Err("clause application of a generic implementation");
+            }
+            let row = conformance
+                .rows
+                .iter()
+                .find(|row| row.requirement == requirement)
+                .ok_or("clause application names no row of its implementation")?;
+            let scope = crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
+                typed,
+                conformance,
+            )
+            .and_then(|root| root.declaring_scope(typed, row.declaring_trait))
+            .ok_or("clause application lost its implementation's trait application")?;
+            let header = typed
+                .applied_callable_signature(&scope, requirement)
+                .ok_or("clause application has no applied requirement header")?;
+            let member = typed
+                .machine_by_symbol(row.realization_machine)
+                .ok_or("clause application lost its selected member")?;
+            Ok(crate::source_state::signature::StateSignature {
+                invokes: member.invokes,
+                service_reach_row: member.service_reach_row,
+                service_reach_is_installation_bound: member.service_reach_is_installation_bound,
+                suspends: member.suspends,
+                blocks: member.blocks,
+                contracts: member.contracts,
+                termination_guarantee: match &member.termination_plan.interface {
+                    source_declarations::TerminationInterface::Published(guarantee) => {
+                        guarantee.clone()
+                    }
+                    _ => source_declarations::TerminationGuarantee::NoGuarantee,
+                },
+                declares_no_crash_route: member.declares_no_crash_route,
+                // The written ceiling belongs to the member.
+                symbol: member.symbol,
+                ..header.clone()
+            })
+        })())
+    }
+
+    /// `X == true`, `X == false`, `X != true` or `X != false` (either side)
+    /// where `X` calls a row of a closed named implementation: the
+    /// proposition that `X`'s result is that Boolean. Stage 03 expands
+    /// `a != b` over data with a user comparison to `equals(@a, @b) ==
+    /// false`, and an applied comparison over records has no scalar term to
+    /// compare. `None` for any other comparison, which the scalar reader
+    /// takes.
+    pub(super) fn applied_boolean_comparison(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        comparison: BinaryOperator,
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+    ) -> Checked<Option<Proposition>> {
+        let typed = self.typed;
+        let table = &typed.expression_table;
+        let (applied, literal) = match (table.expression(left), table.expression(right)) {
+            (ExpressionNode::Call(_), ExpressionNode::Boolean(literal)) => (left, *literal),
+            (ExpressionNode::Boolean(literal), ExpressionNode::Call(_)) => (right, *literal),
+            _ => return Ok(None),
+        };
+        let ExpressionNode::Call(call) = table.expression(applied) else {
+            return Ok(None);
+        };
+        let implementation = table
+            .name_path_node(call.receiver)
+            .map(|name| name.symbol)
+            .filter(|&receiver| typed.conformance_by_symbol(receiver).is_some());
+        if !call.receiver.is_valid() || implementation.is_none() {
+            return Ok(None);
+        }
+        let ClauseTerm::Proposition(Proposition::DeclarationIdentity(mut identity)) =
+            self.clause_term(id, scope, applied, ClauseUse::Proposition)?
+        else {
+            return Err(refuse_at(
+                id,
+                Unserved::Contract("applied comparison is not a Boolean result"),
+            ));
+        };
+        let holds = literal == (comparison == BinaryOperator::Equal);
+        let stated = identity
+            .values
+            .get_mut(identity.right as usize)
+            .ok_or_else(|| {
+                refuse_at(id, Unserved::Contract("applied comparison lost its result"))
+            })?;
+        stated.operand = ClauseOperand::Scalar(ScalarTerm::Boolean(holds));
+        Ok(Some(Proposition::DeclarationIdentity(identity)))
     }
 }

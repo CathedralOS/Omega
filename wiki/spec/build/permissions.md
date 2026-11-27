@@ -17,6 +17,15 @@ receiver permission. An empty abstract row cannot hide a selected mechanism's
 filesystem or hardware authority; classification and admitted trust remain
 independently visible.
 
+<a id="compiler-owned-os-classification-tables"></a>
+
+The compiler propagates the [authored boundary reach](../language/effects.md#declarations)
+and records the exact selected import or syscall. Checking that source contract
+requires no compiler-maintained table of OS API meanings. An explicit physical
+exclusion checks the selected mechanism against independent classification
+evidence. If a reachable mechanism has no such classification, the exclusion
+is unproved, even when the boundary author declares empty reach.
+
 The receiver selects the policy's versioned package, exact dependency closure
 and concrete configuration independently of the offered program.
 Its accepted commitments enter receiver-admission evidence. This authority-class policy

@@ -832,6 +832,17 @@ impl Program<'_> {
             *operands = self.mathematical_operator_operands();
             return self.mathematical_comparison(id, scope, comparison, binary.left, binary.right);
         }
+        // `a != b` over data whose selected comparison is a user row is
+        // `equals(@a, @b) == false`: the applied comparison over records
+        // has no scalar term, so state its result as the Boolean the
+        // comparison with a literal asks for, as a lone `a == b` states
+        // `true`.
+        if matches!(comparison, BinaryOperator::Equal | BinaryOperator::NotEqual)
+            && let Some(proposition) =
+                self.applied_boolean_comparison(id, scope, comparison, binary.left, binary.right)?
+        {
+            return Ok(proposition);
+        }
         // A wholly anonymous operand lands in its partner's type; an
         // operand that already has a type keeps it (numeric_values.md,
         // "Integer equality and order": "Already-typed operands retain their
