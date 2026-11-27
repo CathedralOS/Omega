@@ -790,20 +790,30 @@ fn an_address_theorem_from_another_equality_cannot_supply_the_alias() {
     assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
 }
 
-/// An address has no scalar carrier bound, so `n != 0` does not give `n > 0`.
+/// Every numeric address is zero or positive, so `n != 0` gives `n > 0`.
 #[test]
-fn an_address_theorem_cannot_use_a_carrier_bound_it_does_not_have() {
+fn a_nonzero_address_theorem_concludes_strict_positivity() {
     let source = at_an_address(ONE_IS_NONZERO)
         .replace("requires n == 1", "requires n != 0")
         .replace("ensures n != 0", "ensures n > 0")
         .replace("(1)", "(7)");
     assert!(source.contains("ensures n > 0"), "{source}");
     let verdict = Program::of(&source).judged(|_| {});
-    assert!(
-        format!("{verdict:?}").contains("value has no bound"),
-        "{verdict:?}"
-    );
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
 }
+
+/// Zero is an address, so a premise that admits it gives no strict positivity.
+#[test]
+fn an_address_theorem_cannot_conclude_strict_positivity_without_excluding_zero() {
+    let source = at_an_address(ONE_IS_NONZERO)
+        .replace("requires n == 1", "requires n <= 5")
+        .replace("ensures n != 0", "ensures n > 0")
+        .replace("(1)", "(3)");
+    assert!(source.contains("requires n <= 5"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
 /// A record input is one subject for each of its scalar fields.
 const FIRST_IS_NONZERO: &str = "data Pair { x: u8; y: u8; }
 

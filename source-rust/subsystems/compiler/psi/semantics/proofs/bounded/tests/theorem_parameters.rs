@@ -307,7 +307,7 @@ fn address_fixture() -> (ScalarType, ValueId, ScalarTerm, ScalarTerm) {
 }
 
 #[test]
-fn an_address_subject_binds_no_scalar_carrier_bound() {
+fn an_address_subject_binds_only_its_lower_carrier_bound() {
     let (scalar, id, subject, zero) = address_fixture();
     let expected = denote_bounded_implication_type(
         &[(id, scalar)],
@@ -324,8 +324,8 @@ fn an_address_subject_binds_no_scalar_carrier_bound() {
         body = codomain;
     }
     assert_eq!(
-        binders, 1,
-        "the scalar carrier-bound judgment refuses address bounds, so none is assumed"
+        binders, 2,
+        "an address is zero or positive on every target; its upper endpoint is the target's"
     );
 }
 
@@ -373,9 +373,31 @@ fn an_address_theorem_is_proved_from_its_premise() {
 }
 
 #[test]
-fn an_address_theorem_cannot_assume_a_scalar_carrier_bound() {
+fn an_address_theorem_assumes_its_lower_carrier_bound() {
     let (scalar, id, subject, zero) = address_fixture();
     let goal = Proposition::LessOrEqual(zero, subject);
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::Primitive(PrimitiveJudgment::IntegerCarrierBound),
+    };
+    verify_bounded_theorem(
+        &[(id, scalar)],
+        &[],
+        &goal,
+        &[],
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .expect("every numeric address is zero or positive");
+}
+
+#[test]
+fn an_address_theorem_cannot_assume_an_upper_carrier_bound() {
+    let (scalar, id, subject, _) = address_fixture();
+    let address = scalar.as_integer().unwrap();
+    let maximum = ScalarTerm::integer(address, address.maximum_value().unwrap()).unwrap();
+    let goal = Proposition::LessOrEqual(subject, maximum);
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::Primitive(PrimitiveJudgment::IntegerCarrierBound),
