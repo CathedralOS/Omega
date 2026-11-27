@@ -59,6 +59,14 @@ is `TerminalInstance::discard`.
 | Retain provider-held storage; consume late completions | Each later `discard` calls `settle_abandoned_effect`. Settlement never handles the effect or resumes the guest. Storage the provider reports retained is charged to the invocation account until it settles, and `close` is `Busy` until then. A provider refusal settles nothing. | `a_late_completion_after_discard_settles_without_resuming_the_guest`, `an_uncooperative_provider_keeps_its_storage_retained_and_charged`, `a_faulted_guest_keeps_its_provider_operation_until_it_settles` |
 | Unreaped native provider | Dropping a `NativeProviderProcess` that cannot be reaped moves its process, session and homes to its thread's quarantine instead of releasing them. `native_provider_quarantine` reports the retained bytes, and `settle_native_provider_quarantine` releases an incarnation only after reaping it. The runtime host settles it before starting a new provider. | `an_unreaped_provider_keeps_its_homes_retained_until_it_is_reaped` |
 
+The component control publishes a caller and a separate provider from Omega
+source. The provider parks on its own host import. A host wakeup lets the
+caller return normally. If the caller is discarded first, the host receives
+one cancellation request and its retained storage stays charged until it
+settles. The wait has an external wakeup and supplies no evidence of an
+internal synchronization cycle. See
+[`discarding_a_caller_settles_its_parked_component_without_resuming_either_guest`](../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/operational_effects/guest_discard/component.rs).
+
 The settlement defaults suit a polling adapter: with no contract of its own, an
 adapter has settled when it reports the readiness and completion that
 resumption would have consumed.
