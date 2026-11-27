@@ -1321,6 +1321,20 @@ starts with records.
   state `cauchy_at` under the bounds it requires. With `cauchy.omg` added,
   the five files give 96 judged laws; its four take 1,297 to 4,674
   conversion steps.
+- **Machines passed to generic machines (2026-11-27).** A clause may pass
+  a concrete mathematical machine for a machine parameter:
+  `twice::<succ>(a)` is `twice`'s definition applied to `succ`'s, and the
+  kernel unfolds both. The machine must have exactly the parameter's
+  formals and result and no premise, since a machine with a premise is no
+  total function. One generic machine may cite another, at its own machine
+  parameters or at concrete machines; the cited law's premises are owed at
+  the machines it names, so citing `twice_keeps_a_fixed_point::<Other>`
+  where only `Step` is known to fix `a` is refused. A body's call at
+  concrete machines names the closed copy the typed trees made for it; a
+  generic machine's citation reads the selected machines from that copy's
+  specialization receipt and cites the generic law. Customers:
+  `generic_machine/pass/twice_at_a_concrete_machine` and
+  `generic_machine/pass/cited_at_its_own_machine`, each with its twin.
 - **The order and subtraction operators (2026-11-25).** `nat.omg` declares
   `<=` and `-` as free public operator machines,
   `machine <= less_or_equal(left: Nat, right: Nat) -> bool` and
@@ -1337,9 +1351,10 @@ starts with records.
   program outside core imports both machines to select them by their
   tokens (`nat_order` fixtures).
 - **Not done:**
-  - A generic mathematical machine whose body dispatches, a citation of
-    one generic machine from another, and a concrete machine passed for a
-    machine parameter. Nothing in the library does any of these.
+  - A generic mathematical machine whose body dispatches, and a body that
+    is not generic citing or calling a generic machine at concrete
+    machines, which names the typed trees' closed copy and is refused.
+    Nothing in the library does either.
   - `extent.omg`'s contract over `IntervalSet<Nat>` (the plan's
     `extent.omg:219`) is a clause of a runtime boundary trait over generic
     data. It is read by the carrier clause reader when a program reaches
