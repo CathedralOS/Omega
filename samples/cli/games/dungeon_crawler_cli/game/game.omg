@@ -13,7 +13,6 @@ data Game {
     view: |game_view|::GameView;
     input: [u8; 256];
     output: |buffer|::TextBuffer;
-    pause: [u8; 256];
 }
 
 machine game_initialize(
@@ -81,7 +80,7 @@ machine run_game_loop(game: @mutable Game) reaches |process_exit|::ProcessExit +
     machine bounded_command(game: @mutable Game, count: u64) requires count <= 256 {
         transition count > 0 {
             true -> block inspect_line_end(game, count),
-            false -> block finished(game)
+            false -> block finished()
         }
     }
 
@@ -100,7 +99,7 @@ machine run_game_loop(game: @mutable Game) reaches |process_exit|::ProcessExit +
     machine without_line_feed(game: @mutable Game, count: u64) requires count <= 255 {
         transition count > 0 {
             true -> block inspect_carriage_return(game, count),
-            false -> block finished(game)
+            false -> block finished()
         }
     }
 
@@ -123,9 +122,9 @@ machine run_game_loop(game: @mutable Game) reaches |process_exit|::ProcessExit +
         let command: @[u8] = game.input[0..count];
 
         transition {
-            command == "" -> block finished(game),
-            command == "quit" -> block finished(game),
-            command == "exit" -> block finished(game),
+            command == "" -> block finished(),
+            command == "quit" -> block finished(),
+            command == "exit" -> block finished(),
             command == "look" -> block look(game),
             command == "info" -> block look(game),
             command == "paths" -> block exits(game),
@@ -327,14 +326,15 @@ machine run_game_loop(game: @mutable Game) reaches |process_exit|::ProcessExit +
         |game_view|::render_game_over();
 
         transition {
-            _ -> block finished(game)
+            _ -> block finished()
         }
     }
 
-    machine finished(game: @mutable Game) {
+    machine finished() {
+        let mutable pause: [u8; 256];
         |console|::Console::write_line("the crawl has ended -- goodbye (exit 0)");
         |console|::Console::write_line("[press Enter to close]");
-        _ = block |console|::Console::read_line(@mutable game.pause[..]);
+        _ = block |console|::Console::read_line(@mutable pause[..]);
         |process_exit|::ProcessExit::exit_process(0);
     }
 }
