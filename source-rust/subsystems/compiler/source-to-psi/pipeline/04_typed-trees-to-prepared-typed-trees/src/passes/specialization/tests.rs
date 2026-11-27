@@ -3187,3 +3187,83 @@ fn constructed_type_arguments_keep_their_supplying_binders_open() {
         );
     }
 }
+
+/// `Index<Count + 1>` copied into `indexed` specialized at a value of
+/// `Count`, whose literal carries the parameter's type. At `3u8` the argument
+/// settles to `4`; at `255u8` it has no `u8` value, so the application is
+/// refused rather than settled at `256`. A `u128` value past every host
+/// `i128` stays exact, and an unbound `Count` leaves the argument as written.
+#[test]
+fn a_substituted_const_expression_is_exact_in_its_parameter_type() {
+    use crate::source_state::expression::{BinaryOperator, TableBinaryExpression};
+    use numeric_literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    use numerics::arithmetic::ArithmeticDomain;
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let machine = builder
+        .insert_children(
+            root,
+            [(SymbolKind::Machine, SymbolNameRef::Static("indexed"))],
+        )
+        .handle_at(0);
+    let count = builder
+        .insert_children(
+            machine,
+            [(SymbolKind::TypeParameter, SymbolNameRef::Static("Count"))],
+        )
+        .handle_at(0);
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+    let parameter = name(&mut program, count, "Count");
+    let one = program
+        .expression_table
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+    let sum = program
+        .expression_table
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: parameter,
+            operator: BinaryOperator::Add,
+            right: one,
+            policy: ArithmeticDomain::Exact,
+            negation: false,
+        }));
+    let landed = |digits: &str, carrier: &str| {
+        IntegerLiteral::from_parts(false, IntegerRadix::Decimal, digits)
+            .unwrap()
+            .with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::from_name(carrier).unwrap(),
+                domain: ArithmeticDomain::Exact,
+            })
+    };
+    let operand = |value: IntegerLiteral| super::Operand {
+        parameter: count,
+        identity: super::Identity::Scalar(value.to_string()),
+        argument: argument(count, "Count"),
+        value: StaticMachineBindingValue::Const(TypeReferenceHandle::invalid()),
+        scalar: Some(super::Value::Integer(value)),
+    };
+    assert!(matches!(
+        super::substituted_const_int(&program, sum, &[operand(landed("3", "u8"))]),
+        Ok(Some(value)) if value == "4"
+    ));
+    assert!(matches!(
+        super::substituted_const_int(
+            &program,
+            sum,
+            &[operand(landed("340282366920938463463374607431768211454", "u128"))],
+        ),
+        Ok(Some(value)) if value == "340282366920938463463374607431768211455"
+    ));
+    assert!(matches!(
+        super::substituted_const_int(&program, sum, &[operand(landed("255", "u8"))]),
+        Err(super::Stop::Rejected(reason))
+            if reason == "the constant argument `Count + 1` of this application has no value: \
+                          the value 256 is outside `u8`"
+    ));
+    assert!(matches!(
+        super::substituted_const_int(&program, sum, &[]),
+        Ok(None)
+    ));
+}
