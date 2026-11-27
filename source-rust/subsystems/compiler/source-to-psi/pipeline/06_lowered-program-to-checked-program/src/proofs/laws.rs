@@ -412,7 +412,8 @@ fn script(law: &Law, case: usize) -> Option<&LawCase> {
         LawProof::Direct(_)
         | LawProof::Fuel { .. }
         | LawProof::Family { .. }
-        | LawProof::Integers => None,
+        | LawProof::Integers
+        | LawProof::Pointwise { .. } => None,
         LawProof::Cases { cases, .. } => cases.get(case),
     }
 }
@@ -2217,6 +2218,221 @@ fn law_frame(arena: &mut TermArena, law: &Law) -> Frame {
     }
 }
 
+/// How many binders, up to `wanted`, the arrow inside `goal`'s boxes and
+/// squashes binds.
+fn arrow_binders(
+    arena: &mut TermArena,
+    context: &Context,
+    goal: TermHandle,
+    wanted: u32,
+) -> Result<u32, Failure> {
+    let mut budget = Budget::new(SEARCH_COMPUTING);
+    let mut term = goal;
+    let mut found = 0;
+    while found < wanted {
+        term = proof_admission::weak_head_normalize(arena, context.signature(), term, &mut budget)
+            .map_err(kernel)?;
+        term = match arena.get(term) {
+            Term::Box { ty } | Term::Squash { ty } => ty,
+            Term::Pi { codomain, .. } => {
+                found += 1;
+                codomain
+            }
+            _ => break,
+        };
+    }
+    Ok(found)
+}
+
+/// What [`pointwise`] proves: `goal`, from `hypotheses` and the law `row`
+/// applied at the formals, which still takes `binders` values of the
+/// goal's arrow and then its own premises.
+struct Pointwise {
+    goal: TermHandle,
+    hypotheses: Vec<TermHandle>,
+    row: TermHandle,
+    binders: u32,
+}
+
+/*
+    A pointwise theorem citation (`wiki/spec/proofs/mathematical_bindings.md`,
+    "Pointwise theorem citations"). The needed conclusion is introduced from
+    the outside in: a box from its strict content, a squash from a proof of
+    its proposition, once every strict hypothesis has been opened toward it,
+    and each binder of its arrow as an arbitrary value. Then the row is
+    applied at those values, and each of its premises is met by a hypothesis
+    of that type, or proved from the hypotheses. A strict hypothesis is
+    opened only toward a squash, so its witness meets the row's premises
+    and never leaves the squash. The kernel checks the result against the
+    needed statement.
+*/
+fn pointwise(
+    arena: &mut TermArena,
+    context: &Context,
+    definitions: &Definitions,
+    licenses: Licenses<'_>,
+    at: Pointwise,
+) -> Result<TermHandle, SearchError> {
+    let mut budget = Budget::new(SEARCH_COMPUTING);
+    let goal =
+        proof_admission::weak_head_normalize(arena, context.signature(), at.goal, &mut budget)?;
+    match arena.get(goal) {
+        Term::Box { ty } => {
+            let value = pointwise(
+                arena,
+                context,
+                definitions,
+                licenses,
+                Pointwise { goal: ty, ..at },
+            )?;
+            return Ok(arena.insert(Term::BoxIntro { ty, value }));
+        }
+        Term::Squash { ty } => {
+            let mut opened = None;
+            for (position, &hypothesis) in at.hypotheses.iter().enumerate() {
+                let found = proof_admission::infer_type(arena, context, hypothesis, &mut budget)?;
+                let found = proof_admission::weak_head_normalize(
+                    arena,
+                    context.signature(),
+                    found,
+                    &mut budget,
+                )?;
+                if matches!(arena.get(found), Term::Squash { .. } | Term::Box { .. }) {
+                    opened = Some((position, found));
+                    break;
+                }
+            }
+            let Some((position, found)) = opened else {
+                let value = pointwise(
+                    arena,
+                    context,
+                    definitions,
+                    licenses,
+                    Pointwise { goal: ty, ..at },
+                )?;
+                return Ok(arena.insert(Term::SquashIntro { ty, value }));
+            };
+            let (Term::Squash { ty: inner } | Term::Box { ty: inner }) = arena.get(found) else {
+                unreachable!("the opened hypothesis is strict");
+            };
+            let scrutinee = at.hypotheses[position];
+            let mut hypotheses: Vec<TermHandle> = at
+                .hypotheses
+                .iter()
+                .enumerate()
+                .filter(|&(other, _)| other != position)
+                .map(|(_, &hypothesis)| shift(arena, hypothesis, 0, 1))
+                .collect();
+            hypotheses.push(arena.insert(Term::Variable(0)));
+            let lifted = shift(arena, goal, 0, 1);
+            let row = shift(arena, at.row, 0, 1);
+            let witness = pointwise(
+                arena,
+                &context.extend(inner),
+                definitions,
+                licenses,
+                Pointwise {
+                    goal: lifted,
+                    hypotheses,
+                    row,
+                    binders: at.binders,
+                },
+            )?;
+            let function = arena.insert(Term::Lambda {
+                domain: inner,
+                body: witness,
+            });
+            return Ok(match arena.get(found) {
+                Term::Squash { .. } => arena.insert(Term::SquashElim {
+                    proposition: goal,
+                    function,
+                    scrutinee,
+                }),
+                _ => {
+                    let motive = arena.insert(Term::Lambda {
+                        domain: found,
+                        body: lifted,
+                    });
+                    arena.insert(Term::BoxElim {
+                        motive,
+                        body: function,
+                        scrutinee,
+                    })
+                }
+            });
+        }
+        Term::Pi { domain, codomain } if at.binders > 0 => {
+            let hypotheses: Vec<TermHandle> = at
+                .hypotheses
+                .iter()
+                .map(|&hypothesis| shift(arena, hypothesis, 0, 1))
+                .collect();
+            let lifted = shift(arena, at.row, 0, 1);
+            let value = arena.insert(Term::Variable(0));
+            let row = arena.insert(Term::Apply {
+                function: lifted,
+                argument: value,
+            });
+            let body = pointwise(
+                arena,
+                &context.extend(domain),
+                definitions,
+                licenses,
+                Pointwise {
+                    goal: codomain,
+                    hypotheses,
+                    row,
+                    binders: at.binders - 1,
+                },
+            )?;
+            return Ok(arena.insert(Term::Lambda { domain, body }));
+        }
+        _ if at.binders == 0 => {}
+        _ => return Err(SearchError::NoProof),
+    }
+    // Every binder is introduced: apply the row to a proof of each premise.
+    let universe = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+    let mut row = at.row;
+    loop {
+        let ty = proof_admission::infer_type(arena, context, row, &mut budget)?;
+        let ty = proof_admission::weak_head_normalize(arena, context.signature(), ty, &mut budget)?;
+        let Term::Pi { domain, .. } = arena.get(ty) else {
+            break;
+        };
+        let mut met = None;
+        for &hypothesis in &at.hypotheses {
+            let found = proof_admission::infer_type(arena, context, hypothesis, &mut budget)?;
+            if convertible(arena, context, found, domain, universe, &mut budget).unwrap_or(false) {
+                met = Some(hypothesis);
+                break;
+            }
+        }
+        let argument = match met {
+            Some(hypothesis) => hypothesis,
+            None => prove_licensed(
+                arena,
+                context,
+                definitions,
+                domain,
+                &at.hypotheses,
+                licenses,
+                SEARCH_STEPS,
+                &mut Budget::new(SEARCH_COMPUTING),
+            )?,
+        };
+        row = arena.insert(Term::Apply {
+            function: row,
+            argument,
+        });
+    }
+    // The row must prove the needed conclusion at these values.
+    let proved = proof_admission::infer_type(arena, context, row, &mut budget)?;
+    if !convertible(arena, context, proved, goal, universe, &mut budget).unwrap_or(false) {
+        return Err(SearchError::NoProof);
+    }
+    Ok(row)
+}
+
 fn prove_law(
     arena: &mut TermArena,
     checked_signature: &Signature,
@@ -2261,6 +2477,39 @@ fn prove_law(
             });
         }
         LawProof::Direct(direct) => proving.case(frame, direct, None)?,
+        LawProof::Pointwise { row, binders } => {
+            let mut context = closed.clone();
+            for &ty in &frame.telescope {
+                context = context.extend(ty);
+            }
+            if arrow_binders(proving.arena, &context, frame.goal, *binders)? < *binders {
+                return Err(Failure {
+                    case: None,
+                    cause: UnprovedCause::NoDerivation,
+                    detail: format!(
+                        "the theorem takes {binders} value(s) after the ones it is cited at, \
+                         but the needed conclusion is not a statement for every value of \
+                         that many binders"
+                    ),
+                    call: None,
+                });
+            }
+            let row = constant(proving.arena, *row);
+            let row = proving.arena.apply_arguments(row, &frame.names);
+            pointwise(
+                proving.arena,
+                &context,
+                &definitions,
+                licenses,
+                Pointwise {
+                    goal: frame.goal,
+                    hypotheses: frame.evidence.clone(),
+                    row,
+                    binders: *binders,
+                },
+            )
+            .map_err(|error| failure(None, error))?
+        }
         LawProof::Cases {
             formal,
             data,

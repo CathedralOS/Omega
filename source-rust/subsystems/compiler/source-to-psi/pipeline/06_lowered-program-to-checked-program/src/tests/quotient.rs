@@ -496,18 +496,14 @@ fn an_argument_that_is_no_class_is_shared_by_both_calls() {
         "machine pick_respects(left: Representative, right: Representative, other: Representative, again: Representative)",
     );
     assert_ne!(paired, source);
+    // A value past the ones it is cited at would be a binder of the needed
+    // conclusion's arrow, and `same_sign` has none.
     let verdicts = judged(&paired);
-    let refused: Vec<_> = verdicts
-        .iter()
-        .filter_map(|verdict| match verdict {
-            RouteVerdict::FallBack(refusal) => Some(refusal.detail.as_str()),
-            _ => None,
-        })
-        .collect();
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "pick_respects");
     assert!(
-        matches!(refused.as_slice(), [detail]
-            if detail.contains("theorem of a quotient operation over other than two representatives")),
-        "{verdicts:?}"
+        law.detail.contains("not a statement for every value"),
+        "{law:?}"
     );
 }
 
@@ -1195,4 +1191,129 @@ AnyCount<T> satisfies |relation|::MereEquivalence<Tagged<T>, any_count<T> > {
             .any(|detail| detail.contains("proved for a different relation")),
         "{refused:?}"
     );
+}
+
+/// A quotient by agreement at every index, boxed: each equivalence row
+/// takes the index as its last parameter and proves the relation there
+/// (`wiki/spec/proofs/mathematical_bindings.md`, "Pointwise theorem
+/// citations").
+const POINTWISE: &str = r"use {omega}/language/core/relation.omg;
+use {omega}/language/core/foundation.omg as proof;
+
+data N {
+    case Z;
+    case S(p: N);
+}
+
+machine plus(a: N, b: N) -> N
+terminates by a
+{
+    transition a {
+        N::Z -> b,
+        N::S { p } -> N::S { p: plus(p, b) }
+    }
+}
+
+let pointwise(x: N, y: N): |proof|::Type<0> =
+    (n: N) -> |proof|::Identity::<N>(plus(x, n), plus(y, n));
+
+proposition agree(x: N, y: N) = |proof|::Box::<|proof|::Squash::<pointwise(x, y)>>;
+
+Agree satisfies |relation|::MereEquivalence<N, agree> {
+    machine reflexive(value: N, n: N) ensures |proof|::Identity::<N>(plus(value, n), plus(value, n)) { }
+    machine symmetric(left: N, right: N, n: N) requires pointwise(left, right) ensures |proof|::Identity::<N>(plus(right, n), plus(left, n)) { }
+    machine transitive(left: N, middle: N, right: N, n: N) requires pointwise(left, middle), pointwise(middle, right) ensures |proof|::Identity::<N>(plus(left, n), plus(right, n)) { }
+    machine proofs_agree(a: N, b: N) ensures |relation|::IsMere(agree(a, b)) { }
+}
+
+data Q = N % agree
+requires agree satisfies
+    |relation|::MereEquivalence<N, agree>
+    as Agree;
+
+machine one_class(a: N, b: N)
+requires agree(a, b)
+ensures |proof|::Identity::<Q>(a as Q, b as Q)
+{
+}
+";
+
+#[test]
+fn equivalence_rows_may_prove_the_relation_at_every_index() {
+    let verdicts = judged(POINTWISE);
+    let judgment = signature(&verdicts);
+    for row in [
+        "Agree::reflexive",
+        "Agree::symmetric",
+        "Agree::transitive",
+        "Agree::proofs_agree",
+        "one_class",
+    ] {
+        assert!(
+            judgment.laws.iter().any(|law| law.machine == row),
+            "the law `{row}`: {judgment:?}"
+        );
+    }
+}
+
+#[test]
+fn a_row_proved_for_some_indices_only_leaves_the_rest_uncovered() {
+    let source = POINTWISE.replace(
+        "requires pointwise(left, middle), pointwise(middle, right)",
+        "requires pointwise(left, middle), pointwise(middle, right), \
+         |proof|::Identity::<N>(n, N::S { p: N::Z })",
+    );
+    assert_ne!(source, POINTWISE);
+    assert_eq!(unproved(&judged(&source)).machine, "Agree::transitive");
+}
+
+#[test]
+fn a_row_at_every_index_must_prove_the_relation_there() {
+    let source = POINTWISE.replace(
+        "ensures |proof|::Identity::<N>(plus(value, n), plus(value, n))",
+        "ensures |proof|::Identity::<N>(n, n)",
+    );
+    assert_ne!(source, POINTWISE);
+    assert_eq!(unproved(&judged(&source)).machine, "Agree::reflexive");
+}
+
+/// An operation on the classes of `POINTWISE`, whose congruence also takes
+/// the index.
+const SUCCESSOR: &str = r"
+machine succ(value: N) -> N {
+    N::S { p: value }
+}
+
+machine succ_respects(left: N, right: N, n: N)
+requires pointwise(left, right)
+ensures |proof|::Identity::<N>(plus(succ(left), n), plus(succ(right), n))
+{
+}
+
+machine succ_class(value: Q) -> Q {
+    Quotient::lift::<succ, succ_respects>(value)
+}
+
+machine uses(a: N)
+ensures |proof|::Identity::<Q>(succ_class(a as Q), succ(a) as Q)
+{
+}
+";
+
+#[test]
+fn a_lifted_operation_may_respect_the_relation_at_every_index() {
+    let verdicts = judged(&format!("{POINTWISE}{SUCCESSOR}"));
+    let judgment = signature(&verdicts);
+    for law in ["succ_respects", "uses"] {
+        assert!(
+            judgment.laws.iter().any(|stated| stated.machine == law),
+            "the law `{law}`: {judgment:?}"
+        );
+    }
+    // A congruence that proves another statement at each index.
+    let source = format!("{POINTWISE}{SUCCESSOR}").replace(
+        "ensures |proof|::Identity::<N>(plus(succ(left), n), plus(succ(right), n))",
+        "ensures |proof|::Identity::<N>(succ(n), succ(n))",
+    );
+    assert_eq!(unproved(&judged(&source)).machine, "succ_respects");
 }
