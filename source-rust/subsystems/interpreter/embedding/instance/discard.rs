@@ -21,8 +21,6 @@ use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLeas
 use super::{TerminalImportBinding, TerminalInstance};
 use crate::boundary::effects::{TerminalAbandonedEffect, TerminalEffectRejection};
 use crate::engine::calls::PendingBoundaryCall;
-use semantic_vocabulary::BoundaryMachineId;
-use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalDiscardStatus {
@@ -94,15 +92,11 @@ impl DiscardCustody {
 }
 
 fn adapter_for<'a, 'host>(
-    bindings: &'a mut BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
-    pending: &PendingBoundaryCall,
+    binding: Option<&'a mut TerminalImportBinding<'host>>,
 ) -> Result<&'a mut (dyn crate::TerminalImportAdapter + 'host), TerminalEffectRejection> {
-    bindings
-        .get_mut(&pending.site.boundary)
-        .map(|binding| &mut *binding.adapter)
-        .ok_or_else(|| {
-            TerminalEffectRejection::new("an abandoned provider operation lost its import binding")
-        })
+    binding.map(|binding| &mut *binding.adapter).ok_or_else(|| {
+        TerminalEffectRejection::new("an abandoned provider operation lost its import binding")
+    })
 }
 
 impl TerminalInstance<'_, '_> {
@@ -121,7 +115,7 @@ impl TerminalInstance<'_, '_> {
             return self.begin_discard();
         };
         if let Some(pending) = custody.abandoned.as_deref() {
-            let outcome = adapter_for(&mut self.bindings, pending)
+            let outcome = adapter_for(self.bindings.get_mut(&pending.site.boundary))
                 .and_then(|adapter| adapter.settle_abandoned_effect(pending.effect()));
             custody.observe(outcome);
         }
@@ -155,7 +149,7 @@ impl TerminalInstance<'_, '_> {
             provider_refusal: None,
         };
         if let Some(pending) = custody.abandoned.as_deref() {
-            let outcome = adapter_for(&mut self.bindings, pending)
+            let outcome = adapter_for(self.bindings.get_mut(&pending.site.boundary))
                 .and_then(|adapter| adapter.request_effect_cancellation(pending.effect()));
             custody.observe(outcome);
         }
