@@ -1608,8 +1608,11 @@ fn finish_reading_into<'source>(
     }
     qualifications::publish_access_plans(diagnostic, &program, &mut elaboration.module)?;
     elaboration.nominal_types = program.nominal_type_inputs();
-    elaboration.nominal_calls =
-        program.publish_nominal_calls(&source.calls, &mut elaboration.module)?;
+    elaboration.nominal_calls = program.publish_nominal_calls(
+        &source.calls,
+        &source.folded_calls,
+        &mut elaboration.module,
+    )?;
     source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
     for selected in &mut program.selections {
         if let Some(required) = selected.required_contract {

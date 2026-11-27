@@ -1358,10 +1358,40 @@ impl DescriptorGraphError {
         }
         if let Some(name) = name {
             detail.push_str("; declaration ");
-            detail.push_str(name);
+            detail.push_str(&readable_declaration_name(name));
         }
         detail
     }
+}
+
+/// Collapse an escaped canonical declaration identity string (which embeds
+/// `package-owner(32:<hash>)` and nested backslash-escaped parameter lists)
+/// into its readable `file.omg::member` path for diagnostics.
+fn readable_declaration_name(raw: &str) -> String {
+    let unescaped = raw.replace('\\', "");
+    if let Some(rest) = unescaped.strip_prefix("named-callable(path(nominal(")
+        && let Some((_, tail)) = rest.split_once(",path(")
+    {
+        if let Some(nested_marker) = tail.find("::nested-machine(") {
+            let file = &tail[..nested_marker];
+            let owner = tail[nested_marker..]
+                .split(",path(")
+                .nth(1)
+                .and_then(|segment| segment.split(')').next());
+            let leaf = tail
+                .rsplit(",name(")
+                .next()
+                .and_then(|segment| segment.split(')').next());
+            if let (Some(owner), Some(leaf)) = (owner, leaf) {
+                let owner_name = owner.rsplit("::").next().unwrap_or(owner);
+                return format!("{file}::{owner_name}::{leaf}");
+            }
+        }
+        if let Some(path) = tail.split(')').next() {
+            return path.to_owned();
+        }
+    }
+    raw.to_owned()
 }
 
 impl std::fmt::Display for DescriptorGraphError {
