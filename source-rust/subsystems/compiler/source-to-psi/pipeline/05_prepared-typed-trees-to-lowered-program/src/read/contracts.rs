@@ -1881,6 +1881,7 @@ impl Program<'_> {
                     (
                         terminal_semantics::CollectionExtent::Fixed(_)
                         | terminal_semantics::CollectionExtent::Parameter { .. }
+                        | terminal_semantics::CollectionExtent::Application(_)
                         | terminal_semantics::CollectionExtent::StoredLength,
                         _,
                     ) => {

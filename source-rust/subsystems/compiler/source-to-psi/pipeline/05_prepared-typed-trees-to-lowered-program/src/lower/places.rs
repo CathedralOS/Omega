@@ -164,7 +164,9 @@ fn zero_eligibility(
             }
             StorageShape::FixedArray {
                 element,
-                length: terminal_psi::ArrayExtent::Parameter { .. },
+                length:
+                    terminal_psi::ArrayExtent::Parameter { .. }
+                    | terminal_psi::ArrayExtent::Application(_),
                 qualification: Qualification::NONE,
             } => {
                 let element = types
@@ -2089,6 +2091,15 @@ impl<'a> Lowering<'a> {
                 qualification,
                 CollectionExtent::Parameter { owner, value },
             )),
+            StorageShape::FixedArray {
+                element,
+                qualification,
+                length: terminal_psi::ArrayExtent::Application(application),
+            } => Ok((
+                element,
+                qualification,
+                CollectionExtent::Application(application),
+            )),
             StorageShape::ElementView {
                 element,
                 qualification,
@@ -3991,10 +4002,16 @@ impl<'a> Lowering<'a> {
             ProgramPoint::AfterOperation(operation),
             Content::Overwritten,
         )?;
-        // A stored-length collection establishes its descriptor. The actual
-        // element operands remain on the constructor operation; they are not
-        // fixed-index source places beneath that descriptor.
-        if length == CollectionExtent::StoredLength {
+        // A stored-length collection establishes its descriptor, and an array
+        // with a symbolic or target-dependent extent has no fixed-index child
+        // places before closure. The element operands remain on the
+        // constructor operation.
+        if matches!(
+            length,
+            CollectionExtent::StoredLength
+                | CollectionExtent::Parameter { .. }
+                | CollectionExtent::Application(_)
+        ) {
             return Ok(Reached::Value((root, exact)));
         }
         for (index, operand) in operands.into_iter().enumerate() {

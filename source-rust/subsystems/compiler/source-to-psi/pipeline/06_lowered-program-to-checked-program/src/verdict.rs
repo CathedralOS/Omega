@@ -1607,6 +1607,40 @@ fn conclude(
             pending.push(owner);
         }
     }
+    let mut array_extent_conditions = Vec::new();
+    for machine in &elaboration.module.machines {
+        let machine_conditions =
+            match terminal_semantics::array_extent_literal_conditions(&elaboration.module, machine)
+            {
+                Ok(conditions) => conditions,
+                Err(detail) => {
+                    return fall_back_or_defect(refusal(
+                        RefusalReason::ForeignIdentity,
+                        machine.id,
+                        Construct::Machine,
+                        detail,
+                    ));
+                }
+            };
+        for condition in machine_conditions {
+            let terminal_psi::ScalarConditionSubject::Declaration(owner) = condition.subject else {
+                return fall_back_or_defect(refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine.id,
+                    Construct::Machine,
+                    "array extent literal condition lost its declaration owner",
+                ));
+            };
+            array_extent_conditions.push((owner, condition));
+        }
+    }
+    let applications = &mut elaboration.module.scalars.scalar_applications;
+    for (owner, condition) in array_extent_conditions {
+        if !applications.conditions.predicates().contains(&condition) {
+            applications.conditions.insert_predicate(condition);
+        }
+        pending.push(owner);
+    }
     pending.sort_unstable();
     pending.dedup();
     applications

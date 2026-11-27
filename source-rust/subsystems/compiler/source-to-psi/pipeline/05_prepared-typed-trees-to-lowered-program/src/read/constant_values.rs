@@ -69,6 +69,17 @@ impl ScalarApplications {
         ))
     }
 
+    pub(super) fn scalar_type(
+        &self,
+        application: semantic_vocabulary::ScalarApplicationId,
+    ) -> Option<ScalarType> {
+        let index = usize::try_from(application.get().checked_sub(1)?).ok()?;
+        match self.sources.get(index)? {
+            ScalarApplicationSource::Layout(declaration) => declaration.scalar_type(),
+            ScalarApplicationSource::Evaluation { scalar_type, .. } => Some(*scalar_type),
+        }
+    }
+
     pub(crate) fn published(&self) -> Result<terminal_psi::ScalarApplications, &'static str> {
         if self.sources.len() != self.declarations.declarations().len() {
             return Err("scalar applications still await their exact evaluation entries");

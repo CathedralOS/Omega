@@ -118,7 +118,8 @@ impl Program<'_> {
         let StorageShape::FixedArray {
             element,
             qualification: Qualification::NONE,
-            length: ArrayExtent::Literal(_) | ArrayExtent::Parameter { .. },
+            length:
+                ArrayExtent::Literal(_) | ArrayExtent::Parameter { .. } | ArrayExtent::Application(_),
         } = actual.shape
         else {
             return None;
@@ -150,7 +151,10 @@ impl Program<'_> {
             StorageShape::FixedArray {
                 element,
                 qualification,
-                length: ArrayExtent::Literal(_) | ArrayExtent::Parameter { .. },
+                length:
+                    ArrayExtent::Literal(_)
+                    | ArrayExtent::Parameter { .. }
+                    | ArrayExtent::Application(_),
             }
             | StorageShape::ElementView {
                 element,
@@ -799,6 +803,15 @@ impl Program<'_> {
                     value: *value,
                 },
             )),
+            StorageShape::FixedArray {
+                element,
+                qualification,
+                length: ArrayExtent::Application(application),
+            } => Ok((
+                *element,
+                *qualification,
+                CollectionExtent::Application(*application),
+            )),
             StorageShape::ElementView {
                 element,
                 qualification,
@@ -1006,12 +1019,34 @@ impl Program<'_> {
                     )
                 }
                 // The source driver evaluates a constant the request reaches
-                // before stage 04 freezes the trees. One still without a
-                // value waits on a deployment, or holds no array length.
+                // before stage 04 freezes the trees. One that observes the
+                // target's layout keeps its checked initializer as an
+                // application extent so each deployment closes its length.
                 None if named_constant => {
-                    return Err(unserved(
-                        "array extent that names a constant with no evaluated array length",
-                    ));
+                    if let FixedArrayLength::ConstParameter { symbol, .. } = extent
+                        && let Some(constant) = self.typed.const_declaration_by_symbol(*symbol)
+                        && constant.pending_target_observation
+                        && constant.evaluated_value.is_none()
+                    {
+                        let (application, scalar_type) =
+                            self.deferred_scalar_constant(machine, constant)?;
+                        if !matches!(
+                            scalar_type,
+                            ScalarType::Integer(integer)
+                                if !integer.is_address()
+                                    && integer.sign() == IntegerSign::Unsigned
+                                    && integer.bits().is_some_and(|bits| bits <= 64)
+                        ) {
+                            return Err(unserved(
+                                "array extent constant needs an unsigned carrier of at most 64 bits",
+                            ));
+                        }
+                        ArrayExtent::Application(application)
+                    } else {
+                        return Err(unserved(
+                            "array extent that names a constant with no evaluated array length",
+                        ));
+                    }
                 }
                 None => return Err(unserved("unresolved array extent")),
             }
