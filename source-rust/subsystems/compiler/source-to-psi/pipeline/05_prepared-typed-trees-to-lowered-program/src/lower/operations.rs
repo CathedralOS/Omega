@@ -115,11 +115,13 @@ impl Lowering<'_> {
                         *current = match bound {
                             Some(Bound::Scalar(id)) => ScalarTerm::Value { id, scalar_type },
                             Some(Bound::Erased(witness)) => witness.term(&self.erased_applications),
-                            _ => return Err(refuse(
-                                self.id,
-                                self.current.map_or(Construct::Machine, Construct::Block),
-                                Unserved::Expression("erased term that reads storage"),
-                            )),
+                            _ => {
+                                return Err(refuse(
+                                    self.id,
+                                    self.current.map_or(Construct::Machine, Construct::Block),
+                                    Unserved::Expression("erased term that reads storage"),
+                                ));
+                            }
                         };
                     } else {
                         pending.extend(current.operands_mut());
@@ -154,6 +156,7 @@ impl Lowering<'_> {
         &mut self,
         theorem: terminal_psi::TheoremSource,
         arguments: &[Expression],
+        instantiation: &[terminal_psi::TheoremSource],
         source: SourceOrigin,
     ) -> Checked<()> {
         let (requires, arguments) = match theorem {
@@ -264,6 +267,13 @@ impl Lowering<'_> {
                 source: theorem,
                 arguments,
                 requirements,
+                instantiation: instantiation
+                    .iter()
+                    .map(|source| terminal_psi::TheoremInstantiation {
+                        source: *source,
+                        derivations: Vec::new(),
+                    })
+                    .collect(),
             });
         self.enter(successor);
         Ok(())
@@ -333,15 +343,20 @@ impl Lowering<'_> {
             None => None,
         };
         match &expression.kind {
-            ExpressionKind::TestMembership { subject, domain, predicate } => {
+            ExpressionKind::TestMembership {
+                subject,
+                domain,
+                predicate,
+            } => {
                 continuing!(self.observe_membership(subject, *domain, source));
                 self.expression(predicate)
             }
             ExpressionKind::TheoremApplication {
                 source: theorem,
                 arguments,
+                instantiation,
             } => {
-                self.theorem_application(*theorem, arguments, source)?;
+                self.theorem_application(*theorem, arguments, instantiation, source)?;
                 Ok(Reached::Value(Value::Unit))
             }
             ExpressionKind::Atomic(operation) => match operation {
@@ -739,13 +754,8 @@ impl Lowering<'_> {
                 lowering: self,
                 source,
             };
-            return crate::policy::saturating_shift_left(
-                &mut computation,
-                closed,
-                left,
-                right,
-            )
-            .map(Value::Scalar);
+            return crate::policy::saturating_shift_left(&mut computation, closed, left, right)
+                .map(Value::Scalar);
         }
         let operation = self.operation_identity(source);
         // The total operations are the ones a clause's term names too.

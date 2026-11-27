@@ -1301,6 +1301,9 @@ pub enum ExpressionKind {
     TheoremApplication {
         source: terminal_psi::TheoremSource,
         arguments: Vec<Expression>,
+        /// One proof for each of the applied contract's own proof
+        /// parameters, such as `inner` in `Step::<inner>(n)`.
+        instantiation: Vec<terminal_psi::TheoremSource>,
     },
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<crate::source_state::expression::CompletedValueCapture>),
