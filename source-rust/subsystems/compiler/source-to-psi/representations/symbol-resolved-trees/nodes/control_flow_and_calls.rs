@@ -328,6 +328,7 @@ pub mod control_flow {
         #[cfg(test)]
         pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
             Machine {
+                assembly_target_requirement: Default::default(),
                 lexical_parent: Handle::invalid(),
                 symbol: SymbolHandle::invalid(),
                 generic_data_origin: Default::default(),
