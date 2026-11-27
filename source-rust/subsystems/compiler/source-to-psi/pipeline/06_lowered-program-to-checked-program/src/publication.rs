@@ -153,7 +153,11 @@ fn accept_compilation(
                     };
                     diagnostic.message =
                         format!("not supported yet: {}; {note}", diagnostic.message);
-                    goal_form_provision(diagnostic, entry.cause, Some(entry.obligation))
+                    let row = match entry.source {
+                        crate::ObligationSource::Lowered(row) => Some(row),
+                        crate::ObligationSource::SynchronizationProgress(_) => None,
+                    };
+                    goal_form_provision(diagnostic, entry.cause, row)
                 }));
             }
             // The signature publishes nothing executable. Its tables are

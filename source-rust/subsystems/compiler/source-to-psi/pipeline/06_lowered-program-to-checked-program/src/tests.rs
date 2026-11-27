@@ -5411,7 +5411,7 @@ fn a_value_consumed_while_its_window_is_open_rejects_naming_the_write_and_the_us
         };
         // Both sites: the opening write is the obligation's own site, and
         // the first failing consumption point is beside it.
-        assert_eq!(entry.obligation, owed[1].0);
+        assert_eq!(entry.source, crate::ObligationSource::Lowered(owed[1].0));
         assert_eq!(
             entry.kind,
             ObligationKind::DataDomain {
