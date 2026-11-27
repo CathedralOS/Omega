@@ -5,7 +5,7 @@ cycles, and folded-constant dependencies so publication and receiving
 admission enforce the same complete source-to-instance association.
 */
 
-pub mod synchronous_invocations;
+mod synchronous_invocations;
 
 use build_providers::plans::ProviderPlan;
 use synchronous_invocations::{
@@ -171,6 +171,7 @@ impl TerminalTargetProviderSelection {
         artifact: terminal_codec::TerminalArtifactView<'_>,
     ) -> Result<Self, String> {
         validate_selected_service_schemas(&plans, artifact.module())?;
+        build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(plans.clone())?;
         let checked_candidates = checked_candidate_roster(&plans, artifact.module())?;
         Ok(Self {
             plans,
@@ -184,19 +185,19 @@ impl TerminalTargetProviderSelection {
         target: &str,
     ) -> Result<psi_provider_selections::AdmittedProviderSelections, String> {
         validate_selected_service_schemas(&self.plans, artifact.module())?;
+        let selected = build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(
+            self.plans.clone(),
+        )?;
         let expected = checked_candidate_roster(&self.plans, artifact.module())?;
-        let mut supplied = self.checked_candidates.clone();
+        let mut supplied = self.checked_candidates.iter().collect::<Vec<_>>();
         supplied.sort();
-        if supplied != expected {
+        if !supplied.into_iter().eq(&expected) {
             return Err(
                 "checked installations differ from the complete canonical selected-provider roster"
                     .into(),
             );
         }
-        let selected = build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(
-            self.plans.clone(),
-        )?;
-        admit_checked_roster(artifact, target, &selected, &supplied)
+        admit_checked_roster(artifact, target, &selected, &expected)
     }
 }
 
@@ -247,6 +248,19 @@ fn validate_synchronous_calls(
     let module = artifact.module();
     let candidates = selected_checked_candidates(selected.plans(), module)?;
     let calls = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)?;
+    // Index each selected slot by its candidates' requirement text once, so a
+    // reached boundary looks up its slots instead of rescanning every candidate.
+    let mut requirement_slots = candidates
+        .iter()
+        .flat_map(|matched| {
+            matched.candidates.iter().filter_map(|candidate| {
+                let requirement = module.identities.text(candidate.requirement_identity)?;
+                Some((requirement, matched.selected))
+            })
+        })
+        .collect::<Vec<_>>();
+    requirement_slots.sort_by_key(|(requirement, _)| *requirement);
+    requirement_slots.dedup_by(|left, right| left.0 == right.0 && std::ptr::eq(left.1, right.1));
     validate_selected_synchronous_invocation_cycles(selected.plans(), |plan, row| {
         let failure = |reason: String| {
             diagnostics::Diagnostic::error(format!(
@@ -254,9 +268,13 @@ fn validate_synchronous_calls(
                 plan.name,
             ))
         };
+        // The cycle check hands back references into `selected.plans()`, the
+        // same rows the candidates borrow, after rejecting repeated plans.
         let matched = candidates
             .iter()
-            .find(|candidate| candidate.selected == plan && candidate.row == row)
+            .find(|candidate| {
+                std::ptr::eq(candidate.selected, plan) && std::ptr::eq(candidate.row, row)
+            })
             .ok_or_else(|| {
                 failure("checked row lost its canonical selection association".into())
             })?;
@@ -271,14 +289,11 @@ fn validate_synchronous_calls(
                     .identities
                     .text(declaration.identity)
                     .ok_or_else(|| failure("invoked boundary has no canonical identity".into()))?;
-                let mut slots = candidates
+                let first = requirement_slots.partition_point(|(text, _)| *text < requirement);
+                let mut slots = requirement_slots[first..]
                     .iter()
-                    .filter(|matched| {
-                        matched.candidates.iter().any(|candidate| {
-                            module.identities.text(candidate.requirement_identity) == Some(requirement)
-                        })
-                    })
-                    .map(|matched| matched.selected)
+                    .take_while(|(text, _)| *text == requirement)
+                    .map(|(_, plan)| *plan)
                     .collect::<Vec<_>>();
                 if let Some((plan, _)) = selected.selected_requirement_row(requirement) {
                     slots.push(plan);
@@ -455,11 +470,11 @@ pub fn validate_selected_service_schemas(
     Ok(())
 }
 
+/// Callers validate `plans` as one selection before asking for its roster.
 fn checked_candidate_roster(
     plans: &[ProviderPlan],
     module: &terminal_psi::TerminalModule,
 ) -> Result<Vec<psi_provider_selections::ProviderInstallationSelection>, String> {
-    build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(plans.to_vec())?;
     let mut selections = Vec::new();
     for matched in selected_checked_candidates(plans, module)? {
         if matched.candidates.is_empty() {

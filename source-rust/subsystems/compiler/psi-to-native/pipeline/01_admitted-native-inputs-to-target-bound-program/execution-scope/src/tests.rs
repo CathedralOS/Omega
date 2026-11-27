@@ -120,7 +120,6 @@ fn scope(module: TerminalModule, target: &str) -> Result<TargetReach, NativeExec
         entry,
         entry_call: None,
         adapters: &[],
-        assumptions: &[],
         callbacks: &[],
     })
 }
@@ -368,7 +367,6 @@ fn emission_records_a_callback_only_when_its_registrar_runs() {
             entry,
             entry_call: None,
             adapters: &[],
-            assumptions: &[],
             callbacks: &occurrences,
         })
         .unwrap();
