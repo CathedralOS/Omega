@@ -3,6 +3,7 @@
 use crate::{Elaboration, refusal};
 use semantic_vocabulary::{MachineId, TargetMachineCallable};
 use terminal_check_tables::{Checked, Construct, RefusalReason};
+use terminal_psi::generic_calls::CallTypePosition;
 
 pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
     if elaboration.nominal_types.is_empty() && elaboration.nominal_calls.is_empty() {
@@ -43,8 +44,8 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
         ));
     }
     if rows.windows(2).any(|pair| {
-        (pair[0].caller, pair[0].operation, pair[0].argument)
-            >= (pair[1].caller, pair[1].operation, pair[1].argument)
+        (pair[0].caller, pair[0].operation, pair[0].position)
+            >= (pair[1].caller, pair[1].operation, pair[1].position)
     }) {
         let row = &rows[0];
         return Err(fault(
@@ -60,10 +61,14 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
             .ok()
             .and_then(|position| module.machines.get(position))
             .is_some_and(|machine| {
-                machine
+                (machine
                     .structural_parameters
                     .iter()
                     .any(|formal| formal.structural_type == *storage)
+                    || machine
+                        .result
+                        .structural()
+                        .is_some_and(|result| result.structural_type == *storage))
                     && elaboration
                         .value_parameters
                         .get(*owner)
@@ -74,7 +79,7 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
                 RefusalReason::ForeignIdentity,
                 *owner,
                 Construct::Machine,
-                "nominal type roster names no const-dependent formal",
+                "nominal type roster names no const-dependent parameter or result",
             ));
         }
     }
@@ -100,39 +105,60 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
                 .ok_or_else(|| {
                     fault(caller.id, operation.id, "nominal call has no exact callee")
                 })?;
-            for (ordinal, (actual, formal)) in call
+            let parameters = call
                 .structural_arguments
                 .iter()
                 .zip(&callee.structural_parameters)
                 .enumerate()
-            {
-                let key = (caller.id, operation.id, ordinal as u32);
+                .map(|(index, (actual, formal))| {
+                    let actual_type = caller.structural_place_type(actual.place).and_then(|root| {
+                        terminal_semantics::runtime_structural_path_tip(
+                            module.types.structural_types.iter(),
+                            root,
+                            &actual.path,
+                        )
+                    });
+                    (
+                        CallTypePosition::Parameter(index as u32),
+                        actual_type.map(|ty| ty.id),
+                        formal.structural_type,
+                        actual.access == formal.access,
+                    )
+                });
+            let result = callee.result.structural().map(|formal| {
+                let actual = operation.result.as_structural();
+                (
+                    CallTypePosition::Result,
+                    actual.map(|r| r.structural_type),
+                    formal.structural_type,
+                    actual.is_some_and(|result| {
+                        result.multiplicity == formal.multiplicity
+                            && result.qualifications == formal.qualifications
+                            && result.projected_qualifications == formal.projected_qualifications
+                    }),
+                )
+            });
+            for (position, actual_type, formal_type, presentation_matches) in parameters.chain(result) {
+                let key = (caller.id, operation.id, position);
                 let row = rows
-                    .binary_search_by_key(&key, |row| (row.caller, row.operation, row.argument))
+                    .binary_search_by_key(&key, |row| (row.caller, row.operation, row.position))
                     .ok()
                     .map(|position| &rows[position]);
                 let required = elaboration
                     .nominal_types
-                    .binary_search(&(callee.id, formal.structural_type))
+                    .binary_search(&(callee.id, formal_type))
                     .is_ok();
                 let Some(row) = row else {
                     if required {
                         return Err(fault(
                             caller.id,
                             operation.id,
-                            "nominal call input has no complete type correspondence",
+                            "nominal call type has no complete type correspondence",
                         ));
                     }
                     continue;
                 };
                 observed += 1;
-                let selected = caller.structural_place_type(actual.place).and_then(|root| {
-                    terminal_semantics::runtime_structural_path_tip(
-                        module.types.structural_types.iter(),
-                        root,
-                        &actual.path,
-                    )
-                });
                 let count = elaboration
                     .value_parameters
                     .get(callee.id)
@@ -147,16 +173,16 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
                 })?;
                 if !required
                     || row.callee != callee.id
-                    || row.expected != formal.structural_type
-                    || selected.map(|ty| ty.id) != Some(row.actual)
-                    || actual.access != formal.access
+                    || row.expected != formal_type
+                    || actual_type != Some(row.actual)
+                    || !presentation_matches
                     || row
                         .const_arguments
                         .iter()
                         .any(|binding| (binding.parameter as usize) < start)
                     || !valid_key(row.actual_application)
                     || !valid_key(row.expected_application)
-                    || !terminal_semantics::calls::nominal_argument_matches(
+                    || !terminal_semantics::calls::nominal_call_type_matches(
                         module,
                         caller,
                         callee,
@@ -167,7 +193,7 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
                     return Err(fault(
                         caller.id,
                         operation.id,
-                        "nominal call input changed its complete type or const actuals",
+                        "nominal call type changed its complete type or const actuals",
                     ));
                 }
             }
@@ -178,7 +204,7 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
         return Err(fault(
             row.caller,
             row.operation,
-            "nominal type correspondence has no emitted call input",
+            "nominal type correspondence has no emitted call position",
         ));
     }
     Ok(())

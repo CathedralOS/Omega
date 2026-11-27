@@ -400,7 +400,7 @@ impl<'a> DescriptorAnalysis<'a> {
     pub fn share_summaries(
         &mut self,
         summaries: &'a super::ModuleSummaries<'a>,
-        nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+        nominal_calls: &[terminal_psi::generic_calls::NominalCallType],
     ) -> bool {
         let shares = self.replay.summaries.is_empty()
             && self.replay.snapshots.is_empty()

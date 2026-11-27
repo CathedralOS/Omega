@@ -3842,16 +3842,16 @@ impl<'t> Program<'t> {
         if formals.len() != read.len() {
             return Err(refuse_at(id, Unserved::Typing("argument types")));
         }
-        let mut nominal_arguments = Vec::new();
+        let mut nominal_types = Vec::new();
         let mut structural_ordinal = 0;
         for ((declared, erased, borrowed), actual) in formals.iter().zip(&read) {
             let formal = self.substitute(*declared, &bound);
             let mut nominal_agrees = false;
             if !erased && (borrowed.is_some() || matches!(formal, ValueType::Record(..))) {
-                if let Some(argument) = self.nominal_call_argument(
+                if let Some(argument) = self.nominal_call_type(
                     id,
                     &callee,
-                    structural_ordinal,
+                    terminal_psi::generic_calls::CallTypePosition::Parameter(structural_ordinal),
                     actual.result,
                     formal,
                     const_values,
@@ -3859,7 +3859,7 @@ impl<'t> Program<'t> {
                     slots,
                 )? {
                     nominal_agrees = argument.agrees();
-                    nominal_arguments.push(argument);
+                    nominal_types.push(argument);
                 }
                 structural_ordinal += 1;
             }
@@ -3932,7 +3932,32 @@ impl<'t> Program<'t> {
                 bound.push((*parameter, chosen));
             }
         }
-        let result = declared_result.map(|result| self.substitute(result, &bound));
+        let mut result = declared_result.map(|result| self.substitute(result, &bound));
+        if let Some(declared) = result
+            && let Some(instantiated) =
+                self.instantiated_nominal_result(id, &callee, declared, const_sources)?
+        {
+            let correspondence = self
+                .nominal_call_type(
+                    id,
+                    &callee,
+                    terminal_psi::generic_calls::CallTypePosition::Result,
+                    Some(instantiated),
+                    declared,
+                    const_values,
+                    const_sources,
+                    slots,
+                )?
+                .filter(|row| row.agrees())
+                .ok_or_else(|| {
+                    refuse_at(
+                        id,
+                        Unserved::Call("nominal result lost its complete type correspondence"),
+                    )
+                })?;
+            nominal_types.push(correspondence);
+            result = Some(instantiated);
+        }
         // Binding is an invocation relation, even when a recursive call's
         // actual region has the same declaration identity as a free formal.
         // Test missing bindings on the declared result, before substitution.
@@ -3947,12 +3972,12 @@ impl<'t> Program<'t> {
                 Unserved::Typing("result lifetime that no argument supplies"),
             ));
         }
-        if !nominal_arguments.is_empty() {
+        if !nominal_types.is_empty() {
             self.nominal_calls
                 .push(super::nominal_applications::NominalCallSource {
                     caller: id,
                     source,
-                    arguments: nominal_arguments,
+                    types: nominal_types,
                 });
         }
         Ok(Expression {

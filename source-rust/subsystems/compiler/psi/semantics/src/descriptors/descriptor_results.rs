@@ -1379,7 +1379,7 @@ pub fn terminal_borrowed_storage_graph_from(
 
 #[derive(Clone, Copy, Default)]
 pub(crate) struct GenericCallInputs<'a> {
-    pub nominal: &'a [terminal_psi::generic_calls::NominalCallArgument],
+    pub nominal: &'a [terminal_psi::generic_calls::NominalCallType],
     pub scoped: Option<&'a arena::IdTable<MachineId, &'a [usize]>>,
 }
 
@@ -1387,7 +1387,7 @@ pub fn terminal_borrowed_storage_graph_with_generic_calls(
     module: &TerminalModule,
     roots: impl IntoIterator<Item = MachineId>,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
-    nominal: &[terminal_psi::generic_calls::NominalCallArgument],
+    nominal: &[terminal_psi::generic_calls::NominalCallType],
     scoped: &arena::IdTable<MachineId, &[usize]>,
 ) -> Result<Vec<DescriptorMachine>, DescriptorGraphError> {
     terminal_graph_rows_with_generic_calls(

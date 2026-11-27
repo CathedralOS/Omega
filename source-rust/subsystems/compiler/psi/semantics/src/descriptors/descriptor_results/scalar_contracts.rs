@@ -51,7 +51,7 @@ pub(crate) fn terminal_postconditions(
     machine: &terminal_psi::TerminalMachine,
     operation: &terminal_psi::Operation,
     scalar_expressions: &super::payload_predicates::TerminalScalarExpressions<'_>,
-    nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    nominal_calls: &[terminal_psi::generic_calls::NominalCallType],
 ) -> Option<TerminalPostconditions> {
     use terminal_psi::{
         OperationKind, OperationResult, StructuralAccess, TerminalMachineResult,
@@ -121,6 +121,22 @@ pub(crate) fn terminal_postconditions(
         }
         bindings.push((formal.id, scalar_expressions.expression(*actual)?));
     }
+    use terminal_psi::generic_calls::CallTypePosition;
+    let nominal_matches = |position, actual, expected| {
+        nominal_calls
+            .binary_search_by_key(&(machine.id, operation.id, position), |row| {
+                (row.caller, row.operation, row.position)
+            })
+            .ok()
+            .is_some_and(|index| {
+                let row = &nominal_calls[index];
+                row.actual == actual
+                    && row.expected == expected
+                    && crate::calls::nominal_call_type_matches(
+                        module, machine, callee, arguments, row,
+                    )
+            })
+    };
     let mut storage = Vec::new();
     for (ordinal, (formal, actual)) in callee
         .structural_parameters
@@ -137,20 +153,11 @@ pub(crate) fn terminal_postconditions(
         if actual.access != formal.access
             || (!selected.is_some_and(|selected| {
                 selected.id == formal.structural_type
-                    || nominal_calls
-                        .binary_search_by_key(
-                            &(machine.id, operation.id, ordinal as u32),
-                            |row| (row.caller, row.operation, row.argument),
-                        )
-                        .ok()
-                        .is_some_and(|position| {
-                            let row = &nominal_calls[position];
-                            row.actual == selected.id
-                                && row.expected == formal.structural_type
-                                && crate::calls::nominal_argument_matches(
-                                    module, machine, callee, arguments, row,
-                                )
-                        })
+                    || nominal_matches(
+                        CallTypePosition::Parameter(ordinal as u32),
+                        selected.id,
+                        formal.structural_type,
+                    )
                     || crate::calls::const_array_argument_matches(
                         module,
                         machine,
@@ -197,8 +204,13 @@ pub(crate) fn terminal_postconditions(
         (
             TerminalMachineResult::Structural(signature),
             OperationResult::Structural(result),
-        ) if signature.structural_type == result.structural_type
-            && !structural_arguments
+        ) if (signature.structural_type == result.structural_type
+                || nominal_matches(
+                    CallTypePosition::Result,
+                    result.structural_type,
+                    signature.structural_type,
+                ))
+                && !structural_arguments
                 .iter()
                 .any(|actual| actual.place == result.place) =>
         {
