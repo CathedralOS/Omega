@@ -472,7 +472,7 @@ pub(crate) mod runtime_rematerialization {
                 dominance,
             )?;
             let mut transformed = source.selected_plan().clone();
-            transformed.functions.mutate_preserving_register_prefix(
+            transformed.functions.function_parts_mut(
                 function_index,
                 |_local_storage_slots,
                  virtual_registers,
@@ -524,8 +524,6 @@ pub(crate) mod runtime_rematerialization {
                                 .blocks
                                 .block_register_instruction_span(block_index, register)
                         };
-                        let unchanged_prefix =
-                            active_window.map_or(block.instructions.len(), |(start, _)| start);
                         if let Some((active_start, active_end)) = active_window {
                             if active_start > 0 {
                                 instructions.extend_from_slice(&block.instructions[..active_start]);
@@ -546,7 +544,6 @@ pub(crate) mod runtime_rematerialization {
                         } else if !block.instructions.is_empty() {
                             instructions.extend_from_slice(&block.instructions);
                         }
-                        let pre_terminator_len = instructions.len();
                         let mut terminator = block.terminator.clone();
                         rematerialize(
                             &mut control_mut(&mut terminator).operands,
@@ -560,22 +557,7 @@ pub(crate) mod runtime_rematerialization {
                             remap(boundary_settlements, &boundaries, &positions, block.id)
                                 .ok_or(RuntimeRematerializationError::SourceMismatch)?;
                         }
-                        let unchanged_suffix = if instructions.len() == pre_terminator_len {
-                            active_window
-                                .map_or(block.instructions.len(), |(_, end)| {
-                                    block.instructions.len() - (end + 1)
-                                })
-                                .min(block.instructions.len() - unchanged_prefix)
-                        } else {
-                            0
-                        };
-                        blocks.replace_block_contents(
-                            block_index,
-                            instructions,
-                            terminator,
-                            unchanged_prefix,
-                            unchanged_suffix,
-                        );
+                        blocks.replace_block_contents(block_index, instructions, terminator);
                     }
                     Ok(())
                 },
@@ -592,7 +574,7 @@ pub(crate) mod runtime_rematerialization {
     use std::sync::Arc;
 
     use optimization_core::OptimizationUnitIdentity;
-    use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+    use selected_instructions::SelectedInstructionPlan;
     use semantic_vocabulary::WorkScheduleIdentity;
 
     pub use rewrite::rematerialize_selected_runtime_value;
@@ -1070,7 +1052,7 @@ pub(crate) mod runtime_spill {
         use register_environment::ValidatedTargetRegisterEnvironment;
         use register_model::RegisterOperandAccess;
         use selected_instructions::{
-            AppendOnlyRows, LocalStorageSlotId, SelectedCasePayloadTransport, SelectedInstruction,
+            LocalStorageSlotId, SelectedCasePayloadTransport, SelectedInstruction,
             SelectedLocalStorageSlot, SelectedStructuralTransport, SelectedValueTransport,
             VirtualRegister, VirtualRegisterId,
         };
@@ -1088,7 +1070,7 @@ pub(crate) mod runtime_spill {
             register: VirtualRegisterId,
             share: bool,
             open: &mut Option<VirtualRegisterId>,
-            virtual_registers: &mut AppendOnlyRows<'_, VirtualRegister>,
+            virtual_registers: &mut Vec<VirtualRegister>,
             instructions: &mut Vec<SelectedInstruction>,
             next_instruction: &mut u32,
             next_register: &mut u32,
@@ -1151,7 +1133,7 @@ pub(crate) mod runtime_spill {
                 let mut transformed = source.selected_plan().clone();
                 transformed
                     .functions
-                    .mutate_preserving_register_prefix(
+                    .function_parts_mut(
                         function_index,
                         |local_storage_slots, virtual_registers, boundary_settlements, blocks| -> Result<(), RuntimeSpillError> {
                         if admitted.assignment.declares_private {
@@ -1181,7 +1163,6 @@ pub(crate) mod runtime_spill {
                                 .any(|settlement| settlement.block == block.id);
                             let mut instructions = Vec::with_capacity(block.instructions.len() + 8);
                             let (mut boundaries, mut positions) = gap_tables(has_settlements, block);
-                            let mut has_block_start_store = false;
                             for (definition_index, definition) in
                                 admitted
                                     .definitions
@@ -1195,7 +1176,6 @@ pub(crate) mod runtime_spill {
                                             )
                                     })
                             {
-                                has_block_start_store = true;
                                 let store = admission::store(
                                     &admitted,
                                     admitted.assignment.store_slot(definition_index),
@@ -1253,11 +1233,6 @@ pub(crate) mod runtime_spill {
                                 }
                                 window
                             };
-                            let unchanged_prefix = if has_block_start_store {
-                                0
-                            } else {
-                                active_window.map_or(block.instructions.len(), |(start, _)| start)
-                            };
                             if let Some((active_start, active_end)) = active_window {
                                 if active_start > 0 {
                                     instructions.extend_from_slice(&block.instructions[..active_start]);
@@ -1275,7 +1250,7 @@ pub(crate) mod runtime_spill {
                                     |instruction_index: usize,
                                      original: &selected_instructions::SelectedInstruction,
                                      open_reload: &mut Option<VirtualRegisterId>,
-                                     virtual_registers: &mut AppendOnlyRows<'_, VirtualRegister>,
+                                     virtual_registers: &mut Vec<VirtualRegister>,
                                      instructions: &mut Vec<selected_instructions::SelectedInstruction>,
                                      next_instruction: &mut u32,
                                      next_register: &mut u32|
@@ -1427,7 +1402,6 @@ pub(crate) mod runtime_spill {
                             } else if !block.instructions.is_empty() {
                                 instructions.extend_from_slice(&block.instructions);
                             }
-                            let pre_terminator_len = instructions.len();
                             let mut unshared = None;
                             let mut end_of_block_reload = |register: VirtualRegisterId| {
                                 reload_for_use(
@@ -1558,22 +1532,7 @@ pub(crate) mod runtime_spill {
                                 remap(boundary_settlements, &boundaries, &positions, block.id)
                                     .ok_or(RuntimeSpillError::SourceMismatch)?;
                             }
-                            let unchanged_suffix = if instructions.len() == pre_terminator_len {
-                                active_window
-                                    .map_or(block.instructions.len(), |(_, end)| {
-                                        block.instructions.len() - (end + 1)
-                                    })
-                                    .min(block.instructions.len() - unchanged_prefix)
-                            } else {
-                                0
-                            };
-                            blocks.replace_block_contents(
-                                block_index,
-                                instructions,
-                                terminator,
-                                unchanged_prefix,
-                                unchanged_suffix,
-                            );
+                            blocks.replace_block_contents(block_index, instructions, terminator);
                         }
                         Ok(())
                     },
@@ -3288,8 +3247,7 @@ pub(crate) mod runtime_spill {
     use register_model::{RegisterClassId, RegisterInstructionConstraint, RegisterUnitId};
     use selected_instructions::{
         SelectedFunction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
-        SelectedInstructionPlanIdentity, SelectedStructuralTransport, VirtualRegister,
-        VirtualRegisterId,
+        SelectedStructuralTransport, VirtualRegister, VirtualRegisterId,
     };
     use semantic_vocabulary::{EdgeId, PlaceId, ScalarType, ValueId, WorkScheduleIdentity};
 
@@ -5775,7 +5733,7 @@ pub(crate) mod runtime_split {
             let definition_index = u32::try_from(admitted.definition_index)
                 .map_err(|_| RuntimeSplitError::IdentityOverflow)?;
             let mut transformed = source.selected_plan().clone();
-            transformed.functions.mutate_preserving_register_prefix(
+            transformed.functions.function_parts_mut(
                 function_index,
                 |_local_storage_slots,
                  virtual_registers,
@@ -5847,7 +5805,7 @@ pub(crate) mod runtime_split {
     use std::sync::Arc;
 
     use optimization_core::OptimizationUnitIdentity;
-    use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+    use selected_instructions::SelectedInstructionPlan;
     use semantic_vocabulary::WorkScheduleIdentity;
 
     pub(crate) use admission::visit_structural_registers;

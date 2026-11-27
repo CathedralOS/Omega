@@ -99,7 +99,6 @@ fn malformed(instruction: SelectedInstructionId) -> OptimizedX86BranchRelaxation
 
 fn revision_roots(source: &ResolvedMachineLayout) -> RevisionRoots {
     RevisionRoots {
-        selected: source.selected(),
         pre_layout: source.pre_layout(),
         target: source.target(),
     }
@@ -128,7 +127,6 @@ fn finish_artifact(
     );
     Ok(StagedOptimizedX86BranchRelaxation {
         record: X86BranchRelaxationRecord {
-            selected: source.selected(),
             machine: Arc::clone(source.machine()),
             pre_layout: source.pre_layout(),
             target: source.target(),
@@ -1240,9 +1238,6 @@ mod tests {
     impl IdentityFixture {
         fn new() -> Self {
             let roots = RevisionRoots {
-                selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
-                    [2; 32],
-                ),
                 pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
                 target: NativeTarget::linux_x64(),
             };
@@ -1480,7 +1475,6 @@ mod tests {
 
     fn sweep_roots() -> RevisionRoots {
         RevisionRoots {
-            selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([12; 32]),
             pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([14; 32]),
             target: NativeTarget::linux_x64(),
         }
@@ -1523,7 +1517,6 @@ mod tests {
         use crate::relaxation::validate_optimized_x86_branch_relaxation;
         let roots = sweep_roots();
         let baseline = machine_code::ResolvedMachineLayout {
-            selected: roots.selected,
             machine: post_allocation_machine::test_support::placeholder_plan(),
             pre_layout: roots.pre_layout,
             target: roots.target,
@@ -1585,9 +1578,11 @@ mod tests {
             validate_optimized_x86_branch_relaxation(&physical, &other_baseline, &record),
             Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
         );
+        // A record whose machine plan names another selected program does not
+        // belong to this baseline.
         let mut changed = record.clone();
-        changed.selected =
-            selected_instructions::SelectedInstructionPlanIdentity::from_bytes([99; 32]);
+        std::sync::Arc::make_mut(&mut changed.machine).selected =
+            selected_instructions::test_support::placeholder_plan(99);
         assert_eq!(
             verify(&changed),
             Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)

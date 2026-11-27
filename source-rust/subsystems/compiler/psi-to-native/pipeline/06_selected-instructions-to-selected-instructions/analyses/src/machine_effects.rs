@@ -98,7 +98,7 @@ mod facts {
         use crate::MachineEffectError;
         use selected_instructions::{
             BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,
-            PreAllocationMachineEffectPlan, pre_allocation_machine_effect_identity,
+            PreAllocationMachineEffectPlan,
         };
 
         #[allow(clippy::too_many_arguments)]
@@ -171,11 +171,8 @@ mod facts {
                     blocks,
                 });
             }
-            let mut plan = PreAllocationMachineEffectPlan {
-                identity: selected_instructions::PreAllocationMachineEffectIdentity::from_bytes(
-                    [0; 32],
-                ),
-                selected: selected.selected_identity(),
+            Ok(PreAllocationMachineEffectPlan {
+                selected: selected.shared_selected_plan(),
                 optimization_unit: selected.optimization_unit_identity(),
                 work_schedule: selected.work_schedule_identity(),
                 target: source.target,
@@ -183,9 +180,7 @@ mod facts {
                 register_constraints: constraints.identity(),
                 machine_effect_catalog: catalog.identity(),
                 functions,
-            };
-            plan.identity = pre_allocation_machine_effect_identity(&plan);
-            Ok(plan)
+            })
         }
 
         fn validate_catalog_roots(
@@ -861,22 +856,18 @@ mod facts {
         }
     }
     mod validate {
-        use super::{MachineEffectError, ValidatedPreAllocationMachineEffects, receipt};
+        use super::{MachineEffectError, ValidatedPreAllocationMachineEffects};
         use selected_instructions::PreAllocationMachineEffectPlan;
 
-        #[allow(clippy::too_many_arguments)]
         pub(crate) fn seal_pre_allocation_machine_effects(
             plan: PreAllocationMachineEffectPlan,
         ) -> Result<ValidatedPreAllocationMachineEffects, MachineEffectError> {
-            let receipt = receipt(&plan);
-            Ok(ValidatedPreAllocationMachineEffects::new(plan, receipt))
+            Ok(ValidatedPreAllocationMachineEffects::new(plan))
         }
     }
 
     pub use compute::{machine_alternative_is_transparent, machine_semantic_kind};
-    pub use selected_instructions::{
-        PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
-    };
+    pub use selected_instructions::PreAllocationMachineEffectPlan;
 
     use crate::SelectedProgramView;
     use register_model::{
@@ -885,9 +876,7 @@ mod facts {
         ValidatedRegisterReservationProfile,
     };
     use selected_instructions::PreparedMachineEffectCatalog;
-    use selected_instructions::{
-        MachineEffectCatalogIdentity, SelectedInstructionId, SelectedInstructionPlanIdentity,
-    };
+    use selected_instructions::SelectedInstructionId;
     use std::sync::Arc;
 
     #[allow(clippy::too_many_arguments)]
@@ -912,20 +901,10 @@ mod facts {
         validate::seal_pre_allocation_machine_effects(plan)
     }
 
-    copy_receipt! {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub struct PreAllocationMachineEffectReceipt {
-            identity: PreAllocationMachineEffectIdentity,
-            selected: SelectedInstructionPlanIdentity,
-            register_environment: TargetRegisterEnvironmentIdentity,
-            machine_effect_catalog: MachineEffectCatalogIdentity,
-        }
-    }
-
+    /// Machine effects analysis checked for the program its plan shares.
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ValidatedPreAllocationMachineEffects {
         plan: Arc<PreAllocationMachineEffectPlan>,
-        receipt: PreAllocationMachineEffectReceipt,
     }
 
     impl ValidatedPreAllocationMachineEffects {
@@ -937,17 +916,9 @@ mod facts {
             Arc::clone(&self.plan)
         }
 
-        receipt_accessor_rows!(ref ValidatedPreAllocationMachineEffects {
-            receipt: PreAllocationMachineEffectReceipt,
-        });
-
-        pub fn new(
-            plan: PreAllocationMachineEffectPlan,
-            receipt: PreAllocationMachineEffectReceipt,
-        ) -> Self {
+        pub fn new(plan: PreAllocationMachineEffectPlan) -> Self {
             Self {
                 plan: Arc::new(plan),
-                receipt,
             }
         }
     }
@@ -990,15 +961,6 @@ mod facts {
     }
 
     failed_display!(MachineEffectError, "machine-effect analysis failed");
-
-    fn receipt(plan: &PreAllocationMachineEffectPlan) -> PreAllocationMachineEffectReceipt {
-        PreAllocationMachineEffectReceipt {
-            identity: plan.identity,
-            selected: plan.selected,
-            register_environment: plan.register_environment,
-            machine_effect_catalog: plan.machine_effect_catalog,
-        }
-    }
 }
 
 pub use error::MachineEffectStageError;
@@ -1278,7 +1240,6 @@ pub(crate) mod indirect_call_tests {
             functions: vec![function].into(),
         };
         SelectedProgram {
-            identity: selected_instructions::selected_instruction_plan_identity(&plan),
             plan: Arc::new(plan),
             optimization_unit: optimization_core::OptimizationUnitIdentity::from_bytes([2; 32]),
             work_schedule,
@@ -1310,7 +1271,6 @@ pub(crate) mod indirect_call_tests {
         let mut selected = selected.clone();
         let plan = Arc::make_mut(&mut selected.plan);
         change(&mut plan.functions[0]);
-        selected.identity = selected_instructions::selected_instruction_plan_identity(plan);
         selected
     }
 

@@ -52,7 +52,7 @@ pub(crate) mod compute {
         let environment = source.register_environment();
         let homes = source.homes();
         let manifest = source.post_allocation_manifest().record();
-        if manifest.selected != selected.selected_identity()
+        if *manifest.selected != *selected.selected_plan()
             || manifest.homes != homes.receipt().identity()
             || manifest.register_environment != environment.identity()
             || manifest.target != environment.target()
@@ -82,7 +82,7 @@ pub(crate) mod compute {
             });
         }
         Ok(AllocatedCalleeSavedRequirementPlan {
-            selected: selected.selected_identity(),
+            selected: selected.shared_selected_plan(),
             homes: homes.receipt().identity(),
             post_allocation_manifest: manifest.identity,
             register_environment: environment.identity(),

@@ -452,7 +452,7 @@ pub mod compute {
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(RecoveryClassificationPlan {
-            selected: selected.selected_identity(),
+            selected: selected.shared_selected_plan(),
             spill_choices: spill_choices.receipt().identity(),
             ranges: ranges.receipt().identity(),
             legality: legality.receipt().identity(),
@@ -473,7 +473,7 @@ pub mod compute {
         legality: &ValidatedAllocationLegality,
         spill_choices: &ValidatedSpillChoices,
     ) -> Result<(), RecoveryClassificationError> {
-        if ranges.receipt().selected() != selected.selected_identity()
+        if *ranges.plan().selected != *selected.selected_plan()
             || ranges.receipt().optimization_unit() != selected.optimization_unit_identity()
             || ranges.receipt().work_schedule() != selected.work_schedule_identity()
             || legality.receipt().ranges() != ranges.receipt().identity()
@@ -497,7 +497,7 @@ use register_homes::{
     RecoveryClassificationPlan, SpillChoiceIdentity,
 };
 use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::{LiveRangeIdentity, SelectedInstructionPlanIdentity};
+use selected_instructions::LiveRangeIdentity;
 use semantic_vocabulary::WorkScheduleIdentity;
 
 use crate::WorkDefect;
@@ -526,7 +526,6 @@ seal_plan!(
         -> ValidatedRecoveryClassifications: RecoveryClassificationValidationReceipt
         = register_homes::recovery_classification_identity, RecoveryClassificationError
     {
-        selected,
         spill_choices,
         ranges,
         legality,
@@ -542,7 +541,6 @@ seal_plan!(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecoveryClassificationValidationReceipt {
     pub(crate) identity: RecoveryClassificationIdentity,
-    pub(crate) selected: SelectedInstructionPlanIdentity,
     pub(crate) spill_choices: SpillChoiceIdentity,
     pub(crate) ranges: LiveRangeIdentity,
     pub(crate) legality: AllocationLegalityIdentity,
@@ -557,7 +555,6 @@ pub struct RecoveryClassificationValidationReceipt {
 impl RecoveryClassificationValidationReceipt {
     receipt_accessor_rows!(RecoveryClassificationValidationReceipt {
         identity: RecoveryClassificationIdentity,
-        selected: SelectedInstructionPlanIdentity,
         spill_choices: SpillChoiceIdentity,
         policy: RecoveryClassificationPolicy,
         usage: OptimizationWorkUsage,

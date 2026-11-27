@@ -9,18 +9,14 @@ use register_model::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
     TargetRegisterEnvironmentIdentity,
 };
-use selected_instructions::{
-    LiveRangeIdentity, MachineEffectCatalogIdentity, PreAllocationMachineEffectIdentity,
-    SelectedInstructionPlanIdentity,
-};
+use selected_instructions::{LiveRangeIdentity, MachineEffectCatalogIdentity};
 use target::NativeTarget;
 
 use crate::{MachineAlternativeChoiceRule, PostAllocationMachinePlan};
 
 pub fn placeholder_plan() -> Arc<PostAllocationMachinePlan> {
     Arc::new(PostAllocationMachinePlan {
-        selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
-        effects: PreAllocationMachineEffectIdentity::from_bytes([2; 32]),
+        selected: selected_instructions::test_support::placeholder_plan(1),
         ranges: LiveRangeIdentity::from_bytes([3; 32]),
         legality: AllocationLegalityIdentity::from_bytes([4; 32]),
         homes: RegisterHomeIdentity::from_bytes([5; 32]),

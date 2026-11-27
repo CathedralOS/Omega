@@ -552,7 +552,7 @@ pub mod compute {
             .map(|(index, function)| compute_function(index, function).map(Arc::new))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(LivenessPlan {
-            selected: selected.selected_identity(),
+            selected: selected.shared_selected_plan(),
             optimization_unit: selected.optimization_unit_identity(),
             work_schedule: selected.work_schedule_identity(),
             target: plan.target,
@@ -2043,7 +2043,6 @@ pub(crate) mod validate {
                 });
             let receipt = LivenessValidationReceipt {
                 identity: liveness_identity_from_digests(&plan, &function_digests),
-                selected: plan.selected,
                 optimization_unit: plan.optimization_unit,
                 work_schedule: plan.work_schedule,
             };
@@ -2058,7 +2057,7 @@ pub(crate) mod validate {
 }
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{LivenessIdentity, LivenessPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{LivenessIdentity, LivenessPlan};
 use semantic_vocabulary::WorkScheduleIdentity;
 
 pub fn analyze_liveness<S: SelectedProgramView>(
@@ -2090,12 +2089,10 @@ mod staging {
 
         pub(super) fn liveness_custody_receipt(
             core: selected_instructions::StagedOptimizedCustodyCore,
-            selected: selected_instructions::SelectedInstructionPlanIdentity,
             validation: LivenessValidationReceipt,
         ) -> StagedOptimizedLivenessCustodyReceipt {
             StagedOptimizedLivenessCustodyReceipt {
                 core,
-                selected,
                 liveness: validation.identity(),
             }
         }
@@ -2109,9 +2106,9 @@ mod staging {
         PrePhysicalOptimizationManifestIdentity,
     };
     use register_environment::ValidatedTargetRegisterEnvironment;
+    use selected_instructions::LivenessIdentity;
     use selected_instructions::SelectedProgram;
     use selected_instructions::StagedOptimizedCustodyCore;
-    use selected_instructions::{LivenessIdentity, SelectedInstructionPlanIdentity};
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use terminal_psi::TerminalPsiIdentity;
 
@@ -2121,14 +2118,10 @@ mod staging {
         selected: SelectedOptimizationInput,
         liveness: ValidatedLiveness,
     ) -> Result<StagedOptimizedLiveness, OptimizedLivenessCustodyError> {
-        if liveness.receipt().selected() != selected.program.identity {
+        if *liveness.plan().selected != *selected.program.plan {
             return Err(OptimizedLivenessCustodyError::ProgramMismatch);
         }
-        let custody = custody::liveness_custody_receipt(
-            selected.custody,
-            selected.program.identity,
-            liveness.receipt(),
-        );
+        let custody = custody::liveness_custody_receipt(selected.custody, liveness.receipt());
         Ok(StagedOptimizedLiveness {
             selected,
             liveness,
@@ -2140,11 +2133,7 @@ mod staging {
         selected: SelectedOptimizationInput,
     ) -> Result<StagedOptimizedLiveness, OptimizedLivenessCustodyError> {
         let liveness = compute::compute_liveness(&selected)?;
-        let custody = custody::liveness_custody_receipt(
-            selected.custody,
-            selected.program.identity,
-            liveness.receipt(),
-        );
+        let custody = custody::liveness_custody_receipt(selected.custody, liveness.receipt());
         Ok(StagedOptimizedLiveness {
             selected,
             liveness,
@@ -2174,7 +2163,6 @@ mod staging {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct StagedOptimizedLivenessCustodyReceipt {
         core: StagedOptimizedCustodyCore,
-        selected: SelectedInstructionPlanIdentity,
         liveness: LivenessIdentity,
     }
 
@@ -2182,7 +2170,6 @@ mod staging {
         selected_instructions::staging_custody_core_accessors!();
 
         receipt_accessor_rows!(StagedOptimizedLivenessCustodyReceipt {
-            selected: SelectedInstructionPlanIdentity,
             liveness: LivenessIdentity,
         });
     }
@@ -2208,7 +2195,6 @@ copy_receipt! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct LivenessValidationReceipt {
         pub(crate) identity: LivenessIdentity,
-        pub(crate) selected: SelectedInstructionPlanIdentity,
         pub(crate) optimization_unit: OptimizationUnitIdentity,
         pub(crate) work_schedule: WorkScheduleIdentity,
     }

@@ -63,7 +63,6 @@ mod custody {
         StagedOptimizedAllocationLegalityCustodyReceipt {
             core: upstream.core(),
             allocator_availability,
-            selected: upstream.selected(),
             liveness: upstream.liveness(),
             ranges: upstream.ranges(),
             legality: legality.identity(),
@@ -200,7 +199,6 @@ use optimization_core::{
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
-use selected_instructions::SelectedInstructionPlanIdentity;
 use selected_instructions::SelectedProgram;
 use selected_instructions::StagedOptimizedCustodyCore;
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
@@ -318,7 +316,6 @@ impl StagedOptimizedAllocationLegality {
 pub struct StagedOptimizedAllocationLegalityCustodyReceipt {
     core: StagedOptimizedCustodyCore,
     allocator_availability: AllocatorAvailabilityIdentity,
-    selected: SelectedInstructionPlanIdentity,
     liveness: selected_instructions::LivenessIdentity,
     ranges: selected_instructions::LiveRangeIdentity,
     legality: AllocationLegalityIdentity,
@@ -331,7 +328,6 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
         allocator_availability: AllocatorAvailabilityIdentity,
         ranges: selected_instructions::LiveRangeIdentity,
         legality: AllocationLegalityIdentity,
-        selected: SelectedInstructionPlanIdentity,
         liveness: selected_instructions::LivenessIdentity,
     });
 }

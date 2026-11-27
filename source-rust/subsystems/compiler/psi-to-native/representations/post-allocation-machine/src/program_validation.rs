@@ -3,9 +3,7 @@
 
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_homes::AllocatedCalleeSavedRequirements;
-use selected_instructions::{
-    CurrentSelectedProgram, selected_instruction_plan_identity, terminator_instruction,
-};
+use selected_instructions::{CurrentSelectedProgram, terminator_instruction};
 
 use crate::{PostAllocationMachinePlan, PostAllocationMachineProgram};
 
@@ -48,9 +46,8 @@ pub fn validate_current_program(
         phase: original_phase,
     } = replay;
     let physical = environment.physical();
-    if selected.identity != selected_instruction_plan_identity(selected.plan)
-        || program.contracts != selected.plan.contracts
-        || machine.selected != selected.identity
+    if program.contracts != selected.plan.contracts
+        || *machine.selected != *selected.plan
         || program.psi != selected.plan.psi
         || program.work_schedule != selected.work_schedule
         || program.entry != selected.plan.entry
@@ -195,19 +192,16 @@ mod tests {
     use register_homes::{AllocationLegalityIdentity, RegisterHomeIdentity};
     use register_model::RegisterConstraintCatalogIdentity;
     use selected_instructions::{
-        LiveRangeIdentity, MachineEffectCatalogIdentity, MachineSemanticKind,
-        PreAllocationMachineEffectIdentity, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
-        SelectedFunction, SelectedFunctionContracts, SelectedInstruction, SelectedInstructionId,
-        SelectedInstructionKind, SelectedInstructionPlan, SelectedTerminator,
+        LiveRangeIdentity, MachineEffectCatalogIdentity, MachineSemanticKind, SelectedBlock,
+        SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedFunctionContracts,
+        SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+        SelectedInstructionPlan, SelectedTerminator,
     };
     use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, WorkScheduleIdentity};
     use target::NativeTarget;
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-    use super::{
-        CurrentSelectedProgram, PostAllocationMachinePlan, PostAllocationMachineProgram,
-        selected_instruction_plan_identity,
-    };
+    use super::{CurrentSelectedProgram, PostAllocationMachinePlan, PostAllocationMachineProgram};
     use super::{
         PhysicalProgramReplay, PhysicalProgramValidationError as Error, validate_current_program,
     };
@@ -291,8 +285,7 @@ mod tests {
             .into(),
         };
         let mut machine = PostAllocationMachinePlan {
-            selected: selected_instruction_plan_identity(&selected),
-            effects: PreAllocationMachineEffectIdentity::from_bytes([2; 32]),
+            selected: Arc::new(selected.clone()),
             ranges: LiveRangeIdentity::from_bytes([3; 32]),
             legality: AllocationLegalityIdentity::from_bytes([4; 32]),
             homes: RegisterHomeIdentity::from_bytes([5; 32]),
@@ -325,7 +318,7 @@ mod tests {
                 [10; 32],
             ),
             target: machine.target,
-            selected: machine.selected,
+            selected: Arc::clone(&machine.selected),
             selected_lowering_completion: None,
             pre_allocation_completion: None,
             selected_transformations: Vec::new(),
@@ -361,7 +354,7 @@ mod tests {
         );
         let convention = register_environment::selected_abi_preservation(&environment).unwrap();
         let preservation_plan = register_homes::AllocatedCalleeSavedRequirementPlan {
-            selected: machine.selected,
+            selected: Arc::clone(&machine.selected),
             homes: machine.homes,
             post_allocation_manifest: machine.post_allocation_manifest,
             register_environment: machine.register_environment,
@@ -403,7 +396,6 @@ mod tests {
     fn source(selected: &SelectedInstructionPlan) -> CurrentSelectedProgram<'_> {
         CurrentSelectedProgram {
             plan: selected,
-            identity: selected_instruction_plan_identity(selected),
             optimization_unit: OptimizationUnitIdentity::from_bytes([10; 32]),
             work_schedule: selected.work_schedule,
         }

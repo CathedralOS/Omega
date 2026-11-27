@@ -7,9 +7,10 @@ use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, Optimi
 use register_model::{RegisterConstraintKey, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
     LiteralFoldIdentity, LiveRangeIdentity, MachineEffectCatalogIdentity, SelectedBlockId,
-    SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
+    SelectedInstructionId, SelectedInstructionPlan, VirtualRegisterId,
 };
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+use std::sync::Arc;
 use wire::codec_bytes::push_encoded;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -166,7 +167,7 @@ impl LiteralFoldPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiteralFoldPlan {
-    pub source_selected: SelectedInstructionPlanIdentity,
+    pub source_selected: Arc<SelectedInstructionPlan>,
     pub spill_choices: SpillChoiceIdentity,
     pub recovery_classifications: RecoveryClassificationIdentity,
     pub ranges: LiveRangeIdentity,
@@ -180,7 +181,7 @@ pub struct LiteralFoldPlan {
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
     pub functions: Vec<FunctionLiteralFold>,
-    pub transformed_selected: SelectedInstructionPlanIdentity,
+    pub transformed_selected: Arc<SelectedInstructionPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -203,14 +204,13 @@ pub struct LiteralFoldAction {
 
 pub fn literal_fold_identity(plan: &LiteralFoldPlan) -> LiteralFoldIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-literal-fold.v8\0");
+    bytes.extend_from_slice(b"omega.terminal-literal-fold.v9\0");
     bytes.extend_from_slice(&encode_terminal_literal_fold_content(plan));
     LiteralFoldIdentity::from_canonical_bytes(&bytes)
 }
 
 fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(&plan.source_selected.bytes());
     bytes.extend_from_slice(&plan.spill_choices.bytes());
     bytes.extend_from_slice(&plan.recovery_classifications.bytes());
     bytes.extend_from_slice(&plan.ranges.bytes());
@@ -244,7 +244,6 @@ fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Vec<u8> {
             register_model::encode_constraint_key(&mut bytes, action.immediate_constraint);
         }
     }
-    bytes.extend_from_slice(&plan.transformed_selected.bytes());
     bytes
 }
 

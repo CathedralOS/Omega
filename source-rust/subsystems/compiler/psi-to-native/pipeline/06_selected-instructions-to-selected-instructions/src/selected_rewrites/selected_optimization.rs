@@ -292,7 +292,6 @@ impl RewrittenProgram<'_> {
         let input = SelectedOptimizationInput {
             program: SelectedProgram {
                 plan: self.selected.shared_selected_plan(),
-                identity: self.selected.selected_identity(),
                 optimization_unit: self.selected.optimization_unit_identity(),
                 work_schedule: self.selected.work_schedule_identity(),
             },

@@ -1,11 +1,12 @@
 /*
   Pre-allocation machine effects of a selected instruction plan
   (`PreAllocationMachineEffectPlan`, `FunctionMachineEffects`,
-  `BlockMachineEffects`, `InstructionMachineEffects`) bound to its exact target,
-  register-constraint, and machine-effect catalog identities.
+  `BlockMachineEffects`, `InstructionMachineEffects`) bound to the plan they
+  describe and to its exact target, register-constraint, and machine-effect
+  catalog identities. The plan shares that `SelectedInstructionPlan`; a reader
+  that must know which program the effects describe compares it directly.
 */
 
-pub mod identity;
 mod instructions {
     use crate::{
         MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -50,16 +51,14 @@ mod instructions {
     }
 }
 
-pub use identity::pre_allocation_machine_effect_identity;
 pub use instructions::{BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects};
 
-use crate::{MachineEffectCatalogIdentity, SelectedInstructionPlanIdentity};
+use crate::{MachineEffectCatalogIdentity, SelectedInstructionPlan};
 use optimization_core::OptimizationUnitIdentity;
 use register_model::{RegisterConstraintCatalogIdentity, TargetRegisterEnvironmentIdentity};
 use semantic_vocabulary::WorkScheduleIdentity;
+use std::sync::Arc;
 use target::NativeTarget;
-
-crate::identity::sha256_identity!(PreAllocationMachineEffectIdentity);
 
 impl PreAllocationMachineEffectPlan {
     pub fn blocks(&self) -> impl Iterator<Item = &BlockMachineEffects> + '_ {
@@ -75,8 +74,7 @@ impl PreAllocationMachineEffectPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreAllocationMachineEffectPlan {
-    pub identity: PreAllocationMachineEffectIdentity,
-    pub selected: SelectedInstructionPlanIdentity,
+    pub selected: Arc<SelectedInstructionPlan>,
     pub optimization_unit: OptimizationUnitIdentity,
     pub work_schedule: WorkScheduleIdentity,
     pub target: NativeTarget,

@@ -111,8 +111,7 @@ fn compute(
     physical: &register_model::ValidatedPhysicalRegisterModel,
     pre_layout: &SelectedFormEncoding,
 ) -> Result<ResolvedMachineLayout, OptimizedResolvedSelectedFormLayoutError> {
-    if pre_layout.selected() != input.selected
-        || *pre_layout.machine() != input.machine
+    if *pre_layout.machine() != input.machine
         || input.target.architecture != physical.model().architecture
         || input.functions.len() != input.alternatives.len()
     {
@@ -144,12 +143,10 @@ fn compute(
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
 
-    let selected_root = input.selected;
     let machine_root = Arc::clone(&input.machine);
     let pre_layout_root = pre_layout.identity();
     let target = input.target;
     Ok(ResolvedMachineLayout {
-        selected: selected_root,
         machine: machine_root,
         pre_layout: pre_layout_root,
         target,

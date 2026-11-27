@@ -668,7 +668,6 @@ pub fn prepare_frame_demands(
     use machine_code::frame_demands::*;
     Ok(MachineFrameDemands {
         plan: Arc::clone(machine),
-        selected: machine.selected,
         homes: machine.homes,
         post_allocation_manifest: machine.post_allocation_manifest,
         target: machine.target,
@@ -773,7 +772,7 @@ fn validate_frame_layout_plan(
     if current.target != environment.target()
         || current.register_environment != environment.identity()
         || current.physical_register_model != environment.physical().identity()
-        || required.selected != current.selected
+        || required.selected != current.plan.selected
         || required.homes != current.homes
         || required.post_allocation_manifest != current.post_allocation_manifest
         || required.register_environment != environment.identity()

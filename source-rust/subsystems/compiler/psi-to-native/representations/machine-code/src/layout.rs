@@ -23,7 +23,6 @@ use std::sync::Arc;
 use post_allocation_machine::PostAllocationMachinePlan;
 use selected_instructions::{
     MachineAlternativeKey, MachineEncodedEffects, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionPlanIdentity,
 };
 use semantic_vocabulary::{EdgeId, MachineId};
 use target::NativeTarget;
@@ -58,7 +57,6 @@ pub use text_section::{
 /// Retains the exact input joins for a layout without retaining its earlier rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedLayoutRoots {
-    pub selected: SelectedInstructionPlanIdentity,
     pub machine: Arc<PostAllocationMachinePlan>,
     pub pre_layout: SelectedFormEncodingIdentity,
 }
@@ -171,7 +169,6 @@ pub struct ResolvedSelectedFunctionLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedMachineLayout {
-    pub selected: SelectedInstructionPlanIdentity,
     pub machine: Arc<PostAllocationMachinePlan>,
     pub pre_layout: SelectedFormEncodingIdentity,
     pub target: NativeTarget,
@@ -182,14 +179,9 @@ pub struct ResolvedMachineLayout {
 impl ResolvedMachineLayout {
     pub fn roots(&self) -> ResolvedLayoutRoots {
         ResolvedLayoutRoots {
-            selected: self.selected,
             machine: Arc::clone(&self.machine),
             pre_layout: self.pre_layout,
         }
-    }
-
-    pub fn selected(&self) -> SelectedInstructionPlanIdentity {
-        self.selected
     }
 
     pub fn machine(&self) -> &Arc<PostAllocationMachinePlan> {
@@ -354,11 +346,10 @@ pub mod evidence {
         };
 
         const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v12";
-        const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v5";
+        const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v6";
 
         #[derive(Clone, Copy)]
         pub struct RevisionRoots {
-            pub selected: selected_instructions::SelectedInstructionPlanIdentity,
             pub pre_layout: crate::SelectedFormEncodingIdentity,
             pub target: NativeTarget,
         }
@@ -427,7 +418,6 @@ pub mod evidence {
             hasher: &mut crate::digest_encoder::DomainDigestEncoder,
             roots: RevisionRoots,
         ) {
-            hasher.raw(&roots.selected.bytes());
             hasher.raw(&roots.pre_layout.bytes());
             hasher.raw(&roots.target.identity_bytes());
         }

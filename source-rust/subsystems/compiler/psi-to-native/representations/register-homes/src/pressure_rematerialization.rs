@@ -8,15 +8,16 @@ use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, Optimi
 use register_model::{RegisterConstraintKey, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
     LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionPlanIdentity, VirtualRegisterId,
+    SelectedInstructionPlan, VirtualRegisterId,
 };
 use semantic_vocabulary::{IntegerValue, MachineId, ValueId, WorkScheduleIdentity};
+use std::sync::Arc;
 
 use crate::PressureRematerializationPolicy;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PressureRematerializationPlan {
-    pub source_selected: SelectedInstructionPlanIdentity,
+    pub source_selected: Arc<SelectedInstructionPlan>,
     pub spill_choices: SpillChoiceIdentity,
     pub recovery_classifications: RecoveryClassificationIdentity,
     pub ranges: LiveRangeIdentity,
@@ -29,7 +30,7 @@ pub struct PressureRematerializationPlan {
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
     pub functions: Vec<FunctionPressureRematerialization>,
-    pub transformed_selected: SelectedInstructionPlanIdentity,
+    pub transformed_selected: Arc<SelectedInstructionPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,7 +71,7 @@ pub(crate) mod identity {
         plan: &PressureRematerializationPlan,
     ) -> PressureRematerializationIdentity {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(b"omega.terminal-pressure-rematerialization.v2\0");
+        bytes.extend_from_slice(b"omega.terminal-pressure-rematerialization.v3\0");
         bytes.extend_from_slice(&encode_terminal_pressure_rematerialization_content(plan));
         PressureRematerializationIdentity::from_canonical_bytes(&bytes)
     }
@@ -79,7 +80,6 @@ pub(crate) mod identity {
         plan: &PressureRematerializationPlan,
     ) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&plan.source_selected.bytes());
         bytes.extend_from_slice(&plan.spill_choices.bytes());
         bytes.extend_from_slice(&plan.recovery_classifications.bytes());
         bytes.extend_from_slice(&plan.ranges.bytes());
@@ -141,7 +141,6 @@ pub(crate) mod identity {
                 }
             }
         }
-        bytes.extend_from_slice(&plan.transformed_selected.bytes());
         bytes
     }
 }

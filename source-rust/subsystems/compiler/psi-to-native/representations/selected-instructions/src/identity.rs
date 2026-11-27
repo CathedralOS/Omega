@@ -1,7 +1,7 @@
 /*
   Dense integer identifiers (`VirtualRegisterId`, `SelectedBlockId`,
-  `SelectedInstructionId`) and SHA-256 content-identity newtypes for selected
-  instruction plans and pre-allocation rewrite receipts.
+  `SelectedInstructionId`) and SHA-256 content-identity newtypes for
+  pre-allocation rewrite receipts.
 */
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -36,7 +36,6 @@ macro_rules! sha256_identity {
 
 pub(crate) use sha256_identity;
 
-sha256_identity!(SelectedInstructionPlanIdentity);
 sha256_identity!(FixedViewCopyIdentity);
 sha256_identity!(PressureRematerializationIdentity);
 sha256_identity!(CopyRemovalIdentity);

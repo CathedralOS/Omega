@@ -1,6 +1,6 @@
 /*
 Canonical SHA-256 identity encoding for `SelectedFormEncoding` (`SelectedFormEncodingIdentity`,
-schema `omega.terminal.layout-independent-selected-form-encoding.v33`) and footprint interning
+schema `omega.terminal.layout-independent-selected-form-encoding.v34`) and footprint interning
 buckets (`omega.selected-form-decoded-footprint.storage.v1`).
 
 Each encoded row hashes its own instruction bytes and decoded footprint through its span and handle
@@ -16,17 +16,15 @@ use super::{
 use crate::encode_units;
 use crate::identity_encoding::{encode_invocation_site, encode_nested_identity, encode_views};
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v33";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v34";
 
 pub(super) fn encoding_identity(
-    selected: selected_instructions::SelectedInstructionPlanIdentity,
     rows: &[SelectedFormEncodingRow],
     encoded: &SelectedFormEncodedRowStore,
     frame: Option<&crate::TargetFrameLayoutPlan>,
     counts: SelectedFormEncodingCounts,
 ) -> SelectedFormEncodingIdentity {
     let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(ENCODER_SCHEMA);
-    hasher.raw(&selected.bytes());
     // Checks compare the shared machine plan itself wherever an encoding
     // meets one, so the plan is not hashed here.
     hasher.u64(rows.len() as u64);
@@ -346,12 +344,10 @@ mod tests {
     };
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionId,
-        SelectedInstructionPlanIdentity,
     };
 
     fn deferred_program() -> SelectedFormEncoding {
         SelectedFormEncoding {
-            selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
             machine: post_allocation_machine::test_support::placeholder_plan(),
             identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
             rows: vec![SelectedFormEncodingRow {
@@ -494,12 +490,11 @@ mod tests {
     }
 
     #[test]
-    fn current_encoding_binds_the_version_33_control_alternative_schema() {
+    fn current_encoding_binds_the_version_34_control_alternative_schema() {
         let mut program = deferred_program();
         use sha2::{Digest, Sha256};
         let mut canonical =
-            b"omega.terminal.layout-independent-selected-form-encoding.v33".to_vec();
-        canonical.extend_from_slice(&[1; 32]);
+            b"omega.terminal.layout-independent-selected-form-encoding.v34".to_vec();
         crate::codec_bytes::push_encoded(&mut canonical, 1_u64.to_le_bytes());
         crate::codec_bytes::push_encoded(&mut canonical, 7_u32.to_le_bytes());
         crate::codec_bytes::push_encoded(&mut canonical, 6_u16.to_le_bytes());
@@ -520,10 +515,10 @@ mod tests {
         for count in [0_u64, 1, 0, 0, 0, 0] {
             crate::codec_bytes::push_encoded(&mut canonical, count.to_le_bytes());
         }
-        assert_eq!(canonical.len(), 270);
+        assert_eq!(canonical.len(), 238);
         let expected = [
-            117, 237, 56, 203, 111, 230, 48, 63, 72, 238, 228, 107, 103, 183, 167, 50, 154, 214,
-            184, 82, 13, 197, 63, 121, 44, 121, 229, 85, 75, 103, 245, 173,
+            37, 136, 41, 52, 69, 93, 9, 138, 12, 91, 243, 100, 47, 161, 205, 166, 209, 99, 12, 179,
+            127, 241, 207, 130, 89, 1, 17, 116, 56, 37, 203, 55,
         ];
         assert_eq!(<[u8; 32]>::from(Sha256::digest(&canonical)), expected);
         assert_eq!(program.recomputed_identity().bytes(), expected);
@@ -574,9 +569,6 @@ mod tests {
         assert_ne!(changed.recomputed_identity(), identity);
         changed = program.clone();
         changed.counts.ordinary_deferred_control = 2;
-        assert_ne!(changed.recomputed_identity(), identity);
-        changed = program;
-        changed.selected = SelectedInstructionPlanIdentity::from_bytes([3; 32]);
         assert_ne!(changed.recomputed_identity(), identity);
     }
 

@@ -30,7 +30,6 @@ use std::sync::{Arc, Weak};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedFormEncoding {
-    pub selected: selected_instructions::SelectedInstructionPlanIdentity,
     pub machine: Arc<PostAllocationMachinePlan>,
     pub identity: SelectedFormEncodingIdentity,
     pub rows: Vec<SelectedFormEncodingRow>,
@@ -40,10 +39,6 @@ pub struct SelectedFormEncoding {
 }
 
 impl SelectedFormEncoding {
-    pub const fn selected(&self) -> selected_instructions::SelectedInstructionPlanIdentity {
-        self.selected
-    }
-
     pub fn machine(&self) -> &Arc<PostAllocationMachinePlan> {
         &self.machine
     }
@@ -66,7 +61,6 @@ impl SelectedFormEncoding {
 
     pub fn recomputed_identity(&self) -> SelectedFormEncodingIdentity {
         identity::encoding_identity(
-            self.selected,
             &self.rows,
             &self.encoded,
             self.frame.as_deref(),

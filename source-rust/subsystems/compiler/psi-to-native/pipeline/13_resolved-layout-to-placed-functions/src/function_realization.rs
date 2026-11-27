@@ -10,7 +10,7 @@ use optimization_core::{
     OptimizationExecutionPhase, OptimizationSelectionIdentity, OptimizationSelections,
 };
 use register_homes::AllocatedCalleeSavedRequirements;
-use selected_instructions::SelectedInstructionPlanIdentity;
+use selected_instructions::SelectedInstructionPlan;
 
 use crate::exit_contract::{
     StagedWholeFunctionExitContract, WholeFunctionExitContractError,
@@ -27,7 +27,7 @@ use frame_admission::frame_layout::{
 pub struct FunctionRelativeOptimizationRealizationManifest {
     pub selections: OptimizationSelectionIdentity,
     pub allocation_recovery_selections: OptimizationSelectionIdentity,
-    pub selected: SelectedInstructionPlanIdentity,
+    pub selected: Arc<SelectedInstructionPlan>,
     pub resolved_layout: Arc<ResolvedMachineLayout>,
 }
 
@@ -194,24 +194,19 @@ fn fixed_frame_manifest(
     };
     let post_allocation = selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let post = facts.record();
-    let selected = machine.selected;
+    let selected = &machine.plan.selected;
     let post_allocation_run = program.context.phase;
     if post_allocation_run.complete_selection() != selections.identity()
         || post_allocation_run.phase_selections() != post_allocation.identity()
-        || post.selected != selected
+        || post.selected != *selected
         || machine.post_allocation_manifest != post.identity
-        || machine.selected != selected
-        || encoding.selected != selected
         || encoding.machine != machine.plan
-        || baseline_roots.selected != selected
         || baseline_roots.machine != machine.plan
         || baseline_roots.pre_layout != encoding.identity
-        || layout.selected() != selected
         || *layout.machine() != machine.plan
         || layout.pre_layout() != encoding.identity
         || frame.post_allocation_machine != machine.plan
         || protocol.frame_layout != *frame
-        || exit_contract.contract().selected != selected
         || exit_contract.contract().post_allocation_manifest != post.identity
         || exit_contract.contract().post_allocation_machine != machine.plan
         || exit_contract.contract().pre_layout != encoding.identity
@@ -231,7 +226,7 @@ fn fixed_frame_manifest(
         allocation_recovery_selections: selections
             .for_phase(OptimizationExecutionPhase::AllocationRecovery)
             .identity(),
-        selected,
+        selected: Arc::clone(selected),
         resolved_layout: Arc::clone(&program.layout),
     };
     Ok(ValidatedFunctionRelativeOptimizationRealizationManifest { record })
@@ -254,7 +249,6 @@ fn validate_layout_optimization_manifest_roots(
         (None, None) if layout.layout().roots() == *baseline => Ok(()),
         (Some(relaxation), Some(trace))
             if trace.identity() == relaxation
-                && trace.selected() == baseline.selected
                 && *trace.machine() == baseline.machine
                 && trace.pre_layout() == baseline.pre_layout
                 && trace.layout == layout.program.layout =>

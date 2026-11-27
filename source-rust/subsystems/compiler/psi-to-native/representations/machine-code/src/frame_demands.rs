@@ -4,7 +4,6 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFrameDemands {
     pub plan: std::sync::Arc<post_allocation_machine::PostAllocationMachinePlan>,
-    pub selected: selected_instructions::SelectedInstructionPlanIdentity,
     pub homes: register_homes::RegisterHomeIdentity,
     pub post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
     pub target: target::NativeTarget,
