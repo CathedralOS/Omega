@@ -299,6 +299,14 @@ pub(crate) struct Program<'t> {
     /// (`contracts::named_proposition`) and the `let`s of a generic
     /// mathematical machine's body (`templates`).
     applied_propositions: Vec<contracts::AppliedProposition>,
+    /// The values a for-every definition being read binds, innermost last:
+    /// each binder's symbol, the place the clause names it by, and its type
+    /// (`mathematics::universal_application`).
+    universal_binders: Vec<(
+        SymbolHandle,
+        semantic_vocabulary::PlaceId,
+        crate::body::ValueType,
+    )>,
     /// The generic mathematical machine whose contract is being read, so
     /// that its body is read in the same scope (`templates`).
     reading_template: Option<SymbolHandle>,
@@ -647,6 +655,7 @@ impl<'t> Program<'t> {
             resolving_services: Vec::new(),
             unfolding_calls: Vec::new(),
             applied_propositions: Vec::new(),
+            universal_binders: Vec::new(),
             reading_template: None,
             template_bodies: Vec::new(),
             quotients: Vec::new(),

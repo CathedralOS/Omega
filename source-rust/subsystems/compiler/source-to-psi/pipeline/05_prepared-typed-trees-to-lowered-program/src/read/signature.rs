@@ -196,6 +196,7 @@ impl Program<'_> {
             within: None,
             result_as: None,
             callable_scope: Vec::new(),
+            bound_values: Vec::new(),
             generic_premises: Vec::new(),
             held: Vec::new(),
             stating_premises: false,
@@ -757,6 +758,10 @@ struct Converter<'p, 't> {
     /// The machine parameters of the generic machine being read, each as
     /// the variable it is under that machine's formals.
     callable_scope: Vec<(SymbolHandle, TermHandle)>,
+    /// The values the for-every propositions being read bind, each with the
+    /// place its clause names it by and the variable it is under the
+    /// formals (`Proposition::Universal`).
+    bound_values: Vec<(semantic_vocabulary::PlaceId, TermHandle)>,
     /// The premises of each generic machine read so far, as terms under
     /// its machine parameters and formals: what a call of it owes.
     generic_premises: Vec<(MachineId, Vec<TermHandle>)>,
@@ -7497,6 +7502,51 @@ impl<'p> Converter<'p, '_> {
                 codomain: inner_pi,
             }));
         }
+        // For every value of the data, the body: a dependent product whose
+        // body names the value as variable 0, every term of the enclosing
+        // scope one binder further out.
+        if let Proposition::Universal {
+            carrier,
+            binder,
+            body,
+        } = proposition
+        {
+            let entry = self.data(id, *carrier)?;
+            let domain = self.constant(entry);
+            let arena = &mut self.signature.arena;
+            let mut lift = |term: TermHandle| shift(arena, term, 0, 1);
+            let inner: Vec<TermHandle> = formals.iter().map(|&formal| lift(formal)).collect();
+            let callables: Vec<_> = self
+                .callable_scope
+                .iter()
+                .map(|&(symbol, term)| (symbol, lift(term)))
+                .collect();
+            let mut bound: Vec<_> = self
+                .bound_values
+                .iter()
+                .map(|&(place, term)| (place, lift(term)))
+                .collect();
+            let held: Vec<_> = self.held.iter().map(|&premise| lift(premise)).collect();
+            let result_as = self
+                .result_as
+                .map(|(machine, result)| (machine, lift(result)));
+            bound.push((*binder, arena.insert(Term::Variable(0))));
+            let outer = (
+                std::mem::replace(&mut self.callable_scope, callables),
+                std::mem::replace(&mut self.bound_values, bound),
+                std::mem::replace(&mut self.held, held),
+                std::mem::replace(&mut self.result_as, result_as),
+            );
+            let codomain = self.equality(id, body, &inner, satisfaction);
+            (
+                self.callable_scope,
+                self.bound_values,
+                self.held,
+                self.result_as,
+            ) = outer;
+            let codomain = codomain?;
+            return Ok(self.signature.arena.insert(Term::Pi { domain, codomain }));
+        }
         let Proposition::DeclarationIdentity(clause) = proposition else {
             return Err(unserved(id, "law guarantee other than an Identity"));
         };
@@ -7709,6 +7759,21 @@ impl<'p> Converter<'p, '_> {
                     self.signature
                         .arena
                         .insert(if *truth { Term::TwoOne } else { Term::TwoZero })
+                }
+                // A value a for-every proposition binds.
+                ClauseOperand::Input(subject)
+                    if subject.path().is_empty()
+                        && self
+                            .bound_values
+                            .iter()
+                            .any(|(place, _)| *place == subject.root()) =>
+                {
+                    self.bound_values
+                        .iter()
+                        .rev()
+                        .find(|(place, _)| *place == subject.root())
+                        .map(|&(_, term)| term)
+                        .expect("the guard found the bound value")
                 }
                 // The `k`-th formal that is a place, counting from zero, is
                 // place `k + 1`; a fixed-width formal before it is a value,

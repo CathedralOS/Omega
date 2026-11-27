@@ -55,6 +55,7 @@ mod entryless;
 mod erased_fields;
 mod every_refusal;
 mod floats;
+mod for_every;
 mod fuel_recursion;
 mod generic_machine;
 mod guard_contradiction;

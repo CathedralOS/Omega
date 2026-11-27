@@ -1919,6 +1919,9 @@ impl Program<'_> {
                 if let Some(actual) = self.proposition_argument(path.symbol) {
                     return self.read_projection(id, scope, actual);
                 }
+                if let Some((place, value_type)) = self.universal_binder(path.symbol) {
+                    return Ok(Some((place, Vec::new(), value_type)));
+                }
                 let Some(subject) = scope.subject else {
                     // A scope that reads no formal storage names none here,
                     // as the early return above says, whether or not its

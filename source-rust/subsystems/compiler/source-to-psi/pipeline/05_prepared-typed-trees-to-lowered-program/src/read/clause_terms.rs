@@ -1447,6 +1447,27 @@ impl Program<'_> {
                 return self.clause_term(id, scope, actual, ClauseUse::Operand(expected, values));
             }
             let operand = match (table.expression(expression), expected) {
+                // The value a for-every definition being read binds.
+                (ExpressionNode::Name(path), _)
+                    if !path.static_application.is_valid()
+                        && !path.reserved_result_of.is_valid()
+                        && table.name_path_members(path.members).len() == 1
+                        && self.universal_binder(path.symbol).is_some() =>
+                {
+                    let (place, value_type) = self
+                        .universal_binder(path.symbol)
+                        .expect("the guard found the binder");
+                    if expected.is_some_and(|expected| expected != value_type) {
+                        return Err(unavailable(
+                            "for-every binder differs from the written carrier",
+                        ));
+                    }
+                    expected = Some(value_type);
+                    ClauseOperand::Input(semantic_vocabulary::StructuralCaseSubject::new(
+                        place,
+                        Vec::new(),
+                    ))
+                }
                 // A machine defined by cases over data that contains itself is
                 // a function of the signature. The clause applies it by its
                 // declaration; the kernel unfolds it, never this reader.
