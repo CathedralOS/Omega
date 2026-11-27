@@ -22,4 +22,3 @@ terminal-psi = { path = "../../../../psi" }
 
 [dev-dependencies]
 calling-conventions = { path = "../../../targets/calling-conventions" }
-legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }

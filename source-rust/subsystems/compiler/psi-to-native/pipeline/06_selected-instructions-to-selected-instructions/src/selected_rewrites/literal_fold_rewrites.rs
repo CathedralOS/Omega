@@ -5,7 +5,6 @@ instructions admitted by the declarative pair-rule catalog. Optional replay
 re-executes each committed step with the producer to check determinism.
 */
 
-#[allow(unused_imports)]
 pub(crate) use crate::selected_rewrites::rewrites::*;
 
 pub(crate) mod literal_folds {

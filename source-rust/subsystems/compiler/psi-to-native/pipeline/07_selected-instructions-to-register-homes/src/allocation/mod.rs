@@ -42,7 +42,6 @@ fresh liveness, live-range, and legality checks before its homes are accepted.
 */
 
 use selected_instruction_analyses as analyses;
-#[allow(unused_imports)]
 pub(crate) use selected_instruction_analyses::*;
 use selected_instructions::FixedViewCopyIdentity;
 

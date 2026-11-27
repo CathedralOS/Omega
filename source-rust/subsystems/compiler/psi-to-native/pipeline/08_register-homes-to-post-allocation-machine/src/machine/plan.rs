@@ -531,16 +531,21 @@ fn choose_alternative(
     alternatives: &[MachineAlternative],
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<MachineAlternative, PostAllocationMachineError> {
-    let mut applicable = Vec::new();
+    // Every alternative is evaluated so a later applicability error still wins
+    // over ambiguity; only the single applicable row is cloned.
+    let mut chosen = None;
+    let mut ambiguous = false;
     for alternative in alternatives {
         if is_applicable(instruction, operands, alternative.applicability, physical)? {
-            applicable.push(alternative.clone());
+            ambiguous |= chosen.replace(alternative).is_some();
         }
     }
-    match applicable.as_slice() {
-        [alternative] => Ok(alternative.clone()),
-        [] => Err(PostAllocationMachineError::NoApplicableAlternative { instruction }),
-        _ => Err(PostAllocationMachineError::AmbiguousApplicableAlternatives { instruction }),
+    match chosen {
+        _ if ambiguous => {
+            Err(PostAllocationMachineError::AmbiguousApplicableAlternatives { instruction })
+        }
+        Some(alternative) => Ok(alternative.clone()),
+        None => Err(PostAllocationMachineError::NoApplicableAlternative { instruction }),
     }
 }
 
