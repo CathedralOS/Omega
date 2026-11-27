@@ -70,13 +70,14 @@ pub(super) fn branches(machine: &TerminalMachine) -> Vec<Branch> {
     result
 }
 
-impl GroundRange<'_, '_> {
+impl GroundRange<'_, '_, '_> {
     pub(super) fn guard_indicators(&self, block: BlockId, branches: &[Branch]) -> Vec<Step> {
         if block == self.index.machine().entry || branches.is_empty() {
             return Vec::new();
         }
         let mut ground = GroundRange {
             module: self.module,
+            rows: self.rows,
             index: self.index,
             storage: self.storage,
             dominators: self.dominators,

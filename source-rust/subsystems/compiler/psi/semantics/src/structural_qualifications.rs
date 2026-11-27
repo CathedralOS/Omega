@@ -45,6 +45,7 @@ use terminal_psi::{
 };
 
 use crate::domain_issuance::{DeniedEstablishment, excludes_machine, issuer_route_authorizes};
+use crate::descriptors::row_source::DescriptorRowSource;
 
 /// The one rule a lowered structural value breaks, and in which machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3399,26 +3400,53 @@ fn validate_access_policies(module: &TerminalModule) -> Judged<()> {
 /// Check the exact membership transfers, domain theories and issuer routes.
 /// Byte predicate truth is a separate establishment judgment at each cast edge.
 pub fn validate_shape(module: &TerminalModule) -> Judged<()> {
-    let bodies = module
+    validate_shape_from(&DescriptorRowSource::new(module))
+}
+
+/// `validate_shape`, reading descriptor rows from the module's shared
+/// analyses.
+pub fn validate_shape_in(analyses: &crate::ModuleAnalyses<'_>) -> Judged<()> {
+    validate_shape_from(&DescriptorRowSource::of(analyses))
+}
+
+fn validate_shape_from(rows: &DescriptorRowSource<'_, '_>) -> Judged<()> {
+    let bodies = rows
+        .module()
         .machines
         .iter()
         .map(|machine| machine.id)
         .collect::<Vec<_>>();
-    validate_shape_for_bodies(module, &bodies)
+    validate_shape_for_bodies_from(rows, &bodies)
 }
 
 /// Check the complete vocabulary and prove returned memberships for the exact
 /// checked bodies. Artifact ingress uses every module body through validate_shape.
 pub fn validate_shape_for_bodies(module: &TerminalModule, bodies: &[MachineId]) -> Judged<()> {
-    validate_access_policies(module)?;
-    let facts = crate::membership_facts::analyze_bodies(module, bodies).map_err(|error| {
+    validate_shape_for_bodies_from(&DescriptorRowSource::new(module), bodies)
+}
+
+/// `validate_shape_for_bodies`, reading descriptor rows from the module's
+/// shared analyses.
+pub fn validate_shape_for_bodies_in(
+    analyses: &crate::ModuleAnalyses<'_>,
+    bodies: &[MachineId],
+) -> Judged<()> {
+    validate_shape_for_bodies_from(&DescriptorRowSource::of(analyses), bodies)
+}
+
+fn validate_shape_for_bodies_from(
+    rows: &DescriptorRowSource<'_, '_>,
+    bodies: &[MachineId],
+) -> Judged<()> {
+    validate_access_policies(rows.module())?;
+    let facts = crate::membership_facts::analyze_bodies_from(rows, bodies).map_err(|error| {
         StructuralQualificationError {
             violation: None,
             machine: error.machine,
             detail: error.detail,
         }
     })?;
-    validate_shape_from_facts(module, &facts)
+    validate_shape_from_facts(rows, &facts)
 }
 
 /// `validate_shape_for_bodies` over the bodies whose memberships the scalar
@@ -3431,17 +3459,18 @@ pub fn validate_shape_with_memberships(
 ) -> Judged<()> {
     let module = memberships.module();
     validate_access_policies(module)?;
-    validate_shape_from_facts(module, memberships.facts())
+    validate_shape_from_facts(&DescriptorRowSource::new(module), memberships.facts())
 }
 
 fn validate_shape_from_facts(
-    module: &TerminalModule,
+    rows: &DescriptorRowSource<'_, '_>,
     facts: &crate::membership_facts::MembershipFacts,
 ) -> Judged<()> {
+    let module = rows.module();
     for machine in &module.machines {
         validate_machine(module, machine, facts, None)?;
     }
-    operation_permissions::validate(module)?;
+    operation_permissions::validate(rows)?;
     validate_change_owners(module)
 }
 
@@ -3552,32 +3581,42 @@ pub fn byte_qualification_change_judgments_in(
 }
 
 /// The complete structural membership judgment required at artifact ingress.
+///
+/// Its membership, cast, routed-write and access-rule checks read their
+/// descriptor closures from one bundle built for this call.
 pub fn validate(module: &TerminalModule) -> Judged<()> {
+    validate_from(&DescriptorRowSource::new(module))
+}
+
+/// `validate`, reading descriptor rows from the module's shared analyses.
+pub fn validate_in(analyses: &crate::ModuleAnalyses<'_>) -> Judged<()> {
+    validate_from(&DescriptorRowSource::of(analyses))
+}
+
+fn validate_from(rows: &DescriptorRowSource<'_, '_>) -> Judged<()> {
+    let module = rows.module();
     validate_access_policies(module)?;
-    let facts =
-        crate::membership_facts::analyze(module).map_err(|error| StructuralQualificationError {
+    let facts = crate::membership_facts::analyze_from(rows).map_err(|error| {
+        StructuralQualificationError {
             violation: None,
             machine: error.machine,
             detail: error.detail,
-        })?;
+        }
+    })?;
     // Prepare one shared closure for actual cast roots. An unsupported body
     // remains absent and cannot add evidence; it must not erase independent
     // supported rows. Modules without casts need no descriptor preparation.
     let graph = if module.types.structural_qualification_changes.is_empty() {
-        Vec::new()
+        crate::module_analyses::DescriptorRows::Owned(Vec::new())
     } else {
-        crate::descriptor_results::terminal_graph_rows(
-            module,
+        rows.successful_rows(
+            crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
             module
-                .types.structural_qualification_changes
+                .types
+                .structural_qualification_changes
                 .iter()
                 .map(|change| change.machine),
-            crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
-            &[],
         )
-        .into_iter()
-        .filter_map(Result::ok)
-        .collect()
     };
     let mut analysis = crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
         &module.types.structural_types,
@@ -3594,8 +3633,8 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
             );
         }
     }
-    validate_routed_writes(module)?;
-    operation_permissions::validate(module)?;
+    validate_routed_writes(rows)?;
+    operation_permissions::validate(rows)?;
     validate_change_owners(module)
 }
 
@@ -3604,7 +3643,8 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
 /// that carries the domain. The borrowed-storage graph is the one source
 /// lowering builds for default restoration, so a module this compiler
 /// published has it.
-fn validate_routed_writes(module: &TerminalModule) -> Judged<()> {
+fn validate_routed_writes(rows: &DescriptorRowSource<'_, '_>) -> Judged<()> {
+    let module = rows.module();
     if !module
         .types
         .structural_domains
@@ -3630,7 +3670,11 @@ fn validate_routed_writes(module: &TerminalModule) -> Judged<()> {
         .zip(&defaults)
         .filter(|(_, required)| required.needs_borrowed_storage())
         .map(|(machine, _)| machine.id);
-    let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(module, roots, &[])
+    let graph = rows
+        .closure(
+            crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+            roots,
+        )
         .map_err(|error| StructuralQualificationError {
             violation: None,
             machine: Some(error.machine()),

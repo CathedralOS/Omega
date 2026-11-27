@@ -29,7 +29,7 @@ pub mod inhabitation;
 mod membership_facts;
 pub mod module_analyses;
 pub use membership_facts::{
-    BodyMemberships, MembershipTest, TestedMembership, test_memberships,
+    BodyMemberships, MembershipTest, TestedMembership, test_memberships, test_memberships_in,
     validate_boundary_normal_memberships,
 };
 pub use module_analyses::{
@@ -43,8 +43,9 @@ pub mod references;
 pub mod scalar_qualifications;
 mod scalar_target_ranges;
 pub use scalar_target_ranges::{
-    TargetScalarRange, array_extent_literal_conditions, layout_call_conditions,
-    target_scalar_ranges,
+    TargetScalarRange, array_extent_literal_conditions, array_extent_literal_conditions_in,
+    layout_call_conditions, layout_call_conditions_in, target_scalar_ranges,
+    target_scalar_ranges_in,
 };
 pub mod scalars;
 pub mod static_reach;

@@ -12,6 +12,7 @@ pub use boundary_results::{
     boundary_descriptor_access, boundary_lifetime_slots, boundary_result_lifetimes,
     boundary_result_lifetimes_match, boundary_result_slots,
     validate_declared_boundary_reference_outputs, validate_provider_reference_outputs,
+    validate_provider_reference_outputs_in,
 };
 pub(crate) use declared_results::validate_result_lifetime_groups;
 pub use declared_results::{
