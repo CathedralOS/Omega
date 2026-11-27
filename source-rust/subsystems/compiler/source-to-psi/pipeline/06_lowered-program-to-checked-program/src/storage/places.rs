@@ -1809,7 +1809,13 @@ impl<'a> Storage<'a> {
             &rebased,
             |_, extent| fixed_storage &= extent.is_some(),
         )?;
-        if actual_type != ty || !fixed_storage {
+        // Storage of a runtime extent, such as a slice's elements, is named
+        // here only behind a shared loan: nothing in the body can write it,
+        // so the term names the same contents at entry and at every call.
+        // Whether the element exists is the clause's own formation
+        // obligation, not something this name asserts.
+        let stable = fixed_storage || input.access == StructuralAccess::SharedBorrow;
+        if actual_type != ty || !stable {
             return None;
         }
         ScalarTerm::structural_read(actual.root, rebased, ty).ok()
@@ -7977,9 +7983,29 @@ impl<'a> AtCall<'_, 'a> {
         } else {
             EntryContents::MaybeWritten
         };
+        if let Some(read) = self
+            .storage
+            .entry_read(self.tables, actual, path, ty, contents)
+        {
+            return Ok(Some(read));
+        }
+        // An actual whose whole value is still another input's entry value,
+        // such as a slice lent on unchanged, names that input's storage. Its
+        // own writes are not tracked through the copy, so only an input no
+        // body can write (a shared loan) is named this way.
+        let Reached::Input(source) = reached else {
+            return Ok(None);
+        };
+        if source == actual.root {
+            return Ok(None);
+        }
+        let source = Lineage {
+            root: source,
+            segments: actual.segments.clone(),
+        };
         Ok(self
             .storage
-            .entry_read(self.tables, actual, path, ty, contents))
+            .entry_read(self.tables, &source, path, ty, EntryContents::MaybeWritten))
     }
 
     /// Find the source named by the operation that established this actual.

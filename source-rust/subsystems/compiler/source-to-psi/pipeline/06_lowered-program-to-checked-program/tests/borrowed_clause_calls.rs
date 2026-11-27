@@ -248,3 +248,50 @@ fn a_clause_call_cannot_rely_on_a_later_or_missing_clause() {
         );
     }
 }
+
+const FIRST: &str = "machine needs(items: @[i32]) requires items.length > 0, items[0] > 3i32 {}
+machine first(items: @[i32]) -> bool requires items.length > 0 { items[0] > 0i32 }
+machine needs_first(items: @[i32]) requires items.length > 0, first(items) {}
+";
+
+#[test]
+fn a_slice_element_fact_proves_a_callee_precondition_on_the_same_element() {
+    accepted(&format!(
+        "{FIRST}machine same(items: @[i32]) requires items.length > 0, items[0] > 3i32 {{ needs(items); }}
+machine tighter(items: @[i32]) requires items.length > 0, items[0] > 5i32 {{ needs(items); }}
+machine exact(items: @[i32]) requires items.length > 0, items[0] == 5i32 {{ needs(items); }}
+machine through(items: @[i32]) requires items.length > 0, items[0] > 3i32 {{ needs_first(items); }}
+"
+    ));
+}
+
+#[test]
+fn a_weaker_slice_element_fact_does_not_prove_the_callee_precondition() {
+    unproved(&format!(
+        "{FIRST}machine weaker(items: @[i32]) requires items.length > 0, items[0] > 2i32 {{ needs(items); }}\n"
+    ));
+    unproved(&format!(
+        "{FIRST}machine weaker(items: @[i32]) requires items.length > 0, items[0] > -1i32 {{ needs_first(items); }}\n"
+    ));
+}
+
+#[test]
+fn a_fact_about_another_slice_element_does_not_prove_the_callee_precondition() {
+    unproved(&format!(
+        "{FIRST}machine other(items: @[i32]) requires items.length > 1, items[1] > 3i32 {{ needs(items); }}\n"
+    ));
+}
+
+#[test]
+fn a_fact_about_another_slice_does_not_prove_the_callee_precondition() {
+    unproved(&format!(
+        "{FIRST}machine other(items: @[i32], more: @[i32]) requires items.length > 0, more.length > 0, more[0] > 3i32 {{ needs(items); }}\n"
+    ));
+}
+
+#[test]
+fn a_write_through_a_mutable_slice_drops_the_element_fact() {
+    unproved(&format!(
+        "{FIRST}machine stale(items: @mutable [i32]) requires items.length > 0, items[0] > 3i32 {{ items[0] = 0i32; needs(items); }}\n"
+    ));
+}
