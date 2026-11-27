@@ -357,6 +357,13 @@ pub enum LawProof {
         formal: u32,
         data: u32,
         cases: Vec<LawCase>,
+        /// For data in a mutual block, the laws proved together with this
+        /// one: for each member of the block, in order, the machine whose
+        /// law is about that member, this law's own at its member. The
+        /// block's induction takes a motive per member, and a hypothesis at
+        /// a field of a member is that member's law there. Empty for data of
+        /// its own.
+        mutual: Vec<Option<SymbolHandle>>,
     },
     /// The machine is defined by recursion on fuel, over the data at entry
     /// `data`, and takes its fuel from formal `formal`. Its law is proved
@@ -461,7 +468,9 @@ pub enum Evidence {
     /// entry, so citations cannot form a cycle.
     Statement(u32),
     /// The law itself at one field of the case: the induction hypothesis.
-    /// `arguments` then holds the remaining formals' actuals in order.
+    /// `arguments` then holds the remaining formals' actuals in order. Over
+    /// a mutual block it is the law of the field's member, which may be
+    /// another law of the group.
     Hypothesis { field: u32 },
     /// The law itself with one unit of fuel less, in a law proved by
     /// induction on fuel. `arguments` holds every formal's actual. With no

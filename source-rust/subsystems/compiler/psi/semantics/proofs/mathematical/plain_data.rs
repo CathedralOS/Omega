@@ -276,7 +276,8 @@ impl PlainData {
     /// `data` whose motive is `motive`, a function from the data to a type in
     /// the caller's context. The branch takes the case's fields in order,
     /// then the motive at each field that holds the data, and lands at the
-    /// motive of the case. Only for a block of one member: see
+    /// motive of the case. In a mutual block this is a case analysis of
+    /// this member (see [`Self::analysis_motives`]); an induction there takes
     /// [`Self::branch_type_in`].
     pub fn branch_type(
         &self,
@@ -285,8 +286,8 @@ impl PlainData {
         motive: TermHandle,
         case: usize,
     ) -> TermHandle {
-        debug_assert!(!self.is_mutual());
-        self.branch_type_in(arena, data, &[motive], case)
+        let motives = self.analysis_motives(arena, data, motive);
+        self.branch_type_in(arena, data, &motives, case)
     }
 
     /// The type of branch `case` under one motive per member of the block.
@@ -310,7 +311,8 @@ impl PlainData {
 
     /// The types of the binders a branch body lives under, each under the
     /// ones before it: the case's fields, then the motive at each field that
-    /// holds the data. Only for a block of one member.
+    /// holds the data. In a mutual block, the binders of a case analysis of
+    /// this member (see [`Self::analysis_motives`]).
     pub fn case_binders(
         &self,
         arena: &mut TermArena,
@@ -318,8 +320,8 @@ impl PlainData {
         motive: TermHandle,
         case: usize,
     ) -> Vec<TermHandle> {
-        debug_assert!(!self.is_mutual());
-        self.case_binders_in(arena, data, &[motive], case)
+        let motives = self.analysis_motives(arena, data, motive);
+        self.case_binders_in(arena, data, &motives, case)
     }
 
     /// The binders of a branch under one motive per member of the block:
@@ -397,8 +399,7 @@ impl PlainData {
     }
 
     /// Wraps a branch body in its binders. `motive` is in the caller's
-    /// context; `body` lives under the binders of `case_binders`. Only for a
-    /// block of one member.
+    /// context; `body` lives under the binders of `case_binders`.
     pub fn branch(
         &self,
         arena: &mut TermArena,
@@ -407,8 +408,8 @@ impl PlainData {
         case: usize,
         body: TermHandle,
     ) -> TermHandle {
-        debug_assert!(!self.is_mutual());
-        self.branch_in(arena, data, &[motive], case, body)
+        let motives = self.analysis_motives(arena, data, motive);
+        self.branch_in(arena, data, &motives, case, body)
     }
 
     /// Wraps a branch body in its binders under one motive per member.
@@ -442,7 +443,9 @@ impl PlainData {
     }
 
     /// The induction over `subject` into a motive at universe level `level`.
-    /// Only for a block of one member.
+    /// In a mutual block it is a case analysis of this member: `branches`
+    /// are this member's, and every other member's motive and branches are
+    /// those of [`Self::analysis_motives`], at level zero only.
     pub fn induct_at_level(
         &self,
         arena: &mut TermArena,
@@ -452,8 +455,48 @@ impl PlainData {
         branches: &[TermHandle],
         subject: TermHandle,
     ) -> TermHandle {
-        debug_assert!(!self.is_mutual());
-        self.induct_in(arena, data, level, &[motive], branches, subject)
+        if !self.is_mutual() {
+            return self.induct_in(arena, data, level, &[motive], branches, subject);
+        }
+        debug_assert_eq!(level, Level::Constant(0));
+        let motives = self.analysis_motives(arena, data, motive);
+        let mut all = Vec::with_capacity(self.constructor_count() as usize);
+        for member in 0..self.members() {
+            if member == self.member {
+                all.extend_from_slice(branches);
+                continue;
+            }
+            let other = self.at_member(member).expect("a member of the block");
+            let entry = self.member_entry(data, member);
+            for case in 0..other.cases() {
+                let ignored = arena.insert(Term::TwoZero);
+                all.push(other.branch_in(arena, entry, &motives, case, ignored));
+            }
+        }
+        self.induct_in(arena, data, level, &motives, &all, subject)
+    }
+
+    /// The motives of a case analysis of this member under `motive`: its own
+    /// at this member and, at every other member of a mutual block, one into
+    /// `Two` whose branches ignore their fields. A hypothesis at a field of
+    /// another member is then a value of `Two` that nothing reads, and one
+    /// at a field of this member is `motive` there.
+    pub fn analysis_motives(
+        &self,
+        arena: &mut TermArena,
+        data: u32,
+        motive: TermHandle,
+    ) -> Vec<TermHandle> {
+        (0..self.members())
+            .map(|member| {
+                if member == self.member {
+                    return motive;
+                }
+                let domain = Self::data_type(arena, self.member_entry(data, member));
+                let two = arena.insert(Term::Two);
+                lambda(arena, domain, two)
+            })
+            .collect()
     }
 
     /// The induction over `subject`, a value of this member, under one

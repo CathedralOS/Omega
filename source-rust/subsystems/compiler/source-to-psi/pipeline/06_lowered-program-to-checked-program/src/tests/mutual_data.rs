@@ -99,31 +99,206 @@ fn refusals(verdicts: &[RouteVerdict]) -> Vec<String> {
         .collect()
 }
 
-#[test]
-fn a_law_by_induction_over_a_mutual_block_is_refused() {
-    // Induction over one member of a block takes every member's motive; a
-    // law by induction states only its own, so it is refused clearly.
-    let source = program(&format!(
-        "{MUTUAL}
-machine half_again(e: Even) -> Nat
+/// Two laws proved together by the block's induction: rebuilding a value of
+/// either member gives it back, each citing the other at its field.
+const REBUILD: &str = "
+machine rebuild(e: Even) -> Even
+terminates by e
+{
+    transition e {
+        Even::Zero -> Even::Zero,
+        Even::Next { odd } -> Even::Next { odd: rebuild_odd(odd) }
+    }
+}
+
+machine rebuild_odd(o: Odd) -> Odd
+terminates by o
+{
+    transition o {
+        Odd::Next { even } -> Odd::Next { even: rebuild(even) }
+    }
+}
+
+machine rebuild_id(e: Even) -> Nat
 terminates by e
 ensures
-    |proof|::Identity::<Nat>(half(e), half(e))
-{{
-    transition e {{
+    |proof|::Identity::<Even>(rebuild(e), e)
+{
+    transition e {
         Even::Zero -> Nat::Zero,
-        Even::Next {{ odd }} -> Nat::Zero
-    }}
-}}
-"
-    ));
-    let refused = refusals(&judged(&source));
-    assert!(
-        refused
+        Even::Next { odd } -> rebuild_odd_id(odd)
+    }
+}
+
+machine rebuild_odd_id(o: Odd) -> Nat
+terminates by o
+ensures
+    |proof|::Identity::<Odd>(rebuild_odd(o), o)
+{
+    transition o {
+        Odd::Next { even } -> rebuild_id(even)
+    }
+}
+";
+
+#[test]
+fn laws_by_induction_over_a_mutual_block_are_judged_together() {
+    let verdicts = judged(&program(&format!("{MUTUAL}{REBUILD}")));
+    let judgment = signature(&verdicts);
+    for machine in ["rebuild_id", "rebuild_odd_id"] {
+        let law = judgment
+            .laws
             .iter()
-            .any(|detail| detail.contains("law by induction over a mutual block of data")),
-        "{refused:#?}"
+            .find(|law| law.machine == machine)
+            .unwrap_or_else(|| panic!("`{machine}` is judged: {judgment:?}"));
+        assert!(
+            matches!(law.decision, MathematicalCoreDecision::Judged(_)),
+            "{law:?}"
+        );
+    }
+}
+
+#[test]
+fn a_false_law_by_induction_over_a_mutual_block_is_refused() {
+    let source = program(&format!("{MUTUAL}{REBUILD}")).replace(
+        "|proof|::Identity::<Odd>(rebuild_odd(o), o)",
+        "|proof|::Identity::<Odd>(rebuild_odd(o), Odd::Next { even: Even::Zero })",
     );
+    // The two are proved by one induction, so neither stands.
+    let verdicts = judged(&source);
+    let mut refused: Vec<_> = verdicts
+        .iter()
+        .flat_map(|verdict| match verdict {
+            RouteVerdict::UnprovedLaws(laws) => laws.iter().map(|law| law.machine.as_str()).collect(),
+            RouteVerdict::Laws(judgment) => panic!("the laws must not be accepted: {judgment:?}"),
+            _ => Vec::new(),
+        })
+        .collect();
+    refused.sort_unstable();
+    assert_eq!(refused, ["rebuild_id", "rebuild_odd_id"], "{verdicts:?}");
+}
+
+#[test]
+fn a_mutual_law_without_its_companion_hypothesis_is_refused() {
+    // Citing nothing at the odd field leaves the step's goal open: the
+    // hypothesis comes only from the other law of the group.
+    let source = program(&format!("{MUTUAL}{REBUILD}"))
+        .replace("Even::Next { odd } -> rebuild_odd_id(odd)", "Even::Next { odd } -> Nat::Zero");
+    let verdicts = judged(&source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "rebuild_id", "{law:?}");
+}
+
+/// Case analyses of members of the block: a machine that dispatches without
+/// recursion, a law by cases with no other law of its group, and a law whose
+/// case goes on by the cases of a field of another member.
+const ANALYSES: &str = "
+machine starts(e: Even) -> Nat
+{
+    transition e {
+        Even::Zero -> Nat::Zero,
+        Even::Next { odd } -> Nat::Succ { prev: Nat::Zero }
+    }
+}
+
+machine same(e: Even) -> Nat
+{
+    transition e {
+        Even::Zero -> Nat::Zero,
+        Even::Next { odd } -> Nat::Succ { prev: Nat::Zero }
+    }
+}
+
+machine inner(o: Odd) -> Even
+{
+    transition o {
+        Odd::Next { even } -> even
+    }
+}
+
+machine starts_two()
+ensures
+    |proof|::Identity::<Nat>(
+        starts(Even::Next { odd: Odd::Next { even: Even::Zero } }),
+        Nat::Succ { prev: Nat::Zero }
+    )
+{
+}
+
+machine starts_same(e: Even) -> Nat
+terminates by e
+ensures
+    |proof|::Identity::<Nat>(starts(e), same(e))
+{
+    transition e {
+        Even::Zero -> Nat::Zero,
+        Even::Next { odd } -> Nat::Zero
+    }
+}
+
+machine starts_same_inside(o: Odd) -> Nat
+terminates by o
+ensures
+    |proof|::Identity::<Nat>(starts(inner(o)), same(inner(o)))
+{
+    transition o {
+        Odd::Next { even } -> by_even(even)
+    }
+
+    machine by_even(even: Even) -> Nat {
+        transition even {
+            Even::Zero -> Nat::Zero,
+            Even::Next { odd } -> Nat::Zero
+        }
+    }
+}
+";
+
+const ANALYSIS_LAWS: [&str; 3] = ["starts_two", "starts_same", "starts_same_inside"];
+
+#[test]
+fn case_analyses_of_a_member_of_a_mutual_block_are_judged() {
+    let verdicts = judged(&program(&format!("{MUTUAL}{ANALYSES}")));
+    let judgment = signature(&verdicts);
+    for machine in ANALYSIS_LAWS {
+        let law = judgment
+            .laws
+            .iter()
+            .find(|law| law.machine == machine)
+            .unwrap_or_else(|| panic!("`{machine}` is judged: {judgment:?}"));
+        assert!(
+            matches!(law.decision, MathematicalCoreDecision::Judged(_)),
+            "{law:?}"
+        );
+    }
+}
+
+#[test]
+fn false_case_analyses_of_a_member_of_a_mutual_block_are_refused() {
+    for (machine, from, to) in [
+        (
+            "starts_two",
+            "starts(Even::Next { odd: Odd::Next { even: Even::Zero } }),\n        Nat::Succ { prev: Nat::Zero }",
+            "starts(Even::Next { odd: Odd::Next { even: Even::Zero } }),\n        Nat::Zero",
+        ),
+        (
+            "starts_same",
+            "|proof|::Identity::<Nat>(starts(e), same(e))",
+            "|proof|::Identity::<Nat>(starts(e), Nat::Zero)",
+        ),
+        (
+            "starts_same_inside",
+            "|proof|::Identity::<Nat>(starts(inner(o)), same(inner(o)))",
+            "|proof|::Identity::<Nat>(starts(inner(o)), Nat::Zero)",
+        ),
+    ] {
+        let source = program(&format!("{MUTUAL}{ANALYSES}"));
+        let changed = source.replacen(from, to, 1);
+        assert_ne!(changed, source, "{machine} is changed");
+        let verdicts = judged(&changed);
+        let law = unproved(&verdicts);
+        assert_eq!(law.machine, machine, "{law:?}");
+    }
 }
 
 #[test]
@@ -172,5 +347,46 @@ ensures
                 .any(|detail| detail.contains(reason) && detail.ends_with(&at)),
             "{refused:#?}"
         );
+    }
+}
+
+#[test]
+fn probe_positive_callable() {
+    let source = program(
+        "
+data Branch = machine(index: u64) -> Tree reaches none crashes none terminates;
+
+data Tree {
+    case Leaf;
+    case Node(children: Branch);
+}
+
+machine leftmost(t: Tree) -> Nat
+terminates by t
+{
+    transition t {
+        Tree::Leaf -> Nat::Zero,
+        Tree::Node { children } -> Nat::Succ { prev: leftmost(children(0)) }
+    }
+}
+
+machine leftmost_leaf()
+ensures
+    |proof|::Identity::<Nat>(leftmost(Tree::Leaf), Nat::Zero)
+{
+}
+",
+    );
+    let typed = std::panic::catch_unwind(|| judged(&source));
+    match typed {
+        Ok(verdicts) => {
+            for verdict in &verdicts {
+                let shown = format!("{verdict:?}");
+                if !shown.starts_with("Accepted") {
+                    eprintln!("VERDICT {}", shown.chars().take(900).collect::<String>());
+                }
+            }
+        }
+        Err(_) => eprintln!("PANICKED"),
     }
 }

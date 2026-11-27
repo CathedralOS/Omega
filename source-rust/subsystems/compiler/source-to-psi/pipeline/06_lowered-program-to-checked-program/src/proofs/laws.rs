@@ -1149,9 +1149,13 @@ impl Proving<'_> {
         else {
             return Err(unproved());
         };
-        // Stage 05 refuses a law split over a mutual block; a block's
-        // induction takes every member's motive, which a split does not give.
-        if shape.is_mutual() {
+        // A law's induction over a member of a mutual block takes every
+        // member's law; a case analysis is the block's recursor with motives
+        // into `Two` at the other members (`PlainData::analysis_motives`).
+        if shape.is_mutual() && how == Split::Induction {
+            return self.mutual_induction(frame, place, data, shape, cases, reported);
+        }
+        if shape.is_mutual() && how == Split::Fuel {
             return Err(unproved());
         }
         let count = frame.telescope.len();
@@ -1273,6 +1277,136 @@ impl Proving<'_> {
             .map(|&other| variable(self.arena, count - 1 - other))
             .collect();
         Ok(self.arena.apply_arguments(cases, &arguments))
+    }
+
+    /// The proof of a law over a member of a mutual block of data by the
+    /// block's induction. Its recursor takes a motive per member: the goal
+    /// of the law of the group about that member (`LawProof::Cases`'s
+    /// `mutual`), or, for a member no law is about, `Two`, whose branches
+    /// ignore their fields. Every case of every member is a branch, proved
+    /// by its law's own script, in which the hypothesis at a field of a
+    /// member is that member's law there. Each law of the group has one
+    /// formal, the value it dispatches on, and no premise, so its motive is
+    /// its goal and its frame is the case alone.
+    fn mutual_induction(
+        &mut self,
+        frame: Frame,
+        place: usize,
+        data: u32,
+        shape: &mathematical_kernel::PlainData,
+        cases: &[LawCase],
+        reported: Option<usize>,
+    ) -> Result<TermHandle, Failure> {
+        let unproved = || failure(reported, SearchError::NoProof);
+        let LawProof::Cases { mutual, .. } = &self.law.proof else {
+            return Err(unproved());
+        };
+        let own = shape.member();
+        if frame.telescope.len() != 1
+            || place != 0
+            || mutual.len() != shape.members() as usize
+            || mutual[own as usize] != Some(self.law.machine)
+        {
+            return Err(unproved());
+        }
+        let laws: Vec<Option<&Law>> = mutual
+            .iter()
+            .enumerate()
+            .map(|(member, machine)| match machine {
+                None => Ok(None),
+                Some(_) if member as u32 == own => Ok(Some(self.law)),
+                Some(machine) => self
+                    .laws
+                    .iter()
+                    .find(|law| law.machine == *machine)
+                    .map(Some)
+                    .ok_or_else(unproved),
+            })
+            .collect::<Result<_, _>>()?;
+        if laws.iter().flatten().any(|law| {
+            law.formals.len() != 1
+                || !law.premises.is_empty()
+                || !matches!(law.proof, LawProof::Cases { .. })
+        }) {
+            return Err(unproved());
+        }
+        let first = shape.member_entry(data, 0);
+        let two = self.arena.insert(Term::Two);
+        let motives: Vec<TermHandle> = laws
+            .iter()
+            .enumerate()
+            .map(|(member, law)| {
+                let domain = constant(self.arena, first + member as u32);
+                let body = law.map_or(two, |law| law.goal);
+                self.arena.insert(Term::Lambda { domain, body })
+            })
+            .collect();
+        let mut branches = Vec::new();
+        for (member, law) in laws.iter().enumerate() {
+            let at = shape
+                .at_member(member as u32)
+                .expect("a member of the block");
+            let entry = first + member as u32;
+            let Some(law) = law else {
+                for case in 0..at.cases() {
+                    let ignored = self.arena.insert(Term::TwoZero);
+                    branches.push(at.branch_in(self.arena, entry, &motives, case, ignored));
+                }
+                continue;
+            };
+            let LawProof::Cases { cases: scripts, .. } = &law.proof else {
+                return Err(unproved());
+            };
+            let scripts = if member as u32 == own { cases } else { scripts };
+            if scripts.len() != at.cases() {
+                return Err(unproved());
+            }
+            for (case, script) in scripts.iter().enumerate() {
+                let telescope = at.case_binders_in(self.arena, entry, &motives, case);
+                let value = at.case_value(self.arena, entry, case, 0);
+                let goal = instantiate(self.arena, law.goal, &[value]);
+                let mut names = vec![value];
+                for field in 0..at.arity(case) {
+                    names.push(at.field(self.arena, case, field, 0));
+                }
+                let hypotheses = (0..at.arity(case))
+                    .map(|field| at.hypothesis(self.arena, case, field, 0))
+                    .collect();
+                let inner = Frame {
+                    telescope,
+                    goal,
+                    names,
+                    evidence: Vec::new(),
+                    hypotheses,
+                };
+                // A case of another member is reported as its own law's.
+                let reported = if member as u32 == own {
+                    reported.or(Some(case))
+                } else {
+                    reported
+                };
+                let mut proving = Proving {
+                    arena: &mut *self.arena,
+                    closed: self.closed,
+                    definitions: self.definitions,
+                    licenses: self.licenses,
+                    entries: self.entries,
+                    laws: self.laws,
+                    law,
+                };
+                let body = proving.case(inner, script, reported)?;
+                branches.push(at.branch_in(self.arena, entry, &motives, case, body));
+            }
+        }
+        let subject = variable(self.arena, 0);
+        Ok(shape.induct_in(
+            self.arena,
+            data,
+            Level::Constant(0),
+            &motives,
+            &branches,
+            subject,
+        ))
     }
 }
 
@@ -1673,6 +1807,7 @@ fn prove_law(
             formal,
             data,
             cases,
+            ..
         } => proving.split(
             frame,
             *formal as usize,
@@ -1827,12 +1962,16 @@ fn statement(
             formal,
             data,
             cases,
+            ..
         },
     ) = (case, &law.proof)
         && let Some(script) = cases.get(case)
     {
         let arity = script.field_names.len();
-        let constructor = *data + 1 + case as u32;
+        let constructor = match entries.get(*data as usize).map(|entry| &entry.kind) {
+            Some(SignatureEntryKind::Data { shape, .. }) => shape.constructor_entry(*data, case),
+            _ => *data + 1 + case as u32,
+        };
         let head = constant(arena, constructor);
         let fields: Vec<_> = (0..arity)
             .map(|field| variable(arena, arity - 1 - field))
