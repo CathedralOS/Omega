@@ -146,7 +146,7 @@ impl TestRoot {
     }
 }
 
-fn satisfiers<'a>(
+pub(crate) fn satisfiers<'a>(
     typed: &'a TypedTrees,
     group: &'a TestGroupRegistration,
 ) -> impl Iterator<Item = &'a crate::source_state::machine::Machine> + 'a {

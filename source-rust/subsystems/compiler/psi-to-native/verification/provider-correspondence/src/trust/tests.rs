@@ -15,7 +15,7 @@ fn claim(index: u32, declaration: &str) -> AuthoredRootGrant {
 
 #[test]
 fn locked_provider_grants_require_the_selected_application() {
-    let selected = selected_provider_plans::SelectedProviderPlanFacts::default();
+    let selected = build_providers::selections::SelectedProviderPlanFacts::default();
     let mut grant = claim(2, "DisplayName");
     grant.subject = RootGrantSubject::Provider {
         declaration: "Package::Hosted".into(),
@@ -31,15 +31,15 @@ fn locked_provider_grants_require_the_selected_application() {
 
 #[test]
 fn an_accepted_machine_needs_its_own_grant_review() {
-    let selected = selected_provider_plans::SelectedProviderPlanFacts::default();
+    let selected = build_providers::selections::SelectedProviderPlanFacts::default();
     let error = super::selected_provider_grants(&selected, &[claim(2, "Claim")]).unwrap_err();
     assert!(error.message.contains("requires its own admission check"));
 }
 
 #[test]
 fn reviewed_provider_grants_require_the_selected_application_and_physical_owner() {
-    use provider_plans::{ProviderPlan, ServiceReceiverApplication};
-    use selected_provider_plans::SelectedProviderPlanFacts;
+    use build_providers::plans::{ProviderPlan, ServiceReceiverApplication};
+    use build_providers::selections::SelectedProviderPlanFacts;
     use semantic_vocabulary::PackageKeyIdentity;
     let owner = PackageKeyIdentity::from_digest([17; 32]).unwrap();
     let mut plan = ProviderPlan {

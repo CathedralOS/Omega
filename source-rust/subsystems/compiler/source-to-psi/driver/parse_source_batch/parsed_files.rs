@@ -27,13 +27,18 @@ struct ParsedFile {
 
 impl SourceSyntax {
     #[cfg(feature = "test-support")]
-    pub fn snapshot_json(&self) -> Result<String, serde_json::Error> {
-        self.trees.snapshot_json()
+    pub fn record_bytes(&self) -> Result<Vec<u8>, record_storage::RecordError> {
+        record_storage::encode(&self.trees, record_storage::RecordLimits::default())
     }
 
     #[cfg(feature = "test-support")]
     pub fn root_item_count(&self) -> usize {
         self.trees.root_item_count()
+    }
+
+    #[cfg(feature = "test-support")]
+    pub fn into_trees(self) -> SyntaxTrees {
+        self.trees
     }
     pub fn new(source: SourceId) -> Self {
         Self {
@@ -105,7 +110,7 @@ impl SourceSyntax {
     /// loader met them. Resolution, typing and lowering number declarations,
     /// record types and identities in the order they meet root items, so
     /// without this the same program captured in another order publishes
-    /// other numbers (`wiki/spec/terminal-psi/encoding.md`, "Canonical
+    /// other numbers (`source-rust/subsystems/compiler/psi/artifact/wire/encoding.md`, "Canonical
     /// form": unordered sets are sorted by stable identity). Items keep their
     /// written order within a file.
     fn canonicalize_file_order(

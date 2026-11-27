@@ -9,11 +9,8 @@ autobenches = false
 
 [dependencies]
 source-files = { path = "../../representations/source-files" }
-arena = { path = "../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-worker-budget = { path = "../../../foundation/worker-budget" }
 memchr = "2"
-rayon = "1.11"
 source-text = { path = "../../../../../foundation/source-text" }
 tokens = { path = "../../representations/tokens" }
 

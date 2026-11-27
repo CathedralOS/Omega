@@ -1,28 +1,13 @@
-// Two build edges with different aliases select the same dependency
-// directory once each. Two product aliases on one package already compile;
-// this probes whether the build-purpose row family behaves the same way.
-
 use {omega}/build/dependency.omg;
-use {k1}/main.omg as k1;
 
-machine build(builder: @mutable BuildPlan)
-suspends
-{
-    builder.product = BuildProduct::Application { name: "build_dup_build_edge" };
-    let mutable k1_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
-    |dependency|::with_alias(@mutable k1_dependency, "k1");
-    let k1_registration: DependencyRegistration = Build::build_dependency(builder, k1_dependency);
-    let mutable k2_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
-    |dependency|::with_alias(@mutable k2_dependency, "k2");
-    let k2_registration: DependencyRegistration = Build::build_dependency(builder, k2_dependency);
-    suspend Build::prepare_dependency(builder, k1_registration);
-    let observed: i32 = |k1|::seed();
-    transition observed == 3 {
-        true -> done(),
-        _ -> wrong()
-    }
-    machine done() {
-    }
-    machine wrong() {
-    }
+machine build(plan: @mutable BuildPlan) {
+    register(plan, "k1");
+    register(plan, "k2");
+    plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
+}
+
+machine register(plan: @mutable BuildPlan, alias: @[u8]) {
+    let mutable package: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
+    |dependency|::with_alias(@mutable package, alias);
+    _ = |dependency|::add(plan, package);
 }

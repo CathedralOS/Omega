@@ -408,15 +408,13 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
             &elaboration.static_schemas,
             &elaboration.domain_sources,
         );
-        let prepared_machine =
-            crate::prepare(formed, &elaboration.domains, machine_id, tables).unwrap();
+        let prepared_machine = crate::prepare(formed, machine_id, tables).unwrap();
         let mut references =
             prepared_machine.references(&elaboration.module.types.structural_types);
         let storage = crate::places::Storage::new(
             machine_id,
             lowered,
             &elaboration.module,
-            &elaboration.domains,
             &prepared_machine.graph,
             tables,
             &prepared_machine.types,
@@ -452,6 +450,7 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
             obligation,
             &goal,
             &[],
+            None,
             &mut storage.at_entry(&mut references, tables),
         ) else {
             panic!("{kind}: missing opaque field identity must be refused");

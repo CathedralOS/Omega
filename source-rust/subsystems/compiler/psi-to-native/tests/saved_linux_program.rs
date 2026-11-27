@@ -148,7 +148,7 @@ fn pre_namespace_publication_does_not_supply_the_current_physical_entry() {
     );
     // The specimen was saved under semantic format marker 289, which format 290
     // (#5035) retired; older markers are rejected before their payload is read
-    // (wiki/spec/terminal-psi/encoding.md#machine-rows). Its unqualified
+    // (source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#machine-rows). Its unqualified
     // physical arrival therefore never reaches native admission.
     assert!(matches!(
         CanonicalTerminalArtifact::from_bytes(old),

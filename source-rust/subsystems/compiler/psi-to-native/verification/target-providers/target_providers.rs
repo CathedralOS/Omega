@@ -7,7 +7,7 @@ admission enforce the same complete source-to-instance association.
 
 pub mod synchronous_invocations;
 
-use provider_plans::ProviderPlan;
+use build_providers::plans::ProviderPlan;
 use synchronous_invocations::{
     SynchronousBoundaryTarget, validate_selected_synchronous_invocation_cycles,
 };
@@ -30,7 +30,7 @@ pub struct TerminalTargetProviderSelection {
 
 // A retained provider plan belongs to a deployment already selected by its
 // caller. Missing identity is not a request to select the compiler's host.
-fn selected_plan_target(plan: &provider_plans::ProviderPlan) -> Result<&str, String> {
+fn selected_plan_target(plan: &build_providers::plans::ProviderPlan) -> Result<&str, String> {
     if plan.target.is_empty() {
         return Err("selected provider plan has no deployment target".into());
     }
@@ -38,11 +38,11 @@ fn selected_plan_target(plan: &provider_plans::ProviderPlan) -> Result<&str, Str
 }
 
 pub fn selected_checked_adapter_header<'module>(
-    plan: &provider_plans::ProviderPlan,
-    row: &provider_plans::ProviderPlanRow,
+    plan: &build_providers::plans::ProviderPlan,
+    row: &build_providers::plans::ProviderPlanRow,
     module: &'module terminal_psi::TerminalModule,
 ) -> Result<&'module terminal_psi::ProofCallableHeader, String> {
-    let provider_plans::ProviderBinding::CheckedAdapter {
+    let build_providers::plans::ProviderBinding::CheckedAdapter {
         machine_identity,
         machine_package_identity,
     } = &row.binding
@@ -87,8 +87,8 @@ pub fn selected_checked_adapter_header<'module>(
 }
 
 pub struct SelectedCheckedInvocationRow<'plan, 'module> {
-    pub plan: &'plan provider_plans::ProviderPlan,
-    pub row: &'plan provider_plans::ProviderPlanRow,
+    pub plan: &'plan build_providers::plans::ProviderPlan,
+    pub row: &'plan build_providers::plans::ProviderPlanRow,
     pub candidates: Vec<SelectedCheckedInvocationCandidate<'module>>,
 }
 
@@ -109,7 +109,7 @@ pub fn selected_checked_invocation_rows<'plan, 'module>(
     let mut rows = Vec::new();
     for selected in selected_checked_candidates(plans, module)? {
         let plan = selected.selected;
-        let provider_plans::ProviderBinding::CheckedAdapter {
+        let build_providers::plans::ProviderBinding::CheckedAdapter {
             machine_package_identity,
             ..
         } = &selected.row.binding
@@ -193,7 +193,7 @@ impl TerminalTargetProviderSelection {
                     .into(),
             );
         }
-        let selected = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(
+        let selected = build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(
             self.plans.clone(),
         )?;
         admit_checked_roster(artifact, target, &selected, &supplied)
@@ -203,7 +203,7 @@ impl TerminalTargetProviderSelection {
 pub fn admit_selected_checked_providers(
     artifact: terminal_codec::TerminalArtifactView<'_>,
     target: &str,
-    selected: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &build_providers::selections::SelectedProviderPlanFacts,
 ) -> Result<psi_provider_selections::AdmittedProviderSelections, String> {
     let mut supplied = Vec::new();
     for matched in selected_checked_candidates(selected.plans(), artifact.module())? {
@@ -217,7 +217,7 @@ pub fn admit_selected_checked_providers(
 fn admit_checked_roster(
     artifact: terminal_codec::TerminalArtifactView<'_>,
     target: &str,
-    selected: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &build_providers::selections::SelectedProviderPlanFacts,
     supplied: &[psi_provider_selections::ProviderInstallationSelection],
 ) -> Result<psi_provider_selections::AdmittedProviderSelections, String> {
     for plan in selected.plans() {
@@ -242,7 +242,7 @@ fn admit_checked_roster(
 
 fn validate_synchronous_calls(
     artifact: terminal_codec::TerminalArtifactView<'_>,
-    selected: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &build_providers::selections::SelectedProviderPlanFacts,
 ) -> Result<(), String> {
     let module = artifact.module();
     let candidates = selected_checked_candidates(selected.plans(), module)?;
@@ -306,7 +306,7 @@ fn validate_synchronous_calls(
     })
 }
 
-fn slot_target(plan: &provider_plans::ProviderPlan) -> SynchronousBoundaryTarget {
+fn slot_target(plan: &build_providers::plans::ProviderPlan) -> SynchronousBoundaryTarget {
     SynchronousBoundaryTarget::Selected {
         plan: plan.identity_digest(),
         label: plan.name.clone(),
@@ -316,7 +316,7 @@ fn slot_target(plan: &provider_plans::ProviderPlan) -> SynchronousBoundaryTarget
 pub fn matching_folded_constant_dependencies<'plan>(
     artifact: terminal_codec::TerminalArtifactView<'_>,
     target: &str,
-    plans: impl IntoIterator<Item = &'plan provider_plans::ProviderPlan>,
+    plans: impl IntoIterator<Item = &'plan build_providers::plans::ProviderPlan>,
 ) -> Result<Vec<Vec<u8>>, String> {
     let module = artifact.module();
     let closure = &module.scalars.folded_constants;
@@ -353,23 +353,29 @@ pub fn matching_folded_constant_dependencies<'plan>(
                 let corresponds = match (&dependency.candidate, &row.binding) {
                     (
                         Some(association),
-                        provider_plans::ProviderBinding::CheckedAdapter {
+                        build_providers::plans::ProviderBinding::CheckedAdapter {
                             machine_identity,
                             machine_package_identity,
                         },
-                    ) => module.interfaces.provider_candidates.iter().any(|candidate| {
-                        candidate.boundary == association.boundary
-                            && candidate.candidate == association.machine
-                            && candidate.provider_declaration == association.declaration
-                            && candidate.source_requirement_identity == dependency.requirement
-                            && module.identities.text(candidate.provider_identity)
-                                == Some(plan.provider_type.as_str())
-                            && module.identities.text(candidate.source_candidate_identity)
-                                == Some(plan.identity_text(*machine_identity))
-                            && candidate.source_candidate_package_identity
-                                == *machine_package_identity
-                    }),
-                    (None, provider_plans::ProviderBinding::CompilerIntrinsic { .. }) => true,
+                    ) => module
+                        .interfaces
+                        .provider_candidates
+                        .iter()
+                        .any(|candidate| {
+                            candidate.boundary == association.boundary
+                                && candidate.candidate == association.machine
+                                && candidate.provider_declaration == association.declaration
+                                && candidate.source_requirement_identity == dependency.requirement
+                                && module.identities.text(candidate.provider_identity)
+                                    == Some(plan.provider_type.as_str())
+                                && module.identities.text(candidate.source_candidate_identity)
+                                    == Some(plan.identity_text(*machine_identity))
+                                && candidate.source_candidate_package_identity
+                                    == *machine_package_identity
+                        }),
+                    (None, build_providers::plans::ProviderBinding::CompilerIntrinsic { .. }) => {
+                        true
+                    }
                     _ => false,
                 };
                 if corresponds {
@@ -453,7 +459,7 @@ fn checked_candidate_roster(
     plans: &[ProviderPlan],
     module: &terminal_psi::TerminalModule,
 ) -> Result<Vec<psi_provider_selections::ProviderInstallationSelection>, String> {
-    selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(plans.to_vec())?;
+    build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(plans.to_vec())?;
     let mut selections = Vec::new();
     for matched in selected_checked_candidates(plans, module)? {
         if matched.candidates.is_empty() {
@@ -472,9 +478,9 @@ fn checked_candidate_roster(
 }
 
 pub fn close_checked_provider_specializations(
-    selected: selected_provider_plans::SelectedProviderPlanFacts,
+    selected: build_providers::selections::SelectedProviderPlanFacts,
     module: &terminal_psi::TerminalModule,
-) -> Result<selected_provider_plans::SelectedProviderPlanFacts, String> {
+) -> Result<build_providers::selections::SelectedProviderPlanFacts, String> {
     let selected = selected.without_checked_specializations();
     let mut rows = selected.specialized_requirement_rows().to_vec();
     let mut identities = selected.identities().clone().into_builder();
@@ -497,14 +503,16 @@ pub fn close_checked_provider_specializations(
             {
                 continue;
             }
-            rows.push(selected_provider_plans::SelectedRequirementSpecialization {
-                provider_plan_report_identity: plan.report_fingerprint(),
-                selected_requirement_identity: identities.intern(template),
-                selected_machine_identity: identities
-                    .intern(text(candidate.source_candidate_identity)?),
-                requirement_identity: identities.intern(requirement),
-                machine_identity: identities.intern(text(candidate.candidate_identity)?),
-            });
+            rows.push(
+                build_providers::selections::SelectedRequirementSpecialization {
+                    provider_plan_report_identity: plan.report_fingerprint(),
+                    selected_requirement_identity: identities.intern(template),
+                    selected_machine_identity: identities
+                        .intern(text(candidate.source_candidate_identity)?),
+                    requirement_identity: identities.intern(requirement),
+                    machine_identity: identities.intern(text(candidate.candidate_identity)?),
+                },
+            );
         }
     }
     selected.with_specialized_requirement_rows(rows, &identities.build())
@@ -512,7 +520,7 @@ pub fn close_checked_provider_specializations(
 
 struct SelectedCheckedCandidate<'plan, 'terminal> {
     selected: &'plan ProviderPlan,
-    row: &'plan provider_plans::ProviderPlanRow,
+    row: &'plan build_providers::plans::ProviderPlanRow,
     owner: &'plan str,
     candidates: Vec<&'terminal terminal_psi::ProviderCandidateConformance>,
 }
@@ -542,7 +550,7 @@ fn selected_checked_candidates<'plan, 'terminal>(
         if !plan.rows.iter().any(|row| {
             matches!(
                 row.binding,
-                provider_plans::ProviderBinding::CheckedAdapter { .. }
+                build_providers::plans::ProviderBinding::CheckedAdapter { .. }
             )
         }) {
             continue;
@@ -569,12 +577,12 @@ fn selected_checked_candidates<'plan, 'terminal>(
 }
 
 pub struct SelectedProviderCandidateRow<'plan> {
-    pub row: &'plan provider_plans::ProviderPlanRow,
+    pub row: &'plan build_providers::plans::ProviderPlanRow,
     pub candidate_positions: Vec<usize>,
 }
 
 pub fn selected_provider_candidate_rows<'plan>(
-    plan: &'plan provider_plans::ProviderPlan,
+    plan: &'plan build_providers::plans::ProviderPlan,
     module: &terminal_psi::TerminalModule,
 ) -> Result<Vec<SelectedProviderCandidateRow<'plan>>, String> {
     use terminal_semantics::provider_candidates::{
@@ -589,7 +597,7 @@ pub fn selected_provider_candidate_rows<'plan>(
         .rows
         .iter()
         .filter_map(|row| {
-            let provider_plans::ProviderBinding::CheckedAdapter {
+            let build_providers::plans::ProviderBinding::CheckedAdapter {
                 machine_identity,
                 machine_package_identity,
             } = row.binding
@@ -631,7 +639,7 @@ pub fn selected_provider_candidate_rows<'plan>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use provider_plans::{
+    use build_providers::plans::{
         ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow, ServiceMethod,
         ServiceSchema,
     };
@@ -658,10 +666,10 @@ mod tests {
             target: "macos_arm64".into(),
             identities,
             schema: ServiceSchema::from_declaration(std::sync::Arc::new(
-                provider_plans::ServiceSurface {
+                build_providers::plans::ServiceSurface {
                     trait_name,
                     receiver_applications: vec![
-                        provider_plans::ServiceReceiverApplication {
+                        build_providers::plans::ServiceReceiverApplication {
                             application: trait_name,
                             trait_name,
                             trait_package_identity: None,
@@ -669,7 +677,7 @@ mod tests {
                             lifetime_argument_identities: vec![],
                             requirement_identities: vec![schema_requirement],
                         },
-                        provider_plans::ServiceReceiverApplication {
+                        build_providers::plans::ServiceReceiverApplication {
                             application: parent_application,
                             trait_name: parent_name,
                             trait_package_identity: None,
@@ -686,7 +694,7 @@ mod tests {
                         completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                         ..ServiceMethod::default()
                     }],
-                    ..provider_plans::ServiceSurface::default()
+                    ..build_providers::plans::ServiceSurface::default()
                 },
             )),
             rows: vec![ProviderPlanRow {
@@ -841,7 +849,7 @@ mod tests {
                 .unwrap();
         declaration.target.clear();
         let selected =
-            selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![
+            build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(vec![
                 declaration.clone(),
             ])
             .unwrap();
@@ -982,7 +990,7 @@ mod tests {
     fn saved_checked_provider_specializations_reproject_without_renumbering() {
         let (declaration, module) = fixture();
         let selected =
-            selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![
+            build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(vec![
                 declaration,
             ])
             .unwrap();
@@ -1005,12 +1013,12 @@ mod tests {
     fn canonical_instances_replace_source_rows_and_keep_uncalled_inherited_coordinates() {
         let (declaration, module) = fixture();
         let selected =
-            selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![
+            build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(vec![
                 declaration.clone(),
             ])
             .unwrap();
         let mut identities = module.identities.clone().into_builder();
-        let stale = selected_provider_plans::SelectedRequirementSpecialization {
+        let stale = build_providers::selections::SelectedRequirementSpecialization {
             provider_plan_report_identity: declaration.report_fingerprint(),
             selected_requirement_identity: identities.intern("Parent::read"),
             selected_machine_identity: identities.intern("Shared::read"),
@@ -1056,12 +1064,12 @@ mod tests {
         }
         surface.methods.push(missing);
         assert!(
-            selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![
+            build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(vec![
                 declaration.clone()
             ])
             .is_err()
         );
-        let selected = selected_provider_plans::SelectedProviderPlanFacts::default()
+        let selected = build_providers::selections::SelectedProviderPlanFacts::default()
             .with_toolchain_settled_plan(declaration.clone())
             .unwrap();
         let closed = close_checked_provider_specializations(selected, &module).unwrap();
@@ -1098,11 +1106,15 @@ mod tests {
             checked_candidate_roster(std::slice::from_ref(&second), &module).unwrap(),
         );
         let first =
-            selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![first])
-                .unwrap();
+            build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(vec![
+                first,
+            ])
+            .unwrap();
         let second =
-            selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![second])
-                .unwrap();
+            build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(vec![
+                second,
+            ])
+            .unwrap();
         assert_ne!(
             first.identity_digest(),
             second.identity_digest(),

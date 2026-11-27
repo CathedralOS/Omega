@@ -409,8 +409,11 @@ impl Program<'_> {
         }
         let mut data = Vec::new();
         for declared in typed.data_definitions() {
+            // A generic declaration is declared once, from its template, by
+            // the first application the signature reads (`generic_data`).
             if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject
                 && !names_only(declared)
+                && declared.type_parameters.is_empty()
                 && self.is_mathematical_data(declared)
             {
                 data.push(declared.symbol);
@@ -683,6 +686,12 @@ impl Program<'_> {
         }
         for alias in typed.type_aliases() {
             if self.owner(entry, alias.symbol, subjects, purpose)? != Owner::Subject {
+                continue;
+            }
+            // A callable to or from mathematical data has no value that
+            // runs, like the data: it is a field type of that data, read by
+            // the mathematical reader.
+            if self.is_mathematical_callable(alias.expansion) {
                 continue;
             }
             if alias.type_parameters.is_empty()

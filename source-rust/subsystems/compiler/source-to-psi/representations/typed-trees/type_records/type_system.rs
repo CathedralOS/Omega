@@ -674,15 +674,6 @@ pub(crate) mod type_predicates {
             result.unwrap_or(reference)
         }
 
-        pub fn is_unreachable(&self, expression: ExpressionHandle) -> bool {
-            self.rows
-                .binary_search_by_key(
-                    &(expression.arena_index(), expression.generation()),
-                    |(owned, _)| (owned.arena_index(), owned.generation()),
-                )
-                .is_ok_and(|index| self.rows[index].1.is_empty())
-        }
-
         pub fn agree(&self, left: ExpressionHandle, right: ExpressionHandle) -> bool {
             let default = [TypeWorld::default()];
             let worlds = |expression: ExpressionHandle| {

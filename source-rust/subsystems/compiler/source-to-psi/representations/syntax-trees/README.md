@@ -14,12 +14,10 @@ checkpoints, page adoption and root publication stay beside those structures.
 | `SyntaxTreeTables.type_references` | [types/references.rs](types/references.rs): type syntax and constraints. [preparation.rs](types/preparation.rs) owns expanded occurrences, normalized constant operands and their declaration origins |
 | `SyntaxTreeTables.text` | [text/owner.rs](text/owner.rs): retained source pages; [identifiers.rs](text/identifiers.rs) defines names and paths that refer to them |
 | `ParsedSource`, `ParsedSources`, `ParsedUnit` | [files/parsed.rs](files/parsed.rs): source/root associations and standalone reusable parses |
-| `ParsedSyntaxPages`, `ParsedSyntaxSource` | [files/pages.rs](files/pages.rs): published parser pages and their source associations |
 | Copying between forests | [copying/items.rs](copying/items.rs) and [bodies.rs](copying/bodies.rs): declaration/body copying, preserving shared handles and text ownership |
 | Copying between tables in one forest | [copying/statement_paths.rs](copying/statement_paths.rs): expression arguments and identifier paths retained by statements |
 | Logical equality and page identity | [storage/equality.rs](storage/equality.rs), [relocation.rs](storage/relocation.rs), [paged_tables.rs](storage/paged_tables.rs) |
 | Constant declarations | [constants.rs](declarations/constants.rs) keeps the parsed initializer. [constant_preparation.rs](declarations/constant_preparation.rs) records the materialized value and obligations for that occurrence when resolution needs them. |
-| Diagnostic snapshots | [inspection/snapshot.rs](inspection/snapshot.rs): the snapshot representation; adjacent files expand the grammar domains |
 
 The [parser](../../pipeline/01_tokens-to-syntax-trees/src/lib.rs) produces this
 representation. [Symbol resolution](../../pipeline/02_syntax-trees-to-symbol-resolved-trees)
@@ -39,7 +37,7 @@ syntax-specific equality, source ownership and page-admission rules. Moving them
 to foundation would make foundation depend on this representation. Keyword and
 punctuation classification similarly belongs to the token vocabulary.
 
-[tests/unit/](tests/unit/) contains the existing forest, node, text and snapshot
+[tests/unit/](tests/unit/) contains the existing forest, node and text
 tests. No test bodies live in the representation files. Root exports retain the
 public vocabulary used by compiler consumers; domain folders expose the code
 that defines it.

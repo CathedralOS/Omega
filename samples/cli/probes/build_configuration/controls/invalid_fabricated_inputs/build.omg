@@ -1,5 +1,0 @@
-machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Application { name: "invalid_fabricated_inputs" };
-    let f: BuildInputs = BuildInputs {};
-    let s: BuildSource = BuildInputs::get(@f, "x");
-}

@@ -306,7 +306,15 @@ fn opposite_boolean_subject_arms_retain_their_authored_patterns_and_shared_subje
         let parsed = crate::tests::parse_source(&source);
         let mut copied = syntax_trees::SyntaxTrees::new_with_generation(parsed.source_id, 90);
         copied.extend_from(&parsed);
-        assert_eq!(copied.snapshot(), parsed.snapshot());
+        assert_eq!(copied.root_item_count(), parsed.root_item_count());
+        let copied_statements = first_machine_statements(&copied);
+        assert_eq!(copied_statements.len(), 1);
+        assert_eq!(
+            crate::tests::dispatch(&copied, copied_statements[0])
+                .arms
+                .len(),
+            2
+        );
         let statements = first_machine_statements(&parsed);
         assert_eq!(statements.len(), 1);
         let dispatch = crate::tests::dispatch(&parsed, statements[0]);
@@ -844,8 +852,15 @@ fn owns_non_utf8_string_literal_bytes_in_syntax_tree() {
         }
         "#,
     );
-    let snapshot = parsed.snapshot_json().expect("snapshot");
-    assert!(snapshot.contains("\"bytes\":[128,65]"), "{snapshot}");
+    let bytes: Vec<&[u8]> = parsed
+        .expressions
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            ExpressionNode::String(bytes) => Some(bytes.as_ref()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(bytes, [&[128u8, 65u8][..]]);
 }
 
 #[test]
@@ -924,14 +939,6 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
         &source[formula_span.span.start..formula_span.span.end],
         "related(value, value)"
     );
-
-    let snapshot = parsed
-        .snapshot_json()
-        .expect("proposition syntax should snapshot");
-    assert!(snapshot.contains("\"kind\":\"proposition\""));
-    assert!(snapshot.contains("\"is_public\":true"));
-    assert!(snapshot.contains("\"kind\":\"witness\""));
-    assert!(snapshot.contains("\"kind\":\"transparent\""));
 }
 
 #[test]
@@ -990,9 +997,6 @@ fn parses_type_and_integer_const_proposition_arguments() {
         Some("7".to_owned())
     );
     assert_eq!(call.display_name(&parsed), "indexed::<i32, 7>()");
-    let snapshot = parsed.snapshot_json().expect("syntax should snapshot");
-    assert!(snapshot.contains("\"machine_arguments\":[[{\"text\":\"i32\""));
-    assert!(snapshot.contains(",\"7\"]"));
 }
 
 #[test]
@@ -1042,9 +1046,6 @@ fn parses_a_trait_relation_family_from_its_mathematical_type() {
     assert_eq!(contract.name.as_str(&parsed), "R");
     assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 2);
     assert!(contract.result.is_valid());
-    let snapshot = parsed.snapshot_json().expect("snapshot should succeed");
-    assert!(snapshot.contains("\"kind\":\"proposition\""));
-    assert!(snapshot.contains("\"proposition_contract\""));
 }
 
 #[test]

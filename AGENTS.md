@@ -56,6 +56,19 @@ Omega has one specification in [wiki/spec/](wiki/spec/). Describe
 compiler-specific implementation status in the compiler's plan or layer
 contracts.
 
+**Only the two owners, Zac and Jarod, edit `wiki/spec/`** (owner ruling,
+2026-11-27). Agents read it and build what it says; they never add, change or delete text
+there, even to record a ruling or to match landed code. When a change would make
+a spec sentence inaccurate, don't make the change. Record the sentence, the
+proposed text and the reason in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md), and keep
+building to the current text.
+
+The Psi wire encoding (numeric tags, field layouts and format markers) is the
+compiler's file format, not specification. It lives beside the codec in
+[encoding.md](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md).
+Update it in the same PR as the codec change it describes; its tag tables are
+tested against the decoder by `mbx test -p terminal-wire --lib spec_tag_tables`.
+
 ## Bootstrap mandate
 
 For bootstrap construction work, [bootstrap/MINIMIZATION.md](bootstrap/MINIMIZATION.md)

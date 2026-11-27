@@ -1,7 +1,7 @@
 //! Locate one described function pointer in the native layout of the borrowed record.
 
 use calling_conventions::FunctionFieldLocation;
-use provider_plans::EvaluatedFunctionField;
+use build_providers::plans::EvaluatedFunctionField;
 use semantic_vocabulary::{CanonicalStructuralPathSegment, ScalarType};
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryParameterKind, StructuralFieldType, StructuralTypeShape,
@@ -163,7 +163,7 @@ fn admits_table_issuer(
         return false;
     };
     retained.rows.iter().any(|row| {
-        if !matches!(row.binding, provider_plans::EvaluatedNativeBinding::Import(_) | provider_plans::EvaluatedNativeBinding::Syscall(_)) {
+        if !matches!(row.binding, build_providers::plans::EvaluatedNativeBinding::Import(_) | build_providers::plans::EvaluatedNativeBinding::Syscall(_)) {
             return false;
         }
         let Some(issuer) = module.boundary_machine(row.boundary) else { return false };

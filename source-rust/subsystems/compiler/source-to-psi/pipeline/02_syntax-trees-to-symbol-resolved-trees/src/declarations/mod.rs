@@ -65,7 +65,6 @@ pub(crate) fn prepare(
     mut syntax: SyntaxTrees,
     sources: Option<Arc<SourceMap>>,
     top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
-    constants: crate::resolution::lowering::lowerer::ConstResolutionMode,
     base: Option<Arc<crate::source_resolved::SymbolResolvedTrees>>,
 ) -> Result<Prepared, Vec<Diagnostic>> {
     prepare_statement_bodies(&mut syntax)?;
@@ -83,20 +82,11 @@ pub(crate) fn prepare(
     // Named widths remain for resolution in their lexical scope.
     constant_selection.install_integer_types(integer_widths::normalize(&mut syntax)?);
     generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
-    /*
-        Only the complete route owns a constant's value. The selection routes
-        exist to read initializers as their author wrote them, so they keep
-        every initializer authored.
-    */
-    if constants == crate::resolution::lowering::lowerer::ConstResolutionMode::Complete {
-        generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
-    }
+    generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
     let integer_types = integer_widths::normalize(&mut syntax)?;
     let new_integer_types = !integer_types.is_empty();
     constant_selection.install_integer_types(integer_types);
-    if new_integer_types
-        && constants == crate::resolution::lowering::lowerer::ConstResolutionMode::Complete
-    {
+    if new_integer_types {
         // Rewritten literal widths can make another initializer's carrier
         // available without resolving named widths outside their lexical scope.
         generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;

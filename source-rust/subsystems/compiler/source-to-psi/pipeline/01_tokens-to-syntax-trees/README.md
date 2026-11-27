@@ -6,13 +6,7 @@ through [declarations/items.rs](src/declarations/items.rs). The
 [streaming caller](../../driver/parse_source_batch.rs) calls this operation as it lexes each
 file, recycling each token buffer after parsing.
 
-The [source-files input](../../representations/source-files/source_files.rs) defines the origin and dependency scope retained on each parsed page. Run the parser unit, diagnostic, stage-contract and sample tests with `mbx test --locked -p source-parser`.
-
-For an already-tokenized batch, `parse(&LexedSources, ParseOptions)` schedules
-pages, calls the same `parse_into` for each source and returns `ParsedSyntaxPages`.
-`ParseOptions` assigns the first page identity and selects shared pages or
-independently reusable units. An invalid page identity or a parse failure
-returns an error and leaves the input tokens intact.
+The [source-files input](../../representations/source-files/source_files.rs) defines the origin and dependency scope retained on each parsed page. Run the parser unit, diagnostic and sample tests with `mbx test --locked -p source-parser`. Multi-file page scheduling and parallel dispatch live in [parse_source_batch](../../driver/parse_source_batch/batch.rs).
 
 | Follow this path | It owns |
 | --- | --- |
@@ -38,9 +32,7 @@ why an atomic cell's `store` checks its ordering argument. For a transition,
 takes the authored arms and arranges to evaluate the subjects once.
 
 The output belongs to [syntax-trees](../../representations/syntax-trees/syntax_trees.rs).
-Its [files/pages.rs](../../representations/syntax-trees/files/pages.rs) owns
-`ParsedSyntaxPages` and the source-to-page associations. Converting `ParseError`
-to a diagnostic retains the existing path, line, column and message format.
+Converting `ParseError` to a diagnostic retains the existing path, line, column and message format.
 Generic spans come from [foundation/arena](../../../../../foundation/arena/src/arena.rs);
 [tree copying](../../representations/syntax-trees/copying/statement_paths.rs) belongs
 to the representation. The parser accesses its public tables directly.

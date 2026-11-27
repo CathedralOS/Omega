@@ -72,8 +72,11 @@ pub(crate) fn emit_realization_object(
     }
     let requirements = prepare_installed_callbacks(&target, &prepared_callbacks, physical_root)?;
     let selections = target.selections().clone();
+    let architecture = target.execution_plan().plan().target.architecture;
     let root_error = |error| match error {
-        BodyEmissionError::Physical(error) => selected_physical_pipeline_failed(&selections, error),
+        BodyEmissionError::Physical(error) => {
+            selected_physical_pipeline_failed(&selections, architecture, error)
+        }
         BodyEmissionError::Installation(reason) => {
             realization_error("installed handler stack", reason)
         }

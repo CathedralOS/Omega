@@ -48,7 +48,7 @@ impl AdmittedTerminalIntrinsics {
 
 pub fn admit_terminal_intrinsics<'selection>(
     artifact: terminal_codec::TerminalExecutionView<'_>,
-    selected: &'selection selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &'selection build_providers::selections::SelectedProviderPlanFacts,
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'selection>>,
     demanded: &std::collections::BTreeSet<String>,
 ) -> Result<AdmittedTerminalIntrinsics, Vec<Diagnostic>> {

@@ -29,8 +29,8 @@ fn a_build_that_aliases_a_path_dependency_compiles() {
     let build = format!(
         r#"use main.omg as app;
 use {{omega}}/build/dependency.omg;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "consumer");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "consumer" }};
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "dep" }});
     |dependency|::with_alias(@mutable description, "kit");
     _ = Build::dependency(builder, description);
@@ -53,7 +53,7 @@ machine build(builder: @mutable Build) {{
             ),
             (
                 "dep/build.omg",
-                "machine build(builder: @mutable Build) {\n    Build::package(builder, \"kernel\");\n}\n",
+                "machine build(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Package { name: \"kernel\" };\n}\n",
             ),
         ],
         &["--check", "main.omg"],

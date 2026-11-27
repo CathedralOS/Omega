@@ -1,6 +1,6 @@
 // Durable build observation records (`BuildObservationSummary`,
 // `BuildActivation`, `BuildFilesystemOperationAttempt`,
-// `BuildCapturedSourceInventory`, `BuildNamedInputInventory`,
+// `BuildCapturedSourceInventory`,
 // `BuildRequiredOutputSettlement`) produced when
 // a build evaluation settles its filesystem and output obligations.
 
@@ -22,7 +22,7 @@ pub use filesystem_authority::{
     FilesystemOperationResult as BuildFilesystemOperationResult,
 };
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 85;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 86;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BuildActivation {
@@ -57,7 +57,6 @@ pub struct BuildFilesystemAuthorizedPath {
 pub enum BuildFilesystemRoot {
     Source,
     Output,
-    NamedInput(u32), // Compiler-issued root joined to the observation's named inventory.
     /// Relative to the guest root among this activation's live directory grants.
     MappedDirectories,
 }
@@ -132,25 +131,6 @@ impl BuildFilesystemOperationAttempt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildNamedInputInventory {
-    pub(crate) name: Vec<u8>,
-    pub(crate) root_identity: u32,
-    pub(crate) inventory: BuildCapturedSourceInventory,
-}
-
-impl BuildNamedInputInventory {
-    pub fn name(&self) -> &[u8] {
-        &self.name
-    }
-    pub const fn root_identity(&self) -> u32 {
-        self.root_identity
-    }
-    pub const fn inventory(&self) -> BuildCapturedSourceInventory {
-        self.inventory
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildObservationSummary {
     pub(crate) filesystem_host_observed: bool,
     pub(crate) filesystem_operation_schema_version: u32,
@@ -158,7 +138,6 @@ pub struct BuildObservationSummary {
     pub(crate) canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
     pub(crate) activation: BuildActivation,
     pub(crate) captured_source_inventory: Option<BuildCapturedSourceInventory>,
-    pub(crate) named_input_inventories: Vec<BuildNamedInputInventory>,
     pub(super) product_source_tree: Option<BuildStagedOutputTree>,
     pub(super) generated_sources: Vec<build_output::PackageGeneratedSource>,
     pub(crate) required_output_settlements: Vec<BuildRequiredOutputSettlement>, // Completed `BuildOutput::require` obligations in issue order.
@@ -208,10 +187,6 @@ impl BuildObservationSummary {
 
     pub const fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
         self.captured_source_inventory
-    }
-
-    pub fn named_input_inventories(&self) -> &[BuildNamedInputInventory] {
-        &self.named_input_inventories
     }
 
     pub const fn staged_output_tree(&self) -> Option<&BuildStagedOutputTree> {

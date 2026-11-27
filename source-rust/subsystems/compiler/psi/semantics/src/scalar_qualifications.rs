@@ -395,19 +395,23 @@ fn validate_machine_transfers(
                             "scalar array initialization lost its storage declaration",
                         ),
                     )?;
-                    let (leaf, count) = crate::scalar_array_leaf_declaration(
+                    let leaf = if let Some((leaf, count)) = crate::scalar_array_leaf_declaration(
                         module.types.structural_types.iter(),
                         result.structural_type,
-                    )
-                    .ok_or(
-                        ScalarQualificationError::MalformedStructuralFoundation(
-                            "scalar array has no exact primitive leaf declaration",
-                        ),
-                    )?;
+                    ) {
+                        if count != elements.len() as u64 {
+                            return malformed("scalar array has a different declared leaf count");
+                        }
+                        leaf
+                    } else if let Some((leaf, _)) = crate::scalar_array_application_leaf(
+                        module.types.structural_types.iter(),
+                        result.structural_type,
+                    ) {
+                        leaf
+                    } else {
+                        return malformed("scalar array has no exact primitive leaf declaration");
+                    };
                     let expected = primitive_qualifications(module, leaf.id);
-                    if count != elements.len() as u64 {
-                        return malformed("scalar array has a different declared leaf count");
-                    }
                     for element in elements {
                         if declared.get(*element)?.qualifications != expected {
                             return malformed(

@@ -1,8 +1,8 @@
 //! Highlight the critical services of the selected Product, including capability-only traits.
 use super::{input::PolicySource, semantic_bindings::checked_service};
+use build_providers::acceptance::AcceptedSemanticBindingRole as Role;
 use diagnostics::Diagnostic;
 use language_core::core_vocabulary::CoreVocabulary;
-use provider_acceptance::AcceptedSemanticBindingRole as Role;
 use review_evidence::record::{
     PackageReviewDangerousAuthorityClass as Class, PackageReviewServiceIdentity,
 };

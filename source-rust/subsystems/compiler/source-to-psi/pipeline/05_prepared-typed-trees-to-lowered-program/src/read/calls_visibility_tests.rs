@@ -10,9 +10,9 @@ use crate::source_state::state::State;
 use crate::source_state::trait_definition::TraitDefinition;
 use crate::source_state::types::TypeReferenceNode;
 use crate::source_symbols::SymbolTableBuilder;
-use source_provenance::DependencyScope;
 use semantic_vocabulary::PackageKeyIdentity;
 use source_admission::SourceOrigin;
+use source_provenance::DependencyScope;
 use source_text::{SourceSpan, Span};
 use std::sync::Arc;
 use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
@@ -24,6 +24,8 @@ struct Fixture {
     callback_binder: SymbolHandle,
     owner: SymbolHandle,
     requirement: SymbolHandle,
+    /// A second state under `helper`, which no source name can denote.
+    inner_state: SymbolHandle,
 }
 
 impl Fixture {
@@ -250,14 +252,17 @@ impl Fixture {
             )
             .start();
         let mut callback_binder = SymbolHandle::invalid();
+        let mut inner_state = SymbolHandle::invalid();
         let states = [app, helper].map(|machine| {
             let mut children = vec![(SymbolKind::State, SymbolNameRef::Static("run"))];
             if machine == helper {
                 children.push((SymbolKind::MachineParameter, SymbolNameRef::Static("Visit")));
+                children.push((SymbolKind::State, SymbolNameRef::Static("inner")));
             }
             let children = symbols.insert_children(machine, children);
             if machine == helper {
                 callback_binder = children.handle_at(1);
+                inner_state = children.handle_at(2);
             }
             children.start()
         });
@@ -320,6 +325,7 @@ impl Fixture {
             callback_binder,
             owner,
             requirement,
+            inner_state,
         }
     }
 
@@ -376,7 +382,10 @@ fn forwarded_private_callbacks_keep_the_original_selection_visibility() {
                 None,
             )
             .unwrap_err();
-        assert_eq!(refused.detail, "cannot call a private machine of another package");
+        assert_eq!(
+            refused.detail,
+            "cannot call a private machine of another package"
+        );
         assert!(
             program
                 .static_machine_target(caller, fixture.helper, binder)
@@ -466,7 +475,6 @@ fn a_callback_selection_in_another_package_does_not_grant_private_visibility() {
         "cannot call a private machine of another package"
     );
 }
-
 
 #[test]
 fn a_public_interface_can_select_a_public_callback() {
@@ -830,5 +838,38 @@ fn service_metadata_refuses_lost_provenance_in_a_tree_with_sources() {
             SymbolHandle::invalid()
         ),
         Ok(DependencyScope::Product)
+    );
+}
+
+/// A call runs a machine from its entry (machines.md, "Nested machines and
+/// identity"). Naming the machine or its entry state selects the machine; a
+/// state inside its body that is not the entry is refused as that rule, not
+/// read as the machine and not reported as unsupported.
+#[test]
+fn a_call_runs_a_machine_from_its_entry_never_a_point_inside_it() {
+    let fixture = Fixture::new(true);
+    let mut program = Program::new(&fixture.typed, false);
+    let app = program.machine(fixture.app).unwrap();
+    let entry = fixture
+        .typed
+        .machine_states(fixture.typed.machine_by_symbol(fixture.helper).unwrap())[0]
+        .symbol;
+    for target in [fixture.helper, entry] {
+        assert_eq!(
+            program.call_target_symbol(app, target).unwrap(),
+            fixture.helper
+        );
+    }
+    let refused = program
+        .call_target_symbol(app, fixture.inner_state)
+        .unwrap_err();
+    assert_eq!(
+        refused.reason,
+        terminal_check_tables::RefusalReason::Violation
+    );
+    assert!(
+        refused.detail.contains("runs a machine from its entry"),
+        "{}",
+        refused.detail
     );
 }

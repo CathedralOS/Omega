@@ -315,7 +315,8 @@ impl NumericMethod {
         let [row] = leaf.plan.rows.as_slice() else {
             return Err(unavailable("one complete numeric realization row"));
         };
-        let provider_plans::ProviderBinding::CompilerIntrinsic { machine } = &row.binding else {
+        let build_providers::plans::ProviderBinding::CompilerIntrinsic { machine } = &row.binding
+        else {
             return Err(unavailable("the numeric method's intrinsic binding"));
         };
         let nominal = self.coordinate.identity.clone();

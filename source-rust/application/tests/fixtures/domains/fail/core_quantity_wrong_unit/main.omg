@@ -5,8 +5,8 @@ machine main() crashes Trap {
     let distance: i64 in |units|::Quantity<|units|::Units::SECOND> = |units|::kilometers_to_meters_trapping_i64(start);
 }
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "core_quantity_wrong_unit");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "core_quantity_wrong_unit" };
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

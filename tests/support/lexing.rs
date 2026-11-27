@@ -1,4 +1,4 @@
-//! Construct retained tokens through the batch lexer's public entry point.
+//! Construct retained tokens through the lexer's public entry point.
 use super::{LoadedSource, lexing};
 use std::sync::Arc;
 
@@ -13,14 +13,10 @@ impl<'text> Lexer<'text> {
 }
 
 pub fn lex_retained(source: Arc<str>) -> Result<tokens::TokenStream<'static>, lexing::LexError> {
-    let loaded = [LoadedSource {
+    let mut loaded = LoadedSource {
         source,
         ..Default::default()
-    }]
-    .into_iter()
-    .collect();
-    let mut lexed = lexing::lex(loaded)?;
-    Ok(std::mem::take(
-        &mut lexed.sources.span_mut_or_empty(lexed.batch)[0].tokens,
-    ))
+    };
+    let lexed = lexing::lex_file(&mut loaded, &mut tokens::TokenScratch::default())?;
+    Ok(lexed.tokens)
 }

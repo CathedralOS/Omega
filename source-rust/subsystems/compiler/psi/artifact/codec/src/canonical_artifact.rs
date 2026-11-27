@@ -643,7 +643,7 @@ mod tests {
     // The pre-namespace specimen was saved under semantic format marker 289.
     // Format 290 (#5035) retired its sealed byte reader, and the encoding
     // rejects older markers before reading their payload
-    // (wiki/spec/terminal-psi/encoding.md#machine-rows).
+    // (source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#machine-rows).
     #[test]
     fn pre_namespace_linux_program_is_refused_by_its_retired_format_marker() {
         let bytes = include_bytes!(

@@ -7,9 +7,7 @@ use bignum::BigInt;
 use numeric_literals::{FloatFormat, LandedIntegerType};
 
 mod encoding {
-    use super::{
-        DecodedCanonicalConstValue, MAX_DECODE_DEPTH, MAX_DECODED_NODES, MAX_ENCODING_BYTES, framed,
-    };
+    use super::{DecodedCanonicalConstValue, MAX_DECODE_DEPTH, byte_limit, framed, node_limit};
 
     pub(super) fn encode(value: &DecodedCanonicalConstValue) -> Option<String> {
         node(value, 0, &mut 0, false)
@@ -25,7 +23,7 @@ mod encoding {
         nodes: &mut usize,
         declaration: bool,
     ) -> Option<String> {
-        if depth >= MAX_DECODE_DEPTH || *nodes >= MAX_DECODED_NODES {
+        if depth >= MAX_DECODE_DEPTH || *nodes >= node_limit(declaration) {
             return None;
         }
         *nodes += 1;
@@ -94,7 +92,7 @@ mod encoding {
                 )?,
             ),
         };
-        (encoding.len() <= MAX_ENCODING_BYTES).then_some(encoding)
+        (encoding.len() <= byte_limit(declaration)).then_some(encoding)
     }
 
     fn fields_encoding(
@@ -116,6 +114,27 @@ const PREFIX: &str = "#omega-const:";
 const MAX_ENCODING_BYTES: usize = 64 * 1024;
 const MAX_DECODED_NODES: usize = 4_096;
 const MAX_DECODE_DEPTH: usize = 64;
+// A declaration's own value, such as a lookup table, is read once from its
+// declaration and never becomes part of an application or index key, so it
+// may be far larger than a key. Depth stays bounded the same way.
+const MAX_DECLARATION_ENCODING_BYTES: usize = 32 * 1024 * 1024;
+const MAX_DECLARATION_NODES: usize = 1 << 20;
+
+fn byte_limit(declaration: bool) -> usize {
+    if declaration {
+        MAX_DECLARATION_ENCODING_BYTES
+    } else {
+        MAX_ENCODING_BYTES
+    }
+}
+
+fn node_limit(declaration: bool) -> usize {
+    if declaration {
+        MAX_DECLARATION_NODES
+    } else {
+        MAX_DECODED_NODES
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DecodedCanonicalConstValue {
@@ -241,6 +260,9 @@ impl CanonicalConstValue {
     pub const MAXIMUM_DEPTH: usize = MAX_DECODE_DEPTH;
     pub const MAXIMUM_NODES: usize = MAX_DECODED_NODES;
     pub const MAXIMUM_ENCODING_BYTES: usize = MAX_ENCODING_BYTES;
+    /// The bounds on a constant declaration's own value.
+    pub const MAXIMUM_DECLARATION_NODES: usize = MAX_DECLARATION_NODES;
+    pub const MAXIMUM_DECLARATION_ENCODING_BYTES: usize = MAX_DECLARATION_ENCODING_BYTES;
 
     /// Preserves the established application key without a display-text
     /// round trip. Integer carriers are supplied by the receiving binder;
@@ -400,7 +422,7 @@ fn decode_canonical_encoding(
     encoding: &str,
     declaration: bool,
 ) -> Option<DecodedCanonicalConstValue> {
-    if encoding.len() > MAX_ENCODING_BYTES {
+    if encoding.len() > byte_limit(declaration) {
         return None;
     }
     let mut decoded_nodes = 0;
@@ -424,7 +446,7 @@ fn decode_node(
     decoded_nodes: &mut usize,
     declaration: bool,
 ) -> Option<DecodedCanonicalConstValue> {
-    if depth >= MAX_DECODE_DEPTH || *decoded_nodes >= MAX_DECODED_NODES {
+    if depth >= MAX_DECODE_DEPTH || *decoded_nodes >= node_limit(declaration) {
         return None;
     }
     *decoded_nodes += 1;
@@ -1005,5 +1027,43 @@ mod tests {
         assert!(decode(too_many_nodes).is_none());
 
         assert!(decode("x".repeat(MAX_ENCODING_BYTES + 1)).is_none());
+    }
+
+    fn table(length: usize) -> DecodedCanonicalConstValue {
+        DecodedCanonicalConstValue::Array {
+            type_name: format!("[u32; {length}]"),
+            values: (0..length)
+                .map(|index| DecodedCanonicalConstValue::Integer {
+                    integer_type: super::LandedIntegerType::from_name("u32")
+                        .expect("u32 is a fixed integer"),
+                    value: (4_000_000_000u64 - index as u64).into(),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn a_declaration_value_may_be_larger_than_an_application_key() {
+        // 3,072 wide integers encode past both bounds on a key, as an
+        // authored lookup table does.
+        let value = table(3_072);
+        assert!(super::encoding::encode(&value).is_none());
+        let identity = CanonicalConstIdentity::from_declaration_value(&value)
+            .expect("a declaration value past the key bounds still encodes");
+        assert!(identity.encoding.len() > MAX_ENCODING_BYTES);
+        assert_eq!(identity.decode_declaration_encoding(), Some(value));
+        assert!(identity.decode_encoding().is_none());
+    }
+
+    #[test]
+    fn a_declaration_value_past_its_own_node_bound_is_refused() {
+        // The array is one node and each element another.
+        let flags = |length| DecodedCanonicalConstValue::Array {
+            type_name: format!("[bool; {length}]"),
+            values: vec![DecodedCanonicalConstValue::Boolean(true); length],
+        };
+        let limit = CanonicalConstValue::MAXIMUM_DECLARATION_NODES;
+        assert!(CanonicalConstIdentity::from_declaration_value(&flags(limit - 1)).is_some());
+        assert!(CanonicalConstIdentity::from_declaration_value(&flags(limit)).is_none());
     }
 }

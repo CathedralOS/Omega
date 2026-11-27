@@ -1,9 +1,9 @@
 //! Keep each entry's reachable machines with the program and provider choices used to find them.
 use crate::entry_settlement::ValidatedNativeProgramEntrySettlement;
 use crate::{SelectedProviderAdapter, SelectedProviderAdapters, TargetBoundReach};
+use build_providers::selections::SelectedProviderPlanFacts;
 use diagnostics::Diagnostic;
 use native_execution_reach::ExecutionReach;
-use selected_provider_plans::SelectedProviderPlanFacts;
 use semantic_vocabulary::MachineId;
 use std::sync::Arc;
 use terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity, TerminalArtifactView};
@@ -233,7 +233,7 @@ impl NativeExecutionScope {
         artifact: &CanonicalTerminalArtifact,
         entry: MachineId,
         profile: target::TargetProfile,
-        selection: &selected_provider_plans::SelectedProviderPlanFacts,
+        selection: &build_providers::selections::SelectedProviderPlanFacts,
         adapters: &[SelectedProviderAdapter],
     ) -> Result<(), &'static str> {
         if artifact.manifest().identity() != self.artifact_identity()
@@ -270,7 +270,9 @@ impl NativeExecutionScope {
         self.source.native_bindings
     }
 
-    pub fn source_provider_selection(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
+    pub fn source_provider_selection(
+        &self,
+    ) -> &build_providers::selections::SelectedProviderPlanFacts {
         self.source.selection.as_ref()
     }
 

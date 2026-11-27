@@ -1,13 +1,15 @@
-//! Time parsing of retained, pre-lexed batches; omega-bench owns paired comparisons.
-//! Syntax snapshots and token fingerprints are checked outside the timed loop.
+//! Time parsing of retained, pre-lexed token streams; omega-bench owns paired comparisons.
+//! Syntax record bytes and token fingerprints are checked outside the timed loop.
 
-use source_files::{LoadedSource, LoadedSources};
+use source_files::LoadedSource;
 use source_text::SourceId;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::hint::black_box;
 use std::sync::Arc;
 use std::time::Instant;
+use syntax_trees::SyntaxTrees;
+use tokens::TokenScratch;
 
 fn main() -> Result<(), String> {
     let budget =
@@ -40,15 +42,17 @@ fn measure() -> Result<(), String> {
             .checked_add(source.len() as u64)
             .ok_or("input size overflow")?;
         source.hash(&mut fingerprint);
-        let loaded: LoadedSources = [LoadedSource {
+        let mut loaded = LoadedSource {
             source_id: SourceId(1),
             source: source.clone(),
             ..Default::default()
-        }]
-        .into_iter()
-        .collect();
-        let lexed = source_compiler::test_support::lexing::lex(loaded).map_err(|error| error.message)?;
-        let tokens = &lexed.sources.span_or_empty(lexed.batch)[0].tokens;
+        };
+        let lexed = source_compiler::test_support::lexing::lex_file(
+            &mut loaded,
+            &mut TokenScratch::default(),
+        )
+        .map_err(|error| error.message)?;
+        let tokens = &lexed.tokens;
         for token in tokens.iter() {
             format!("{:?}", token.kind).hash(&mut fingerprint);
             token.span.start.hash(&mut fingerprint);
@@ -59,18 +63,16 @@ fn measure() -> Result<(), String> {
                 tokens.spelling(token).as_bytes().hash(&mut fingerprint);
             }
         }
-        let parsed = source_compiler::test_support::parsing::parse(&lexed, Default::default())
-            .map_err(|error| format!("{path}: {}", error.message))?;
-        let roots = parsed.sources()[0].source();
-        roots.root_items.len().hash(&mut fingerprint);
-        roots.import_root_range.hash(&mut fingerprint);
-        parsed
-            .syntax(parsed.sources()[0].syntax_handle())
-            .unwrap()
-            .snapshot_json()
+        let mut syntax = SyntaxTrees::new(SourceId(1));
+        let roots =
+            source_compiler::test_support::parsing::parse_into(&mut syntax, SourceId(1), tokens)
+                .map_err(|error| format!("{path}: {}", error.message))?;
+        roots.items.len().hash(&mut fingerprint);
+        roots.import_range.hash(&mut fingerprint);
+        record_storage::encode(&syntax, record_storage::RecordLimits::default())
             .map_err(|error| error.to_string())?
             .hash(&mut fingerprint);
-        inputs.push(lexed);
+        inputs.push(lexed.tokens);
     }
     let work_units = bytes.checked_mul(repeats).ok_or("work size overflow")?;
     if work_units == 0 {
@@ -79,12 +81,16 @@ fn measure() -> Result<(), String> {
     let mut checksum = 0u64;
     let start = Instant::now();
     for _ in 0..black_box(repeats) {
-        for lexed in &inputs {
-            let parsed = source_compiler::test_support::parsing::parse(black_box(lexed), Default::default())
-                .map_err(|error| error.message)?;
-            checksum = checksum
-                .wrapping_add(black_box(parsed.sources()[0].source().root_items.len()) as u64);
-            black_box(&parsed);
+        for tokens in &inputs {
+            let mut syntax = SyntaxTrees::new(SourceId(1));
+            let roots = source_compiler::test_support::parsing::parse_into(
+                &mut syntax,
+                SourceId(1),
+                black_box(tokens),
+            )
+            .map_err(|error| error.message)?;
+            checksum = checksum.wrapping_add(black_box(roots.items.len()) as u64);
+            black_box(&syntax);
         }
     }
     let elapsed = start.elapsed().as_nanos();

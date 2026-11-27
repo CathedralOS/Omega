@@ -8,7 +8,7 @@
 use crate::source_state::TypedTrees;
 use crate::source_state::domain::ProofFact;
 use crate::source_state::expression::ExpressionHandle;
-use crate::source_state::signature::{SignatureContract, SignatureContractKind, StateParameter};
+use crate::source_state::signature::{SignatureContract, SignatureContractKind};
 use crate::source_state::type_identity::NormalizedTypeIdentity;
 use crate::source_state::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
@@ -47,13 +47,6 @@ pub struct DeclaredContractParameter {
     pub type_identity: NormalizedTypeIdentity,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DeclaredCallableContract<Cause = semantic_vocabulary::CrashCause> {
-    pub parameters: Vec<DeclaredContractParameter>,
-    pub result: NormalizedTypeIdentity,
-    pub clauses: Vec<DeclaredContractClause<Cause>>,
-}
-
 /// The supplying operation owns the context captured by these callbacks.
 pub struct ContractIdentityContext<Type, Fact, Symbol, Cause> {
     pub type_identity: Type,
@@ -70,61 +63,6 @@ pub fn generic_binders(
         .enumerate()
         .map(|(position, parameter)| (parameter.symbol, format!("$G{position}")))
         .collect()
-}
-
-pub fn callable_binders(
-    generics: &[(SymbolHandle, String)],
-    parameters: &[StateParameter],
-) -> Vec<(SymbolHandle, String)> {
-    let mut binders = generics.to_vec();
-    binders.extend(
-        parameters
-            .iter()
-            .enumerate()
-            .map(|(position, parameter)| (parameter.symbol, format!("$V{position}"))),
-    );
-    binders
-}
-
-/// Project with the complete binder list supplied by the enclosing operation.
-pub fn declared_callable_with<Cause, Error, Type, Fact, Symbol, CauseProjection>(
-    program: &TypedTrees,
-    parameters: arena::RootRows<'_, StateParameter>,
-    result: TypeReferenceHandle,
-    contracts: arena::RootRows<'_, SignatureContract>,
-    binders: &[(SymbolHandle, String)],
-    include_crashes: bool,
-    projection: &mut ContractIdentityContext<Type, Fact, Symbol, CauseProjection>,
-) -> Result<DeclaredCallableContract<Cause>, Error>
-where
-    Cause: Clone + Ord,
-    Type: FnMut(
-        TypeReferenceHandle,
-        &[(SymbolHandle, String)],
-    ) -> Result<NormalizedTypeIdentity, Error>,
-    Fact: FnMut(&ProofFact, &[(SymbolHandle, String)]) -> Result<DeclaredContractFact, Error>,
-    Symbol: FnMut(SymbolHandle, &[(SymbolHandle, String)]) -> String,
-    CauseProjection: FnMut(crate::source_state::signature::CrashCause) -> Cause,
-{
-    let parameters = parameters
-        .iter()
-        .map(|parameter| {
-            Ok(DeclaredContractParameter {
-                mutable: parameter.is_mutable,
-                constant: parameter.is_const,
-                relevance: parameter.relevance,
-                type_identity: (projection.type_identity)(parameter.type_reference, binders)?,
-            })
-        })
-        .collect::<Result<Vec<_>, Error>>()?;
-    let result = (projection.type_identity)(result, binders)?;
-    let clauses =
-        declared_contracts_with(program, contracts, binders, include_crashes, projection)?;
-    Ok(DeclaredCallableContract {
-        parameters,
-        result,
-        clauses,
-    })
 }
 
 pub fn declared_contracts_with<Cause, Error, Type, Fact, Symbol, CauseProjection>(

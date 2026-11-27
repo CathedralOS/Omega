@@ -11,7 +11,7 @@ fn passing_a_transitive_result_keeps_its_type_without_granting_member_access() {
         &[
             (
                 "supplier/build.omg",
-                r#"machine build(builder: @mutable Build) { Build::package(builder, "packet_library"); }"#,
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "packet_library" }; }"#,
             ),
             (
                 "supplier/main.omg",
@@ -21,8 +21,8 @@ fn passing_a_transitive_result_keeps_its_type_without_granting_member_access() {
             (
                 "api/build.omg",
                 r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-            Build::package(builder, "packet_api");
+machine build(builder: @mutable BuildPlan) {
+            builder.product = BuildProduct::Package { name: "packet_api" };
             let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../supplier" }));
         }"#,
             ),
@@ -36,8 +36,8 @@ machine build(builder: @mutable Build) {
                 "consumer/build.omg",
                 r#"use main.omg as app;
 use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-            Build::application(builder, "packet_app");
+machine build(builder: @mutable BuildPlan) {
+            builder.product = BuildProduct::Application { name: "packet_app" };
             let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../api" }));
             Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
         }"#,

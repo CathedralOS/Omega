@@ -157,3 +157,25 @@ pub fn scalar_array_leaf_declaration<'types>(
     }
     None
 }
+
+/// Returns the primitive leaf declaration and extent application of a
+/// one-dimensional fixed array whose length is a target-dependent scalar
+/// application.
+pub fn scalar_array_application_leaf<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+) -> Option<(
+    &'types StructuralTypeDeclaration,
+    semantic_vocabulary::ScalarApplicationId,
+)> {
+    let declaration = crate::structural_declaration(types.clone(), root)?;
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Application(application),
+    } = declaration.shape
+    else {
+        return None;
+    };
+    let leaf = crate::structural_declaration(types, element)?;
+    matches!(leaf.shape, StructuralTypeShape::PrimitiveScalar(_)).then_some((leaf, application))
+}

@@ -2,10 +2,12 @@
 
 use main.omg as app;
 use {omega}/build/dependency.omg;
+use {omega}/language/core/process_exit.omg as process;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "vector_sum_bound_too_tight");
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../../../../../../../source/library/system" }));
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "vector_sum_bound_too_tight" };
+    let allowed: [BoundaryServiceReference; 1] = [Build::service::<|process|::ProcessExit>(builder)];
+    _ = |dependency|::add(builder, |dependency|::from_source(Source::Path { location: "../../../../../../../../../../../source/library/system" }), @allowed[..]);
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry_start);

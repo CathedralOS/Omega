@@ -1,4 +1,4 @@
-// Initial `BuildPlan` value construction under its admitted vocabulary and filesystem scope.
+// Initial `BuildPlan` value construction under its admitted vocabulary.
 //
 // Populates the interpreter's starting `BuildPlan` struct with baseline defaults
 // (`x86_deployment_features = Baseline`, `subsystem = Console`),
@@ -6,19 +6,14 @@
 // private facet markers (`$OmegaBuildLogFacet`, `$OmegaBuildDeclarationsFacet`),
 // an enabled `tests` facet, empty `elf_interpreter` rows for each ELF target
 // profile, and filesystem grant roots (`$OmegaBuildSourceRoot`,
-// `$OmegaBuildOutputRoot`, `$OmegaBuildInputSlots`).
+// `$OmegaBuildOutputRoot`).
 
 use super::BuildValueAdmission;
-use crate::build_execution::{
-    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
-};
+use crate::build_execution::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY};
 use build_model::values::BuildTimeValue;
 use filesystem_authority::FilesystemGrantRootIdentity;
 
-pub(super) fn initial_value(
-    admission: &BuildValueAdmission,
-    filesystem_scope: &BuildMachineFilesystemScope,
-) -> BuildTimeValue {
+pub(super) fn initial_value(admission: &BuildValueAdmission) -> BuildTimeValue {
     // Source cannot construct the issued seal in the Build borrowed from the host.
     let mut build_fields = vec![
         (
@@ -110,6 +105,20 @@ pub(super) fn initial_value(
             },
         ));
     }
+    if admission.proof {
+        build_fields.push((
+            "proof".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "ProofWorkPolicy".to_owned(),
+                fields: vec![(
+                    "index_expansion_terms".to_owned(),
+                    BuildTimeValue::Int(
+                        normalized_build_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS as i64,
+                    ),
+                )],
+            },
+        ));
+    }
     if admission.filesystem_roots {
         let root_facet =
             |type_name: &str, root: FilesystemGrantRootIdentity| BuildTimeValue::Struct {
@@ -129,9 +138,6 @@ pub(super) fn initial_value(
                 root_facet("$OmegaBuildOutputRoot", BUILD_OUTPUT_ROOT_IDENTITY),
             ),
         ]);
-    }
-    if admission.inputs {
-        build_fields.push(("inputs".to_owned(), filesystem_scope.named_input_facet()));
     }
     BuildTimeValue::Struct {
         type_name: build_declarations::BUILD_TYPE_NAME.to_owned(),

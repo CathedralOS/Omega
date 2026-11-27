@@ -11,7 +11,7 @@ pub mod boundary_application_settlement {
     use diagnostics::Diagnostic;
 
     pub struct BoundaryApplicationSettlement<'input> {
-        pub selected_provider_plans: &'input selected_provider_plans::SelectedProviderPlanFacts,
+        pub selected_provider_plans: &'input build_providers::selections::SelectedProviderPlanFacts,
         pub selected_provider_provenance:
             Vec<provider_admission::CompilerIntrinsicPlanProvenance<'input>>,
         pub calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
@@ -38,7 +38,7 @@ pub mod boundary_application_settlement {
 
     pub fn settle(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
         provenance: &[provider_admission::CompilerIntrinsicPlanProvenance<'_>],
         calling: &[calling_conventions::BoundaryCallingApplication],
         native_bindings: &native_binding_admission::RetainedNativeBindings,
@@ -206,7 +206,7 @@ pub mod comparison_settlement {
 
     pub fn settle_comparison_occurrences(
         module: &terminal_psi::TerminalModule,
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
         coverage: &TerminalBoundaryApplicationCoverage,
         execution_machines: &[semantic_vocabulary::MachineId],
     ) -> Result<SelectedComparisonOccurrences, Vec<Diagnostic>> {

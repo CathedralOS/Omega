@@ -95,13 +95,13 @@ impl TerminalAuthorityClosureLeafOrigin {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalAuthorityClosureCustody {
     SelectedRequirement {
-        service_schema: provider_plans::ServiceSchemaDigest,
+        service_schema: build_providers::plans::ServiceSchemaDigest,
         requirement_identity: terminal_psi::TerminalIdentityIndex,
         declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
-        provider_plan: provider_plans::ProviderPlanDigest,
+        provider_plan: build_providers::plans::ProviderPlanDigest,
     },
     NativeBinding {
-        service_schema: provider_plans::ServiceSchemaDigest,
+        service_schema: build_providers::plans::ServiceSchemaDigest,
         requirement_identity: terminal_psi::TerminalIdentityIndex,
         declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
         receipt: [u8; 32],
@@ -122,10 +122,10 @@ pub struct TerminalAuthorityClosureLeaf {
 
 impl TerminalAuthorityClosureLeaf {
     pub fn new(
-        service_schema: provider_plans::ServiceSchemaDigest,
+        service_schema: build_providers::plans::ServiceSchemaDigest,
         requirement_identity: terminal_psi::TerminalIdentityIndex,
         declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
-        provider_plan: provider_plans::ProviderPlanDigest,
+        provider_plan: build_providers::plans::ProviderPlanDigest,
         mechanism: TerminalMechanismIdentity,
         origin: TerminalAuthorityClosureLeafOrigin,
         exercised: Option<TerminalAuthorityDisposition>,
@@ -148,7 +148,7 @@ impl TerminalAuthorityClosureLeaf {
     }
 
     pub fn native_binding(
-        service_schema: provider_plans::ServiceSchemaDigest,
+        service_schema: build_providers::plans::ServiceSchemaDigest,
         requirement_identity: terminal_psi::TerminalIdentityIndex,
         declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
         receipt: [u8; 32],
@@ -280,7 +280,7 @@ impl TerminalAuthorityClosureLeaf {
         }
     }
 
-    pub const fn service_schema(&self) -> Option<provider_plans::ServiceSchemaDigest> {
+    pub const fn service_schema(&self) -> Option<build_providers::plans::ServiceSchemaDigest> {
         match self.custody {
             TerminalAuthorityClosureCustody::SelectedRequirement { service_schema, .. }
             | TerminalAuthorityClosureCustody::NativeBinding { service_schema, .. } => {
@@ -290,7 +290,7 @@ impl TerminalAuthorityClosureLeaf {
         }
     }
 
-    pub const fn provider_plan(&self) -> Option<provider_plans::ProviderPlanDigest> {
+    pub const fn provider_plan(&self) -> Option<build_providers::plans::ProviderPlanDigest> {
         match self.custody {
             TerminalAuthorityClosureCustody::SelectedRequirement { provider_plan, .. } => {
                 Some(provider_plan)
@@ -328,7 +328,7 @@ impl TerminalAuthorityClosureLeaf {
 pub struct TerminalAuthorityClosureReviewReceipt {
     terminal_artifact_identity: [u8; 32],
     target: target::NativeTarget,
-    selected_provider_closure: selected_provider_plans::SelectedProviderClosureDigest,
+    selected_provider_closure: build_providers::selections::SelectedProviderClosureDigest,
     physical_policy: TerminalAuthorityPolicyIdentity,
     permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
     leaves: Vec<TerminalAuthorityClosureLeaf>,
@@ -340,7 +340,7 @@ impl TerminalAuthorityClosureReviewReceipt {
     pub fn from_reviewed_leaves(
         terminal_artifact_identity: [u8; 32],
         target: target::NativeTarget,
-        selected_provider_closure: selected_provider_plans::SelectedProviderClosureDigest,
+        selected_provider_closure: build_providers::selections::SelectedProviderClosureDigest,
         physical_policy: TerminalAuthorityPolicyIdentity,
         permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
         mut leaves: Vec<TerminalAuthorityClosureLeaf>,
@@ -404,7 +404,7 @@ impl TerminalAuthorityClosureReviewReceipt {
 
     pub const fn selected_provider_closure(
         &self,
-    ) -> selected_provider_plans::SelectedProviderClosureDigest {
+    ) -> build_providers::selections::SelectedProviderClosureDigest {
         self.selected_provider_closure
     }
 
@@ -539,7 +539,7 @@ fn same_closure_leaf_key(
 fn terminal_authority_closure_review_identity(
     terminal_artifact_identity: [u8; 32],
     target: target::NativeTarget,
-    selected_provider_closure: selected_provider_plans::SelectedProviderClosureDigest,
+    selected_provider_closure: build_providers::selections::SelectedProviderClosureDigest,
     physical_policy: TerminalAuthorityPolicyIdentity,
     permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
     leaves: &[TerminalAuthorityClosureLeaf],
@@ -698,10 +698,10 @@ mod physical_leaf_tests {
         let port_io = TerminalAuthorityDisposition::from_classes([TerminalAuthorityClass::PortIo]);
         let leaf = |exercised, permitted| {
             TerminalAuthorityClosureLeaf::new(
-                provider_plans::ServiceSchemaDigest::from_digest([1; 32]),
+                build_providers::plans::ServiceSchemaDigest::from_digest([1; 32]),
                 requirement,
                 requirement,
-                provider_plans::ProviderPlanDigest::from_digest([2; 32]),
+                build_providers::plans::ProviderPlanDigest::from_digest([2; 32]),
                 CheckedPhysicalTerminalMechanismIdentity::port_write(profile, 0x3f8).into(),
                 TerminalAuthorityClosureLeafOrigin::CheckedPhysical {
                     machine: semantic_vocabulary::MachineId::new(1).unwrap(),
@@ -715,7 +715,7 @@ mod physical_leaf_tests {
             TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
                 [3; 32],
                 profile.native_target(),
-                selected_provider_plans::SelectedProviderPlanFacts::default().identity_digest(),
+                build_providers::selections::SelectedProviderPlanFacts::default().identity_digest(),
                 TerminalAuthorityPolicyIdentity::from_parts(1, [5; 32]),
                 permission,
                 vec![leaf],
@@ -763,8 +763,8 @@ mod physical_leaf_tests {
         let identities = identities.build();
         let machine = semantic_vocabulary::MachineId::new(1).unwrap();
         let operation = semantic_vocabulary::OperationId::new(2).unwrap();
-        let schema = provider_plans::ServiceSchemaDigest::from_digest([1; 32]);
-        let plan = provider_plans::ProviderPlanDigest::from_digest([2; 32]);
+        let schema = build_providers::plans::ServiceSchemaDigest::from_digest([1; 32]);
+        let plan = build_providers::plans::ProviderPlanDigest::from_digest([2; 32]);
         let profile = target::TargetProfile::LinuxX64;
         let leaf = |operation, port| {
             TerminalAuthorityClosureLeaf::new(
@@ -783,7 +783,7 @@ mod physical_leaf_tests {
             TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
                 [3; 32],
                 profile.native_target(),
-                selected_provider_plans::SelectedProviderPlanFacts::default().identity_digest(),
+                build_providers::selections::SelectedProviderPlanFacts::default().identity_digest(),
                 TerminalAuthorityPolicyIdentity::from_parts(1, [5; 32]),
                 None,
                 leaves,

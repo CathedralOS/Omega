@@ -1,7 +1,7 @@
 //! Produce physical settlements for the Build bindings reached by this execution.
 
+use build_providers::plans::EvaluatedNativeBinding;
 use native_binding_admission::CheckedNativeBinding;
-use provider_plans::EvaluatedNativeBinding;
 
 pub(crate) fn settle<'execution>(
     input: &crate::AdmissionSource<'_>,
@@ -113,8 +113,12 @@ pub(crate) fn settle<'execution>(
                     },
                     terminal_authority_receipts::TerminalMechanismIdentity::Table {
                         target: request.profile,
-                        authority: terminal_authority_receipts::TableBindingAuthority::Build(receipt),
-                        calling: provider_plans::BoundaryCallingPlanCommitment::from_digest(entry.contract_commitment_digest()),
+                        authority: terminal_authority_receipts::TableBindingAuthority::Build(
+                            receipt,
+                        ),
+                        calling: build_providers::plans::BoundaryCallingPlanCommitment::from_digest(
+                            entry.contract_commitment_digest(),
+                        ),
                         byte_offset: dispatch.byte_offset,
                         table_operand: dispatch.table_operand,
                         dispatch_only: dispatch.dispatch_only,

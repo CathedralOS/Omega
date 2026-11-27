@@ -23,7 +23,9 @@
 Implementers choose the representation, operations, encoding and reconstruction
 needed for accepted Omega behavior. Human design review takes place when the
 owner requests it. Carry a change through its versioned schema, producers,
-consumers and the program that exercises it. Keep source behavior, trust
+consumers and the program that exercises it. Update the
+[wire encoding page](artifact/wire/encoding.md) in the same change as the bytes
+it describes. Keep source behavior, trust
 guarantees and the boundary between Psi and native compilation intact.
 
 Compiler checking and rejection tests continue at the documented

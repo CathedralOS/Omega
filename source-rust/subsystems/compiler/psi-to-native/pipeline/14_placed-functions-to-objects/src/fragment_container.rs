@@ -15,9 +15,6 @@ use function_layout::{
     RelocationFreeTextSectionPlacementError, validate_optimized_fixed_frame_text_section,
 };
 use machine_code::code_layout::{NativeCodeLayout, NativeCodeLayoutError};
-use optimization_core::{
-    FunctionFragmentTextSectionManifestIdentity, TerminalRelocationFreeTextSectionIdentity,
-};
 use std::sync::Arc;
 
 type BodyPublication = machine_code::layout::EncodedBodyPublication<
@@ -82,15 +79,9 @@ pub fn publish_function_object(
     {
         return Err(RelocationFreeObjectContainerError::ArtifactMismatch);
     }
-    let object = construct_relocation_free_object_from_text(
-        source.text_section(),
-        source.manifest().record().selections,
-    )
-    .map_err(object_error)?;
-    let custody = StagedRelocationFreeObjectContainerCustodyReceipt {
-        source_text_section_manifest: source.manifest().record().identity,
-        text_section: object.source_text_section,
-    };
+    let object =
+        construct_relocation_free_object_from_text(source.text_section(), source.selections())
+            .map_err(object_error)?;
     let target = source.contracts().body.original_for_audit();
     if target.is_some() != frame_application.is_some()
         || target.is_some() != source.contracts().original_encoding().is_some()
@@ -106,7 +97,6 @@ pub fn publish_function_object(
         text: source.shared_text_section(),
         native_layouts: source.shared_native_code_layouts(),
         body: Arc::clone(source.placed_body()),
-        custody,
     };
     let sections = Arc::new(
         crate::FunctionObjectSections::assemble(&publication)
@@ -161,14 +151,10 @@ pub fn validate_optimized_relocation_free_object_container(
         .map_err(RelocationFreeObjectContainerError::Source)?;
     validate_relocation_free_object_from_text(
         staged.source.text_section(),
-        staged.source.manifest().record().selections,
+        staged.source.selections(),
         staged.object(),
     )
-    .map_err(object_error)?;
-    if staged.custody().text_section != staged.object().source_text_section {
-        return Err(RelocationFreeObjectContainerError::ReceiptMismatch);
-    }
-    Ok(())
+    .map_err(object_error)
 }
 
 fn object_error(error: RelocationFreeObjectFromTextError) -> RelocationFreeObjectContainerError {
@@ -214,8 +200,8 @@ impl StagedOptimizedRelocationFreeObjectContainer {
         self.source.contracts().original_encoding()
     }
 
-    /// Share the placed code, object relocations, body evidence and custody
-    /// receipt that image construction consumes.
+    /// Share the placed code, object relocations and body evidence that image
+    /// construction consumes.
     pub fn publication(&self) -> ObjectPublication {
         self.publication.clone()
     }
@@ -242,8 +228,7 @@ impl StagedOptimizedRelocationFreeObjectContainer {
             || self.publication.contracts.needs_installed_branch_checks()
                 != placed.placed_body().has_installed_branch_checks()
             || self.publication.contracts != placed.contracts().body.facts
-            || self.publication.custody.source_text_section_manifest
-                != placed.manifest().record().identity
+            || self.publication.text != placed.shared_text_section()
         {
             return Err(RelocationFreeObjectContainerError::PublicationMismatch);
         }
@@ -262,12 +247,12 @@ impl StagedOptimizedRelocationFreeObjectContainer {
         self.publication.object()
     }
 
-    pub const fn custody(&self) -> StagedRelocationFreeObjectContainerCustodyReceipt {
-        self.publication.custody
-    }
-
     pub fn emission_facts(&self) -> &physical_program::EmissionFacts {
         &self.publication.contracts.facts
+    }
+
+    pub fn same_text(&self, other: &Self) -> bool {
+        self.publication.same_text(&other.publication)
     }
 }
 
@@ -281,7 +266,6 @@ pub struct ObjectPublication {
     text: Arc<machine_code::RelocationFreeTextSectionPlacement>,
     native_layouts: Result<Arc<[NativeCodeLayout]>, NativeCodeLayoutError>,
     body: Arc<function_layout::PlacedBodyEvidence>,
-    custody: StagedRelocationFreeObjectContainerCustodyReceipt,
 }
 
 impl ObjectPublication {
@@ -316,24 +300,10 @@ impl ObjectPublication {
     pub fn text(&self) -> &machine_code::RelocationFreeTextSectionPlacement {
         &self.text
     }
-    pub fn custody(&self) -> StagedRelocationFreeObjectContainerCustodyReceipt {
-        self.custody
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedRelocationFreeObjectContainerCustodyReceipt {
-    source_text_section_manifest: FunctionFragmentTextSectionManifestIdentity,
-    text_section: TerminalRelocationFreeTextSectionIdentity,
-}
-
-impl StagedRelocationFreeObjectContainerCustodyReceipt {
-    pub const fn source_text_section_manifest(self) -> FunctionFragmentTextSectionManifestIdentity {
-        self.source_text_section_manifest
-    }
-
-    pub const fn text_section(self) -> TerminalRelocationFreeTextSectionIdentity {
-        self.text_section
+    /// Two publications place the same code when their placed text sections
+    /// are equal. Clones of one publication share the text and compare by address.
+    pub fn same_text(&self, other: &Self) -> bool {
+        self.text == other.text
     }
 }
 
@@ -346,7 +316,6 @@ pub enum RelocationFreeObjectContainerError {
     LengthOverflow,
     MissingSemanticEntry,
     ArtifactMismatch,
-    ReceiptMismatch,
 }
 
 impl std::fmt::Display for RelocationFreeObjectContainerError {

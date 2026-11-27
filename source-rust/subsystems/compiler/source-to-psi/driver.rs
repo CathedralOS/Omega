@@ -7,6 +7,7 @@
 pub(crate) mod compile_build;
 pub mod compile_product;
 pub mod compile_time_invocations;
+pub(crate) mod declaration_usage;
 pub(crate) mod judge_lowered_source;
 pub(crate) mod package_handoff;
 pub(crate) mod parse_source_batch;
@@ -29,12 +30,16 @@ pub(crate) fn publish_stage(
     source: StageSource<'_>,
     entry: ProductEntry<'_>,
     advisories: Option<&mut Vec<Diagnostic>>,
+    declaration_usage: Option<&mut crate::DeclarationUsageAdvisories>,
     accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
     timings: &mut CompileTimings,
 ) -> Result<(PublishedPsi, CompletedProductSource), Vec<Diagnostic>> {
     let (product, continuation) = source.resolve(timings)?;
     let checked = product.judge(continuation, entry, accounting, timings)?;
     let psi = product.publish(&checked, timings)?;
+    if let Some(declaration_usage) = declaration_usage {
+        declaration_usage.extend(&checked.declaration_usage);
+    }
     if let Some(advisories) = advisories {
         // The checker searches for its advisories only when they are read,
         // so their cost is recorded here rather than in Psi 06.

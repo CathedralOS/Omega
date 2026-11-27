@@ -9,7 +9,7 @@ use provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal;
 pub struct TerminalNativeProviders {
     pub direct_boundary_leaves: Vec<direct_boundary_bindings::DirectBoundaryLeaf>,
     pub native_bindings: native_binding_admission::RetainedNativeBindings,
-    pub selection: std::sync::Arc<selected_provider_plans::SelectedProviderPlanFacts>,
+    pub selection: std::sync::Arc<build_providers::selections::SelectedProviderPlanFacts>,
     pub checked_adapters: target_bound_program::SelectedProviderAdapters,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     pub intrinsic_executions:
@@ -48,7 +48,7 @@ pub struct TerminalNativeRealizationProposal {
     occurrences: TerminalNativeOccurrences,
     boundary_applications: TerminalNativeBoundaryApplications,
     package_terminal_authority_permissions:
-        Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
+        Vec<build_providers::acceptance::ServiceTerminalAuthorityPermission>,
     package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     behavior_exclusions: native_behavior_exclusions::BehaviorExclusions,
     target_provider: target_provider_admission::TerminalTargetProviderProposal,
@@ -98,7 +98,7 @@ impl TerminalNativeRealizationProposal {
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         scope: &crate::NativeExecutionScope,
-        selection: &selected_provider_plans::SelectedProviderPlanFacts,
+        selection: &build_providers::selections::SelectedProviderPlanFacts,
         provenance: &[provider_correspondence::CompilerIntrinsicPlanProvenance<'_>],
     ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
         let coverage = crate::settlement::boundary_application_settlement::settle(
@@ -139,7 +139,7 @@ impl TerminalNativeRealizationProposal {
 
     pub fn package_terminal_authority_permissions(
         &self,
-    ) -> &[provider_acceptance::ServiceTerminalAuthorityPermission] {
+    ) -> &[build_providers::acceptance::ServiceTerminalAuthorityPermission] {
         &self.package_terminal_authority_permissions
     }
 
@@ -185,7 +185,7 @@ mod proposal {
         pub behavior_exclusions:
             &'input [build_model::behavior_exclusions::AuthoredBehaviorExclusion],
         pub package_terminal_authority_permissions:
-            Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
+            Vec<build_providers::acceptance::ServiceTerminalAuthorityPermission>,
         pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
         pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     }
@@ -464,7 +464,7 @@ mod proposal {
     fn project_callback_occurrences(
         callback_placements: &[provider_correspondence::callbacks::NativeCallbackPlacement],
         artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
         checked_adapters: &[crate::SelectedProviderAdapter],
     ) -> Result<Vec<crate::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
         let caller = artifact.view();
@@ -526,7 +526,7 @@ mod proposal {
                 }
                 continue;
             };
-            if let provider_plans::ProviderBinding::CheckedAdapter {
+            if let build_providers::plans::ProviderBinding::CheckedAdapter {
                 machine_identity, ..
             } = &row.binding
             {

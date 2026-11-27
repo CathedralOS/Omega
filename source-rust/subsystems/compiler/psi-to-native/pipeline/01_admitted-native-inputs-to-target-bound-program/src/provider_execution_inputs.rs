@@ -216,17 +216,17 @@ pub(crate) fn plan_inputs_and_review(
             ));
         }
         let binding = match &evaluated {
-            provider_plans::EvaluatedNativeBinding::FunctionField(field) => {
+            build_providers::plans::EvaluatedNativeBinding::FunctionField(field) => {
                 calling_conventions::ExternalBindingKind::FunctionField(
                     native_binding_admission::resolve_function_field(module, boundary, field).map_err(refuse)?
                 )
             }
-            provider_plans::EvaluatedNativeBinding::Import(import) => {
+            build_providers::plans::EvaluatedNativeBinding::Import(import) => {
                 calling_conventions::ExternalBindingKind::Import {
                     locator: import.locator().clone(),
                 }
             }
-            provider_plans::EvaluatedNativeBinding::Syscall(syscall) => {
+            build_providers::plans::EvaluatedNativeBinding::Syscall(syscall) => {
                 calling_conventions::ExternalBindingKind::Syscall {
                     number: syscall.number(),
                 }
@@ -268,7 +268,7 @@ pub(crate) fn plan_inputs_and_review(
         })?;
         for row in &leaf.plan.rows {
             let requirement = leaf.plan.identities.text(row.declared_requirement_identity);
-            let permission = provider_acceptance::ServiceTerminalAuthorityPermission::new(
+            let permission = build_providers::acceptance::ServiceTerminalAuthorityPermission::new(
                 leaf.plan.schema_identity_digest(),
                 identities.intern(requirement),
                 permitted.clone(),
@@ -293,11 +293,11 @@ pub(crate) fn plan_inputs_and_review(
 }
 
 fn package_authority_permissions(
-    bindings: &[provider_acceptance::AcceptedSemanticBinding],
+    bindings: &[build_providers::acceptance::AcceptedSemanticBinding],
 ) -> Result<
     (
         terminal_psi::TerminalIdentityTable,
-        Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
+        Vec<build_providers::acceptance::ServiceTerminalAuthorityPermission>,
     ),
     String,
 > {

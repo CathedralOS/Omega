@@ -33,9 +33,11 @@ equation cannot supply its own missing condition. A part with a partial term
 that has no canonical condition is not proposed at all.
 
 Which machines get one is elaboration's decision (`Elaboration::local_results`):
-private machines of the subject package, which no other verification unit can
-call. A public machine, a dependency, a requirement, a selected implementation
-and a Build selection keep their written contract. The private machines nested
+private machines whose bodies the compilation reads, in the subject package or
+in a dependency. Only a machine's own package can call it, so no other
+verification unit can, and importing a package does not change which calls are
+inside its unit. A public machine, a requirement, a selected implementation and
+a Build selection keep their written contract. The private machines nested
 in a selected implementation are summarized in its conformance witness, where
 the implementation's calls to them are exact checked calls.
 
@@ -430,7 +432,6 @@ fn summarize(
     let mut scratch = original.clone();
     let (prepared, beyond) = crate::with_prepared_machine(
         scope.formed(),
-        &elaboration.domains,
         id,
         &mut scratch,
         inhabitation,

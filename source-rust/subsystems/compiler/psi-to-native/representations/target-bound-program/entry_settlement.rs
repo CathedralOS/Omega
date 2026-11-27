@@ -9,12 +9,12 @@
 */
 mod calling_plans {
     use super::model::ValidatedNativeProgramEntryCallingPlans;
+    use build_providers::plans::{ServiceMethod, ServiceSchema};
     use calling_conventions::ValidatedBoundaryEntryPlan;
     use calling_conventions::{
         BoundaryCallingApplication, BoundarySignatureGeometry, BoundaryValueClass,
     };
     use program_entry_contracts::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
-    use provider_plans::{ServiceMethod, ServiceSchema};
 
     pub(crate) fn validate_paired_calling_plans(
         source: &SelectedProgramEntrySignature,
@@ -424,7 +424,7 @@ mod model {
         pub fn bind_physical_adapter(
             &mut self,
             artifact: &terminal_codec::CanonicalTerminalArtifact,
-            providers: &selected_provider_plans::SelectedProviderPlanFacts,
+            providers: &build_providers::selections::SelectedProviderPlanFacts,
             adapters: &crate::SelectedProviderAdapters,
         ) -> Result<(), String> {
             if artifact.manifest().identity() != self.artifact {
@@ -541,7 +541,7 @@ mod physical_adapter {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct PhysicalProgramEntry {
-        pub(crate) provider_selection: selected_provider_plans::SelectedProviderClosureDigest,
+        pub(crate) provider_selection: build_providers::selections::SelectedProviderClosureDigest,
         artifact: terminal_codec::TerminalArtifactIdentity,
         checked_entry: CheckedProgramEntryTerminalReceipt,
         calling_application: [u8; 32],
@@ -577,7 +577,7 @@ mod physical_adapter {
         pub(super) fn bind(
             artifact: &terminal_codec::CanonicalTerminalArtifact,
             entry: &ValidatedNativeProgramEntrySettlement,
-            providers: &selected_provider_plans::SelectedProviderPlanFacts,
+            providers: &build_providers::selections::SelectedProviderPlanFacts,
             adapters: &crate::SelectedProviderAdapters,
         ) -> Result<Self, String> {
             let module = artifact.semantic_module();
@@ -692,8 +692,8 @@ mod physical_adapter {
 mod semantic_call {
     use super::ValidatedNativeProgramEntrySettlement;
     use crate::SelectedProgramEntryCall;
+    use build_providers::plans::ProviderBinding;
     use native_intrinsics::CompilerIntrinsicExecutionIdentity;
-    use provider_plans::ProviderBinding;
 
     /// Settles the `ProgramEntry` call native admission selected for
     /// `artifact`, or `None` when no selected provider row carries the
@@ -701,7 +701,7 @@ mod semantic_call {
     pub fn bind_selected_program_entry_call(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         entry: &ValidatedNativeProgramEntrySettlement,
-        selection: &selected_provider_plans::SelectedProviderPlanFacts,
+        selection: &build_providers::selections::SelectedProviderPlanFacts,
         intrinsic_executions: &[Vec<Option<CompilerIntrinsicExecutionIdentity>>],
     ) -> Result<Option<SelectedProgramEntryCall>, String> {
         let plans = selection.plans();

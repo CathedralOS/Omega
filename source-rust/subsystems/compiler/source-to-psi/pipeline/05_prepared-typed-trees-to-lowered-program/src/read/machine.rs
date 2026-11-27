@@ -315,10 +315,13 @@ impl<'t> Program<'t> {
 
     /// Prepare the bodies whose checked outcomes are available to this source
     /// unit. Public visibility does not move an exact local call across the
-    /// unit boundary (state_contracts.md, "Local call summaries"). Dependencies,
-    /// abstract requirements and selected implementations still retain their
-    /// separately checked interface contracts. A private applied body can
-    /// supply a result summary after its own returns have been checked.
+    /// unit boundary (state_contracts.md, "Local call summaries"). A
+    /// dependency's public machines, abstract requirements and selected
+    /// implementations still retain their separately checked interface
+    /// contracts; a dependency's private helpers keep the summaries their own
+    /// package's callers see when that package is checked as the subject. A
+    /// private applied body can supply a result summary after its own returns
+    /// have been checked.
     ///
     /// Scalar result inference currently adds ordinary contract clauses, so
     /// its roster remains private-only: stronger local facts must not silently
@@ -383,12 +386,23 @@ impl<'t> Program<'t> {
                 .map_err(|reason| refuse_at(id, Unserved::Declaration(reason)))?,
                 _ => complete,
             };
-            if !local_subject {
-                continue;
-            }
             let Some(machine) = self.typed.machine_by_symbol(symbol) else {
                 continue;
             };
+            // A dependency's private helper can be called only from its own
+            // package, so each of those calls is an exact checked call inside
+            // the dependency's verification unit. Importing the package must
+            // not change that membership: the app that reaches `codes` sees
+            // the same summary of its private `read` as `omega --check` on
+            // the package root does. The helper's body is read and checked in
+            // this compilation, so its summary is still proved, not trusted.
+            let dependency_helper = !local_subject
+                && !machine.is_public
+                && machine.body_is_present
+                && machine.body_status == MachineBodyStatus::Complete;
+            if !local_subject && !dependency_helper {
+                continue;
+            }
             // Application copies are private symbols even when their source
             // declaration is public or belongs to an implementation.
             let template = crate::template_of(self.typed, symbol);
@@ -417,6 +431,7 @@ impl<'t> Program<'t> {
                 // call summaries"). The implementation itself keeps its
                 // requirement's contract, excluded above.
                 let witness_subject = complete
+                    || dependency_helper
                     || matches!(
                         self.local_summary_scope,
                         Some(super::LocalSummaryScope::Witness(_))
@@ -580,6 +595,19 @@ impl<'t> Program<'t> {
         }
         let diagnostic = self.next_identity()?;
         let (declared, entry) = self.declaration(diagnostic, symbol)?;
+        // A body that calls a generic mathematical machine at concrete
+        // machines names a closed copy of it. Such a copy would be a second
+        // proof of a law the generic machine proves once, and its contract
+        // is not read; only a clause or a generic machine's citation passes
+        // machines to it (`read::templates`).
+        if self.mathematical && self.generic_mathematical_origin(declared.symbol).is_some() {
+            return Err(refuse_at(
+                diagnostic,
+                Unserved::Machine(
+                    "body that calls a generic mathematical machine at concrete machines",
+                ),
+            ));
+        }
         if self.returns_float_meaning(entry.return_type) {
             return Err(refuse_at(
                 diagnostic,
@@ -734,6 +762,10 @@ impl<'t> Program<'t> {
             if own_witness {
                 self.implementation_body = Some(id);
             }
+            Ok(id)
+        } else if self.rigid && matches!(reading, Reading::Implementation) {
+            let id = self.read_machine(id, symbol, reading)?;
+            self.implementation_body = Some(id);
             Ok(id)
         } else {
             self.machine(symbol)
@@ -1122,6 +1154,7 @@ impl<'t> Program<'t> {
             .is_some_and(|owner| {
                 !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty()
             })
+            || (!self.rigid && !declared.type_parameters.is_empty())
         {
             // A body a reference row selects (`Render::paint = red;`) owns
             // no map, so the requirement it refines is the one the selecting
@@ -5121,7 +5154,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         out.push((span, binder.clone()));
     }
     match &expression.kind {
-        ExpressionKind::TheoremApplication { arguments, .. } => {
+        ExpressionKind::TheoremApplication { arguments, .. }
+        | ExpressionKind::Applied { arguments, .. } => {
             for argument in arguments {
                 spans(argument, binder, out);
             }

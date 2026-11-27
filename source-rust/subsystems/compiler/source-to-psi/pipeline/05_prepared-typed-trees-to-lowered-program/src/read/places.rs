@@ -434,10 +434,13 @@ impl Program<'_> {
         // reserved before the members are read, so the field that names the
         // declaration resolves to it.
         let reserved = if self.mathematical && self.contains_itself(data) {
-            if application
-                .as_ref()
-                .is_some_and(|application| !application.substitutions.is_empty())
-                || !data.type_parameters.is_empty()
+            // An application of generic data (`Seq<u64>`) is the generic
+            // declaration at its type arguments: the signature declares the
+            // template once and this application in terms of it
+            // (`signature::generic_data`). Only type arguments are read so.
+            if application.as_ref().is_some_and(|application| {
+                !application.substitutions.is_empty() && !self.type_arguments_only(data)
+            }) || !data.type_parameters.is_empty()
                 || !data.requires_facts.is_empty()
                 || data.cleanup_selection.is_some()
                 || data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque

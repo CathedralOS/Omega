@@ -2,7 +2,7 @@
 //! Start with `TokenStream`; its lexemes, spelling views and file batches follow below.
 
 pub use source_text::Span;
-pub use sources::{LexedSource, LexedSources};
+pub use sources::LexedSource;
 pub use token::Token;
 pub use token_kind::{
     CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase,
@@ -110,21 +110,40 @@ impl<'source> TokenStream<'source> {
     }
 
     pub fn push_decoded(&mut self, span: Span, decode: impl FnOnce(&mut Vec<u8>)) {
+        let Ok(()) = self.try_push_decoded::<std::convert::Infallible>(|bytes| {
+            decode(bytes);
+            Ok(span)
+        });
+    }
+
+    /// Appends decoded string-literal bytes in one pass, rolling back on error.
+    pub fn try_push_decoded<E>(
+        &mut self,
+        decode: impl FnOnce(&mut Vec<u8>) -> Result<Span, E>,
+    ) -> Result<(), E> {
         let bytes = Arc::make_mut(
             self.decoded_bytes
                 .get_or_insert_with(|| Arc::new(Vec::new())),
         );
         let start = bytes.len();
-        decode(bytes);
-        let decoded = self.decoded_ranges.append(DecodedRange {
-            start,
-            end: bytes.len(),
-        });
-        self.tokens.push(Token {
-            kind: TokenKind::StringLiteral,
-            span,
-            decoded,
-        });
+        match decode(bytes) {
+            Ok(span) => {
+                let decoded = self.decoded_ranges.append(DecodedRange {
+                    start,
+                    end: bytes.len(),
+                });
+                self.tokens.push(Token {
+                    kind: TokenKind::StringLiteral,
+                    span,
+                    decoded,
+                });
+                Ok(())
+            }
+            Err(error) => {
+                bytes.truncate(start);
+                Err(error)
+            }
+        }
     }
 
     pub fn retain_source(self, source: Arc<str>) -> TokenStream<'static> {

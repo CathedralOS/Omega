@@ -655,7 +655,9 @@ fn a_tail_cycle_cannot_discard_a_supplied_theorem() {
     else {
         panic!("the test starts from a declared call");
     };
-    proof_arguments.push(terminal_psi::TheoremSource::Formal(0));
+    proof_arguments.push(crate::body::ProofSupply::plain(
+        terminal_psi::TheoremSource::Formal(0),
+    ));
     let body = Body {
         slots: Vec::new(),
         statements: vec![Statement::Arm {

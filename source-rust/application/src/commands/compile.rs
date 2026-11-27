@@ -241,6 +241,7 @@ fn compile_targets(
     };
     let mut failures = Vec::new();
     let mut file_imports = project_build::FileImportAdvisories::default();
+    let mut declaration_usage = project_build::DeclarationUsageAdvisories::default();
     for (root, plans) in subjects {
         if arguments.check_only {
             writeln!(report, "validation subject: {}", root.display()).unwrap();
@@ -253,12 +254,22 @@ fn compile_targets(
             for profile in &active {
                 if let Ok(planned) = plans.select(*profile) {
                     planned.collect_file_imports(&mut file_imports);
+                    planned.collect_declaration_usage(&mut declaration_usage);
                 }
             }
         }
-        failures.extend(compile_subject(&arguments, report, plans, &batch)?);
+        failures.extend(compile_subject(
+            &arguments,
+            report,
+            plans,
+            &batch,
+            &mut declaration_usage,
+        )?);
     }
     crate::commands::report_unused_imports(&file_imports);
+    if failures.is_empty() {
+        crate::commands::report_unused_declarations(&declaration_usage);
+    }
     timeline.borrow_mut().record("teardown", || {
         drop(leases);
         drop(scratch);
@@ -285,6 +296,7 @@ fn compile_subject(
     report: &mut String,
     plans: Option<OpenedProduct>,
     targets: &CompilationTargets<'_>,
+    declaration_usage: &mut project_build::DeclarationUsageAdvisories,
 ) -> Result<Vec<CompilerRequestOutcome>, Vec<Diagnostic>> {
     let CompilationTargets {
         profiles,
@@ -378,9 +390,14 @@ fn compile_subject(
         };
         let result = target.and_then(|target| {
             let planned = target.planned;
-            let mut result =
-                compile_target(arguments, target, &|| settle_rechecks(profile), timeline)
-                    .map_err(|error| attribute_error(planned, error))?;
+            let mut result = compile_target(
+                arguments,
+                target,
+                &|| settle_rechecks(profile),
+                timeline,
+                declaration_usage,
+            )
+            .map_err(|error| attribute_error(planned, error))?;
             if let Some(candidate) = result.portable.take() {
                 portable.push(candidate);
             }
@@ -552,6 +569,7 @@ fn compile_target(
     target: PreparedTarget<'_>,
     settle_rechecks: &dyn Fn() -> Result<(), NativeValidationError>,
     timeline: &RefCell<Timeline>,
+    declaration_usage: &mut project_build::DeclarationUsageAdvisories,
 ) -> Result<TargetReport, NativeValidationError> {
     let PreparedTarget {
         planned,
@@ -600,6 +618,7 @@ fn compile_target(
             CompileRequest::Psi(stage.source()),
             compiler::CompileOptions {
                 advisories: Some(&mut advisories),
+                declaration_usage: Some(declaration_usage),
                 ..Default::default()
             },
         )?
@@ -636,9 +655,9 @@ fn compile_target(
         } else {
             CompileTimings::default()
         };
-        let checked = timeline
-            .borrow_mut()
-            .record("product_check", || stage.check(profile, &mut timings));
+        let checked = timeline.borrow_mut().record("product_check", || {
+            stage.check_with_declaration_usage(profile, Some(declaration_usage), &mut timings)
+        });
         if arguments.timings {
             print_phases(&format!("Product ({})", profile.target_name()), &timings);
         }
@@ -666,6 +685,7 @@ fn compile_target(
             compiler::CompileOptions {
                 validators: Some(&arguments.stage_validators),
                 advisories: Some(&mut advisories),
+                declaration_usage: Some(declaration_usage),
             },
         )?;
         rows = compiled.validations;

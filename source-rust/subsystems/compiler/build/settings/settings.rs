@@ -45,6 +45,7 @@ pub fn extract(
                 | "x86_deployment_features"
                 | "elf_interpreter"
                 | "tests"
+                | "proof"
         ) {
             continue;
         }

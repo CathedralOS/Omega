@@ -694,7 +694,8 @@ fn exceeded_reach(
                 crate::ceilings::Permission::Entry(
                     terminal_psi::TerminalCallableInvocation::Service(service),
                 ) => module
-                    .interfaces.services
+                    .interfaces
+                    .services
                     .iter()
                     .find(|declaration| declaration.id == *service)
                     .and_then(|declaration| module.identities.text(declaration.identity))
@@ -925,7 +926,7 @@ pub(super) fn judge_owing_with_activity(
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<RouteVerdict> {
     let mut further = Vec::new();
-    match examine(elaborated, &[], &[], activity, &mut further) {
+    match examine(elaborated, &[], &[], None, activity, &mut further) {
         Ok(examined) => conclude(examined, applied, true, &mut further),
         Err(decided) => decided,
     }
@@ -954,6 +955,7 @@ fn examine(
     elaborated: Checked<Elaboration>,
     carried: &[crate::Carried<'_>],
     laws: &[crate::laws::LawJudgment],
+    identities: Option<&terminal_check_tables::mathematics::IdentityTable>,
     activity: &mut crate::ProofSearchActivity,
     further: &mut Vec<Refusal>,
 ) -> Result<Examined, Checked<RouteVerdict>> {
@@ -999,7 +1001,7 @@ fn examine(
     crate::nominal_calls::validate(&elaboration).map_err(fall_back_or_defect)?;
     crate::static_reach::validate(&elaboration).map_err(fall_back_or_defect)?;
     crate::owned_cleanup::materialize(&mut elaboration).map_err(fall_back_or_defect)?;
-    let prepared = match crate::prepare_discharge(&mut elaboration, laws, activity) {
+    let prepared = match crate::prepare_discharge(&mut elaboration, laws, identities, activity) {
         Ok(prepared) => prepared,
         Err(refused) => {
             let summaries =
@@ -1019,7 +1021,6 @@ fn examine(
     let finished = crate::finish_discharge(
         crate::ElaborationView {
             module: &elaboration.module,
-            domains: &elaboration.domains,
             sources: &elaboration.sources,
             requirements: &elaboration.requirements,
             nominal_calls: &elaboration.nominal_calls,
@@ -1273,6 +1274,10 @@ fn affine_refusal(machine: MachineId, error: terminal_semantics::plain_affine::E
             RefusalReason::Violation,
             terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
         ),
+        terminal_semantics::plain_affine::Error::MissingActiveCase { .. } => (
+            RefusalReason::Unsupported,
+            terminal_semantics::plain_affine::Error::missing_active_case_message(),
+        ),
         terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
             (RefusalReason::Unsupported, detail)
         }
@@ -1358,11 +1363,23 @@ fn conclude(
             // equality identifies the exact claim to underline on that path.
             let claim_site = match row.kind {
                 ObligationKind::NormalGuarantee { clause, .. }
-                    if elaboration.module.machine(machine)
+                    if elaboration
+                        .module
+                        .machine(machine)
                         .and_then(|body| body.ensures.get(clause as usize))
-                        .is_some_and(|row| matches!(row.proposition, semantic_vocabulary::Proposition::DeclarationIdentity(_))) => {
-                    elaboration.names.get(machine).and_then(|names| names.ensures.get(clause as usize))
-                        .and_then(|text| text.source).map(SourceOrigin::Authored)
+                        .is_some_and(|row| {
+                            matches!(
+                                row.proposition,
+                                semantic_vocabulary::Proposition::DeclarationIdentity(_)
+                            )
+                        }) =>
+                {
+                    elaboration
+                        .names
+                        .get(machine)
+                        .and_then(|names| names.ensures.get(clause as usize))
+                        .and_then(|text| text.source)
+                        .map(SourceOrigin::Authored)
                 }
                 _ => None,
             };
@@ -1583,6 +1600,40 @@ fn conclude(
             pending.push(owner);
         }
     }
+    let mut array_extent_conditions = Vec::new();
+    for machine in &elaboration.module.machines {
+        let machine_conditions =
+            match terminal_semantics::array_extent_literal_conditions(&elaboration.module, machine)
+            {
+                Ok(conditions) => conditions,
+                Err(detail) => {
+                    return fall_back_or_defect(refusal(
+                        RefusalReason::ForeignIdentity,
+                        machine.id,
+                        Construct::Machine,
+                        detail,
+                    ));
+                }
+            };
+        for condition in machine_conditions {
+            let terminal_psi::ScalarConditionSubject::Declaration(owner) = condition.subject else {
+                return fall_back_or_defect(refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine.id,
+                    Construct::Machine,
+                    "array extent literal condition lost its declaration owner",
+                ));
+            };
+            array_extent_conditions.push((owner, condition));
+        }
+    }
+    let applications = &mut elaboration.module.scalars.scalar_applications;
+    for (owner, condition) in array_extent_conditions {
+        if !applications.conditions.predicates().contains(&condition) {
+            applications.conditions.insert_predicate(condition);
+        }
+        pending.push(owner);
+    }
     pending.sort_unstable();
     pending.dedup();
     applications
@@ -1615,11 +1666,8 @@ fn conclude(
         })?;
     if elaboration.module.identities.invocation_scope().is_some() {
         let inferred = std::mem::take(&mut discharged.inferred_results);
-        let results = crate::result_summaries::checked_results(
-            inferred,
-            &elaboration,
-            &discharged,
-        )?;
+        let results =
+            crate::result_summaries::checked_results(inferred, &elaboration, &discharged)?;
         elaboration
             .module
             .identities
@@ -1667,15 +1715,38 @@ pub enum CompilationRefusal {
 /// Judges the complete prepared Terminal compilation without consulting typed
 /// source or invoking a preceding stage. Forms are discharged before reuse by
 /// their concrete instances; every demanded conformance still gets a verdict.
+#[cfg(any(test, feature = "test-support"))]
 pub fn judge_compilation(
     input: terminal_check_tables::compilation::TerminalCompilation,
 ) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
-    judge_compilation_with_activity(input, &mut crate::ProofSearchActivity::default())
+    judge_compilation_with_policy(input, crate::ProofWorkPolicy::default())
 }
 
+/// Judges the complete prepared Terminal compilation under the admitted
+/// root Build proof-work policy.
+pub fn judge_compilation_with_policy(
+    input: terminal_check_tables::compilation::TerminalCompilation,
+    policy: crate::ProofWorkPolicy,
+) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
+    judge_compilation_with_activity_and_policy(
+        input,
+        &mut crate::ProofSearchActivity::default(),
+        policy,
+    )
+}
+
+#[cfg(test)]
 pub(crate) fn judge_compilation_with_activity(
     input: terminal_check_tables::compilation::TerminalCompilation,
     activity: &mut crate::ProofSearchActivity,
+) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
+    judge_compilation_with_activity_and_policy(input, activity, crate::ProofWorkPolicy::default())
+}
+
+fn judge_compilation_with_activity_and_policy(
+    input: terminal_check_tables::compilation::TerminalCompilation,
+    activity: &mut crate::ProofSearchActivity,
+    policy: crate::ProofWorkPolicy,
 ) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
     use terminal_check_tables::compilation::TerminalCompilation;
     let prepared = match input {
@@ -1692,8 +1763,10 @@ pub(crate) fn judge_compilation_with_activity(
     }
 
     // Judge the compilation-wide laws before checking machines that cite them.
-    let mathematics = prepared.mathematics;
-    let signature = (!mathematics.is_empty()).then(|| crate::laws::judge(mathematics));
+    let mut mathematics = prepared.mathematics;
+    let identities = std::mem::take(&mut mathematics.identities);
+    let signature =
+        (!mathematics.is_empty()).then(|| crate::laws::judge_with_policy(mathematics, policy));
     let laws = signature
         .as_ref()
         .map_or(&[][..], |judged| judged.theorems.as_slice());
@@ -1702,6 +1775,7 @@ pub(crate) fn judge_compilation_with_activity(
         prepared.forms,
         prepared.witnesses,
         laws,
+        &identities,
         activity,
         &mut further,
     );
@@ -1717,13 +1791,7 @@ pub(crate) fn judge_compilation_with_activity(
                 &examined_witnesses,
             );
             let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
-            match examine(
-                Ok(closure),
-                &carried,
-                laws,
-                activity,
-                &mut further,
-            ) {
+            match examine(Ok(closure), &carried, laws, None, activity, &mut further) {
                 Ok(examined) => conclude(examined, AppliedContracts::Undecided, true, &mut further),
                 Err(decided) => decided,
             }
@@ -1806,12 +1874,13 @@ fn examine_forms_and_witnesses(
     forms: Vec<terminal_check_tables::compilation::GenericForms>,
     witnesses: Vec<Checked<Elaboration>>,
     laws: &[crate::laws::LawJudgment],
+    identities: &[terminal_check_tables::mathematics::IdentityTable],
     activity: &mut crate::ProofSearchActivity,
     further: &mut Vec<Refusal>,
 ) -> (Vec<GenericForm>, Vec<WitnessExamination>) {
     let (forms, examined) =
         if worker_budget::current_workers() == 1 || forms.is_empty() || witnesses.is_empty() {
-            let forms = examine_generic_forms(forms, laws, activity, further);
+            let forms = examine_generic_forms(forms, laws, identities, activity, further);
             let examined = examine_witnesses(witnesses, laws, activity);
             (forms, examined)
         } else {
@@ -1819,7 +1888,15 @@ fn examine_forms_and_witnesses(
             let mut forms_activity = crate::ProofSearchActivity::default();
             let mut witness_activity = crate::ProofSearchActivity::default();
             let (forms, examined) = rayon::join(
-                || examine_generic_forms(forms, laws, &mut forms_activity, &mut forms_further),
+                || {
+                    examine_generic_forms(
+                        forms,
+                        laws,
+                        identities,
+                        &mut forms_activity,
+                        &mut forms_further,
+                    )
+                },
                 || examine_witnesses(witnesses, laws, &mut witness_activity),
             );
             further.extend(forms_further);
@@ -1922,7 +1999,7 @@ fn examine_witnesses(
             .into_iter()
             .map(|witness| {
                 let mut further = Vec::new();
-                let examined = examine(witness, &[], laws, activity, &mut further);
+                let examined = examine(witness, &[], laws, None, activity, &mut further);
                 (examined, further)
             })
             .collect();
@@ -1934,7 +2011,7 @@ fn examine_witnesses(
         .map(|witness| {
             let mut local_activity = crate::ProofSearchActivity::default();
             let mut further = Vec::new();
-            let examined = examine(witness, &[], laws, &mut local_activity, &mut further);
+            let examined = examine(witness, &[], laws, None, &mut local_activity, &mut further);
             ((examined, further), local_activity)
         })
         .collect();
@@ -2178,12 +2255,13 @@ fn carried<'a>(
 fn examine_generic_forms(
     forms: Vec<terminal_check_tables::compilation::GenericForms>,
     laws: &[crate::laws::LawJudgment],
+    identities: &[terminal_check_tables::mathematics::IdentityTable],
     activity: &mut crate::ProofSearchActivity,
     further: &mut Vec<Refusal>,
 ) -> Vec<GenericForm> {
     let count = forms.len();
     let mut examined = Vec::new();
-    for form in forms {
+    for (declaration, form) in forms.into_iter().enumerate() {
         let template = form.template;
         if form
             .applies
@@ -2203,8 +2281,15 @@ fn examine_generic_forms(
             continue;
         }
         match form.forms {
-            Ok(forms) => examined.extend(forms.into_iter().map(|form| {
-                match examine(Ok(form), &[], laws, activity, further) {
+            Ok(forms) => examined.extend(forms.into_iter().enumerate().map(|(position, form)| {
+                // The Identity table stage 05 wrote for this form.
+                let table = identities.iter().find(|table| {
+                    u32::try_from(declaration).is_ok_and(|declaration| {
+                        u32::try_from(position)
+                            .is_ok_and(|position| table.form == (declaration, position))
+                    })
+                });
+                match examine(Ok(form), &[], laws, table, activity, further) {
                     Ok(examined) => GenericForm::Examined { template, examined },
                     Err(decided) => GenericForm::Decided(decided),
                 }

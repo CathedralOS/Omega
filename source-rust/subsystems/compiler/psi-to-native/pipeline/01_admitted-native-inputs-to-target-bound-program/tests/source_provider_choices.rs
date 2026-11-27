@@ -204,7 +204,7 @@ fn the_build_override_settles_its_reached_provider() {
     let [row] = plan.rows.as_slice() else {
         panic!("one binding for the reached method")
     };
-    let provider_plans::ProviderBinding::CheckedAdapter {
+    let build_providers::plans::ProviderBinding::CheckedAdapter {
         machine_identity,
         machine_package_identity,
     } = row.binding

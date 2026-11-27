@@ -100,15 +100,18 @@ use imports::{
 use sections::{plan_pe_sections, rdata_rva_after_text};
 
 pub(crate) enum PeImageKind {
-    Executable,
+    Executable { stack_reserve: u64 },
     SharedComponent { exports: Vec<PeComponentExport> },
 }
 
+/// `stack_reserve` is the initial thread's stack reserve, which hosted entry
+/// planning sizes to the checked frames that run on it.
 pub fn emit_pe_executable(
     image: FinalImage,
     subsystem: u16,
+    stack_reserve: u64,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_pe(image, subsystem, PeImageKind::Executable)
+    emit_pe(image, subsystem, PeImageKind::Executable { stack_reserve })
 }
 
 pub(crate) fn emit_pe(
@@ -121,7 +124,7 @@ pub(crate) fn emit_pe(
     let rdata_rva = rdata_rva_after_text(&image)?;
     let import_table = build_import_table(&import_thunks, rdata_rva);
     let (export_bytes, export_directory_rva, export_directory_size) = match &kind {
-        PeImageKind::Executable => (Vec::new(), 0, 0),
+        PeImageKind::Executable { .. } => (Vec::new(), 0, 0),
         PeImageKind::SharedComponent { exports } => {
             let aligned = align_to(import_table.bytes.len(), 4);
             let directory_rva = shared_component::directory_rva_of(rdata_rva, aligned)?;
@@ -182,13 +185,13 @@ pub(crate) fn emit_pe(
     };
 
     let entry_rva = match &kind {
-        PeImageKind::Executable => {
+        PeImageKind::Executable { .. } => {
             TEXT_RVA + image::final_image_entry_symbol(&image, "PE")?.offset as u32
         }
         PeImageKind::SharedComponent { .. } => 0,
     };
     let file_characteristics = match &kind {
-        PeImageKind::Executable => 0x0022,
+        PeImageKind::Executable { .. } => 0x0022,
         PeImageKind::SharedComponent { .. } => 0x2022,
     };
 
@@ -219,6 +222,10 @@ pub(crate) fn emit_pe(
             has_reloc: sections.has_reloc,
             subsystem,
             file_characteristics,
+            stack_reserve: match &kind {
+                PeImageKind::Executable { stack_reserve } => *stack_reserve,
+                PeImageKind::SharedComponent { .. } => target::WINDOWS_LOADER_STACK_RESERVE_BYTES,
+            },
             export_directory_rva,
             export_directory_size,
             exception_directory_rva,
@@ -353,7 +360,12 @@ mod tests {
 
     #[test]
     fn import_free_image_omits_empty_read_only_section() {
-        let output = emit_pe_executable(returning_image(), 3).expect("emit image");
+        let output = emit_pe_executable(
+            returning_image(),
+            3,
+            target::WINDOWS_LOADER_STACK_RESERVE_BYTES,
+        )
+        .expect("emit image");
         let bytes = &output.bytes;
         let pe_offset = u32::from_le_bytes(bytes[0x3c..0x40].try_into().unwrap()) as usize;
         let section_count =
@@ -368,7 +380,12 @@ mod tests {
 
     #[test]
     fn efi_application_image_is_an_import_free_subsystem_10_pe32_plus() {
-        let output = emit_pe_executable(returning_image(), 10).expect("emit image");
+        let output = emit_pe_executable(
+            returning_image(),
+            10,
+            target::WINDOWS_LOADER_STACK_RESERVE_BYTES,
+        )
+        .expect("emit image");
         let bytes = &output.bytes;
         let pe_offset = u32::from_le_bytes(bytes[0x3c..0x40].try_into().unwrap()) as usize;
         let optional_header = pe_offset + 4 + 20;
@@ -420,7 +437,9 @@ mod tests {
                         image.memory.bss_size = ZERO_FILL_BYTES;
                         names.push(b".bss\0\0\0\0");
                     }
-                    let output = emit_pe_executable(image, 3).expect("emit image");
+                    let output =
+                        emit_pe_executable(image, 3, target::WINDOWS_LOADER_STACK_RESERVE_BYTES)
+                            .expect("emit image");
                     let bytes = &output.bytes;
                     let read_u32 = |offset| {
                         u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()) as usize
@@ -476,20 +495,22 @@ mod tests {
         };
         let mut probe = returning_image();
         probe.memory.bss_size = 1;
-        let probe = emit_pe_executable(probe, 3).expect("emit image");
+        let probe = emit_pe_executable(probe, 3, target::WINDOWS_LOADER_STACK_RESERVE_BYTES)
+            .expect("emit image");
         let bss_rva = usize::try_from(probe.final_image_layout.bss_address - IMAGE_BASE).unwrap();
         let last_page_end = 0xffff_f000usize;
 
         let mut largest = returning_image();
         largest.memory.bss_size = last_page_end - bss_rva;
-        let largest = emit_pe_executable(largest, 3).expect("largest addressable .bss");
+        let largest = emit_pe_executable(largest, 3, target::WINDOWS_LOADER_STACK_RESERVE_BYTES)
+            .expect("largest addressable .bss");
         assert_eq!(size_of_image(&largest.bytes), 0xffff_f000);
         assert_eq!(largest.bss_bytes, last_page_end - bss_rva);
 
         for bss_size in [last_page_end - bss_rva + 1, 1usize << 32] {
             let mut image = returning_image();
             image.memory.bss_size = bss_size;
-            let error = emit_pe_executable(image, 3)
+            let error = emit_pe_executable(image, 3, target::WINDOWS_LOADER_STACK_RESERVE_BYTES)
                 .expect_err("a .bss past the 32-bit RVA space must be refused");
             assert!(
                 error
@@ -507,7 +528,12 @@ mod tests {
             eprintln!("SKIP: requires an x86-64 Windows loader");
             return;
         }
-        let output = emit_pe_executable(returning_image(), 3).expect("emit image");
+        let output = emit_pe_executable(
+            returning_image(),
+            3,
+            target::WINDOWS_LOADER_STACK_RESERVE_BYTES,
+        )
+        .expect("emit image");
         let path = std::env::temp_dir().join(format!("omega-pe-return-{}.exe", std::process::id()));
         std::fs::write(&path, &output.bytes).expect("write executable");
         let result = std::process::Command::new(&path).output();
@@ -535,7 +561,8 @@ mod tests {
                     kind: RelocationKind::Absolute64,
                 });
 
-            let output = emit_pe_executable(image, 3).expect("emit image");
+            let output = emit_pe_executable(image, 3, target::WINDOWS_LOADER_STACK_RESERVE_BYTES)
+                .expect("emit image");
             let bytes = &output.bytes;
             let u32_at = |offset: usize| {
                 u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()) as usize

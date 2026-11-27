@@ -12,7 +12,7 @@ The native entry accepts an authorized Psi program, its deployment target and th
 | Complete the requested product | The [program driver](driver/mod.rs) returns the interpreter’s provisions at runtime admission. An image request [collects the required bodies](driver/image/mod.rs) and [stage 15](pipeline/15_objects-to-image/) publishes the finished image. [Entry signature and storage contract](representations/program-entry-contracts/program_entry.rs) · [Target arrival ABI](targets/calling-conventions/src/process_entry.rs) |
 | Verify an emitted object | An [explicit stage validator](verification/stage_validators.rs) requests originals from the emission and gives them to [published-object verification](verification/published-objects/). Its checks compare the root and private callable objects against their retained stage inputs before the caller releases the image. |
 
-The public standalone program file is the portable `.psi` artifact. The historical `OMGNTI41` record captured a native realization proposal for a particular artifact and target. Its reader and writer are retained in [the native derivation archive](../../../../_recycling/source-rust/subsystems/compiler/psi-to-native/native-derivation-record/). [Portable Psi encoding](../../../../wiki/spec/terminal-psi/encoding.md)
+The public standalone program file is the portable `.psi` artifact. The historical `OMGNTI41` record captured a native realization proposal for a particular artifact and target. Its reader and writer are retained in [the native derivation archive](../../../../_recycling/source-rust/subsystems/compiler/psi-to-native/native-derivation-record/). [Portable Psi encoding](../psi/artifact/wire/encoding.md)
 
 The image driver plans reachable private callables and emits callback thunks. Runtime admission prepares target ABI adapters for foreign calls. [Callback thunks](driver/image/callback_thunks.rs) · [Foreign adapters](driver/runtime/foreign_adapters.rs) · [Interpreter provisions](driver/runtime/mod.rs)
 
@@ -68,7 +68,8 @@ artifact or a foreign-package boundary reads it.
 | Identity | Readers that matter | Decision |
 | --- | --- | --- |
 | `RelocationFreeObjectPlanIdentity`, the `OMGTRO` container and `OMGTOM` manifest (stage 14) | own receipts; container decoded only to re-check its own codec under a validator | delete; structural object checks stay |
-| `ResolvedSelectedFormLayoutIdentity`, `TargetFrameLayoutIdentity`, fragment and text-section manifests (machine-code, 12–13) | receipts; validator compares baseline layout | delete; validators compare the retained values |
+| `ResolvedSelectedFormLayoutIdentity`, `TargetFrameLayoutIdentity` (machine-code, 12–13) | receipts; validator compares baseline layout | delete; validators compare the retained values |
+| Fragment, frame-application and text-section identities, their manifests and the realization manifest identity (machine-code, 13–14) | own receipts; object custody compared between publications | deleted; validators compare the retained text section and selections |
 | `PostAllocationMachineIdentity` (08, 11) | `FixedFrameCorrespondence` compares retained program | delete; validator compares structurally |
 | `FixedPrecolored*PlanIdentity`, register-homes receipts (06–07) | sibling receipts only | delete |
 | `SelectedInstructionPlanIdentity`, `RetainedPlanPrefix`, effects identities (05–06) | receipts; validators compare retained program | delete; validators compare structurally |

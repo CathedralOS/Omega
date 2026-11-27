@@ -112,11 +112,15 @@ fn an_unrelated_declaration_sharing_a_spelling_does_not_make_a_name_known() {
         &domain(""),
         "this type names the domain `Nowhere`, but no domain of that name is visible here",
     );
+    // domains.md, "Carrier-exact membership": a domain of another carrier
+    // is found by its name, and the membership is ill-formed on `i32`.
+    let other_carrier = super::boundary_calls::try_typed(&domain("domain u8::Nowhere;\n"))
+        .expect_err("a domain of another carrier is refused while typing");
     assert!(
-        violations(&domain("domain u8::Nowhere;\n"))
-            .unwrap_err()
-            .starts_with("not supported"),
-        "a domain of another carrier is a request, not an unknown name"
+        other_carrier
+            .message
+            .contains("domain `Nowhere` does not qualify carrier `i32`"),
+        "a domain of another carrier is found, not an unknown name: {other_carrier:?}"
     );
     let invokes =
         |declared: &str| format!("{masks}{declared}machine entry() invokes Nowhere {{ }}\n");

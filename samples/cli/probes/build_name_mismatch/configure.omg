@@ -1,0 +1,23 @@
+use {omega}/build/dependency.omg;
+use {depkit}/main.omg as kit;
+use main.omg as app;
+
+machine build(plan: @mutable BuildPlan) crashes Trap {
+    transition |kit|::value() == 9 {
+        true -> application(plan),
+        false -> failed()
+    }
+}
+
+machine application(plan: @mutable BuildPlan) {
+    let kit: PackageBinding = |dependency|::input(plan, "depkit");
+    _ = |dependency|::add(plan, kit);
+    plan.product = BuildProduct::Application { name: "app_declared" };
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(plan, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(plan, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(plan, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(plan, windows_arm64::ProgramEntry, |app|::main);
+}
+
+machine failed() { crash Trap; }

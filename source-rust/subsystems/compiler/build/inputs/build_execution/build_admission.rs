@@ -81,7 +81,7 @@ pub fn admit_build_machine(
     let publication = invocation.prepare_publication()?;
     let filesystem_reachable = publication.uses_build_filesystem();
 
-    let initial_build = value_admission.initial_value(filesystem_scope);
+    let initial_build = value_admission.initial_value();
     let execution_mode = if !filesystem_reachable {
         BuildMachineExecutionMode::Pure
     } else {

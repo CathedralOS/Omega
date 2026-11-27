@@ -92,27 +92,6 @@ pub mod type_system {
             use symbols::SymbolHandle;
 
             #[test]
-            fn missing_names_include_authored_array_extents() {
-                use source_text::{SourceId, SourceSpan, Span};
-
-                let site = SourceSpan::new(SourceId(3), Span::new(8, 15));
-                let mut types = TypeReferenceTable::new();
-                let element_type = types.insert(TypeReferenceNode::Unit);
-                let extent = |name, symbol| TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: FixedArrayLength::ConstParameter { name, symbol },
-                };
-                let name = DiagnosticName::new("extent", site);
-                types.insert(extent(name.clone(), SymbolHandle::from_arena_index(1)));
-                types.insert(extent(
-                    DiagnosticName::generated_static("N"),
-                    SymbolHandle::invalid(),
-                ));
-                types.insert(extent(name, SymbolHandle::invalid()));
-                assert_eq!(types.missing_names(), &[site]);
-            }
-
-            #[test]
             fn type_reference_table_stores_nested_typed_references_as_handles() {
                 let mut source_arguments = Arena::<TypeReference>::new();
                 let fixed_array_element = source_arguments.append(TypeReference::Named {
@@ -206,11 +185,8 @@ pub mod type_system {
                         &Arena::new(),
                         &expressions,
                     );
-                    record_storage::encode(
-                        &(types, root),
-                        record_storage::RecordLimits::default(),
-                    )
-                    .unwrap()
+                    record_storage::encode(&(types, root), record_storage::RecordLimits::default())
+                        .unwrap()
                 };
                 assert_eq!(
                     semantic_graph(storage.get(root)),
@@ -222,8 +198,7 @@ pub mod type_system {
                 )
                 .unwrap();
                 let (restored, restored_root): (TypeReferenceArena, arena::Handle<TypeReference>) =
-                    record_storage::decode(&bytes, record_storage::RecordLimits::default())
-                        .unwrap();
+                    record_storage::decode(&bytes, record_storage::RecordLimits::default()).unwrap();
                 for (owner, root) in [(&cloned, root), (&restored, restored_root)] {
                     let TypeReference::Generic(application) = owner.get(root) else {
                         panic!("generic application survives storage transport");
@@ -459,7 +434,6 @@ pub mod type_system {
             nodes: TypeReferenceNodeStorage,
             spans: TypeReferenceSpanStorage,
             supplied_operand_owners: Arena<SuppliedOperandOwner>,
-            missing_names: Vec<source_text::SourceSpan>,
         }
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
@@ -491,29 +465,10 @@ pub mod type_system {
                         constraints: Arena::new(),
                     },
                     supplied_operand_owners: Arena::new(),
-                    missing_names: Vec::new(),
                 }
             }
 
             pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
-                // Keep source coordinates while normalizing the resolved type. Typed
-                // names retain symbol identities and can discard the authored spelling.
-                let binding = match &type_reference {
-                    TypeReferenceNode::Named { symbol, name }
-                    | TypeReferenceNode::Generic { base_symbol: symbol, base_name: name, .. }
-                    | TypeReferenceNode::FixedArray {
-                        length: FixedArrayLength::ConstParameter { symbol, name }
-                            | FixedArrayLength::ConstCall { machine: symbol, name },
-                        ..
-                    } => Some((symbol, name)),
-                    _ => None,
-                };
-                if let Some((symbol, name)) = binding
-                    && !symbol.is_valid()
-                    && name.is_source_backed()
-                {
-                    self.missing_names.push(name.source_span());
-                }
                 self.nodes.type_references.insert(type_reference)
             }
 
@@ -666,10 +621,6 @@ pub mod type_system {
 
             pub fn type_reference(&self, handle: TypeReferenceHandle) -> &TypeReferenceNode {
                 self.nodes.type_references.get(handle)
-            }
-
-            pub(crate) fn missing_names(&self) -> &[source_text::SourceSpan] {
-                &self.missing_names
             }
 
             pub fn type_reference_handles(

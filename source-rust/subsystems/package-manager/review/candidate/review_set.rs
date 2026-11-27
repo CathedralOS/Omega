@@ -9,11 +9,11 @@
 */
 
 use crate::declarations::PackageKey;
+use build_providers::acceptance::AcceptedSemanticBinding;
 use package_compilation::build_execution::{
     BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest,
 };
 use package_compilation::{PackageBuildHandoff, PackageSourceConsumptionCommitment};
-use provider_acceptance::AcceptedSemanticBinding;
 use review_evidence::record::{PackagePolicyBaseline, PackagePolicyRow};
 use source_acquisition::ImmutableSourceResolution;
 

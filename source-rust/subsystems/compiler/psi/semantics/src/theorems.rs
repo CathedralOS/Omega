@@ -13,13 +13,17 @@ use terminal_psi::{
     TheoremContract, TheoremParameter, TheoremSource,
 };
 
+pub mod data_subjects;
+
 pub fn contract_type(
     contract: &TheoremContract,
     budget: &mut proof_admission::Budget,
 ) -> Result<proof_admission::BoundedImplicationType, &'static str> {
     let subjects = contract_subjects(contract)?;
+    let hypotheses = hypothesis_types(contract, budget)?;
     proof_admission::denote_bounded_implication_type(
         &subjects,
+        &hypotheses,
         &contract.requires,
         &conjunction(contract.ensures.clone()),
         budget,
@@ -27,7 +31,20 @@ pub fn contract_type(
     .map_err(|_| "logical contract has no well-formed mathematical implication")
 }
 
+/// The closed implication of each of the contract's own proof parameters.
+fn hypothesis_types(
+    contract: &TheoremContract,
+    budget: &mut proof_admission::Budget,
+) -> Result<Vec<proof_admission::BoundedImplicationType>, &'static str> {
+    contract
+        .proof_parameters
+        .iter()
+        .map(|nested| contract_type(nested, budget))
+        .collect()
+}
+
 /// Check the stored contract's subject and clause vocabulary without proving a judgment.
+/// Its own proof parameters are checked the same way, and take none of their own.
 pub fn contract_subjects(
     contract: &TheoremContract,
 ) -> Result<Vec<(ValueId, ScalarType)>, &'static str> {
@@ -38,12 +55,12 @@ pub fn contract_subjects(
         {
             return Err("logical contract has another fixed subject telescope");
         }
-        if !matches!(formal.scalar_type, ScalarType::Boolean)
-            && !matches!(formal.scalar_type, ScalarType::Integer(integer)
-                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                    && !integer.is_address() && integer.minimum_value().is_some() && integer.maximum_value().is_some())
+        if !matches!(
+            formal.scalar_type,
+            ScalarType::Boolean | ScalarType::IeeeFloat(_)
+        ) && !matches!(formal.scalar_type, ScalarType::Integer(integer) if integer.bits().is_some())
         {
-            return Err("logical contract needs a fixed integer or Boolean subject");
+            return Err("logical contract needs a closed-width integer, float or Boolean subject");
         }
         subjects.push((formal.id, formal.scalar_type));
     }
@@ -62,7 +79,8 @@ pub fn contract_subjects(
             | Proposition::LessOrEqual(..)
             | Proposition::IntegerMathEqual(..)
             | Proposition::IntegerMathLessThan(..)
-            | Proposition::IntegerMathLessOrEqual(..) => {}
+            | Proposition::IntegerMathLessOrEqual(..)
+            | Proposition::ScalarIeeeFloatComparison { .. } => {}
             Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
                 pending.extend(parts)
             }
@@ -76,7 +94,30 @@ pub fn contract_subjects(
             _ => return Err("logical clause has no complete fixed mathematical denotation"),
         }
     }
+    for nested in &contract.proof_parameters {
+        if !nested.proof_parameters.is_empty() {
+            return Err("a logical contract's proof parameter takes proof parameters of its own");
+        }
+        contract_subjects(nested)?;
+    }
     Ok(subjects)
+}
+
+/// The contracts of a machine's own logical proof formals, in header order.
+pub fn proof_formal_contracts(
+    module: &TerminalModule,
+    machine: MachineId,
+) -> Result<Vec<&TheoremContract>, &'static str> {
+    let owner = module
+        .machine(machine)
+        .ok_or("logical parameter has no owning machine")?;
+    (0..owner.contract.erased_proof_formals.len())
+        .map(|position| {
+            let position =
+                u32::try_from(position).map_err(|_| "logical parameter position overflow")?;
+            Ok(&parameter(module, machine, position)?.contract)
+        })
+        .collect()
 }
 
 pub fn parameter(
@@ -177,6 +218,7 @@ pub fn named_contract(
             .iter()
             .map(|clause| clause.proposition.clone())
             .collect(),
+        proof_parameters: Vec::new(),
     };
     contract_subjects(&named)?;
     Ok(named)
@@ -213,14 +255,33 @@ pub fn application<'a>(
     {
         return Err("logical use lost a subject or premise");
     }
+    if application.instantiation.len() != formal.proof_parameters.len() {
+        return Err("logical use needs one proof for each of its contract's own proof parameters");
+    }
     for (argument, formal) in application.arguments.iter().zip(&formal.parameters) {
         argument
             .validate_after_operands()
             .map_err(|_| "logical subject has a malformed scalar term")?;
+        // A field of a record input is current contents, read where the
+        // application's edge leaves; the checker names its root.
         if argument.scalar_type() != formal.scalar_type
             || !matches!(
                 argument,
-                ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
+                ScalarTerm::Value { .. }
+                    | ScalarTerm::Integer { .. }
+                    | ScalarTerm::Boolean(_)
+                    | ScalarTerm::IntegerField {
+                        version: ContentPlaceVersion::Current,
+                        ..
+                    }
+                    | ScalarTerm::BooleanField {
+                        version: ContentPlaceVersion::Current,
+                        ..
+                    }
+                    | ScalarTerm::IeeeFloatField {
+                        version: ContentPlaceVersion::Current,
+                        ..
+                    }
             )
         {
             return Err("logical subject is not a fixed scalar of its declared carrier");
@@ -310,41 +371,78 @@ pub fn substitute(
 /// A machine may satisfy its runtime guarantee by never returning. A logical
 /// citation must prove the implication over its admitted inputs, then check
 /// that its premises and guarantee satisfy the alias's complete contract.
+///
+/// The cited machine's own proof formals, `formals`, are each given a proof
+/// in one of two ways. A citation may instantiate them, as `lifted::<inner>`
+/// does: `instantiated` counts those supplies, which are checked separately
+/// against the machine's aliases. Or, when the expected contract declares
+/// proof parameters of its own, the machine's formals are exactly those, in
+/// order, and receive whatever proofs the contract's user later gives it.
+/// The three goals here use neither: the cited implication is proved from
+/// its contract alone.
 pub fn citation_goals(
+    module: &TerminalModule,
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
+    formals: &[&TheoremContract],
+    instantiated: usize,
 ) -> Result<[Proposition; 3], &'static str> {
-    citation_goals_with(expected, supplied, |contract| {
-        contract_type(contract, &mut proof_admission::Budget::default()).map(drop)
-    })
+    citation_goals_with(
+        module,
+        expected,
+        supplied,
+        formals,
+        instantiated,
+        |contract| contract_type(contract, &mut proof_admission::Budget::default()).map(drop),
+    )
 }
 
 /// Recover the root judgments and their subjects from the recorded declarations.
 /// Canonical inspection checks their coordinates without rechecking their proofs.
 pub fn recorded_citation_goals(
+    module: &TerminalModule,
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
+    formals: &[&TheoremContract],
+    instantiated: usize,
 ) -> Result<[Proposition; 3], &'static str> {
-    citation_goals_with(expected, supplied, |contract| {
-        contract_subjects(contract).map(drop)
-    })
+    citation_goals_with(
+        module,
+        expected,
+        supplied,
+        formals,
+        instantiated,
+        |contract| contract_subjects(contract).map(drop),
+    )
 }
 
 fn citation_goals_with(
+    module: &TerminalModule,
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
+    formals: &[&TheoremContract],
+    instantiated: usize,
     check: impl Fn(&TheoremContract) -> Result<(), &'static str>,
 ) -> Result<[Proposition; 3], &'static str> {
-    if supplied.parameters != expected.parameters
+    if supplied.erased_proof_formals.len() != formals.len()
         || supplied
-            .parameter_order
+            .erased_proof_formals
             .iter()
-            .any(|kind| *kind != terminal_psi::BoundaryParameterKind::Scalar)
-        || supplied.parameter_order.len() != supplied.parameters.len()
-        || !supplied.structural_parameters.is_empty()
-        || !matches!(supplied.result, terminal_psi::TerminalMachineResult::Unit)
+            .any(|formal| !matches!(formal.source, ProofFormalSource::GenericParameter(_)))
+    {
+        return Err("cited theorem has another roster of logical proof formals");
+    }
+    if expected.proof_parameters.is_empty() {
+        if formals.len() != instantiated {
+            return Err("cited theorem needs one logical supply for each of its own proof formals");
+        }
+    } else if instantiated != 0 || !formals.iter().copied().eq(expected.proof_parameters.iter()) {
+        return Err(
+            "cited theorem's own proof formals are not exactly the proof parameters of the aliased contract",
+        );
+    }
+    if !matches!(supplied.result, terminal_psi::TerminalMachineResult::Unit)
         || !supplied.erased_scalar_formals.is_empty()
-        || !supplied.erased_proof_formals.is_empty()
         || !supplied.entry_claims.is_empty()
         || !supplied.content_entry_claims.is_empty()
         || !supplied.membership_ensures.is_empty()
@@ -361,14 +459,26 @@ fn citation_goals_with(
     {
         return Err("cited theorem needs its complete fixed mathematical contract");
     }
+    // A record input is one subject for each of its scalar fields
+    // (`data_subjects`), so its clauses are restated over those subjects.
+    let subjects = data_subjects::machine_subjects(module, supplied)?;
+    let ensures: Vec<_> = supplied
+        .ensures
+        .iter()
+        .map(|clause| clause.proposition.clone())
+        .collect();
+    let (parameters, requires, ensures) =
+        data_subjects::flatten(&subjects, &supplied.requires, &ensures)?;
+    if parameters != expected.parameters {
+        return Err(
+            "cited theorem's subjects are not the aliased contract's subjects and carriers",
+        );
+    }
     let actual = TheoremContract {
-        parameters: supplied.parameters.clone(),
-        requires: supplied.requires.clone(),
-        ensures: supplied
-            .ensures
-            .iter()
-            .map(|clause| clause.proposition.clone())
-            .collect(),
+        parameters,
+        requires,
+        ensures,
+        proof_parameters: Vec::new(),
     };
     check(expected)?;
     check(&actual)?;
@@ -555,13 +665,16 @@ fn weaken_closed_proof(
 /// Replay all three supplied derivations before forming the complete Strict
 /// implication. Named selection identity remains derivation provenance only.
 pub fn denote_citation(
+    module: &TerminalModule,
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
+    formals: &[&TheoremContract],
+    instantiated: usize,
     derivations: &[terminal_psi::CertificateEnvelope],
     budget: &mut proof_admission::Budget,
 ) -> Result<proof_admission::BoundedTheorem, &'static str> {
     use terminal_psi::{ProofNode, ProofRule};
-    let goals = citation_goals(expected, supplied)?;
+    let goals = citation_goals(module, expected, supplied, formals, instantiated)?;
     let subjects: Vec<_> = expected
         .parameters
         .iter()
@@ -611,8 +724,10 @@ pub fn denote_citation(
     let ensures = apply(actual, requires)?;
     let refinement = apply(refinement, aliases)?;
     let proof = apply(refinement, ensures)?;
+    let hypotheses = hypothesis_types(expected, budget)?;
     proof_admission::verify_bounded_theorem(
         &subjects,
+        &hypotheses,
         &conjunction(expected.ensures.clone()),
         &expected.requires,
         &[],

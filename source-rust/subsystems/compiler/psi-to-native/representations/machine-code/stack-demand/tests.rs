@@ -150,3 +150,14 @@ fn a_foreign_stack_promise_is_bound_to_its_selected_execution_and_composes_with_
         )
     ));
 }
+
+#[test]
+fn the_peak_path_follows_the_calls_that_set_the_ceiling() {
+    let mut program = program();
+    let demand = derive_physical_stack_demand(&program, machine(1), vec![]).unwrap();
+    assert_eq!(demand.peak_path(), [machine(1), machine(2)]);
+    program.functions[0].local = LocalStackExtent::Finite(4096);
+    let local = derive_physical_stack_demand(&program, machine(1), vec![]).unwrap();
+    assert_eq!(local.ceiling_bytes(), Some(4096));
+    assert_eq!(local.peak_path(), [machine(1)]);
+}

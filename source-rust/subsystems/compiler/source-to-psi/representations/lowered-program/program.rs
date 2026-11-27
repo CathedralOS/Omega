@@ -256,14 +256,6 @@ pub struct Elaboration {
     /// every normal return before any caller reads it. Empty outside
     /// `elaborate`.
     pub local_results: Vec<MachineId>,
-    /// The `requires` clauses of each data type the module declares, by the
-    /// type's identity and in authored order, as `RecordType::requires`
-    /// states them: the checker's restatement of each type declaration's
-    /// `StructuralTypeDeclaration::requires` in `module`, which the
-    /// discharge refuses when the two differ. Named storage defaults remain
-    /// in the canonical structural-domain catalog; `DataDomain` ordinals
-    /// enumerate both through the shared `DefaultRequirements` query.
-    pub domains: IdTable<StructuralTypeId, Vec<semantic_vocabulary::Proposition>>,
     /// The machines that stand for a requirement instead of a body: the
     /// rigid machine parameters of a generic check form (`lower_generic`).
     /// Each has its formals, result and contract and no block. Empty for

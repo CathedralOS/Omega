@@ -253,13 +253,13 @@ pub enum PackagePolicyProviderBinding {
         table: String,
         field: String,
         table_declaration: PackageReviewNominalIdentity,
-        storage: Result<provider_plans::TableFieldStorage, String>,
+        storage: Result<build_providers::plans::TableFieldStorage, String>,
     },
     TableFunction {
         table: String,
         field: String,
         table_declaration: PackageReviewNominalIdentity,
-        storage: Result<provider_plans::TableFieldStorage, String>,
+        storage: Result<build_providers::plans::TableFieldStorage, String>,
     },
     CheckedAdapter {
         machine_identity: String,

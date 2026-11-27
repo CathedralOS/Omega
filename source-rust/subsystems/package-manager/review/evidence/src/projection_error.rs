@@ -1,7 +1,7 @@
 //! Failures retained by package review for reporting source or policy projection.
 use crate::encoding::PackageReviewEncodingError;
 use diagnostics::Diagnostic;
-use provider_acceptance::AcceptedSemanticBindingRole;
+use build_providers::acceptance::AcceptedSemanticBindingRole;
 
 #[derive(Debug, Clone)]
 pub enum SemanticBindingProjectionError {

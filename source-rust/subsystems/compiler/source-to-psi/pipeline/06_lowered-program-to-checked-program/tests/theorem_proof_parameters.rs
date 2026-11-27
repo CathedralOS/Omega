@@ -420,23 +420,464 @@ fn an_instance_with_a_narrower_premise_cannot_supply_the_alias() {
     );
 }
 
-#[test]
-fn a_theorem_given_its_own_proof_is_refused_by_name() {
-    let source = ORIGINAL
+/// `lifted` proves `NonzeroIsPositive` itself, given a proof of it.
+fn given_its_own_proof(citation: &str) -> String {
+    ORIGINAL
         .replace(
             "machine only_seven",
             "machine lifted<Inner: NonzeroIsPositive>(n: u8)\nrequires n != 0u8\nensures n > 0u8\n{\n    Inner(n);\n}\n\nmachine only_seven",
         )
         .replace(
             "use_step::<nonzero_is_positive>(7u8)",
-            "use_step::<lifted::<nonzero_is_positive>>(7u8)",
+            &format!("use_step::<{citation}>(7u8)"),
+        )
+}
+
+#[test]
+fn a_theorem_given_its_own_proof_supplies_the_alias() {
+    let program = Program::of(&given_its_own_proof("lifted::<nonzero_is_positive>"));
+    let verdict = program.judged(|elaboration| {
+        let [citation] = elaboration.module.proofs.theorem_citations.as_slice() else {
+            panic!("one citation");
+        };
+        assert!(
+            matches!(
+                citation.instantiation.as_slice(),
+                [terminal_psi::TheoremInstantiation {
+                    source: terminal_psi::TheoremSource::Named(_),
+                    ..
+                }]
+            ),
+            "the citation keeps the proof it gives `lifted`: {citation:?}"
         );
-    let refusal = format!(
-        "{:?}",
-        Program::try_of(&[("product/main.omg", &source)]).err()
+    });
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_given_a_narrower_proof_cannot_supply_the_alias() {
+    // `only_seven` cannot stand in for `lifted`'s own `Inner`.
+    let verdict = Program::of(&given_its_own_proof("lifted::<only_seven>")).judged(|_| {});
+    assert!(
+        format!("{verdict:?}").contains(
+            "proof given to the cited theorem does not establish its own aliased contract"
+        ),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn a_citation_cannot_drop_the_proof_it_gives_the_cited_theorem() {
+    let program = Program::of(&given_its_own_proof("lifted::<nonzero_is_positive>"));
+    let verdict = program.judged(|elaboration| {
+        elaboration.module.proofs.theorem_citations[0]
+            .instantiation
+            .clear();
+    });
+    assert!(
+        format!("{verdict:?}")
+            .contains("cited theorem needs one logical supply for each of its own proof formals"),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn decoding_keeps_the_proof_given_to_the_cited_theorem_and_its_check() {
+    use source_compiler::test_support::checking::{RouteVerdict, judge};
+
+    let program = Program::of(&given_its_own_proof("lifted::<nonzero_is_positive>"));
+    let RouteVerdict::Accepted(accepted) = judge(Ok(program.elaboration().clone())).unwrap() else {
+        panic!("the instantiated citation must reach publication");
+    };
+    let module = accepted.prepare_publication().unwrap().module().clone();
+    let decoded =
+        terminal_codec::decode_module(&terminal_codec::encode_module(&module).unwrap()).unwrap();
+    assert_eq!(
+        decoded.proofs.theorem_citations,
+        module.proofs.theorem_citations
+    );
+    terminal_codec::validate_theorem_evidence(&decoded, &mut proof_admission::Budget::default())
+        .unwrap();
+
+    // The inner proof's derivation is checked by the validator too.
+    let mut forged = module.clone();
+    forged.proofs.theorem_citations[0].instantiation[0].derivations[0]
+        .proof
+        .rule = terminal_psi::ProofRule::Primitive(terminal_psi::PrimitiveJudgment::Truth);
+    assert!(
+        terminal_codec::validate_theorem_evidence(&forged, &mut proof_admission::Budget::default())
+            .is_err()
+    );
+
+    // A changed inner judgment no longer decodes.
+    forged = module;
+    forged.proofs.theorem_citations[0].instantiation[0].derivations[0]
+        .proof
+        .conclusion = semantic_vocabulary::Proposition::Truth;
+    let error = terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+        .unwrap_err();
+    assert!(
+        matches!(
+            error,
+            terminal_codec::CodecError::MalformedStructuralFoundation(
+                "theorem derivation lost its declared judgment or role"
+            )
+        ),
+        "{error:?}"
+    );
+}
+
+/// `Lifted` takes a proof of `NonzeroIsPositive` in its own header, and
+/// `use_lifted` gives its `Step` one when it applies it.
+const CONTRACT_PROOF_PARAMETERS: &str =
+    include_str!("fixtures/proofs/positive/contract_proof_parameters/main.omg");
+
+#[test]
+fn a_contract_with_its_own_proof_parameter_is_supplied_and_applied() {
+    let program = Program::of(CONTRACT_PROOF_PARAMETERS);
+    let verdict = program.judged(|elaboration| {
+        let proofs = &elaboration.module.proofs;
+        assert!(
+            proofs
+                .theorem_parameters
+                .iter()
+                .any(|row| row.contract.proof_parameters.len() == 1),
+            "`Step` keeps the proof parameter of its contract"
+        );
+        let [citation] = proofs.theorem_citations.as_slice() else {
+            panic!("one citation: {:?}", proofs.theorem_citations);
+        };
+        assert!(
+            citation.instantiation.is_empty(),
+            "`lifted` receives its proof where `Step` is applied, not where it is cited"
+        );
+        assert!(
+            proofs.theorem_applications.iter().any(|row| matches!(
+                row.instantiation.as_slice(),
+                [terminal_psi::TheoremInstantiation {
+                    source: terminal_psi::TheoremSource::Named(_),
+                    ..
+                }]
+            )),
+            "`Step::<nonzero_is_positive>(n)` keeps the proof it gives `Step`"
+        );
+    });
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn an_application_cannot_give_its_contract_a_narrower_proof() {
+    let source = CONTRACT_PROOF_PARAMETERS
+        .replace("Step::<nonzero_is_positive>(n)", "Step::<only_seven>(n)");
+    assert_ne!(source, CONTRACT_PROOF_PARAMETERS);
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(
+        format!("{verdict:?}").contains(
+            "proof given to the applied theorem does not establish its own aliased contract"
+        ),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn an_application_must_give_its_contract_every_proof_parameter() {
+    let source = CONTRACT_PROOF_PARAMETERS.replace("Step::<nonzero_is_positive>(n)", "Step(n)");
+    assert_ne!(source, CONTRACT_PROOF_PARAMETERS);
+    let refusal = Program::try_of(&[("product/main.omg", &source)])
+        .err()
+        .expect("an application without its contract's proof is refused");
+    assert!(
+        format!("{refusal:?}").contains(
+            "logical application needs one proof for each of its contract's own proof parameters"
+        ),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn a_contract_binder_must_be_a_proof_of_a_logical_contract() {
+    // `Inner: u8` would be a runtime value bound by a callable type, which no
+    // contract gives a meaning.
+    let source = CONTRACT_PROOF_PARAMETERS.replace(
+        "data Lifted = machine<Inner: NonzeroIsPositive>(n: u8)",
+        "data Lifted = machine<Inner: u8>(n: u8)",
+    );
+    assert_ne!(source, CONTRACT_PROOF_PARAMETERS);
+    let refusal = Program::try_of(&[("product/main.omg", &source)])
+        .err()
+        .expect("a value binder on a callable type is refused");
+    assert!(
+        format!("{refusal:?}").contains(
+            "a callable signature's own binder `Inner` must name a logical contract alias"
+        ),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn a_dropped_application_proof_is_refused_by_the_checker() {
+    let program = Program::of(CONTRACT_PROOF_PARAMETERS);
+    let verdict = program.judged(|elaboration| {
+        for row in &mut elaboration.module.proofs.theorem_applications {
+            row.instantiation.clear();
+        }
+    });
+    assert!(
+        format!("{verdict:?}").contains(
+            "logical use needs one proof for each of its contract's own proof parameters"
+        ),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn a_theorem_without_the_contract_proof_parameter_cannot_supply_it() {
+    // `nonzero_is_positive` declares no `Inner`, so its header is not
+    // `Lifted`'s.
+    let source = CONTRACT_PROOF_PARAMETERS.replace(
+        "use_lifted::<lifted>(7u8)",
+        "use_lifted::<nonzero_is_positive>(7u8)",
+    );
+    assert_ne!(source, CONTRACT_PROOF_PARAMETERS);
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(
+        format!("{verdict:?}").contains(
+            "cited theorem's own proof formals are not exactly the proof parameters of the aliased contract"
+        ),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn a_contract_with_a_proof_parameter_is_another_implication_when_forwarded() {
+    // `Lifted` and `NonzeroIsPositive` state the same clauses, but a proof of
+    // `Lifted` needs a proof of `NonzeroIsPositive` before it applies.
+    let source = CONTRACT_PROOF_PARAMETERS
+        .replace(
+            "machine entry()",
+            "machine relay<Step: Lifted>(n: u8)\nrequires n != 0u8\nensures n > 0u8\n{\n    use_step::<Step>(n);\n}\n\nmachine use_step<Step: NonzeroIsPositive>(n: u8)\nrequires n != 0u8\nensures n > 0u8\n{\n    Step(n);\n}\n\nmachine entry()",
+        )
+        .replace("use_lifted::<lifted>(7u8)", "relay::<lifted>(7u8)");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(
+        format!("{verdict:?}").contains("forwarded theorem has another complete implication"),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn decoding_keeps_the_proof_an_application_gives_its_contract_and_its_check() {
+    use source_compiler::test_support::checking::{RouteVerdict, judge};
+
+    let program = Program::of(CONTRACT_PROOF_PARAMETERS);
+    let RouteVerdict::Accepted(accepted) = judge(Ok(program.elaboration().clone())).unwrap() else {
+        panic!("the contract with its own proof parameter must reach publication");
+    };
+    let module = accepted.prepare_publication().unwrap().module().clone();
+    let decoded =
+        terminal_codec::decode_module(&terminal_codec::encode_module(&module).unwrap()).unwrap();
+    assert_eq!(decoded.proofs, module.proofs);
+    terminal_codec::validate_theorem_evidence(&decoded, &mut proof_admission::Budget::default())
+        .unwrap();
+    let application = module
+        .proofs
+        .theorem_applications
+        .iter()
+        .position(|row| !row.instantiation.is_empty())
+        .expect("`Step::<nonzero_is_positive>(n)`");
+
+    // The applied proof's derivation is checked by the validator too.
+    let mut forged = module.clone();
+    forged.proofs.theorem_applications[application].instantiation[0].derivations[0]
+        .proof
+        .rule = terminal_psi::ProofRule::Primitive(terminal_psi::PrimitiveJudgment::Truth);
+    assert!(
+        terminal_codec::validate_theorem_evidence(&forged, &mut proof_admission::Budget::default())
+            .is_err()
+    );
+
+    // A changed judgment no longer decodes.
+    forged = module.clone();
+    forged.proofs.theorem_applications[application].instantiation[0].derivations[0]
+        .proof
+        .conclusion = semantic_vocabulary::Proposition::Truth;
+    let error = terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+        .unwrap_err();
+    assert!(
+        matches!(
+            error,
+            terminal_codec::CodecError::MalformedStructuralFoundation(
+                "theorem derivation lost its declared judgment or role"
+            )
+        ),
+        "{error:?}"
+    );
+
+    // Dropping the contract's proof parameter changes its implication.
+    forged = module;
+    for row in &mut forged.proofs.theorem_parameters {
+        row.contract.proof_parameters.clear();
+    }
+    assert!(
+        terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap()).is_err()
+    );
+}
+const ONE_IS_NONZERO: &str = "data OneIsNonzero = machine(n: u8)
+    requires n == 1u8
+    ensures n != 0u8;
+
+machine one_is_nonzero(n: u8)
+requires n == 1u8
+ensures n != 0u8
+{
+}
+
+machine use_step<Step: OneIsNonzero>(n: u8)
+requires n == 1u8
+ensures n != 0u8
+{
+    Step(n);
+}
+
+machine entry() -> u8 {
+    use_step::<one_is_nonzero>(1u8);
+    0u8
+}
+";
+
+#[test]
+fn a_theorem_proved_from_an_equality_supplies_the_alias() {
+    let verdict = Program::of(ONE_IS_NONZERO).judged(|_| {});
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_proved_from_another_equality_cannot_supply_the_alias() {
+    let source = ONE_IS_NONZERO.replacen(
+        "machine one_is_nonzero(n: u8)\nrequires n == 1u8",
+        "machine one_is_nonzero(n: u8)\nrequires n == 2u8",
+        1,
+    );
+    assert_ne!(source, ONE_IS_NONZERO);
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+fn at_an_address(source: &str) -> String {
+    source
+        .replace("n: u8", "n: address")
+        .replace("1u8", "1")
+        .replace("0u8;", "0;")
+        .replace("!= 0u8", "!= 0")
+}
+
+#[test]
+fn an_address_theorem_supplies_the_alias() {
+    let source = at_an_address(ONE_IS_NONZERO);
+    assert!(source.contains("machine(n: address)"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn an_address_theorem_from_another_equality_cannot_supply_the_alias() {
+    let source = at_an_address(ONE_IS_NONZERO).replacen(
+        "machine one_is_nonzero(n: address)\nrequires n == 1",
+        "machine one_is_nonzero(n: address)\nrequires n == 2",
+        1,
+    );
+    assert!(source.contains("requires n == 2"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// An address has no scalar carrier bound, so `n != 0` does not give `n > 0`.
+#[test]
+fn an_address_theorem_cannot_use_a_carrier_bound_it_does_not_have() {
+    let source = at_an_address(ONE_IS_NONZERO)
+        .replace("requires n == 1", "requires n != 0")
+        .replace("ensures n != 0", "ensures n > 0")
+        .replace("(1)", "(7)");
+    assert!(source.contains("ensures n > 0"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(
+        format!("{verdict:?}").contains("value has no bound"),
+        "{verdict:?}"
+    );
+}
+/// A record input is one subject for each of its scalar fields.
+const FIRST_IS_NONZERO: &str = "data Pair { x: u8; y: u8; }
+
+data FirstIsNonzero = machine(p: Pair)
+    requires p.x == 1u8
+    ensures p.x != 0u8;
+
+machine first_is_nonzero(p: Pair)
+requires p.x == 1u8
+ensures p.x != 0u8
+{
+}
+
+machine use_step<Step: FirstIsNonzero>(p: Pair)
+requires p.x == 1u8
+ensures p.x != 0u8
+{
+    Step(p);
+}
+
+machine entry() -> u8 {
+    use_step::<first_is_nonzero>(Pair { x: 1u8, y: 2u8 });
+    0u8
+}
+";
+
+#[test]
+fn a_theorem_over_a_record_field_supplies_its_alias() {
+    let verdict = Program::of(FIRST_IS_NONZERO).judged(|_| {});
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_over_another_field_of_the_record_cannot_supply_its_alias() {
+    let source = FIRST_IS_NONZERO.replacen(
+        "machine first_is_nonzero(p: Pair)\nrequires p.x == 1u8\nensures p.x != 0u8",
+        "machine first_is_nonzero(p: Pair)\nrequires p.y == 1u8\nensures p.y != 0u8",
+        1,
+    );
+    assert!(source.contains("requires p.y == 1u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// A field of the record names its subject where the theorem is applied:
+/// the application's conclusion is about `p.x`, not about `p.y`.
+#[test]
+fn an_applied_record_theorem_concludes_nothing_about_another_field() {
+    let source = FIRST_IS_NONZERO.replacen(
+        "requires p.x == 1u8\nensures p.x != 0u8\n{\n    Step(p);",
+        "requires p.x == 1u8\nensures p.y != 0u8\n{\n    Step(p);",
+        1,
     );
     assert!(
-        refusal.contains("a theorem given its own proof arguments"),
-        "{refusal}"
+        source.contains("ensures p.y != 0u8\n{\n    Step(p);"),
+        "{source}"
+    );
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// A data invariant is a premise the contract does not state, so a record
+/// with one is refused by name.
+#[test]
+fn a_record_with_a_data_invariant_is_not_a_logical_subject() {
+    let source = FIRST_IS_NONZERO.replacen(
+        "data Pair { x: u8; y: u8; }",
+        "data Pair requires self.x < 9u8 { x: u8; y: u8; }",
+        1,
+    );
+    assert_ne!(source, FIRST_IS_NONZERO);
+    let verdict = Program::try_of(&[("product/main.omg", &source)]).map(|p| p.judged(|_| {}));
+    assert!(
+        format!("{verdict:?}").contains("logical data subject has a data invariant"),
+        "{verdict:?}"
     );
 }

@@ -42,8 +42,8 @@ machine main() crashes Trap {
 ";
 
 const BUILD: &str = "use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"binder_properties\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"binder_properties\" };
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
 ";

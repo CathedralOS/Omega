@@ -115,6 +115,7 @@ impl Program<'_> {
                         owner: typed.symbols.get(parameter.symbol).parent,
                         application,
                         members,
+                        applied: Vec::new(),
                     },
                     signatures,
                 },
@@ -163,6 +164,7 @@ impl Program<'_> {
         let signature = binding.signatures.get(position).ok_or_else(|| {
             crate::read::unavailable(id, "const record requirement lost its prepared signature")
         })?;
+        let mut resolved = signature;
         if signature.symbol != target {
             // A receiver can name the original requirement or its prepared
             // application. The receiver's declared schema must select this
@@ -171,28 +173,31 @@ impl Program<'_> {
                 .typed
                 .static_record_bound_requirement(binding.account.owner, receiver, target)
                 .map_err(|reason| crate::read::unavailable(id, reason))?;
-            let same_member = exact.is_some_and(|required| {
-                required.signature.symbol == signature.symbol
-                    || self
-                        .typed
-                        .closed_requirement_application(target)
-                        .is_some_and(|closed| {
-                            closed.template == origin
-                                && closed.local_arguments.is_empty()
-                                && self.typed.requirement_application_matches_scope(
-                                    target,
-                                    &required.application,
-                                )
-                        })
-            });
-            if !same_member {
+            if let Some(required) = exact.as_ref()
+                && required.signature.symbol == signature.symbol
+            {
+                // Same requirement signature.
+            } else if let Some(required) = exact.as_ref()
+                && self
+                    .typed
+                    .closed_requirement_application(target)
+                    .is_some_and(|closed| {
+                        closed.template == origin
+                            && self.typed.requirement_application_matches_scope(
+                                target,
+                                &required.application,
+                            )
+                    })
+            {
+                resolved = required.signature;
+            } else {
                 return Err(crate::read::unavailable(
                     id,
                     "const record call has an unrepresented local requirement application",
                 ));
             }
         }
-        Ok(Some((position, signature.clone())))
+        Ok(Some((position, resolved.clone())))
     }
 
     pub(super) fn record_requirement(
@@ -206,10 +211,10 @@ impl Program<'_> {
             .record_parameter(receiver)
             .and_then(|binding| binding.account.members.get(position))
             .and_then(|member| {
-                member
-                    .instances
-                    .iter()
-                    .find(|instance| instance.arguments == arguments)
+                member.instances.iter().find(|instance| {
+                    self.symbols.get(instance.machine) == Some(&signature.symbol)
+                        && instance.arguments == arguments
+                })
             })
         {
             return Ok(instance.machine);
@@ -249,6 +254,7 @@ impl Program<'_> {
             })?;
         member.instances.push(StaticRecordRequirementInstance {
             machine: id,
+            signature: signature.symbol,
             arguments: arguments.to_vec(),
         });
         Ok(id)

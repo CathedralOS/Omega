@@ -128,7 +128,6 @@ fn assemble_object(
         }
     };
     let object = RelocationFreeObjectPlan {
-        source_text_section: text.identity,
         psi: text.psi,
         work_schedule: text.work_schedule,
         selected: text.selected,
@@ -165,10 +164,7 @@ mod tests {
         ObjectLocalSymbolId, PlacedFunctionFragment, RelocationFreeTextSectionPlacement,
         TextSectionPlacementPolicy, TextSectionRelocationRequirements,
     };
-    use optimization_core::{
-        FunctionFragmentEmissionIdentity, OptimizationSelectionIdentity,
-        TerminalRelocationFreeTextSectionIdentity,
-    };
+    use optimization_core::OptimizationSelectionIdentity;
     use selected_instructions::SelectedInstructionPlanIdentity;
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use target::NativeTarget;
@@ -177,8 +173,6 @@ mod tests {
     fn text_with_target(target: NativeTarget) -> RelocationFreeTextSectionPlacement {
         let machine = MachineId::new(7).unwrap();
         RelocationFreeTextSectionPlacement {
-            identity: TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"text"),
-            source_fragments: FunctionFragmentEmissionIdentity::from_canonical_bytes(b"fragments"),
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([4; 32]),

@@ -457,6 +457,26 @@ impl Program<'_> {
                     ExpressionNode::Name(path) if path.static_application.is_valid() => {
                         return Err(unavailable("applied name used as a plain scalar term"));
                     }
+                    ExpressionNode::Name(path)
+                        if self.typed.named_const_declaration(path).is_some_and(|constant| {
+                            constant.pending_target_observation
+                                && constant.evaluated_value.is_none()
+                        }) =>
+                    {
+                        let constant = self
+                            .typed
+                            .named_const_declaration(path)
+                            .expect("checked deferred constant");
+                        let (application, scalar_type) =
+                            self.deferred_scalar_constant(id, constant)?;
+                        (
+                            ScalarTerm::Application {
+                                application,
+                                scalar_type,
+                            },
+                            ValueType::plain(scalar_type),
+                        )
+                    }
                     // The reserved result, by the owner identity stage 02
                     // recorded, never by its spelling. calls_and_outcomes.md:
                     // "The reserved result occurrence belongs to its contract
@@ -572,10 +592,34 @@ impl Program<'_> {
                                             })?
                                     }
                                 }
-                                terminal_psi::ArrayExtent::Application(_) => {
-                                    return Err(unavailable(
-                                        "fixed-array length with an unresolved scalar application",
-                                    ));
+                                terminal_psi::ArrayExtent::Application(application) => {
+                                    let input_scalar = self
+                                        .scalar_applications
+                                        .scalar_type(application)
+                                        .ok_or_else(|| {
+                                            unavailable(
+                                                "fixed-array length has no declared scalar application",
+                                            )
+                                        })?;
+                                    let ScalarType::Integer(input_type) = input_scalar else {
+                                        return Err(unavailable(
+                                            "fixed-array length application is not an integer",
+                                        ));
+                                    };
+                                    let term = ScalarTerm::Application {
+                                        application,
+                                        scalar_type: input_scalar,
+                                    };
+                                    if input_type == scalar_type {
+                                        term
+                                    } else {
+                                        ScalarTerm::integer_widen(input_type, scalar_type, term)
+                                            .map_err(|_| {
+                                                unavailable(
+                                                    "fixed-array length has no count conversion",
+                                                )
+                                            })?
+                                    }
                                 }
                             }
                         } else if shape.length_operation().is_some() {
@@ -1423,39 +1467,24 @@ impl Program<'_> {
                         ));
                     }
                     let mut arguments = Vec::with_capacity(actuals.len());
-                    // A machine argument is a function passed whole: the
-                    // machine parameter it names, applied to nothing. It
-                    // comes before the value arguments, as the generic
-                    // machine's definition takes them.
-                    for argument in call.machine_arguments.iter() {
-                        let signature = self.callable_parameter(argument.symbol).ok_or_else(|| {
-                            unavailable(
-                                "generic mathematical machine applied to something other than a machine parameter",
-                            )
-                        })?;
-                        let ValueType::Record(record, ..) =
-                            self.value_type(id, signature.return_type)?
-                        else {
+                    // A machine argument is a function passed whole: a
+                    // machine parameter or a concrete mathematical machine
+                    // (`machine_argument`). Machine arguments come before
+                    // the value arguments, as the generic machine's
+                    // definition takes them.
+                    if !call.machine_arguments.is_empty() {
+                        let callee = typed
+                            .machine_by_symbol(target)
+                            .ok_or_else(|| unavailable("clause application lost its machine"))?;
+                        let required = self.required_callables(id, callee)?;
+                        if required.len() != call.machine_arguments.len() {
                             return Err(unavailable(
-                                "machine argument whose result is not mathematical data",
+                                "generic mathematical machine applied to the wrong number of machines",
                             ));
-                        };
-                        let position = u32::try_from(values.len())
-                            .map_err(|_| unavailable("clause term table overflow"))?;
-                        values.push(ClauseValue {
-                            carrier: ClauseCarrier::Structural(record),
-                            operand: ClauseOperand::Application {
-                                declaration: ClauseDeclaration {
-                                    member: (
-                                        argument.symbol.arena_index(),
-                                        argument.symbol.generation(),
-                                    ),
-                                    supplier: None,
-                                },
-                                arguments: Vec::new(),
-                            },
-                        });
-                        arguments.push(position);
+                        }
+                        for (argument, required) in call.machine_arguments.iter().zip(&required) {
+                            arguments.push(self.machine_argument(id, argument, required, values)?);
+                        }
                     }
                     for (formal, &actual) in parameters.iter().zip(actuals) {
                         let ty = self.value_type(id, formal.type_reference)?;
@@ -1479,7 +1508,19 @@ impl Program<'_> {
                         .case_symbol
                         .filter(|symbol| symbol.is_valid() && literal.type_symbol.is_valid())
                         .ok_or_else(|| unavailable("clause constructor without a case"))?;
-                    let constructed = self.record(id, literal.type_symbol)?;
+                    // A case of generic data is read at the application the
+                    // literal constructs (`Seq::Empty` as a `Seq<u64>`), not
+                    // at the declaration it names.
+                    let application = [
+                        literal.application_type,
+                        table.constructed_value_type_reference(expression),
+                    ]
+                    .into_iter()
+                    .find(|reference| reference.is_valid());
+                    let constructed = match application {
+                        Some(reference) => self.value_type(id, reference)?,
+                        None => self.record(id, literal.type_symbol)?,
+                    };
                     let ValueType::Record(record, ..) = constructed else {
                         return Err(unavailable("clause constructor of a scalar type"));
                     };
@@ -1887,6 +1928,17 @@ impl Program<'_> {
                         arguments: vec![value],
                     }
                 }
+                // The class of a value of data that has storage: the
+                // mathematical signature states no such quotient, so no
+                // law can equate two of its classes.
+                (ExpressionNode::Cast(_), Some(expected))
+                    if self.executable_quotient_of(expected).is_some() =>
+                {
+                    return Err(unavailable(
+                        "Identity of classes of a quotient of data that has storage, which the \
+                         mathematical signature does not state",
+                    ));
+                }
                 _ => {
                     return Err(unavailable(
                         "Identity operand has no term at its written carrier",
@@ -1913,6 +1965,31 @@ impl Program<'_> {
             };
             let position = u32::try_from(values.len())
                 .map_err(|_| unavailable("clause term table overflow"))?;
+            // An operation of a const record parameter is the same function
+            // wherever a clause applies it, so its record keeps it once for
+            // the Identity table of a generic check form.
+            if let ClauseOperand::Application {
+                declaration,
+                arguments,
+            } = &operand
+                && let Some((index, generation)) = declaration.supplier
+                && let Some(binding) = self
+                    .static_contracts
+                    .record_binding_mut(symbols::SymbolHandle::from_parts(index, generation))
+            {
+                let applied = terminal_check_tables::mathematics::IdentityOperation {
+                    declaration: *declaration,
+                    domains: arguments
+                        .iter()
+                        .filter_map(|&argument| values.get(argument as usize))
+                        .map(|argument| argument.carrier)
+                        .collect(),
+                    result: carrier,
+                };
+                if !binding.account.applied.contains(&applied) {
+                    binding.account.applied.push(applied);
+                }
+            }
             values.push(ClauseValue { carrier, operand });
             if reading_scalar {
                 let term = crate::body::scalar_clause_value(inferred).ok_or_else(|| {

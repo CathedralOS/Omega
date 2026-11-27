@@ -7,32 +7,144 @@ use crate::Unserved;
 use crate::body::{Ceiling, CrashCeiling, Qualification, ValueType};
 use crate::source_state::domain::ProofFact;
 use crate::source_state::signature::{SignatureContractKind, StateSignature};
-use crate::{Unserved, refuse};
-use semantic_vocabulary::{MachineId, ScalarType, ValueId};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, MachineId, PlaceId, ScalarType, ValueId,
+};
 use std::fmt::Write;
 use terminal_check_tables::Checked;
-use terminal_psi::{TheoremContract, ValueDeclaration};
+use terminal_psi::TheoremContract;
+use terminal_semantics::theorems::data_subjects::{self, SourceSubject};
 
 pub(crate) struct PreparedTheoremParameter {
     pub(crate) binder: symbols::SymbolHandle,
     pub(crate) source_position: u32,
     pub(crate) carrier_key: Vec<u8>,
+    /// The contract's source inputs, one per authored argument of an
+    /// application, in header order.
+    pub(crate) inputs: Vec<TheoremInput>,
+}
+
+/// One source input of a logical contract: a scalar formal, which is one
+/// subject, or a plain record formal, which is one subject for each of its
+/// scalar fields, in declared order
+/// (`terminal_semantics::theorems::data_subjects`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum TheoremInput {
+    Scalar(ScalarType),
+    Record {
+        record: semantic_vocabulary::StructuralTypeId,
+        leaves: Vec<(Vec<CanonicalStructuralPathSegment>, ScalarType)>,
+    },
 }
 
 impl Program<'_> {
+    /// One proof argument. Stage 04 closes an instantiated citation into the
+    /// machine generated for its arguments; one it leaves open, such as
+    /// `lifted::<inner>`, gives the cited theorem its own proof arguments.
+    /// Those are read as proof arguments of this same caller, one per proof
+    /// parameter of the cited theorem, and stage 06 checks each against that
+    /// theorem's own alias.
     pub(super) fn theorem_argument(
+        &mut self,
+        id: MachineId,
+        argument: &crate::source_state::expression::StaticMachineArgument,
+    ) -> Checked<crate::body::ProofSupply> {
+        if !(argument.authored_machine_application.is_valid() && argument.application.is_some()) {
+            return self
+                .theorem_source(id, argument)
+                .map(crate::body::ProofSupply::plain);
+        }
+        let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
+        let typed = self.typed;
+        if argument.const_literal.is_some() || argument.evidence_projection.is_some() {
+            return Err(unavailable(
+                "proof supply needs its complete explicit theorem citation",
+            ));
+        }
+        let selection = argument
+            .authored_selection
+            .and_then(|occurrence| typed.authored_declaration_selections().get(occurrence))
+            .ok_or_else(|| unavailable("proof citation has no exact authored selection"))?;
+        if selection.kind()
+            != crate::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
+        {
+            return Err(unavailable("proof citation has another authored role"));
+        }
+        let target = self.entered_machine(argument.symbol).ok_or_else(|| {
+            unavailable("logical argument is not a named theorem or proof formal")
+        })?;
+        let machine = typed
+            .machine_by_symbol(target)
+            .ok_or_else(|| unavailable("named theorem has no complete source declaration"))?;
+        let handle = argument.authored_machine_application;
+        if !typed
+            .expression_table
+            .static_machine_application_is_valid(handle)
+            || typed
+                .expression_table
+                .static_machine_application(handle)
+                .binding_declaration
+                != target
+        {
+            return Err(unavailable(
+                "instantiated theorem citation lost its exact retained application",
+            ));
+        }
+        let parameters = typed.machine_type_parameters(machine);
+        if parameters.is_empty()
+            || !machine.conformance_bounds.is_empty()
+            || parameters.iter().any(|parameter| {
+                !matches!(
+                    parameter.kind,
+                    crate::source_state::data::TypeParameterKind::Proof { .. }
+                )
+            })
+        {
+            return Err(unavailable(
+                "instantiated theorem citation needs its complete logical correspondence",
+            ));
+        }
+        let bindings = typed
+            .expression_table
+            .static_machine_application_bindings(handle);
+        let mut instantiation = Vec::with_capacity(parameters.len());
+        for parameter in parameters.iter() {
+            let mut matching = bindings
+                .iter()
+                .filter(|binding| binding.parameter == parameter.symbol);
+            let (Some(binding), None) = (matching.next(), matching.next()) else {
+                return Err(unavailable(
+                    "cited theorem's proof parameter has no unique explicit actual",
+                ));
+            };
+            let crate::source_state::static_applications::StaticMachineBindingValue::Proof(inner) =
+                &binding.value
+            else {
+                return Err(unavailable(
+                    "cited theorem's proof parameter was supplied with an executable or type binding",
+                ));
+            };
+            // One level: a supply nested inside an instantiation is read with
+            // `theorem_source`, which refuses its own instantiation by name.
+            instantiation.push(self.theorem_source(id, inner)?);
+        }
+        self.visible_to(id, target)?;
+        Ok(crate::body::ProofSupply {
+            source: terminal_psi::TheoremSource::Named(self.machine(target)?),
+            instantiation,
+        })
+    }
+
+    pub(super) fn theorem_source(
         &mut self,
         id: MachineId,
         argument: &crate::source_state::expression::StaticMachineArgument,
     ) -> Checked<terminal_psi::TheoremSource> {
         let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
         let typed = self.typed;
-        // Stage 04 closes an instantiated citation into the machine generated
-        // for its arguments. One left open supplies the cited theorem's own
-        // proof parameters, whose citations have no invocation to check at.
         if argument.authored_machine_application.is_valid() && argument.application.is_some() {
             return Err(unavailable(
-                "citing a theorem given its own proof arguments needs those citations checked",
+                "a theorem given its own proof arguments cannot itself be given to another inside a citation",
             ));
         }
         if !typed.symbols.symbols().nodes().is_valid(argument.symbol)
@@ -118,7 +230,18 @@ impl Program<'_> {
         let machine = typed
             .machine_by_symbol(target)
             .ok_or_else(|| unavailable("named theorem has no complete source declaration"))?;
-        if !typed.machine_type_parameters(machine).is_empty()
+        // A theorem with proof parameters of its own may be cited without
+        // them when the expected contract declares the same ones in its own
+        // header; stage 06 checks that correspondence and refuses any other.
+        if typed
+            .machine_type_parameters(machine)
+            .iter()
+            .any(|parameter| {
+                !matches!(
+                    parameter.kind,
+                    crate::source_state::data::TypeParameterKind::Proof { .. }
+                )
+            })
             || !machine.conformance_bounds.is_empty()
         {
             return Err(unavailable(
@@ -239,7 +362,7 @@ impl Program<'_> {
             else {
                 continue;
             };
-            let (contract, carrier_key) = self.theorem_contract(id, contract)?;
+            let (contract, carrier_key, inputs) = self.theorem_contract(id, contract)?;
             let unavailable = || {
                 refuse_at(
                     id,
@@ -255,6 +378,7 @@ impl Program<'_> {
                 binder: parameter.symbol,
                 source_position: u32::try_from(position).map_err(|_| unavailable())?,
                 carrier_key,
+                inputs,
             });
         }
         self.theorem_parameters.extend(parameters);
@@ -270,10 +394,50 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         source: &StateSignature,
-    ) -> Checked<(TheoremContract, Vec<u8>)> {
+    ) -> Checked<(TheoremContract, Vec<u8>, Vec<TheoremInput>)> {
         let unavailable = |reason| refuse_at(id, Unserved::Declaration(reason));
+        let typed = self.typed;
+        // The contract's own proof parameters belong to its header:
+        // mathematical_bindings.md, "If the contract itself takes a proof
+        // parameter, that parameter belongs to the contract's own header."
+        // Each states a complete contract with none of its own.
+        let own = typed
+            .data_type_parameters
+            .span_or_empty(source.type_parameters);
+        if own.is_empty() != source.type_parameters.is_empty() {
+            return Err(unavailable(
+                "logical theorem contract has a stale header span",
+            ));
+        }
+        let mut proof_parameters = Vec::with_capacity(own.len());
+        for parameter in own {
+            let crate::source_state::data::TypeParameterKind::Proof { contract } = &parameter.kind
+            else {
+                return Err(unavailable(
+                    "logical theorem contract declares a static parameter that is not a proof",
+                ));
+            };
+            let (nested, _, _) = self.theorem_contract(id, contract)?;
+            if !nested.proof_parameters.is_empty() {
+                return Err(unavailable(
+                    "a logical contract's proof parameter takes proof parameters of its own",
+                ));
+            }
+            proof_parameters.push(nested);
+        }
+        // Its scalar telescope and clauses are read without those binders,
+        // which no clause can name.
+        let unbound;
+        let source = if source.type_parameters.is_empty() {
+            source
+        } else {
+            unbound = StateSignature {
+                type_parameters: arena::HandleSpan::empty(),
+                ..source.clone()
+            };
+            &unbound
+        };
         if !source.lifetime_parameters.is_empty()
-            || !source.type_parameters.is_empty()
             || !source.conformance_bounds.is_empty()
             || source.is_default
             || !source.native_callback_parameters.is_empty()
@@ -290,7 +454,6 @@ impl Program<'_> {
                 "logical theorem contract needs its complete non-scalar correspondence",
             ));
         }
-        let typed = self.typed;
         let parameters = typed.state_signature_parameters(source);
         if parameters.iter().any(|parameter| {
             parameter.is_const || parameter.is_mutable || parameter.relevance.is_erased()
@@ -338,32 +501,65 @@ impl Program<'_> {
                 "logical evidence cannot supply executable outcomes or authority",
             ));
         }
-        let mut formals = Vec::with_capacity(signature.parameters.len());
+        // A clause names scalar formal `i` as value `i + 1` and the `k`th
+        // record formal as place `k + 1` (`contracts::formal_place`).
+        let mut inputs = Vec::with_capacity(signature.parameters.len());
+        let mut sources = Vec::with_capacity(signature.parameters.len());
         for (position, parameter) in signature.parameters.iter().enumerate() {
-            let ValueType::Scalar(scalar_type, Qualification::NONE) = parameter else {
-                return Err(unavailable(
-                    "logical theorem input needs its complete fixed scalar carrier",
-                ));
-            };
-            if !matches!(scalar_type, ScalarType::Boolean)
-                && !matches!(scalar_type, ScalarType::Integer(integer)
-                    if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && !integer.is_address())
+            match parameter {
+                ValueType::Scalar(scalar_type, Qualification::NONE) => {
+                    sources.push(SourceSubject::Scalar {
+                        id: ValueId::new(position as u64 + 1).ok_or_else(|| {
+                            unavailable("logical theorem input identity overflow")
+                        })?,
+                        scalar_type: *scalar_type,
+                    });
+                    inputs.push(TheoremInput::Scalar(*scalar_type));
+                }
+                ValueType::Record(record, Qualification::NONE, _) => {
+                    let leaves = self.record_leaves(id, *record)?;
+                    let place = PlaceId::new(
+                        inputs
+                            .iter()
+                            .filter(|input| matches!(input, TheoremInput::Record { .. }))
+                            .count() as u64
+                            + 1,
+                    )
+                    .ok_or_else(|| unavailable("logical theorem input identity overflow"))?;
+                    sources.push(SourceSubject::Record {
+                        place,
+                        leaves: leaves.clone(),
+                    });
+                    inputs.push(TheoremInput::Record {
+                        record: *record,
+                        leaves,
+                    });
+                }
+                _ => {
+                    return Err(unavailable(
+                        "logical theorem input needs its complete fixed scalar carrier or plain record",
+                    ));
+                }
+            }
+        }
+        let (formals, requires, ensures) =
+            data_subjects::flatten(&sources, &signature.requires, &signature.ensures)
+                .map_err(unavailable)?;
+        for formal in &formals {
+            let scalar_type = formal.scalar_type;
+            if !matches!(scalar_type, ScalarType::Boolean | ScalarType::IeeeFloat(_))
+                && !matches!(scalar_type, ScalarType::Integer(integer) if integer.bits().is_some())
             {
                 return Err(unavailable(
-                    "logical theorem input has no fixed integer or Boolean denotation",
+                    "logical theorem input has no closed-width integer, float or Boolean denotation",
                 ));
             }
-            formals.push(ValueDeclaration {
-                id: ValueId::new(position as u64 + 1)
-                    .ok_or_else(|| unavailable("logical theorem input identity overflow"))?,
-                scalar_type: *scalar_type,
-                qualifications: Default::default(),
-            });
         }
         let contract = TheoremContract {
             parameters: formals,
-            requires: signature.requires,
-            ensures: signature.ensures,
+            requires,
+            ensures,
+            proof_parameters,
         };
         let expected = terminal_semantics::theorems::contract_type(
             &contract,
@@ -381,6 +577,38 @@ impl Program<'_> {
             },
         )
         .map_err(|_| unavailable("logical theorem type has no canonical portable identity"))?;
-        Ok((contract, carrier_key))
+        Ok((contract, carrier_key, inputs))
+    }
+
+    /// A plain record's scalar fields, in declared order, as Terminal Psi
+    /// will publish them (`data_subjects::record_leaves`).
+    fn record_leaves(
+        &self,
+        id: MachineId,
+        record: semantic_vocabulary::StructuralTypeId,
+    ) -> Checked<Vec<(Vec<CanonicalStructuralPathSegment>, ScalarType)>> {
+        let unavailable = |reason| refuse_at(id, Unserved::Declaration(reason));
+        let declared = self.data_type(id, record)?;
+        let crate::StorageShape::Record(fields) = &declared.shape else {
+            return Err(unavailable("logical data subject is not a plain record"));
+        };
+        if !declared.requires.is_empty() {
+            return Err(unavailable("logical data subject has a data invariant"));
+        }
+        fields
+            .iter()
+            .map(|field| match field.value_type {
+                ValueType::Scalar(scalar, Qualification::NONE) => Ok((
+                    vec![CanonicalStructuralPathSegment::Field(field.id)],
+                    scalar,
+                )),
+                ValueType::Record(..) => Err(unavailable(
+                    "logical data subject has a field that is itself data",
+                )),
+                _ => Err(unavailable(
+                    "logical data subject has a field that is not a plain scalar",
+                )),
+            })
+            .collect()
     }
 }

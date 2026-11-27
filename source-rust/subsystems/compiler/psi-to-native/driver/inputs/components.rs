@@ -16,7 +16,7 @@ pub struct ComponentSourcePublication {
     pub package_permissions: Option<declaration_scope::ProductDeclarationScope>,
     pub optimizations: optimization_core::OptimizationSelections,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-    pub semantic_bindings: Arc<[provider_acceptance::AcceptedSemanticBinding]>,
+    pub semantic_bindings: Arc<[build_providers::acceptance::AcceptedSemanticBinding]>,
 }
 
 pub(crate) type VerifiedSuppliers = BTreeMap<PackageKeyIdentity, Supplier>;

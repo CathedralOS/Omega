@@ -494,7 +494,6 @@ pub(crate) mod terminator_wire {
                 site_guard: List<CrashPredicate>,
                 frontier_lower_bound: Ids,
             },
-
         }
         CompletionKind: ExternalCompletionKind, "ExternalCompletionKind" { 1 => ProcessExit }
     }

@@ -14,7 +14,7 @@ fn generated_files_can_import_the_checked_base_and_one_another() {
         (
             PathBuf::from("build.omg"),
             source_acquisition::capture::CapturedSourceNode::File {
-                bytes: Arc::from(b"machine build(builder: @mutable Build) { Build::package(builder, \"generated\"); }".as_slice()),
+                bytes: Arc::from(b"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: \"generated\" }; }".as_slice()),
                 executable: false,
             },
         ),

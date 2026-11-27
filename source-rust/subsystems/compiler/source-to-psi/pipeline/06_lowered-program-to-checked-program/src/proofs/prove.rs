@@ -91,6 +91,22 @@ pub(crate) type Unproven = &'static str;
 /// tree spends them. Running out supplies no premise or partial certificate.
 const CASE_COMBINATION_BUDGET: usize = 64;
 
+/// The work one goal's search may do, its branches and the side conditions
+/// of its bounds included: a step for each goal started, and a step for each
+/// known fact a case branch prepares again. A bound on a value may ask for
+/// the sign of another term, which asks for further bounds, so over many
+/// path facts an unprovable goal could otherwise search for minutes. The
+/// largest proof in the compiler's tests takes under 27,000 steps. Running
+/// out refuses the obligation as a resource limit, never as a proof.
+const PROOF_STEP_BUDGET: usize = 100_000;
+/// Steps one search scope (one machine's checking, say) may spend on goals
+/// that run out of budget before each later goal there gets only
+/// `EXHAUSTED_SCOPE_STEP_BUDGET`. Without it, a body whose goals are all out
+/// of reach costs the full budget once per goal.
+const EXHAUSTED_SCOPE_ALLOWANCE: usize = PROOF_STEP_BUDGET;
+const EXHAUSTED_SCOPE_STEP_BUDGET: usize = 8_192;
+const STEPS_EXHAUSTED: &str = "the proof search exceeded its step budget";
+
 /// Build the candidate fact's tree with explicit invocation-owned work state.
 /// Opposite-search proof work belongs to its own construction.
 fn fact_proof_for_refutation(
@@ -179,8 +195,15 @@ fn covered(
         Proposition::IntegerMathEqual(left, right) => {
             left == right
                 || (closed_mathematical(left, fixed) && closed_mathematical(right, fixed))
-                || (covered(&Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()), fixed, width)
-                    && covered(&Proposition::IntegerMathLessOrEqual(right.clone(), left.clone()), fixed, width))
+                || (covered(
+                    &Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()),
+                    fixed,
+                    width,
+                ) && covered(
+                    &Proposition::IntegerMathLessOrEqual(right.clone(), left.clone()),
+                    fixed,
+                    width,
+                ))
         }
         Proposition::IntegerMathLessThan(left, right) => {
             closed_mathematical(left, fixed) && closed_mathematical(right, fixed)
@@ -728,6 +751,9 @@ pub struct ProofSearchActivity {
     #[cfg(test)]
     normalization_checks: usize,
     started: usize,
+    /// Steps spent by goals whose search ran out of budget
+    /// (`EXHAUSTED_SCOPE_ALLOWANCE`).
+    exhausted_steps: usize,
     #[cfg(test)]
     sign_queries: usize,
     #[cfg(test)]
@@ -767,6 +793,7 @@ impl ProofSearchActivity {
 
     pub(crate) fn merge(&mut self, other: Self) {
         self.started = self.started.saturating_add(other.started);
+        self.exhausted_steps = self.exhausted_steps.saturating_add(other.exhausted_steps);
         #[cfg(test)]
         {
             self.sign_queries = self.sign_queries.saturating_add(other.sign_queries);
@@ -875,6 +902,15 @@ pub(crate) struct Prover<'a> {
     /// for a contradiction. Repeating that search for another conclusion adds
     /// no information and multiplies work by the order facts at each level.
     refuting: bool,
+    /// Steps this goal's search may still take (`PROOF_STEP_BUDGET`).
+    /// Shared with each branch and returned after its search.
+    remaining_steps: usize,
+    /// The search ran out of steps. The refusal is then a resource
+    /// diagnostic, not "no proof".
+    steps_exhausted: bool,
+    /// A case branch shares its parent's step budget; a top-level prover
+    /// gives each goal it is asked for a fresh one.
+    branch: bool,
 }
 
 fn node(conclusion: Proposition, rule: ProofRule) -> ProofNode {
@@ -1288,6 +1324,7 @@ impl<'a> Prover<'a> {
         activity: &'a mut ProofSearchActivity,
         parent: Option<(&[Fact], &crate::known::NormalizedPremises)>,
     ) -> Self {
+        let is_branch = parent.is_some();
         let mut branch = crate::known::BranchPreparation::new(parent);
         activity.started = activity.started.saturating_add(1);
         let crate::known::Known {
@@ -1355,6 +1392,9 @@ impl<'a> Prover<'a> {
             active_cuts: Vec::new(),
             active_goals: Vec::new(),
             refuting: false,
+            remaining_steps: PROOF_STEP_BUDGET,
+            steps_exhausted: false,
+            branch: is_branch,
         }
     }
 
@@ -1749,15 +1789,39 @@ impl<'a> Prover<'a> {
         (lower, upper)
     }
 
+    /// Whether the last goal's search ran out of its step budget, so its
+    /// failure is a resource limit and says nothing about the goal.
+    pub(crate) fn steps_exhausted(&self) -> bool {
+        self.steps_exhausted
+    }
+
     /// A certificate whose conclusion is exactly `goal`: directly, or by a
     /// case split over a disjunctive fact.
     pub(crate) fn prove(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
         if self.active_goals.contains(goal) {
             return Err("recursive goal under unchanged premises");
         }
+        let top_level = !self.branch && self.active_goals.is_empty();
+        let budget = if self.activity.exhausted_steps < EXHAUSTED_SCOPE_ALLOWANCE {
+            PROOF_STEP_BUDGET
+        } else {
+            EXHAUSTED_SCOPE_STEP_BUDGET
+        };
+        if top_level {
+            self.remaining_steps = budget;
+            self.steps_exhausted = false;
+        }
+        let Some(remaining) = self.remaining_steps.checked_sub(1) else {
+            self.steps_exhausted = true;
+            return Err(STEPS_EXHAUSTED);
+        };
+        self.remaining_steps = remaining;
         self.active_goals.push(goal.clone());
         let result = self.prove_goal(goal);
         self.active_goals.pop();
+        if top_level && self.steps_exhausted {
+            self.activity.exhausted_steps = self.activity.exhausted_steps.saturating_add(budget);
+        }
         result
     }
 
@@ -1804,6 +1868,8 @@ impl<'a> Prover<'a> {
         self.unreachable(goal)
             .ok_or(if self.case_combinations_exhausted {
                 "the bounded disjunction search was exhausted"
+            } else if self.steps_exhausted {
+                STEPS_EXHAUSTED
             } else {
                 direct.err().unwrap_or("no proof")
             })
@@ -2273,6 +2339,14 @@ impl<'a> Prover<'a> {
         premise: &Proposition,
         goal: &Proposition,
     ) -> Result<ProofNode, Unproven> {
+        // A branch re-prepares every known fact, so it costs a step for
+        // each of them as well as one for its goal.
+        let Some(remaining) = self.remaining_steps.checked_sub(self.facts.len()) else {
+            self.remaining_steps = 0;
+            self.steps_exhausted = true;
+            return Err(STEPS_EXHAUSTED);
+        };
+        self.remaining_steps = remaining;
         let mut assumptions = self.assumptions.clone();
         assumptions.local.push(premise);
         let mut branch = Prover::prepare(
@@ -2286,6 +2360,8 @@ impl<'a> Prover<'a> {
         branch.case_split = self.case_split;
         branch.remaining_case_combinations = self.remaining_case_combinations;
         branch.case_combinations_exhausted = self.case_combinations_exhausted;
+        branch.remaining_steps = self.remaining_steps;
+        branch.steps_exhausted = self.steps_exhausted;
         // The parent resumes after this branch. Nested cuts are popped by
         // split on both a successful proof and a failed alternative.
         branch.active_cuts = std::mem::take(&mut self.active_cuts);
@@ -2293,6 +2369,8 @@ impl<'a> Prover<'a> {
         self.active_cuts = branch.active_cuts;
         self.remaining_case_combinations = branch.remaining_case_combinations;
         self.case_combinations_exhausted = branch.case_combinations_exhausted;
+        self.remaining_steps = branch.remaining_steps;
+        self.steps_exhausted = branch.steps_exhausted;
         proof
     }
 
@@ -2500,9 +2578,14 @@ impl<'a> Prover<'a> {
                     return Ok(proof);
                 }
                 if left.scalar_type() != right.scalar_type()
-                    || !left.scalar_type().as_integer().is_some_and(|integer| !integer.is_address())
+                    || !left
+                        .scalar_type()
+                        .as_integer()
+                        .is_some_and(|integer| !integer.is_address())
                 {
-                    return Err("integer order antisymmetry requires one non-address integer carrier");
+                    return Err(
+                        "integer order antisymmetry requires one non-address integer carrier",
+                    );
                 }
                 self.antisymmetry(
                     goal,
@@ -2530,9 +2613,13 @@ impl<'a> Prover<'a> {
                 self.arithmetic(left, right)
             }
             Proposition::IntegerMathEqual(left, right) => {
+                // An exact result equation makes the goal one transport
+                // step; only when no definition decides it does the prover
+                // build the two-sided order certificate.
                 if let Some(proof) = self
                     .reflexive(goal.clone())
                     .or_else(|| self.closed(goal.clone()))
+                    .or_else(|| self.by_transport(goal))
                 {
                     return Ok(proof);
                 }

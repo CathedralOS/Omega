@@ -1056,6 +1056,7 @@ pub(crate) mod leaf_copy {
             cross_references(builder, row, *source, input, indices, pointer_slots)?;
         let indices = indices.get(leaf_index..).ok_or(invalid())?;
         let input = scale(builder, row, *source, *byte_offset, input, indices)?;
+        let start = builder.instructions.len();
         copy_bytes(
             builder,
             row,
@@ -1073,8 +1074,58 @@ pub(crate) mod leaf_copy {
             },
             shape.byte_size,
         )?;
+        if owned_parameter_copy(function, row) {
+            let range = |at: usize| u32::try_from(at).map_err(|_| invalid());
+            builder.transport.owned_copies.push(super::OwnedCopy {
+                operation: row.operation,
+                slot,
+                place: result.place,
+                source: input,
+                instructions: range(start)?..range(builder.instructions.len())?,
+            });
+        }
         builder.transport.pointers.push((result.place, pointer));
         Ok(())
+    }
+
+    /// A whole copy of an owned block parameter of a copyable type, the
+    /// candidate `shared_parameters::share` may dissolve.
+    fn owned_parameter_copy(
+        function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
+        row: &LegalizedScalarInstruction,
+    ) -> bool {
+        let LegalizedScalarInstructionKind::StructuralLeafCopy {
+            result,
+            source,
+            byte_offset,
+            indices,
+            path,
+            ..
+        } = &row.kind
+        else {
+            return false;
+        };
+        let whole = matches!(
+            path,
+            operation_operands::structural_stores::StructuralCopyPath::Ordinary(path)
+                if path.is_empty()
+        );
+        if !whole
+            || *byte_offset != 0
+            || !indices.is_empty()
+            || !result.claims.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        {
+            return false;
+        }
+        crate::instruction_selection::selection::arrival_parameter_input::parameter(
+            function, *source,
+        )
+        .is_some_and(|parameter| {
+            parameter.access == terminal_psi::StructuralAccess::Owned
+                && parameter.structural_type == result.structural_type
+        })
     }
 
     /// A whole copy of a shared-borrow parameter's descriptor reuses the
@@ -5990,6 +6041,19 @@ pub(crate) struct Transport {
     pub normalized_foreign_calls: Vec<selected_instructions::SelectedNormalizedForeignCall>,
     pub memory: Vec<SelectedMemoryAccess>,
     pub settlements: Vec<SelectedBoundarySettlement>,
+    pub(crate) owned_copies: Vec<OwnedCopy>,
+}
+
+/// A whole copy of an owned block parameter into a fresh slot, which
+/// `shared_parameters::share` may dissolve once it knows neither copy is
+/// written.
+pub(crate) struct OwnedCopy {
+    pub(crate) operation: OperationId,
+    pub(crate) slot: selected_instructions::LocalStorageSlotId,
+    pub(crate) place: PlaceId,
+    pub(crate) source: VirtualRegisterId,
+    /// The instructions that copy the bytes, by position.
+    pub(crate) instructions: std::ops::Range<u32>,
 }
 
 impl Transport {

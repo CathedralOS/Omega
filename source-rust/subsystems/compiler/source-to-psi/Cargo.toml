@@ -17,10 +17,10 @@ test-support = [
 ]
 
 [dependencies]
+build-time-evaluation = { path = "../build/build-time" }
 build-model = { path = "../build/model" }
 retained-product-selections = { path = "representations/retained-product-selections" }
 artifacts = { path = "../foundation/measurements" }
-build-invocation = { path = "../build/evaluation/invocations" }
 psi-authorization = { path = "../psi/artifact/authorization" }
 psi-provider-selections = { path = "../psi/execution-inputs/providers" }
 psi-scalar-applications = { path = "../psi/execution-inputs/scalar-applications" }
@@ -29,8 +29,6 @@ access-admission = { path = "../psi/access/validated-placements" }
 access-vocabulary = { path = "../psi/access/policies" }
 schema-reflection = { path = "../psi/types/reflection" }
 source-completion-accounting = { path = "representations/evaluation-receipts" }
-build-scalar-evaluation = { path = "../build/evaluation/scalars" }
-build-value-projection = { path = "../build/evaluation/values/projection" }
 service-surface = { path = "../psi/interfaces/service-surface" }
 source-provenance = { path = "../foundation/source-provenance" }
 declaration-scope = { path = "../foundation/declaration-scope" }
@@ -313,6 +311,11 @@ required-features = ["test-support"]
 [[test]]
 name = "lowering_qualified_values"
 path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/qualified_values.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_unit_results"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/unit_results.rs"
 required-features = ["test-support"]
 
 [[test]]

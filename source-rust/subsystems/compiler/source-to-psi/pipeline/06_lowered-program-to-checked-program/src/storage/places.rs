@@ -599,6 +599,17 @@ pub(crate) fn content_root<'a>(
         })
 }
 
+/// Whether a `@mutable` input still holds what it held at entry where an
+/// entry read is asked for. A shared input always does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EntryContents {
+    /// Every path to this point reaches the input with no write to it:
+    /// the machine's entry, or a call the whole input reaches unchanged.
+    Unwritten,
+    /// Some path may have written the input, or the point is not traced.
+    MaybeWritten,
+}
+
 /// What one scalar leaf holds on every path to a point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Reached {
@@ -1253,9 +1264,6 @@ pub(crate) struct Storage<'a> {
     arrivals: Vec<Vec<arrivals::Arrival>>,
     cleanup_writes: Vec<crate::owned_cleanup::Write>,
     observations: Vec<BlockObservations>,
-    /// The `requires` clauses of each data type, by its identity
-    /// (`Elaboration::domains`).
-    domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
     defaults: terminal_semantics::structural_qualifications::DefaultRequirements<'a>,
     default_operations: IdTable<
         OperationId,
@@ -1281,7 +1289,6 @@ impl<'a> Storage<'a> {
         machine: MachineId,
         lowered: &'a TerminalMachine,
         module: &'a terminal_psi::TerminalModule,
-        domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
         graph: &'a Graph,
         tables: &MachineTables,
         value_types: &IdTable<ValueId, ScalarType>,
@@ -1409,7 +1416,6 @@ impl<'a> Storage<'a> {
             observations: (0..graph.block_count())
                 .map(|_| BlockObservations::default())
                 .collect(),
-            domains,
             defaults,
             default_operations,
             routed_write,
@@ -1417,8 +1423,6 @@ impl<'a> Storage<'a> {
         storage.initial_contents_are_declared(references, tables)?;
         storage.log = storage.stores(references, tables, value_types)?;
         storage.cleanup_writes = crate::owned_cleanup::writes(module, lowered, references)?;
-        storage.log_is_stated(tables)?;
-        storage.cleanup_log_is_stated(tables)?;
         // All writes have been authenticated against their operations. Keep the
         // writes to original guest addresses for reaching-value queries. Provider
         // scalar cells have no captured guest address, including when lent to a
@@ -1448,8 +1452,21 @@ impl<'a> Storage<'a> {
                 {
                     return Ok(None);
                 }
-                let backing =
-                    storage.backing(references, &row.destination, row.block, before, concerns)?;
+                let backing = if call_write {
+                    let Some(backing) = storage.optional_backing(
+                        references,
+                        &row.destination,
+                        row.block,
+                        before,
+                        concerns,
+                    )?
+                    else {
+                        return Ok(None);
+                    };
+                    backing
+                } else {
+                    storage.backing(references, &row.destination, row.block, before, concerns)?
+                };
                 if let Stored::Moved(source) = &row.stored {
                     storage.backing(references, source, row.block, before, concerns)?;
                 }
@@ -1542,20 +1559,27 @@ impl<'a> Storage<'a> {
         ))
     }
 
-    /// The `requires` clauses of a structural type. The primitive type of a
-    /// scalar local's home is declared after the data types and has none.
+    /// The `requires` clauses a structural type's declaration states, in
+    /// authored order. These are the goals of every `DataDomain` obligation,
+    /// read from the module itself rather than from a table beside it.
     fn clauses_of(
         &self,
         structural_type: StructuralTypeId,
         concerns: Construct,
     ) -> Checked<&'a [Proposition]> {
-        match self.domains.get(structural_type) {
-            Some(clauses) => Ok(clauses),
-            None => match self.declaration(structural_type, concerns)?.shape {
-                StructuralTypeShape::PrimitiveScalar(_) => Ok(&[]),
-                _ => Err(self.foreign(concerns, "a data type has no row of requires clauses")),
-            },
-        }
+        Ok(self
+            .declaration(structural_type, concerns)?
+            .requires
+            .as_slice())
+    }
+
+    /// The `requires` clauses of a declared structural type, or `None` when
+    /// the module declares no such type.
+    fn declared_requires(&self, structural_type: StructuralTypeId) -> Option<&'a [Proposition]> {
+        self.types
+            .get(index(structural_type.get()))
+            .filter(|declaration| declaration.id == structural_type)
+            .map(|declaration| declaration.requires.as_slice())
     }
 
     /// The first declared case of the sum a zero value holds at `beneath`
@@ -1727,25 +1751,35 @@ impl<'a> Storage<'a> {
         Ok(())
     }
 
-    /// The read of a shared input's cell stated over that input as it
-    /// arrived: `items[i]` for the cell `i` of a formal `items: @[u64; 2]`.
+    /// The read of an input's cell stated over that input as it arrived:
+    /// `items[i]` for the cell `i` of a formal `items: @[u64; 2]`.
     /// The machine cannot write through a shared loan, so the cell holds its
     /// entry contents throughout the body, and a clause may name it even if
-    /// no operation captures its index. `actual` is the input itself or a
-    /// static or selected path below it; `path` continues from there.
-    pub(crate) fn shared_entry_read(
+    /// no operation captures its index. A cell of a `@mutable` input holds
+    /// its entry contents too wherever no write has reached the input
+    /// (`EntryContents::Unwritten`): a forwarder that only passes the loan
+    /// on reads at the call what its own entry clause named. `actual` is
+    /// the input itself or a static or selected path below it; `path`
+    /// continues from there.
+    pub(crate) fn entry_read(
         &self,
         tables: &MachineTables,
         actual: &Lineage,
         path: &[semantic_vocabulary::ScalarReadProjection],
         ty: ScalarType,
+        contents: EntryContents,
     ) -> Option<ScalarTerm> {
         use semantic_vocabulary::ScalarReadProjection as Projection;
         let input = terminal_psi::StructuralParameterDeclaration::find_by_place(
             &self.lowered.structural_parameters,
             actual.root,
         )?;
-        if input.access != StructuralAccess::SharedBorrow
+        let held = match input.access {
+            StructuralAccess::SharedBorrow => true,
+            StructuralAccess::MutableBorrow => contents == EntryContents::Unwritten,
+            StructuralAccess::Owned | StructuralAccess::WriteOnlyBorrow => false,
+        };
+        if !held
             || path
                 .iter()
                 .any(|step| matches!(step, Projection::Referent | Projection::Extent))
@@ -1801,7 +1835,7 @@ impl<'a> Storage<'a> {
     }
 
     /// The same names as `at_entry`, except that a cell of a shared input is
-    /// read over that input (`shared_entry_read`) even when an operation
+    /// read over that input (`entry_read`) even when an operation
     /// captured it. A clause over `items[index]` is then stated in the form a
     /// call gives a cell it selects with another value: the caller's
     /// `requires items[index] == 7` and a call's route `items[selected] == 0`
@@ -1872,6 +1906,47 @@ impl<'a> Storage<'a> {
             up_to: before,
             concerns,
         })
+    }
+
+    /// A logical application's clause where its edge leaves. Formal `i`
+    /// is the application's `i`th subject. A subject that is a field of one
+    /// of this machine's record formals is the one value that field holds
+    /// on every path to the edge, as a call's record actual is read
+    /// (`at_call`); only the subjects the clause names are read.
+    pub(crate) fn theorem_clause(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        edge: EdgeId,
+        subjects: &[ScalarTerm],
+        clause: &Proposition,
+        concerns: Construct,
+    ) -> Checked<Proposition> {
+        let formals = &self.lowered.structural_parameters;
+        let (block, _) = self.graph.locate(ProgramPoint::Edge(edge))?;
+        let mut bindings = TheoremSubjects {
+            subjects,
+            held: AtCall {
+                storage: self,
+                references,
+                tables,
+                scalars: Vec::new(),
+                places: formals
+                    .iter()
+                    .map(|formal| Lineage {
+                        root: formal.place,
+                        segments: Vec::new(),
+                    })
+                    .collect(),
+                callee_formals: formals,
+                extent_owner: None,
+                block,
+                up_to: self.block(block)?.operations.len(),
+                concerns,
+            },
+        };
+        crate::substitute_goal(clause, &mut bindings)
+            .map_err(|unbound| unbound.refusal(self.machine, concerns))
     }
 
     pub(crate) fn arrival(
@@ -2609,7 +2684,9 @@ impl<'a> Storage<'a> {
                         }
                         StructuralTypeShape::FixedArray {
                             element,
-                            length: terminal_psi::ArrayExtent::Parameter { .. },
+                            length:
+                                terminal_psi::ArrayExtent::Parameter { .. }
+                                | terminal_psi::ArrayExtent::Application(_),
                         } if matches!(segment, Segment::RuntimeIndex { .. }) => element,
                         StructuralTypeShape::ElementView { element, .. }
                             if matches!(segment, Segment::RuntimeIndex { .. }) =>
@@ -2916,6 +2993,13 @@ impl<'a> Storage<'a> {
                 root,
                 projection.path,
                 types,
+                |application| {
+                    self.module
+                        .scalars
+                        .scalar_applications
+                        .declaration(application)
+                        .and_then(|declaration| declaration.scalar_type())
+                },
                 |prefix| {
                     terminal_semantics::preceding_collection_length(
                         preceding,
@@ -5679,6 +5763,23 @@ impl<'a> Storage<'a> {
                     root: place.root,
                     segments: place.segments[..length].to_vec(),
                 };
+                // Cleanup on a StructuralCase arm edge runs after that edge
+                // has selected its case.
+                if let ProgramPoint::BeforeCleanup { edge, .. }
+                | ProgramPoint::AfterCleanup { edge, .. }
+                | ProgramPoint::Edge(edge) = point
+                    && let Terminator::StructuralCase {
+                        source,
+                        path,
+                        cases,
+                    } = &self.block(block)?.terminator
+                    && cases
+                        .iter()
+                        .any(|arm| arm.edge == edge && arm.case == *case)
+                    && self.stored_at(*source, path, concerns)? == sum
+                {
+                    continue;
+                }
                 let mut observation = Held {
                     point: Some(point),
                     storage: self,
@@ -7435,7 +7536,7 @@ impl crate::Bindings for AtEntry<'_, '_> {
         // the form a call gives the same cell (`AtCall::structural_read`).
         match self
             .storage
-            .shared_entry_read(self.tables, &input, path, ty)
+            .entry_read(self.tables, &input, path, ty, EntryContents::Unwritten)
         {
             Some(read) => Ok(read),
             None if captured => self.observation(actual, ty),
@@ -7564,6 +7665,73 @@ pub(crate) struct AtCall<'s, 'a> {
     concerns: Construct,
 }
 
+/// A logical application's subjects, each read where its edge leaves.
+struct TheoremSubjects<'t, 's, 'a> {
+    subjects: &'t [ScalarTerm],
+    held: AtCall<'s, 'a>,
+}
+
+impl crate::Bindings for TheoremSubjects<'_, '_, '_> {
+    type Error = crate::Unbound;
+
+    fn value(
+        &mut self,
+        id: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        let subject = usize::try_from(id.get() - 1)
+            .ok()
+            .and_then(|position| self.subjects.get(position))
+            .filter(|subject| subject.scalar_type() == scalar_type)
+            .ok_or(crate::Unbound::Unsupported(
+                "logical clause names a subject the application does not supply",
+            ))?;
+        match subject {
+            ScalarTerm::IntegerField {
+                version,
+                root,
+                path,
+                ..
+            }
+            | ScalarTerm::BooleanField {
+                version,
+                root,
+                path,
+            }
+            | ScalarTerm::IeeeFloatField {
+                version,
+                root,
+                path,
+                ..
+            } => crate::Bindings::field(&mut self.held, *version, *root, path, scalar_type),
+            other => Ok(other.clone()),
+        }
+    }
+
+    fn field(
+        &mut self,
+        _: semantic_vocabulary::ContentPlaceVersion,
+        _: PlaceId,
+        _: &[CanonicalStructuralPathSegment],
+        _: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        Err(crate::Unbound::Unsupported(
+            "a logical contract's clause observes storage",
+        ))
+    }
+
+    fn case(
+        &mut self,
+        _: PlaceId,
+        _: &[CanonicalStructuralPathSegment],
+        _: StructuralCaseId,
+    ) -> Result<CaseAnswer, crate::Unbound> {
+        Err(crate::Unbound::Unsupported(
+            "a logical contract's clause tests a case",
+        ))
+    }
+}
+
 impl<'a> AtCall<'_, 'a> {
     fn actual(
         &self,
@@ -7641,16 +7809,41 @@ impl<'a> AtCall<'_, 'a> {
         }
     }
 
-    /// An inline cell of a shared caller input retains its entry contents.
-    /// A clause may name that cell even if no operation captures its index.
-    fn shared_input_read(
-        &self,
+    /// An inline cell of a caller input that still holds its entry
+    /// contents: a shared input always, a `@mutable` one when its whole
+    /// contents reach this call from entry unchanged. A clause may name that
+    /// cell even if no operation captures its index.
+    fn entry_input_read(
+        &mut self,
         actual: &Lineage,
         path: &[semantic_vocabulary::ScalarReadProjection],
         ty: ScalarType,
-    ) -> Option<ScalarTerm> {
-        self.storage
-            .shared_entry_read(self.tables, actual, path, ty)
+    ) -> Result<Option<ScalarTerm>, crate::Unbound> {
+        let whole = Lineage {
+            root: actual.root,
+            segments: Vec::new(),
+        };
+        let mut trace = self.storage.budget();
+        trace.observations = Observations::WholeInput;
+        let reached = self
+            .storage
+            .reaching(
+                self.references,
+                self.tables,
+                Asked::Contents(&whole),
+                (self.block, self.up_to),
+                &mut trace,
+                self.concerns,
+            )
+            .map_err(crate::Unbound::Refused)?;
+        let contents = if reached == Reached::Input(actual.root) {
+            EntryContents::Unwritten
+        } else {
+            EntryContents::MaybeWritten
+        };
+        Ok(self
+            .storage
+            .entry_read(self.tables, actual, path, ty, contents))
     }
 
     /// Find the source named by the operation that established this actual.
@@ -7919,7 +8112,7 @@ impl<'a> CallObservations<'_, 'a> {
                     }
                     // An element's name is the read a call or entry clause
                     // states for that cell, which exists only for a shared
-                    // input (`Storage::shared_entry_read`). Elements of other
+                    // input (`Storage::entry_read`). Elements of other
                     // inputs would only add names nothing can match.
                     Some(StructuralTypeShape::FixedArray { element, length })
                         if declaration.access == StructuralAccess::SharedBorrow =>
@@ -8215,7 +8408,7 @@ fn formal_observation_path(
 /// The callee's name for one scalar leaf of a structural input. A path of
 /// record fields names the field at entry; a path through an array element
 /// names the read of that cell, with each position as a `u64` index, which
-/// is the form `AtCall::structural_read` and `Storage::shared_entry_read`
+/// is the form `AtCall::structural_read` and `Storage::entry_read`
 /// give the same cell at a call.
 fn crossing_name(
     root: PlaceId,
@@ -8345,7 +8538,7 @@ impl crate::Bindings for AtCall<'_, '_> {
             .and_then(|leaf| self.held_at(&leaf).observation(&leaf, ty));
         match observed {
             Err(error @ crate::Unbound::Unproved(_)) => {
-                self.shared_input_read(&actual, path, ty).ok_or(error)
+                self.entry_input_read(&actual, path, ty)?.ok_or(error)
             }
             other => other,
         }
@@ -8639,7 +8832,7 @@ impl crate::Bindings for AtJoin<'_, '_> {
                 // position names keeps its entry contents at every arrival,
                 // so the join states it over that input as entry clauses do.
                 Err(crate::Unbound::Unproved(_) | crate::Unbound::Unsupported(_))
-                    if let Some(read) = self.inputs.storage.shared_entry_read(
+                    if let Some(read) = self.inputs.storage.entry_read(
                         self.inputs.tables,
                         &Lineage {
                             root,
@@ -8647,6 +8840,7 @@ impl crate::Bindings for AtJoin<'_, '_> {
                         },
                         path,
                         ty,
+                        EntryContents::MaybeWritten,
                     ) =>
                 {
                     Ok(read)
@@ -9346,14 +9540,15 @@ mod observation_tests {
             } else {
                 *position = u32::MAX;
             }
-            let crate::RouteVerdict::FallBack(refusal) = crate::judge(Ok(input)).unwrap() else {
-                panic!("a borrowed place outside its block header must refuse");
-            };
+            // The corrupted header is a defect of the lowered module, so the
+            // checker refuses it either as unsupported storage flow or as a
+            // foreign identity; it never accepts it.
             assert!(
-                refusal
-                    .detail
-                    .contains("descriptor storage flow cannot be reconstructed"),
-                "{refusal:?}"
+                !matches!(
+                    crate::judge(Ok(input)),
+                    Ok(crate::RouteVerdict::Accepted(_))
+                ),
+                "a borrowed place outside its block header must refuse"
             );
         }
     }
@@ -9413,7 +9608,6 @@ mod observation_tests {
             machine.id,
             machine,
             module,
-            &input.domains,
             &graph,
             tables,
             &types,
@@ -9648,7 +9842,6 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             machine.id,
             machine,
             module,
-            &input.domains,
             &graph,
             tables,
             &types,
@@ -9796,7 +9989,6 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
                 machine.id,
                 machine,
                 module,
-                &input.domains,
                 &graph,
                 tables,
                 &types,
@@ -9946,7 +10138,6 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             machine.id,
             machine,
             module,
-            &input.domains,
             &graph,
             tables,
             &types,
@@ -10087,7 +10278,6 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             machine.id,
             machine,
             module,
-            &input.domains,
             &cyclic_graph,
             &unseeded,
             &types,
@@ -10163,7 +10353,6 @@ machine entry() {
             machine.id,
             machine,
             module,
-            &input.domains,
             &graph,
             tables,
             &types,
@@ -10318,7 +10507,6 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
                 machine.id,
                 machine,
                 module,
-                &acyclic.domains,
                 &graph,
                 tables,
                 &types,
@@ -10468,7 +10656,6 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
                 machine.id,
                 machine,
                 module,
-                &cyclic.domains,
                 &graph,
                 tables,
                 &types,

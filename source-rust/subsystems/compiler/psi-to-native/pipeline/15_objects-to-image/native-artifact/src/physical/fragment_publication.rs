@@ -20,7 +20,7 @@ pub(super) struct FragmentPublicationBinding {
 
 impl FragmentPublicationBinding {
     pub(super) fn validate_object(&self, object: &ObjectArtifact) -> Result<(), &'static str> {
-        if object.publication().custody() != self.publication.custody()
+        if !object.publication().same_text(&self.publication)
             || object.call_origins() != &self.call_origins
             || object.foreign_call_plans() != &self.foreign_call_plans
         {
@@ -69,7 +69,7 @@ impl FragmentPublicationBinding {
 
 impl PartialEq for FragmentPublicationBinding {
     fn eq(&self, other: &Self) -> bool {
-        self.publication.custody() == other.publication.custody()
+        self.publication.same_text(&other.publication)
             && self.call_origins == other.call_origins
             && self.foreign_call_plans == other.foreign_call_plans
     }

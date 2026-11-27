@@ -1,5 +1,5 @@
 //! Read the domains a jump establishes from published Psi alone, applying the
-//! completion rules of `wiki/spec/terminal-psi/encoding.md` (scalar return origins).
+//! completion rules of `source-rust/subsystems/compiler/psi/artifact/wire/encoding.md` (scalar return origins).
 //! This reader checks the accounting; it proves no predicate.
 use omega_psi::{BlockTerminator, CompletionOrigin, DomainAtom, LoweredPackage, MachineBody, SuccessorEdge, TypeShape, ValueOrigin};
 

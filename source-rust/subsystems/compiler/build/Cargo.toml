@@ -8,6 +8,7 @@ version.workspace = true
 path = "project_build.rs"
 
 [dependencies]
+build-providers = { path = "providers" }
 build-model = { path = "model" }
 provider-admission = { path = "../psi-to-native/verification/provider-admission" }
 bounded-process = { path = "../../../foundation/bounded-process" }
@@ -33,12 +34,9 @@ compiler = { path = ".." }
 diagnostics = { path = "../../../foundation/diagnostics" }
 platform-custody = { path = "../../../foundation/filesystem" }
 build-evaluation-result = { path = "evaluation/result" }
-provider-acceptance = { path = "providers/acceptance" }
 direct-boundary-bindings = { path = "../psi-to-native/verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../psi-to-native/targets/intrinsics" }
-selected-provider-plans = { path = "providers/selections" }
 target-provider-admission = { path = "../psi-to-native/verification/target-providers" }
-provider-plans = { path = "providers/plans" }
 service-surface = { path = "../psi/interfaces/service-surface" }
 source-provenance = { path = "../foundation/source-provenance" }
 numeric-literals = { path = "../foundation/numeric-literals" }

@@ -265,7 +265,7 @@ impl PreparedBuildMachineEntry {
         target: InvocationTarget<'_>,
         meter: &mut build_model::work::EvaluationWorkMeter,
         observed_calls: &[terminal_interpreter::TerminalCallObservation],
-    ) -> Result<build_invocation::InvocationOutcome, String> {
+    ) -> Result<build_time_evaluation::invocations::InvocationOutcome, String> {
         let selected = produced
             .view()
             .module()
@@ -309,27 +309,29 @@ impl PreparedBuildMachineEntry {
             Self::layout_supplies(produced, providers, target)?
                 .unwrap_or_else(|| terminal_interpreter::TerminalRuntimeSupplies::from(providers))
         };
-        Ok(build_invocation::ArtifactInvocation::bind(
-            build_invocation::InvocationInput {
-                code: view,
-                admission: admitted,
-                target: target.name,
-                layout_target: target.layout_target,
-                arguments: &self.arguments,
-                inputs: &self.input_values,
-                supplies: &installation,
-                scalars: scalars.as_ref(),
-                observed_calls,
-            },
-            meter,
-        )?
-        .execute())
+        Ok(
+            build_time_evaluation::invocations::ArtifactInvocation::bind(
+                build_time_evaluation::invocations::InvocationInput {
+                    code: view,
+                    admission: admitted,
+                    target: target.name,
+                    layout_target: target.layout_target,
+                    arguments: &self.arguments,
+                    inputs: &self.input_values,
+                    supplies: &installation,
+                    scalars: scalars.as_ref(),
+                    observed_calls,
+                },
+                meter,
+            )?
+            .execute(),
+        )
     }
 }
 pub(crate) fn pure_terminal_invocation_account()
 -> Result<build_model::accounting::EvaluationInvocationAccount, String> {
     let limits = build_model::contracts::BuildEvaluationSponsorLimits::new(
-        build_scalar_evaluation::PURE_PSI_WORK_BUDGET,
+        build_time_evaluation::scalars::PURE_PSI_WORK_BUDGET,
         1,
         1,
         1,
@@ -345,6 +347,9 @@ pub(crate) fn pure_terminal_invocation_account()
     };
     build_model::accounting::BuildEvaluationSponsor::new_with_measurement(limits, measurement)
         .map_err(|error| format!("pure invocation sponsor: {error:?}"))?
-        .begin_invocation(measurement, build_scalar_evaluation::PURE_PSI_WORK_BUDGET)
+        .begin_invocation(
+            measurement,
+            build_time_evaluation::scalars::PURE_PSI_WORK_BUDGET,
+        )
         .map_err(|error| format!("pure invocation account: {error:?}"))
 }

@@ -1,6 +1,6 @@
 # Consumer semantic bindings
 
-[Provider acceptance](../providers/acceptance/acceptance.rs) defines the fixed roles
+[Provider acceptance](../providers/acceptance.rs) defines the fixed roles
 a package declaration can be bound to, and their normalized schema keys; the
 [toolchain/library contract](../../../../../wiki/spec/packages/toolchain.md) sets
 their authority. Each role is a narrow signature, not a general protocol for

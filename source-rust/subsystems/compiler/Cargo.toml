@@ -8,10 +8,10 @@ version.workspace = true
 path = "compiler.rs"
 
 [dependencies]
+build-providers = { path = "build/providers" }
 compiler-identity = { path = "foundation/compiler-identity" }
 review-evidence = { path = "../package-manager/review/evidence" }
 provider-correspondence = { path = "psi-to-native/verification/provider-correspondence" }
-provider-acceptance = { path = "build/providers/acceptance" }
 psi-entry-memory = { path = "psi/execution-inputs/entry-memory" }
 diagnostics = { path = "../../foundation/diagnostics" }
 component-description = { path = "psi-to-native/verification/component-description" }
