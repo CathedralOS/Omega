@@ -158,3 +158,31 @@ move the build tests that decode bytes onto the typed policy they already
 hold. Alternatively, remove these sections from the package-review spec and
 the evidence schema now, and delete the decoders and the vocabulary together.
 Should package review report these sections?
+
+<a id="generic-quotient-selection"></a>
+### 4. How does a generic quotient declaration name its relation and select its conformance?
+
+The quotient contract interprets a carrier family `C<I>` and a relation over
+it through a total carrier, and says generic selection follows the
+explicit-argument rules for named conformances. Its only declaration form is
+closed: `data Sign = Representative % same_sign requires same_sign satisfies
+MereEquivalence<Representative, same_sign> as SameSign;`, which "selects one
+closed `MereEquivalence<C, R>` conformance".
+[Formation and representation](wiki/spec/proofs/quotients.md#formation-and-representation) ·
+[Families, relations, and evidence](wiki/spec/proofs/quotients.md#families-relations-and-evidence) ·
+[Declaration and selection](wiki/spec/language/conformances.md#declaration-and-selection)
+
+Neither contract spells `data Bag<T> = Seq<T> % R` when `R` and its
+conformance take `T`. The parser refuses both `% same_length<T>` and
+`as SameLength<T>`, and no authored source declares a generic quotient. The
+mathematical signature can now declare `Seq<T>` and its applications, so the
+reader could state `Bag<u64>` as the quotient of `Seq<u64>` once the
+declaration names the relation and conformance at `u64`.
+
+**Recommend explicit arguments at both places:** `data Bag<T> = Seq<T> %
+same_length<T> requires same_length<T> satisfies MereEquivalence<Seq<T>,
+same_length<T>> as SameLength<T>;`, each application of `Bag` selecting the
+conformance at its own arguments and refusing one that does not close.
+Alternatively, keep quotient declarations closed and have generic code take a
+closed quotient as an ordinary type argument. Which should a generic quotient
+use?
