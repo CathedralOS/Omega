@@ -2137,7 +2137,7 @@ mod physical_model {
             r!("aarch64.zero-register" => ReservationReason::Architectural => vec![zero_unit]),
             r!("aarch64.instruction-pointer" => ReservationReason::Architectural => vec![pc_unit]),
             r!("aarch64.frame-pointer" => ReservationReason::FramePointer => vec![named_units["x29"]]),
-            r!("darwin.aarch64.platform" => ReservationReason::Platform => vec![x18]),
+            r!(crate::AARCH64_PLATFORM_RESERVATION_OVERLAY => ReservationReason::Platform => vec![x18]),
             r!("omega.aarch64.dispatch" => ReservationReason::Dispatch => vec![named_units["x27"]]),
             r!("omega.aarch64.metering" => ReservationReason::Metering => vec![named_units["x28"]]),
         ];
@@ -2283,10 +2283,38 @@ mod tests {
                 .name,
             "darwin-aapcs64"
         );
+        assert_eq!(
+            aarch64_preservation_convention_for_target(&model, NativeTarget::windows_arm64())
+                .unwrap()
+                .name,
+            "darwin-aapcs64"
+        );
         assert!(
             aarch64_preservation_convention_for_target(&model, NativeTarget::windows_x64())
                 .is_none()
         );
+    }
+
+    // Windows ARM64 holds the TEB pointer in x18, so it reserves x18 like Apple.
+    #[test]
+    fn platform_register_overlay_reserves_x18_on_apple_and_windows_only() {
+        use crate::{AARCH64_PLATFORM_RESERVATION_OVERLAY, aarch64_reserves_platform_register};
+        let model = aarch64_physical_register_model();
+        let overlay = model
+            .reservations
+            .iter()
+            .find(|overlay| overlay.name == AARCH64_PLATFORM_RESERVATION_OVERLAY)
+            .unwrap();
+        let x18 = &model.view_named("x18").unwrap().units;
+        assert_eq!(&overlay.units, x18);
+        for (target, reserves) in [
+            (NativeTarget::linux_arm64(), false),
+            (NativeTarget::macos_arm64(), true),
+            (NativeTarget::windows_arm64(), true),
+            (NativeTarget::windows_x64(), false),
+        ] {
+            assert_eq!(aarch64_reserves_platform_register(target), reserves);
+        }
     }
 
     #[test]

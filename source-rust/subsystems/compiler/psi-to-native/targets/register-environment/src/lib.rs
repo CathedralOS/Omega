@@ -4,8 +4,8 @@ and conservative reservation policy into a single validated allocator
 environment (`ValidatedTargetRegisterEnvironment`). Rather than exposing a
 separate decoded-environment replay path, we construct and validate the target
 environment directly from ISA declarations (`baseline_target_register_environment`),
-caching one validated instance per target process-wide while returning owned
-copies to callers. We also derive the exact ABI preservation conventions and
+caching one validated instance per target process-wide. Callers receive handles
+that share that instance, so cloning one never copies the register model. We also derive the exact ABI preservation conventions and
 preservation storage catalogs implied by the validated environment.
 */
 
@@ -54,7 +54,8 @@ use register_model::{
 use selected_instructions::SelectedConstraintKeys;
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_aarch64::{
-    Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
+    AARCH64_PLATFORM_RESERVATION_OVERLAY, Aarch64RegisterConstraintCatalogValidationError,
+    aarch64_fixed_register_view, aarch64_reserves_platform_register,
 };
 use target_x86_64::{
     X86_64RegisterConstraintCatalogValidationError, x86_64_fixed_register_view,
@@ -120,8 +121,8 @@ fn assemble_target_register_environment(
     if reservations
         .active_overlays
         .iter()
-        .any(|name| name == "darwin.aarch64.platform")
-        && target.object_format != ObjectFormat::MachO
+        .any(|name| name == AARCH64_PLATFORM_RESERVATION_OVERLAY)
+        && !aarch64_reserves_platform_register(target)
     {
         return Err(TargetRegisterEnvironmentValidationError::InapplicableReservationOverlay);
     }
@@ -144,8 +145,16 @@ fn assemble_target_register_environment(
     ))
 }
 
+/// Stage 05 asks for the environment once per body and later stages clone it
+/// further, so the validated parts sit behind one `Arc` and a clone shares them
+/// instead of copying the register model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedTargetRegisterEnvironment {
+    parts: std::sync::Arc<TargetRegisterEnvironmentParts>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct TargetRegisterEnvironmentParts {
     target: NativeTarget,
     physical: ValidatedPhysicalRegisterModel,
     constraints: PreparedRegisterConstraintCatalog,
@@ -155,7 +164,7 @@ pub struct ValidatedTargetRegisterEnvironment {
 }
 
 impl ValidatedTargetRegisterEnvironment {
-    const fn new(
+    fn new(
         target: NativeTarget,
         physical: ValidatedPhysicalRegisterModel,
         constraints: PreparedRegisterConstraintCatalog,
@@ -164,24 +173,26 @@ impl ValidatedTargetRegisterEnvironment {
         identity: TargetRegisterEnvironmentIdentity,
     ) -> Self {
         Self {
-            target,
-            physical,
-            constraints,
-            reservations,
-            selected_keys,
-            identity,
+            parts: std::sync::Arc::new(TargetRegisterEnvironmentParts {
+                target,
+                physical,
+                constraints,
+                reservations,
+                selected_keys,
+                identity,
+            }),
         }
     }
 
-    pub const fn target(&self) -> NativeTarget {
-        self.target
+    pub fn target(&self) -> NativeTarget {
+        self.parts.target
     }
 
-    pub const fn admits_pointer_displacement(&self, byte_offset: u32, byte_size: u32) -> bool {
+    pub fn admits_pointer_displacement(&self, byte_offset: u32, byte_size: u32) -> bool {
         if !matches!(byte_size, 1 | 2 | 4 | 8) {
             return false;
         }
-        match self.target.architecture {
+        match self.parts.target.architecture {
             Architecture::X86_64 => byte_offset <= i32::MAX as u32,
             Architecture::Aarch64 => {
                 byte_offset.is_multiple_of(byte_size) && byte_offset / byte_size <= 4095
@@ -189,41 +200,42 @@ impl ValidatedTargetRegisterEnvironment {
         }
     }
 
-    pub const fn physical(&self) -> &ValidatedPhysicalRegisterModel {
-        &self.physical
+    pub fn physical(&self) -> &ValidatedPhysicalRegisterModel {
+        &self.parts.physical
     }
 
-    pub const fn constraints(&self) -> &PreparedRegisterConstraintCatalog {
-        &self.constraints
+    pub fn constraints(&self) -> &PreparedRegisterConstraintCatalog {
+        &self.parts.constraints
     }
 
-    pub const fn reservations(&self) -> &ValidatedRegisterReservationProfile {
-        &self.reservations
+    pub fn reservations(&self) -> &ValidatedRegisterReservationProfile {
+        &self.parts.reservations
     }
 
-    pub const fn identity(&self) -> TargetRegisterEnvironmentIdentity {
-        self.identity
+    pub fn identity(&self) -> TargetRegisterEnvironmentIdentity {
+        self.parts.identity
     }
 
     pub fn constraint(&self, key: RegisterConstraintKey) -> Option<&RegisterInstructionConstraint> {
-        self.constraints.constraint(key)
+        self.parts.constraints.constraint(key)
     }
 
     #[cfg(test)]
     pub(crate) fn scalar_call_constraint(&self) -> Option<&RegisterInstructionConstraint> {
-        self.constraint(self::catalog::scalar_call_constraint_key(self.target)?)
+        let key = self::catalog::scalar_call_constraint_key(self.parts.target)?;
+        self.constraint(key)
     }
 
     pub fn selected_keys(&self) -> SelectedConstraintKeys {
-        self.selected_keys.clone()
+        self.parts.selected_keys.clone()
     }
 
     pub fn allocation_constraint_keys(&self) -> TargetRegisterEnvironmentConstraintKeys {
-        self.selected_keys.rows.clone()
+        self.parts.selected_keys.rows.clone()
     }
 
     pub fn fixed_register_view(&self, register: MachineRegister) -> Option<RegisterViewId> {
-        fixed_register_view(&self.physical, register)
+        fixed_register_view(&self.parts.physical, register)
     }
 }
 

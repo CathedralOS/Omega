@@ -23,6 +23,18 @@ pub fn aarch64_selected_abi(target: NativeTarget) -> Option<Aarch64SelectedAbi> 
     }
 }
 
+/// Reservation overlay that withholds x18 from the allocator. Apple uses x18
+/// as the platform register and Windows keeps the Thread Environment Block
+/// pointer there. The name stays Darwin's, like the `darwin-aapcs64`
+/// convention, because the overlay name is part of the reservation identity.
+pub const AARCH64_PLATFORM_RESERVATION_OVERLAY: &str = "darwin.aarch64.platform";
+
+/// Every target on the x18-reserving ABI activates the platform overlay, so
+/// the reservation and the call convention that preserves x18 cannot disagree.
+pub fn aarch64_reserves_platform_register(target: NativeTarget) -> bool {
+    aarch64_selected_abi(target) == Some(Aarch64SelectedAbi::Darwin)
+}
+
 pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
     let abi = aarch64_selected_abi(target)?;
     let darwin = abi == Aarch64SelectedAbi::Darwin;
