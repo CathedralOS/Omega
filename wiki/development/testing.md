@@ -438,16 +438,12 @@ from `native-compiler`. A numbered source stage may link the representations
 it reads but no other source stage's crate. Stages 04, 05 and 06 each build
 their product through an issuer crate, which only that stage and the
 product's representation may link, as a test dependency too. Package dependency editing uses a scoped allowance
-for the Build text reader. The same command checks restricted program access
-and the reviewed field and export inventory. Run `mbx xtask check-boundary
---ownership` to isolate package and Build invocation routing from the full
-representation audit. The inventory retains the reviewed signatures for the
-maintained successors of V1 files. Retired orchestration, driver, product and
-package-review capture implementations and the deleted provider-planner façade
-have their historical judgments under `_recycling/source-rust/`. Changes to a
-maintained signature still require review. [Dependency rules](../../tools/xtask/src/boundary.rs)
+for the Build text reader. The same command checks restricted program access.
+Run `mbx xtask check-boundary --ownership` to isolate package and Build
+invocation routing from the full representation audit. A crate reaches another
+crate only through its `Cargo.toml`, so these dependency edges are the firewall;
+no per-item signature review is required. [Dependency rules](../../tools/xtask/src/boundary.rs)
 · [Transitive graph checks](../../tools/xtask/src/boundary/linear_pipeline.rs)
-· [Reviewed inventory](../../tools/xtask/pipeline-contracts.json)
 
 `mbx nextest run --workspace --lib --no-fail-fast` is the platform-portable
 subset: all library tests, no target-specific executable/runtime legs.
