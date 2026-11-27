@@ -975,12 +975,9 @@ pub(crate) mod call_targets {
             call.target_symbol = selected.target;
             call.target = selected.name;
             if let Some((symbol, name)) = selected.attached_data {
-                call.receiver =
-                    program
-                        .expression_table
-                        .insert_tree(&expression::Expression::Name(
-                            expression::NamePath::resolved_from_iter([name], symbol, symbol),
-                        ));
+                call.receiver = program.expression_table.insert_name_path(
+                    &expression::NamePath::resolved_from_iter([name], symbol, symbol),
+                );
             }
             Ok(())
         }
@@ -5771,11 +5768,9 @@ pub(crate) mod selected_operands {
                             "callable expression argument does not name a const or value declaration",
                         );
                     }
-                    Ok(program
-                        .expression_table
-                        .insert_tree(&expression::Expression::Name(
-                            expression::NamePath::resolved_from_iter([name], symbol, symbol),
-                        )))
+                    Ok(program.expression_table.insert_name_path(
+                        &expression::NamePath::resolved_from_iter([name], symbol, symbol),
+                    ))
                 }
                 _ => Err(
                     "nominal callable expression application needs an expression-valued argument",

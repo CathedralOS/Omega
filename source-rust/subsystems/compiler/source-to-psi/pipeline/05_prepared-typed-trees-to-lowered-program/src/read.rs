@@ -1431,9 +1431,7 @@ mod tests {
     #[test]
     fn targetless_runtime_calls_keep_their_actual_authored_caller() {
         use crate::source_state::callable_values::{RuntimeCallBinding, RuntimeCallableContract};
-        use crate::source_state::expression::{
-            Expression as TypedExpression, NamePath, TableCallExpression,
-        };
+        use crate::source_state::expression::{NamePath, TableCallExpression};
         use crate::source_state::name::Identifier;
         use crate::source_state::signature::{StateParameter, StateSignature};
         use crate::source_state::statement::{StatementNode, TableCall};
@@ -1481,14 +1479,11 @@ mod tests {
                 type_reference: carrier,
                 ..Default::default()
             }]);
-            let callee =
-                typed
-                    .expression_table
-                    .insert_tree(&TypedExpression::Name(NamePath::resolved(
-                        vec![Identifier::generated("callback")],
-                        parameter,
-                        parameter,
-                    )));
+            let callee = typed.expression_table.insert_name_path(&NamePath::resolved(
+                vec![Identifier::generated("callback")],
+                parameter,
+                parameter,
+            ));
             let runtime_call = Some(RuntimeCallBinding { callee, contract });
             let (body, node) = if statement {
                 let body = typed

@@ -33,12 +33,6 @@ pub struct RuntimeCallBinding {
     pub contract: RuntimeCallableContractHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeCallExpression {
-    pub callee: Box<crate::source_state::expression::Expression>,
-    pub contract: RuntimeCallableContractHandle,
-}
-
 impl crate::source_state::expression::TableCallExpression {}
 
 impl crate::source_state::TypedTrees {

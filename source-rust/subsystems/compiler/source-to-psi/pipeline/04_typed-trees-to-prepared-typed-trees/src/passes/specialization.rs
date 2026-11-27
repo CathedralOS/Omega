@@ -1906,7 +1906,7 @@ fn copy_declarations(
     }
     let state_symbol = copied_symbol(&renamed, parts[0].1.symbol)?;
     let symbols = renamed.rebinding();
-    let contract_substitutions = operands
+    let substitutions = operands
         .iter()
         .filter_map(|operand| match operand.value {
             StaticMachineBindingValue::Type(actual) | StaticMachineBindingValue::Const(actual) => {
@@ -1941,7 +1941,7 @@ fn copy_declarations(
         machine.states = HandleSpan::empty();
         for contract in program.machine_contracts(source).to_vec() {
             let contract = program
-                .copy_callable_contract(&contract, symbols, &contract_substitutions, source.symbol)
+                .copy_callable_contract(&contract, symbols, &substitutions, source.symbol)
                 .map_err(unserved)?;
             program.push_machine_contract(&mut machine, contract);
         }
@@ -1963,7 +1963,7 @@ fn copy_declarations(
         }
         for contract in program.state_contracts(source_state).to_vec() {
             let contract = program
-                .copy_callable_contract(&contract, symbols, &contract_substitutions, source.symbol)
+                .copy_callable_contract(&contract, symbols, &substitutions, source.symbol)
                 .map_err(unserved)?;
             program.push_state_contract(&mut state, contract);
         }
@@ -1977,15 +1977,6 @@ fn copy_declarations(
         };
         copied.push((machine, state, body));
     }
-    let substitutions = operands
-        .iter()
-        .filter_map(|operand| match operand.value {
-            StaticMachineBindingValue::Type(actual) | StaticMachineBindingValue::Const(actual) => {
-                Some((operand.parameter, actual))
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
     let record_receivers = copied
         .iter()
         .flat_map(|(_, _, body)| copied_record_receivers(program, body, operands))

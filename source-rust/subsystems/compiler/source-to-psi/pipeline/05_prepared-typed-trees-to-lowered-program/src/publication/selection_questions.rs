@@ -1634,7 +1634,7 @@ mod tests {
     use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
     use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as LateBinding;
     use crate::source_inputs::SourceMap;
-    use crate::source_state::expression::{Expression, NamePath};
+    use crate::source_state::expression::NamePath;
     use crate::source_state::machine::Machine;
     use crate::source_state::name::Identifier;
     use crate::source_state::state::State;
@@ -1710,14 +1710,11 @@ mod tests {
         for (symbol, state, occurrence, target) in
             [(a, a_entry, selected, b), (b, b_entry, unresolved, b)]
         {
-            let expression =
-                typed
-                    .expression_table
-                    .insert_tree(&Expression::Name(NamePath::resolved(
-                        vec![Identifier::generated("B")],
-                        target,
-                        target,
-                    )));
+            let expression = typed.expression_table.insert_name_path(&NamePath::resolved(
+                vec![Identifier::generated("B")],
+                target,
+                target,
+            ));
             typed
                 .expression_table
                 .attach_authored_selection_occurrences(expression, [occurrence]);
@@ -2281,13 +2278,11 @@ mod tests {
             type_reference: carrier,
             ..Default::default()
         }]);
-        let callee = typed
-            .expression_table
-            .insert_tree(&Expression::Name(NamePath::resolved(
-                vec![Identifier::generated("callable")],
-                holder,
-                holder,
-            )));
+        let callee = typed.expression_table.insert_name_path(&NamePath::resolved(
+            vec![Identifier::generated("callable")],
+            holder,
+            holder,
+        ));
         let binding = RuntimeCallBinding { callee, contract };
         let occurrence = typed
             .record_late_bound_authored_declaration_selection(

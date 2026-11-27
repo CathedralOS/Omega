@@ -10,7 +10,7 @@ use crate::source_state::data::{
     DataField, DataMember, MachineParameterContract, TypeParameterKind,
 };
 use crate::source_state::expression::{
-    Expression, ExpressionHandle, ExpressionNode, MemberSelection, NamePath, StaticMachineArgument,
+    ExpressionHandle, ExpressionNode, MemberSelection, NamePath, StaticMachineArgument,
     TableBorrowExpression, TableCallExpression, TableMemberExpression,
 };
 use crate::source_state::machine::Machine;
@@ -31,24 +31,19 @@ pub(super) fn elaborate(
     program: &mut TypedTrees,
     position: usize,
 ) -> Result<(), (Stop, source_text::SourceSpan)> {
-    let machine = program.machines()[position].clone();
-    for state_index in 0..program.machine_states(&machine).len() {
+    // Almost no state calls a visitor, so the scan borrows the program and
+    // clones the machine, state and call only once it has found one.
+    let state_count = program.machine_states(&program.machines()[position]).len();
+    for state_index in 0..state_count {
         // Rewriting a state replaces its statement span, so each pass over
         // the state starts again from the new span.
-        loop {
+        while let Some((site, operation)) = reflection_site(program, position, state_index) {
+            let machine = program.machines()[position].clone();
             let state = program.machine_states(&machine)[state_index].clone();
-            let Some((site, call, operation)) =
-                state.statement_nodes.handles().find_map(|handle| {
-                    let StatementNode::Call(call) = program.statement_table.statement(handle)
-                    else {
-                        return None;
-                    };
-                    let operation = reflection_operation(program, call.target_symbol)?;
-                    Some((handle, call.clone(), operation))
-                })
-            else {
-                break;
+            let StatementNode::Call(call) = program.statement_table.statement(site) else {
+                unreachable!("a reflection visitor was selected as a call");
             };
+            let call = call.clone();
             let replacement = match operation {
                 ReflectionOperation::Record(operation) => {
                     close(program, &machine, &state, site, &call, operation)
@@ -66,6 +61,21 @@ pub(super) fn elaborate(
         }
     }
     Ok(())
+}
+
+/// The first statement of the state that calls a reflection visitor.
+fn reflection_site(
+    program: &TypedTrees,
+    position: usize,
+    state_index: usize,
+) -> Option<(StatementHandle, ReflectionOperation)> {
+    let state = &program.machine_states(&program.machines()[position])[state_index];
+    state.statement_nodes.handles().find_map(|handle| {
+        let StatementNode::Call(call) = program.statement_table.statement(handle) else {
+            return None;
+        };
+        Some((handle, reflection_operation(program, call.target_symbol)?))
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -714,9 +724,12 @@ fn name(
 ) -> ExpressionHandle {
     let head = symbols[0];
     let symbol = *symbols.last().expect("a name has a member");
-    let handle = program.expression_table.insert_tree(&Expression::Name(
-        NamePath::resolved_with_member_symbols(members, symbols, head, symbol),
-    ));
+    let handle =
+        program
+            .expression_table
+            .insert_name_path(&NamePath::resolved_with_member_symbols(
+                members, symbols, head, symbol,
+            ));
     program.expression_table.set_source_span(handle, span);
     handle
 }

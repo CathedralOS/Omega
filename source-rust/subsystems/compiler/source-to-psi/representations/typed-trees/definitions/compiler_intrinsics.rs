@@ -700,8 +700,8 @@ mod tests {
     use super::*;
     use crate::source_state::data::TypeParameter;
     use crate::source_state::expression::{
-        BinaryOperator, CollectionMeasure, Expression, ExpressionHandle, ExpressionNode,
-        MemberSelection, NamePath, TableBinaryExpression, TableMemberExpression, TableNamePath,
+        BinaryOperator, CollectionMeasure, ExpressionHandle, ExpressionNode, MemberSelection,
+        NamePath, TableBinaryExpression, TableMemberExpression, TableNamePath,
     };
     use crate::source_state::name::Identifier;
     use crate::source_state::signature::StateParameter;
@@ -822,10 +822,10 @@ mod tests {
                 type_reference: input,
                 ..Default::default()
             }]);
-            let result = program.expression_table.insert_tree(&Expression::Name(
-                NamePath::unresolved(vec![Identifier::generated("result")])
+            let result = program.expression_table.insert_name_path(
+                &NamePath::unresolved(vec![Identifier::generated("result")])
                     .denoting_reserved_result_of(entry),
-            ));
+            );
             let measure =
                 program
                     .expression_table

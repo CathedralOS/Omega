@@ -1542,7 +1542,7 @@ pub(crate) fn normalize_type_in_context(
 mod tests {
     use super::*;
     use crate::source_state::callable_values::RuntimeCallableContract;
-    use crate::source_state::expression::{Expression, ExpressionHandle, NamePath};
+    use crate::source_state::expression::{ExpressionHandle, NamePath};
     use crate::source_state::name::Identifier;
     use crate::source_state::proposition::{
         PropositionDefinition, PropositionEvidenceClassification,
@@ -1556,11 +1556,11 @@ mod tests {
     fn name_expression(program: &mut TypedTrees, symbol: SymbolHandle) -> ExpressionHandle {
         program
             .expression_table
-            .insert_tree(&Expression::Name(NamePath::resolved(
+            .insert_name_path(&NamePath::resolved(
                 vec![Identifier::generated("operand")],
                 symbol,
                 symbol,
-            )))
+            ))
     }
 
     fn application(
