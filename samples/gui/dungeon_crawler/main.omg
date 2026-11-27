@@ -19,6 +19,120 @@ requires cursor <= |configuration|::FRAME_PIXELS, pumped <= |configuration|::EVE
     pumped: u32;
     direction: i32;
     swing: bool;
+    held: [bool; 4];
+    order: [i32; 4];
+}
+
+public machine clear_controls(main: @mutable Main) {
+    main.direction = -1;
+    main.swing = false;
+    main.held = [false, false, false, false];
+    main.order = [-1, -1, -1, -1];
+}
+
+machine remove_direction(main: @mutable Main, dir: i32) {
+    let a: i32 = main.order[0];
+    let b: i32 = main.order[1];
+    let c: i32 = main.order[2];
+    let d: i32 = main.order[3];
+    transition a == dir {
+        true -> drop0(main, b, c, d),
+        _ -> check1(main, dir, a, b, c, d)
+    }
+    machine drop0(main: @mutable Main, b: i32, c: i32, d: i32) {
+        main.order[0] = b;
+        main.order[1] = c;
+        main.order[2] = d;
+        main.order[3] = -1;
+    }
+    machine check1(main: @mutable Main, dir: i32, a: i32, b: i32, c: i32, d: i32) {
+        transition b == dir {
+            true -> drop1(main, a, c, d),
+            _ -> check2(main, dir, a, b, c, d)
+        }
+    }
+    machine drop1(main: @mutable Main, a: i32, c: i32, d: i32) {
+        main.order[0] = a;
+        main.order[1] = c;
+        main.order[2] = d;
+        main.order[3] = -1;
+    }
+    machine check2(main: @mutable Main, dir: i32, a: i32, b: i32, c: i32, d: i32) {
+        transition c == dir {
+            true -> drop2(main, a, b, d),
+            _ -> check3(main, dir, d)
+        }
+    }
+    machine drop2(main: @mutable Main, a: i32, b: i32, d: i32) {
+        main.order[0] = a;
+        main.order[1] = b;
+        main.order[2] = d;
+        main.order[3] = -1;
+    }
+    machine check3(main: @mutable Main, dir: i32, d: i32) {
+        transition d == dir {
+            true -> drop3(main),
+            _ -> done()
+        }
+    }
+    machine drop3(main: @mutable Main) {
+        main.order[3] = -1;
+    }
+    machine done() {}
+}
+
+machine push_direction(main: @mutable Main, dir: i32) {
+    remove_direction(main, dir);
+    let a: i32 = main.order[0];
+    let b: i32 = main.order[1];
+    let c: i32 = main.order[2];
+    main.order[0] = dir;
+    main.order[1] = a;
+    main.order[2] = b;
+    main.order[3] = c;
+}
+
+machine sync_direction(main: @mutable Main, slot: u64, dir: i32, down: bool)
+requires slot < 4 {
+    let was_down: bool = main.held[slot];
+    transition down && !was_down {
+        true -> pressed(main, slot, dir),
+        _ -> check_release(main, slot, dir, down, was_down)
+    }
+    machine pressed(main: @mutable Main, slot: u64, dir: i32) requires slot < 4 {
+        main.held[slot] = true;
+        push_direction(main, dir);
+    }
+    machine check_release(main: @mutable Main, slot: u64, dir: i32, down: bool, was_down: bool) requires slot < 4 {
+        transition !down && was_down {
+            true -> released(main, slot, dir),
+            _ -> done()
+        }
+    }
+    machine released(main: @mutable Main, slot: u64, dir: i32) requires slot < 4 {
+        main.held[slot] = false;
+        remove_direction(main, dir);
+    }
+    machine done() {}
+}
+
+public machine update_controls(main: @mutable Main, north: bool, east: bool, south: bool, west: bool, swing: bool) {
+    main.swing = swing;
+    sync_direction(main, 0, 0, north);
+    sync_direction(main, 1, 1, east);
+    sync_direction(main, 2, 2, south);
+    sync_direction(main, 3, 3, west);
+    let top: i32 = main.order[0];
+    transition top >= 0 && top < 4 {
+        true -> set_direction(main, top),
+        _ -> clear_direction(main)
+    }
+    machine set_direction(main: @mutable Main, dir: i32) requires dir >= 0 && dir < 4 {
+        main.direction = dir;
+    }
+    machine clear_direction(main: @mutable Main) {
+        main.direction = -1;
+    }
 }
 
 public machine prepare(main: @mutable Main) -> bool {
@@ -28,6 +142,7 @@ public machine prepare(main: @mutable Main) -> bool {
         |game|::reset(@mutable main.game);
         main.close_requested = false;
         main.dirty = true;
+        clear_controls(main);
         true
     }
 }
@@ -39,6 +154,7 @@ public machine fail_self_test() reaches |process_authority|::StandardOutput + |p
 
 public machine reset_game(main: @mutable Main) {
     |game|::reset(@mutable main.game);
+    clear_controls(main);
     main.dirty = true;
 }
 

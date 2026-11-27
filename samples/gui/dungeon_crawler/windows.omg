@@ -169,6 +169,7 @@ machine windows_loop(main: @mutable |app|::Main, pacer: @mutable FramePacer, win
     }
     machine pause_and_draw(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64) {
         pacer.accumulator = 0;
+        |app|::clear_controls(main);
         transition { _ -> draw(main, pacer, window, device) }
     }
     machine escape(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64) {
@@ -177,78 +178,39 @@ machine windows_loop(main: @mutable |app|::Main, pacer: @mutable FramePacer, win
     }
     machine restart(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64) {
         let restart_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(82);
-        transition restart_key > 0 { true -> reset(main, pacer, window, device), _ -> sim_loop(main, pacer, window, device, 0) }
+        transition restart_key > 0 { true -> reset(main, pacer, window, device), _ -> poll_input(main, pacer, window, device) }
     }
     machine reset(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64) {
         |app|::reset_game(main);
         pacer.accumulator = 0;
         transition { _ -> draw(main, pacer, window, device) }
     }
+    machine poll_input(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64) {
+        let attack: u64 = |windows_gui_host|::WindowsGuiHost::key_state(32);
+        let up: u64 = |windows_gui_host|::WindowsGuiHost::key_state(38);
+        let north_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(87);
+        let right: u64 = |windows_gui_host|::WindowsGuiHost::key_state(39);
+        let east_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(68);
+        let down: u64 = |windows_gui_host|::WindowsGuiHost::key_state(40);
+        let south_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(83);
+        let left: u64 = |windows_gui_host|::WindowsGuiHost::key_state(37);
+        let west_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(65);
+        |app|::update_controls(
+            main,
+            up > 0 || north_key > 0,
+            right > 0 || east_key > 0,
+            down > 0 || south_key > 0,
+            left > 0 || west_key > 0,
+            attack > 0
+        );
+        transition { _ -> sim_loop(main, pacer, window, device, 0) }
+    }
     machine sim_loop(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64, steps: u32)
     requires steps <= MAX_STEPS_PER_FRAME {
         transition pacer.accumulator >= pacer.step_ticks && steps < MAX_STEPS_PER_FRAME {
-            true -> input(main, pacer, window, device, steps),
+            true -> update(main, pacer, window, device, steps),
             _ -> draw(main, pacer, window, device)
         }
-    }
-    machine input(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64, steps: u32)
-    requires pacer.accumulator >= pacer.step_ticks && steps < MAX_STEPS_PER_FRAME {
-        main.direction = -1;
-        let attack: u64 = |windows_gui_host|::WindowsGuiHost::key_state(32);
-        main.swing = attack > 0;
-        let up: u64 = |windows_gui_host|::WindowsGuiHost::key_state(38);
-        let north_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(87);
-        transition up > 0 || north_key > 0 {
-            true -> north(main, pacer, window, device, steps),
-            _ -> east_input(main, pacer, window, device, steps)
-        }
-    }
-    machine north(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64, steps: u32)
-    requires pacer.accumulator >= pacer.step_ticks && steps < MAX_STEPS_PER_FRAME {
-        main.direction = 0;
-        transition { _ -> update(main, pacer, window, device, steps) }
-    }
-    machine east_input(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64, steps: u32)
-    requires pacer.accumulator >= pacer.step_ticks && steps < MAX_STEPS_PER_FRAME {
-        let right: u64 = |windows_gui_host|::WindowsGuiHost::key_state(39);
-        let east_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(68);
-        transition right > 0 || east_key > 0 {
-            true -> east(main, pacer, window, device, steps),
-            _ -> south_input(main, pacer, window, device, steps)
-        }
-    }
-    machine east(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64, steps: u32)
-    requires pacer.accumulator >= pacer.step_ticks && steps < MAX_STEPS_PER_FRAME {
-        main.direction = 1;
-        transition { _ -> update(main, pacer, window, device, steps) }
-    }
-    machine south_input(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64, steps: u32)
-    requires pacer.accumulator >= pacer.step_ticks && steps < MAX_STEPS_PER_FRAME {
-        let down: u64 = |windows_gui_host|::WindowsGuiHost::key_state(40);
-        let south_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(83);
-        transition down > 0 || south_key > 0 {
-            true -> south(main, pacer, window, device, steps),
-            _ -> west_input(main, pacer, window, device, steps)
-        }
-    }
-    machine south(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64, steps: u32)
-    requires pacer.accumulator >= pacer.step_ticks && steps < MAX_STEPS_PER_FRAME {
-        main.direction = 2;
-        transition { _ -> update(main, pacer, window, device, steps) }
-    }
-    machine west_input(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64, steps: u32)
-    requires pacer.accumulator >= pacer.step_ticks && steps < MAX_STEPS_PER_FRAME {
-        let left: u64 = |windows_gui_host|::WindowsGuiHost::key_state(37);
-        let west_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(65);
-        transition left > 0 || west_key > 0 {
-            true -> west(main, pacer, window, device, steps),
-            _ -> update(main, pacer, window, device, steps)
-        }
-    }
-    machine west(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64, steps: u32)
-    requires pacer.accumulator >= pacer.step_ticks && steps < MAX_STEPS_PER_FRAME {
-        main.direction = 3;
-        transition { _ -> update(main, pacer, window, device, steps) }
     }
     machine update(main: @mutable |app|::Main, pacer: @mutable FramePacer, window: u64, device: u64, steps: u32)
     requires pacer.accumulator >= pacer.step_ticks && steps < MAX_STEPS_PER_FRAME {
