@@ -1,10 +1,10 @@
-//! Visit each selected export and its local unit callees once, callee first.
+//! Visit each selected export and its local callees once, callee first.
 use super::NormalEffects;
 use crate::synchronization::{facts::Facts, selected::SelectedCall};
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::{TargetMachineCallable, TerminalModule};
 
-/// Compute each locally called unit body after its callees. Recursive calls have
+/// Compute each locally called body after its callees. Recursive calls have
 /// no completed summary and therefore cannot establish a normal return.
 pub(in crate::synchronization) fn normal_effects(
     module: &TerminalModule,
@@ -29,7 +29,7 @@ pub(in crate::synchronization) fn normal_effects(
         for op in body.operations() {
             program_size += 1;
             if let Some(call) = op.declared_invocation()
-                && matches!(op.result, terminal_psi::OperationResult::Unit)
+                && !matches!(op.result, terminal_psi::OperationResult::Structural(_))
                 && let TargetMachineCallable::Machine(callee) = call.callee
             {
                 pending.push((callee, false));

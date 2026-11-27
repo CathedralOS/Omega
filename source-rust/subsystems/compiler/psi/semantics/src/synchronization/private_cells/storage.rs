@@ -83,10 +83,12 @@ impl Storage {
     pub(super) fn observation(
         &self,
         scalar_type: semantic_vocabulary::ScalarType,
+        pending_provider: bool,
     ) -> super::super::progress::ScalarFact {
         super::super::progress::ScalarFact::Observation {
             occurrence: self.fresh_identity(),
             scalar_type,
+            pending_provider,
         }
     }
 

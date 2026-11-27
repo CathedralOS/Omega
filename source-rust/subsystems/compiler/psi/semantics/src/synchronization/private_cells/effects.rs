@@ -47,6 +47,7 @@ pub struct NormalEffects {
 struct NormalReturn {
     when: Vec<Decision>,
     events: Vec<Effect>,
+    scalar_result: Option<Operand>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -116,6 +117,45 @@ impl NormalReturn {
 }
 
 impl NormalEffects {
+    /// Decide only choices that can change the scalar forwarded by the caller.
+    /// The enclosing analysis records these same guards on its returned paths.
+    fn returned_scalar(
+        &mut self,
+        decide: &mut impl FnMut(Selector) -> Option<bool>,
+    ) -> Option<Operand> {
+        let first = self.paths.first()?.scalar_result?;
+        if self
+            .paths
+            .iter()
+            .all(|path| path.scalar_result == Some(first))
+        {
+            return Some(first);
+        }
+        let mut feasible = Vec::new();
+        for path in std::mem::take(&mut self.paths) {
+            let mut selected = true;
+            for guard in &path.when {
+                let answer = guard
+                    .selector
+                    .answer(&|_| None, &Default::default())
+                    .or_else(|| decide(guard.selector))?;
+                if answer != guard.answer {
+                    selected = false;
+                    break;
+                }
+            }
+            if selected {
+                feasible.push(path);
+            }
+        }
+        self.paths = feasible;
+        let result = self.paths.first()?.scalar_result?;
+        self.paths
+            .iter()
+            .all(|path| path.scalar_result == Some(result))
+            .then_some(result)
+    }
+
     fn none() -> Self {
         Self { paths: Vec::new() }
     }
@@ -180,6 +220,9 @@ impl NormalEffects {
         mut apply: impl FnMut(Operand) -> Option<Operand>,
     ) -> Option<()> {
         for path in &mut self.paths {
+            if let Some(value) = &mut path.scalar_result {
+                *value = apply(*value)?;
+            }
             for condition in &mut path.when {
                 condition.selector.map_operands(&mut apply)?;
                 *condition = Decision::new(condition.selector, condition.answer);
