@@ -168,6 +168,22 @@ machine main() {}"#;
     );
 }
 
+#[test]
+fn opening_a_pair_preserves_ownership_of_each_qualified_field() {
+    let source = r#"use {omega}/language/core/extent.omg as ranges;
+machine forward(parts: |ranges|::VacantExtentParts) -> |ranges|::VacantExtentParts {
+    let { taken, rest } = parts;
+    |ranges|::VacantExtentParts { taken: taken, rest: rest }
+}
+machine main() {}"#;
+    let inspect = &["psi", "inspect", "--machine", "forward"];
+    let (output, report) = program::invoke(source, inspect);
+    assert!(output.status.success(), "{report}");
+    let reused = source.replace("rest: rest", "rest: taken");
+    let (output, report) = program::invoke(&reused, inspect);
+    assert!(!output.status.success(), "{report}");
+}
+
 fn with_transfer_contract() -> String {
     let transfer = r#"use {omega}/language/core/foundation.omg as proof;
 public boundary trait Transfer {
