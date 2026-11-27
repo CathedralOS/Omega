@@ -351,6 +351,10 @@ impl Lowering<'_> {
                 continuing!(self.observe_membership(subject, *domain, source));
                 self.expression(predicate)
             }
+            // Only the mathematical signature reads such a body.
+            ExpressionKind::Applied { .. } => {
+                Err(self.internal("a mathematical application has no operation"))
+            }
             ExpressionKind::TheoremApplication {
                 source: theorem,
                 arguments,

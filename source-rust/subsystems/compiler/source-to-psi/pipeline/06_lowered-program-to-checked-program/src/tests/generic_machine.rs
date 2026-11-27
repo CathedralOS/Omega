@@ -22,6 +22,22 @@ const CITED: &str =
     include_str!("../../tests/fixtures/generic_machine/pass/cited_at_its_own_machine/main.omg");
 const CITED_ELSEWHERE: &str =
     include_str!("../../tests/fixtures/generic_machine/fail/cited_at_another_machine/main.omg");
+const ITERATE: &str =
+    include_str!("../../tests/fixtures/generic_machine/pass/iterate_keeps_a_fixed_point/main.omg");
+const ITERATE_UNFOUNDED: &str = include_str!(
+    "../../tests/fixtures/generic_machine/fail/iterate_without_the_fixed_point/main.omg"
+);
+const CITED_BY_ORDINARY: &str =
+    include_str!("../../tests/fixtures/generic_machine/pass/cited_by_an_ordinary_law/main.omg");
+const CITED_BY_ORDINARY_AT_SUCC: &str = include_str!(
+    "../../tests/fixtures/generic_machine/fail/cited_by_an_ordinary_law_at_succ/main.omg"
+);
+const CALLED_BY_ORDINARY: &str = include_str!(
+    "../../tests/fixtures/generic_machine/pass/called_by_an_ordinary_definition/main.omg"
+);
+const CALLED_BY_ORDINARY_ADDS_NOTHING: &str = include_str!(
+    "../../tests/fixtures/generic_machine/fail/called_by_an_ordinary_definition_adds_nothing/main.omg"
+);
 
 fn proofs(source: &str) -> String {
     let start = source.find("data Peano").expect("the fixture's data");
@@ -272,32 +288,84 @@ fn a_concrete_machine_with_a_premise_is_refused_as_a_machine_argument() {
 }
 
 #[test]
-fn an_ordinary_body_citing_a_generic_law_at_a_concrete_machine_is_refused() {
-    // The call names the closed copy the typed trees make for it, a second
-    // proof of the generic law; it is refused rather than read.
-    let source = proofs(CONCRETE).replace(
-        "machine twice_succ_adds_two(a: Peano)",
-        "machine twice_keeps_a_fixed_point<machine Step>(a: Peano)
-requires machine Step(a: Peano) -> Peano terminates;
-requires
-    |proof|::Identity::<Peano>(Step(a), a)
-ensures
-    |proof|::Identity::<Peano>(twice::<Step>(a), a)
-{
+fn a_generic_machine_defined_by_cases_is_proved_by_induction() {
+    let verdicts = judged(&proofs(ITERATE));
+    let law = judged_law(&verdicts, "iterate_keeps_a_fixed_point");
+    let MathematicalCoreDecision::Judged(receipt) = law.decision;
+    assert_eq!((receipt.context_depth, receipt.assumption_closure), (0, 0));
 }
 
-machine cites_at_succ(a: Peano)
-{
-    twice_keeps_a_fixed_point::<succ>(a);
-}
-
-machine twice_succ_adds_two(a: Peano)",
+#[test]
+fn without_its_premise_the_induction_stays_unproved() {
+    let verdicts = judged(&proofs(ITERATE_UNFOUNDED));
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "iterate_keeps_a_fixed_point");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+    assert!(
+        law.statement.contains("in the case `Peano::Succ`"),
+        "{}",
+        law.statement
     );
+}
+
+#[test]
+fn an_ordinary_law_cites_a_generic_law_at_a_concrete_machine() {
+    let verdicts = judged(&proofs(CITED_BY_ORDINARY));
+    judged_law(&verdicts, "iterate_id_keeps");
+}
+
+#[test]
+fn an_ordinary_citation_owes_the_premise_at_the_machine_it_names() {
+    let verdicts = judged(&proofs(CITED_BY_ORDINARY_AT_SUCC));
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "iterate_succ_keeps");
+}
+
+#[test]
+fn an_ordinary_definition_calls_a_generic_machine_at_a_concrete_machine() {
+    let verdicts = judged(&proofs(CALLED_BY_ORDINARY));
+    judged_law(&verdicts, "plus_one");
+}
+
+#[test]
+fn an_ordinary_call_unfolds_the_concrete_machine() {
+    let verdicts = judged(&proofs(CALLED_BY_ORDINARY_ADDS_NOTHING));
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "plus_one");
+}
+
+#[test]
+fn a_generic_machine_that_calls_itself_at_another_machine_is_refused() {
+    // Its machine parameters are fixed for the whole definition, so the
+    // kernel's recursion has no way to change them.
+    let source = proofs(ITERATE).replace(
+        "(Step(iterate::<Step>(pred, a)))",
+        "(Step(iterate::<succ>(pred, a)))",
+    );
+    let source = source.replace(
+        "machine iterate<machine Step>",
+        "machine succ(a: Peano) -> Peano
+{
+    transition { _ -> Peano::Succ { pred: a } }
+}
+
+machine iterate<machine Step>",
+    );
+    assert!(source.contains("iterate::<succ>(pred, a)"));
     let verdicts = judged(&source);
     assert!(
-        refusal(&verdicts).starts_with(
-            "machine body that calls a generic mathematical machine at concrete machines"
-        ),
+        verdicts.iter().any(|verdict| matches!(
+            verdict,
+            RouteVerdict::FallBack(refusal) if refusal.detail.starts_with(
+                "machine generic mathematical machine that calls itself at other machines"
+            )
+        )),
+        "{verdicts:?}"
+    );
+    assert!(
+        !verdicts
+            .iter()
+            .any(|verdict| matches!(verdict, RouteVerdict::Laws(_))),
         "{verdicts:?}"
     );
 }
