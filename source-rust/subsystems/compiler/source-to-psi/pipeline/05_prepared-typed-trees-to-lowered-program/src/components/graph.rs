@@ -304,7 +304,7 @@ mod tests {
                 terminal: true,
                 required_contract: None,
                 arguments: &[],
-                has_proof_arguments: false,
+                proof_arguments: &[],
             }));
             calls.offsets.push(calls.sites.len());
         }

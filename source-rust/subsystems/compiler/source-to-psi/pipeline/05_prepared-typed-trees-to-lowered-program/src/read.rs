@@ -1133,7 +1133,12 @@ mod tests {
                 complete_predicate_theory: false,
             }));
         let bodies = arena::IdTable::default();
-        let components = crate::prepare_call_components(&bodies, &mut program.signatures).unwrap();
+        let components = crate::prepare_call_components(
+            &bodies,
+            &mut program.signatures,
+            &program.theorem_parameters,
+        )
+        .unwrap();
         program.prepare_domain_predicates(machine()).unwrap();
         let elaboration = crate::lower_program(
             None,
