@@ -118,25 +118,41 @@ pub(super) fn apply(
             Ok(())
         }
         WaitRule::Observations(predicate) => {
-            let retry = predicate.evaluate(|subject, test| {
-                let Some(location) = locate(subject) else {
-                    return (Observation::Unproved, None);
-                };
-                let (test, input) = pivot(test);
-                let observation = classify(
-                    memory,
-                    &location,
-                    test,
-                    input,
-                    Some(CellUpdate::Observe),
-                    requirements,
-                );
-                let stable = (!location.includes_shared()
-                    && location.stable()
-                    && test.comparison.pivot.literal().is_some())
-                .then_some((location, test));
-                (observation, stable)
-            });
+            let retry = predicate.evaluate(
+                |subject, test| {
+                    let Some(location) = locate(subject) else {
+                        return (Observation::Unproved, None);
+                    };
+                    let (test, input) = pivot(test);
+                    let observation = classify(
+                        memory,
+                        &location,
+                        test,
+                        input,
+                        Some(CellUpdate::Observe),
+                        requirements,
+                    );
+                    let stable = (!location.includes_shared()
+                        && location.stable()
+                        && test.comparison.pivot.literal().is_some())
+                    .then_some((location, test));
+                    (observation, stable)
+                },
+                |subject, ty| {
+                    let location = locate(subject).ok_or(Observation::Unproved)?;
+                    let value = memory.get(&location);
+                    if !location.includes_shared()
+                        && !value.includes_pending_provider()
+                        && let Some(literal) = value.scalar(ty).and_then(ScalarFact::literal)
+                    {
+                        return Ok(literal);
+                    }
+                    Err(classify_entries(memory, &location, ty, |_| {
+                        Some(ProgressFailure::Unproved)
+                    }))
+                },
+                |operand| resolve(operand)?.literal(),
+            );
             require_progress(retry, scope)
         }
     }

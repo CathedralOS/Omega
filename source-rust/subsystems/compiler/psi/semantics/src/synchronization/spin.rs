@@ -45,8 +45,11 @@ impl SpinWait {
                 .failure(None, None, Some(CellUpdate::Observe), &[])
                 .is_some(),
             WaitRule::Observations(predicate) => {
-                predicate.evaluate(|_, _| (Observation::Unproved, None::<((), SpinCondition)>))
-                    != Observation::Known(false)
+                predicate.evaluate(
+                    |_, _| (Observation::Unproved, None::<((), SpinCondition)>),
+                    |_, _| Err(Observation::Unproved),
+                    Operand::literal,
+                ) != Observation::Known(false)
             }
         }
     }
@@ -162,7 +165,7 @@ impl SpinWait {
             WaitRule::Cell(cell) => map(&mut cell.subject)?,
             WaitRule::Periodic(cell) => map(&mut cell.subject)?,
             WaitRule::Observations(predicate) => {
-                for (subject, _) in predicate.inputs() {
+                for subject in predicate.subjects() {
                     map(subject)?;
                 }
             }
@@ -196,9 +199,7 @@ impl ForwardedWait {
                 cell.update = cell.update.try_map(remap)?;
             }
             WaitRule::Observations(predicate) => {
-                for (_, test) in predicate.inputs() {
-                    test.comparison.substitute(remap)?;
-                }
+                predicate.substitute(remap)?;
             }
         }
         spin.map_subjects(|subject| {
