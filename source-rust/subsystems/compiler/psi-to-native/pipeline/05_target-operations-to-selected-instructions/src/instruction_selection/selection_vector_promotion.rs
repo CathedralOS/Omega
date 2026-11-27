@@ -22,11 +22,20 @@ use selected_instructions::{
     VirtualRegisterOrigin, terminator_instruction, terminator_instruction_mut,
     terminator_successors, terminator_successors_mut,
 };
-use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, ScalarType};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use std::collections::{HashMap, HashSet};
 
 const MAX_TRACKED_SLOT_BYTES: usize = 512;
 const MAX_EXTERNAL_COALESCE_WINDOW: usize = 24;
+
+/// The scalar type of every `VECTOR128` register this pass creates. A promoted
+/// register holds 16 raw bytes of lanes, so it carries an unsigned 128-bit type:
+/// Stage 07 reads the width from this type when it spills the register, and a
+/// 128-bit width selects a 16-byte packed store and reload. An 8-byte type here
+/// would let a spill keep only the low half of the vector.
+fn packed_vector_scalar_type() -> ScalarType {
+    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 128).expect("u128 integer type"))
+}
 
 pub(crate) fn promote_and_simplify(
     functions: &mut [SelectedFunction],
@@ -785,7 +794,7 @@ impl<'a> BlockCtx<'a> {
     ) -> VirtualRegisterId {
         self.alloc_vreg(
             self.vec128_class,
-            ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+            packed_vector_scalar_type(),
             inst_id,
             operand,
         )
@@ -2398,7 +2407,7 @@ fn coalesce_external_stores(
                         *next_vreg_id += 1;
                         added_vregs.push(VirtualRegister {
                             id: z_reg,
-                            scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+                            scalar_type: packed_vector_scalar_type(),
                             class: vec128_class,
                             origin: VirtualRegisterOrigin::InstructionScratch {
                                 instruction: z_id,
@@ -3704,6 +3713,23 @@ mod tests {
             k,
             SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::Store { .. }
         )));
+        // Each vector register the pass creates states its whole 128-bit width;
+        // a Stage 07 spill reads that width to choose a 16-byte slot.
+        let vector_class = env
+            .constraint(keys.packed_add_i16x8_reg.unwrap())
+            .unwrap()
+            .operands[2]
+            .class;
+        let promoted: Vec<_> = func
+            .virtual_registers
+            .iter()
+            .filter(|register| register.class == vector_class)
+            .collect();
+        assert!(!promoted.is_empty());
+        assert!(promoted.iter().all(|register| {
+            register.scalar_type
+                == ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 128).unwrap())
+        }));
     }
 
     #[test]

@@ -57,7 +57,8 @@ prove size but cannot prove freshness. There is no proof-only receipt binder.
 
 Program image and initial storage use the same core-owned domain through
 [installed program entry](../build/entry_roots.md), not target-owned substitutes
-or name-based recognition. Both exact `ProgramStorageEntry::enter` positions
+or name-based recognition. The image and initial-storage positions of `ProgramStorageEntry::enter` and
+of the [returning UEFI entry](../build/uefi_entry.md#returning-application-versus-os-handoff)
 must satisfy `Granted::no_wrap` before either complete fact is imported;
 rejection returns all moved bootstrap inputs. The physical entry stack is a
 separate execution resource, not source-visible storage. Image sections are

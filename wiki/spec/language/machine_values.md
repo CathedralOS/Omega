@@ -122,6 +122,18 @@ Unknown selections use the declared ceiling. Possible demands union at joins;
 guarantees intersect. A reusable body cannot adopt one caller's stronger facts
 or an optimizer's target prediction as an unconditional promise.
 
+<a id="bundle-evidence-field-type"></a>
+
+For a field `step: NonzeroIsPositive`, `laws.step(n)` invokes the selected
+machine. In a proof argument, `use_step::<laws.step>(n)` cites its checked
+evidence for the complete aliased implication. Storing the field requires
+ordinary callable refinement. At citation, establish the premises for the
+actual argument and check the evidence for every selection still possible
+there. A citation executes no callback. A guarantee conditional on normal
+return or a storage change retains that condition. Reassigning a field
+replaces its selection and the evidence available from it.
+[Logical hypotheses](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+
 A code-only value is copyable where its complete qualifications and custody
 allow. Copying it does not borrow or extend the lifetime of any state argument.
 Code lifetime and replacement dependencies still apply. A record containing

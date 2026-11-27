@@ -34,6 +34,29 @@ The compiler-known [address queries](../language/counts_and_addresses.md#address
 They expose a storage or executable-entry address without establishing a new
 view, calling contract, or inverse conversion from `address`.
 
+<a id="fixed-extent-view-of-a-slice"></a>
+
+## Slices and fixed-array references
+
+For a borrowed fixed array `block: @[T; N]`, `block as @[T]` views all
+`N` elements of the same backing. To pass it to a machine expecting a
+slice, write `consume(block as @[T])` with the element type in scope.
+A bare `consume(block)` fails that parameter check.
+
+A cast from `window: @[T]` to `@[T; N]` requires proof that the entire
+window has exactly `N` elements. Select a prefix explicitly when the
+original row can be longer:
+
+```omega
+let block: @[u8; 16] = @row[0..16] as @[u8; 16];
+|u8x16|::load(block)
+```
+
+The range requires at least sixteen elements and establishes length sixteen.
+Both directions preserve storage, lifetime and access. A mutable result
+requires exclusive mutable access to the selected elements. Writes update
+the original backing.
+
 ## Layout optimization and recasts
 
 A same-storage recast constrains [home-layout realization](plans.md#home-layout-realization).

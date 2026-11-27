@@ -21,7 +21,6 @@ pub struct TypedTreeTables {
     pub data_application_definitions: arena::RootedArena<DataApplicationView>,
     pub data_type_parameters: TypeParameterTable,
     pub declared_type_equations: arena::RootedArena<machine::DeclaredTypeEquation>,
-    pub static_type_contexts: crate::source_state::type_system::type_predicates::StaticTypeContexts,
     pub data_members: arena::RootedArena<data::DataMember>,
     pub data_payload_fields: arena::RootedArena<data::DataField>,
     pub domain_definitions: SpelledDeclarationTable<domain::DomainDefinition>,

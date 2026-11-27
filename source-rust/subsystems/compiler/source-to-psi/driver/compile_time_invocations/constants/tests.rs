@@ -999,3 +999,306 @@ fn guarded_crash_route_constant_initializers_admit_only_impossible_routes() {
         panic!("unreachable crashing arm in constant initializer must be admitted");
     };
 }
+
+/// Independent calls that one evaluation round can freeze together, and one
+/// call (`bump`) whose callee the checker refuses: `value + 1u8` can
+/// overflow, and `crashes none` promises it does not.
+const SIBLINGS: &str = "machine first() -> u32 crashes none { 3u32 }
+    machine second() -> u32 crashes none { 5u32 }
+    machine third(value: u32) -> u32 crashes none { value }
+    machine bump(value: u8) -> u8 crashes none { value + 1u8 }";
+
+fn untargeted() -> crate::compile_time_invocations::InvocationTarget<'static> {
+    crate::compile_time_invocations::InvocationTarget {
+        name: None,
+        layout_target: None,
+        carrier_layout: None,
+        address_model: None,
+    }
+}
+
+fn layout_facts(profile: &str, pointer_size: u64) -> layout_plans::LayoutTargetFacts {
+    layout_plans::LayoutTargetFacts {
+        profile: profile.into(),
+        pointer_size,
+        pointer_alignment: pointer_size,
+        case_tag_size: 4,
+        case_tag_alignment: 4,
+        little_endian: true,
+    }
+}
+
+/// The generated caller and charged work units of each invocation, in the
+/// order the invocations ran.
+fn charges(accounting: &SourceCompletionAccounting) -> Vec<(symbols::SymbolHandle, u64)> {
+    accounting
+        .receipts()
+        .iter()
+        .map(|record| {
+            let PureEvaluationRecord::Invocation(receipt) = record else {
+                panic!("a source invocation")
+            };
+            (receipt.caller(), receipt.usage().total_units())
+        })
+        .collect()
+}
+
+#[test]
+fn calls_frozen_together_are_still_judged_run_and_charged_alone() {
+    use crate::compile_time_invocations::PreparedBuildMachineProgram;
+    use build_model::values::BuildTimeValue;
+
+    let typed = typed_source(SIBLINGS);
+    let machine = |name: &str| typed.realized_machine_named(name).unwrap().symbol;
+    let calls = [
+        ("first", Vec::new()),
+        ("second", Vec::new()),
+        ("third", vec![BuildTimeValue::Int(7)]),
+    ];
+    let alone = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
+    let mut shared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
+    let plans = calls
+        .iter()
+        .map(|(name, arguments)| {
+            shared
+                .plan_entry(machine(name), machine(name), arguments)
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    shared.share_round_calls(plans.clone());
+    assert_eq!(shared.shared_caller_groups(), [(None, 3)]);
+
+    let mut shared_accounting = SourceCompletionAccounting::default();
+    let mut alone_accounting = SourceCompletionAccounting::default();
+    let mut frozen = Vec::new();
+    for (plan, (name, arguments)) in plans.iter().zip(&calls) {
+        let entry = shared
+            .judge_shared(plan)
+            .expect("the round froze this call's caller");
+        frozen.push(Arc::clone(entry.accepted().source()));
+        let value = entry
+            .invoke_recorded(untargeted(), &mut shared_accounting)
+            .unwrap();
+        let expected = alone
+            .prepare_entry(machine(name), machine(name), arguments)
+            .unwrap()
+            .invoke_recorded(untargeted(), &mut alone_accounting)
+            .unwrap();
+        assert_eq!(value, expected, "{name}");
+    }
+    assert!(
+        frozen
+            .windows(2)
+            .all(|pair| Arc::ptr_eq(&pair[0], &pair[1])),
+        "the three calls were judged in one frozen copy"
+    );
+    // A caller serves one value: the same plan asked again finds none.
+    assert!(shared.judge_shared(&plans[0]).is_none());
+
+    // Each call kept its own generated caller and receipt, and was charged
+    // exactly what it is charged alone.
+    let shared_charges = charges(&shared_accounting);
+    let mut callers = shared_charges
+        .iter()
+        .map(|(caller, _)| (caller.arena_index(), caller.generation()))
+        .collect::<Vec<_>>();
+    callers.sort_unstable();
+    callers.dedup();
+    assert_eq!(callers.len(), calls.len());
+    let units = |charges: &[(symbols::SymbolHandle, u64)]| {
+        charges.iter().map(|(_, units)| *units).collect::<Vec<_>>()
+    };
+    assert_eq!(units(&shared_charges), units(&charges(&alone_accounting)));
+    assert!(shared_charges.iter().all(|(_, units)| *units > 0));
+    shared_accounting.validate_charges().unwrap();
+    alone_accounting.validate_charges().unwrap();
+}
+
+#[test]
+fn a_refused_call_frozen_with_its_siblings_reports_what_it_reports_alone() {
+    use crate::compile_time_invocations::PreparedBuildMachineProgram;
+    use build_model::values::BuildTimeValue;
+
+    let typed = typed_source(SIBLINGS);
+    let machine = |name: &str| typed.realized_machine_named(name).unwrap().symbol;
+    let bump = machine("bump");
+    let alone = PreparedBuildMachineProgram::prepare(&typed, None)
+        .unwrap()
+        .prepare_entry(bump, bump, &[BuildTimeValue::Int(1)])
+        .err()
+        .expect("the checker refuses `bump` alone");
+    let mut shared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
+    let plans = [
+        shared
+            .plan_entry(machine("first"), machine("first"), &[])
+            .unwrap(),
+        shared
+            .plan_entry(bump, bump, &[BuildTimeValue::Int(1)])
+            .unwrap(),
+        shared
+            .plan_entry(machine("second"), machine("second"), &[])
+            .unwrap(),
+    ];
+    shared.share_round_calls(plans.to_vec());
+    assert_eq!(shared.shared_caller_groups(), [(None, 3)]);
+    // In round order: the sibling before the refusal, the refusal, and the
+    // sibling after it. The refusal neither hides nor replaces either one.
+    let mut accounting = SourceCompletionAccounting::default();
+    let before = shared.prepare_planned(&plans[0]).unwrap();
+    assert_eq!(
+        before.invoke_recorded(untargeted(), &mut accounting),
+        Ok(BuildTimeValue::Int(3))
+    );
+    assert_eq!(shared.prepare_planned(&plans[1]).err(), Some(alone));
+    let after = shared.prepare_planned(&plans[2]).unwrap();
+    assert_eq!(
+        after.invoke_recorded(untargeted(), &mut accounting),
+        Ok(BuildTimeValue::Int(5))
+    );
+    assert!(Arc::ptr_eq(
+        before.accepted().source(),
+        after.accepted().source()
+    ));
+    assert_eq!(accounting.receipts().len(), 2);
+    accounting.validate_charges().unwrap();
+}
+
+#[test]
+fn a_refused_constant_in_a_shared_round_keeps_its_own_diagnostics() {
+    // `GOOD` and `BAD` read nothing of each other, so `main` evaluates them
+    // in one round with their callers frozen together. `only_bad` evaluates
+    // `BAD` alone. The request fails with the same diagnostics both ways.
+    let text = "const GOOD: u32 = good();
+        machine good() -> u32 crashes none { 3u32 }
+        const BAD: u8 = bump(255u8);
+        machine bump(value: u8) -> u8 crashes none { value + 1u8 }
+        machine main() -> u32 crashes none { let held: u8 = BAD; GOOD }
+        machine only_bad() -> u8 crashes none { BAD }";
+    let refusal = |entry: &str| {
+        let mut typed = typed_source(text);
+        let entry = typed.realized_machine_named(entry).unwrap().symbol;
+        let mut accounting = SourceCompletionAccounting::default();
+        evaluate(&mut typed, request(&[entry]), None, &mut accounting)
+            .expect_err("the checker refuses `bump`")
+    };
+    let shared = refusal("main");
+    assert!(
+        diagnostics::join_messages(&shared).contains("constant `BAD` evaluation"),
+        "{shared:?}"
+    );
+    assert_eq!(shared, refusal("only_bad"));
+}
+
+#[test]
+fn calls_for_different_deployments_are_never_frozen_together() {
+    use crate::compile_time_invocations::PreparedBuildMachineProgram;
+
+    let typed = typed_source(SIBLINGS);
+    let machine = |name: &str| typed.realized_machine_named(name).unwrap().symbol;
+    let x86 = layout_facts("linux_x86_64", 8);
+    let arm = layout_facts("linux_arm64", 8);
+    let mut shared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
+    let first = shared
+        .plan_entry(machine("first"), machine("first"), &[])
+        .unwrap();
+    let second = shared
+        .plan_entry(machine("second"), machine("second"), &[])
+        .unwrap();
+    shared.share_round_calls(vec![
+        first.clone().for_target(&x86),
+        first.clone().for_target(&arm),
+        second.clone().for_target(&x86),
+        second.for_target(&arm),
+        // Alone in its partition, so nothing is frozen for it.
+        first.clone(),
+    ]);
+    assert_eq!(
+        shared.shared_caller_groups(),
+        [
+            (Some("linux_x86_64".to_owned()), 2),
+            (Some("linux_arm64".to_owned()), 2),
+        ]
+    );
+    // A call takes only a caller frozen for its own deployment's exact
+    // facts: not an untargeted one, not another profile's, and not the same
+    // profile with other facts.
+    assert!(shared.judge_shared(&first).is_none());
+    for other in [
+        layout_facts("linux_x86_64", 4),
+        layout_facts("windows_x86_64", 8),
+    ] {
+        assert!(
+            shared
+                .judge_shared(&first.clone().for_target(&other))
+                .is_none()
+        );
+    }
+    let on_x86 = shared
+        .judge_shared(&first.clone().for_target(&x86))
+        .expect("the caller frozen for `first` on x86");
+    let on_arm = shared
+        .judge_shared(&first.clone().for_target(&arm))
+        .expect("the caller frozen for `first` on arm");
+    assert!(!Arc::ptr_eq(
+        on_x86.accepted().source(),
+        on_arm.accepted().source()
+    ));
+    assert!(shared.judge_shared(&first.for_target(&x86)).is_none());
+}
+
+#[test]
+fn one_round_freezes_the_callers_of_its_constants_and_its_arguments() {
+    // Two constants and two array extents read nothing of each other, so
+    // they settle in one round. A call judged alone gets its own copy of
+    // the round's program, so two such calls get the same caller handle;
+    // callers frozen together in one copy get distinct handles.
+    let text = "const LEFT: u64 = left();
+        machine left() -> u64 crashes none { 2u64 }
+        const RIGHT: u64 = right();
+        machine right() -> u64 crashes none { 3u64 }
+        machine width() -> u64 crashes none { 4u64 }
+        machine depth() -> u64 crashes none { 5u64 }
+        machine main(wide: @[u8; width()], deep: @[u8; depth()]) -> u64 crashes none {
+            let left: u64 = LEFT;
+            RIGHT
+        }";
+    let mut typed = typed_source(text);
+    let entry = typed.realized_machine_named("main").unwrap().symbol;
+    let mut accounting = SourceCompletionAccounting::default();
+    let EvaluatedValues {
+        inputs: values,
+        constant_reaches,
+    } = evaluate_with_reaches(&mut typed, request(&[entry]), None, &mut accounting).unwrap();
+    let mut evaluated = evaluations(&typed, &accounting);
+    evaluated.sort();
+    assert_eq!(
+        evaluated,
+        [("LEFT", 2), ("RIGHT", 3), ("main", 4), ("main", 5)]
+            .map(|(name, value)| (name.to_owned(), value)),
+    );
+    let callers_of = |requesters: &[&str]| {
+        let mut callers = accounting
+            .receipts()
+            .iter()
+            .filter_map(|record| match record {
+                PureEvaluationRecord::Invocation(receipt)
+                    if requesters.contains(&typed.symbols.name(receipt.requester())) =>
+                {
+                    Some((
+                        receipt.caller().arena_index(),
+                        receipt.caller().generation(),
+                    ))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        callers.sort_unstable();
+        callers.dedup();
+        callers.len()
+    };
+    assert_eq!(callers_of(&["LEFT", "RIGHT"]), 2);
+    assert_eq!(callers_of(&["main"]), 2);
+    accounting.validate_charges().unwrap();
+    validate_constant_evaluations(&typed, &accounting, &constant_reaches).unwrap();
+    prepare_typed_trees(typed, &values, &[]).unwrap();
+}

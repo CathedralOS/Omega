@@ -528,10 +528,11 @@ are unchanged, including for empty ranges.
 #### Views of a fixed array
 
 Named decision: `array-borrow-as-view`, ratified 2026-11-14. A reference to a
-fixed array never adapts to a view of its elements. `@bytes` and `@mutable bytes`
+fixed array retains its array type across argument passing. `@bytes` and `@mutable bytes`
 of a `[T; N]` have types `@[T; N]` and `@mutable [T; N]` at every position, whatever
 type the position expects. An element view is formed explicitly, by range
-access or by a named adapter such as `ArrayAccess::as_slice` or `as_mut_slice`.
+access, by a [checked cast](../layouts/recasts.md#slices-and-fixed-array-references),
+or by a named adapter such as `ArrayAccess::as_slice` or `as_mut_slice`.
 
 ```omega
 machine set_first(buffer: @mutable [u8], value: u8)
