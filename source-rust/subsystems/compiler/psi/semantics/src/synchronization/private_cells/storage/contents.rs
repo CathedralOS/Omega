@@ -21,6 +21,9 @@ pub(in super::super) enum Stored {
         values: Vec<ScalarFact>,
     },
     Reference(Location),
+    /// A result returned by a checked lock constructor. Within an order
+    /// summary its selected cleanup consumes this exact acquisition.
+    Guard(usize),
     Aggregate(Arc<Aggregate>),
     #[default]
     Unknown,
@@ -221,6 +224,7 @@ impl Stored {
                 *self = left.join(*right).contents().clone();
             }
             (Self::Scalar(a), Self::Scalar(b)) if a == b => return,
+            (Self::Guard(a), Self::Guard(b)) if a == b => return,
             (Self::Reference(a), Self::Reference(b)) => {
                 let mut home = a.clone();
                 borrow(&mut home, b);

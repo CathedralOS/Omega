@@ -12,6 +12,7 @@ pub enum SelectedCall {
     /// Source judgment precedes target-specific provider installation.
     PendingProvider,
     ImportedWait(SpinWait),
+    ImportedGuards(std::sync::Arc<super::GuardOrder>),
     /// The supplier has an input obligation that has no checked caller-side projection.
     UnresolvedImport,
 }
@@ -64,7 +65,12 @@ impl Summaries {
             match SelectedCall::resolve(callee, boundary) {
                 Some(SelectedCall::Local(id)) => current = id,
                 Some(SelectedCall::ImportedWait(wait)) => break Some(wait),
-                Some(SelectedCall::UnresolvedImport | SelectedCall::PendingProvider) | None => {
+                Some(
+                    SelectedCall::ImportedGuards(_)
+                    | SelectedCall::UnresolvedImport
+                    | SelectedCall::PendingProvider,
+                )
+                | None => {
                     break None;
                 }
             }

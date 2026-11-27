@@ -152,6 +152,13 @@ pub(super) struct ForwardedWait {
 }
 
 impl SpinWait {
+    pub(super) fn single_cell(&self) -> Option<&CellWait> {
+        match &self.0 {
+            WaitRule::Cell(cell) => Some(cell),
+            _ => None,
+        }
+    }
+
     /// Restate every observed place in the consumer's coordinates. A partial
     /// translation cannot establish the original retry condition.
     pub(super) fn map_subjects(
@@ -174,18 +181,7 @@ impl SpinWait {
 impl ForwardedWait {
     /// Substitute the actual borrowed argument for each formal in the predicate.
     pub(super) fn apply(&self, mut spin: SpinWait) -> Option<SpinWait> {
-        let remap = |operand: Operand| match operand {
-            Operand::Literal(_) => Some(operand),
-            Operand::Parameter {
-                position,
-                scalar_type,
-            } => self
-                .scalars
-                .get(position)
-                .copied()
-                .flatten()
-                .filter(|actual| actual.scalar_type() == scalar_type),
-        };
+        let remap = |operand| self.scalar(operand);
         match &mut spin.0 {
             WaitRule::Cell(cell) => {
                 cell.while_value.comparison.substitute(remap)?;
@@ -201,10 +197,27 @@ impl ForwardedWait {
                 }
             }
         }
-        spin.map_subjects(|subject| {
-            let supplied = self.borrowed.get(subject.parameter)?;
-            subject.forwarded(supplied, remap)
-        })
+        spin.map_subjects(|subject| self.apply_subject(subject))
+    }
+
+    pub(super) fn apply_subject(&self, subject: &mut Subject) -> Option<()> {
+        let supplied = self.borrowed.get(subject.parameter)?;
+        subject.forwarded(supplied, |operand| self.scalar(operand))
+    }
+
+    fn scalar(&self, operand: Operand) -> Option<Operand> {
+        match operand {
+            Operand::Literal(_) => Some(operand),
+            Operand::Parameter {
+                position,
+                scalar_type,
+            } => self
+                .scalars
+                .get(position)
+                .copied()
+                .flatten()
+                .filter(|actual| actual.scalar_type() == scalar_type),
+        }
     }
 }
 
