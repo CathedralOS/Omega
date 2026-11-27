@@ -2,6 +2,8 @@
 //! cell. Ordinary scalar arguments preserve the supplying entry's identity
 //! across calls; an unrelated machine's local value number is never evidence.
 
+pub(super) mod comparison;
+
 use super::facts::Facts;
 use super::spin::{CellUpdate, Operand, SpinCondition};
 use crate::entry_values::TerminalScalarValue as Scalar;
@@ -88,6 +90,20 @@ pub(super) enum ScalarFact {
 }
 
 impl ScalarFact {
+    pub(super) fn term(self) -> Option<ScalarTerm> {
+        Some(match self {
+            ScalarFact::EntryInput(input) => ScalarTerm::Value {
+                id: input.id,
+                scalar_type: input.scalar_type,
+            },
+            ScalarFact::Literal(Scalar::Boolean(bit)) => ScalarTerm::Boolean(bit),
+            ScalarFact::Literal(Scalar::Integer { scalar_type, value }) => {
+                ScalarTerm::Integer { scalar_type, value }
+            }
+            _ => return None,
+        })
+    }
+
     pub(super) fn literal(self) -> Option<Scalar> {
         match self {
             Self::Literal(value) => Some(value),
@@ -267,14 +283,28 @@ impl SpinCondition {
         }
         let initial = initial.map(|value| value.under(requires));
         // An entry argument is equal to itself even when its bits are unknown.
-        let blocks = |value| match value {
-            ScalarFact::Literal(value) => self.matches(value),
-            ScalarFact::EntryInput(input)
-                if Some(input) == pivot_input && self.comparison.mask.is_none() =>
+        let resolved_pivot = self
+            .comparison
+            .pivot
+            .literal()
+            .map(ScalarFact::Literal)
+            .or(pivot);
+        let blocks = |value: ScalarFact| {
+            if let ScalarFact::Literal(literal) = value
+                && let Some(answer) = self.matches(literal)
             {
-                Some(self.accepts(std::cmp::Ordering::Equal))
+                return Some(answer);
             }
-            _ => None,
+            if self.comparison.mask.is_some() {
+                return None;
+            }
+            comparison::decided(
+                value,
+                resolved_pivot?,
+                self.comparison.order,
+                self.positive,
+                requires,
+            )
         };
         if let Some(initial) = initial
             && let Some(first) = blocks(initial)

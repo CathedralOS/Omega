@@ -7,7 +7,7 @@ use super::super::{
     spin::{CellUpdate, Comparison, Operand, SpinCondition},
 };
 use crate::entry_values::TerminalScalarValue as Scalar;
-use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType, ValueId};
+use semantic_vocabulary::{Proposition, ScalarType, ValueId};
 use std::cmp::Ordering;
 use terminal_psi::OperationKind;
 
@@ -129,20 +129,7 @@ impl Assumption {
     }
 
     pub(super) fn proposition(self) -> Option<Proposition> {
-        let term = |fact: ScalarFact| {
-            Some(match fact {
-                ScalarFact::EntryInput(input) => ScalarTerm::Value {
-                    id: input.id,
-                    scalar_type: input.scalar_type,
-                },
-                ScalarFact::Literal(Scalar::Boolean(bit)) => ScalarTerm::Boolean(bit),
-                ScalarFact::Literal(Scalar::Integer { scalar_type, value }) => {
-                    ScalarTerm::Integer { scalar_type, value }
-                }
-                _ => return None,
-            })
-        };
-        let (left, right) = (term(self.left)?, term(self.right)?);
+        let (left, right) = (self.left.term()?, self.right.term()?);
         Some(match (self.order, self.positive) {
             (Ordering::Equal, true) => Proposition::Equal(left, right),
             (Ordering::Equal, false) => Proposition::Implication {
@@ -166,7 +153,13 @@ impl Assumption {
             (self.left, self.right, self.order)
         };
         let ScalarFact::Literal(pivot) = pivot else {
-            return None;
+            return super::super::progress::comparison::decided(
+                left,
+                pivot,
+                order,
+                self.positive,
+                requirements,
+            );
         };
         let mut test = SpinCondition {
             comparison: Comparison {
