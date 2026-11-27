@@ -617,7 +617,8 @@ impl Program<'_> {
                     inputs.push(TheoremInput::Scalar(*scalar_type));
                 }
                 ValueType::Record(record, Qualification::NONE, _) => {
-                    let leaves = self.record_leaves(id, *record)?;
+                    let data_subjects::RecordSubject { leaves, invariants } =
+                        self.record_subject(id, *record)?;
                     let place = PlaceId::new(
                         inputs
                             .iter()
@@ -629,6 +630,7 @@ impl Program<'_> {
                     sources.push(SourceSubject::Record {
                         place,
                         leaves: leaves.clone(),
+                        invariants,
                     });
                     inputs.push(TheoremInput::Record {
                         record: *record,
@@ -681,30 +683,47 @@ impl Program<'_> {
     }
 
     /// A plain record's scalar fields, in declared order and with a nested
-    /// plain record's fields in its place, as Terminal Psi will publish them
-    /// (`data_subjects::record_leaves`).
-    fn record_leaves(
+    /// plain record's fields in its place, and the data invariants of the
+    /// record and each nested record, as Terminal Psi will publish them
+    /// (`data_subjects::record_subject`).
+    fn record_subject(
         &self,
         id: MachineId,
         record: semantic_vocabulary::StructuralTypeId,
-    ) -> Checked<Vec<(Vec<CanonicalStructuralPathSegment>, ScalarType)>> {
+    ) -> Checked<data_subjects::RecordSubject> {
         let unavailable = |reason| refuse_at(id, Unserved::Declaration(reason));
         let declared = self.data_type(id, record)?;
         let crate::StorageShape::Record(fields) = &declared.shape else {
             return Err(unavailable("logical data subject is not a plain record"));
         };
-        if !declared.requires.is_empty() {
-            return Err(unavailable("logical data subject has a data invariant"));
+        if crate::body::self_place() != Some(data_subjects::invariant_self()) {
+            return Err(unavailable(
+                "logical data subject's invariant names another self place",
+            ));
         }
-        let mut leaves = Vec::new();
+        let mut subject = data_subjects::RecordSubject {
+            leaves: Vec::new(),
+            invariants: declared
+                .requires
+                .iter()
+                .map(|clause| (Vec::new(), clause.clone()))
+                .collect(),
+        };
         for field in fields {
             let at = CanonicalStructuralPathSegment::Field(field.id);
             match field.value_type {
-                ValueType::Scalar(scalar, Qualification::NONE) => leaves.push((vec![at], scalar)),
+                ValueType::Scalar(scalar, Qualification::NONE) => {
+                    subject.leaves.push((vec![at], scalar))
+                }
                 ValueType::Record(child, Qualification::NONE, _) => {
-                    for (mut path, scalar) in self.record_leaves(id, child)? {
+                    let nested = self.record_subject(id, child)?;
+                    for (mut path, scalar) in nested.leaves {
                         path.insert(0, at);
-                        leaves.push((path, scalar));
+                        subject.leaves.push((path, scalar));
+                    }
+                    for (mut path, clause) in nested.invariants {
+                        path.insert(0, at);
+                        subject.invariants.push((path, clause));
                     }
                 }
                 _ => {
@@ -714,6 +733,6 @@ impl Program<'_> {
                 }
             }
         }
-        Ok(leaves)
+        Ok(subject)
     }
 }

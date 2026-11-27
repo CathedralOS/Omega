@@ -25,11 +25,29 @@ pub enum SourceSubject {
     Record {
         place: PlaceId,
         leaves: Vec<(Vec<CanonicalStructuralPathSegment>, ScalarType)>,
+        /// The data invariants of the record and of each record nested in
+        /// it: a clause over `self` (place 1) and the path of the record it
+        /// constrains. Every value of the type holds them, so each is a
+        /// premise of the contract over these subjects.
+        invariants: Vec<(Vec<CanonicalStructuralPathSegment>, Proposition)>,
     },
 }
 
+/// A plain record's scalar leaves and data invariants (`SourceSubject::Record`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecordSubject {
+    pub leaves: Vec<(Vec<CanonicalStructuralPathSegment>, ScalarType)>,
+    pub invariants: Vec<(Vec<CanonicalStructuralPathSegment>, Proposition)>,
+}
+
+/// The place a data invariant names the value it constrains by.
+pub fn invariant_self() -> PlaceId {
+    PlaceId::new(1).expect("place one is a valid place")
+}
+
 /// The fixed subjects of `sources`, numbered from one, and each clause
-/// restated over them.
+/// restated over them. Each record's data invariants come first among the
+/// premises, in header order.
 pub fn flatten(
     sources: &[SourceSubject],
     requires: &[Proposition],
@@ -54,57 +72,86 @@ pub fn flatten(
         }
     }
     let mut bindings = Renamed { sources };
+    let mut premises = Vec::new();
+    for source in sources {
+        let SourceSubject::Record {
+            place, invariants, ..
+        } = source
+        else {
+            continue;
+        };
+        for (prefix, clause) in invariants {
+            premises.push(substitute_clause(
+                clause,
+                &mut Invariant {
+                    renamed: &bindings,
+                    place: *place,
+                    prefix,
+                },
+            )?);
+        }
+    }
     let mut restate = |clauses: &[Proposition]| {
         clauses
             .iter()
             .map(|clause| substitute_clause(clause, &mut bindings))
             .collect::<Result<Vec<_>, &'static str>>()
     };
-    let requires = restate(requires)?;
+    premises.extend(restate(requires)?);
     let ensures = restate(ensures)?;
-    Ok((parameters, requires, ensures))
+    Ok((parameters, premises, ensures))
 }
 
 /// The scalar fields of a plain record, in declared order, with the fields
-/// of a nested plain record in its place. A record with a data invariant, a
+/// of a nested plain record in its place, and the data invariants of the
+/// record and of each nested record. A quotient or restricted scalar, a
 /// field that is neither a plain relevant scalar nor a plain record, or any
 /// other shape is refused by name.
-pub fn record_leaves(
+pub fn record_subject(
     module: &TerminalModule,
     record: StructuralTypeId,
-) -> Result<Vec<(Vec<CanonicalStructuralPathSegment>, ScalarType)>, &'static str> {
+) -> Result<RecordSubject, &'static str> {
     let declaration = module
         .structural_type(record)
         .ok_or("logical data subject has no structural declaration")?;
     let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return Err("logical data subject is not a plain record");
     };
-    if !declaration.requires.is_empty()
-        || declaration.quotient_carrier.is_some()
-        || declaration.scalar_restriction.is_some()
-    {
-        return Err("logical data subject has a data invariant");
+    if declaration.quotient_carrier.is_some() || declaration.scalar_restriction.is_some() {
+        return Err("logical data subject is a quotient or a restricted scalar");
     }
-    let mut leaves = Vec::new();
+    let mut subject = RecordSubject {
+        leaves: Vec::new(),
+        invariants: declaration
+            .requires
+            .iter()
+            .map(|clause| (Vec::new(), clause.clone()))
+            .collect(),
+    };
     for field in fields {
         if field.relevance.is_erased() {
             return Err("logical data subject has a field that is not a plain scalar");
         }
         let at = CanonicalStructuralPathSegment::Field(field.id);
         match field.field_type {
-            StructuralFieldType::Scalar(scalar) => leaves.push((vec![at], scalar)),
+            StructuralFieldType::Scalar(scalar) => subject.leaves.push((vec![at], scalar)),
             // A field that is itself a plain record contributes its own
-            // scalar fields in place, each under this field's path.
+            // scalar fields and invariants in place, under this field's path.
             StructuralFieldType::Structural(child) => {
-                for (mut path, scalar) in record_leaves(module, child)? {
+                let nested = record_subject(module, child)?;
+                for (mut path, scalar) in nested.leaves {
                     path.insert(0, at);
-                    leaves.push((path, scalar));
+                    subject.leaves.push((path, scalar));
+                }
+                for (mut path, clause) in nested.invariants {
+                    path.insert(0, at);
+                    subject.invariants.push((path, clause));
                 }
             }
             _ => return Err("logical data subject has a field that is not a plain scalar"),
         }
     }
-    Ok(leaves)
+    Ok(subject)
 }
 
 /// The source inputs of a machine's contract, in header order.
@@ -141,9 +188,12 @@ pub fn machine_subjects(
                 {
                     return Err("logical data subject carries a qualification");
                 }
+                let RecordSubject { leaves, invariants } =
+                    record_subject(module, formal.structural_type)?;
                 Ok(SourceSubject::Record {
                     place: formal.place,
-                    leaves: record_leaves(module, formal.structural_type)?,
+                    leaves,
+                    invariants,
                 })
             }
         })
@@ -167,6 +217,61 @@ impl Renamed<'_> {
             };
         }
         None
+    }
+}
+
+/// A data invariant of the record at `prefix` beneath the subject `place`:
+/// its `self` fields are that record's fields among the subject's leaves.
+struct Invariant<'a> {
+    renamed: &'a Renamed<'a>,
+    place: PlaceId,
+    prefix: &'a [CanonicalStructuralPathSegment],
+}
+
+impl ClauseBindings for Invariant<'_> {
+    type Error = &'static str;
+
+    fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, Self::Error> {
+        Err("logical data subject's invariant names a value that is no field")
+    }
+
+    fn field(
+        &mut self,
+        version: ContentPlaceVersion,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        if version != ContentPlaceVersion::Current || root != invariant_self() {
+            return Err("logical data subject's invariant observes another place");
+        }
+        let renamed = self
+            .renamed
+            .subject(|source| match source {
+                SourceSubject::Record { place, leaves, .. } if *place == self.place => {
+                    leaves.iter().position(|(own, carrier)| {
+                        *carrier == scalar
+                            && own.len() == self.prefix.len() + path.len()
+                            && own.starts_with(self.prefix)
+                            && own.ends_with(path)
+                    })
+                }
+                _ => None,
+            })
+            .ok_or("logical data subject's invariant names a field that is no scalar subject")?;
+        Ok(ScalarTerm::Value {
+            id: renamed,
+            scalar_type: scalar,
+        })
+    }
+
+    fn case(
+        &mut self,
+        _: PlaceId,
+        _: &[CanonicalStructuralPathSegment],
+        _: StructuralCaseId,
+    ) -> Result<crate::substitution::clauses::CaseAnswer, Self::Error> {
+        Err("logical data subject's invariant tests a case")
     }
 }
 
@@ -199,7 +304,7 @@ impl ClauseBindings for Renamed<'_> {
         }
         let renamed = self
             .subject(|source| match source {
-                SourceSubject::Record { place, leaves } if *place == root => leaves
+                SourceSubject::Record { place, leaves, .. } if *place == root => leaves
                     .iter()
                     .position(|(own, carrier)| own.as_slice() == path && *carrier == scalar),
                 _ => None,
@@ -266,6 +371,7 @@ mod tests {
             SourceSubject::Record {
                 place: PlaceId::new(1).unwrap(),
                 leaves: vec![leaf(1), leaf(2)],
+                invariants: Vec::new(),
             },
         ]
     }
