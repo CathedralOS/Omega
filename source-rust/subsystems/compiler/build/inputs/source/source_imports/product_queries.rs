@@ -208,56 +208,6 @@ mod tests {
             .is_err()
         );
     }
-    #[test]
-    fn named_build_stage_keeps_dependency_product_and_build_authority_distinct() {
-        let root = graph(1, package(1, "root_app", "root"));
-        let helper = PackageCompilationInputs::new_package(
-            identity(2),
-            vec![
-                package(2, "helper", "helper"),
-                package(3, "private_build_tool", "build"),
-                package(4, "library", "product"),
-            ],
-            vec![
-                PackageDependencyBinding::for_purpose(
-                    identity(2),
-                    "tool",
-                    identity(3),
-                    DependencyPurpose::Build,
-                ),
-                PackageDependencyBinding::new(identity(2), "library", identity(4)),
-            ],
-        )
-        .unwrap();
-        let inputs = ProductQueryInputs::for_build_stage(None, vec![dependency("helper", helper)])
-            .unwrap()
-            .with_named_source(Some(root))
-            .unwrap()
-            .build_stage_authority_inputs()
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            inputs.dependency_target_for_purpose(identity(1), DependencyPurpose::Build, "helper"),
-            Some(identity(2))
-        );
-        assert_eq!(
-            inputs.dependency_target_for_purpose(identity(1), DependencyPurpose::Product, "helper"),
-            None
-        );
-        assert_eq!(
-            inputs.dependency_target_for_purpose(
-                identity(2),
-                DependencyPurpose::Product,
-                "library"
-            ),
-            Some(identity(4))
-        );
-        assert_eq!(
-            inputs.package_root(identity(3)),
-            None,
-            "the helper's Build activation grants this stage no source"
-        );
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -321,19 +271,6 @@ impl ProductQueryInputs {
         build_dependencies: Vec<ProductQueryDependency>,
     ) -> Result<Self, String> {
         Self::new(original, Vec::new())?.with_prepared_build_dependencies(build_dependencies)
-    }
-
-    /// Reuse an existing complete graph when supplied. Otherwise a named
-    /// capture and the exact prepared Build dependencies define this stage's
-    /// source selections; they make no claim about later Product requests.
-    pub fn build_stage_authority_inputs(&self) -> Result<Option<PackageCompilationInputs>, String> {
-        if let Some(original) = &self.original {
-            return Ok(Some(original.clone()));
-        }
-        self.named_source
-            .as_ref()
-            .map(|root| root.with_prepared_build_sources(&self.build_dependencies))
-            .transpose()
     }
 
     /// A named root receives only the owner supplied by acquired-source

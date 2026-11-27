@@ -9,7 +9,6 @@ path = "project_build.rs"
 
 [dependencies]
 build-providers = { path = "providers" }
-build-model = { path = "model" }
 provider-admission = { path = "../psi-to-native/verification/provider-admission" }
 bounded-process = { path = "../../../foundation/bounded-process" }
 psi-authorization = { path = "../psi/artifact/authorization" }
@@ -49,11 +48,11 @@ symbols = { path = "../foundation/declaration-identity" }
 numerics = { path = "../foundation/numerics" }
 language-core = { path = "../foundation/language-core" }
 terminal-semantics = { path = "../psi/semantics" }
-psi-provider-selections = { path = "../psi/execution-inputs/providers" }
 rayon = "1.11"
 worker-budget = { path = "../foundation/worker-budget" }
 
 [dev-dependencies]
+psi-provider-selections = { path = "../psi/execution-inputs/providers" }
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "../psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }
 provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "../psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }
 filesystem-authority = { path = "evaluation/authority/filesystem" }
