@@ -392,6 +392,15 @@ exact designated requirement/application, target, immutable supplier package,
 calling policy, atomic locator, and authored selection/evaluation provenance;
 neither a `via` span nor a synthetic forwarding callable is an identity anchor.
 
+Native binding rows use application tag 0 for a monomorphic binding and tag 1
+for a closed generic application. Each carries one checked plan. Baseline version
+67 adds tag 2 for a generic import with no concrete application on the reviewed
+target. The row carries the authored callable, its signature and named unbound
+parameters, the selected policy (or the target default), the source occurrence
+and the evaluated import receipt digest. Its calling-plan list is empty.
+When a caller supplies concrete arguments, its checked application gets a
+separate row for each distinct tuple. Older concrete rows keep their encoding.
+
 The current materializer still captures typed `via` expressions and bodyless
 declarations. That schema is legacy migration work under
 `BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../../../TASKS.md#priority-human-set-only),
