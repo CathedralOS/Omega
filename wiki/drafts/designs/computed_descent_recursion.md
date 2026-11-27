@@ -51,8 +51,13 @@ f(x̄)      = G(x_r, x̄)
 ```
 
 `∸` is the recognized order's truncated subtraction (`natural_order`, core's
-`saturating_sub`). The guard is an ordinary eliminator on a computed value;
-its motive is the constant result type.
+`saturating_sub`). The guard is a definition by cases of its own, over the
+guard value and every variable of the fuel's case, like any dispatch on a
+computed value: stage 06's normal form computes only such definitions, so
+the guard computes once its value is a case and stays folded otherwise.
+Stage 06 proves a law on fuel by splitting each successor case on the guard
+value: at `0` the law at one unit less and the same arguments is the goal,
+and otherwise the body's script runs unchanged.
 
 ### Bound: the counter suffices
 
@@ -67,20 +72,24 @@ It is proved by induction on `k`, and its proof never looks at `B`:
 - `k = S k'`, split on `x_r ∸ k'` keeping the equation:
   - `0`: the guard takes `G(k', x̄)`, and the hypothesis at `k'` (whose
     premise is this branch's equation) closes it.
-  - `S w`: the premise `x_r ∸ S k' = 0` computes to `pred(x_r ∸ k') = 0`,
-    so `w = 0`. Core's `sub_eq_add(k', x_r, Zero)` turns `x_r ∸ k' = S 0`
-    into `x_r = add(k', S 0)`, which computes to `S k'`. Both sides are
-    then `G(S k', x̄)`.
+  - `S w`: then `k' < x_r` (core's `lt_of_sub_pos(k', x_r, w)` gives
+    `S k' ∸ x_r = 0`), and the premise says `x_r ∸ S k' = 0`, so
+    antisymmetry gives `x_r = S k'`. Rewriting the fuel position of the
+    right side by it unfolds `G(S k', x̄)`, whose guard the split's
+    equation `x_r ∸ k' = S w` computes to the body: the left side.
+
+(`add` recurses on its first argument, so `x_r = add(k', S 0)` from
+`sub_eq_add` would not compute to `S k'`; antisymmetry avoids `add`.)
 
 `Bound` is a law stage 05 states for each machine on fuel, with this
 script (`LawProof::Cases` on the bound, a `LawSplit` on the guard value, a
-`Hypothesis` citation and a `Statement` citation of `sub_eq_add`). Stage 06
-proves it like any other law. `sub_eq_add` is recognized the way
+`Hypothesis` citation and `Statement` citations of the two order lemmas).
+Stage 06 proves it like any other law. The lemmas are recognized the way
 `saturating_sub` is: a law read so far whose statement is exactly core's
-statement over the recognized order. A program whose natural data lacks it
+statement over the recognized order. A program whose natural data lacks one
 is refused as not supported, naming the missing lemma. This is the "proved
-once" part: the order's lemma is proved once in core (or in the program's
-copy), and each machine's `Bound` reuses it.
+once" part: the order's lemmas are proved once in core (or in the program's
+copy), and each machine's `Bound` reuses them.
 
 With `Bound` and the descent each call owes, the counter suffices on every
 reachable call: a call at `ē` inside `G(S k', x̄)` with `x_r ∸ k' ≠ 0` and
@@ -116,10 +125,10 @@ recognized like `sub_eq_add`.
 
 ## Steps
 
-1. The guard and `Bound`, with the `Split::Fuel` change so every existing
-   law on fuel stays judged. Fixtures: the repeated-subtraction `mod`
-   compiles with its `Bound` judged; a copy of `Nat` without `sub_eq_add`
-   is refused for the missing lemma.
+1. The guard, with the `Split::Fuel` change so every existing law on fuel
+   stays judged (landed first, on its own), then `Bound`. Fixtures: the
+   repeated-subtraction `mod` compiles with its `Bound` judged; a copy of
+   `Nat` without the antisymmetry lemma is refused for the missing lemma.
 2. `Equation_f`, and its use by the prover. Fixture: a law about the
    repeated-subtraction `mod` that holds only with enough fuel, such as
    `mod(a, b) = mod(a ∸ b, b)` for `b <= a`, compiles; its twin without the
