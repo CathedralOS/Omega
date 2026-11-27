@@ -425,7 +425,8 @@ fn location_live_positions(
             .any(|input| input.contains(name) || name.contains(input))
         {
             observations.push(occurrence.clone());
-            if step.may_escape && !(borrowed_authority && step.invocation_addresses.contains(name)) {
+            if step.may_escape && !(borrowed_authority && step.invocation_addresses.contains(name))
+            {
                 escaped.push(*position);
             }
         } else if needs_contents(*position, name) {

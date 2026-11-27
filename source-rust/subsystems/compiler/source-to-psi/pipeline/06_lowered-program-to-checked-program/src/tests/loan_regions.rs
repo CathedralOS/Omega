@@ -320,7 +320,7 @@ machine journey(left: @mutable Cell, right: @mutable Cell, first: bool) {{
 {ENTRY}"#
         );
         let refused = run(&source).expect_err("both possible lenders must stay borrowed");
-        assert!(refused.contains("loan") || refused.contains("borrow"), "{refused}");
+        assert!(refused.contains("ChangeWhileBorrowed"), "{refused}");
     }
 }
 
@@ -360,7 +360,10 @@ machine entry() crashes Trap {
             "    change(@mutable level, true);",
             "    let held: @Room = @level.rooms[1];\n    change(@mutable level, true);",
         )
-        .replace("let changed: bool = level.rooms[1].value", "let changed: bool = held.value");
+        .replace(
+            "let changed: bool = level.rooms[1].value",
+            "let changed: bool = held.value",
+        );
     let refused = run(&conflict).unwrap_err();
     assert!(refused.contains("ChangeWhileBorrowed"), "{refused}");
 }
