@@ -1482,7 +1482,7 @@ fn fill_knowledge<'a>(
     ),
 ) -> Checked<()> {
     let edge_entries = owned_cleanup::edge_entry_points(lowered, tables)?;
-    theorems::fill(module, id, tables)?;
+    theorems::fill(module, id, tables, (storage, &mut *references))?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         let mut premises =
             entry_snapshot_conjuncts(proposition, &mut storage.at_entry(references, tables))
@@ -2700,9 +2700,14 @@ fn stated_goal<'a>(
             ))
         }
         ObligationKind::OperationSafety { site } => storage.safety_goal(site, obligation, types),
-        ObligationKind::TheoremRequirement { edge, clause } => {
-            theorems::goal(module, id, edge, clause)
-        }
+        ObligationKind::TheoremRequirement { edge, clause } => theorems::goal(
+            module,
+            id,
+            (storage, &mut *references),
+            tables,
+            edge,
+            clause,
+        ),
         ObligationKind::CallRequirement { invocation, clause } => {
             let row = terminal_check_tables::row(
                 &tables.invocations,

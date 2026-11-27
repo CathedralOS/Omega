@@ -12,6 +12,7 @@ mod resident_storage;
 use crate::body::Qualification;
 use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
 use crate::declaration_selection::ResolvedAuthoredCallBinding;
+use crate::read::theorems::TheoremInput;
 use crate::source_selections::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionOccurrenceId,
 };
@@ -2591,7 +2592,7 @@ impl<'t> Program<'t> {
             .filter(|(parameter, source)| {
                 parameter.machine == id && source.binder == invocation.target
             });
-        let (parameter, _) = parameters.next().ok_or_else(|| {
+        let (parameter, prepared) = parameters.next().ok_or_else(|| {
             unavailable("logical parameter is outside the current declaration's exact header")
         })?;
         if parameters.next().is_some() {
@@ -2600,12 +2601,7 @@ impl<'t> Program<'t> {
             ));
         }
         let proof_position = parameter.proof_position;
-        let types: Vec<_> = parameter
-            .contract
-            .parameters
-            .iter()
-            .map(|parameter| parameter.scalar_type)
-            .collect();
+        let inputs = prepared.inputs.clone();
         let acknowledgement = match call {
             StaticArgumentCall::Statement(call) => call.operational_acknowledgement,
             StaticArgumentCall::Expression(_, call) => call.operational_acknowledgement,
@@ -2613,7 +2609,7 @@ impl<'t> Program<'t> {
         if invocation.unsupported
             || invocation.runtime_receiver
             || acknowledgement != Default::default()
-            || invocation.arguments.len() != types.len()
+            || invocation.arguments.len() != inputs.len()
         {
             return Err(unavailable(
                 "logical application carries an executable feature or another argument telescope",
@@ -2700,33 +2696,59 @@ impl<'t> Program<'t> {
                 }
             }
         }
-        let arguments = invocation
-            .arguments
-            .iter()
-            .zip(types)
-            .map(|(argument, scalar)| {
-                let expression =
-                    self.expression(id, slots, *argument, Some(ValueType::plain(scalar)))?;
-                if expression.result != Some(ValueType::plain(scalar))
-                    || !matches!(
-                        expression.kind,
-                        ExpressionKind::Integer(_)
-                            | ExpressionKind::Boolean(_)
-                            | ExpressionKind::Slot(_)
-                    )
-                {
-                    return Err(unavailable(
-                        "logical subject has another fixed scalar carrier",
-                    ));
+        // A record input is one subject for each of its scalar fields: the
+        // record formal it names, read at each field's path.
+        let mut arguments = Vec::new();
+        let mut fields = Vec::new();
+        for (argument, input) in invocation.arguments.iter().zip(inputs) {
+            match input {
+                TheoremInput::Scalar(scalar) => {
+                    let expression =
+                        self.expression(id, slots, *argument, Some(ValueType::plain(scalar)))?;
+                    if expression.result != Some(ValueType::plain(scalar))
+                        || !matches!(
+                            expression.kind,
+                            ExpressionKind::Integer(_)
+                                | ExpressionKind::Boolean(_)
+                                | ExpressionKind::Slot(_)
+                        )
+                    {
+                        return Err(unavailable(
+                            "logical subject has another fixed scalar carrier",
+                        ));
+                    }
+                    arguments.push(expression);
+                    fields.push(Vec::new());
                 }
-                Ok(expression)
-            })
-            .collect::<Checked<Vec<_>>>()?;
+                TheoremInput::Record { record, leaves } => {
+                    let expression = self.expression(id, slots, *argument, None)?;
+                    let ExpressionKind::Slot(slot) = expression.kind else {
+                        return Err(unavailable(
+                            "logical data subject is not a named record formal",
+                        ));
+                    };
+                    if !matches!(expression.result, Some(ValueType::Record(own, Qualification::NONE, _)) if own == record)
+                        || slots
+                            .get(slot)
+                            .is_none_or(|held| held.erased || held.borrowed.is_some())
+                    {
+                        return Err(unavailable(
+                            "logical data subject is not a named record formal",
+                        ));
+                    }
+                    for (path, _) in leaves {
+                        arguments.push(expression.clone());
+                        fields.push(path);
+                    }
+                }
+            }
+        }
         Ok(Some(Expression {
             call_context: None,
             kind: ExpressionKind::TheoremApplication {
                 source: terminal_psi::TheoremSource::Formal(proof_position),
                 arguments,
+                fields,
                 instantiation,
             },
             result: None,

@@ -48,6 +48,23 @@ pub(crate) fn validate(
         terminal_semantics::theorems::application(module, machine, application)
             .map_err(|reason| invalid(application.edge, reason))?;
         for argument in &application.arguments {
+            // A field subject reads a record formal of this machine, whose
+            // root place every point of the body has.
+            if let semantic_vocabulary::ScalarTerm::IntegerField { root, .. }
+            | semantic_vocabulary::ScalarTerm::BooleanField { root, .. }
+            | semantic_vocabulary::ScalarTerm::IeeeFloatField { root, .. } = argument
+                && (tables.roots.get(*root).is_none()
+                    || terminal_psi::StructuralParameterDeclaration::find_by_place(
+                        &machine.contract.structural_parameters,
+                        *root,
+                    )
+                    .is_none())
+            {
+                return Err(invalid(
+                    application.edge,
+                    "logical data subject is not a record formal of its machine",
+                ));
+            }
             let mut failure = None;
             argument.visit_value_ids(|value| {
                 let Some(row) = tables.values.get(value) else {
@@ -85,9 +102,14 @@ pub(crate) fn validate(
     Ok(())
 }
 
-pub(crate) fn goal(
+pub(crate) fn goal<'a>(
     module: &TerminalModule,
     owner: MachineId,
+    context: (
+        &crate::places::Storage<'a>,
+        &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    ),
+    tables: &MachineTables,
     edge: EdgeId,
     clause: u32,
 ) -> Checked<Proposition> {
@@ -106,14 +128,29 @@ pub(crate) fn goal(
         .requires
         .get(clause as usize)
         .ok_or_else(|| invalid("logical application has no such premise"))?;
+    // The stored subjects name the clause's formals; the goal reads each
+    // one where the edge leaves.
     terminal_semantics::theorems::substitute(&contract, &application.arguments, clause)
-        .map_err(invalid)
+        .map_err(invalid)?;
+    let (storage, references) = context;
+    storage.theorem_clause(
+        references,
+        tables,
+        edge,
+        &application.arguments,
+        clause,
+        Construct::Edge(edge),
+    )
 }
 
-pub(crate) fn fill(
+pub(crate) fn fill<'a>(
     module: &TerminalModule,
     owner: MachineId,
     tables: &mut MachineTables,
+    (storage, references): (
+        &crate::places::Storage<'a>,
+        &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    ),
 ) -> Checked<()> {
     for application in module
         .proofs
@@ -132,12 +169,20 @@ pub(crate) fn fill(
         let contract = terminal_semantics::theorems::applied(module, owner, application.source)
             .map_err(invalid)?;
         for (clause, proposition) in contract.ensures.iter().enumerate() {
-            let proposition = terminal_semantics::theorems::substitute(
+            terminal_semantics::theorems::substitute(
                 &contract,
                 &application.arguments,
                 proposition,
             )
             .map_err(invalid)?;
+            let proposition = storage.theorem_clause(
+                references,
+                tables,
+                application.edge,
+                &application.arguments,
+                proposition,
+                Construct::Edge(application.edge),
+            )?;
             crate::push_knowledge(
                 tables,
                 proposition,
@@ -201,6 +246,7 @@ pub(crate) fn finalize_citations(
             let formals = terminal_semantics::theorems::proof_formal_contracts(module, source)
                 .map_err(invalid)?;
             let goals = terminal_semantics::theorems::citation_goals(
+                module,
                 &context.parameter.contract,
                 &supplied.contract,
                 &formals,
@@ -420,9 +466,14 @@ fn derive_supply(
         .ok_or_else(|| invalid("instantiating theorem has no source machine"))?;
     let formals =
         terminal_semantics::theorems::proof_formal_contracts(module, inner).map_err(invalid)?;
-    let goals =
-        terminal_semantics::theorems::citation_goals(expected, &machine.contract, &formals, 0)
-            .map_err(invalid)?;
+    let goals = terminal_semantics::theorems::citation_goals(
+        module,
+        expected,
+        &machine.contract,
+        &formals,
+        0,
+    )
+    .map_err(invalid)?;
     derive_citation(owner, expected, &goals, failure, activity)
 }
 

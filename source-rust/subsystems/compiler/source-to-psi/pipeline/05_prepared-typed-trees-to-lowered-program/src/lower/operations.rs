@@ -152,10 +152,51 @@ impl Lowering<'_> {
         }
     }
 
+    /// A scalar field of a record formal, read as its current contents
+    /// where the application's edge leaves. No operation is emitted.
+    fn field_subject(
+        &mut self,
+        argument: &Expression,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        formal: ScalarType,
+    ) -> Checked<semantic_vocabulary::ScalarTerm> {
+        use semantic_vocabulary::{ContentPlaceVersion, ScalarTerm};
+        let ExpressionKind::Slot(slot) = argument.kind else {
+            return Err(self.internal("logical data subject is not a named record formal"));
+        };
+        let (Some(Bound::Record(root)) | Some(Bound::Home(root))) = *self.slot_mut(slot)? else {
+            return Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Expression("logical data subject that is not a record place"),
+            ));
+        };
+        let path = path.to_vec();
+        let version = ContentPlaceVersion::Current;
+        Ok(match formal {
+            ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                version,
+                root,
+                path,
+                scalar_type,
+            },
+            ScalarType::Boolean => ScalarTerm::BooleanField {
+                version,
+                root,
+                path,
+            },
+            ScalarType::IeeeFloat(format) => ScalarTerm::ieee_float_field_path(root, path, format),
+            ScalarType::Callable(_) => {
+                return Err(self.internal("logical data subject is a callable field"));
+            }
+        })
+    }
+
     fn theorem_application(
         &mut self,
         theorem: terminal_psi::TheoremSource,
         arguments: &[Expression],
+        fields: &[Vec<semantic_vocabulary::CanonicalStructuralPathSegment>],
         instantiation: &[terminal_psi::TheoremSource],
         source: SourceOrigin,
     ) -> Checked<()> {
@@ -181,11 +222,19 @@ impl Lowering<'_> {
                     .iter()
                     .map(|formal| formal.scalar_type)
                     .collect();
+                if fields.len() != arguments.len() {
+                    return Err(self.internal("logical application lost its subject paths"));
+                }
                 let arguments = arguments
                     .iter()
                     .zip(formal_types)
-                    .map(|(argument, formal)| {
-                        let subject = self.witness(argument)?.term(&self.erased_applications);
+                    .zip(fields)
+                    .map(|((argument, formal), path)| {
+                        let subject = if path.is_empty() {
+                            self.witness(argument)?.term(&self.erased_applications)
+                        } else {
+                            self.field_subject(argument, path, formal)?
+                        };
                         if subject.scalar_type() != formal {
                             return Err(
                                 self.internal("logical application has another subject carrier")
@@ -358,9 +407,10 @@ impl Lowering<'_> {
             ExpressionKind::TheoremApplication {
                 source: theorem,
                 arguments,
+                fields,
                 instantiation,
             } => {
-                self.theorem_application(*theorem, arguments, instantiation, source)?;
+                self.theorem_application(*theorem, arguments, fields, instantiation, source)?;
                 Ok(Reached::Value(Value::Unit))
             }
             ExpressionKind::Atomic(operation) => match operation {
