@@ -4,6 +4,7 @@ use super::{
     Bindings, Effect, NormalEffects, ProgressFailure, ProgressScope, NormalReturn, ScalarFact,
     Storage, Stored, Subject,
 };
+use crate::synchronization::progress::comparison::Evidence;
 use semantic_vocabulary::Proposition;
 use terminal_psi::StructuralArgument;
 
@@ -17,7 +18,7 @@ impl NormalEffects {
         requirements: &[Proposition],
         scope: ProgressScope,
     ) -> Option<Result<(), ProgressFailure>> {
-        let entry = memory.requirements(requirements);
+        let entry = Evidence::new(requirements, &memory.conditions);
         let possible = |path: &NormalReturn| {
             let mut inputs = Vec::new();
             for condition in &path.when {

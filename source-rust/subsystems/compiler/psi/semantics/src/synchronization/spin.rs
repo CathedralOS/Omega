@@ -39,11 +39,11 @@ impl SpinWait {
                 let update = cell
                     .update
                     .try_map(|operand| operand.literal().map(super::progress::ScalarFact::Literal));
-                cell.while_value.failure(None, None, update, &[]).is_some()
+                cell.while_value.failure(None, None, update, &Default::default()).is_some()
             }
             WaitRule::Periodic(cell) => cell
                 .while_value
-                .failure(None, None, Some(CellUpdate::Observe), &[])
+                .failure(None, None, Some(CellUpdate::Observe), &Default::default())
                 .is_some(),
             WaitRule::Observations(predicate) => {
                 predicate.evaluate(

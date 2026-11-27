@@ -22,8 +22,23 @@ fn provider_observations_are_specific_to_one_invocation() {
     );
     let root = scratch.path().join("application");
     let source = read("application/main.omg");
+    let clamp = read("clamp.omg");
     for (case, program, failure) in [
         ("reuse", source.clone(), None),
+        ("clamp two observations", clamp.clone(), None),
+        (
+            "select an unrelated observation",
+            clamp.replace(
+                "clamp(@signal, first, second, first)",
+                "clamp(@signal, first, second, second)",
+            ),
+            Some("cannot prove synchronization progress"),
+        ),
+        (
+            "retry after either branch",
+            clamp.replace("sampled < expected", "sampled >= expected"),
+            Some("synchronization deadlock"),
+        ),
         (
             "resample",
             source.replace("wait(@signal, first)", "wait(@signal, second)"),
@@ -43,11 +58,20 @@ fn provider_observations_are_specific_to_one_invocation() {
         project::write(&root, &[("main.omg", &program)]);
         let output = project::omega(
             &root,
-            &["--target", "linux_x86_64", "--build-dir", "out", "build.omg"],
+            &[
+                "--target",
+                "linux_x86_64",
+                "--build-dir",
+                "out",
+                "build.omg",
+            ],
         );
         let (accepted, diagnostic) = project::status(&output);
         if let Some(expected) = failure {
-            assert!(!accepted && diagnostic.contains(expected), "{case}: {diagnostic}");
+            assert!(
+                !accepted && diagnostic.contains(expected),
+                "{case}: {diagnostic}"
+            );
         } else {
             assert!(accepted, "{case}: {diagnostic}");
             let installed = fs::read_to_string(root.join("out/omega-components.tsv")).unwrap();

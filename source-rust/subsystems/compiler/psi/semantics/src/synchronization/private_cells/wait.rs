@@ -2,6 +2,7 @@
 
 use super::super::progress::{ProgressFailure, ProgressScope, ScalarFact};
 use super::super::spin::Subject;
+use super::super::progress::comparison::Evidence;
 use super::super::spin::{
     CellUpdate, Observation, Operand, SpinCondition, SpinWait, Trip, WaitRule,
 };
@@ -66,7 +67,7 @@ pub(super) fn apply(
             let orbit = cell.update.try_map(|operand| resolve(operand)?.literal());
             let stored = memory.get(&location);
             let shared = location.includes_shared();
-            let trip = |prior: Option<ScalarFact>, requires: &[Proposition]| {
+            let trip = |prior: Option<ScalarFact>, requires: &Evidence<'_>| {
                 if condition
                     .failure(prior, input, Some(CellUpdate::Observe), requires)
                     .is_none()
@@ -79,18 +80,19 @@ pub(super) fn apply(
                 }
                 orbit?.trip(condition, prior.and_then(ScalarFact::literal))
             };
-            let assess = |prior, requires: &[Proposition]| match trip(prior, requires) {
+            let assess = |prior, requires: &Evidence<'_>| match trip(prior, requires) {
                 Some(Trip::Stuck) => Some(ProgressFailure::Deadlock),
                 Some(Trip::Returns(_)) => None,
                 None => Some(ProgressFailure::Unproved),
             };
             let observation = classify_entries(memory, &location, ty, requirements, assess);
             require_progress(observation, scope)?;
-            let updated = match trip(None, requirements) {
+            let facts = Evidence::new(requirements, &memory.conditions);
+            let updated = match trip(None, &facts) {
                 Some(Trip::Returns(Some(word))) if !stored.includes_pending_provider() => {
                     Stored::Scalar(ScalarFact::Literal(word))
                 }
-                _ => stored.map_scalars(ty, |old| match trip(Some(old), requirements)? {
+                _ => stored.map_scalars(ty, |old| match trip(Some(old), &facts)? {
                     Trip::Returns(Some(value)) => Some(ScalarFact::Literal(value)),
                     _ => None,
                 }),
@@ -174,10 +176,10 @@ fn classify_entries(
     location: &super::storage::Location,
     ty: semantic_vocabulary::ScalarType,
     requirements: &[Proposition],
-    failure: impl Fn(Option<ScalarFact>, &[Proposition]) -> Option<ProgressFailure>,
+    failure: impl Fn(Option<ScalarFact>, &Evidence<'_>) -> Option<ProgressFailure>,
 ) -> Observation {
-    let common = memory.requirements(requirements);
-    let assess = |stored: &Stored| observation(stored, ty, &common, &failure);
+    let evidence = Evidence::new(requirements, &memory.conditions);
+    let assess = |stored: &Stored| observation(stored, ty, &evidence, &failure);
     let result = assess(&memory.get(location));
     if result != Observation::Known(false)
         && memory.only_caller_can_block(location, |stored| {
@@ -193,23 +195,18 @@ fn classify_entries(
 fn observation(
     stored: &Stored,
     ty: semantic_vocabulary::ScalarType,
-    common: &[Proposition],
-    failure: impl Fn(Option<ScalarFact>, &[Proposition]) -> Option<ProgressFailure>,
+    evidence: &Evidence<'_>,
+    failure: impl Fn(Option<ScalarFact>, &Evidence<'_>) -> Option<ProgressFailure>,
 ) -> Observation {
     let mut all_block = true;
     let mut can_block = false;
     let visited = stored.visit_witnesses(ty, |value, when| {
-        let mut facts = std::borrow::Cow::Borrowed(common);
-        if !when.is_empty() {
-            facts
-                .to_mut()
-                .extend(when.iter().filter_map(|condition| condition.proposition()));
-        }
+        let facts = evidence.with_witness(when);
         let cause = failure(Some(value), &facts);
         all_block &= cause == Some(ProgressFailure::Deadlock);
         can_block |= cause.is_some();
     });
-    let unresolved = failure(None, common);
+    let unresolved = failure(None, evidence);
     let unresolved_can_block = unresolved.is_some();
     if stored.includes_pending_provider() && unresolved_can_block {
         return if can_block {

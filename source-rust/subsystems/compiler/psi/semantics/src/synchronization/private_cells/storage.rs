@@ -9,7 +9,7 @@ use location::Allocation;
 pub(super) use location::Location;
 
 use super::super::facts::Facts;
-use super::condition::Assumption;
+use crate::synchronization::progress::condition::Assumption;
 pub(super) use contents::Stored;
 use semantic_vocabulary::PlaceId;
 use std::cell::Cell;
@@ -29,19 +29,6 @@ pub(super) struct Storage {
 }
 
 impl Storage {
-    pub(super) fn requirements<'a>(
-        &self,
-        prior: &'a [semantic_vocabulary::Proposition],
-    ) -> std::borrow::Cow<'a, [semantic_vocabulary::Proposition]> {
-        let mut result = std::borrow::Cow::Borrowed(prior);
-        if !self.conditions.is_empty() {
-            result
-                .to_mut()
-                .extend(self.conditions.iter().filter_map(|test| test.proposition()));
-        }
-        result
-    }
-
     pub(super) fn assume(&mut self, condition: Assumption) {
         if !self.conditions.contains(&condition) {
             Rc::make_mut(&mut self.conditions).push(condition);
