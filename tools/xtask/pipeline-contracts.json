@@ -3245,9 +3245,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "function:native_calling_results#1",
       "kind": "producer",
-      "meaning": "Reuse the default calling plan for the same artifact, target, boundary and binding receipt, or derive it from the declared ABI and native binding.",
+      "meaning": "Keep the calling application already selected for a native boundary's ABI on this target. Otherwise reuse the default calling plan for the same artifact, target, boundary and binding receipt, or derive it from the declared ABI and the import, function-field or syscall binding. A boundary that needs a custom policy and has no selected application is refused.",
       "producer": "stage 01 native calling plan selection",
-      "signature": "cafe15235473fcf4e516b6883ea2cd25da9a35bfeb51c48d8fea02d3d9c6474b"
+      "signature": "780f3ba7f29183c38949505d063d71f731c46bc7f005a4bd4a869d8cd1ef8cd8"
     },
     {
       "consumers": [
@@ -3874,9 +3874,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/package_review.rs",
       "item": "function:prepare#1",
       "kind": "producer",
-      "meaning": "Normalizes authored Build inputs using each exact declarationâ€™s canonical callable, records their identity dictionary, and completes missing native defaults with the selected programâ€™s own calling planner.",
+      "meaning": "Normalizes authored Build inputs using each exact declaration's canonical callable, records their identity dictionary, and completes their calling applications through the planner supplied by the selected execution, so review sees the same selected and default policies the execution uses.",
       "producer": "03 package review planning",
-      "signature": "1798eab66eab4c850ebce7356d5b1060cf187a5ac03db7cd1324695e04f89709"
+      "signature": "cf69151a357d751ed79b270a9e77faf8607de464fe4c61dbbc98307edb733970"
     },
     {
       "consumers": [
@@ -3931,11 +3931,11 @@
         "03 package review planning"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/package_review.rs",
-      "item": "use:crate :: calling_policy_plans :: { CallingProgram , NativeCallingResults }#1",
+      "item": "use:crate :: calling_policy_plans :: CallingProgram#1",
       "kind": "definition",
-      "meaning": "Consumes the program used to compute calling plans and previously computed default applications from this same invocation.",
+      "meaning": "Consumes the program used to compute calling plans in this same invocation.",
       "producer": "03 native program planning",
-      "signature": "c2a5e6447f1279838df4216007e6ef7bc64965619c4b2086c63533d076a656d2"
+      "signature": "3dd23dd0b5e907e234592674e8aae763d3121d95a91ed130f85dd21a75bb2971"
     },
     {
       "consumers": [
@@ -4064,21 +4064,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/program_entry/published.rs",
       "item": "function:requirement_identity#1",
       "kind": "checker",
-      "meaning": "Resolve exactly one method in the selected service schema.",
+      "meaning": "Resolve the nominated arrival to exactly one method of the selected service schema through its service surface, and return that method's non-empty requirement identity.",
       "producer": "target-bound program planning",
-      "signature": "7ab0eee78021eec90ed8570187028402649a91fb539e5b24425f4cc0bdbdb351"
-    },
-    {
-      "consumers": [
-        "published entry calling plans",
-        "native visible entry parameter capture"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/program_entry/published.rs",
-      "item": "function:selected_method#1",
-      "kind": "checker",
-      "meaning": "Selects the unique qualified arrival requirement from the installed target service surface.",
-      "producer": "selected target service schema",
-      "signature": "c9c66e396549b9250341ed788d1b2fa61d4317d1b3a377c6a4e1b424fe3f7435"
+      "signature": "56650ab78e7a2aed6bbb83aaa30b52b1ffde7c768f7dc96797f7f97cb9a86b7c"
     },
     {
       "consumers": [
@@ -16635,6 +16623,18 @@
     },
     {
       "consumers": [
+        "hosted Terminal execution",
+        "hosted filesystem bindings"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "TerminalFilesystemDelegation::Mapped::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Live host directories the CLI issued for this Product under guest-visible paths, each read-only or read-write. Only a Linux interpreter running the matching target without an unrestricted native sponsor accepts them.",
+      "producer": "CLI run directory mappings",
+      "signature": "6b1d7a279ee174df2bdb361f4bc2823945edeba8f5116760d37dfcef0ed3bae6"
+    },
+    {
+      "consumers": [
         "portable execution",
         "Build published-image execution",
         "PSI embedders"
@@ -17193,9 +17193,9 @@
       "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
       "item": "enum:TerminalFilesystemDelegation#1",
       "kind": "carried_record",
-      "meaning": "Select the filesystem supplied for an invocation, including a standard-stream descriptor table and a seeded private namespace with declared outputs.",
+      "meaning": "Select the filesystem supplied for an invocation: a host directory, live directory mappings issued for the Product, a standard-stream descriptor table or a seeded private namespace with declared outputs.",
       "producer": "execution sponsor",
-      "signature": "ee75ff307bdba0619350127e9503f3f5cd92db2c6f20e361926a834b12a4ea3a"
+      "signature": "08380df24bff1c8b155dd1e3c4616c81854906e842cbd09ee64ab85e48470f78"
     },
     {
       "consumers": [
@@ -17781,9 +17781,9 @@
       "file": "source-rust/subsystems/interpreter/host/src/execution/hosted_invocation.rs",
       "item": "function:execute_installed#1",
       "kind": "host_operation",
-      "meaning": "Install the validated component graph and run the entry with its supplied capabilities. Components share the sponsor’s output allowance. Completion returns the captured streams and the declared file states.",
+      "meaning": "Install the validated component graph and run the entry with its supplied capabilities. Live directory mappings are refused unless a Linux interpreter runs the matching Linux target. Components share the sponsor's output allowance. Completion returns the captured streams and the declared file states.",
       "producer": "hosted Terminal execution",
-      "signature": "57addf861ea52ecfaf92f9b242245b5a44c5a030259d634b3782f2631b38c54b"
+      "signature": "6ca99755b4f865b04f59c910faddb6b6311f78ee164b797c5170c53e595fe58a"
     },
     {
       "consumers": [
@@ -18137,7 +18137,7 @@
       "kind": "definition",
       "meaning": "Methods for the SourcePublication contract in 01 source compilation.",
       "producer": "01 source compilation",
-      "signature": "4a9b66a01ee20d4989afb47d51a8ce63a7cbd3f02804e164b7b06b2b3b0ac773"
+      "signature": "21db138ffc2b84c6bb6306fc95eec3d1207cff0b1edb183950204d13c119f3d3"
     },
     {
       "consumers": [
@@ -18159,9 +18159,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
       "item": "impl:SourcePublication::method:prepare_provider_demand#1",
       "kind": "producer",
-      "meaning": "Close entry and explicitly selected source roots, source provider bodies and native declaration occurrences. Check dependency service reach for each executable root before publishing the demand; folded scalar and ABI planning consume these choices later.",
+      "meaning": "Close entry and explicitly selected source roots, source provider bodies and native declaration occurrences. Check each executable root's dependency service reach and its use of installed Unsafe operations against the Build's execution reach policy before publishing the demand; folded scalar and ABI planning consume these choices later.",
       "producer": "01 source compilation",
-      "signature": "999cae1e0807f48a7d2ef651b6b538d89d3646551ef3d1cd027ec7662543aabc"
+      "signature": "e6c2bd081b1f4c1815c1c65b5fe1e21cee8d42d5c9866490a76d5122cf77e106"
     },
     {
       "consumers": [
@@ -19196,7 +19196,7 @@
       "kind": "producer",
       "meaning": "Bind package review inputs to the same checked declarations, provider bodies and exact native-binding applications as source provider selection.",
       "producer": "checked source publication",
-      "signature": "8f07f7404a8eece1c8eaa7104f8fd5129e8b0114012947cf96a2c4930cd6dcbe"
+      "signature": "646c3bd42fe3231808292a9369e776dd469ae0a69739a5007b506960b68f2a01"
     },
     {
       "consumers": [
@@ -19206,9 +19206,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/package_review.rs",
       "item": "impl:AcceptedTerminalSource::method:source_package_review_requirements#1",
       "kind": "producer",
-      "meaning": "Retain numeric demand and join each target Build supply to its exact checked method or application, preserving canonical identities, duplicate refusal and unused-supply review.",
+      "meaning": "Retain numeric demand and join each target Build supply to its exact checked method or application, preserving canonical identities, duplicate refusal and unused-supply review. A supply with no accepted application is refused at its selection's source span, naming the requirement and target.",
       "producer": "checked source publication",
-      "signature": "baa46aa6993e9b1e2069e1bf5c0975898da027ab7100288a39e52f431edfefc7"
+      "signature": "b6cf9f61ea63c1e9b7a8ba2ecc887a3a2d9bb0e72c2f9335122d2c3d12664853"
     },
     {
       "consumers": [
@@ -20899,9 +20899,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "impl:IssuedProviderDemand < () >::implementation#1",
       "kind": "definition",
-      "meaning": "Issue provider demand for a saved Psi program received with host installation evidence.",
+      "meaning": "Issue provider demand for a saved Psi program received with host installation evidence, including the provider that implements the target's physical entry arrival.",
       "producer": "native provider demand issuance",
-      "signature": "2277485fceacd64a580142478f3608f8c89c800e1ed5be7902d438711c1dec37"
+      "signature": "782f5ecc979013e35ac46715cd968f669b331e97562fa5b047f052617c73fe0b"
     },
     {
       "consumers": [
@@ -20911,9 +20911,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "impl:IssuedProviderDemand < () >::method:from_saved_program#1",
       "kind": "producer",
-      "meaning": "Attach the host installation to the saved artifact and target, then close the published entry and explicitly requested boundaries over that program.",
+      "meaning": "Attach the host installation to the saved artifact and target, then close the published entry, explicitly requested boundaries and, when the target designates a physical arrival, every selected provider candidate implementing that arrival requirement. The environment calls that provider before the semantic root, so it is an independent invocation root.",
       "producer": "native provider demand issuance",
-      "signature": "360a5c2030e3bf1e360882b4d4061bc5cb06aa09f37f8707240283089971af86"
+      "signature": "ca3155efa5d87d656aa374f98a4c262f9d8ffac55773439ec72a8b14be78d23f"
     },
     {
       "consumers": [
