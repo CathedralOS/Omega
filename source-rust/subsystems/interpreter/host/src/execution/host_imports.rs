@@ -301,6 +301,18 @@ impl<'host> HostContext<'host> {
         self
     }
 
+    /// Charges emulated allocations to the invocation account of a contained
+    /// guest.
+    pub(crate) fn with_allocation_account(
+        self,
+        account: Option<&build_model::accounting::EvaluationInvocationAccount>,
+    ) -> Self {
+        if let (Some(account), Ok(mut values)) = (account, self.allocations.lock()) {
+            values.charge_to(account.clone());
+        }
+        self
+    }
+
     pub fn finish_native_provider(&self) -> Result<(), TerminalRuntimeError> {
         self.native.finish().map_err(|error| {
             TerminalRuntimeError::missing(super::NATIVE_PROVIDER_RETIREMENT, error.reason)
