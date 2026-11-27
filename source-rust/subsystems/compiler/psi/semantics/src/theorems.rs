@@ -396,15 +396,32 @@ pub fn application<'a>(
     if application.data_arguments.len() != formal.data_subjects.len() {
         return Err("logical use lost a sum subject");
     }
-    // A sum subject is a whole sum formal of the applying machine, of the
-    // subject's own sum.
+    // A sum subject is a whole sum of the subject's own sum: a formal of the
+    // applying machine, or one an operation of it establishes. The checker
+    // sees that the operation comes before the application.
     for (place, subject) in application.data_arguments.iter().zip(&formal.data_subjects) {
-        let declared = terminal_psi::StructuralParameterDeclaration::find_by_place(
+        let formal = terminal_psi::StructuralParameterDeclaration::find_by_place(
             &machine.contract.structural_parameters,
             *place,
-        );
-        if declared.is_none_or(|declared| declared.structural_type != subject.structural_type) {
-            return Err("logical sum subject is not a sum formal of its machine");
+        )
+        .map(|declared| declared.structural_type);
+        let established = || {
+            machine
+                .structural_places
+                .iter()
+                .find(|declared| declared.id == *place)
+                .and_then(|declared| match declared.kind {
+                    semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        structural_type,
+                        ..
+                    } => Some(structural_type),
+                    _ => None,
+                })
+        };
+        if formal.or_else(established) != Some(subject.structural_type) {
+            return Err(
+                "logical sum subject is not a sum formal of its machine or a sum it establishes",
+            );
         }
     }
     for (argument, formal) in application.arguments.iter().zip(&formal.parameters) {

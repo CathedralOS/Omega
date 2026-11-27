@@ -1605,9 +1605,44 @@ fn an_applied_sum_theorem_concludes_only_its_guarantee() {
     assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
 }
 
-/// A sum the applying machine builds is not yet a subject.
+/// A sum the applying machine establishes before the application is a
+/// subject too: what it holds where the edge leaves.
+fn applied_to_a_built_sum(payload: &str) -> String {
+    applied_to_a_sum("true", "true", "c").replace(
+        "machine use_step<Step: OneIsPositive>(c: Choice)\nrequires true\nensures true\n{\n    Step(c);",
+        &format!(
+            "machine use_step<Step: OneIsPositive>(d: Choice)\nrequires true\nensures true\n{{\n    let c: Choice = Choice::One {{ x: {payload} }};\n    Step(c);"
+        ),
+    )
+}
+
 #[test]
-fn applying_a_theorem_to_a_built_sum_is_refused_by_name() {
+fn a_theorem_over_a_sum_applies_to_a_sum_the_machine_builds() {
+    let source = applied_to_a_built_sum("7u8");
+    assert!(
+        source.contains("let c: Choice = Choice::One { x: 7u8 };"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+/// The built sum's payload is zero, so the premise `c.x != 0u8` fails.
+#[test]
+fn a_built_sum_that_fails_the_premise_is_not_a_subject() {
+    let source = applied_to_a_built_sum("0u8");
+    assert!(
+        source.contains("let c: Choice = Choice::One { x: 0u8 };"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    let shown = format!("{verdict:?}");
+    assert!(shown.contains("TheoremRequirement"), "{shown}");
+}
+
+/// A constructed value with no name is not a subject.
+#[test]
+fn applying_a_theorem_to_an_unnamed_sum_is_refused_by_name() {
     let source = applied_to_a_sum("true", "true", "Choice::One { x: 7u8 }");
     assert!(
         source.contains("    Step(Choice::One { x: 7u8 });"),
@@ -1616,7 +1651,7 @@ fn applying_a_theorem_to_a_built_sum_is_refused_by_name() {
     let verdict = stored(&source);
     let shown = format!("{verdict:?}");
     assert!(
-        shown.contains("logical sum subject is not a sum formal of the applying machine"),
+        shown.contains("logical sum subject is not a named sum of the applying machine"),
         "{shown}"
     );
 }
