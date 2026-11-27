@@ -865,9 +865,10 @@ impl Proving<'_> {
     /// the kernel's `lift`, which does not compute, so these are the only
     /// equations a proof can rewrite it with. Only applications outside any
     /// binder of the goal are collected: each proof is stated in the case's
-    /// context. A signature with no quotient has none, and a goal the
-    /// search cannot compute gives none: the search then fails on it as
-    /// before.
+    /// context. What a point computes to is searched as well, so an
+    /// operation on two classes gives both of its points. A signature with
+    /// no quotient has none, and a goal the search cannot compute gives
+    /// none: the search then fails on it as before.
     fn lift_points(&mut self, context: &Context, goal: TermHandle) -> Vec<TermHandle> {
         let mut points = Vec::new();
         if !self
@@ -924,6 +925,19 @@ impl Proving<'_> {
                             *representative,
                         ],
                     ));
+                    // What the point computes to may apply a lifted
+                    // operation again: an operation on two classes is
+                    // `lift` out of the first of a `lift` out of the second.
+                    let computed = self.arena.apply_arguments(*operation, &[*representative]);
+                    if let Ok(computed) = normal(
+                        self.arena,
+                        context,
+                        self.definitions,
+                        computed,
+                        &mut Budget::new(SEARCH_COMPUTING),
+                    ) {
+                        pending.push(computed);
+                    }
                 }
             }
             pending.extend(
