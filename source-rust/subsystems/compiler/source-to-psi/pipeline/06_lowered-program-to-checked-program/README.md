@@ -129,13 +129,15 @@ negative, and the case supplies that for each unsigned value.
 A family with an index or payload value of data (a derivation indexed by a
 context and a type) is proved the same way, except that each unknown is
 declared at its own type (`FamilyLawCase::payload_domains` and the law's
-formals) and each case is proved by rewriting instead of the integer search
-(`rewritten` in `laws.rs`): what the case requires and the theorem at each
-cited child are assumed, cited, and abstracted again, so the case's proof is
-a function of them as the search's is. For `Even<N: Nat>` the case `Two`
-rewrites `N` to `Succ(Succ(prev))`, computes, and rewrites with the theorem at
-`prev`. A family that mixes integers and data is proved by rewriting alone,
-so an integer constraint in it has no proof yet.
+formals), and a goal that is an Identity over data is proved by rewriting
+instead of the integer search (`rewritten` in `laws.rs`): what the case
+requires and the theorem at each cited child are assumed, cited, and
+abstracted again, so the case's proof is a function of them as the search's
+is. For `Even<N: Nat>` the case `Two` rewrites `N` to `Succ(Succ(prev))`,
+computes, and rewrites with the theorem at `prev`. A family may mix integer
+and data values (`Chain<C: Ctx, Length: u64>`): a goal about integers is
+still the integer search's, from the hypotheses about integers, and its proof
+is taken as a function of every hypothesis.
 
 A value of such data that a running machine builds owes what its case
 requires (`prove_integers` in `laws.rs`). Stage 05 states one law per

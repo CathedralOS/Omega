@@ -247,3 +247,92 @@ fn a_published_proof_over_a_derivation_with_a_forged_recursor_is_refused() {
         Err(proof_admission::CoreError::InvalidRecursorType)
     );
 }
+
+/// A chain of types indexed by its context and by its length, an integer:
+/// one theorem about the context, one about the length.
+const CHAIN: &str = "
+data Ty {
+    case Base;
+    case Arrow(from: Ty, to: Ty);
+}
+
+data Ctx {
+    case Empty;
+    case Extend(ty: Ty, rest: Ctx);
+}
+
+machine extended(c: Ctx) -> bool
+{
+    transition c {
+        Ctx::Empty -> false,
+        Ctx::Extend { ty, rest } -> true
+    }
+}
+
+data Chain<C: Ctx, Length: u64>
+    requires ((self in Chain::Single) && |proof|::Identity::<Ctx>(C, Ctx::Extend { ty: self.ty, rest: Ctx::Empty }) && Length == 1)
+          || ((self in Chain::Link) && |proof|::Identity::<Ctx>(C, Ctx::Extend { ty: self.ty, rest: self.rest })
+              && embed(self.previous) + 1 == embed(Length))
+{
+    case Single(ty: Ty);
+    case Link(ty: Ty, rest: Ctx, previous: u64, inner [erased]: Chain<rest, previous>);
+}
+
+machine chain_extended<C: Ctx, Length: u64>(evidence [erased]: Chain<C, Length>)
+terminates by evidence
+ensures |proof|::Identity::<bool>(extended(C), true)
+{
+    transition evidence {
+        Chain::Single { ty, .. } -> single(ty),
+        Chain::Link { ty, rest, previous, inner, .. } -> link(ty, rest, previous, inner)
+    }
+    machine single(ty: Ty) requires |proof|::Identity::<Ctx>(C, Ctx::Extend { ty: ty, rest: Ctx::Empty }) {}
+    machine link(ty: Ty, rest: Ctx, previous: u64, inner [erased]: Chain<rest, previous>)
+    requires |proof|::Identity::<Ctx>(C, Ctx::Extend { ty: ty, rest: rest })
+    {
+    }
+}
+
+machine chain_length<C: Ctx, Length: u64>(evidence [erased]: Chain<C, Length>)
+terminates by evidence
+ensures 1 <= embed(Length)
+{
+    transition evidence {
+        Chain::Single { ty, .. } -> single(ty),
+        Chain::Link { ty, rest, previous, inner, .. } -> link(ty, rest, previous, inner)
+    }
+    machine single(ty: Ty) requires Length == 1 {}
+    machine link(ty: Ty, rest: Ctx, previous: u64, inner [erased]: Chain<rest, previous>)
+    requires embed(previous) + 1 == embed(Length)
+    {
+        chain_length::<rest, previous>(inner);
+    }
+}
+";
+
+fn chain_program() -> String {
+    format!("{}{CHAIN}", super::nat_semiring::library_declarations())
+}
+
+#[test]
+fn theorems_over_a_family_indexed_by_data_and_an_integer_are_judged() {
+    let verdicts = judged(&chain_program());
+    let judgment = signature(&verdicts);
+    for machine in ["chain_extended", "chain_length"] {
+        assert!(
+            judgment.laws.iter().any(|law| law.machine == machine),
+            "`{machine}` is judged: {judgment:?}"
+        );
+    }
+}
+
+#[test]
+fn a_false_theorem_about_the_integer_index_of_a_mixed_family_is_refused() {
+    let source =
+        chain_program().replace("ensures 1 <= embed(Length)", "ensures 2 <= embed(Length)");
+    assert_ne!(source, chain_program(), "the theorem is changed");
+    let verdicts = judged(&source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "chain_length");
+    assert!(law.statement.contains("`Chain::Single`"), "{law:?}");
+}

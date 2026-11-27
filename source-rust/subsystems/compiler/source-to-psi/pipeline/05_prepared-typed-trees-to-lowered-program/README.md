@@ -232,8 +232,9 @@ value parameters (`machine lookup_extended<C: Ctx, T: Ty>(evidence [erased]:
 Lookup<C, T>)`). Those parameters are no inputs of the machine, so its own
 signature states no contract; the signature reads the theorem's `ensures`
 from the theorem as for integers. Only an unsigned integer index can rank a
-theorem; a theorem over data is ranked on its evidence. A machine that runs
-cannot yet build or cite evidence of such a family.
+theorem; a theorem over data is ranked on its evidence. Data that contains
+itself has no storage, so no machine that runs holds a value an index of such
+a family needs: its evidence is built and cited only inside theorems.
 
 A theorem over such data returns nothing and takes one erased value of it:
 `machine vector_bound<Length: u64, Total: u64>(evidence [erased]:

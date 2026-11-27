@@ -1712,16 +1712,15 @@ fn prove_family(
     let instance = declared
         .at(arena, &[])
         .map_err(|error| refused(None, format!("indexed data: {error}")))?;
-    // A family whose values are all integers is proved with the integer
-    // search. One with a value of data (a derivation indexed by a context)
-    // is proved by rewriting: its clauses are Identities over data.
+    // A goal about integers is proved with the integer search, from the
+    // hypotheses about integers. A goal that is an Identity over data (a
+    // derivation indexed by a context) is proved by rewriting with every
+    // hypothesis. A family may mix the two.
     let integer = positions.map(|positions| constant(arena, positions.vocabulary.carrier));
-    let integral = integer.is_some_and(|integer| {
-        law.formals
-            .iter()
-            .chain(cases.iter().flat_map(|case| &case.payload_domains))
-            .all(|&domain| arena.structurally_equal(domain, integer))
-    });
+    let over_data = |arena: &TermArena, proposition: TermHandle| match arena.get(proposition) {
+        Term::Id { ty, .. } => integer.is_none_or(|integer| !arena.structurally_equal(ty, integer)),
+        _ => false,
+    };
     let checked = checked_signature.prefix(law.statement as usize);
     let definitions = Definitions::of_signature(&entries[..law.statement as usize]);
     let mut lemmas = Vec::with_capacity(cases.len());
@@ -1733,7 +1732,7 @@ fn prove_family(
         // The laws a search appends belong to one case: the unknowns below
         // are removed again, which renumbers what follows them.
         let mut theory = match positions {
-            Some(positions) if integral => Some(
+            Some(positions) => Some(
                 proof_admission::SourceIntegerTheory::resume(arena, &mut local, positions)
                     .map_err(searched)?,
             ),
@@ -1759,13 +1758,44 @@ fn prove_family(
                           goal: TermHandle,
                           hypotheses: &[TermHandle]|
          -> Result<Option<TermHandle>, Failure> {
-            match theory.as_mut() {
-                Some(theory) => theory
+            let theory = match theory.as_mut() {
+                Some(theory) if !over_data(arena, goal) => theory,
+                _ => {
+                    return rewritten(arena, &checked, &definitions, local, goal, hypotheses)
+                        .map_err(|detail| refused(here, detail));
+                }
+            };
+            let about: Vec<usize> = (0..hypotheses.len())
+                .filter(|&hypothesis| !over_data(arena, hypotheses[hypothesis]))
+                .collect();
+            if about.len() == hypotheses.len() {
+                return theory
                     .predicate_from_assumptions(arena, local, goal, hypotheses, 0)
-                    .map_err(searched),
-                None => rewritten(arena, &checked, &definitions, local, goal, hypotheses)
-                    .map_err(|detail| refused(here, detail)),
+                    .map_err(searched);
             }
+            // The search sees only the hypotheses about integers; its proof
+            // is a function of those, taken here as a function of all.
+            let held: Vec<_> = about.iter().map(|&at| hypotheses[at]).collect();
+            let Some(proof) = theory
+                .predicate_from_assumptions(arena, local, goal, &held, 0)
+                .map_err(searched)?
+            else {
+                return Ok(None);
+            };
+            let count = hypotheses.len();
+            let proof = shift(arena, proof, 0, count as u32);
+            let arguments: Vec<_> = about
+                .iter()
+                .map(|&at| variable(arena, count - 1 - at))
+                .collect();
+            let mut proof = arena.apply_arguments(proof, &arguments);
+            for &hypothesis in hypotheses.iter().rev() {
+                proof = arena.insert(Term::Lambda {
+                    domain: hypothesis,
+                    body: proof,
+                });
+            }
+            Ok(Some(proof))
         };
         let constraints: Vec<_> = case
             .constraints
