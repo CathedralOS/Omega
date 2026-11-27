@@ -50,10 +50,43 @@ macro_rules! bundled_library_files {
     };
 }
 
+const fn strip_core_prefix(path: &'static str) -> &'static str {
+    let bytes = path.as_bytes();
+    assert!(
+        bytes.len() > 5
+            && bytes[0] == b'c'
+            && bytes[1] == b'o'
+            && bytes[2] == b'r'
+            && bytes[3] == b'e'
+            && bytes[4] == b'/',
+        "bundled core library file path must start with `core/`"
+    );
+    path.split_at(5).1
+}
+
 macro_rules! define_files {
     ($($variant:ident => $path:literal,)+) => {
         #[derive(Clone, Copy, Debug, Eq, PartialEq)]
         pub enum BundledFile { $($variant,)+ }
+
+        impl BundledFile {
+            pub const ALL: &'static [Self] = &[$(Self::$variant,)+];
+
+            /// Path relative to the bundled `core` package root.
+            pub const fn core_relative_path(self) -> &'static str {
+                match self {
+                    $(Self::$variant => strip_core_prefix($path),)+
+                }
+            }
+
+            /// Match a package-relative path under the bundled `core` root.
+            pub fn from_core_relative_path(path: &std::path::Path) -> Option<Self> {
+                Self::ALL
+                    .iter()
+                    .copied()
+                    .find(|file| path == std::path::Path::new(file.core_relative_path()))
+            }
+        }
     };
 }
 bundled_library_files!(define_files);

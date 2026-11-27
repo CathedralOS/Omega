@@ -1641,6 +1641,15 @@ mod source_queries {
             self.sources.as_deref()?.file_at(source_span)
         }
 
+        pub fn bundled_core_file(
+            &self,
+            source_span: SourceSpan,
+        ) -> Option<language_core::bundled_files::BundledFile> {
+            self.sources
+                .as_deref()?
+                .bundled_core_file(source_span.source_id)
+        }
+
         /*
             The retained authored source map, shared without copying. Consumers
             that resolve diagnostic locations on a path where the program moves
@@ -1668,8 +1677,12 @@ mod source_queries {
             if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
-            let file = self.source_file(self.symbol_source_span(symbol)?)?;
-            crate::source_symbols::sealed_intrinsic_at(file, &self.display_path(symbol, "::"))
+            let bundled = self.bundled_core_file(self.symbol_source_span(symbol)?)?;
+            let declaration = self.display_path(symbol, "::");
+            language_core::sealed_intrinsics::SealedIntrinsicCatalog::classify_bundled(
+                bundled,
+                &declaration,
+            )
         }
 
         /*
@@ -1685,9 +1698,8 @@ mod source_queries {
             if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
-            crate::source_symbols::core_source_at(
-                self.source_file(self.symbol_source_span(symbol)?)?,
-            )
+            let bundled = self.bundled_core_file(self.symbol_source_span(symbol)?)?;
+            language_core::core_vocabulary::CoreVocabularyCatalog::source_bundled(bundled)
         }
 
         /*
@@ -1703,8 +1715,12 @@ mod source_queries {
             if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
-            let file = self.source_file(self.symbol_source_span(symbol)?)?;
-            crate::source_symbols::core_vocabulary_at(file, &self.display_path(symbol, "::"))
+            let bundled = self.bundled_core_file(self.symbol_source_span(symbol)?)?;
+            let declaration = self.display_path(symbol, "::");
+            language_core::core_vocabulary::CoreVocabularyCatalog::classify_bundled(
+                bundled,
+                &declaration,
+            )
         }
 
         /*
@@ -1723,8 +1739,11 @@ mod source_queries {
             if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
-            let file = self.source_file(self.symbol_source_span(symbol)?)?;
-            crate::source_symbols::sealed_intrinsic_at(file, declaration)
+            let bundled = self.bundled_core_file(self.symbol_source_span(symbol)?)?;
+            language_core::sealed_intrinsics::SealedIntrinsicCatalog::classify_bundled(
+                bundled,
+                declaration,
+            )
         }
 
         /*
@@ -1741,9 +1760,12 @@ mod source_queries {
             if !owner.is_valid() {
                 return None;
             }
-            let file = self.source_file(self.symbol_source_span(owner)?)?;
+            let bundled = self.bundled_core_file(self.symbol_source_span(owner)?)?;
             let declaration = format!("{}::{member}", self.display_path(owner, "::"));
-            crate::source_symbols::sealed_intrinsic_at(file, &declaration)
+            language_core::sealed_intrinsics::SealedIntrinsicCatalog::classify_bundled(
+                bundled,
+                &declaration,
+            )
         }
 
         pub fn is_build_prelude_symbol(&self, symbol: SymbolHandle) -> bool {
@@ -3759,9 +3781,8 @@ impl SymbolTable {
                 && self
                     .sources
                     .as_deref()
-                    .and_then(|sources| sources.get(source))
-                    .and_then(crate::source_symbols::core_source_at)
-                    == Some(language_core::core_vocabulary::CoreSource::Foundation)
+                    .and_then(|sources| sources.bundled_core_file(source))
+                    == Some(language_core::bundled_files::BundledFile::CoreFoundation)
             {
                 return FixedCoreDeclaration::from_foundation_member(declaration)
                     .and_then(|fixed| self.fixed_core_declaration_symbol(fixed))
