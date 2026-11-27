@@ -360,10 +360,36 @@ fn a_referent_of_another_element_does_not_prove_the_call() {
 }
 
 #[test]
-fn a_referent_behind_a_mutable_loan_does_not_prove_the_element_call() {
-    unproved(&format!(
-        "{SLOTS}machine forward<'a>(items: @mutable [Held<'a>]) requires items.length > 0, $items[0].slot > 3i32 {{ needs(items); }}\n"
+fn a_mutable_slice_no_write_reaches_keeps_its_element_and_referent_facts() {
+    accepted(&format!(
+        "{SLOTS}machine forward<'a>(items: @mutable [Held<'a>]) requires items.length > 0, $items[0].slot > 3i32 {{ needs(items); }}
+machine reads<'a>(items: @mutable [Held<'a>]) {{}}
+machine after_read<'a>(items: @mutable [Held<'a>]) requires items.length > 0, $items[0].slot > 3i32 {{ reads(items); needs(items); }}
+"
     ));
+    accepted(
+        "machine needs(items: @[i32]) requires items.length > 0, items[0] > 3i32 {}
+machine forward(items: @mutable [i32]) requires items.length > 0, items[0] > 3i32 { needs(items); }
+",
+    );
+}
+
+#[test]
+fn any_write_that_may_reach_a_mutable_slice_drops_its_element_and_referent_facts() {
+    unproved(&format!(
+        "{SLOTS}machine g<'a>(items: @mutable [Held<'a>], other: Held<'a>) requires items.length > 0 {{ items[0u64] = other; }}
+machine forward<'a>(items: @mutable [Held<'a>], other: Held<'a>) requires items.length > 0, $items[0].slot > 3i32 {{ g(items, other); needs(items); }}
+"
+    ));
+    let needs = "machine needs(items: @[i32]) requires items.length > 0, items[0] > 3i32 {}\n";
+    for forward in [
+        "machine g(items: @mutable [i32]) requires items.length > 0 { items[0u64] = 0i32; }
+machine forward(items: @mutable [i32]) requires items.length > 0, items[0] > 3i32 { g(items); needs(items); }\n",
+        "machine forward(items: @mutable [i32], at: u64) requires items.length > 1, at < 2, items[0] > 3i32 { items[at] = 0i32; needs(items); }\n",
+        "machine forward(items: @mutable [i32]) requires items.length > 0, items[0] > 3i32 { let view: @mutable [i32] = items; view[0u64] = 0i32; needs(items); }\n",
+    ] {
+        unproved(&format!("{needs}{forward}"));
+    }
 }
 
 #[test]
