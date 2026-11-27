@@ -314,12 +314,17 @@ impl<'a> Storage<'a> {
         let element_admitted = match erased_element {
             Some(element) => {
                 self.declared_requires(element).is_some_and(<[_]>::is_empty)
-                    && self.declaration(element, concerns)?.scalar_restriction.is_none()
+                    && self
+                        .declaration(element, concerns)?
+                        .scalar_restriction
+                        .is_none()
             }
             None => true,
         };
         if !unclaimed
-            || !self.declared_requires(selected.id).is_some_and(<[_]>::is_empty)
+            || !self
+                .declared_requires(selected.id)
+                .is_some_and(<[_]>::is_empty)
             || !element_admitted
         {
             return Err(self.unsupported(
@@ -444,13 +449,18 @@ impl<'a> Storage<'a> {
                 })?;
         // The element's own defaults follow its declared identity through a
         // typed view. A byte descriptor exposes a different account of storage.
-        let keeps_element = typed && matches!(
-            selected.shape,
-            StructuralTypeShape::ElementView { element: actual, .. }
-                | StructuralTypeShape::FixedArray { element: actual, .. } if element == actual
-        );
-        let actual =
-            self.collection_backing_source(source, 0, (!keeps_element).then_some(element), concerns)?;
+        let keeps_element = typed
+            && matches!(
+                selected.shape,
+                StructuralTypeShape::ElementView { element: actual, .. }
+                    | StructuralTypeShape::FixedArray { element: actual, .. } if element == actual
+            );
+        let actual = self.collection_backing_source(
+            source,
+            0,
+            (!keeps_element).then_some(element),
+            concerns,
+        )?;
         let (whole, projected) = StructuralPathQualification::select_restorable(
             &actual.qualifications,
             &actual.projected_qualifications,
@@ -660,7 +670,9 @@ impl<'a> Storage<'a> {
             return Err(self.foreign(concerns, "a byte view re-views elements that are not bytes"));
         }
         let actual = self.collection_backing_source(source, 0, Some(source_element), concerns)?;
-        if !self.declared_requires(*element).is_some_and(<[_]>::is_empty)
+        if !self
+            .declared_requires(*element)
+            .is_some_and(<[_]>::is_empty)
             || self
                 .declaration(*element, concerns)?
                 .scalar_restriction
