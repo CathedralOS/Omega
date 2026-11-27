@@ -632,10 +632,7 @@ fn compile_target(
                 "source compilation returned an unexpected product",
             ));
         };
-        portable = Some(
-            CompletedProduct::from_published_psi(artifact, rollback.cloned())
-                .map_err(output_error)?,
-        );
+        portable = Some(CompletedProduct::from_published_psi(artifact).map_err(output_error)?);
     } else if arguments.check_only
         || matches!(
             configuration.project_declaration,

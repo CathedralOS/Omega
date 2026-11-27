@@ -5,7 +5,6 @@ use crate::{
     RetainedDynamicElfArtifact, RetainedNativeArtifact, TerminalRuntimeProvisions,
 };
 use native_artifact::{DynamicElfNativeArtifactIdentity, NativeArtifactIdentity};
-use optimization_requests::OptimizationRollbackReceipt;
 use std::path::Path;
 use target::NativeApplicationMetadata;
 use terminal_codec::CanonicalTerminalArtifact;
@@ -51,7 +50,6 @@ pub enum CompileOutputKind {
 #[derive(Debug)]
 struct TerminalProduct {
     artifact: RetainedTerminalArtifact,
-    optimization_rollback: Option<OptimizationRollbackReceipt>,
     runtime_provisions: TerminalRuntimeProvisions,
 }
 
@@ -60,7 +58,6 @@ struct TerminalProduct {
 struct NativeProduct<Artifact> {
     artifact: Artifact,
     runtime_provisions: Option<TerminalRuntimeProvisions>,
-    optimization_rollback: Option<OptimizationRollbackReceipt>,
     application: NativeApplicationMetadata,
 }
 
@@ -71,7 +68,6 @@ struct PublishedNativeProduct<Receipt, Package = Option<NativePackagePublication
     runtime_provisions: Option<TerminalRuntimeProvisions>,
     executable: Receipt,
     package: Package,
-    optimization_rollback: Option<OptimizationRollbackReceipt>,
     application: NativeApplicationMetadata,
 }
 
@@ -85,7 +81,6 @@ impl<Artifact> NativeProduct<Artifact> {
             runtime_provisions: self.runtime_provisions,
             executable,
             package,
-            optimization_rollback: self.optimization_rollback,
             application: self.application,
         })
     }
@@ -94,10 +89,7 @@ impl<Artifact> NativeProduct<Artifact> {
 #[derive(Debug)]
 enum CompileProduct {
     TerminalArtifact(Box<TerminalProduct>),
-    PublishedPsi(
-        std::sync::Arc<CanonicalTerminalArtifact>,
-        Option<OptimizationRollbackReceipt>,
-    ),
+    PublishedPsi(std::sync::Arc<CanonicalTerminalArtifact>),
     RetainedNativeArtifact(Box<NativeProduct<RetainedNativeArtifact>>),
     NativeExecutable(Box<PublishedNativeProduct<ExecutablePublicationReceipt>>),
     RetainedDynamicElfArtifact(Box<NativeProduct<RetainedDynamicElfArtifact>>),
@@ -107,7 +99,7 @@ enum CompileProduct {
 impl CompileProduct {
     const fn kind(&self) -> CompileOutputKind {
         match self {
-            Self::TerminalArtifact(_) | Self::PublishedPsi(..) => {
+            Self::TerminalArtifact(_) | Self::PublishedPsi(_) => {
                 CompileOutputKind::TerminalArtifact
             }
             Self::RetainedNativeArtifact(_) | Self::RetainedDynamicElfArtifact(_) => {
@@ -128,17 +120,6 @@ impl CompileProduct {
             _ => None,
         }
     }
-
-    const fn optimization_rollback(&self) -> Option<&OptimizationRollbackReceipt> {
-        match self {
-            Self::TerminalArtifact(product) => product.optimization_rollback.as_ref(),
-            Self::PublishedPsi(_, rollback) => rollback.as_ref(),
-            Self::RetainedNativeArtifact(product) => product.optimization_rollback.as_ref(),
-            Self::NativeExecutable(product) => product.optimization_rollback.as_ref(),
-            Self::RetainedDynamicElfArtifact(product) => product.optimization_rollback.as_ref(),
-            Self::DynamicElfExecutable(product) => product.optimization_rollback.as_ref(),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -152,7 +133,7 @@ impl CompletedProduct {
     ///
     /// ```compile_fail,E0308
     /// fn detach(image: native_artifact::RequestedNativeArtifact, app: target::NativeApplicationMetadata) {
-    ///     let _ = product_publication::CompletedProduct::from_native(image, None, app);
+    ///     let _ = product_publication::CompletedProduct::from_native(image, app);
     /// }
     /// ```
     ///
@@ -168,7 +149,6 @@ impl CompletedProduct {
     /// ```
     pub fn from_native(
         image: native_artifact::FinishedNativeImage,
-        optimization_rollback: Option<OptimizationRollbackReceipt>,
         application: NativeApplicationMetadata,
     ) -> Self {
         let (artifact, runtime_provisions) = image.into_parts();
@@ -177,7 +157,6 @@ impl CompletedProduct {
                 CompileProduct::RetainedNativeArtifact(Box::new(NativeProduct {
                     artifact: artifact.into_retained(),
                     runtime_provisions,
-                    optimization_rollback,
                     application,
                 }))
             }
@@ -185,7 +164,6 @@ impl CompletedProduct {
                 CompileProduct::RetainedDynamicElfArtifact(Box::new(NativeProduct {
                     artifact: artifact.into_retained(),
                     runtime_provisions,
-                    optimization_rollback,
                     application,
                 }))
             }
@@ -198,25 +176,20 @@ impl CompletedProduct {
 
     pub fn from_published_psi(
         artifact: std::sync::Arc<CanonicalTerminalArtifact>,
-        rollback: Option<OptimizationRollbackReceipt>,
     ) -> Result<Self, &'static str> {
         if artifact.publication_metadata().is_none() {
             return Err("saving a program requires its checked publication");
         }
         Ok(Self {
-            product: CompileProduct::PublishedPsi(artifact, rollback),
+            product: CompileProduct::PublishedPsi(artifact),
             wrote_output: false,
         })
     }
-    pub fn from_runtime(
-        program: native_artifact::AdmittedRuntimeProgram,
-        optimization_rollback: Option<OptimizationRollbackReceipt>,
-    ) -> Self {
+    pub fn from_runtime(program: native_artifact::AdmittedRuntimeProgram) -> Self {
         let (artifact, runtime_provisions) = program.into_parts();
         Self {
             product: CompileProduct::TerminalArtifact(Box::new(TerminalProduct {
                 artifact,
-                optimization_rollback,
                 runtime_provisions,
             })),
             wrote_output: false,
@@ -253,10 +226,6 @@ impl CompletedProduct {
             CompileProduct::RetainedDynamicElfArtifact(product) => Some(&product.artifact),
             _ => None,
         }
-    }
-
-    pub const fn optimization_rollback_receipt(&self) -> Option<&OptimizationRollbackReceipt> {
-        self.product.optimization_rollback()
     }
 
     fn record_component_publications(
@@ -361,7 +330,7 @@ impl CompletedProduct {
 
     pub fn artifact(&self) -> Option<&terminal_codec::CanonicalTerminalArtifact> {
         match &self.product {
-            CompileProduct::PublishedPsi(artifact, _) => Some(artifact),
+            CompileProduct::PublishedPsi(artifact) => Some(artifact),
             CompileProduct::TerminalArtifact(product) => Some(product.artifact.artifact()),
             _ => None,
         }
@@ -447,7 +416,7 @@ impl CompletedProduct {
 
     fn unpublished_psi(&self) -> Result<&std::sync::Arc<CanonicalTerminalArtifact>, String> {
         match &self.product {
-            CompileProduct::PublishedPsi(artifact, _) if !self.wrote_output => Ok(artifact),
+            CompileProduct::PublishedPsi(artifact) if !self.wrote_output => Ok(artifact),
             _ => Err("saving requires an unpublished portable program".into()),
         }
     }

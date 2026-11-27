@@ -72,7 +72,6 @@ fn report(
             runtime_provisions: None,
             executable,
             package: Some(package),
-            optimization_rollback: None,
             application,
         })),
         wrote_output: true,

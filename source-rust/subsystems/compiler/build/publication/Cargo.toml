@@ -9,7 +9,6 @@ path = "publication.rs"
 
 [dependencies]
 native-artifact = { path = "../../psi-to-native/pipeline/15_objects-to-image/native-artifact" }
-optimization-requests = { path = "../settings/optimizations" }
 platform-custody = { path = "../../../../foundation/filesystem" }
 target = { path = "../../psi-to-native/targets/target" }
 terminal-codec = { path = "../../psi/artifact/codec" }
