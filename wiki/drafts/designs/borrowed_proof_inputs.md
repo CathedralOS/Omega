@@ -8,9 +8,14 @@ Admitting the invocation does not prove that its Boolean result is true.
 
 The rules live in [proof admission](../../spec/proofs/contracts.md#borrowed-proof-inputs)
 and [fact validity](../../spec/terminal-psi/fact_validity.md#borrowed-read-dependencies).
-Remaining implementation belongs to **PROOF-KERNEL-CORE** in
-[TASKS.md](../../../TASKS.md). This document records required behavior and
-acceptance, not fresh execution results or a completed compiler change.
+Contract clause calls now read lent scalar, record and slice formals, nested
+fields, array and slice elements and shared references stored in fields or
+elements, under the stage 06 checks in
+`06_lowered-program-to-checked-program/tests/borrowed_clause_calls.rs`. Behind
+a `@mutable` slice, element and referent facts reach a call only where no
+write in the machine may reach the input, since a callee lent the view can
+write its elements without writing the descriptor. This document records
+required behavior and acceptance, not fresh execution results.
 
 ## Read dependencies
 

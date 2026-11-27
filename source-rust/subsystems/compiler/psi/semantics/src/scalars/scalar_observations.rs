@@ -122,7 +122,20 @@ pub fn structural_read_type_with_extents<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[ScalarReadProjection],
+    indexed: impl FnMut(usize, Option<terminal_psi::ArrayExtent>),
+) -> Option<ScalarType> {
+    structural_read_type_with_crossings(types, root, path, indexed, |_, _| ())
+}
+
+/// As `structural_read_type_with_extents`, also reporting the position and
+/// access of the stored reference at each `Referent` crossing, so a reader can tell a
+/// referent no one may write from one behind an exclusive reference.
+pub fn structural_read_type_with_crossings<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[ScalarReadProjection],
     mut indexed: impl FnMut(usize, Option<terminal_psi::ArrayExtent>),
+    mut crossed: impl FnMut(usize, StructuralAccess),
 ) -> Option<ScalarType> {
     let declaration = |identity| {
         let mut matches = types.clone().filter(|candidate| candidate.id == identity);
@@ -184,6 +197,7 @@ pub fn structural_read_type_with_extents<'a>(
                 if !matches!(access, terminal_psi::reading_borrow_pair_pattern!()) {
                     return None;
                 }
+                crossed(position, access);
                 target = Target::Declaration(referent);
             }
             ScalarReadProjection::Static(Static::Case(identity)) => {
