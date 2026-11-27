@@ -65,30 +65,41 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="windows-handle-release-replay"></a>
-### 1. Does the product offer receiver admission, or does the Windows handle release proof wait?
+<a id="compiler-owned-os-classification-tables"></a>
+### 1. Should the compiler hardcode OS-specific API classification tables, or only report the exact OS calls?
 
-The permission contract says ordinary production requires no receiving policy,
-and "an explicitly requested deployment compatibility check applies the
-supplied policy". It also specifies the bounded proof that lets one Windows
-`CloseHandle` or `DuplicateHandle` call count as an ordinary release. The
-command-line contract defines no request that supplies a receiving policy.
+The permission contract says the receiving OS, loader, or deployment system
+selects its own versioned policy independently of the offered program, while
+`Build::exclude_physical_authority` reuses mechanism classification without
+requiring a receiving policy.
 [Production versus receiver admission](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission) ·
-[Bounded release proof](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof) ·
-[Command line](wiki/spec/build/command_line.md)
+[Two-axis containment](wiki/spec/build/permissions.md#two-axis-containment) ·
+[Physical exclusions](wiki/spec/build/behavior_exclusions.md#physical-exclusion-authoring)
 
-The 15 `windows_handle_*.rs` files in provider admission (12,501 lines)
-implement that proof. `checked_calls` returns before doing any work unless a
-receiving policy is present. `psi_to_native.rs:131`, the only place that builds
-the native compile request, passes `terminal_authority_permission_policy:
-None`, so only tests reach the proof. Physical behavior exclusions also
-consume this classification, but they do not run the proof.
-[Proof entry](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_review/windows_handle_replay.rs) ·
-[Native request](source-rust/subsystems/compiler/psi-to-native/psi_to_native.rs) ·
-[Physical exclusions](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)
+Today the compiler itself ships hardcoded OS tables and per-OS flow proofs
+inside `provider-admission`: Win32 DLL exports (`windows_imports.rs`), Linux
+syscall numbers (`posix_operations.rs`), and macOS `_poll` / clock imports
+(`darwin_poll.rs`, `host_cohorts.rs`). The 12,501-line Windows handle release
+replay (`windows_handle_*.rs`) was archived to `_recycling/` on 2026-11-27
+because nothing reached it, leaving `CloseHandle`, `DuplicateHandle`, and
+non-sandbox Linux `openat`/`close`/`pread64`/`pwrite64` unclassified.
+[Windows imports](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_policy/windows_imports.rs) ·
+[POSIX syscalls](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_policy/posix_operations.rs) ·
+[Darwin poll](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_policy/darwin_poll.rs) ·
+[Policy root](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_policy.rs)
 
-**Recommend archiving the proof:** move `windows_handle_*.rs` to
-`_recycling/` and restore it with the request that first supplies a
-receiving policy. Alternatively, specify that request on the command line now
-and wire its policy through `psi_to_native`, which makes the proof reachable.
-Which should the product do?
+**Needs both owners (Jarod and Zac).** Jarod's lean is that the compiler's
+abstraction should stay clean and OS-neutral rather than baking OS-specific
+syscall/DLL knowledge into the compiler:
+- **Option A (OS-neutral compiler):** The compiler only records and reports the
+  exact foreign imports, syscalls, and checked instructions a binary reaches.
+  OS-specific mapping to physical authority classes (and any per-API lifecycle
+  proofs) lives outside the compiler in an external versioned policy or
+  deployment checker—meaning `Build::exclude_physical_authority` either takes
+  an explicit policy input or operates only on compiler-owned primitives/effects.
+- **Option B (Compiler-owned OS tables):** Keep hardcoded Windows/Linux/macOS
+  classification tables in `provider-admission` so `Build::exclude_physical_authority`
+  works out of the box with no policy input, and accept maintaining per-OS API
+  knowledge (and cross-OS handle-release proofs) inside the compiler.
+
+Which boundary should Omega adopt?

@@ -24,40 +24,6 @@ pub(crate) mod reachability;
 #[path = "terminal_authority_review/reviewer.rs"]
 mod reviewer;
 
-// Receiver admission derives constrained file-handle occurrences from the
-// retained executable graph. The permission table is an independent input.
-#[cfg(test)]
-#[path = "terminal_authority_review/windows_handle_activations.rs"]
-mod windows_handle_activations;
-#[path = "terminal_authority_review/windows_handle_aliases.rs"]
-mod windows_handle_aliases;
-#[path = "terminal_authority_review/windows_handle_arguments.rs"]
-mod windows_handle_arguments;
-#[path = "terminal_authority_review/windows_handle_calls.rs"]
-mod windows_handle_calls;
-#[cfg(test)]
-#[path = "terminal_authority_review/windows_handle_conditions.rs"]
-mod windows_handle_conditions;
-#[path = "terminal_authority_review/windows_handle_contracts.rs"]
-mod windows_handle_contracts;
-#[path = "terminal_authority_review/windows_handle_inputs.rs"]
-mod windows_handle_inputs;
-#[path = "terminal_authority_review/windows_handle_lifetimes.rs"]
-mod windows_handle_lifetimes;
-#[path = "terminal_authority_review/windows_handle_origins.rs"]
-mod windows_handle_origins;
-#[cfg(test)]
-#[path = "terminal_authority_review/windows_handle_paths.rs"]
-mod windows_handle_paths;
-#[path = "terminal_authority_review/windows_handle_replay.rs"]
-mod windows_handle_replay;
-#[path = "terminal_authority_review/windows_handle_scalar_table.rs"]
-mod windows_handle_scalar_table;
-#[path = "terminal_authority_review/windows_handle_storage.rs"]
-mod windows_handle_storage;
-#[path = "terminal_authority_review/windows_handle_values.rs"]
-mod windows_handle_values;
-
 use abstract_operations::AbstractOperation;
 use terminal_authority_receipts::TerminalAuthorityClosureReviewReceipt;
 use build_providers::selections::SelectedProviderPlanFacts;
@@ -97,7 +63,7 @@ pub(crate) fn review_terminal_authority_closure(
     let root_edges = context
         .graph
         .reachable_authority_edges(input.plan().entry)?;
-    let mut reviewer = Reviewer::new(context, terminal_artifact_identity);
+    let mut reviewer = Reviewer::new(context);
     for instruction in root_edges.checked_operations {
         reviewer.admit_program_root(instruction)?;
     }

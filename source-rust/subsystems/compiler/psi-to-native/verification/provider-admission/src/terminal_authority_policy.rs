@@ -106,10 +106,6 @@ impl TerminalAuthorityPolicy {
         self.identity
     }
 
-    pub(crate) fn explicit_rows(&self) -> &[TerminalAuthorityPolicyRow] {
-        &self.explicit_rows
-    }
-
     /// The receiver's own rows take precedence. Both provider selections and
     /// direct Build bindings contribute the mechanisms reached by this program.
     pub(crate) fn with_reviewed_operations(
