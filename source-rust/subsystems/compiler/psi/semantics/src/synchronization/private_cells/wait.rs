@@ -19,13 +19,7 @@ pub(super) fn apply(
     requirements: &[Proposition],
     scope: ProgressScope,
 ) -> Result<(), ProgressFailure> {
-    let resolve = |operand: Operand| match operand {
-        Operand::Literal(value) => Some(ScalarFact::Literal(value)),
-        Operand::Parameter {
-            position,
-            scalar_type,
-        } => scalar(position).filter(|fact| fact.ty() == scalar_type),
-    };
+    let resolve = |operand: Operand| operand.binding(&scalar);
     let locate = |subject: &Subject| {
         let actual = arguments.get(subject.parameter)?;
         if !matches!(actual.access, terminal_psi::reading_borrow_pair_pattern!()) {
@@ -46,20 +40,7 @@ pub(super) fn apply(
         }
         Some(location)
     };
-    let pivot = |mut test: SpinCondition| {
-        let mut input = None;
-        if let Some(mask) = test.comparison.mask
-            && let Some(ScalarFact::Literal(value)) = resolve(mask)
-        {
-            test.comparison.mask = Some(Operand::Literal(value));
-        }
-        match resolve(test.comparison.pivot) {
-            Some(ScalarFact::Literal(value)) => test.comparison.pivot = Operand::Literal(value),
-            Some(ScalarFact::EntryInput(formal)) => input = Some(formal),
-            None => {}
-        }
-        (test, input)
-    };
+    let pivot = |test: SpinCondition| test.with_actuals(resolve);
     match &wait.0 {
         WaitRule::Cell(cell) => {
             let location = locate(&cell.subject).ok_or(ProgressFailure::Unproved)?;
