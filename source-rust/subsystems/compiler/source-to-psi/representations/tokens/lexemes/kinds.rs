@@ -7,9 +7,8 @@ their prefixes for deterministic longest-match lexing.
 
 pub use super::keywords::KeywordKind;
 pub use super::punctuation::PunctuationKind;
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
-    #[default]
     Identifier,
     NumericLiteral(NumericLiteralKind),
     StringLiteral,
@@ -19,10 +18,9 @@ pub enum TokenKind {
     Comment(CommentKind),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommentKind {
     Line,
-    #[default]
     Block,
 }
 
@@ -30,12 +28,6 @@ pub enum CommentKind {
 pub enum NumericLiteralKind {
     Integer(IntegerLiteralKind),
     Float(FloatLiteralKind),
-}
-
-impl Default for NumericLiteralKind {
-    fn default() -> Self {
-        Self::Integer(IntegerLiteralKind::default())
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

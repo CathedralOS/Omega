@@ -3,7 +3,7 @@
 Start at [src/lib.rs](src/lib.rs). It turns loaded UTF-8 source into ordered token
 streams. The [streaming parser](../../driver/parse_source_batch.rs) calls
 `lex_file` for each file and recycles token buffers between files.
-`lex(LoadedSources)` returns a complete token batch for consumers that retain it.
+`lex(LoadedSources)` provides a batch entry point used by tests and stage-contract checks.
 The [source-files representation](../../representations/source-files/source_files.rs) carries the captured text, origin and scope.
 
 Run the scanner and batch tests with `mbx test --locked -p source-lexer`.
