@@ -641,13 +641,20 @@ impl Program<'_> {
                     // record formal where the clause reads inputs, and a
                     // field of a structural `result`. Its term is the root
                     // and the dense field and case identities down to it.
+                    // `$held.slot` continues across the stored reference's
+                    // `Referent` crossing to the scalar it refers to.
                     node @ (ExpressionNode::Name(_)
                     | ExpressionNode::Member(_)
-                    | ExpressionNode::Indexed(_))
-                        if scope.subject.is_some()
-                            || (!matches!(node, ExpressionNode::Name(_))
-                                && (scope.formal_fields
-                                    || matches!(scope.result, ResultTerm::Structural(..)))) =>
+                    | ExpressionNode::Indexed(_)
+                    | ExpressionNode::Unary(_))
+                        if super::contracts::stored_referent_read(table, node)
+                            && (scope.subject.is_some()
+                                || (!matches!(node, ExpressionNode::Name(_))
+                                    && (scope.formal_fields
+                                        || matches!(
+                                            scope.result,
+                                            ResultTerm::Structural(..)
+                                        )))) =>
                     {
                         let Some((root, path, value_type)) =
                             self.read_projection(id, scope, read)?
@@ -711,7 +718,9 @@ impl Program<'_> {
                         if unary.operator == UnaryOperator::Dereference =>
                     {
                         let ExpressionNode::Name(path) = table.expression(unary.operand) else {
-                            break 'read self.stored_referent(id, scope, unary.operand)?;
+                            return Err(unavailable(
+                                "dereference of other than a borrowed formal in a clause",
+                            ));
                         };
                         if path.reserved_result_of.is_valid() || path.static_application.is_valid()
                         {
