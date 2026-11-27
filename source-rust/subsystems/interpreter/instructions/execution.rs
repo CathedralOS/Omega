@@ -1239,7 +1239,10 @@ pub(crate) mod capabilities {
             let fresh = Rc::downgrade(&replacement);
             let first_binding = bind(original);
             let second_binding = bind(replacement);
-            assert_eq!(fresh.upgrade().unwrap().0.retire().unwrap(), [7, 11, 13, 17]);
+            assert_eq!(
+                fresh.upgrade().unwrap().0.retire().unwrap(),
+                [7, 11, 13, 17]
+            );
             drop(second_binding);
             assert!(fresh.upgrade().is_none());
             assert_eq!(live.upgrade().unwrap().0.retire().unwrap(), [7, 11, 23, 17]);
