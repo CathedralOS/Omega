@@ -1609,7 +1609,7 @@ fn conclude(
                 );
                 return fall_back_or_defect(Roster::of(&elaboration).locate(violation));
             }
-            ProgressFailure::Unproved | ProgressFailure::UnprovedExternal => {
+            ProgressFailure::Unproved | ProgressFailure::UnprovedExternal | ProgressFailure::UnprovedImport => {
                 let sources =
                     terminal_check_tables::row(&elaboration.sources, machine, machine, at)?;
                 unproved.push(UnprovedObligation {

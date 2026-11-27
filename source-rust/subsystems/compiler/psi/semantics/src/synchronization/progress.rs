@@ -19,14 +19,15 @@ pub enum ProgressScope {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgressFailure {
-    /// Every retry observes a value that keeps the wait blocked.
+pub enum ProgressFailure {    /// Every retry observes a value that keeps the wait blocked.
     Deadlock,
     /// A private cell has no other writer and its first observation could
     /// block. No available fact excludes the retry.
     Unproved,
     /// The activation borrows this resource and has no admitted enabler.
     UnprovedExternal,
+    /// This receiving call did not establish the selected supplier's progress condition.
+    UnprovedImport,
 }
 
 impl ProgressFailure {
@@ -38,6 +39,7 @@ impl ProgressFailure {
             Self::Unproved => {
                 "the initial value may keep the wait blocked and no other participant can change this private cell"
             }
+            Self::UnprovedImport => "the receiving call has no checked discharge of the selected supplier's progress condition",
             Self::UnprovedExternal => {
                 "the wait depends on supplied storage and no checked or admitted action establishes progress"
             }
@@ -56,9 +58,9 @@ impl std::fmt::Display for PrivateWaitFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let header = match self.cause {
             ProgressFailure::Deadlock => "synchronization deadlock",
-            ProgressFailure::Unproved | ProgressFailure::UnprovedExternal => {
-                "cannot prove synchronization progress"
-            }
+            ProgressFailure::Unproved
+            | ProgressFailure::UnprovedExternal
+            | ProgressFailure::UnprovedImport => "cannot prove synchronization progress",
         };
         write!(
             f,

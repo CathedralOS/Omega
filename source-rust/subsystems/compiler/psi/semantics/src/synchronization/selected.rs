@@ -10,6 +10,8 @@ use terminal_psi::{TargetMachineCallable, TerminalModule};
 pub enum SelectedCall {
     Local(MachineId),
     ImportedWait(SpinWait),
+    /// The supplier has an input obligation that has no checked caller-side projection.
+    UnresolvedImport,
 }
 
 impl SelectedCall {
@@ -60,7 +62,7 @@ impl Summaries {
             match SelectedCall::resolve(callee, boundary) {
                 Some(SelectedCall::Local(id)) => current = id,
                 Some(SelectedCall::ImportedWait(wait)) => break Some(wait),
-                None => break None,
+                Some(SelectedCall::UnresolvedImport) | None => break None,
             }
         };
         for (caller, forward) in chain.into_iter().rev() {

@@ -597,7 +597,7 @@ pub(crate) mod instance {
                     TerminalEffectRejection::new("component invocation lost its live instance")
                 })?;
                 match instance
-                    .invoke_in_scope(meter, psi_provider_selections::ProgressScope::OpenInterface)
+                    .invoke_in_scope(meter, self.selected.invocation_scope())
                     .map_err(|error| match error.sponsor_exhaustion() {
                         Some(reason) => TerminalEffectRejection::sponsor_exhausted(format!(
                             "component invocation: {reason}"

@@ -4,6 +4,7 @@
 mod activation;
 mod aggregate;
 mod control;
+mod imports;
 mod storage;
 mod successor;
 
@@ -14,10 +15,7 @@ use activation::{Bindings, Destination, Frame, ScalarArguments};
 use control::{Execution, Frontier};
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use storage::{Location, Storage};
-use terminal_psi::{
-    StructuralAccess, TerminalAffineCleanupAction, TerminalModule,
-    Terminator,
-};
+use terminal_psi::{StructuralAccess, TerminalAffineCleanupAction, TerminalModule, Terminator};
 
 pub fn private_wait_failure(
     module: &TerminalModule,
@@ -76,6 +74,12 @@ pub fn private_wait_failure(
         coverage: Default::default(),
     });
     let mut summaries = Summaries::default();
+    let imported_obligations = module.interfaces.boundary_machines.iter().any(|row| {
+        matches!(
+            boundary(row.id),
+            Some(SelectedCall::ImportedWait(_) | SelectedCall::UnresolvedImport)
+        )
+    });
     let mut unproved = None;
     while let Some(mut path) = paths.next() {
         match advance(
@@ -93,6 +97,11 @@ pub fn private_wait_failure(
             }
             Some(Advance::Blocked(failure)) => {
                 unproved.get_or_insert(failure);
+            }
+            None if imported_obligations => {
+                if let Some(failure) = imports::unproved_continuation(module, &path.stack, &boundary) {
+                    unproved.get_or_insert(failure);
+                }
             }
             None => {}
         }
@@ -119,9 +128,9 @@ fn advance<'m>(
     let stack = &mut path.stack;
     while let Some(frame) = stack.last_mut() {
         if let Some(op) = frame.block.operations.get(frame.position) {
-            frame.position += 1;
             let Some(call) = op.declared_invocation() else {
                 frame.step(module, op, memory)?;
+                frame.position += 1;
                 continue;
             };
             let spin = match SelectedCall::resolve(call.callee, boundary)? {
@@ -138,14 +147,20 @@ fn advance<'m>(
                             call.structural_arguments,
                         )?;
                         let return_to = Destination::of(op);
+                        let child = Frame::enter(callee, args, return_to)?;
+                        frame.position += 1;
                         if stack.iter().any(|active| active.machine.id == id) {
+                            stack.last_mut()?.position -= 1;
                             return None;
                         }
-                        stack.push(Frame::enter(callee, args, return_to)?);
+                        stack.push(child);
                         continue;
                     }
                 }
                 SelectedCall::ImportedWait(wait) => wait,
+                SelectedCall::UnresolvedImport => return Some(Advance::Blocked(PrivateWaitFailure {
+                    machine: frame.machine.id, operation: op.id, cause: ProgressFailure::UnprovedImport,
+                })),
             };
             let actual = call.structural_arguments.get(spin.parameter)?;
             if actual.access != StructuralAccess::SharedBorrow {
@@ -174,6 +189,7 @@ fn advance<'m>(
                 let next = memory.get(&location).after_update(spin.update);
                 memory.set(&location, next);
             }
+            frame.position += 1;
             continue;
         }
         let cleanup = match successor::prepare(module, frame, memory)? {

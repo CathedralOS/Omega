@@ -38,7 +38,8 @@ pub enum TerminalBindingRejection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TerminalInstanceError {    Closed,
+pub enum TerminalInstanceError {
+    Closed,
     /// The guest was discarded and can never resume.
     Discarded,
     UnboundImports {

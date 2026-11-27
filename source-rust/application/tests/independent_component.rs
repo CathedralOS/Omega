@@ -428,15 +428,34 @@ fn selected_component_wait_needs_progress_for_the_receivers_actual_input() {
         .join("../../tests/fixtures/synchronization/run/independent_wait");
     let read = |file: &str| fs::read_to_string(fixture.join(file)).unwrap();
     let supplier_build = read("supplier/build.omg");
-    let supplier = read("supplier/main.omg");
+    let mut supplier = read("supplier/main.omg");
+    supplier.push_str(
+        "
+public TwoWaits satisfies Wait {
+    machine until_clear(signal: @Signal) { wait_for_clear(signal); wait_for_clear(signal); }
+}",
+    );
     let build = read("application/build.omg");
     let application = read("application/main.omg");
-    for requires in ["", "requires input != 1"] {
+    for (requires, lend_before_wait) in [
+        ("", false),
+        ("requires input != 1", false),
+        ("requires input != 1", true),
+    ] {
         let mut work = application
             .replace("machine main()", "public machine work(input: u32)")
             .replace("crashes none {", &format!("crashes none {requires} {{"))
             .replace("store(0, Publish)", "store(input, Publish)");
         work.push_str("machine main() reaches |signals|::Wait crashes none { work(2); }");
+        if lend_before_wait {
+            work = work
+                .replace("reaches |signals|::Wait", "reaches |signals|::Wait + Gate")
+                .replace(
+                    "|signals|::Wait::until_clear(@signal);",
+                    "Gate::receive(@signal); |signals|::Wait::until_clear(@signal);",
+                );
+            work.push_str("public boundary trait Gate { machine receive(signal: @|signals|::Signal) reaches none crashes none; }");
+        }
         let scratch = project::stage(
             "selected-component-wait-progress",
             &[
@@ -476,7 +495,7 @@ fn selected_component_wait_needs_progress_for_the_receivers_actual_input() {
         let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = root.entry else {
             panic!("expected the selected work entry");
         };
-        assert_eq!(module.interfaces.provider_candidates.len(), 2);
+        assert_eq!(module.interfaces.provider_candidates.len(), 3);
         for candidate in &module.interfaces.provider_candidates {
             let identities = &module.identities;
             let provider = identities.text(candidate.provider_identity).unwrap();
@@ -529,7 +548,14 @@ fn selected_component_wait_needs_progress_for_the_receivers_actual_input() {
                 [&admitted],
                 |_| None,
             );
-            if provider.ends_with("::ObservedWait") && requires.is_empty() {
+            if provider.ends_with("::TwoWaits")
+                || (provider.ends_with("::ObservedWait") && lend_before_wait)
+            {
+                let failure =
+                    failure.expect("an unprojected or unvisited input obligation stays open");
+                assert_eq!(failure.cause, ProgressFailure::UnprovedImport);
+                assert_eq!(failure.machine, entry);
+            } else if provider.ends_with("::ObservedWait") && requires.is_empty() {
                 let failure =
                     failure.expect("the installed provider may never see an enabled value");
                 assert_eq!(failure.cause, ProgressFailure::Unproved);

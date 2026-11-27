@@ -23,9 +23,16 @@ pub struct AdmittedComponentProvider {
     provider_boundary: BoundaryMachineId,
     candidate: MachineId,
     selection: AdmittedProviderSelections,
-    wait: Option<SpinWait>,
+    progress: ImportProgress,
     input_memberships: memberships::InputMemberships,
     result_memberships: memberships::Memberships,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ImportProgress {
+    Closed,
+    Waiting(SpinWait),
+    Unresolved,
 }
 
 impl AdmittedComponentProvider {
@@ -46,6 +53,15 @@ impl AdmittedComponentProvider {
     }
     pub const fn selection(&self) -> &AdmittedProviderSelections {
         &self.selection
+    }
+
+    /// A nested invocation may rely on its caller only when the receiving
+    /// judgment checked the exact projected input obligation.
+    pub fn invocation_scope(&self) -> ProgressScope {
+        match self.progress {
+            ImportProgress::Waiting(_) => ProgressScope::OpenInterface,
+            _ => ProgressScope::Executable,
+        }
     }
 
     pub fn input_membership(
@@ -150,12 +166,15 @@ pub fn admit_component_provider<'receiver>(
         provider_boundary: selected.boundary,
         candidate: selected.candidate,
         selection,
-        wait: component_spin_wait(
-            receiver.module(),
-            receiving,
-            provider.module(),
-            selected.candidate,
-        ),
+        progress: if let Some(wait) =
+            component_spin_wait(receiver.module(), receiving, provider.module(), selected.candidate)
+        {
+            ImportProgress::Waiting(wait)
+        } else if private_wait_failure(provider.module(), selected.candidate, ProgressScope::Executable, |_| None).is_some() {
+            ImportProgress::Unresolved
+        } else {
+            ImportProgress::Closed
+        },
         input_memberships,
         result_memberships,
     })
@@ -180,12 +199,22 @@ pub fn invocation_progress_failure<'a, 'receiver>(
     imports.sort_unstable_by_key(|supplier| supplier.receiving_boundary);
     private_wait_failure(receiver.module(), entry, scope, |slot| {
         let first = imports.partition_point(|supplier| supplier.receiving_boundary < slot);
-        let Some(supplier) = imports.get(first).filter(|supplier| supplier.receiving_boundary == slot) else {
+        let Some(supplier) = imports
+            .get(first)
+            .filter(|supplier| supplier.receiving_boundary == slot)
+        else {
             return local(slot).map(SelectedCall::Local);
         };
-        if imports.get(first + 1).is_some_and(|other| other.receiving_boundary == slot) {
+        if imports
+            .get(first + 1)
+            .is_some_and(|other| other.receiving_boundary == slot)
+        {
             return None;
         }
-        supplier.wait.clone().map(SelectedCall::ImportedWait)
+        match &supplier.progress {
+            ImportProgress::Closed => None,
+            ImportProgress::Waiting(wait) => Some(SelectedCall::ImportedWait(wait.clone())),
+            ImportProgress::Unresolved => Some(SelectedCall::UnresolvedImport),
+        }
     })
 }
