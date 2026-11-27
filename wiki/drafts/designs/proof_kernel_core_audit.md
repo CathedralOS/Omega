@@ -1757,8 +1757,8 @@ same_sign> as SameSign;` is read into the mathematical signature when
   a cited law's premise at a computed index such as `S(m)` is met at that
   index. Nothing proves a `Pi` conclusion yet: how source does it is
   [an owner question](../../../OWNER_QUESTIONS.md#for-every-conclusion). The
-  `Real` quotient's relation needs this, and the boxed squash of
-  [its spelling question](../../../OWNER_QUESTIONS.md#boxed-squash-relation-spelling).
+  `Real` quotient's relation needs this, and the
+  [boxed squash of its relation](../../spec/proofs/quotients.md#set-quotient-foundation).
   Tests: `tests::for_every`.
 - **Not done:**
   - A lifted operation is a definition only where the kernel's `lift`
