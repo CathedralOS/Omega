@@ -58,7 +58,7 @@ fn an_executable_application_requires_a_bound_entry() {
             ("main.omg", "machine main() {}"),
             (
                 "build.omg",
-                r#"machine build(builder: @mutable Build) { Build::application(builder, "unbound"); }"#,
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: "unbound" }; }"#,
             ),
         ],
     );

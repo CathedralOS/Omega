@@ -1,7 +1,7 @@
 use main.omg as app;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "stored_descriptor_boundary");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "stored_descriptor_boundary" };
     Build::select_provider::<|app|::Probe, |app|::CheckedProbe>(builder, macos_arm64);
     Build::select_provider::<|app|::Probe, |app|::CheckedProbe>(builder, linux_arm64);
     Build::select_provider::<|app|::Probe, |app|::CheckedProbe>(builder, linux_x86_64);

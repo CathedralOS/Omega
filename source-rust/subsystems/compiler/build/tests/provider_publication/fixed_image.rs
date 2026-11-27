@@ -19,8 +19,8 @@ fn fixed_image_supplies_only_its_authenticated_member_on_uefi() {
     std::fs::write(
         &path,
         r#"use {omega}/language/core/program_image.omg;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "firmware_provider");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "firmware_provider" };
     Build::select_provider::<|program_image|::ProgramImage, |program_image|::ProgramImageNativeProvider>(builder, uefi_x86_64);
 }"#,
     )
@@ -139,8 +139,8 @@ fn published_firmware_application() -> CanonicalTerminalArtifact {
         &path,
         r#"use main.omg as app;
 use {omega}/language/core/program_image.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "firmware");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "firmware" };
     Build::select_provider::<|program_image|::ProgramImage, |program_image|::ProgramImageNativeProvider>(builder, uefi_x86_64);
     Build::bind(builder, uefi_x86_64::ProgramEntry, |app|::entry);
 }"#,
@@ -229,8 +229,8 @@ fn saved_psi_retains_private_grants_only_across_a_closed_observation() {
         ).unwrap();
         let path = temporary.path().join("build.omg");
         std::fs::write(&path, r#"use main.omg as app;
-machine build(b: @mutable Build) {
-            Build::application(b, "firmware");
+machine build(b: @mutable BuildPlan) {
+            b.product = BuildProduct::Application { name: "firmware" };
             Build::bind(b, uefi_x86_64::ProgramEntry, |app|::entry);
         }"#).unwrap();
         let source = r"use {omega}/language/core/extent.omg;
@@ -268,8 +268,8 @@ fn storage_transport_requires_a_grant_on_each_owned_argument() {
     .unwrap();
     let path = temporary.path().join("build.omg");
     std::fs::write(&path, r#"use {omega}/language/core/extent.omg;
-machine build(b: @mutable Build) {
-    Build::package(b, "transport");
+machine build(b: @mutable BuildPlan) {
+    b.product = BuildProduct::Package { name: "transport" };
     Build::select_provider::<|extent|::ProgramStorageEntry, |extent|::ProgramStorageEntryNativeProvider>(b, uefi_x86_64);
 }"#).unwrap();
     std::fs::write(

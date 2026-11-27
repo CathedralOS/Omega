@@ -16,7 +16,7 @@ fn entryless_supplier_sources(root: &Path) -> std::path::PathBuf {
         &[
             (
                 "supplier/build.omg",
-                r#"machine build(builder: @mutable Build) { Build::package(builder, "numbers"); }"#,
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "numbers" }; }"#,
             ),
             (
                 "supplier/main.omg",
@@ -37,8 +37,8 @@ public ConstantReading satisfies Reading {
 use {omega}/build/dependency.omg;
 use main.omg as app;
 use {numbers}/main.omg as numbers;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "number_application");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "number_application" };
     let dependency: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../supplier" }));
     Build::select_provider::<|numbers|::Reading, |numbers|::ConstantReading>(builder, independent_mode());
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
@@ -268,8 +268,8 @@ fn nested_sources(root: &Path, mode: &str) {
         r#"use {{omega}}/build/dependency.omg;
 use main.omg as app;
 use {{numbers}}/main.omg as numbers;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "reader");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "reader" }};
     let number: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "../supplier" }}));
     Build::select_provider::<|numbers|::Reading, |numbers|::Sensor>(builder, linux_x86_64, CompositionMode::{mode});
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
@@ -278,8 +278,8 @@ machine build(builder: @mutable Build) {{
     let sources = [
         (
             "leaf/build.omg",
-            r#"machine build(builder: @mutable Build) {
-    Build::package(builder, "measurements");
+            r#"machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "measurements" };
 }"#,
         ),
         (
@@ -295,8 +295,8 @@ public Device satisfies Measure {
             "supplier/build.omg",
             r#"use {omega}/build/dependency.omg;
 use {measurements}/main.omg as measurements;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "numbers");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "numbers" };
     let leaf: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../leaf" }));
     Build::select_provider::<|measurements|::Measure, |measurements|::Device>(builder, linux_x86_64, CompositionMode::Independent);
 }"#,

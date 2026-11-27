@@ -1,8 +1,8 @@
 use Main/countdown.omg;
 // Compile-level admission pin: one exact target-owned entry selection.
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "machine_self_call_recursion_compile");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "machine_self_call_recursion_compile" };
     Build::bind(builder, windows_x86_64::ProgramEntry, |countdown|::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, |countdown|::main);
     Build::bind(builder, linux_arm64::ProgramEntry, |countdown|::main);

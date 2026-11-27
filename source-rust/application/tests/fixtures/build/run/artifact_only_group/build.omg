@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_artifact_only");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_artifact_only" };
     Build::artifact_only(builder);
     _ = builder.tests.group::<Tests::arithmetic>();
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "blob.bin");
@@ -11,14 +11,14 @@ machine build(builder: @mutable Build) {
     settle(builder, settled);
 }
 
-machine settle(builder: @mutable Build, completion: OutputCompletion) {
+machine settle(builder: @mutable BuildPlan, completion: OutputCompletion) {
     transition completion {
         OutputCompletion::Sealed { receipt } -> sealed(builder),
         OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
     }
-    machine sealed(builder: @mutable Build) {
+    machine sealed(builder: @mutable BuildPlan) {
     }
-    machine failed(builder: @mutable Build, obligation: RequiredOutput) {
+    machine failed(builder: @mutable BuildPlan, obligation: RequiredOutput) {
         BuildOutput::fail(@mutable builder.output, obligation, "require did not settle");
     }
 }

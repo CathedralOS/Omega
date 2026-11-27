@@ -1,7 +1,7 @@
 use main.omg as app;
 use {omega}/language/core/external_binding.omg as native;
-machine build(builder: @mutable Build) {
- Build::application(builder, "native_row_outranks_scoped_implementations");
+machine build(builder: @mutable BuildPlan) {
+ builder.product = BuildProduct::Application { name: "native_row_outranks_scoped_implementations" };
  Build::select_provider::<|app|::Distance, |app|::MacosDistance>(builder, macos_arm64);
  Build::select_provider::<|app|::Distance, |app|::LinuxArmDistance>(builder, linux_arm64);
  Build::bind_native::<|app|::Distance::absolute>(builder, windows_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: "msvcrt.dll", export: "abs" } });

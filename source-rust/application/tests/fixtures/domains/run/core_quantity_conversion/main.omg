@@ -9,8 +9,8 @@ machine main() crashes Trap {
     machine bad() crashes Trap { crash Trap; }
 }
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "core_quantity_conversion");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "core_quantity_conversion" };
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

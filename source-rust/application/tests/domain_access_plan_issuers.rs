@@ -166,13 +166,13 @@ fn a_domain_only_a_selected_dependency_provider_uses_has_its_plan_run() {
         "windows_x86_64",
     ];
     let mut kit_build = String::from(
-        "use main/stamps.omg;\nmachine build(builder: @mutable Build) {\n    Build::package(builder, \"stamp_kit\");\n",
+        "use main/stamps.omg;\nmachine build(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Package { name: \"stamp_kit\" };\n",
     );
     let mut consumer_build = String::from(
         r#"use main.omg as app;
 use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "stamp_consumer");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "stamp_consumer" };
     let kit: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "kit" }));
 "#,
     );

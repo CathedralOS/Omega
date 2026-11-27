@@ -36,12 +36,12 @@ fn an_executed_exclusion_checks_the_selected_callee() {
         return;
     };
     let build = r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "excluding");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "excluding" };
     Build::bind(builder, HOST::ProgramEntry, |app|::main);
     exclude(builder, CrashCause::Trap);
 }
-machine exclude(builder: @mutable Build, cause: CrashCause) {
+machine exclude(builder: @mutable BuildPlan, cause: CrashCause) {
     Build::exclude_crash(builder, cause);
 }
 "#
@@ -82,8 +82,8 @@ fn a_direct_build_exclusion_checks_an_evaluated_physical_class() {
         return;
     };
     let build = r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "excluding");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "excluding" };
     Build::bind(builder, HOST::ProgramEntry, |app|::main);
     let authority: PhysicalAuthorityClass = PhysicalAuthorityClass::ProcessOutput;
     Build::exclude_physical_authority(builder, authority);
@@ -110,8 +110,8 @@ machine build(builder: @mutable Build) {
 fn darwin_poll_exclusions_check_each_invocation() {
     let build = r#"use {omega}/language/core/external_binding.omg as native;
 use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "poll_counts");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "poll_counts" };
     Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
     Build::bind_native::<|app|::Wait::poll>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::MachODylibSymbol {
@@ -169,8 +169,8 @@ fn a_build_without_exclusions_is_not_refused_for_one() {
     let (_, stderr) = execute(
         "no-exclusion",
         "use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"plain\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"plain\" };
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
 ",
@@ -189,11 +189,11 @@ machine build(builder: @mutable Build) {
 fn a_build_that_queries_a_product_entry_is_not_refused_for_its_selection() {
     let (_, stderr) = execute(
         "query-entry",
-        "machine build(builder: @mutable Build) {
-    Build::application(builder, \"querying\");
+        "machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"querying\" };
     Build::bind(builder, linux_x86_64::ProgramEntry, entry(builder, \"linux_x86_64::ProgramEntry\"));
 }
-machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
+machine entry(builder: @mutable BuildPlan, slot: @[u8]) -> ProductEntryRef {
     BuildDeclarations::entry(@builder.declarations, \"main\", slot)
 }
 ",

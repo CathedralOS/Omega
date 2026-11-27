@@ -17,7 +17,7 @@ fn reviewing_a_length_comparison_preserves_the_selected_operand_type() {
             &[
                 (
                     "build.omg",
-                    r#"machine build(builder: @mutable Build) { Build::package(builder, "length_contract"); }"#,
+                    r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "length_contract" }; }"#,
                 ),
                 ("api.omg", &api),
             ],

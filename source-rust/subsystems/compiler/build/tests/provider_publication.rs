@@ -122,8 +122,8 @@ machine firmware(image: |extent|::Extent in Granted, initial_storage: |extent|::
     std::fs::write(
         temporary.path().join("build.omg"),
         r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "mixed");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "mixed" };
     Build::select_provider::<|app|::Counter, |app|::LocalCounter>(builder);
     let mode: CompositionMode = fused_mode();
     Build::select_provider::<|app|::Clock, |app|::FixedClock>(builder, mode);
@@ -292,8 +292,8 @@ fn private_entry_requires_the_target_of_its_parent() {
     std::fs::write(
         project.path().join("build.omg"),
         r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-        Build::application(builder, "entry_target");
+machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Application { name: "entry_target" };
         Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
         Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
     }"#,
@@ -797,8 +797,8 @@ fn root_and_private_callable_enforce_the_selected_process_exit() {
     std::fs::write(
         workspace.path().join("build.omg"),
         r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "exit_scope");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "exit_scope" };
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }"#,
     )
@@ -1002,7 +1002,7 @@ fn fresh_review_records_the_build_that_declared_the_package() {
     std::fs::write(
         root.join("build.omg"),
         r#"use main.omg as app;
-machine build(builder: @mutable Build) { Build::application(builder, "review_example"); Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main); }"#,
+machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: "review_example" }; Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main); }"#,
     )
     .unwrap();
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
@@ -1040,7 +1040,7 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
         let root = project.path();
         std::fs::write(
             root.join("build.omg"),
-            r#"machine build(builder: @mutable Build) { Build::package(builder, "review_ceiling"); }"#,
+            r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "review_ceiling" }; }"#,
         )
         .unwrap();
         std::fs::write(root.join("main.omg"), format!("{service}\npublic machine inspect_value(value: u32) -> u32 reaches {name} crashes none {{ value }}\n")).unwrap();
@@ -1085,7 +1085,7 @@ fn review_nominates_the_referenced_host_declaration() {
     let root = temp.path();
     std::fs::write(
         root.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "host_by_file"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "host_by_file" }; }"#,
     )
     .unwrap();
     std::fs::create_dir(root.join("other")).unwrap();
@@ -1164,8 +1164,8 @@ fn reviewing_a_selected_hosted_exit_uses_its_product_declaration() {
         root.join("build.omg"),
         r#"use main.omg as app;
 use {omega}/language/core/process_exit.omg;
-        machine build(builder: @mutable Build) {
-            Build::package(builder, "exit_provider");
+        machine build(builder: @mutable BuildPlan) {
+            builder.product = BuildProduct::Package { name: "exit_provider" };
             Build::select_provider::<|process_exit|::ProcessExit, |app|::LeafExit>(builder, linux_x86_64);
         }"#,
     )
@@ -1224,7 +1224,7 @@ fn review_records_an_explicit_empty_grant_and_the_unpermitted_sibling() {
     let root = temporary.path();
     std::fs::write(
         root.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "receiver_review"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "receiver_review" }; }"#,
     )
     .unwrap();
     std::fs::write(
@@ -1374,7 +1374,7 @@ fn public_method_contracts_keep_their_declaration_binders() {
     let build = directory.path().join("build.omg");
     std::fs::write(
         &build,
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "receiver"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "receiver" }; }"#,
     )
     .unwrap();
     std::fs::write(
@@ -1483,7 +1483,7 @@ fn review_retains_public_alias_names_with_their_normalized_expansions() {
     let root = temporary.path();
     std::fs::write(
         root.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "public_aliases"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "public_aliases" }; }"#,
     )
     .unwrap();
     std::fs::write(
@@ -1569,8 +1569,8 @@ fn selected_provider_review_preserves_borrowed_domains_and_authored_postconditio
     std::fs::write(
         &build,
         r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-        Build::package(builder, "reading");
+machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "reading" };
         Build::select_provider::<|app|::Reading, |app|::Provider>(builder, linux_x86_64);
     }"#,
     )
@@ -1672,8 +1672,8 @@ fn check_qualified_parameter(
     std::fs::write(
         &build,
         r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-            Build::package(builder, "reading");
+machine build(builder: @mutable BuildPlan) {
+            builder.product = BuildProduct::Package { name: "reading" };
             Build::select_provider::<|app|::Reading, |app|::Provider>(builder, linux_x86_64);
         }"#,
     )
@@ -1900,7 +1900,7 @@ fn review_and_deployment_publish_the_same_entryless_provider() {
     let path = root.join("build.omg");
     std::fs::write(
         &path,
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "numbers"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "numbers" }; }"#,
     )
     .unwrap();
     std::fs::write(

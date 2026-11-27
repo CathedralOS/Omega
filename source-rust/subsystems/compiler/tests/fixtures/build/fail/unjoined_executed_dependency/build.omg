@@ -1,11 +1,11 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "unjoined_executed_dependency");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "unjoined_executed_dependency" };
     request_dependency(builder);
 }
 
-machine request_dependency(builder: @mutable Build) {
+machine request_dependency(builder: @mutable BuildPlan) {
     let mutable selected_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "missing-source" });
     |dependency|::with_alias(@mutable selected_dependency, "selected");
     let selected_registration: DependencyRegistration = Build::dependency(builder, selected_dependency);

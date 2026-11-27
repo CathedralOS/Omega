@@ -1,6 +1,6 @@
 use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "specialized_branch_selection_quiet");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "specialized_branch_selection_quiet" };
     Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);

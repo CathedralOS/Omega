@@ -1,7 +1,7 @@
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     declare_package(builder);
 }
 
-machine declare_package(builder: @mutable Build) {
-    Build::package(builder, "executed_dependency_source_library");
+machine declare_package(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "executed_dependency_source_library" };
 }
