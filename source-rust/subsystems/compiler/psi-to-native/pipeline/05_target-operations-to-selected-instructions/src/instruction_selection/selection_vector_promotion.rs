@@ -489,6 +489,24 @@ fn analyze_non_escaping_slots(
         }
     }
 
+    // A foreign call's result home is checked store-for-store against its
+    // evaluated plan when frames are built (`structural_result_capture`), so
+    // even a descriptor half the block never reads, such as a scalar
+    // reference's codec forwarded only as an address, must stay written.
+    for record in &function.normalized_foreign_calls {
+        if let Some((operation, result)) = record
+            .call
+            .result
+            .structural_home()
+            .and_then(|home| home.operation_result())
+        {
+            escaped.insert(LocalStorageSlotId::Structural {
+                operation,
+                place: result.place,
+            });
+        }
+    }
+
     // Track blocks mentioning each slot directly and disallow terminator/hosted uses.
     for (block_idx, block) in function.blocks.iter().enumerate() {
         for inst in &block.instructions {

@@ -234,7 +234,8 @@ fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
         r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "inspection_ambiguity" }; }"#,
     )
     .unwrap();
-    // A second file on disk joins this lookup only when the package imports it.
+    // A second file on disk joins this lookup only when the package imports
+    // it and uses the import; an unused file import contributes nothing.
     let unique = inspect(project, "main.omg", "retained", &project.join("local.psi"));
     assert!(unique.status.success(), "{unique:?}");
     assert!(
@@ -243,6 +244,13 @@ fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
             .contains("IntegerConstant { value: Signed(42) }")
     );
     std::fs::write(project.join("main.omg"), format!("use other.omg;\n{local}")).unwrap();
+    let unused = inspect(project, "main.omg", "retained", &project.join("unused.psi"));
+    assert!(unused.status.success(), "{unused:?}");
+    std::fs::write(
+        project.join("main.omg"),
+        format!("use other.omg;\n{local}\nmachine imported() -> i32 {{ |other|::retained() }}"),
+    )
+    .unwrap();
     let checked = omega(project)
         .args(["--check", "main.omg"])
         .output()
