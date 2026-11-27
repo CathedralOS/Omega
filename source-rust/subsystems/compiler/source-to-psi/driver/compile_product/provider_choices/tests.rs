@@ -170,8 +170,9 @@ fn assert_unsupplied(accepted: &AcceptedTerminalSource, file_name: &str) {
         .entry()
         .expect("fixture main is an executable entry");
     let reached = accepted
-        .boundary_calls_reached(entry, &[], Some(TARGET))
-        .unwrap();
+        .boundary_call_reach(entry, &[], Some(TARGET))
+        .unwrap()
+        .boundaries;
     let closed = accepted
         .close_logical_provider_reach(TARGET, Some(entry), &reached)
         .expect("the source retains the unsupplied requirement");
@@ -233,8 +234,9 @@ fn a_module_that_reaches_no_boundary_requirement_has_nothing_to_settle() {
     );
     assert!(
         accepted
-            .boundary_calls_reached(accepted.entry().unwrap(), &[], Some(TARGET))
+            .boundary_call_reach(accepted.entry().unwrap(), &[], Some(TARGET))
             .unwrap()
+            .boundaries
             .is_empty()
     );
     assert_published(&accepted, programs::UNREACHED_DEFAULT);

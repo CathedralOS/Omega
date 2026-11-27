@@ -526,21 +526,9 @@ impl AcceptedTerminalSource {
     }
 
     /// Follow the entry and its demanded scalar evaluations through actual
-    /// invocations and exact selected code values. Retained headers are not roots.
-    pub fn boundary_calls_reached(
-        &self,
-        entry: semantic_vocabulary::MachineId,
-        implementations: &[crate::CallableBoundaryImplementation],
-        target: Option<&str>,
-    ) -> Result<Vec<semantic_vocabulary::BoundaryMachineId>, Diagnostic> {
-        Ok(self
-            .boundary_call_reach(entry, implementations, target)?
-            .boundaries)
-    }
-
-    /// Preserve the actual invoked-machine summary alongside boundary demand.
-    /// Both projections include the same demanded scalar evaluations and exact
-    /// selected implementations; a retained body alone contributes neither.
+    /// invocations and exact selected code values. Retained headers are not
+    /// roots, and a retained body alone contributes no invoked machine or
+    /// boundary demand.
     pub fn boundary_call_reach(
         &self,
         entry: semantic_vocabulary::MachineId,

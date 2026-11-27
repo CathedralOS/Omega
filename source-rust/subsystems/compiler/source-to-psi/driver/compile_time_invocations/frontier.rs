@@ -99,9 +99,6 @@ fn require_no_recorded_work(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         .wire_schemas()
         .iter()
         .any(|schema| schema.encoding.is_some())
-        || !typed.wire_schema_plans.is_empty()
-        || !typed.wire_placements.is_empty()
-        || !typed.wire_encode_obligations.is_empty()
     {
         return Err(unsupported("source wire-schema evaluation"));
     }

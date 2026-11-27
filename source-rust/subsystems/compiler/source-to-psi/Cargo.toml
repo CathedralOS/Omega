@@ -10,7 +10,6 @@ path = "source_to_psi.rs"
 [features]
 test-support = [
     "lowered-program-to-checked-program/test-support",
-    "symbol-resolved-trees/test-support",
     "syntax-trees-to-symbol-resolved-trees/test-support",
     "symbol-resolved-trees-to-typed-trees/test-support",
     "prepared-typed-trees-to-lowered-program/test-support",
@@ -42,7 +41,6 @@ symbol-resolved-trees-to-typed-trees = { path = "pipeline/03_symbol-resolved-tre
 syntax-trees-to-symbol-resolved-trees = { path = "pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 source-declarations = { path = "representations/symbol-resolved-trees/declarations" }
 source-symbol-table = { path = "representations/symbol-resolved-trees/symbol-table" }
-symbol-resolved-trees = { path = "representations/symbol-resolved-trees" }
 typed-trees = { path = "representations/typed-trees" }
 source-parser = { path = "pipeline/01_tokens-to-syntax-trees" }
 source-lexer = { path = "pipeline/00_source-files-to-tokens" }
@@ -72,6 +70,7 @@ terminal-work = { path = "../psi/semantics/work" }
 tokens = { path = "representations/tokens" }
 
 [dev-dependencies]
+symbol-resolved-trees = { path = "representations/symbol-resolved-trees" }
 numerics = { path = "../foundation/numerics" }
 proof-admission = { path = "../psi/semantics/proofs/bounded" }
 lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program", features = ["test-support"] }

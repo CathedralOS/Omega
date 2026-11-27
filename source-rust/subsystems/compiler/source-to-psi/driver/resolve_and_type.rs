@@ -285,21 +285,21 @@ fn eager_body_scope(purpose: source_provenance::DependencyScope) -> resolution::
     }
 }
 
-fn initial_demand_roots(
+fn initial_demand_roots<'request>(
     frontier: &resolution::DeferredResolvedFrontier,
-    request: &BodyDemandRequest,
+    request: &'request BodyDemandRequest,
 ) -> (
     Vec<symbols::SymbolHandle>,
-    Vec<(std::path::PathBuf, source_text::Span)>,
-    Vec<source_text::SourceId>,
+    &'request [(std::path::PathBuf, source_text::Span)],
+    &'request [source_text::SourceId],
 ) {
     let trees = frontier.trees();
     let symbols = &trees.symbols;
     match request {
-        BodyDemandRequest::Default => (Vec::new(), Vec::new(), Vec::new()),
+        BodyDemandRequest::Default => (Vec::new(), &[], &[]),
         BodyDemandRequest::DeclarationEntryFiles(files) => {
             let roots = frontier.pending_machines_in_sources(files);
-            (roots, Vec::new(), files.clone())
+            (roots, &[], files)
         }
         BodyDemandRequest::BuildDemand {
             entry_machine,
@@ -318,7 +318,7 @@ fn initial_demand_roots(
                     roots.push(symbol);
                 }
             }
-            (roots, provider_conformances.clone(), subject_files.clone())
+            (roots, provider_conformances, subject_files)
         }
         BodyDemandRequest::ProductDemand {
             subject_files,
@@ -331,7 +331,43 @@ fn initial_demand_roots(
                     roots.push(symbol);
                 }
             }
-            (roots, provider_conformances.clone(), subject_files.clone())
+            (roots, provider_conformances, subject_files)
+        }
+    }
+}
+
+/// The roots every completion round has demanded so far, in first-demand
+/// order. Rounds repeat until nothing new is demanded, so membership is read
+/// through a table indexed by symbol slot instead of rescanning every root an
+/// earlier round completed.
+#[derive(Default)]
+struct CompletedRoots {
+    order: Vec<symbols::SymbolHandle>,
+    by_slot: Vec<symbols::SymbolHandle>,
+}
+
+impl CompletedRoots {
+    fn insert(&mut self, symbol: symbols::SymbolHandle) {
+        if symbol.is_valid() {
+            let slot = symbol.arena_index() as usize;
+            if self.by_slot.len() <= slot {
+                self.by_slot
+                    .resize(slot + 1, symbols::SymbolHandle::invalid());
+            }
+            let recorded = self.by_slot[slot];
+            if recorded == symbol {
+                return;
+            }
+            if !recorded.is_valid() {
+                self.by_slot[slot] = symbol;
+                self.order.push(symbol);
+                return;
+            }
+        }
+        // The invalid handle, or another generation of an occupied slot,
+        // keeps the exact handle comparison of the ordered roster.
+        if !self.order.contains(&symbol) {
+            self.order.push(symbol);
         }
     }
 }
@@ -339,7 +375,7 @@ fn initial_demand_roots(
 fn next_demand_batch_for_request(
     frontier: &resolution::DeferredResolvedFrontier,
     request: &BodyDemandRequest,
-    completed_roots: &mut Vec<symbols::SymbolHandle>,
+    completed_roots: &mut CompletedRoots,
     selections: &source_declarations::source_selections::AuthoredDeclarationSelections,
 ) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
     let (initial, provider_conformances, subject_sources) = initial_demand_roots(frontier, request);
@@ -356,14 +392,12 @@ fn next_demand_batch_for_request(
     };
     if !initial.is_empty() {
         for symbol in &initial {
-            if !completed_roots.contains(symbol) {
-                completed_roots.push(*symbol);
-            }
+            completed_roots.insert(*symbol);
         }
         require_imports(&initial)?;
         return Ok(initial);
     }
-    if completed_roots.is_empty() {
+    if completed_roots.order.is_empty() {
         // Seed from any already-completed machines in subject/entry sources.
         let trees = frontier.trees();
         let symbols = &trees.symbols;
@@ -394,17 +428,17 @@ fn next_demand_batch_for_request(
                             || extra_files.contains(&span.source_id)
                     }),
             };
-            if matches && !completed_roots.contains(&machine.symbol) {
-                completed_roots.push(machine.symbol);
+            if matches {
+                completed_roots.insert(machine.symbol);
             }
         }
-        require_imports(completed_roots)?;
+        require_imports(&completed_roots.order)?;
     }
     let overloads = matches!(request, BodyDemandRequest::BuildDemand { .. }).then_some(selections);
     let mut batch = frontier.demand_closure_batch(
-        completed_roots,
-        &provider_conformances,
-        &subject_sources,
+        &completed_roots.order,
+        provider_conformances,
+        subject_sources,
         overloads,
     )?;
     if matches!(request, BodyDemandRequest::BuildDemand { .. }) {
@@ -431,9 +465,7 @@ fn next_demand_batch_for_request(
         }
     }
     for &symbol in &batch {
-        if !completed_roots.contains(&symbol) {
-            completed_roots.push(symbol);
-        }
+        completed_roots.insert(symbol);
     }
     Ok(batch)
 }
@@ -451,7 +483,7 @@ fn complete_demanded_typed_bodies(
     ),
     Vec<Diagnostic>,
 > {
-    let mut completed_roots = Vec::new();
+    let mut completed_roots = CompletedRoots::default();
     let mut typed_cohort = false;
     loop {
         let selected = timings
@@ -504,7 +536,7 @@ fn resolve_eager_bodies(
                 .into_resolved_frontier();
         }
     }
-    let mut completed_roots = Vec::new();
+    let mut completed_roots = CompletedRoots::default();
     loop {
         let selected = timings
             .record_result(stages::RESOLVE, || {

@@ -436,9 +436,6 @@ fn remove_declaration_rows(program: &mut TypedTrees, removed: &SymbolMembership)
     lifecycle_catalog.insert_many(lifecycle_plans);
     program.access_lifecycle_plans = lifecycle_catalog.into();
     program
-        .wire_schema_plans
-        .retain(|row| !owner_removed(row.schema));
-    program
         .authored_service_reach_rows
         .retain(|row| !owner_removed(row.owner));
     // A retained Product selection leaves only when its owner, the machine

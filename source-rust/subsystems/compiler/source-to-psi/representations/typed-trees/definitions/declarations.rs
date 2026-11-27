@@ -3566,61 +3566,6 @@ pub mod wire {
     use symbols::SymbolHandle;
     use types::TypeReferenceHandle;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum WirePlacement {
-        Varint { tag: u64 },
-        LengthPrefixed { tag: u64 },
-    }
-
-    impl Default for WirePlacement {
-        fn default() -> Self {
-            Self::Varint { tag: 0 }
-        }
-    }
-
-    impl WirePlacement {
-        pub fn tag(self) -> u64 {
-            match self {
-                Self::Varint { tag } | Self::LengthPrefixed { tag } => tag,
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
-    pub struct WireSchemaPlan {
-        pub schema: SymbolHandle,
-        pub placements: HandleSpan<WirePlacement>,
-        pub encode_obligations: HandleSpan<WireEncodeObligation>,
-        pub policy_verified: bool,
-    }
-
-    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
-    pub struct WireEncodeObligation {
-        pub field_number: u64,
-        pub element: WireScalarEncoding,
-        pub length: WireEncodeLengthObligation,
-        pub work: WireEncodeWorkObligation,
-        pub output_capacity: WireEncodeOutputCapacityObligation,
-    }
-
-    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
-    pub enum WireEncodeLengthObligation {
-        #[default]
-        RuntimeElementCount,
-    }
-
-    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
-    pub enum WireEncodeWorkObligation {
-        #[default]
-        TwoPassesPerElement,
-    }
-
-    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
-    pub enum WireEncodeOutputCapacityObligation {
-        #[default]
-        ExactPackedPayload,
-    }
-
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
     pub struct WireSchema {
         pub symbol: SymbolHandle,
@@ -3660,12 +3605,6 @@ pub mod wire {
     pub struct WireVersion {
         pub name: Identifier,
         pub members: HandleSpan<WireMember>,
-    }
-
-    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
-    pub struct WireScalarEncoding {
-        pub byte_size: usize,
-        pub zigzag: bool,
     }
 }
 

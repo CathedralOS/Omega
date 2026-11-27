@@ -878,6 +878,11 @@ impl<'source> Questions<'source> {
         let cleanup_bindings = self.cleanup_bindings()?;
         let module = self.module;
         let elaboration = &self.source.closure().elaboration();
+        // Each machine selection joins the source occurrence lowered at its
+        // exact operation. Order the occurrences by that site once, so every
+        // selection reads its own range instead of scanning all of them.
+        let mut constructions = self.source.correspondence().constructions.clone();
+        constructions.sort_unstable_by_key(|(emitted, selected, _, _)| (*emitted, *selected));
         for machine in &module.machines {
             let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
                 refused("source machine lost its emitted identity correspondence")
@@ -927,20 +932,26 @@ impl<'source> Questions<'source> {
                         )?;
                     }
                     if let OperationKind::SelectMachine { descriptor } = operation.kind {
-                        let mut sources = self.source.correspondence().constructions.iter().filter(
-                            |(emitted, selected, _, _)| {
-                                *emitted == machine.id && *selected == operation.id
-                            },
-                        );
-                        let (_, _, owner, expression) =
-                            sources.next().copied().ok_or_else(|| {
-                                refused("machine selection has no exact expression occurrence")
-                            })?;
-                        if sources.next().is_some() {
-                            return Err(refused(
-                                "machine selection has competing source occurrences",
-                            ));
-                        }
+                        let emitted_site = (machine.id, operation.id);
+                        let start = constructions.partition_point(|(emitted, selected, _, _)| {
+                            (*emitted, *selected) < emitted_site
+                        });
+                        let end = constructions.partition_point(|(emitted, selected, _, _)| {
+                            (*emitted, *selected) <= emitted_site
+                        });
+                        let (owner, expression) = match &constructions[start..end] {
+                            [(_, _, owner, expression)] => (*owner, *expression),
+                            [] => {
+                                return Err(refused(
+                                    "machine selection has no exact expression occurrence",
+                                ));
+                            }
+                            _ => {
+                                return Err(refused(
+                                    "machine selection has competing source occurrences",
+                                ));
+                            }
+                        };
                         let node = crate::source_state::SourceNode::Expression(expression);
                         if !matches!(
                             self.source.source().expression_table.expression(expression),
