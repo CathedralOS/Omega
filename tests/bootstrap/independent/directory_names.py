@@ -33,7 +33,7 @@ def cases():
     array_reader = b"public machine read(x:@[u8;2])->u8{x[1]}"
     cases_source = (ROOT / "tests/bootstrap/conformance/omega/payload_bindings.omg").read_bytes()
 
-    def packet(sources, paths=None):
+    def packet(sources, paths):
         data, _, _, rows = encode([("app", 0)], [], [(0, src) for src in sources],
                                   0, b"main", paths=paths)
         return data, rows
@@ -60,7 +60,7 @@ def cases():
         ("nested-directory", [select.replace(b"first/x.omg", b"outer/first/x.omg"), score],
          ["main.omg", "outer/first/x.omg"]),
         ("static-case", [cases_source], ["example/cases.omg"]),
-        ("legacy-root", [constant], None),
+        ("package-root-file", [constant], ["main.omg"]),
     ]:
         yield name, packet(sources, paths)[0], 42
 
@@ -142,7 +142,10 @@ def cases():
     data, _ = packet([constant], ["a" * 300 + ".omg"])
     yield "long-basename", data, 42
     yield "truncated-frame", data[:-1], struct.pack("<BI", 0, 3)
-    yield "unknown-version", bytes(4) + struct.pack("<I", 2), struct.pack("<BI", 0, 3)
+    yield "unknown-version", bytes(4) + struct.pack("<I", 3), struct.pack("<BI", 0, 3)
+    arena = b"appmain" + constant
+    pathless = struct.pack("<13I", 1, 0, 1, 0, 3, 7, len(arena), 0, 3, 0, 0, 7, len(arena)) + arena
+    yield "unit-without-file-identity", pathless, struct.pack("<BI", 0, 3)
 
 
     # A machine can return an expression before it declares its helpers.
