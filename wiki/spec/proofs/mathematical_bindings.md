@@ -206,6 +206,14 @@ introduced under those exact binders, conclusions proved under them, and the
 premises discharged at abstraction; application supplies their proof at the exact
 substitution. Nested hypotheses use the same rule and ordinary lexical scope.
 
+Ratified 2026-11-27: A sum input in a logical contract denotes a single
+mathematical value of that sum's checked inductive declaration, not a flattened
+tuple of case Booleans and scalar payload fields. Logical contracts over sum
+inputs may test the active case, read payload fields under the required case
+knowledge, compare whole sums (including `==` and `|proof|::Identity`), and pass
+the sum value to mathematical definitions uniformly for both non-recursive and
+recursive sums.
+
 This premise supply is also required for named proof-machine calls and
 result-bearing mathematical machine applications, under the common
 [call-precondition rule](../language/machines.md#call-preconditions). Forming a
