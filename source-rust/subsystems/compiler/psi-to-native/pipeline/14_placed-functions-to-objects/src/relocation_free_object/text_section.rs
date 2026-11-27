@@ -19,7 +19,7 @@ use crate::{
     canonical_private_machine_symbol_name, object_target_policy, validate_relocation_free_object,
 };
 use machine_code::{RelocationFreeTextSectionPlacement, TextSectionRelocationRequirements};
-use optimization_core::{OptimizationSelectionIdentity, RelocationFreeObjectPlanIdentity};
+use optimization_core::OptimizationSelectionIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum RelocationFreeObjectFromTextError {
@@ -127,8 +127,7 @@ fn assemble_object(
             RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
         }
     };
-    let mut object = RelocationFreeObjectPlan {
-        identity: RelocationFreeObjectPlanIdentity::from_canonical_bytes(b"pending"),
+    let object = RelocationFreeObjectPlan {
         source_text_section: text.identity,
         psi: text.psi,
         work_schedule: text.work_schedule,
@@ -154,9 +153,6 @@ fn assemble_object(
         unresolved_image_addresses: text.unresolved_image_addresses.clone(),
         relocation_requirements,
     };
-    object.identity = object
-        .recomputed_identity()
-        .map_err(RelocationFreeObjectFromTextError::InvalidObject)?;
     validate_relocation_free_object(&object)
         .map_err(RelocationFreeObjectFromTextError::InvalidObject)?;
     Ok(object)
@@ -309,11 +305,6 @@ mod tests {
                 &object,
             ),
             Ok(())
-        );
-        let container = crate::encode_relocation_free_object(&object).unwrap();
-        assert_eq!(
-            crate::decode_relocation_free_object(&container.bytes),
-            Ok(object)
         );
     }
 }

@@ -8026,19 +8026,6 @@
         "independent object replay"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "RelocationFreeObjectContainerError::InvalidContainer::field:0#1",
-      "kind": "carried_record",
-      "meaning": "Preserve the InvalidContainer failure returned by the object producer or validator.",
-      "producer": "native object publication",
-      "signature": "2994cf9c76c7793bad618ea29e84ef82e493a488acbf3fea55cb6c9e25ad4946"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "RelocationFreeObjectContainerError::InvalidObject::field:0#1",
       "kind": "carried_record",
       "meaning": "Preserve the InvalidObject failure returned by the object producer or validator.",
@@ -8060,19 +8047,6 @@
     },
     {
       "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "StagedOptimizedRelocationFreeObjectContainer::field:container#1",
-      "kind": "carried_record",
-      "meaning": "The encoded relocation-free object container.",
-      "producer": "native object publication",
-      "signature": "2cef618fe1855fe3daed554b6214521c72e125eef4f74437734c1d8e9faadf94"
-    },
-    {
-      "consumers": [
         "independent object replay"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
@@ -8081,19 +8055,6 @@
       "meaning": "The original frame application retained alongside the placed text for replay.",
       "producer": "object construction",
       "signature": "23de92afdb16e841ded2d9b4c01e7e31c217d56f437bd7dc7cb628730472b73d"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "StagedOptimizedRelocationFreeObjectContainer::field:manifest#1",
-      "kind": "carried_record",
-      "meaning": "The sealed object manifest or its receipt identity.",
-      "producer": "native object publication",
-      "signature": "e2baf26370e036787e883a685076561a3f662d314f8ec016a159446b009a08b0"
     },
     {
       "consumers": [
@@ -8126,45 +8087,6 @@
         "independent object replay"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "StagedRelocationFreeObjectContainerCustodyReceipt::field:manifest#1",
-      "kind": "carried_record",
-      "meaning": "The sealed object manifest or its receipt identity.",
-      "producer": "native object publication",
-      "signature": "16be496dac172a356c3402fe0dca0294cc12b675c9d4b35dfe19c45f07579875"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "StagedRelocationFreeObjectContainerCustodyReceipt::field:object#1",
-      "kind": "carried_record",
-      "meaning": "The relocation-free object record or its receipt identity.",
-      "producer": "native object publication",
-      "signature": "eba759c98064a206d06f86abaa0e6910871a5eba688224c87f63c3b352a41eeb"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "StagedRelocationFreeObjectContainerCustodyReceipt::field:object_container#1",
-      "kind": "carried_record",
-      "meaning": "The identity of the encoded object container.",
-      "producer": "native object publication",
-      "signature": "0a29ecb517bb911bd0a9aecfe9d3a059f7eb50378fc8acfb1519ee72be29a5ec"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "StagedRelocationFreeObjectContainerCustodyReceipt::field:source_text_section_manifest#1",
       "kind": "carried_record",
       "meaning": "The identity of the placed text manifest.",
@@ -8183,19 +8105,6 @@
       "meaning": "The identity of the placed text section.",
       "producer": "native object publication",
       "signature": "cff06335983738038780ec535ecaffe38e256654019fb4be49513dedb8fca410"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "ValidatedFunctionFragmentObjectContainerManifest::field:record#1",
-      "kind": "carried_record",
-      "meaning": "The sealed object container manifest.",
-      "producer": "native object publication",
-      "signature": "da52a32127f8a4a811b9fced7775cd791dbd2724ea9e02823f2ce118d28f4e4f"
     },
     {
       "consumers": [
@@ -8230,22 +8139,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "enum:RelocationFreeObjectContainerError#1",
       "kind": "definition",
-      "meaning": "Expose the original object publication, wire or placement failure.",
+      "meaning": "Expose the original object publication or placement failure.",
       "producer": "native object publication",
-      "signature": "03609d0eba6d1723cecc3e87e898e25222480ed4c2a49967006a56dd8d8d4a6b"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "function:construct_manifest#1",
-      "kind": "producer",
-      "meaning": "Seal the manifest with the identities and statistics of the emitted object and its source.",
-      "producer": "native object publication",
-      "signature": "3818e2b4af3eb31506705616772d645f3f818549c720ad9ebe8f3a78567d0016"
+      "signature": "14e6e783d26da50862af29aeb733d2b54562fb191ff82498d8c5dc4f51ab64a6"
     },
     {
       "consumers": [
@@ -8267,37 +8163,11 @@
         "independent object replay"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "function:receipt#1",
-      "kind": "producer",
-      "meaning": "Derive the custody receipt from the sealed object, container and manifest.",
-      "producer": "native object publication",
-      "signature": "2858c1a08de4d69af1178bee81ccb1a881974df9895380f55b374d1e5dcabd40"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "function:validate_manifest#1",
-      "kind": "checker",
-      "meaning": "Verify the object manifest against the placed text, object and container.",
-      "producer": "native object publication",
-      "signature": "92442d7046648ff3548c4f7c6498760594649ec82eefbf3ff09df34d4a4636a3"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "function:validate_optimized_relocation_free_object_container#1",
       "kind": "checker",
-      "meaning": "Recheck the object contracts, placed text, relocation records, wire container, manifest and receipt.",
+      "meaning": "Recheck the placement and frame, then rebuild the object from the placed text and compare it with the published object.",
       "producer": "native object publication",
-      "signature": "c6e07b5248ec583f7be11aa1f2bcc08a132d430abf50a7ea6ffcd415696b0884"
+      "signature": "a7cf3e04e6917e21c2900de75bfcf7891543ae6f93e6a00ef05fe0e9cc702371"
     },
     {
       "consumers": [
@@ -8463,20 +8333,7 @@
       "kind": "definition",
       "meaning": "Expose the placed code, object records and publication facts for object emission and comparison.",
       "producer": "native object publication",
-      "signature": "c60d62b3405f380920689ca2f94495b30dc3d9e6c4168e8309cdfad83da766cc"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:container#1",
-      "kind": "definition",
-      "meaning": "The encoded relocation-free object container.",
-      "producer": "native object publication",
-      "signature": "2740ec1fb3599c7e2a75636f1b0d43fd7956f50ac7fab5ebd24d8d57b1fe16bd"
+      "signature": "de6ee7434d9dfccd389359807e16f21f3baf8e4b4202637996045367a2d8c358"
     },
     {
       "consumers": [
@@ -8527,19 +8384,6 @@
       "meaning": "Borrow the installation receipt issued for the published code.",
       "producer": "native object publication",
       "signature": "d6574589f3033c75fb0e7964f75b923037345f14e7c51ccfd00fcab0f1f8b285"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:manifest#1",
-      "kind": "definition",
-      "meaning": "The sealed object manifest or its receipt identity.",
-      "producer": "native object publication",
-      "signature": "7d7401cd25398c3a644b26d1edbc4037c9fb09e408274d050d744119f6583f33"
     },
     {
       "consumers": [
@@ -8628,46 +8472,7 @@
       "kind": "definition",
       "meaning": "Bind the identities of the input text and manifest to the produced object, container and manifest.",
       "producer": "native object publication",
-      "signature": "d7b8be997d686596aa4e5efc78707dfa6448303fae1111953146a3a17da13c6a"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "impl:StagedRelocationFreeObjectContainerCustodyReceipt::method:manifest#1",
-      "kind": "definition",
-      "meaning": "The sealed object manifest or its receipt identity.",
-      "producer": "native object publication",
-      "signature": "c2b765cf7e52fcfca84d994cabf05b87ff8084e2c391c9fe6ddd89b4dabf9e34"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "impl:StagedRelocationFreeObjectContainerCustodyReceipt::method:object#1",
-      "kind": "definition",
-      "meaning": "The relocation-free object record or its receipt identity.",
-      "producer": "native object publication",
-      "signature": "1731312287d7f87130d2e0f894630d7218b6429221e018f1786776f895bc950b"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "impl:StagedRelocationFreeObjectContainerCustodyReceipt::method:object_container#1",
-      "kind": "definition",
-      "meaning": "The identity of the encoded object container.",
-      "producer": "native object publication",
-      "signature": "90e22c5f046bfac39718a795a8795739ae87f2a761c7b63409e2dda3f5b4f2c5"
+      "signature": "48f37075467af34bb6c58119e2e3a0edee9d1283b3de4aee6b4ca2d8805c252b"
     },
     {
       "consumers": [
@@ -8694,32 +8499,6 @@
       "meaning": "The identity of the placed text section.",
       "producer": "native object publication",
       "signature": "5f3c8599a10fd1283779e2c8b13c22d61f0fe93b86e595e169a800f55efd2a2b"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "impl:ValidatedFunctionFragmentObjectContainerManifest::implementation#1",
-      "kind": "definition",
-      "meaning": "The object producer seals the manifest after binding the text, object and container.",
-      "producer": "native object publication",
-      "signature": "12bd0cead7c3c941ebf419eda4385b8b4fa037f86ecaa9c3bddfe662d7324d65"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "impl:ValidatedFunctionFragmentObjectContainerManifest::method:record#1",
-      "kind": "definition",
-      "meaning": "The sealed object container manifest.",
-      "producer": "native object publication",
-      "signature": "c9bd316463840568c37f501fda2407ab5d4900a775d98749f30f4e74147611b8"
     },
     {
       "consumers": [
@@ -8833,9 +8612,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "struct:StagedOptimizedRelocationFreeObjectContainer#1",
       "kind": "carried_record",
-      "meaning": "Retain the placed source, publication facts, encoded object, manifest and receipt for independent comparison.",
+      "meaning": "Retain the placed source, frame application and publication for independent comparison.",
       "producer": "native object publication",
-      "signature": "c4fe1ac3f5550da86a085e097c66fab665efcbf96529feb8c52e309350de5a6f"
+      "signature": "b6bd0ccd6bb2207725c1e52fce754c90ce56a4a3bde832280f03e679b197fe0c"
     },
     {
       "consumers": [
@@ -8846,35 +8625,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "struct:StagedRelocationFreeObjectContainerCustodyReceipt#1",
       "kind": "carried_record",
-      "meaning": "Bind the identities of the input text and manifest to the produced object, container and manifest.",
+      "meaning": "Record the placed text section and its manifest that the published object was built from.",
       "producer": "native object publication",
-      "signature": "aee6a4f831e27447c6be37178b25660f4799fb9d7a1f271606229d21ec68e146"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "struct:ValidatedFunctionFragmentObjectContainerManifest#1",
-      "kind": "carried_record",
-      "meaning": "The object producer seals the manifest after binding the text, object and container.",
-      "producer": "native object publication",
-      "signature": "15e8eaab1aceb67bfe71b4e5cae2d1c48decdd2eb1d85948a67d5bcb3c85f384"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "use:crate :: { FunctionFragmentObjectContainerManifest , FunctionFragmentObjectContainerStage , FunctionFragmentObjectContainerUnavailableData , RelocationFreeObjectContainer , RelocationFreeObjectDecodeError , RelocationFreeObjectError , RelocationFreeObjectFromTextError , RelocationFreeObjectPlan , construct_relocation_free_object_from_text , decode_relocation_free_object , encode_relocation_free_object , validate_relocation_free_object_from_text , }#1",
-      "kind": "definition",
-      "meaning": "Use the object plan, wire codec and manifest operations.",
-      "producer": "native object publication",
-      "signature": "83f2fd661498eb18b2a3c7dba3f13f357b10514a010aa3b907cbc7bc61e17567"
+      "signature": "3f6743a74a2505307e5536454147963cca7ac5a497083f19958da5fbbd362a10"
     },
     {
       "consumers": [
@@ -8901,19 +8654,6 @@
       "meaning": "Use the request-ordered native code layout records.",
       "producer": "native object publication",
       "signature": "4a88b8377ea38b39ad3a7e40c7105f36005418c4a349b5e36d5626972f00df68"
-    },
-    {
-      "consumers": [
-        "native body construction",
-        "image construction",
-        "independent object replay"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
-      "item": "use:optimization_core :: { FunctionFragmentObjectContainerManifestIdentity , FunctionFragmentTextSectionManifestIdentity , RelocationFreeObjectContainerIdentity , RelocationFreeObjectPlanIdentity , TerminalRelocationFreeTextSectionIdentity , }#1",
-      "kind": "definition",
-      "meaning": "Use the stable identities of the text, object, container and manifest.",
-      "producer": "native object publication",
-      "signature": "a1d7b0c2110a3e4138d1611752c3ff11798104947513ba30b4de1a0985b10796"
     },
     {
       "consumers": [
@@ -22415,7 +22155,7 @@
       "kind": "producer",
       "meaning": "Build the linkable section bytes, symbol table and relocations from one placed body and seal them alongside matching evidence.",
       "producer": "native body object publication",
-      "signature": "ecc7b9236c0787b9dcc68028e51c31903b1a4fbeb84cabaabde3046bee0f085e"
+      "signature": "b319da0309d974bb32d9fc41adc8bd89705fff9e5060ea64cdfe16f7d33c0f04"
     },
     {
       "consumers": [
@@ -22440,6 +22180,32 @@
       "meaning": "Recover the same issued sections and physical origin for explicit readback without rerunning object construction.",
       "producer": "native body object publication",
       "signature": "5d86f31531dac4120702d800dd2b505a3109beef3b4b9e715bbc415ee0a6dfdb"
+    },
+    {
+      "consumers": [
+        "native body construction",
+        "image construction",
+        "independent object replay"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
+      "item": "use:crate :: { RelocationFreeObjectError , RelocationFreeObjectFromTextError , RelocationFreeObjectPlan , construct_relocation_free_object_from_text , validate_relocation_free_object_from_text , }#1",
+      "kind": "definition",
+      "meaning": "Use the object plan, wire codec and manifest operations.",
+      "producer": "native object publication",
+      "signature": "8cff869db25b9b3cdf2b8577958c4c43961913af388488c54bac230f8f7bd851"
+    },
+    {
+      "consumers": [
+        "native body construction",
+        "image construction",
+        "independent object replay"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
+      "item": "use:optimization_core :: { FunctionFragmentTextSectionManifestIdentity , TerminalRelocationFreeTextSectionIdentity , }#1",
+      "kind": "definition",
+      "meaning": "Use the object plan, wire codec and manifest operations.",
+      "producer": "native object publication",
+      "signature": "cdf9d8b755a7741ba8d9ba32acfc4fdee4db0d33e1f05d5b9ffa34dfff015580"
     }
   ],
   "roots": [
