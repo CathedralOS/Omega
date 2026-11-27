@@ -1336,7 +1336,7 @@ fn a_field_whose_selection_cannot_be_cited_is_still_invoked() {
     assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
 }
 
-/// A runtime record may hold any selection its type allows, so its field
+/// A record formal may hold any selection its type allows, so its field
 /// has no one selection whose evidence covers the citation.
 #[test]
 fn a_runtime_record_field_cannot_be_cited() {
@@ -1352,7 +1352,87 @@ machine entry() -> u8 {
     assert!(source.contains("use_step::<laws.step>"), "{source}");
     let verdict = stored(&source);
     assert!(
-        format!("{verdict:?}").contains("only a constant has one possible selection"),
+        format!("{verdict:?}").contains("only those have one possible selection"),
+        "{verdict:?}"
+    );
+}
+
+/// An immutable local holds exactly its initializer, so its field has the
+/// one selection that initializer names, here through a constant.
+#[test]
+fn a_theorem_stored_in_an_immutable_local_record_is_cited() {
+    let source = CALLABLE_FIELD.replace(
+        "use_step::<U8_LAWS.step>(7u8)",
+        "use_step::<laws.step>(7u8)",
+    );
+    assert!(source.contains("use_step::<laws.step>"), "{source}");
+    let verdict = stored(&source);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+/// The same through a record literal bound to the local.
+#[test]
+fn a_theorem_stored_in_a_local_record_literal_is_cited() {
+    let source = CALLABLE_FIELD
+        .replace(
+            "let laws: Laws = U8_LAWS;",
+            "let laws: Laws = Laws { step: nonzero_is_positive };",
+        )
+        .replace(
+            "use_step::<U8_LAWS.step>(7u8)",
+            "use_step::<laws.step>(7u8)",
+        );
+    assert!(
+        source.contains("Laws { step: nonzero_is_positive };\n    laws"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+/// A local literal whose selection proves its claim only after returning is
+/// refused at the citation, as a constant's is.
+#[test]
+fn a_local_record_literal_whose_selection_proves_only_after_returning_cannot_be_cited() {
+    let source = CALLABLE_FIELD
+        .replace("data Laws [copy]", RETURNING)
+        .replace(
+            "let laws: Laws = U8_LAWS;",
+            "let laws: Laws = Laws { step: positive_after_return };",
+        )
+        .replace(
+            "use_step::<U8_LAWS.step>(7u8)",
+            "use_step::<laws.step>(7u8)",
+        );
+    assert!(
+        source.contains("Laws { step: positive_after_return };"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    assert!(
+        format!("{verdict:?}").contains("its guarantee holds only after it returns"),
+        "{verdict:?}"
+    );
+}
+
+/// A mutable local may be reassigned to another selection its type allows,
+/// so its field has no one selection to cite.
+#[test]
+fn a_mutable_local_record_field_cannot_be_cited() {
+    let source = CALLABLE_FIELD
+        .replace(
+            "let laws: Laws = U8_LAWS;",
+            "let mutable laws: Laws = U8_LAWS;",
+        )
+        .replace(
+            "use_step::<U8_LAWS.step>(7u8)",
+            "use_step::<laws.step>(7u8)",
+        );
+    assert!(source.contains("let mutable laws"), "{source}");
+    let verdict = stored(&source);
+    assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+    assert!(
+        format!("{verdict:?}").contains("only those have one possible selection"),
         "{verdict:?}"
     );
 }

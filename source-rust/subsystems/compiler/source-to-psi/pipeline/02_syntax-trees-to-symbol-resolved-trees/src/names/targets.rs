@@ -494,7 +494,9 @@ mod calls {
     /// that also resolve structural type references walk their own typed operand
     /// graph; the ordinary recursive walker uses the same binding operation.
     /// A projection `TERM.member` names the constant `TERM` when one is in
-    /// scope. The receiving reader decides what the projection may cite.
+    /// scope; a call in a body may instead name a local or formal
+    /// (`assign_projected_value_symbol`). The receiving reader decides what
+    /// the projection may cite.
     fn projected_constant(
         symbols: &SymbolTable,
         scope_symbol: SymbolHandle,
@@ -654,8 +656,49 @@ mod calls {
             argument,
             proof_static,
         );
+        assign_projected_value_symbol(symbols, machine, subjects, argument);
         if !proof_static {
             assign_runtime_subject_argument_symbol(symbols, subjects, argument);
+        }
+    }
+
+    /*
+        `term.member` names a value of the call's own body before any
+        constant of that name, as an ordinary value would: a local already in
+        the lexical frontier, else a formal of the owning state. The receiving
+        reader decides whether that value has one possible selection.
+    */
+    fn assign_projected_value_symbol(
+        symbols: &SymbolTable,
+        machine: &MachineScope<'_>,
+        subjects: SymbolHandle,
+        argument: &mut StaticMachineArgument,
+    ) {
+        let Some(projection) = &mut argument.evidence_projection else {
+            return;
+        };
+        let name = projection.term.as_str();
+        let value = machine
+            .prior_statements
+            .iter()
+            .rev()
+            .find_map(|statement| match statement {
+                crate::source_resolved::statement::Statement::LocalData(local)
+                    if local.name.as_str() == name =>
+                {
+                    Some(local.symbol)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| {
+                if subjects.is_valid() {
+                    child_symbol_by_kinds(symbols, subjects, &[SymbolKind::Parameter], name)
+                } else {
+                    SymbolHandle::invalid()
+                }
+            });
+        if value.is_valid() {
+            projection.term_symbol = value;
         }
     }
 

@@ -263,12 +263,14 @@ impl Program<'_> {
         self.machine(target).map(terminal_psi::TheoremSource::Named)
     }
 
-    /// `CONSTANT.field` cites the machine a constant record stores in a
-    /// callable field (OWNER_QUESTIONS.md#bundle-evidence-field-type). A
-    /// constant has one possible selection, the one its checked
-    /// materialized value names, so that selection's evidence covers every
-    /// use; the citation executes no callback. Any other receiver may hold
-    /// another selection its type allows and is refused by name.
+    /// `CONSTANT.field` or `local.field` cites the machine a record stores in
+    /// a callable field ([callable-field evidence](wiki/spec/language/machine_values.md#invocation-storage-and-evidence)).
+    /// A constant has one possible selection, the one its checked
+    /// materialized value names, and an immutable local has the one its
+    /// initializer names, so that selection's evidence covers every use; the
+    /// citation executes no callback. Any other receiver, such as a formal or
+    /// a mutable local, may hold another selection its type allows and is
+    /// refused by name.
     fn stored_theorem(
         &mut self,
         id: MachineId,
@@ -281,26 +283,48 @@ impl Program<'_> {
             .evidence_projection
             .as_ref()
             .ok_or_else(|| unavailable("stored theorem citation has no field projection"))?;
-        let receiver = projection.term_symbol;
-        let constant = (typed.symbols.symbols().nodes().is_valid(receiver))
-            .then(|| typed.const_declaration_by_symbol(receiver))
-            .flatten()
-            .ok_or_else(|| {
-            unavailable(
-                "stored theorem citation reads a field of a value other than a constant; only a constant has one possible selection",
-            )
-        })?;
-        let initializer = constant.materialized_initializer;
-        let ExpressionNode::StructLiteral(literal) = (constant.evaluated_value.is_some()
-            && typed.expression_table.expression_is_valid(initializer))
-        .then(|| typed.expression_table.expression(initializer))
-        .ok_or_else(|| {
-            unavailable("stored theorem citation reads a constant without its evaluated value")
-        })?
-        else {
-            return Err(unavailable(
-                "stored theorem citation reads a field of a constant that is not a record",
-            ));
+        // Follow immutable locals back to the record they were bound to.
+        // An immutable local holds exactly its initializer, so its field has
+        // the one selection that initializer names: a record literal, or a
+        // constant whose checked materialized value names it.
+        let mut receiver = projection.term_symbol;
+        let literal = loop {
+            if !typed.symbols.symbols().nodes().is_valid(receiver) {
+                return Err(unavailable(
+                    "stored theorem citation reads a field of a value with no binding",
+                ));
+            }
+            let initializer = if let Some(constant) = typed.const_declaration_by_symbol(receiver) {
+                let initializer = constant.materialized_initializer;
+                (constant.evaluated_value.is_some()
+                    && typed.expression_table.expression_is_valid(initializer))
+                .then_some(initializer)
+                .ok_or_else(|| {
+                    unavailable(
+                        "stored theorem citation reads a constant without its evaluated value",
+                    )
+                })?
+            } else {
+                typed
+                    .immutable_local_initializer(receiver)
+                    .filter(|initializer| typed.expression_table.expression_is_valid(*initializer))
+                    .ok_or_else(|| {
+                        unavailable(
+                            "stored theorem citation reads a field of a value other than a constant or an immutable local; only those have one possible selection",
+                        )
+                    })?
+            };
+            match typed.expression_table.expression(initializer) {
+                ExpressionNode::StructLiteral(literal) => break literal,
+                ExpressionNode::Name(path) if path.members.len() == 1 => {
+                    receiver = path.symbol;
+                }
+                _ => {
+                    return Err(unavailable(
+                        "stored theorem citation reads a field of a value whose initializer names no one record",
+                    ));
+                }
+            }
         };
         if literal.case_name.is_some() {
             return Err(unavailable(
@@ -326,7 +350,19 @@ impl Program<'_> {
                 "stored theorem citation names a field that holds no machine selection",
             ));
         };
-        if value.application.is_valid()
+        // A machine value in a body carries the application its selection was
+        // read at; one that supplies nothing is the plain selection.
+        let supplies_arguments = value.application.is_valid()
+            && (!typed
+                .expression_table
+                .static_machine_application_is_valid(value.application)
+                || {
+                    let application = typed
+                        .expression_table
+                        .static_machine_application(value.application);
+                    !application.arguments.is_empty() || !application.bindings.is_empty()
+                });
+        if supplies_arguments
             || value.conformance.is_valid()
             || value.requirement.is_valid()
             || value.selected.application.is_some()
