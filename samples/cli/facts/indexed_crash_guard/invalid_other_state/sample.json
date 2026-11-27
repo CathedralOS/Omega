@@ -2,7 +2,7 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "call from `read_seven` to `maybe_zero`",
+    "call from `read_seven` to `consume`",
     "uncovered Trap crash route"
   ]
 }

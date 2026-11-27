@@ -1444,7 +1444,18 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     now supplies: an element of a fixed-length shared input crosses into a
     private helper like a record field, named by the read `items[0]` the
     helper's call states for that cell (`field_crossings`, 2026-11-25), so
-    `match_join` is accepted. A route
+    `match_join` is accepted. The root application is accepted
+    when checked over its own files, as `sample-gate` checks it
+    (`--build-input build.omg --build-input main.omg`). A bare
+    `omega --check main.omg` is refused for the place projects' errors, and
+    that is the rule, not a capture fault: a package checked with no source
+    list is its whole directory, unimported subdirectories included
+    ([validation subjects](../../spec/build/validation_subjects.md#admission-and-release)),
+    and a nested package owner comes from the admitted package graph, not
+    from a subdirectory's `build.omg` (`LogicalSourceInventory::parse`).
+    `validation_subjects.rs` pins both
+    (`an_explicit_inventory_leaves_a_nested_project_out_of_the_subject`,
+    2026-11-27). A route
     over an actual that lends a field (`@pair.items`) names that field
     path at the call, and one over an element chosen at run time
     (`@rows[row]`) names that element, its selector kept as an index
