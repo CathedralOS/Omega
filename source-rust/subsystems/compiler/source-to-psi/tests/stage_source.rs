@@ -65,6 +65,8 @@ fn product<'a>(
             default_provider_selections: &[],
             native_bindings: Default::default(),
             optimizations: Default::default(),
+            proof_index_expansion_terms:
+                lowered_program_to_checked_program::DEFAULT_PROOF_INDEX_EXPANSION_TERMS as u64,
         },
     })
 }

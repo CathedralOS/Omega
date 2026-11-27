@@ -7,17 +7,54 @@ use proof_admission::{
 };
 use terminal_check_tables::mathematics::{FunctionCases, SignatureEntry, SignatureEntryKind};
 
+/// Which proof-work limit stopped an equality proof search.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BudgetLimit {
+    SearchSteps,
+    KernelSteps,
+    IndexExpansionTerms {
+        limit: usize,
+        summands: Option<usize>,
+    },
+}
+
+impl BudgetLimit {
+    pub(crate) fn describe(self) -> String {
+        match self {
+            Self::SearchSteps => {
+                "mathematical equality proof budget exhausted (search step limit)".to_owned()
+            }
+            Self::KernelSteps => {
+                "mathematical equality proof budget exhausted (kernel conversion step limit)"
+                    .to_owned()
+            }
+            Self::IndexExpansionTerms {
+                limit,
+                summands: Some(count),
+            } => format!(
+                "mathematical equality proof budget exhausted: product expansion requires {count} summands, exceeding `index_expansion_terms` limit {limit}"
+            ),
+            Self::IndexExpansionTerms {
+                limit,
+                summands: None,
+            } => format!(
+                "mathematical equality proof budget exhausted: product expansion summand count overflows, exceeding `index_expansion_terms` limit {limit}"
+            ),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum SearchError {
     NoProof,
-    Budget,
+    Budget(BudgetLimit),
     Kernel(CoreError),
 }
 
 impl From<CoreError> for SearchError {
     fn from(error: CoreError) -> Self {
         match error {
-            CoreError::StepCeiling => Self::Budget,
+            CoreError::StepCeiling => Self::Budget(BudgetLimit::KernelSteps),
             error => Self::Kernel(error),
         }
     }
@@ -166,7 +203,9 @@ fn size(arena: &TermArena, term: TermHandle) -> usize {
 }
 
 fn charge(remaining: &mut usize) -> Result<(), SearchError> {
-    *remaining = remaining.checked_sub(1).ok_or(SearchError::Budget)?;
+    *remaining = remaining
+        .checked_sub(1)
+        .ok_or(SearchError::Budget(BudgetLimit::SearchSteps))?;
     Ok(())
 }
 
@@ -716,10 +755,21 @@ pub(crate) struct Distribution {
 /// The laws a proof may rearrange under without citing them: each licensed
 /// operation's associativity and commutativity, and distributivity of one
 /// licensed operation over another.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub(crate) struct Licenses<'l> {
     pub operations: &'l [License],
     pub distributions: &'l [Distribution],
+    pub index_expansion_terms: usize,
+}
+
+impl Default for Licenses<'_> {
+    fn default() -> Self {
+        Self {
+            operations: &[],
+            distributions: &[],
+            index_expansion_terms: MAX_SUMMANDS,
+        }
+    }
 }
 
 /// The most summands one product may expand to, counted before the
@@ -862,6 +912,7 @@ fn next_expansion(
     arena: &mut TermArena,
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     term: TermHandle,
     slots: &[usize],
 ) -> Result<Option<Vec<Step>>, SearchError> {
@@ -901,8 +952,12 @@ fn next_expansion(
             (false, true) => Expands::Right,
             (false, false) => Expands::Left,
         };
-        if summands(arena, law, expands, term).is_none_or(|count| count > MAX_SUMMANDS) {
-            return Err(SearchError::Budget);
+        let count = summands(arena, law, expands, term);
+        if count.is_none_or(|count| count > index_expansion_terms) {
+            return Err(SearchError::Budget(BudgetLimit::IndexExpansionTerms {
+                limit: index_expansion_terms,
+                summands: count,
+            }));
         }
         let (first, second) = if swap.is_some() {
             (second, first)
@@ -1045,11 +1100,19 @@ fn next_rearrangement(
     arena: &mut TermArena,
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     term: TermHandle,
     slots: &mut Vec<usize>,
 ) -> Result<Option<Vec<Step>>, SearchError> {
     use std::cmp::Ordering::Greater;
-    if let Some(steps) = next_expansion(arena, licenses, distributions, term, slots)? {
+    if let Some(steps) = next_expansion(
+        arena,
+        licenses,
+        distributions,
+        index_expansion_terms,
+        term,
+        slots,
+    )? {
         return Ok(Some(steps));
     }
     if let Some((license, first, second)) = licensed(arena, licenses, term) {
@@ -1118,7 +1181,14 @@ fn next_rearrangement(
     ) {
         for (slot, child) in node.children().enumerate() {
             slots.push(slot);
-            let found = next_rearrangement(arena, licenses, distributions, child, slots);
+            let found = next_rearrangement(
+                arena,
+                licenses,
+                distributions,
+                index_expansion_terms,
+                child,
+                slots,
+            );
             slots.pop();
             if !matches!(found, Ok(None)) {
                 return found;
@@ -1151,6 +1221,7 @@ fn rearrange(
     arena: &mut TermArena,
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     mut term: TermHandle,
     search_steps: &mut usize,
 ) -> Result<(TermHandle, Vec<Step>), SearchError> {
@@ -1158,9 +1229,14 @@ fn rearrange(
     if licenses.is_empty() && distributions.is_empty() {
         return Ok((term, taken));
     }
-    while let Some(steps) =
-        next_rearrangement(arena, licenses, distributions, term, &mut Vec::new())?
-    {
+    while let Some(steps) = next_rearrangement(
+        arena,
+        licenses,
+        distributions,
+        index_expansion_terms,
+        term,
+        &mut Vec::new(),
+    )? {
         for step in steps {
             charge(search_steps)?;
             let path = path_to(arena, term, &step.slots).ok_or(SearchError::NoProof)?;
@@ -1434,13 +1510,20 @@ fn exchange(
     definitions: &Definitions,
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     current: Rewriting,
     rules: &[(Equality, TermHandle)],
     search_steps: &mut usize,
     conversion: &mut Budget,
 ) -> Result<Vec<(TermHandle, TermHandle)>, SearchError> {
-    let (canonical, forward) =
-        rearrange(arena, licenses, distributions, current.term, search_steps)?;
+    let (canonical, forward) = rearrange(
+        arena,
+        licenses,
+        distributions,
+        index_expansion_terms,
+        current.term,
+        search_steps,
+    )?;
     let mut found = Vec::new();
     chains(
         arena,
@@ -1471,8 +1554,14 @@ fn exchange(
                 let path =
                     path_to(arena, canonical, &chain_found.slots).ok_or(SearchError::NoProof)?;
                 let arranged = plug(arena, &path, arrangement, 0);
-                let (same, backward) =
-                    rearrange(arena, licenses, distributions, arranged, search_steps)?;
+                let (same, backward) = rearrange(
+                    arena,
+                    licenses,
+                    distributions,
+                    index_expansion_terms,
+                    arranged,
+                    search_steps,
+                )?;
                 if !arena.structurally_equal(same, canonical) {
                     continue;
                 }
@@ -1489,8 +1578,14 @@ fn exchange(
                 rewriting.step(arena, &place, rule)?;
                 // As after any rewrite, the kernel converts the computed form.
                 rewriting.term = normal(arena, context, definitions, rewriting.term, conversion)?;
-                let (_, settle) =
-                    rearrange(arena, licenses, distributions, rewriting.term, search_steps)?;
+                let (_, settle) = rearrange(
+                    arena,
+                    licenses,
+                    distributions,
+                    index_expansion_terms,
+                    rewriting.term,
+                    search_steps,
+                )?;
                 for step in &settle {
                     rewriting.step(arena, &step.slots, step.rule)?;
                 }
@@ -1545,6 +1640,7 @@ pub(crate) fn prove_under(
         Licenses {
             operations: licenses,
             distributions: &[],
+            index_expansion_terms: MAX_SUMMANDS,
         },
         search_steps,
         conversion,
@@ -1644,7 +1740,7 @@ pub(crate) fn prove_licensed(
         );
         definitions.2.set(false);
         match as_written {
-            Err(SearchError::NoProof | SearchError::Budget) => {}
+            Err(SearchError::NoProof | SearchError::Budget(_)) => {}
             found => return found,
         }
     }
@@ -1693,7 +1789,7 @@ fn prove_as(
     // What the search may spend, kept for the rewriting that takes over when
     // the search has spent it.
     let allowance = search_steps;
-    let mut exhausted = false;
+    let mut exhausted: Option<BudgetLimit> = None;
     for distributions in expansion_attempts(arena, licenses.distributions) {
         if !distributions.is_empty() {
             let expands = |arena: &TermArena, term| {
@@ -1709,7 +1805,7 @@ fn prove_as(
                 continue;
             }
         }
-        if !exhausted {
+        if exhausted.is_none() {
             match search(
                 arena,
                 context,
@@ -1719,11 +1815,12 @@ fn prove_as(
                 &mut rules,
                 licenses.operations,
                 &distributions,
+                licenses.index_expansion_terms,
                 &mut search_steps,
                 conversion,
             ) {
                 Err(SearchError::NoProof) => continue,
-                Err(SearchError::Budget) => exhausted = true,
+                Err(SearchError::Budget(limit)) => exhausted = Some(limit),
                 found => return found,
             }
         }
@@ -1731,7 +1828,9 @@ fn prove_as(
         // argument over large terms outgrows. Rewriting both sides to one
         // normal form tries one order.
         let Some(rules) = rules.as_deref() else {
-            return Err(SearchError::Budget);
+            return Err(SearchError::Budget(
+                exhausted.unwrap_or(BudgetLimit::SearchSteps),
+            ));
         };
         let stated: Vec<Equality> = rules.iter().copied().step_by(2).collect();
         let mut steps = allowance;
@@ -1743,6 +1842,7 @@ fn prove_as(
             &stated,
             licenses.operations,
             &distributions,
+            licenses.index_expansion_terms,
             &mut steps,
             conversion,
         ) {
@@ -1751,10 +1851,9 @@ fn prove_as(
             Err(error) => return Err(error),
         }
     }
-    Err(if exhausted {
-        SearchError::Budget
-    } else {
-        SearchError::NoProof
+    Err(match exhausted {
+        Some(limit) => SearchError::Budget(limit),
+        None => SearchError::NoProof,
     })
 }
 
@@ -1804,6 +1903,7 @@ fn settled(
     definitions: &Definitions,
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     rules: &[Equality],
     mut at: Rewriting,
     steps: &mut usize,
@@ -1812,7 +1912,14 @@ fn settled(
     loop {
         // As after any rewrite, the kernel converts the computed form.
         at.term = normal(arena, context, definitions, at.term, conversion)?;
-        let (_, arrange) = rearrange(arena, licenses, distributions, at.term, steps)?;
+        let (_, arrange) = rearrange(
+            arena,
+            licenses,
+            distributions,
+            index_expansion_terms,
+            at.term,
+            steps,
+        )?;
         for step in &arrange {
             at.step(arena, &step.slots, step.rule)?;
         }
@@ -1844,6 +1951,7 @@ fn completed(
     stated: &[Equality],
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     steps: &mut usize,
     conversion: &mut Budget,
 ) -> Result<Option<TermHandle>, SearchError> {
@@ -1860,6 +1968,7 @@ fn completed(
             definitions,
             licenses,
             distributions,
+            index_expansion_terms,
             rules,
             at,
             steps,
@@ -1994,6 +2103,7 @@ fn search(
     rules: &mut Option<Vec<Equality>>,
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     search_steps: &mut usize,
     conversion: &mut Budget,
 ) -> Result<TermHandle, SearchError> {
@@ -2004,7 +2114,14 @@ fn search(
         right,
         reflexivity,
     } = goal;
-    let (canonical, from_right) = rearrange(arena, licenses, distributions, right, search_steps)?;
+    let (canonical, from_right) = rearrange(
+        arena,
+        licenses,
+        distributions,
+        index_expansion_terms,
+        right,
+        search_steps,
+    )?;
     // Whether the reached term closes the goal: rearrange it, then undo the
     // right side's rearrangement from the shared canonical form.
     let close = |arena: &mut TermArena,
@@ -2018,7 +2135,14 @@ fn search(
         if licenses.is_empty() && distributions.is_empty() {
             return Ok(None);
         }
-        let (reached, forward) = rearrange(arena, licenses, distributions, term, search_steps)?;
+        let (reached, forward) = rearrange(
+            arena,
+            licenses,
+            distributions,
+            index_expansion_terms,
+            term,
+            search_steps,
+        )?;
         if !arena.structurally_equal(reached, canonical) {
             return Ok(None);
         }
@@ -2094,7 +2218,14 @@ fn search(
         .any(|license| license.commutes.is_some() && license.associates.is_some())
     {
         for &rule in &usable {
-            let (stated, _) = rearrange(arena, licenses, distributions, rule.from, search_steps)?;
+            let (stated, _) = rearrange(
+                arena,
+                licenses,
+                distributions,
+                index_expansion_terms,
+                rule.from,
+                search_steps,
+            )?;
             arranged.push((rule, stated));
         }
     }
@@ -2163,6 +2294,7 @@ fn search(
                 definitions,
                 licenses,
                 distributions,
+                index_expansion_terms,
                 rewriting,
                 &arranged,
                 search_steps,
@@ -3013,11 +3145,11 @@ pub(crate) fn discharge(
             .to_owned()
     };
     let kernel_error = |error| match error {
-        SearchError::Budget => crate::unproved(
+        SearchError::Budget(limit) => crate::unproved(
             machine.id,
             obligation,
             UnprovedCause::BudgetExhausted,
-            "mathematical equality proof budget exhausted".into(),
+            limit.describe(),
         ),
         SearchError::NoProof => crate::unproved(
             machine.id,

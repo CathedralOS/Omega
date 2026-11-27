@@ -3088,6 +3088,16 @@ pub(crate) mod execution {
                     &established_fields,
                 )?;
             }
+            if !inputs.zero_initialized_scalar_overrides.is_empty() {
+                scalar_fields::apply_zero_initialized_overrides(
+                    machine,
+                    &program.structural_types(),
+                    &execution.structural_values,
+                    inputs.zero_initialized_scalar_overrides,
+                    &mut execution.structural_scalar_fields,
+                    inputs.zero_initialized_arguments,
+                )?;
+            }
             execution.bind_structural_contents(inputs.contents)?;
             let initialized_arguments = inputs
                 .zero_initialized_arguments

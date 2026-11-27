@@ -32,6 +32,7 @@ pub struct ProductStage<'a> {
     scope: Option<Arc<PackageDeclarationScope>>,
     defaults: Vec<RetainedProviderSelection>,
     native: Vec<PackageNativeBindings<'a>>,
+    proof_index_expansion_terms: u64,
 }
 
 impl PlannedProduct {
@@ -133,6 +134,12 @@ impl PlannedProduct {
                 .map(|inputs| Arc::new(inputs.dependency_closure().declaration_permissions())),
             defaults,
             native,
+            proof_index_expansion_terms: self
+                .evaluated()
+                .configuration
+                .config
+                .settings
+                .proof_index_expansion_terms,
         })
     }
 }
@@ -331,6 +338,7 @@ impl ProductStage<'_> {
                     .project_psi()
                     .selections()
                     .clone(),
+                proof_index_expansion_terms: self.proof_index_expansion_terms,
             },
         }
     }
@@ -429,7 +437,16 @@ impl compiler::ComponentSuppliers for PlannedProduct {
                 "independent provider is outside the receiving Product's captured package graph",
             )]
         })?;
-        let stage = supplier.product_stage(&[profile])?;
+        let mut stage = supplier.product_stage(&[profile])?;
+        // Dependencies cannot increase the root Build's proof-work grant
+        // (wiki/spec/build/configuration.md#proof-work-policy).
+        let root_limit = self
+            .evaluated()
+            .configuration
+            .config
+            .settings
+            .proof_index_expansion_terms;
+        stage.proof_index_expansion_terms = stage.proof_index_expansion_terms.min(root_limit);
         let published =
             source_compiler::compile_for_target(stage.source(), profile.target_name(), None)?;
         if published.subject() != Some(package) {

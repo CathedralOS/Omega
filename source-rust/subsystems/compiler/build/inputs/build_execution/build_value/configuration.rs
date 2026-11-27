@@ -129,6 +129,35 @@ pub(crate) fn extract_build_settings(
         Err(_) => false,
     };
 
+    let proof_index_expansion_terms = match field("proof") {
+        Ok(BuildTimeValue::Struct { fields, .. }) => match fields
+            .iter()
+            .find(|(field, _)| field == "index_expansion_terms")
+            .map(|(_, value)| value)
+        {
+            Some(BuildTimeValue::Int(value)) => {
+                if *value <= 0 {
+                    return Err(format!(
+                        "Build.proof.index_expansion_terms must be a positive integer (got {value}); 0 is rejected rather than unlimited"
+                    ));
+                }
+                *value as u64
+            }
+            Some(other) => {
+                return Err(format!(
+                    "Build.proof.index_expansion_terms is not an integer: {other:?}"
+                ));
+            }
+            None => normalized_build_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS,
+        },
+        Ok(other) => {
+            return Err(format!(
+                "Build.proof is not a ProofWorkPolicy struct: {other:?}"
+            ));
+        }
+        Err(_) => normalized_build_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS,
+    };
+
     let (optimizations, optimization_report) = optimization::extract(field("optimizations")?)?;
 
     Ok((
@@ -140,6 +169,7 @@ pub(crate) fn extract_build_settings(
             x86_deployment_claim,
             elf_interpreters,
             tests_disabled,
+            proof_index_expansion_terms,
         },
         optimization_report,
     ))
@@ -290,6 +320,33 @@ mod tests {
         assert_eq!(
             admission.extract(&malformed).unwrap_err(),
             "Build.elf_interpreter is not an ElfInterpreterSelection struct: Unit"
+        );
+
+        assert_eq!(
+            baseline.0.proof_index_expansion_terms,
+            normalized_build_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS
+        );
+        let mut raised = original.clone();
+        let (_, proof) = fields(&mut raised)
+            .iter_mut()
+            .find(|(name, _)| name == "proof")
+            .unwrap();
+        set(proof, "index_expansion_terms", BuildTimeValue::Int(128));
+        let (raised_settings, _) = admission.extract(&raised).unwrap();
+        assert_eq!(raised_settings.proof_index_expansion_terms, 128);
+
+        let mut zeroed = original.clone();
+        let (_, proof) = fields(&mut zeroed)
+            .iter_mut()
+            .find(|(name, _)| name == "proof")
+            .unwrap();
+        set(proof, "index_expansion_terms", BuildTimeValue::Int(0));
+        assert!(
+            admission
+                .extract(&zeroed)
+                .unwrap_err()
+                .contains("index_expansion_terms must be a positive integer"),
+            "0 must be rejected rather than treated as unlimited"
         );
     }
 }

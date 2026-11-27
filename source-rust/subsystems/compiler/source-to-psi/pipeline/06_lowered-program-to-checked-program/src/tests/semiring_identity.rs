@@ -50,7 +50,9 @@ fn cited_kernel_terms_rewrite_beneath_an_application_and_chain_in_reverse() {
     );
     assert_eq!(
         prove(&mut arena, &context, goal, &[xy, zy], 1, &mut budget),
-        Err(SearchError::Budget)
+        Err(SearchError::Budget(
+            crate::equality::BudgetLimit::SearchSteps
+        ))
     );
 }
 

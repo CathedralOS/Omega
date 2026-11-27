@@ -1702,15 +1702,38 @@ pub enum CompilationRefusal {
 /// Judges the complete prepared Terminal compilation without consulting typed
 /// source or invoking a preceding stage. Forms are discharged before reuse by
 /// their concrete instances; every demanded conformance still gets a verdict.
+#[cfg(any(test, feature = "test-support"))]
 pub fn judge_compilation(
     input: terminal_check_tables::compilation::TerminalCompilation,
 ) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
-    judge_compilation_with_activity(input, &mut crate::ProofSearchActivity::default())
+    judge_compilation_with_policy(input, crate::ProofWorkPolicy::default())
 }
 
+/// Judges the complete prepared Terminal compilation under the admitted
+/// root Build proof-work policy.
+pub fn judge_compilation_with_policy(
+    input: terminal_check_tables::compilation::TerminalCompilation,
+    policy: crate::ProofWorkPolicy,
+) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
+    judge_compilation_with_activity_and_policy(
+        input,
+        &mut crate::ProofSearchActivity::default(),
+        policy,
+    )
+}
+
+#[cfg(test)]
 pub(crate) fn judge_compilation_with_activity(
     input: terminal_check_tables::compilation::TerminalCompilation,
     activity: &mut crate::ProofSearchActivity,
+) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
+    judge_compilation_with_activity_and_policy(input, activity, crate::ProofWorkPolicy::default())
+}
+
+fn judge_compilation_with_activity_and_policy(
+    input: terminal_check_tables::compilation::TerminalCompilation,
+    activity: &mut crate::ProofSearchActivity,
+    policy: crate::ProofWorkPolicy,
 ) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
     use terminal_check_tables::compilation::TerminalCompilation;
     let prepared = match input {
@@ -1728,7 +1751,8 @@ pub(crate) fn judge_compilation_with_activity(
 
     // Judge the compilation-wide laws before checking machines that cite them.
     let mathematics = prepared.mathematics;
-    let signature = (!mathematics.is_empty()).then(|| crate::laws::judge(mathematics));
+    let signature =
+        (!mathematics.is_empty()).then(|| crate::laws::judge_with_policy(mathematics, policy));
     let laws = signature
         .as_ref()
         .map_or(&[][..], |judged| judged.theorems.as_slice());

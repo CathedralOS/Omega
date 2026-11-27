@@ -65,6 +65,62 @@ pub(crate) fn measurement() -> build_model::contracts::EvaluationMeasurementIden
     }
 }
 
+/// Seed `BuildPlan.proof.index_expansion_terms` to the default 64 on the
+/// zero-initialized Build receiver so an untouched Build keeps 64 while an
+/// authored assignment of 0 is observed and rejected
+/// (`wiki/spec/build/configuration.md#proof-work-policy`).
+fn default_proof_policy_override(
+    program: &TerminalProgram<'_>,
+    root_type: semantic_vocabulary::StructuralTypeId,
+) -> Result<Option<terminal_interpreter::TerminalStructuralScalarFieldValue>, String> {
+    let identities = &program.module().identities;
+    let Some(declaration) = program.structural_type(root_type) else {
+        return Ok(None);
+    };
+    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+        return Ok(None);
+    };
+    let Some(proof_field) = fields
+        .iter()
+        .find(|field| identities.text(field.identity) == Some("proof"))
+    else {
+        return Ok(None);
+    };
+    let terminal_psi::StructuralFieldType::Structural(proof_type) = proof_field.field_type else {
+        return Err("BuildPlan.proof is not a structural record".to_owned());
+    };
+    let Some(proof_decl) = program.structural_type(proof_type) else {
+        return Err("BuildPlan.proof lost its structural declaration".to_owned());
+    };
+    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &proof_decl.shape else {
+        return Err("BuildPlan.proof is not a record".to_owned());
+    };
+    let Some(terms_field) = fields
+        .iter()
+        .find(|field| identities.text(field.identity) == Some("index_expansion_terms"))
+    else {
+        return Err("BuildPlan.proof has no `index_expansion_terms` field".to_owned());
+    };
+    let scalar_type =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .map_err(|_| "u64 integer type for BuildPlan.proof.index_expansion_terms".to_owned())?;
+    Ok(Some(
+        terminal_interpreter::TerminalStructuralScalarFieldValue {
+            argument_index: 0,
+            path: vec![terminal_psi::StructuralPathSegment::Field(
+                proof_field.identity,
+            )],
+            field: terms_field.id,
+            value: terminal_interpreter::TerminalScalarValue::Integer {
+                scalar_type,
+                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(
+                    normalized_build_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS,
+                )),
+            },
+        },
+    ))
+}
+
 fn require_source_acquisition<'a>(
     issued: Option<&'a OriginalBuildSources>,
     expected: &package_compilation::CapturedLocalSource,
@@ -454,6 +510,8 @@ impl TerminalBuildHost {
             .calls_for(artifact)
             .ok_or("Build filesystem calls lost their artifact custody")?;
         let output = self.output.binding();
+        let proof_override =
+            default_proof_policy_override(&program, self.original.structural_type)?;
         let mut instance = program
             .instantiate(TerminalInstantiation {
                 float_evaluation:
@@ -462,6 +520,7 @@ impl TerminalBuildHost {
                     arguments: std::slice::from_ref(&self.original),
                     projected_host_atoms: std::slice::from_ref(&output),
                     zero_initialized_arguments: &[0],
+                    zero_initialized_scalar_overrides: proof_override.as_slice(),
                     ..Default::default()
                 },
                 installation: Some(&self.providers.supplies),
