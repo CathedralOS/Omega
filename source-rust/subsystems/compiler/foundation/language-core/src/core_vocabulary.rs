@@ -34,6 +34,14 @@ pub enum CoreVocabulary {
     /// it in the law that its fuel suffices, so its body is demanded with
     /// the naturals.
     NaturalFuelBound,
+    /// Core nat.omg's lemmas the recursive equation of such a machine
+    /// cites: `not_succ_le_self` (a unit of fuel at the ranked argument
+    /// runs the body), `not_succ_le_zero` (with no fuel left no call is
+    /// reached) and `le_of_succ_le_succ` (a call below `Succ p` is within
+    /// `p` units of fuel).
+    NaturalFuelGuard,
+    NaturalFuelExhausted,
+    NaturalFuelStep,
     /// The ordinary `Never` data declaration in core `never.omg`.
     /// This identifies a nominal ABI result; it proves no inhabitedness.
     Never,
@@ -221,6 +229,19 @@ impl CoreVocabulary {
     pub fn is_extent_domain_named(self, name: &str) -> bool {
         matches!(self, Self::ExtentDomain(domain) if domain.name() == name)
     }
+
+    /// Whether this is one of core nat.omg's lemmas that the laws stated
+    /// for a machine on fuel cite, which no call names: their bodies are
+    /// demanded and read with the naturals.
+    pub const fn is_natural_fuel_lemma(self) -> bool {
+        matches!(
+            self,
+            Self::NaturalFuelBound
+                | Self::NaturalFuelGuard
+                | Self::NaturalFuelExhausted
+                | Self::NaturalFuelStep
+        )
+    }
 }
 
 /// The selector primitives of the two segment files.
@@ -308,6 +329,24 @@ const ROWS: &[CoreVocabularyRow] = &[
         "succ_of_sub_between",
         BundledFile::CoreNat,
         CoreVocabulary::NaturalFuelBound,
+    ),
+    row(
+        "nat.omg",
+        "not_succ_le_self",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalFuelGuard,
+    ),
+    row(
+        "nat.omg",
+        "not_succ_le_zero",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalFuelExhausted,
+    ),
+    row(
+        "nat.omg",
+        "le_of_succ_le_succ",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalFuelStep,
     ),
     row(
         "native_execution_authority.omg",

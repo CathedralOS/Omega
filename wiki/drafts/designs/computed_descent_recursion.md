@@ -111,13 +111,29 @@ reachable call: a call at `ē` inside `G(S k', x̄)` with `x_r ∸ k' ≠ 0` and
 Equation_f(x̄):  premises(x̄)  ->  f(x̄) = B[call(ē) := f(ē)]
 ```
 
-Stage 05 states it per machine with a script that follows `B`'s own
-dispatches: the cases of `x_r` (at `0` every call is unreachable, because
-its descent `S ē_r ∸ 0 = 0` is a constructor clash), and at each call
-site a citation of that call's descent statement and of `Bound_f(pred x_r,
-ē)`. A guard at `S r'` needs `S r' ∸ r' = S 0`, which core's
-`sub_succ_left(r', r')` gives with `sub_self(r')` for its premise; it is
-recognized like `sub_eq_add`.
+Stage 05 states it per machine (`Converter::equation`), with `f(ē)` spelled
+`G(ē_r, ē)`, which is what `f` unfolds to. The right side is the body read
+once more with each call standing for the definition at the call's own
+ranked argument. The script follows `B`'s own dispatches by cases of `x_r`
+(`LawProof::Cases`), and a recursive call in it cites:
+
+- At `x_r = 0`: `not_succ_le_zero(e_r)`. The call's descent `S e_r ∸ 0 = 0`
+  is its premise and `S 0 = 0` its conclusion, so the call is unreachable.
+- At `x_r = S p`: the case first splits on the guard `S p ∸ p`. Its zero is
+  absurd by `not_succ_le_self(p)`. Its successor runs the body, where a call
+  cites `le_of_succ_le_succ(e_r, p)` (its descent `S e_r ∸ S p = 0` gives
+  `e_r ∸ p = 0`) and `Bound_f(p, ē)`, whose premise that is.
+
+A dispatch on `x_r` itself is already decided in each case, so only that
+case's arm is read. The three lemmas are core's (`nat.omg`) and are
+recognized and demanded like `succ_of_sub_between` (vocabulary rows
+`NaturalFuelGuard`, `NaturalFuelExhausted`, `NaturalFuelStep`). A body's
+terms in this script need not have their premises in hand: its calls owed
+them where the definition was read.
+
+A law that calls `f` (as a citation, or as a term of an ordinary function on
+fuel) cites `Equation_f` at the call's arguments, with the same premises the
+call owes.
 
 ### Laws
 
@@ -138,10 +154,11 @@ recognized like `sub_eq_add`.
    stays judged (landed first, on its own), then `Bound`. Fixtures: the
    repeated-subtraction `mod` compiles with its `Bound` judged; a copy of
    `Nat` without `succ_of_sub_between` is refused for the missing lemma.
-2. `Equation_f`, and its use by the prover. Fixture: a law about the
-   repeated-subtraction `mod` that holds only with enough fuel, such as
-   `mod(a, b) = mod(a ∸ b, b)` for `b <= a`, compiles; its twin without the
-   premise is refused.
+2. `Equation_f`, and its use by laws. Fixtures:
+   `computed_descent/pass/mod_steps_down_by_its_divisor` proves
+   `mod(a, b) = mod(a ∸ b, b)` for `1 <= b <= a` by citing `mod(a, b)`; its
+   twin `fail/mod_step_without_its_dividend_bound` drops `b <= a` and is
+   refused.
 3. Laws that recurse at computed arguments. Fixture: reconstruction of a
    repeated-subtraction `div` and `mod`; its twin citing itself at an
    argument that does not descend is refused at that citation.
