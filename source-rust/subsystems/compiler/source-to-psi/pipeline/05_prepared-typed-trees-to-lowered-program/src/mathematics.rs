@@ -98,6 +98,39 @@ pub(crate) fn read(
             program.keep(read).map_err(alone)?;
         }
     }
+    // The law that a machine's fuel suffices cites core's natural-order
+    // bound, which no call names, so it is read with the naturals.
+    // A program may hold more than one copy of core's naturals: the bound of
+    // a copy the program reads from is read, and only that.
+    let source = |symbol| {
+        typed
+            .symbols
+            .symbol_source_span(symbol)
+            .map(|span| span.source_id)
+    };
+    let used: Vec<_> = program
+        .symbols
+        .iter()
+        .filter_map(|(_, &symbol)| source(symbol))
+        .collect();
+    let mut bounds = Vec::new();
+    for machine in typed.machines() {
+        if source(machine.symbol).is_some_and(|source| used.contains(&source))
+            && typed.core_vocabulary(machine.symbol)
+                == Some(language_core::core_vocabulary::CoreVocabulary::NaturalFuelBound)
+            && program.proof_machine(machine)
+            && !program
+                .symbols
+                .iter()
+                .any(|(_, read)| *read == machine.symbol)
+        {
+            bounds.push(machine.symbol);
+        }
+    }
+    for bound in bounds {
+        let read = program.machine(bound).map(|_| ());
+        program.keep(read).map_err(alone)?;
+    }
     let bodies = crate::read_bodies(&mut program, first).map_err(alone)?;
     let refused = program.collected.take().unwrap_or_default();
     if !refused.is_empty() {

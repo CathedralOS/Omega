@@ -253,6 +253,8 @@ fn every_law_of_nat_but_division_and_gcd_is_judged() {
         "sub_eq_add",
         "le_add",
         "lt_of_sub_pos",
+        "le_antisymm",
+        "succ_of_sub_between",
     ] {
         assert!(
             judgment.laws.iter().any(|law| law.machine == machine),

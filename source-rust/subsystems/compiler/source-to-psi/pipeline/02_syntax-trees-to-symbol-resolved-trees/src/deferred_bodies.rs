@@ -654,6 +654,25 @@ impl DeferredResolvedFrontier {
             }
         }
 
+        // The law that a machine's fuel suffices, which the compiler states
+        // for a machine recursing at a computed natural, cites core's
+        // natural-order bound, which no call names. Its body is demanded with
+        // the naturals.
+        use language_core::core_vocabulary::CoreVocabulary;
+        let naturals = demanded_types
+            .iter()
+            .any(|&symbol| symbols.core_vocabulary(symbol) == Some(CoreVocabulary::ProofNatural));
+        if naturals {
+            for machine in self.trees.machines.iter() {
+                if is_pending(machine.symbol)
+                    && symbols.core_vocabulary(machine.symbol)
+                        == Some(CoreVocabulary::NaturalFuelBound)
+                {
+                    push_pending(machine.symbol);
+                }
+            }
+        }
+
         Ok(next)
     }
 
