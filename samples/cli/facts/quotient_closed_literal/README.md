@@ -36,4 +36,4 @@ The root [main.omg](main.omg) is another existing witness for the same automatic
 
 Positive acceptance requires `omega run --both` with exit `0` on all four hosted targets, plus the intended rejection for every invalid twin. Exact-source runs or applicable retained evidence must identify the producer and target under `wiki/development/testing.md`.
 
-This source migration retains source, operand, Build, mirror and twin-difference audits. It does not supply compiler proof or runtime acceptance. The changed corpus fixtures still need clean recording on the integrated producer. Historical Linux x86-64 observations belong to the legacy source recorded by those runs; they do not establish that this migrated source passed. Check their consumer-based applicability before any reuse.
+On 2026-11-27 `mbx xtask sample-gate --filter samples/cli/facts/quotient_closed_literal` passed all nineteen rows on Linux x86-64: each positive exits `0` natively and in Psi, and each invalid twin is refused with `cannot prove requires contract for call representative ...: amount == 3`. The other hosted targets are not yet run.

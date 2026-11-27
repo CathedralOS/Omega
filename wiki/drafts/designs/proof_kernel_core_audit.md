@@ -1569,17 +1569,15 @@ same_sign> as SameSign;` is read into the mathematical signature when
     [select a closed `MereEquivalence`](../../spec/proofs/quotients.md#formation-and-representation).
     The reader still needs to consume that conformance.
     The compiler uses soundness only, which holds for any relation.
-  - A generic quotient, a quotient of data that has storage, and the
-    nineteen runtime quotient programs under
-    `samples/cli/facts/quotient_closed_literal/`. Checked on 2026-11-24,
-    two of its placements are refused in the ordinary reader for two
-    reasons, neither in the mathematical signature: "type quotient data
-    while reading the signature of `lifted`" (a class has no runtime form:
-    it would be stored as its representative, built by `as`, and read only
-    by `Quotient::lift`), and "machine declared requirement needs its
-    complete trait application" for `RepresentativeEquivalence satisfies
-    Equivalence<Representative, equivalent>`, whose second argument is a
-    proposition. These programs also pass `lift` a constant (`3i32`).
+  - A generic quotient, and a quotient of data that has storage in the
+    mathematical signature. Ordinary programs run a quotient of copyable,
+    custody-free data stored as its representative: all nineteen programs
+    under `samples/cli/facts/quotient_closed_literal/` pass the sample gate
+    on Linux x86-64 (2026-11-27), each invalid twin refused because its
+    `4i32` misses `representative`'s `amount == 3i32`. The reader names
+    the selected trait by its declaration, so `|relation|::Equivalence`
+    selects it, and package review reads the stored representative's type
+    from the declaration's carrier.
 
 **Step 6 as built (2026-11-24): data indexed by values, theorems over it and
 the machines that run with its evidence.** The three `source_indexed_*`
