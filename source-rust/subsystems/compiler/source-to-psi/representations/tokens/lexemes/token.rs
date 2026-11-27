@@ -1,7 +1,7 @@
 use super::DecodedRange;
 use crate::{
-    CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericLiteralKind,
-    PunctuationKind, Span, TokenKind,
+    FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericLiteralKind, PunctuationKind, Span,
+    TokenKind,
 };
 use arena::Handle;
 
@@ -41,17 +41,6 @@ impl Token {
     pub fn float_literal_kind(&self) -> Option<FloatLiteralKind> {
         match self.kind {
             TokenKind::NumericLiteral(NumericLiteralKind::Float(kind)) => Some(kind),
-            _ => None,
-        }
-    }
-
-    pub fn is_whitespace(&self) -> bool {
-        matches!(self.kind, TokenKind::Whitespace)
-    }
-
-    pub fn comment(&self) -> Option<CommentKind> {
-        match self.kind {
-            TokenKind::Comment(kind) => Some(kind),
             _ => None,
         }
     }

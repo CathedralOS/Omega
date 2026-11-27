@@ -1,17 +1,15 @@
 /*
 We insert target frame prologue and epilogue bytes into unplaced function
-fragments, reflow and widen displaced conditional branches, and seal the
-frame-application receipt.
+fragments and reflow and widen displaced conditional branches.
 
 `stage_function_fragment_frame_application` inserts each function's prologue at
 offset 0 and its epilogue before every retained return instruction, shifts
 block, instruction, and fixup coordinates, widens any short conditional branch
 whose taken edge moved out of reach (`widen_out_of_range_branches`), and
 patches the supplied branch encodings (`patch_branches`).
-`validate_function_fragment_frame_application` replays source fragment custody,
-verifies the least widening closure (`validate_widths`), decodes every branch
-row against its moved block offsets (`validate_branch_row`), and checks the
-application receipt.
+`validate_function_fragment_frame_application` replays the source fragments,
+verifies the least widening closure (`validate_widths`), and decodes every branch
+row against its moved block offsets (`validate_branch_row`).
 */
 
 use crate::fragment_emission::{
@@ -22,23 +20,18 @@ pub use crate::relative_branches::CheckedFunctionBranches;
 use crate::relative_branches::{
     self, FrameBranchOrigin, FunctionFrameBranchOrigins, RelativeBranchError, validate_branch_row,
 };
-pub use machine_code::function_fragment_frame_application_identity;
 use machine_code::{
     EncodedControlIndex, FunctionFragment, FunctionFragmentBranchEvidence,
     FunctionFragmentConditionalBranchEvidence, FunctionFragmentControlProvenance,
     FunctionFragmentEmissionPlan, FunctionFragmentInstructionSpan,
-    FunctionFragmentInternalMachineFixup, TargetFrameProtocolEncodingIdentity,
+    FunctionFragmentInternalMachineFixup,
 };
 pub use machine_code::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
-    FunctionFragmentFrameApplicationIdentity,
 };
 use machine_code::{
     FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingPlan,
     target_frame_protocol_encoding_identity,
-};
-use optimization_core::{
-    FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
 };
 use selected_instructions::{MachineAlternativeKey, SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::MachineId;
@@ -53,7 +46,6 @@ pub(super) fn stage_function_fragment_frame_application(
 ) -> Result<StagedFunctionFragmentFrameApplication, FunctionFragmentFrameApplicationError> {
     let application = apply_frame_protocol_to_fragments(
         source.fragments(),
-        source.manifest().record().identity,
         &source.frame_input.protocol,
         &source.frame_input.controls,
     )?;
@@ -63,10 +55,8 @@ pub(super) fn stage_function_fragment_frame_application(
         Vec::new()
     };
     let application = Arc::new(application);
-    let receipt = seal(&application);
     let placed_body = Arc::new(PlacedBodyEvidence::capture(
         &source.frame_input,
-        source.manifest().record().statistics,
         &application,
         &branches,
         check_installed_branches,
@@ -76,13 +66,12 @@ pub(super) fn stage_function_fragment_frame_application(
         placed_body,
         source,
         application,
-        receipt,
     })
 }
 
 pub(crate) fn validate_function_fragment_frame_application(
     staged: &StagedFunctionFragmentFrameApplication,
-) -> Result<FunctionFragmentFrameApplicationReceipt, FunctionFragmentFrameApplicationError> {
+) -> Result<(), FunctionFragmentFrameApplicationError> {
     validate_optimized_function_fragment_emission(&staged.source)
         .map_err(FunctionFragmentFrameApplicationError::Source)?;
     let branches = prepare_branch_origins(
@@ -94,7 +83,6 @@ pub(crate) fn validate_function_fragment_frame_application(
     }
     let expected = PlacedBodyEvidence::capture(
         &staged.source.frame_input,
-        staged.source.manifest().record().statistics,
         &staged.application,
         &branches,
         staged.placed_body.has_installed_branch_checks(),
@@ -108,16 +96,10 @@ pub(crate) fn validate_function_fragment_frame_application(
     }
     validate_frame_protocol_application(
         staged.source.fragments(),
-        staged.source.manifest().record().identity,
         protocol,
         &staged.source.frame_input.controls,
         &staged.application,
-    )?;
-    let receipt = seal(&staged.application);
-    if staged.receipt != receipt {
-        return Err(FunctionFragmentFrameApplicationError::ReceiptMismatch);
-    }
-    Ok(receipt)
+    )
 }
 
 /// Current layout output and obligations carried with the placed code. It contains
@@ -161,7 +143,6 @@ impl PlacedBodyEvidence {
 
     fn capture(
         input: &FragmentFrameInput,
-        fragment_statistics: machine_code::FunctionFragmentEmissionStatistics,
         application: &Arc<FunctionFragmentFrameApplication>,
         branches: &[FunctionFrameBranchOrigins],
         check_installed_branches: bool,
@@ -198,7 +179,6 @@ impl PlacedBodyEvidence {
                 protocol: Arc::clone(&input.protocol),
                 frame_application: Arc::clone(application),
                 allocation: Arc::clone(&input.allocation),
-                fragment_statistics,
             }),
         }
     }
@@ -217,7 +197,6 @@ pub struct StagedFunctionFragmentFrameApplication {
     pub(crate) placed_body: Arc<PlacedBodyEvidence>,
     source: StagedOptimizedFunctionFragmentEmission, // Admitted unplaced function-fragment stage.
     application: Arc<FunctionFragmentFrameApplication>, // Frame-applied function fragments and epilogue spans.
-    receipt: FunctionFragmentFrameApplicationReceipt,   // Sealed frame-application custody receipt.
 }
 
 impl StagedFunctionFragmentFrameApplication {
@@ -231,10 +210,6 @@ impl StagedFunctionFragmentFrameApplication {
 
     pub fn fragments(&self) -> &FunctionFragmentEmissionPlan {
         &self.application.fragments
-    }
-
-    pub const fn receipt(&self) -> FunctionFragmentFrameApplicationReceipt {
-        self.receipt
     }
 
     pub fn validate_relative_branch_rows<'a>(
@@ -287,49 +262,6 @@ fn prepare_branch_origins(
         .collect())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FunctionFragmentFrameApplicationReceipt {
-    identity: FunctionFragmentFrameApplicationIdentity, // Frame-application record identity.
-    source_fragment_manifest: FunctionFragmentEmissionManifestIdentity, // Source fragment-emission manifest identity.
-    source_fragments: FunctionFragmentEmissionIdentity, // Source unplaced fragment-plan identity.
-    frame_protocol: TargetFrameProtocolEncodingIdentity, // Applied frame-protocol encoding identity.
-    fragments: FunctionFragmentEmissionIdentity,         // Resulting framed fragment-plan identity.
-    framed_function_count: usize, // Number of functions with non-empty frame bytes.
-    epilogue_application_count: usize, // Total epilogue insertions across all functions.
-}
-
-impl FunctionFragmentFrameApplicationReceipt {
-    pub const fn identity(self) -> FunctionFragmentFrameApplicationIdentity {
-        self.identity
-    }
-}
-
-fn seal(application: &FunctionFragmentFrameApplication) -> FunctionFragmentFrameApplicationReceipt {
-    FunctionFragmentFrameApplicationReceipt {
-        identity: application.recomputed_identity(),
-        source_fragment_manifest: application.source_fragment_manifest,
-        source_fragments: application.source_fragments,
-        frame_protocol: application.frame_protocol,
-        fragments: application.fragments.identity,
-        framed_function_count: application
-            .functions
-            .iter()
-            .filter(|row| {
-                row.prologue_byte_count != 0
-                    || row
-                        .epilogues
-                        .iter()
-                        .any(|epilogue| epilogue.byte_count != 0)
-            })
-            .count(),
-        epilogue_application_count: application
-            .functions
-            .iter()
-            .map(|row| row.epilogues.len())
-            .sum(),
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentFrameApplicationError {
     Source(FunctionFragmentEmissionError),
@@ -348,7 +280,6 @@ pub enum FunctionFragmentFrameApplicationError {
     BranchBytes(SelectedInstructionId),
     OffsetOverflow,
     ArtifactMismatch,
-    ReceiptMismatch,
 }
 
 diagnostics::failed_display!(
@@ -386,7 +317,6 @@ struct ReturnSite {
 
 pub(crate) fn apply_frame_protocol_to_fragments(
     source: &FunctionFragmentEmissionPlan,
-    source_manifest: FunctionFragmentEmissionManifestIdentity,
     protocol: &TargetFrameProtocolEncodingPlan,
     controls: &[EncodedControlIndex],
 ) -> Result<FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationError> {
@@ -438,17 +368,11 @@ pub(crate) fn apply_frame_protocol_to_fragments(
         return Err(FunctionFragmentFrameApplicationError::FunctionRosterMismatch);
     }
 
-    fragments.identity = fragments.recomputed_identity();
-    let mut application = FunctionFragmentFrameApplication {
-        identity: FunctionFragmentFrameApplicationIdentity::from_bytes([0; 32]),
-        source_fragment_manifest: source_manifest,
-        source_fragments: source.identity,
+    Ok(FunctionFragmentFrameApplication {
         frame_protocol: target_frame_protocol_encoding_identity(protocol),
         functions: applications,
         fragments,
-    };
-    application.identity = application.recomputed_identity();
-    Ok(application)
+    })
 }
 
 fn apply_function(
@@ -963,7 +887,8 @@ fn required_widening(
         FunctionFragmentFrameApplicationError::BranchEncoding(
             instruction,
             machine_code::BranchPatchError::DisplacementOverflow,
-        ))
+        ),
+    )
 }
 
 fn widen(
@@ -1038,7 +963,6 @@ fn widen(
 
 pub(crate) fn validate_frame_protocol_application(
     source: &FunctionFragmentEmissionPlan,
-    source_manifest: FunctionFragmentEmissionManifestIdentity,
     protocol: &TargetFrameProtocolEncodingPlan,
     controls: &[EncodedControlIndex],
     candidate: &FunctionFragmentFrameApplication,
@@ -1049,12 +973,8 @@ pub(crate) fn validate_frame_protocol_application(
     if source.functions.len() != controls.len() {
         return Err(FunctionFragmentFrameApplicationError::FunctionRosterMismatch);
     }
-    if candidate.source_fragment_manifest != source_manifest
-        || candidate.source_fragments != source.identity
-        || candidate.frame_protocol != target_frame_protocol_encoding_identity(protocol)
+    if candidate.frame_protocol != target_frame_protocol_encoding_identity(protocol)
         || candidate.functions.len() != source.functions.len()
-        || candidate.fragments.identity != candidate.fragments.recomputed_identity()
-        || candidate.identity != candidate.recomputed_identity()
         || !same_plan_roots(source, &candidate.fragments)
     {
         return Err(FunctionFragmentFrameApplicationError::ArtifactMismatch);
@@ -1421,9 +1341,6 @@ mod tests {
         FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
         TargetFrameLayoutIdentity,
     };
-    use optimization_core::{
-        FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
-    };
     use register_model::{
         PhysicalRegisterModelIdentity, TargetRegisterEnvironmentIdentity,
         validate_physical_register_model,
@@ -1439,13 +1356,11 @@ mod tests {
 
     fn apply_frame_protocol_to_fragments(
         source: &FunctionFragmentEmissionPlan,
-        manifest: FunctionFragmentEmissionManifestIdentity,
         protocol: &TargetFrameProtocolEncodingPlan,
         physical: &register_model::ValidatedPhysicalRegisterModel,
     ) -> Result<FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationError> {
         super::apply_frame_protocol_to_fragments(
             source,
-            manifest,
             protocol,
             &fixture_controls(source, physical),
         )
@@ -1453,14 +1368,12 @@ mod tests {
 
     fn validate_frame_protocol_application(
         source: &FunctionFragmentEmissionPlan,
-        manifest: FunctionFragmentEmissionManifestIdentity,
         protocol: &TargetFrameProtocolEncodingPlan,
         physical: &register_model::ValidatedPhysicalRegisterModel,
         candidate: &FunctionFragmentFrameApplication,
     ) -> Result<(), FunctionFragmentFrameApplicationError> {
         super::validate_frame_protocol_application(
             source,
-            manifest,
             protocol,
             &fixture_controls(source, physical),
             candidate,
@@ -1610,8 +1523,7 @@ mod tests {
                 psi_return_edge: EdgeId::new(1).unwrap(),
             },
         };
-        let mut plan = FunctionFragmentEmissionPlan {
-            identity: FunctionFragmentEmissionIdentity::from_canonical_bytes(b"pending"),
+        FunctionFragmentEmissionPlan {
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([3; 32]),
@@ -1633,9 +1545,7 @@ mod tests {
                     instructions: vec![call, ret],
                 }],
             }],
-        };
-        plan.identity = plan.recomputed_identity();
-        plan
+        }
     }
 
     fn protocol(machine: MachineId) -> TargetFrameProtocolEncodingPlan {
@@ -1671,13 +1581,8 @@ mod tests {
     fn frame_bytes_shift_selected_rows_and_internal_call_fixups_exactly() {
         let source = source_plan();
         let machine = source.entry;
-        let application = apply_frame_protocol_to_fragments(
-            &source,
-            FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"manifest"),
-            &protocol(machine),
-            &physical(),
-        )
-        .unwrap();
+        let application =
+            apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical()).unwrap();
         let function = &application.fragments.functions[0];
         assert_eq!(function.bytes, vec![0xaa, 0xe8, 0, 0, 0, 0, 0xbb, 0xc3]);
         assert_eq!(function.byte_count, 8);
@@ -1695,11 +1600,6 @@ mod tests {
         assert_eq!(application.functions[0].epilogues.len(), 1);
         assert_eq!(application.functions[0].epilogues[0].function_offset, 6);
         assert_eq!(application.functions[0].epilogues[0].byte_count, 1);
-        assert_eq!(application.identity, application.recomputed_identity());
-        assert_eq!(
-            application.fragments.identity,
-            application.fragments.recomputed_identity()
-        );
     }
 
     #[test]
@@ -1716,16 +1616,9 @@ mod tests {
                 cause,
             };
             row.alternative.family = MachineAlternativeFamily::Crash;
-            source.identity = source.recomputed_identity();
-            let manifest =
-                FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"manifest");
-            let application = apply_frame_protocol_to_fragments(
-                &source,
-                manifest,
-                &protocol(machine),
-                &physical(),
-            )
-            .unwrap();
+            let application =
+                apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical())
+                    .unwrap();
             assert!(application.functions[0].epilogues.is_empty());
             assert_eq!(
                 application.fragments.functions[0].bytes.len(),
@@ -1733,7 +1626,6 @@ mod tests {
             );
             validate_frame_protocol_application(
                 &source,
-                manifest,
                 &protocol(machine),
                 &physical(),
                 &application,
@@ -1744,12 +1636,9 @@ mod tests {
                 FunctionFragmentControlProvenance::Return {
                     psi_return_edge: EdgeId::new(1).unwrap(),
                 };
-            changed.fragments.identity = changed.fragments.recomputed_identity();
-            changed.identity = changed.recomputed_identity();
             assert!(
                 validate_frame_protocol_application(
                     &source,
-                    manifest,
                     &protocol(machine),
                     &physical(),
                     &changed,
@@ -1761,15 +1650,9 @@ mod tests {
                     psi_edge: EdgeId::new(2).unwrap(),
                     cause,
                 };
-            source.identity = source.recomputed_identity();
             assert!(
-                apply_frame_protocol_to_fragments(
-                    &source,
-                    manifest,
-                    &protocol(machine),
-                    &physical()
-                )
-                .is_err()
+                apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical())
+                    .is_err()
             );
         }
     }
@@ -1783,23 +1666,15 @@ mod tests {
             completion_edge: EdgeId::new(1).unwrap(),
         };
         row.alternative.family = MachineAlternativeFamily::HostedExitProcessI32;
-        let manifest = FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"manifest");
         let application =
-            apply_frame_protocol_to_fragments(&source, manifest, &protocol(machine), &physical())
-                .unwrap();
+            apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical()).unwrap();
         assert!(application.functions[0].epilogues.is_empty());
         assert_eq!(
             application.fragments.functions[0].bytes,
             vec![0xaa, 0xe8, 0, 0, 0, 0, 0xc3]
         );
-        validate_frame_protocol_application(
-            &source,
-            manifest,
-            &protocol(machine),
-            &physical(),
-            &application,
-        )
-        .unwrap();
+        validate_frame_protocol_application(&source, &protocol(machine), &physical(), &application)
+            .unwrap();
         let mut changed = application.clone();
         changed.fragments.functions[0].blocks[0].instructions[1].control =
             FunctionFragmentControlProvenance::HostedExitProcess {
@@ -1808,7 +1683,6 @@ mod tests {
         assert!(
             validate_frame_protocol_application(
                 &source,
-                manifest,
                 &protocol(machine),
                 &physical(),
                 &changed,
@@ -1820,8 +1694,7 @@ mod tests {
                 completion_edge: EdgeId::new(2).unwrap(),
             };
         assert!(
-            apply_frame_protocol_to_fragments(&source, manifest, &protocol(machine), &physical())
-                .is_err()
+            apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical()).is_err()
         );
     }
 
@@ -1832,12 +1705,7 @@ mod tests {
         let repeated = source.functions[0].blocks[0].clone();
         source.functions[0].blocks.push(repeated);
         assert_eq!(
-            apply_frame_protocol_to_fragments(
-                &source,
-                FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"manifest"),
-                &protocol(machine),
-                &physical(),
-            ),
+            apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical(),),
             Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
                 machine
             ))
@@ -1855,12 +1723,7 @@ mod tests {
             ),
         };
         assert_eq!(
-            apply_frame_protocol_to_fragments(
-                &source,
-                FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"manifest"),
-                &protocol(machine),
-                &physical(),
-            ),
+            apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical(),),
             Err(FunctionFragmentFrameApplicationError::MissingFinalReturn(
                 machine
             ))
@@ -1990,13 +1853,9 @@ mod tests {
                     .flat_map(|row| row.bytes.clone())
                     .collect();
                 function.byte_count = function.bytes.len() as u64;
-                source.identity = source.recomputed_identity();
-                let manifest =
-                    FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"manifest");
                 let protocol = protocol(source.entry);
                 let application =
-                    apply_frame_protocol_to_fragments(&source, manifest, &protocol, &physical)
-                        .unwrap();
+                    apply_frame_protocol_to_fragments(&source, &protocol, &physical).unwrap();
                 let branch = &application.fragments.functions[0].blocks[0].instructions[0];
                 check_published_branch_bytes(
                     &application.fragments,
@@ -2052,24 +1911,14 @@ mod tests {
                         .byte_displacement,
                     padding + 2
                 );
-                validate_frame_protocol_application(
-                    &source,
-                    manifest,
-                    &protocol,
-                    &physical,
-                    &application,
-                )
-                .unwrap();
+                validate_frame_protocol_application(&source, &protocol, &physical, &application)
+                    .unwrap();
                 let mut corrupted = application.clone();
                 corrupted.fragments.functions[0].blocks[0].instructions[0].bytes[1] ^= 1;
                 corrupted.fragments.functions[0].bytes[2] ^= 1;
-                corrupted.fragments.identity = corrupted.fragments.recomputed_identity();
-                corrupted.identity = corrupted.recomputed_identity();
                 assert!(
-                    validate_frame_protocol_application(
-                        &source, manifest, &protocol, &physical, &corrupted,
-                    )
-                    .is_err()
+                    validate_frame_protocol_application(&source, &protocol, &physical, &corrupted,)
+                        .is_err()
                 );
             }
         }
@@ -2277,7 +2126,6 @@ mod tests {
             .flat_map(|row| row.bytes.clone())
             .collect();
         function.byte_count = function.bytes.len() as u64;
-        source.identity = source.recomputed_identity();
         source
     }
 
@@ -2325,10 +2173,8 @@ mod tests {
         backward: bool,
     ) -> (usize, FunctionFragmentFrameApplication) {
         let physical = isa_aarch64::validated_aarch64_physical_register_model();
-        let manifest = FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"manifest");
         let protocol = aarch64_protocol(source.entry);
-        let application =
-            apply_frame_protocol_to_fragments(source, manifest, &protocol, physical).unwrap();
+        let application = apply_frame_protocol_to_fragments(source, &protocol, physical).unwrap();
         let function = &application.fragments.functions[0];
         let (branch_block, taken_block, fallthrough_block) =
             if backward { (1, 0, 2) } else { (0, 2, 1) };
@@ -2371,8 +2217,7 @@ mod tests {
             }
             width => panic!("unexpected AArch64 conditional width {width}"),
         }
-        validate_frame_protocol_application(source, manifest, &protocol, physical, &application)
-            .unwrap();
+        validate_frame_protocol_application(source, &protocol, physical, &application).unwrap();
         let width = application.fragments.functions[0].blocks[branch_block].instructions[0]
             .bytes
             .len();
@@ -2495,11 +2340,9 @@ mod tests {
         branch.decoded_effects.clone_from(&cbnz.footprint().encoded);
         let offset = row.offset as usize;
         function.bytes[offset..offset + 4].copy_from_slice(cbnz.bytes());
-        source.identity = source.recomputed_identity();
         let controls = fixture_controls(&source, physical);
         let application = super::apply_frame_protocol_to_fragments(
             &source,
-            FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"cbnz"),
             &aarch64_protocol(source.entry),
             &controls,
         )

@@ -98,21 +98,15 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
- "behavior-exclusion-requests",
  "boundary-applications",
- "build-scalar-evaluation",
- "build-time-values",
- "build-value-projection",
+ "build-model",
+ "build-providers",
+ "build-time-evaluation",
  "calling-conventions",
  "component-description",
  "declaration-scope",
  "diagnostics",
  "direct-boundary-bindings",
- "evaluation-accounting",
- "evaluation-admission",
- "evaluation-contracts",
- "evaluation-receipts",
- "evaluation-work",
  "host-provider-inputs",
  "language-core",
  "layout",
@@ -125,18 +119,15 @@ dependencies = [
  "optimization-core",
  "optimization-selections",
  "program-entry-contracts",
- "provider-acceptance",
  "provider-admission",
  "provider-correspondence",
  "provider-demand",
- "provider-plans",
  "psi-authorization",
  "psi-provider-selections",
  "psi-scalar-applications",
  "psi-target-layouts",
  "psi-to-admitted-native-inputs",
  "runtime-abi",
- "selected-provider-plans",
  "semantic-vocabulary",
  "service-surface",
  "target",
@@ -189,15 +180,6 @@ dependencies = [
 [[package]]
 name = "artifacts"
 version = "0.1.0"
-
-[[package]]
-name = "behavior-exclusion-requests"
-version = "0.1.0"
-dependencies = [
- "semantic-vocabulary",
- "source-text",
- "symbols",
-]
 
 [[package]]
 name = "bignum"
@@ -268,8 +250,8 @@ dependencies = [
 name = "build-consent"
 version = "0.1.0"
 dependencies = [
+ "build-model",
  "build-output",
- "evaluation-contracts",
  "filesystem-authority",
  "target",
 ]
@@ -290,14 +272,12 @@ dependencies = [
 name = "build-evaluation-result"
 version = "0.1.0"
 dependencies = [
- "behavior-exclusion-requests",
  "build-consent",
  "build-declarations",
+ "build-model",
  "build-output",
  "checked-program-to-psi",
  "diagnostics",
- "evaluation-contracts",
- "evaluation-receipts",
  "language-core",
  "normalized-build-settings",
  "optimization-requests",
@@ -316,23 +296,16 @@ name = "build-execution"
 version = "0.1.0"
 dependencies = [
  "artifacts",
- "behavior-exclusion-requests",
  "bounded-process",
  "build-declarations",
  "build-evaluation-result",
+ "build-model",
  "build-output",
  "build-program-launch",
- "build-scalar-evaluation",
  "build-settings",
- "build-time-values",
- "build-value-projection",
+ "build-time-evaluation",
  "declaration-scope",
  "diagnostics",
- "evaluation-accounting",
- "evaluation-admission",
- "evaluation-contracts",
- "evaluation-receipts",
- "evaluation-work",
  "filesystem-authority",
  "language-core",
  "normalized-build-settings",
@@ -359,21 +332,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "build-invocation"
+name = "build-model"
 version = "0.1.0"
 dependencies = [
- "build-time-values",
- "build-value-projection",
- "evaluation-accounting",
- "evaluation-admission",
- "evaluation-work",
+ "declaration-scope",
  "layout-plans",
- "psi-scalar-applications",
+ "proof-applications",
+ "psi-program-identity",
+ "psi-provider-selections",
+ "record-storage",
  "semantic-vocabulary",
+ "source-provenance",
+ "source-text",
+ "symbols",
  "terminal-codec",
- "terminal-interpreter",
  "terminal-psi",
+ "terminal-semantics",
  "terminal-work",
+ "wire",
 ]
 
 [[package]]
@@ -400,13 +376,40 @@ dependencies = [
 ]
 
 [[package]]
-name = "build-scalar-evaluation"
+name = "build-providers"
 version = "0.1.0"
 dependencies = [
- "build-time-values",
- "evaluation-accounting",
- "evaluation-contracts",
- "evaluation-work",
+ "application-identity",
+ "component-description",
+ "language-core",
+ "record-storage",
+ "semantic-vocabulary",
+ "service-surface",
+ "sha2",
+ "target",
+ "terminal-psi",
+ "wire",
+]
+
+[[package]]
+name = "build-settings"
+version = "0.1.0"
+dependencies = [
+ "build-model",
+ "normalized-build-settings",
+ "optimization-requests",
+ "package-compilation",
+ "semantic-vocabulary",
+ "terminal-interpreter",
+ "terminal-psi",
+]
+
+[[package]]
+name = "build-time-evaluation"
+version = "0.1.0"
+dependencies = [
+ "build-model",
+ "layout-plans",
  "proof-applications",
  "psi-provider-selections",
  "psi-scalar-applications",
@@ -418,39 +421,6 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "terminal-work",
-]
-
-[[package]]
-name = "build-settings"
-version = "0.1.0"
-dependencies = [
- "build-time-values",
- "normalized-build-settings",
- "optimization-requests",
- "package-compilation",
- "semantic-vocabulary",
- "terminal-interpreter",
- "terminal-psi",
-]
-
-[[package]]
-name = "build-time-values"
-version = "0.1.0"
-dependencies = [
- "layout-plans",
- "record-storage",
- "semantic-vocabulary",
-]
-
-[[package]]
-name = "build-value-projection"
-version = "0.1.0"
-dependencies = [
- "build-time-values",
- "semantic-vocabulary",
- "terminal-codec",
- "terminal-interpreter",
- "terminal-psi",
 ]
 
 [[package]]
@@ -558,12 +528,11 @@ dependencies = [
  "application-identity",
  "arena",
  "artifacts",
+ "build-model",
  "bundled-declarations",
  "checked-program",
  "declaration-scope",
  "diagnostics",
- "evaluation-admission",
- "evaluation-receipts",
  "language-core",
  "lowered-program-to-checked-program",
  "lowered-source-publication",
@@ -623,13 +592,13 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "build-providers",
  "compiler-identity",
  "component-description",
  "diagnostics",
  "native-compiler",
  "package-compilation",
  "product-publication",
- "provider-acceptance",
  "provider-correspondence",
  "psi-authorization",
  "psi-entry-memory",
@@ -738,14 +707,13 @@ dependencies = [
 name = "direct-boundary-bindings"
 version = "0.1.0"
 dependencies = [
+ "build-providers",
  "calling-conventions",
  "diagnostics",
  "language-core",
  "native-binding-admission",
  "native-execution-reach",
  "native-intrinsics",
- "provider-plans",
- "selected-provider-plans",
  "semantic-vocabulary",
  "service-surface",
  "symbols",
@@ -828,74 +796,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "evaluation-accounting"
-version = "0.1.0"
-dependencies = [
- "evaluation-contracts",
- "record-storage",
- "semantic-vocabulary",
-]
-
-[[package]]
-name = "evaluation-admission"
-version = "0.1.0"
-dependencies = [
- "declaration-scope",
- "proof-applications",
- "psi-provider-selections",
- "semantic-vocabulary",
- "terminal-codec",
- "terminal-psi",
- "terminal-semantics",
-]
-
-[[package]]
-name = "evaluation-contracts"
-version = "0.1.0"
-dependencies = [
- "record-storage",
- "semantic-vocabulary",
-]
-
-[[package]]
-name = "evaluation-receipts"
-version = "0.1.0"
-dependencies = [
- "evaluation-accounting",
- "evaluation-contracts",
- "psi-program-identity",
- "record-storage",
- "semantic-vocabulary",
- "source-provenance",
- "wire",
-]
-
-[[package]]
-name = "evaluation-work"
-version = "0.1.0"
-dependencies = [
- "evaluation-accounting",
- "evaluation-contracts",
- "semantic-vocabulary",
- "terminal-psi",
- "terminal-work",
-]
-
-[[package]]
 name = "extent-contracts"
 version = "0.1.0"
 dependencies = [
  "arena",
  "record-storage",
-]
-
-[[package]]
-name = "extents"
-version = "0.1.0"
-dependencies = [
- "arena",
- "extent-contracts",
- "resource-bounds",
 ]
 
 [[package]]
@@ -997,9 +902,9 @@ version = "0.1.0"
 name = "host-provider-inputs"
 version = "0.1.0"
 dependencies = [
+ "build-model",
+ "build-providers",
  "declaration-scope",
- "evaluation-receipts",
- "provider-acceptance",
  "psi-authorization",
  "semantic-vocabulary",
  "target",
@@ -1056,7 +961,6 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "entry-planning",
- "extents",
  "function-identity",
  "iced-x86",
  "image",
@@ -1510,6 +1414,7 @@ name = "native-artifact"
 version = "0.1.0"
 dependencies = [
  "boundary-applications",
+ "build-providers",
  "calling-conventions",
  "component-description",
  "diagnostics",
@@ -1529,15 +1434,14 @@ dependencies = [
  "optimization-core",
  "platform-custody",
  "provider-admission",
- "provider-plans",
  "provider-stack-contribution",
  "psi-entry-memory",
  "psi-provider-selections",
  "psi-scalar-applications",
+ "psi-target-layouts",
  "published-runtime-input",
  "runtime-abi",
  "selected-instructions",
- "selected-provider-plans",
  "semantic-vocabulary",
  "sha2",
  "target",
@@ -1557,10 +1461,9 @@ dependencies = [
 name = "native-behavior-exclusions"
 version = "0.1.0"
 dependencies = [
- "behavior-exclusion-requests",
+ "build-model",
+ "build-providers",
  "diagnostics",
- "provider-plans",
- "selected-provider-plans",
  "semantic-vocabulary",
  "terminal-authority-receipts",
  "terminal-psi",
@@ -1571,9 +1474,9 @@ dependencies = [
 name = "native-binding-admission"
 version = "0.1.0"
 dependencies = [
+ "build-providers",
  "calling-conventions",
  "layout",
- "provider-plans",
  "semantic-vocabulary",
  "service-surface",
  "target",
@@ -1592,11 +1495,12 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "admitted-native-inputs-to-target-bound-program",
  "arena",
- "behavior-exclusion-requests",
  "bound-framed-machine",
  "bound-installations",
  "boundary-applications",
  "bounded-process",
+ "build-model",
+ "build-providers",
  "calling-conventions",
  "component-description",
  "declaration-scope",
@@ -1627,11 +1531,9 @@ dependencies = [
  "platform-custody",
  "post-allocation-machine",
  "post-allocation-machine-to-framed-machine",
- "provider-acceptance",
  "provider-admission",
  "provider-correspondence",
  "provider-demand",
- "provider-plans",
  "provider-stack-contribution",
  "psi-authorization",
  "psi-entry-memory",
@@ -1648,7 +1550,6 @@ dependencies = [
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",
- "selected-provider-plans",
  "semantic-vocabulary",
  "target",
  "target-bound-program-to-abstract-operations",
@@ -1757,14 +1658,14 @@ dependencies = [
 name = "native-scalar-inputs"
 version = "0.1.0"
 dependencies = [
- "build-scalar-evaluation",
+ "build-providers",
+ "build-time-evaluation",
  "interpreter-numeric-imports",
  "numeric-intrinsic-admission",
  "psi-provider-selections",
  "psi-scalar-applications",
  "psi-target-layouts",
  "runtime-abi",
- "selected-provider-plans",
  "semantic-vocabulary",
  "target",
  "target-provider-admission",
@@ -1800,7 +1701,7 @@ dependencies = [
 name = "normalized-build-settings"
 version = "0.1.0"
 dependencies = [
- "build-time-values",
+ "build-model",
  "optimization-selections",
  "target",
 ]
@@ -1826,14 +1727,13 @@ dependencies = [
 name = "numeric-intrinsic-admission"
 version = "0.1.0"
 dependencies = [
+ "build-providers",
  "diagnostics",
  "language-core",
  "native-intrinsics",
  "numeric-literals",
  "numerics",
  "provider-correspondence",
- "provider-plans",
- "selected-provider-plans",
  "semantic-vocabulary",
  "target",
  "target-vocabulary",
@@ -2038,24 +1938,21 @@ dependencies = [
  "artifacts",
  "build-consent",
  "build-declarations",
+ "build-model",
  "build-output",
  "build-program-launch",
- "build-time-values",
+ "build-providers",
  "cap-fs-ext",
  "cap-primitives",
  "cap-std",
  "declaration-scope",
  "diagnostics",
- "evaluation-accounting",
- "evaluation-contracts",
- "evaluation-receipts",
  "filesystem-authority",
  "language-core",
  "normalized-build-settings",
  "optimization-requests",
  "optimization-selections",
  "platform-custody",
- "provider-acceptance",
  "record-storage",
  "retained-product-selections",
  "semantic-vocabulary",
@@ -2082,22 +1979,20 @@ dependencies = [
  "build-declarations",
  "build-evaluation-result",
  "build-execution",
+ "build-model",
  "build-output",
+ "build-providers",
  "cap-fs-ext",
  "cap-std",
  "compiler-identity",
  "declaration-scope",
  "diagnostics",
- "evaluation-accounting",
- "evaluation-contracts",
- "evaluation-receipts",
  "filesystem-authority",
  "host-provider-inputs",
  "installation-conditions",
  "package-compilation",
  "platform-custody",
  "project-build",
- "provider-acceptance",
  "provider-admission",
  "record-storage",
  "review-evidence",
@@ -2291,9 +2186,9 @@ dependencies = [
 name = "program-entry-contracts"
 version = "0.1.0"
 dependencies = [
+ "build-providers",
  "calling-conventions",
  "diagnostics",
- "provider-plans",
  "psi-entry-memory",
  "psi-publication-records",
  "semantic-vocabulary",
@@ -2314,12 +2209,13 @@ dependencies = [
  "build-declarations",
  "build-evaluation-result",
  "build-execution",
+ "build-model",
+ "build-providers",
  "calling-conventions",
  "compiler",
  "declaration-scope",
  "diagnostics",
  "direct-boundary-bindings",
- "evaluation-receipts",
  "filesystem-authority",
  "host-provider-inputs",
  "installation-conditions",
@@ -2332,16 +2228,13 @@ dependencies = [
  "package-manager",
  "platform-custody",
  "product-publication",
- "provider-acceptance",
  "provider-admission",
- "provider-plans",
  "psi-authorization",
  "psi-provider-selections",
  "rayon",
  "retained-image-runtime",
  "retained-product-selections",
  "review-evidence",
- "selected-provider-plans",
  "semantic-vocabulary",
  "service-surface",
  "source-admission",
@@ -2385,15 +2278,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "provider-acceptance"
-version = "0.1.0"
-dependencies = [
- "record-storage",
- "semantic-vocabulary",
- "terminal-psi",
-]
-
-[[package]]
 name = "provider-admission"
 version = "0.1.0"
 dependencies = [
@@ -2401,6 +2285,7 @@ dependencies = [
  "application-identity",
  "arena",
  "bound-installations",
+ "build-providers",
  "calling-conventions",
  "component-description",
  "diagnostics",
@@ -2416,15 +2301,12 @@ dependencies = [
  "numerics",
  "operation-evidence",
  "optimization-unit-semantics",
- "provider-acceptance",
  "provider-correspondence",
- "provider-plans",
  "provider-stack-contribution",
  "psi-entry-memory",
  "psi-provider-selections",
  "psi-target-layouts",
  "runtime-abi",
- "selected-provider-plans",
  "semantic-vocabulary",
  "service-surface",
  "target",
@@ -2445,6 +2327,7 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "boundary-applications",
+ "build-providers",
  "calling-conventions",
  "diagnostics",
  "function-identity",
@@ -2452,8 +2335,6 @@ dependencies = [
  "language-core",
  "native-intrinsics",
  "numerics",
- "provider-plans",
- "selected-provider-plans",
  "semantic-vocabulary",
  "symbols",
  "target",
@@ -2476,21 +2357,6 @@ dependencies = [
  "target",
  "terminal-codec",
  "terminal-semantics",
-]
-
-[[package]]
-name = "provider-plans"
-version = "0.1.0"
-dependencies = [
- "application-identity",
- "component-description",
- "language-core",
- "semantic-vocabulary",
- "service-surface",
- "sha2",
- "target",
- "terminal-psi",
- "wire",
 ]
 
 [[package]]
@@ -2818,6 +2684,7 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "build-consent",
+ "build-providers",
  "calling-conventions",
  "diagnostics",
  "language-core",
@@ -2825,8 +2692,6 @@ dependencies = [
  "native-intrinsics",
  "numeric-literals",
  "numerics",
- "provider-acceptance",
- "provider-plans",
  "psi-effect-contracts",
  "semantic-vocabulary",
  "service-surface",
@@ -2997,17 +2862,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "selected-provider-plans"
-version = "0.1.0"
-dependencies = [
- "component-description",
- "provider-plans",
- "semantic-vocabulary",
- "terminal-psi",
- "wire",
-]
-
-[[package]]
 name = "semantic-vocabulary"
 version = "0.1.0"
 dependencies = [
@@ -3156,20 +3010,12 @@ dependencies = [
  "application-identity",
  "arena",
  "artifacts",
- "behavior-exclusion-requests",
  "bignum",
- "build-invocation",
- "build-scalar-evaluation",
- "build-time-values",
- "build-value-projection",
+ "build-model",
+ "build-time-evaluation",
  "checked-program-to-psi",
  "declaration-scope",
  "diagnostics",
- "evaluation-accounting",
- "evaluation-admission",
- "evaluation-contracts",
- "evaluation-receipts",
- "evaluation-work",
  "language-core",
  "layout-planning",
  "layout-plans",
@@ -3223,14 +3069,10 @@ dependencies = [
 name = "source-completion-accounting"
 version = "0.1.0"
 dependencies = [
- "build-invocation",
- "build-scalar-evaluation",
- "build-time-values",
+ "build-model",
+ "build-time-evaluation",
  "checked-program-to-psi",
  "diagnostics",
- "evaluation-accounting",
- "evaluation-admission",
- "evaluation-work",
  "record-storage",
  "semantic-vocabulary",
  "symbols",
@@ -3269,14 +3111,11 @@ dependencies = [
 name = "source-lexer"
 version = "0.1.0"
 dependencies = [
- "arena",
  "diagnostics",
  "memchr",
- "rayon",
  "source-files",
  "source-text",
  "tokens",
- "worker-budget",
 ]
 
 [[package]]
@@ -3288,15 +3127,12 @@ dependencies = [
  "language-core",
  "numeric-literals",
  "numerics",
- "rayon",
- "serde_json",
  "source-files",
  "source-lexer",
  "source-text",
  "symbols",
  "syntax-trees",
  "tokens",
- "worker-budget",
 ]
 
 [[package]]
@@ -3311,8 +3147,8 @@ dependencies = [
 name = "source-provider-publication"
 version = "0.1.0"
 dependencies = [
+ "build-model",
  "diagnostics",
- "evaluation-receipts",
  "psi-provider-selections",
  "semantic-vocabulary",
  "terminal-codec",
@@ -3351,25 +3187,6 @@ name = "source-text"
 version = "0.1.0"
 dependencies = [
  "record-storage",
-]
-
-[[package]]
-name = "storage-access"
-version = "0.1.0"
-dependencies = [
- "access-admission",
- "access-vocabulary",
- "extent-contracts",
- "extents",
- "language-core",
- "layout-plans",
-]
-
-[[package]]
-name = "storage-materialization"
-version = "0.1.0"
-dependencies = [
- "layout-plans",
 ]
 
 [[package]]
@@ -3469,14 +3286,11 @@ name = "syntax-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "artifacts",
  "diagnostics",
  "language-core",
  "numeric-literals",
  "numerics",
  "record-storage",
- "serde",
- "serde_json",
  "source-files",
  "source-text",
  "syntax-trees-derive",
@@ -3554,6 +3368,7 @@ name = "target-bound-program"
 version = "0.1.0"
 dependencies = [
  "boundary-applications",
+ "build-providers",
  "calling-conventions",
  "diagnostics",
  "direct-boundary-bindings",
@@ -3561,13 +3376,11 @@ dependencies = [
  "native-intrinsics",
  "program-entry-contracts",
  "provider-correspondence",
- "provider-plans",
  "psi-authorization",
  "psi-entry-memory",
  "psi-provider-selections",
  "psi-publication-records",
  "psi-target-layouts",
- "selected-provider-plans",
  "semantic-vocabulary",
  "target",
  "target-provider-admission",
@@ -3583,6 +3396,7 @@ dependencies = [
  "abstract-operations",
  "admitted-native-inputs-to-target-bound-program",
  "boundary-applications",
+ "build-providers",
  "diagnostics",
  "installation-conditions",
  "native-behavior-exclusions",
@@ -3595,7 +3409,6 @@ dependencies = [
  "psi-scalar-applications",
  "psi-target-layouts",
  "runtime-abi",
- "selected-provider-plans",
  "semantic-vocabulary",
  "target",
  "target-bound-program",
@@ -3660,11 +3473,10 @@ dependencies = [
 name = "target-provider-admission"
 version = "0.1.0"
 dependencies = [
+ "build-providers",
  "diagnostics",
  "optimization-selections",
- "provider-plans",
  "psi-provider-selections",
- "selected-provider-plans",
  "semantic-vocabulary",
  "service-surface",
  "terminal-codec",
@@ -3716,9 +3528,8 @@ dependencies = [
 name = "terminal-authority-receipts"
 version = "0.1.0"
 dependencies = [
+ "build-providers",
  "native-intrinsics",
- "provider-plans",
- "selected-provider-plans",
  "semantic-vocabulary",
  "target",
  "terminal-psi",
@@ -3761,13 +3572,9 @@ dependencies = [
  "access-admission",
  "access-vocabulary",
  "arena",
+ "build-model",
  "closed-predicates",
- "evaluation-accounting",
- "evaluation-admission",
- "evaluation-contracts",
- "evaluation-work",
  "extent-contracts",
- "extents",
  "language-core",
  "layout-plans",
  "numerics",
@@ -3778,8 +3585,6 @@ dependencies = [
  "record-storage",
  "resource-bounds",
  "semantic-vocabulary",
- "storage-access",
- "storage-materialization",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
@@ -3819,7 +3624,6 @@ dependencies = [
  "application-identity",
  "calling-conventions",
  "extent-contracts",
- "extents",
  "interpreter-numeric-imports",
  "language-core",
  "native-provider-runtime",
@@ -3833,7 +3637,6 @@ dependencies = [
  "runtime-abi",
  "semantic-vocabulary",
  "service-surface",
- "storage-access",
  "target",
  "target-provider-admission",
  "target-vocabulary",
@@ -4023,8 +3826,9 @@ dependencies = [
  "abstract-operations",
  "application-identity",
  "arena",
- "behavior-exclusion-requests",
  "boundary-applications",
+ "build-model",
+ "build-providers",
  "calling-conventions",
  "component-description",
  "diagnostics",
@@ -4042,10 +3846,8 @@ dependencies = [
  "optimization-selections",
  "optimization-unit",
  "program-entry-contracts",
- "provider-acceptance",
  "provider-admission",
  "provider-correspondence",
- "provider-plans",
  "psi-authorization",
  "psi-entry-memory",
  "psi-provider-selections",
@@ -4053,7 +3855,6 @@ dependencies = [
  "psi-scalar-applications",
  "psi-target-layouts",
  "runtime-abi",
- "selected-provider-plans",
  "semantic-vocabulary",
  "target",
  "target-bound-program",
@@ -4304,7 +4105,6 @@ version = "0.1.0"
 dependencies = [
  "bounded-process",
  "libc",
- "quote",
  "serde",
  "serde_json",
  "sha2",

@@ -2611,7 +2611,9 @@ pub mod expression {
             fn binary_equality_keeps_the_arithmetic_policy_and_prefix_negation() {
                 use crate::source_state::expression::BinaryOperator;
                 use numeric_literals::IntegerLiteral;
-                use numerics::arithmetic::ArithmeticDomain::{Exact, Saturating, Trapping, Wrapping};
+                use numerics::arithmetic::ArithmeticDomain::{
+                    Exact, Saturating, Trapping, Wrapping,
+                };
 
                 let mut trees = crate::source_state::TypedTrees::default();
                 let table = &mut trees.expression_table;
@@ -6154,29 +6156,6 @@ pub mod subtrees {
                 child(expression);
                 false
             });
-        }
-
-        /// Type dependencies include complete callable signature operands.
-        pub fn collect_type_expression_trees(
-            &self,
-            reference: crate::source_state::types::TypeReferenceHandle,
-            visited: &mut Vec<crate::source_state::types::TypeReferenceHandle>,
-            expressions: &mut Vec<ExpressionHandle>,
-        ) {
-            if !reference.is_valid() || visited.contains(&reference) {
-                return;
-            }
-            let inputs = crate::source_state::references::type_reference_inputs(self, reference);
-            for reference in inputs.types {
-                if !visited.contains(&reference) {
-                    visited.push(reference);
-                }
-            }
-            for expression in inputs.expressions {
-                if !expressions.contains(&expression) {
-                    expressions.push(expression);
-                }
-            }
         }
 
         /*

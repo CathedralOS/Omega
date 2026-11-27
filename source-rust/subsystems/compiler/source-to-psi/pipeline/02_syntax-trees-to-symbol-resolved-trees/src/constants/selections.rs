@@ -174,7 +174,10 @@ pub(crate) fn finalize_const_argument_selections(
         ).with_source_span(origin.reference));
         }
         let requires_nominal_slot = selection.is_argument_value
-            && (carrier::has_nominal_carrier(program, &declaration.declared_type)
+            && (declaration
+                .declared_type
+                .as_ref()
+                .is_some_and(|declared_type| carrier::has_nominal_carrier(program, declared_type))
                 || origin
                     .evaluated_value
                     .encoding()
@@ -229,7 +232,12 @@ pub(crate) fn finalize_const_argument_selections(
                     || carrier::has_nominal_carrier(program, type_reference))
             {
                 if (requires_nominal_slot || carrier::has_nominal_carrier(program, type_reference))
-                    && !same_resolved_carrier(program, &declaration.declared_type, type_reference)
+                    && !declaration
+                        .declared_type
+                        .as_ref()
+                        .is_some_and(|declared_type| {
+                            same_resolved_carrier(program, declared_type, type_reference)
+                        })
                 {
                     return Err(Diagnostic::error("selected constant nominal carrier differs from its receiving generic parameter").with_source_span(origin.reference));
                 }

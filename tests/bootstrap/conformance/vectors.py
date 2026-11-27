@@ -251,8 +251,8 @@ def epsilon_request(closure, source, stdin):
             + hashlib.sha256(closure).digest() + source + stdin)
 
 
-def ocreq_request(source, path):
-    """Frame the canonical OCREQ V1 request for this gate's single-source
+def ocreq_request(source, path, *, lineage_field=None):
+    """Frame the OCREQ V1 structure fixture for this gate's single-source
     program: one application package whose snapshot is exactly `path` as a
     non-executable regular file, an empty edge table, and an invocation
     selecting the alpha_bootstrap_tape product on the alpha_bootstrap
@@ -263,11 +263,13 @@ def ocreq_request(source, path):
     def field(payload):
         return u32(len(payload)) + payload
 
+    if lineage_field is None:
+        workspace = hashlib.sha256(b"OCREQ test workspace").digest()
+        lineage_field = field(b"\x03" + workspace + field(b"program"))
     snapshot_row = u32(2) + field(path) + u32(0) + field(source)
     package_row = (
         field(b"program")        # name
-        + u32(1)                 # lineage_kind: external_local
-        + field(b"")             # lineage
+        + lineage_field          # framed source lineage
         + field(b"")             # revision
         + field(b"")             # tree
         + field(b"")             # content
@@ -281,3 +283,48 @@ def ocreq_request(source, path):
     invocation = u32(4) + field(b"alpha_bootstrap") + u32(0) + commitment
     return (b"OCREQ\x01\x00\x00" + u32(len(subject)) + u32(len(invocation))
             + subject + invocation)
+
+def _ocreq_lineage_payloads():
+    """Wire examples and first malformed offsets relative to the lineage payload."""
+    def field(text):
+        return struct.pack("<I", len(text)) + text
+
+    digest = bytes(range(32))
+    repo = field(b"org/pkg")
+    host = field(b"git.example")
+    git = b"\x02\x00\x00" + host + b"\x00" + repo
+    ssh = b"\x02\x01\x01" + field(b"git") + host + b"\x01"
+    yield "github", b"\x00" + field(b"example") + field(b"pkg"), None
+    yield "gitlab", b"\x01" + repo, None
+    yield "git-https", git, None
+    yield "git-ssh", ssh + struct.pack("<H", 2222) + repo, None
+    yield "git-scp", b"\x02\x02\x01" + field(b"git") + host + b"\x00" + repo, None
+    yield "workspace", b"\x03" + digest + field(b"member"), None
+    yield "external-local", b"\x04" + digest + field(b"/example/pkg"), None
+    yield "bundled", b"\x05" + digest + field(b"system"), None
+    yield "empty", b"", 0
+    yield "unassigned-family", b"\x06", 0
+    yield "unassigned-transport", b"\x02\x03", 1
+    yield "unassigned-user-option", b"\x02\x01\x02", 2
+    yield "unassigned-port-option", b"\x02\x01\x00" + host + b"\x02", 3 + len(host)
+    yield "truncated-port", ssh + b"\x16", len(ssh) + 1
+    yield "truncated-digest", b"\x05" + digest[:-1], 32
+    yield "high-bit-path-length", b"\x01\x00\x00\x00\x80", 1
+    yield "truncated-path", b"\x01" + repo[:-1], len(repo)
+    yield "trailing", git + b"\x00", len(git)
+
+
+def ocreq_lineage_cases():
+    """Complete requests and absolute refusal coordinates for both compilers."""
+    # The envelope precedes the package count, name and outer lineage frame.
+    payload_at = 16 + 4 + 4 + len(b"program") + 4
+    for label, payload, bad in _ocreq_lineage_payloads():
+        framed = struct.pack("<I", len(payload)) + payload
+        request = ocreq_request(b"", b"program.omg", lineage_field=framed)
+        yield label, request, None if bad is None else payload_at + bad
+    for kind, text in [(1, b""), (2, b"git")]:
+        old = struct.pack("<II", kind, len(text)) + text
+        request = ocreq_request(b"", b"program.omg", lineage_field=old)
+        # Kind becomes a one- or two-byte frame. Its contents cannot encode
+        # a complete GitHub or workspace lineage.
+        yield f"retired-origin-{kind}", request, payload_at + kind

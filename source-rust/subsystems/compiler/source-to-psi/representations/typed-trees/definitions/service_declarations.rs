@@ -56,23 +56,6 @@ pub mod provider_declarations {
     use diagnostics::Diagnostic;
     use std::sync::{Arc, OnceLock};
 
-    pub fn closed_provider_requirements(
-        typed: &crate::source_state::TypedTrees,
-        template: &crate::source_state::machine::Machine,
-    ) -> Vec<crate::source_state::type_identity::CallableIdentityId> {
-        typed
-            .machine_specializations
-            .iter()
-            .filter(|receipt| receipt.template == template.symbol)
-            .filter_map(|receipt| typed.machine(receipt.instance))
-            .filter(|instance| {
-                instance.supply_mode == source_declarations::MachineSupplyMode::TopLevelRequirement
-            })
-            .map(|instance| typed.machine_callable_identity(instance))
-            .filter(|identity| identity.is_valid())
-            .collect()
-    }
-
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct NamedProviderApplication {
         pub declaration: symbols::SymbolHandle,
@@ -105,78 +88,6 @@ pub mod provider_declarations {
         pub application: ProviderApplicationView,
     }
 
-    pub struct ProviderDeclarationRequest<'rows> {
-        pub rows: &'rows [ProviderDeclarationRow<'rows>],
-        pub named_application: Option<NamedProviderApplication>,
-        pub provider_application_identity: Option<&'rows str>,
-        pub installation_reach: bool,
-    }
-
-    pub fn closed_provider_leaf_applications(
-        typed: &crate::source_state::TypedTrees,
-        template: &str,
-    ) -> Result<Vec<ProviderRequirementApplication>, Vec<String>> {
-        let mut identities = Vec::new();
-        let mut diagnostics = Vec::new();
-        for application in typed
-            .closed_requirement_applications()
-            .filter(|application| {
-                typed
-                    .trait_machine_signature(application.template)
-                    .is_some_and(|(owner, signature)| {
-                        typed.trait_requirement_callable_identity_text(owner, signature) == template
-                    })
-            })
-        {
-            let Some(owner) = typed.trait_definition_by_symbol(application.declaring_trait) else {
-                diagnostics.push("closed requirement application lost its declaring trait".into());
-                continue;
-            };
-            let identity =
-                typed.trait_requirement_callable_identity_text(owner, application.signature);
-            if !identity.is_empty() && identity != template {
-                let Some(receiving_application) = typed
-                    .type_identity_text(application.portable_trait_application_identity)
-                    .filter(|text| !text.is_empty())
-                else {
-                    diagnostics
-                        .push("provider receiving application has no portable identity".into());
-                    continue;
-                };
-                identities.push(ProviderRequirementApplication {
-                    requirement: identity,
-                    receiving_application,
-                });
-            }
-        }
-        if diagnostics.is_empty() {
-            Ok(identities)
-        } else {
-            Err(diagnostics)
-        }
-    }
-
-    pub fn requirement_reach(
-        typed: &crate::source_state::TypedTrees,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<(String, bool, semantic_vocabulary::ServiceReachRowId)> {
-        if let Some((owner, requirement)) = typed.trait_machine_signature(symbol) {
-            return Some((
-                typed.trait_requirement_callable_identity_text(owner, requirement),
-                requirement.service_reach_is_installation_bound,
-                requirement.service_reach_row,
-            ));
-        }
-        let requirement = typed.machine_by_symbol(symbol)?;
-        if requirement.supply_mode != source_declarations::MachineSupplyMode::TopLevelRequirement {
-            return None;
-        }
-        Some((
-            typed.machine_callable_identity_text(requirement)?,
-            requirement.service_reach_is_installation_bound,
-            requirement.service_reach_row,
-        ))
-    }
     pub(crate) mod context {
         use crate::source_state::TypedTrees;
         use source_provenance::DependencyScope;

@@ -54,10 +54,6 @@ const MODULES: &[(&str, &str)] = &[
         include_str!("prelude/modules/build_output.omg"),
     ),
     (
-        "BuildInputs",
-        include_str!("prelude/modules/build_inputs.omg"),
-    ),
-    (
         "RequiredOutput",
         include_str!("prelude/modules/required_output.omg"),
     ),

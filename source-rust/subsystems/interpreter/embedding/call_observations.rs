@@ -4,7 +4,7 @@
 use crate::boundary::errors::{TerminalInterpretError, malformed};
 use crate::boundary::values::scalar_contents;
 use crate::{TerminalBoundaryStorageValue, TerminalExecution};
-use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, InvocationSite, MachineId, OperationId, ScalarType,
 };

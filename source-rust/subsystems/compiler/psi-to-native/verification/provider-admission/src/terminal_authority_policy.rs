@@ -467,8 +467,8 @@ mod interrupt_control_tests {
     };
     use super::*;
     use language_core::BuiltinFunction;
-    use provider_plans::{ProviderPlanDigest, ServiceSchemaDigest};
-    use selected_provider_plans::SelectedProviderPlanFacts;
+    use build_providers::plans::{ProviderPlanDigest, ServiceSchemaDigest};
+    use build_providers::selections::SelectedProviderPlanFacts;
     use terminal_authority_receipts::{
         TerminalAuthorityClosureLeaf, TerminalAuthorityClosureLeafOrigin,
         TerminalAuthorityClosureReviewReceipt,

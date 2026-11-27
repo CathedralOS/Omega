@@ -86,8 +86,11 @@ pub(crate) fn parse_structural_machine_contract<'tokens, 'source>(
     name: syntax_trees::identifier::Identifier,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, syntax_trees::item::StateSignature> {
-    let (nested_generic_parameters, after_type_parameters) =
-        parse_generic_parameters(syntax_trees, input, GenericParameterSyntax::StaticBinders)?;
+    let (nested_generic_parameters, after_type_parameters) = parse_generic_parameters(
+        syntax_trees,
+        input,
+        GenericParameterSyntax::CallableSignature,
+    )?;
     let nested_type_parameters = nested_generic_parameters.type_parameters;
     let (parameters, after_parameters) =
         parse_optional_parameters(syntax_trees, after_type_parameters)?;
@@ -98,7 +101,9 @@ pub(crate) fn parse_structural_machine_contract<'tokens, 'source>(
         parse_signature_clauses(syntax_trees, after_nested_contracts, nested_type_parameters)?;
     validate_machine_parameter_contracts(syntax_trees, nested_type_parameters, rest)?;
     if clauses.admitted_same_stack_bytes != 0 {
-        return Err(rest.error_here("`stack N bytes` requires a bodyless foreign boundary requirement"));
+        return Err(
+            rest.error_here("`stack N bytes` requires a bodyless foreign boundary requirement")
+        );
     }
     if clauses.service_reach_is_installation_bound {
         return Err(rest.error_here(

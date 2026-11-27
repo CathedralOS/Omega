@@ -283,11 +283,11 @@ fn every_declaration_the_ordinary_reader_skips_is_read_or_refused() {
         judged(&helper)
     );
     let unused =
-        format!("{conforming}\ndata Tagged {{ case Empty; case More(tag: u64, rest: Tagged); }}\n");
+        format!("{conforming}\ndata Tagged {{ case Empty; case More(tag: f64, rest: Tagged); }}\n");
     assert!(
         unread(
             &unused,
-            "data that contains itself with a field of another type"
+            "mathematical declaration over a type other than data that contains itself"
         ),
         "{:?}",
         judged(&unused)

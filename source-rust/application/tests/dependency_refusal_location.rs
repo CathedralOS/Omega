@@ -32,8 +32,8 @@ fn a_refusal_inside_a_dependency_names_its_machine_and_file_position() {
             (
                 "build.omg",
                 "use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"consumer\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"consumer\" };
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
     |dependency|::with_alias(@mutable description, \"kit\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
@@ -51,7 +51,7 @@ machine build(builder: @mutable Build) {
             ),
             (
                 "dep/build.omg",
-                "machine build(builder: @mutable Build) {\n    Build::package(builder, \"kernel\");\n}\n",
+                "machine build(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Package { name: \"kernel\" };\n}\n",
             ),
         ],
         &["--check", "main.omg"],

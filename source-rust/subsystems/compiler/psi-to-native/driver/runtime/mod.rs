@@ -61,7 +61,7 @@ pub fn plan_host_provisions(
     installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
     host: Vec<TerminalRuntimeHostProvision>,
     input: AdmittedRuntimeInput<'_>,
-    selected: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &build_providers::selections::SelectedProviderPlanFacts,
     external_bindings: &[calling_conventions::ExternalBindingRow],
     native: NativeBindingRuntimeInputs<'_>,
 ) -> Result<TerminalRuntimeHostProvisions<NativeForeignAdapterRequest>, String> {

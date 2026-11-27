@@ -89,6 +89,7 @@ pub fn plan_hosted_program_entry<R: HostedReceiverCustody>(
                 "hosted native entry: requires the exact free Unit hosted program entry",
             ));
         }
+        check_loader_stack_supply(&input.demand)?;
         HostedEntryMode::LoaderStack
     } else {
         HostedEntryMode::OwnedStack
@@ -142,6 +143,38 @@ pub fn plan_hosted_program_entry<R: HostedReceiverCustody>(
             entry: entry_program,
         },
     ))
+}
+
+/// A hosted import runs on the loader's stack, so the checked Omega frames
+/// must fit in it with headroom for the frames they cannot see.
+fn check_loader_stack_supply(demand: &StackDemand) -> Result<(), Diagnostic> {
+    use target::LOADER_STACK_HEADROOM_BYTES as HEADROOM;
+    let target = demand.target();
+    let needed = demand.known_stack_bytes();
+    let supply = target.loader_stack_supply_bytes(needed);
+    if supply.is_some_and(|supply| needed <= supply.saturating_sub(HEADROOM)) {
+        return Ok(());
+    }
+    let path = demand
+        .peak_path()
+        .iter()
+        .map(|machine| format!("machine {machine}"))
+        .collect::<Vec<_>>()
+        .join(" -> ");
+    let target = target::TargetProfile::ALL
+        .into_iter()
+        .find(|profile| {
+            *profile != target::TargetProfile::UefiX64
+                && profile.native_realization() == Some(target)
+        })
+        .map_or("hosted", |profile| profile.target_name());
+    let supply = supply.map_or_else(|| "no".to_owned(), |bytes| bytes.to_string());
+    Err(Diagnostic::error(format!(
+        "hosted native entry: the stack frames on call path {path} need {needed} bytes, but \
+         the {target} loader stack supplies {supply} bytes and keeps {HEADROOM} of them for \
+         loader and host-call frames; shrink the large locals on that path, because the \
+         build cannot choose a larger stack"
+    )))
 }
 
 fn plan_storage(

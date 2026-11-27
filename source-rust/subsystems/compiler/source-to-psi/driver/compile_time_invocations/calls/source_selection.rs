@@ -107,7 +107,7 @@ impl InvocationSelection<'_> {
     }
 }
 
-impl evaluation_admission::InvocationSourceSelection for InvocationSelection<'_> {
+impl build_model::admission::InvocationSourceSelection for InvocationSelection<'_> {
     fn allows_selection(
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,

@@ -21,6 +21,9 @@ pub(crate) struct ParsedGenericParameters {
 pub(crate) enum GenericParameterSyntax {
     TypeAndConst,
     StaticBinders,
+    /// A structural callable signature's own binders. A proof binder such as
+    /// `Inner: NonzeroIsPositive` belongs to that signature's header.
+    CallableSignature,
     TraitRequirements,
     RequirementSignature,
     MachineDeclaration,
@@ -71,6 +74,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
     let allow_value_parameters = matches!(
         syntax,
         GenericParameterSyntax::RequirementSignature
+            | GenericParameterSyntax::CallableSignature
             | GenericParameterSyntax::MachineDeclaration
             | GenericParameterSyntax::MathematicalDefinition
             | GenericParameterSyntax::DataDeclaration

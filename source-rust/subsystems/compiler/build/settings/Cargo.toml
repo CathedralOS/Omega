@@ -8,8 +8,8 @@ version.workspace = true
 path = "settings.rs"
 
 [dependencies]
+build-model = { path = "../model" }
 normalized-build-settings = { path = "normalized" }
-build-time-values = { path = "../evaluation/values" }
 optimization-requests = { path = "optimizations" }
 terminal-interpreter = { path = "../../../interpreter" }
 package-compilation = { path = "../inputs" }

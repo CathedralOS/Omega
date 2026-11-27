@@ -849,8 +849,8 @@ pub(crate) mod frames {
         use crate::engine::execution::{CleanupContinuation, CompletedReturn};
         use crate::storage::byte_sequences::ByteSequenceView;
         use crate::storage::byte_sequences::storage::ByteSequenceStorage;
-        use evaluation_accounting::BuildEvaluationSponsor;
-        use evaluation_contracts::{
+        use build_model::accounting::BuildEvaluationSponsor;
+        use build_model::contracts::{
             BuildEvaluationSponsorLimits, EvaluationAccountingError, EvaluationMeasurementIdentity,
             EvaluationResource, TerminalStorageScheduleIdentity,
         };

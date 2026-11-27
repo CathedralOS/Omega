@@ -6,7 +6,7 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
-use super::{Program, services};
+use super::Program;
 use crate::{Signature, declare::boundaries::BoundarySource};
 
 impl Program<'_> {
@@ -98,7 +98,7 @@ impl Program<'_> {
                 .typed
                 .closed_requirement_application(target)
                 .map(|closed| (closed.template, closed.application));
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 format!(
                     "boundary call has an unspent or mismatched static application; \
@@ -160,14 +160,14 @@ impl Program<'_> {
         {
             let (_, declared) = typed
                 .bodyless_declaration(target)
-                .map_err(|reason| services::unavailable(context, reason))?
+                .map_err(|reason| crate::read::unavailable(context, reason))?
                 .ok_or_else(|| {
-                    services::unavailable(context, "layout snapshot lost its core declaration")
+                    crate::read::unavailable(context, "layout snapshot lost its core declaration")
                 })?;
             let (signature, _) = self.boundary_signature(context, &declared)?;
             let envelope = self.signature_envelope(context, &declared)?;
             let declaration = crate::declare::intrinsic_boundary_source(typed, target)
-                .map_err(|reason| services::unavailable(context, reason))?;
+                .map_err(|reason| crate::read::unavailable(context, reason))?;
             let id = self.boundaries.rows.push(BoundarySource {
                 source: target,
                 kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
@@ -186,13 +186,13 @@ impl Program<'_> {
         {
             let signature = self.numeric_primitive_signature(context, target)?;
             let declaration = crate::declare::intrinsic_boundary_source(typed, target)
-                .map_err(|reason| services::unavailable(context, reason))?;
+                .map_err(|reason| crate::read::unavailable(context, reason))?;
             let intrinsic =
                 crate::source_state::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(
                     typed, target,
                 )
                 .ok_or_else(|| {
-                    services::unavailable(context, "numeric primitive lost its source declaration")
+                    crate::read::unavailable(context, "numeric primitive lost its source declaration")
                 })?;
             let kind = match intrinsic.kind {
                 crate::source_state::declarations::intrinsic_requirements::IntrinsicRequirementKind::Operator => semantic_vocabulary::BoundaryRequirementKind::Operator,
@@ -223,13 +223,16 @@ impl Program<'_> {
             typed.symbols.sealed_intrinsic(target)
         {
             let machine = typed.machine_by_symbol(target).ok_or_else(|| {
-                services::unavailable(context, "hosted primitive lost its machine")
+                crate::read::unavailable(context, "hosted primitive lost its machine")
             })?;
             let (_, declared) = typed
                 .bodyless_declaration(target)
-                .map_err(|reason| services::unavailable(context, reason))?
+                .map_err(|reason| crate::read::unavailable(context, reason))?
                 .ok_or_else(|| {
-                    services::unavailable(context, "hosted primitive lost its bodyless declaration")
+                    crate::read::unavailable(
+                        context,
+                        "hosted primitive lost its bodyless declaration",
+                    )
                 })?;
             let mut requirements =
                 typed
@@ -243,23 +246,23 @@ impl Program<'_> {
             let requirement = requirements
                 .next()
                 .ok_or_else(|| {
-                    services::unavailable(context, "hosted primitive has no exact requirement")
+                    crate::read::unavailable(context, "hosted primitive has no exact requirement")
                 })?
                 .symbol();
             if requirements.next().is_some() || typed.trait_machine_signature(requirement).is_none_or(|(owner, required)| typed.symbols.sealed_member_intrinsic(owner.symbol, required.name.as_str()) != Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedRequirement(operation))) {
-                return Err(services::unavailable(context, "hosted primitive has no unique canonical requirement"));
+                return Err(crate::read::unavailable(context, "hosted primitive has no unique canonical requirement"));
             }
             let (canonical, signature) = self
                 .read_boundary_declaration(context, requirement)?
                 .ok_or_else(|| {
-                    services::unavailable(
+                    crate::read::unavailable(
                         context,
                         "hosted primitive requirement has no declaration",
                     )
                 })?;
             let (actual, _) = self.declared_requirement_signature(context, &declared, &[])?;
             if actual != signature {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "hosted primitive contract differs from its canonical requirement",
                 ));
@@ -268,7 +271,10 @@ impl Program<'_> {
                 .boundaries
                 .row(canonical)
                 .ok_or_else(|| {
-                    services::unavailable(context, "hosted primitive requirement lost its boundary")
+                    crate::read::unavailable(
+                        context,
+                        "hosted primitive requirement lost its boundary",
+                    )
                 })?
                 .clone();
             source.source = target;
@@ -276,7 +282,7 @@ impl Program<'_> {
             source.kind = semantic_vocabulary::BoundaryRequirementKind::Machine;
             source.owning_service = None;
             source.declaration = crate::declare::intrinsic_boundary_source(typed, target)
-                .map_err(|reason| services::unavailable(context, reason))?;
+                .map_err(|reason| crate::read::unavailable(context, reason))?;
             self.admitted_declarations.include(target);
             let id = self.boundaries.rows.push(source);
             return Ok(Some((id, signature)));
@@ -290,14 +296,14 @@ impl Program<'_> {
         if (!owner.lifetime_parameters.is_empty() || !owner.type_parameters.is_empty())
             && typed.closed_requirement_application(target).is_none()
         {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "boundary call needs its complete declaring trait application",
             ));
         }
         let owning_service = if let Some(closed) = typed.closed_requirement_application(target) {
             let scope = closed.trait_scope.scope(typed).ok_or_else(|| {
-                services::unavailable(context, "boundary requirement lost its applied service")
+                crate::read::unavailable(context, "boundary requirement lost its applied service")
             })?;
             self.service(context, scope)?
         } else {
@@ -314,7 +320,7 @@ impl Program<'_> {
             self.typed
                 .trait_requirement_callable_identity_text(owner, declared),
         )
-        .map_err(|reason| services::unavailable(context, reason))?;
+        .map_err(|reason| crate::read::unavailable(context, reason))?;
         let completion = crate::source_state::boundary_completions::boundary_requirement_completion(
             self.typed, target,
         );

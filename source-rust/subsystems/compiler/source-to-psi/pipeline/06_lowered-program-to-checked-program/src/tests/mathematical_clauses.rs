@@ -336,12 +336,16 @@ fn rule_coverage_of_a_mathematical_goal_is_read_from_its_form() {
     )));
     let mixed_product = IntegerMathTerm::Multiply(Box::new(embedded(1)), Box::new(narrow));
     assert!(!crate::has_rules_for(&within(mixed_product, 300)));
-    assert!(!crate::has_rules_for(
-        &Proposition::IntegerMathEqual(embedded(1), integer(7))
-    ));
-    assert!(!crate::has_rules_for(
-        &Proposition::IntegerMathLessThan(embedded(1), integer(7))
-    ));
+    // An open equality is the antisymmetry of its two orders, and a value
+    // bounded by a literal on each side has a rule for both.
+    assert!(crate::has_rules_for(&Proposition::IntegerMathEqual(
+        embedded(1),
+        integer(7)
+    )));
+    assert!(!crate::has_rules_for(&Proposition::IntegerMathLessThan(
+        embedded(1),
+        integer(7)
+    )));
     // Shared open terms cancel in the kernel, so both a true comparison and
     // a false one have a rule. Distinct unknown subjects above still do not.
     let first = sum(embedded(1), integer(1));

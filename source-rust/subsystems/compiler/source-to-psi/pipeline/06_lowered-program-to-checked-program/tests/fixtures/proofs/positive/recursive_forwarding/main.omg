@@ -1,0 +1,30 @@
+data NonzeroIsPositive = machine(n: u8)
+    requires n != 0u8
+    ensures n > 0u8;
+
+machine nonzero_is_positive(n: u8)
+requires n != 0u8
+ensures n > 0u8
+{
+}
+
+machine done(n: u8) {}
+
+// Each step applies the proof it received, then hands the same proof to the
+// next step. The recursive call must still meet `walk`'s `requires` and
+// descend by `n`.
+machine walk<Step: NonzeroIsPositive>(n: u8)
+requires n != 0u8
+terminates by n
+{
+    Step(n);
+    transition n == 1u8 {
+        true -> done(n),
+        false -> walk::<Step>(n - 1u8)
+    }
+}
+
+machine entry() -> u8 {
+    walk::<nonzero_is_positive>(7u8);
+    0u8
+}

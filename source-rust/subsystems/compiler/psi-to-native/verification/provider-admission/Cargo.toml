@@ -5,15 +5,13 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+build-providers = { path = "../../../build/providers" }
 target-bound-program = { path = "../../representations/target-bound-program" }
-provider-acceptance = { path = "../../../build/providers/acceptance" }
 terminal-authority-receipts = { path = "authority" }
 numeric-intrinsic-admission = { path = "../numeric-intrinsics" }
 native-binding-admission = { path = "../native-bindings" }
 native-intrinsics = { path = "../../targets/intrinsics" }
 target-provider-admission = { path = "../target-providers" }
-selected-provider-plans = { path = "../../../build/providers/selections" }
-provider-plans = { path = "../../../build/providers/plans" }
 psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 psi-entry-memory = { path = "../../../psi/execution-inputs/entry-memory" }
 psi-target-layouts = { path = "../../../psi/execution-inputs/target-layouts" }

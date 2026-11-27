@@ -8,10 +8,9 @@ version.workspace = true
 path = "exclusions.rs"
 
 [dependencies]
-behavior-exclusion-requests = { path = "../../../build/settings/behavior-exclusions" }
+build-providers = { path = "../../../build/providers" }
+build-model = { path = "../../../build/model" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-provider-plans = { path = "../../../build/providers/plans" }
-selected-provider-plans = { path = "../../../build/providers/selections" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-authority-receipts = { path = "../provider-admission/authority" }
 terminal-psi = { path = "../../../psi" }

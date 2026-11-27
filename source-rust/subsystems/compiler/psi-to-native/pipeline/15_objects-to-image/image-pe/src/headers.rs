@@ -27,6 +27,7 @@ pub(crate) struct PeHeaderInput {
     pub(crate) has_reloc: bool,
     pub(crate) subsystem: u16,
     pub(crate) file_characteristics: u16,
+    pub(crate) stack_reserve: u64,
     pub(crate) export_directory_rva: u32,
     pub(crate) export_directory_size: usize,
     pub(crate) exception_directory_rva: u32,
@@ -78,7 +79,7 @@ pub(crate) fn write_pe_headers(bytes: &mut Vec<u8>, input: PeHeaderInput) {
     let dynamic_base = input.has_reloc || input.isa == PeIsa::Aarch64;
     let dll_characteristics: u16 = 0x0100 | if dynamic_base { 0x0040 } else { 0 };
     write_u16(bytes, dll_characteristics);
-    write_u64(bytes, 0x100000);
+    write_u64(bytes, input.stack_reserve);
     write_u64(bytes, 0x1000);
     write_u64(bytes, 0x100000);
     write_u64(bytes, 0x1000);

@@ -1,6 +1,6 @@
 //! Match each closed public method to the body that was prepared for its arguments.
 
-use super::{Program, services};
+use super::Program;
 use crate::source_state::machine::Machine;
 use crate::source_state::signature::StateSignature;
 use crate::source_state::trait_definition::AppliedTraitScope;
@@ -21,17 +21,22 @@ impl<'program> Program<'program> {
             let header = typed
                 .applied_callable_signature(application, required.symbol)
                 .or_else(|| {
-                    application.keeps_declared_signatures(typed).then_some(required)
+                    application
+                        .keeps_declared_signatures(typed)
+                        .then_some(required)
                 })
                 .ok_or_else(|| {
-                    services::unavailable(context, "conformance lost its prepared requirement header")
+                    crate::read::unavailable(
+                        context,
+                        "conformance lost its prepared requirement header",
+                    )
                 })?;
             return Ok(vec![(header, supplied)]);
         }
         if !self.generic_templates.contains(&supplied.symbol) {
             self.generic_templates.push(supplied.symbol);
         }
-        let unavailable = |reason| services::unavailable(context, reason);
+        let unavailable = |reason| crate::read::unavailable(context, reason);
         let mut members = Vec::new();
         for receipt in typed
             .machine_specializations
@@ -88,7 +93,7 @@ impl<'program> Program<'program> {
         }
         let member_parameters = typed.machine_type_parameters(member);
         if parameters.len() != member_parameters.len() {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "the requirement and its implementation declare different numbers of static parameters",
             ));
@@ -104,7 +109,7 @@ impl<'program> Program<'program> {
                     public, private,
                 )
             {
-                return Err(services::unavailable(
+                return Err(crate::read::unavailable(
                     context,
                     "the method implementation gives a public type parameter a different contract",
                 ));
@@ -114,7 +119,7 @@ impl<'program> Program<'program> {
                 .iter()
                 .find_map(|(symbol, ty)| (*symbol == private.symbol).then_some(*ty))
                 .ok_or_else(|| {
-                    services::unavailable(context, "the implementation lost its type parameter")
+                    crate::read::unavailable(context, "the implementation lost its type parameter")
                 })?;
             bindings.push((public.symbol, value));
             if let Some(reference) = typed
@@ -143,7 +148,7 @@ impl<'program> Program<'program> {
         template: SymbolHandle,
     ) -> Checked<Option<&'program StateSignature>> {
         let typed = self.typed;
-        let unavailable = |reason| super::services::unavailable(id, reason);
+        let unavailable = |reason| crate::read::unavailable(id, reason);
         let Some(crate::source_state::MachineInstantiation::Specialization(receipt)) =
             typed.machine_instantiation(machine).map_err(unavailable)?
         else {
@@ -248,7 +253,7 @@ impl<'program> Program<'program> {
                 .is_some_and(|closed| closed.symbol == target)
             {
                 if selected.is_some_and(|known| known != receipt.instance) {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         id,
                         "the selected member has two bodies for the same public arguments",
                     ));

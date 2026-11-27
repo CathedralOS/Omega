@@ -4236,9 +4236,8 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(Vec::new(), Some(u32_type().into())));
     let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &constrained()).unwrap();
-    // Each type's declaration in the module states its clauses, and the
-    // checker's table beside the module restates them by the type's
-    // identity.
+    // Each type's declaration in the module states its clauses; the checker
+    // reads them from there.
     let declared = &elaboration.module.types.structural_types;
     assert_eq!(
         declared[0].requires,
@@ -4248,8 +4247,6 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
         declared[1].requires,
         constrained().get(id(2)).unwrap().requires
     );
-    assert_eq!(elaboration.domains.get(id(1)), Some(&declared[0].requires));
-    assert_eq!(elaboration.domains.get(id(2)), Some(&declared[1].requires));
     let machine = &elaboration.module.machines[0];
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let entry_block = block(machine, 1);

@@ -193,7 +193,7 @@ mod native {
         pub scope: Option<&'request crate::NativeExecutionScope>,
         pub scalar_applications: Option<super::NativeScalarApplications<'request>>,
         pub providers: &'request [crate::SelectedProviderAdapter],
-        pub plans: &'request selected_provider_plans::SelectedProviderPlanFacts,
+        pub plans: &'request build_providers::selections::SelectedProviderPlanFacts,
         pub callbacks:
             &'request [provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
         pub entry_call: Option<&'request crate::SelectedProgramEntryCall>,
@@ -202,7 +202,7 @@ mod native {
     impl<'request> NativeExecutionSelection<'request> {
         pub(crate) fn checked(
             scope: &'request crate::NativeExecutionScope,
-            plans: &'request selected_provider_plans::SelectedProviderPlanFacts,
+            plans: &'request build_providers::selections::SelectedProviderPlanFacts,
             scalar_applications: Option<super::NativeScalarApplications<'request>>,
         ) -> Self {
             Self {
@@ -537,7 +537,7 @@ mod native {
         pub(crate) fn bind_selected_provider_coordinates(
             mut self,
             artifact: &terminal_codec::CanonicalTerminalArtifact,
-            selected: &selected_provider_plans::SelectedProviderPlanFacts,
+            selected: &build_providers::selections::SelectedProviderPlanFacts,
         ) -> Result<Self, String> {
             self.context()
                 .authorization()
@@ -718,7 +718,7 @@ mod native {
                         scope: None,
                         scalar_applications: None,
                         providers: &[],
-                        plans: &selected_provider_plans::SelectedProviderPlanFacts::default(),
+                        plans: &build_providers::selections::SelectedProviderPlanFacts::default(),
                         callbacks: &[],
                         entry_call: None,
                     },
@@ -865,7 +865,7 @@ mod native {
                     scope: None,
                     scalar_applications: None,
                     providers: &[],
-                    plans: &selected_provider_plans::SelectedProviderPlanFacts::default(),
+                    plans: &build_providers::selections::SelectedProviderPlanFacts::default(),
                     callbacks: &[],
                     entry_call: None,
                 },
@@ -894,7 +894,7 @@ mod native {
                         plan.psi,
                         target::NativeTarget::macos_arm64(),
                         plan.entry,
-                        *selected_provider_plans::SelectedProviderPlanFacts::default()
+                        *build_providers::selections::SelectedProviderPlanFacts::default()
                             .identity_digest()
                             .as_bytes()
                     )
@@ -1151,7 +1151,7 @@ mod scalar_applications {
             profile: target::TargetProfile,
             targets: &TerminalTargetContext,
             layouts: &AdmittedTargetLayouts,
-            plans: &selected_provider_plans::SelectedProviderPlanFacts,
+            plans: &build_providers::selections::SelectedProviderPlanFacts,
             scalar_providers: &[crate::SelectedProviderAdapter],
             scalar_demand: &[semantic_vocabulary::ScalarApplicationId],
             execution_machines: &[semantic_vocabulary::MachineId],

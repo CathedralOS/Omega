@@ -13,7 +13,7 @@
 //! The lowered program records the owner in one way. Every case of every sum
 //! has its own `StructuralCaseId`, unique in the module, and a dispatch edge
 //! or a `Case` path step names a case by that id
-//! (`wiki/spec/terminal-psi/encoding.md`: a `StructuralCase` terminator
+//! (`source-rust/subsystems/compiler/psi/artifact/wire/encoding.md`: a `StructuralCase` terminator
 //! carries "edge id + target block id + case id + counted field ids" for
 //! each successor). So the id an arm carries is the whole statement of which
 //! sum it selects from, and the tests below require it to be an id of the

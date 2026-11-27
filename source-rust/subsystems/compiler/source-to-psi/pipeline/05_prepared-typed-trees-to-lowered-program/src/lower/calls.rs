@@ -1134,7 +1134,7 @@ impl Lowering<'_> {
             SourceOrigin,
             Option<u32>,
             &[terminal_psi::static_reach::StaticReachArgument],
-            &[terminal_psi::TheoremSource],
+            &[crate::body::ProofSupply],
         ),
         acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<Value> {
@@ -1211,8 +1211,16 @@ impl Lowering<'_> {
                 machine: self.id,
                 site: InvocationSite::Operation(operation),
                 proof_position: self.position(position)?,
-                source: *proof,
+                source: proof.source,
                 derivations: Vec::new(),
+                instantiation: proof
+                    .instantiation
+                    .iter()
+                    .map(|source| terminal_psi::TheoremInstantiation {
+                        source: *source,
+                        derivations: Vec::new(),
+                    })
+                    .collect(),
             });
         }
 

@@ -21,7 +21,7 @@
 #[path = "support/constant_array_extents.rs"]
 mod program;
 
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use program::{
     INITIALIZERS, Initializer, MACHINES, declared_value, extent_uses, literal_extents, path,
     prepare,

@@ -4,7 +4,7 @@
 
 pub mod closure;
 mod physical;
-use behavior_exclusion_requests::{AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind};
+use build_model::behavior_exclusions::{AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{CrashCause, ServiceId, TerminalAuthorityClass};
 use terminal_psi::TerminalModule;

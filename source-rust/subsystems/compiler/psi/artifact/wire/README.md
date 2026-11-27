@@ -1,6 +1,6 @@
 # Psi wire format
 
-The wire codec turns a [Psi program](../../../../../../wiki/spec/terminal-psi/product.md) into bytes and checks the structure of a program it reads. The [encoding specification](../../../../../../wiki/spec/terminal-psi/encoding.md) defines the canonical form and identifies each section. The individual operation payloads currently live in the vocabulary reference.
+The wire codec turns a [Psi program](../../../../../../wiki/spec/terminal-psi/product.md) into bytes and checks the structure of a program it reads. The [encoding specification](encoding.md) defines the canonical form and identifies each section. The individual operation payloads currently live in the vocabulary reference.
 
 This crate reads and writes the complete program, validates incoming records, computes fingerprints and handles companion sections. The [artifact codec](../codec/README.md) seals each program with its bytes and manifest. The optimizer and native structural catalog get the bytes for structural domains, access plans and quotient declarations directly from [declaration encoding](../declaration-encoding/src/lib.rs). Both the complete artifact and the native compiler use those same field definitions.
 

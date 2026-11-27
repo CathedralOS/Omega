@@ -18,8 +18,9 @@ pub fn parse_syntax_trees_with_id(
     source_id: SourceId,
     tokens: &tokens::TokenStream<'_>,
 ) -> Result<SyntaxTrees, parsing::ParseError> {
-    let (mut pages, _) = parse_pages(source_id, tokens, 1)?.into_parts();
-    Ok(pages.pop().expect("one source produces one syntax page"))
+    let mut syntax = SyntaxTrees::new(source_id);
+    parsing::parse_into(&mut syntax, source_id, tokens)?;
+    Ok(syntax)
 }
 
 pub fn parse(
@@ -31,35 +32,8 @@ pub fn parse(
         .unwrap()
         .checked_add(1)
         .unwrap();
-    let (pages, sources) = parse_pages(source_id, tokens, first_page)?.into_parts();
-    let source = &sources.sources.span_or_empty(sources.batch)[0];
-    let roots = ParsedRootItems {
-        items: source.root_items.clone(),
-        import_range: source.import_root_range.clone(),
-    };
-    for page in pages {
-        syntax.adopt_page(page);
-    }
+    let mut page = SyntaxTrees::new_with_generation(source_id, first_page);
+    let roots = parsing::parse_into(&mut page, source_id, tokens)?;
+    syntax.adopt_page(page);
     Ok(roots)
-}
-
-fn parse_pages(
-    source_id: SourceId,
-    tokens: &tokens::TokenStream<'_>,
-    first_page_identity: u32,
-) -> Result<syntax_trees::ParsedSyntaxPages, parsing::ParseError> {
-    let source = tokens.shared_source();
-    let mut lexed = tokens::LexedSources::default();
-    lexed.batch = lexed.sources.insert_many([tokens::LexedSource {
-        source_id,
-        tokens: tokens.clone().retain_source(source),
-        ..Default::default()
-    }]);
-    parsing::parse(
-        &lexed,
-        parsing::ParseOptions {
-            first_page_identity,
-            ..Default::default()
-        },
-    )
 }

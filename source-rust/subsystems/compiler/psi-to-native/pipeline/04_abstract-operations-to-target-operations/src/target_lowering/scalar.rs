@@ -1364,7 +1364,8 @@ pub(crate) mod element_views {
                                         .and_then(|span| span.checked_add(8))
                                 }
                                 terminal_semantics::CollectionExtent::StoredLength
-                                | terminal_semantics::CollectionExtent::Parameter { .. } => None,
+                                | terminal_semantics::CollectionExtent::Parameter { .. }
+                                | terminal_semantics::CollectionExtent::Application(_) => None,
                             }
                         }) != Some(u64::from(collection.byte_size))
                     }
@@ -1373,6 +1374,7 @@ pub(crate) mod element_views {
                             terminal_semantics::CollectionExtent::StoredLength => 16,
                             terminal_semantics::CollectionExtent::Fixed(_) => 8,
                             terminal_semantics::CollectionExtent::Parameter { .. }
+                            | terminal_semantics::CollectionExtent::Application(_)
                             | terminal_semantics::CollectionExtent::LiveLength { .. } => {
                                 return Err(invalid());
                             }
@@ -1415,7 +1417,11 @@ pub(crate) mod element_views {
                 (None, terminal_semantics::CollectionExtent::LiveLength { .. }) => {
                     (8, target_operations::TargetViewExtent::LiveLength)
                 }
-                (None, terminal_semantics::CollectionExtent::Parameter { .. }) => {
+                (
+                    None,
+                    terminal_semantics::CollectionExtent::Parameter { .. }
+                    | terminal_semantics::CollectionExtent::Application(_),
+                ) => {
                     return Err(invalid());
                 }
                 (None, terminal_semantics::CollectionExtent::StoredLength) => {

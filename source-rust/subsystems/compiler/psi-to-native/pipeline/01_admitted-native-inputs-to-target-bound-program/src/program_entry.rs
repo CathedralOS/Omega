@@ -151,7 +151,7 @@ impl SelectedCompilerProgramEntry {
     pub fn bind_physical_adapter(
         &mut self,
         module: &terminal_psi::TerminalModule,
-        declarations: &[provider_plans::ProviderPlan],
+        declarations: &[build_providers::plans::ProviderPlan],
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(plans) = &self.calling_plans else {
             return Ok(());
@@ -197,7 +197,7 @@ impl SelectedCompilerProgramEntry {
                 }
                 if !matches!(
                     row.binding,
-                    provider_plans::ProviderBinding::CheckedAdapter { .. }
+                    build_providers::plans::ProviderBinding::CheckedAdapter { .. }
                 ) {
                     return Err(vec![Diagnostic::error(
                         "selected physical entry adapter is absent",

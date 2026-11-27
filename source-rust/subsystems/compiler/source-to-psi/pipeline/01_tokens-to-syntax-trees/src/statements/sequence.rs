@@ -51,10 +51,10 @@ pub(crate) fn parse_statements<'tokens, 'source>(
 /// and an expression the `}` closes is the block's value, as it is a
 /// machine body's. A block with no final expression has the Unit value.
 ///
-/// A block holds bindings, assignments and calls. A `transition`, `crash`
-/// or `asm` statement inside one would complete or leave the enclosing
-/// machine from the middle of an arm, which no later stage lowers, so it is
-/// refused here at the statement.
+/// A block holds bindings, assignments, calls, `transition` dispatches and
+/// `crash` statements. A `transition` or `crash` completes or leaves the
+/// enclosing machine from the arm. An `asm`, root or proof-output binding
+/// statement is refused here at the statement.
 pub(crate) fn parse_block_value<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -92,8 +92,10 @@ pub(crate) fn parse_block_value<'tokens, 'source>(
                     tail = *value;
                     tail_statement = Some(statement);
                 }
+                StatementNode::Transition(transition)
+                    if matches!(transition.exit, TransitionExit::Crash(_)) => {}
+                StatementNode::Dispatch(_) => {}
                 StatementNode::Transition(_)
-                | StatementNode::Dispatch(_)
                 | StatementNode::Assembly(_)
                 | StatementNode::AuthoredAssembly(_)
                 | StatementNode::AssemblyFact(_)

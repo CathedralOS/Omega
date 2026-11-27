@@ -203,6 +203,7 @@ pub struct BuildInvocationJudgment {
     pub invocation: CheckedBuildInvocation,
     pub constants: Vec<ConstantRead>,
     pub accounting: SourceCompletionAccounting,
+    pub declaration_usage: crate::DeclarationUsageAdvisories,
 }
 
 /// Carries the source consent used to check this invocation through publication.
@@ -276,6 +277,19 @@ impl CheckedBuildInvocation {
             },
         )?;
         let constants = judged.accepted.constants_read();
+        let mut build_roots = Vec::with_capacity(1 + roots.len());
+        build_roots.push(entry);
+        build_roots.extend(roots.iter().copied());
+        let mut declaration_usage = crate::DeclarationUsageAdvisories::default();
+        declaration_usage
+            .observe(
+                judged.accepted.source(),
+                subjects,
+                DependencyScope::Build,
+                &build_roots,
+                &[],
+            )
+            .map_err(|reason| uncharged(vec![Diagnostic::error(reason)]))?;
         Ok(BuildInvocationJudgment {
             invocation: Self {
                 accepted: judged.accepted,
@@ -283,6 +297,7 @@ impl CheckedBuildInvocation {
             },
             constants,
             accounting: judged.accounting,
+            declaration_usage,
         })
     }
 

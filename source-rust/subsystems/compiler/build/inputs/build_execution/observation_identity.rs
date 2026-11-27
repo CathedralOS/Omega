@@ -73,20 +73,6 @@ impl BuildObservationSummary {
                 );
             }
         }
-        digest.u64(self.named_input_inventories().len() as u64);
-        for input in self.named_input_inventories() {
-            digest.bytes(input.name());
-            digest.u32(input.root_identity());
-            let inventory = input.inventory();
-            digest.u64(inventory.entry_count());
-            digest.u64(inventory.file_bytes());
-            digest.u32(inventory.source_metadata_identity().policy_version());
-            digest.raw(
-                &inventory
-                    .source_metadata_identity()
-                    .source_content_commitment(),
-            );
-        }
         digest.u64(self.generated_sources.len() as u64);
         for source in &self.generated_sources {
             digest.bytes(source.relative_path());
@@ -140,9 +126,6 @@ impl BuildObservationSummary {
                 digest.byte(path.operand_ordinal());
                 digest.byte(grant_access_tag(path.access()));
                 digest.byte(filesystem_root_tag(path.root()));
-                if let BuildFilesystemRoot::NamedInput(identity) = path.root() {
-                    digest.u32(identity);
-                }
                 digest.bytes(path.relative_path());
             }
             digest.u64(
@@ -221,8 +204,7 @@ const fn filesystem_root_tag(root: BuildFilesystemRoot) -> u8 {
     match root {
         BuildFilesystemRoot::Source => 0,
         BuildFilesystemRoot::Output => 1,
-        BuildFilesystemRoot::NamedInput(_) => 2,
-        BuildFilesystemRoot::MappedDirectories => 3,
+        BuildFilesystemRoot::MappedDirectories => 2,
     }
 }
 

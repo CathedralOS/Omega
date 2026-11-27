@@ -479,7 +479,7 @@ use crate::engine::execution::LiveClaim;
 use crate::engine::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::storage::reference;
 use crate::storage::runtime_rows::RuntimeRows;
-use evaluation_accounting::EvaluationInvocationAccount;
+use build_model::accounting::EvaluationInvocationAccount;
 use semantic_vocabulary::{
     ClaimId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
@@ -1167,7 +1167,7 @@ pub(crate) fn bind_structural_primitive_values(
     arguments: &[TerminalStructuralPrimitiveValue],
     mut storage: crate::storage::scalar_storage::ScalarStorageRows<StructuralRuntimePlace>,
     zero_initialized_arguments: &[u32],
-    account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    account: Option<&build_model::accounting::EvaluationInvocationAccount>,
 ) -> Result<
     (
         crate::storage::scalar_storage::ScalarStorageRows<StructuralRuntimePlace>,

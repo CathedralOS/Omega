@@ -4,7 +4,6 @@ We own the host and captured filesystem authority granted to an admitted `build.
 Every build activation operates under explicit grant roots:
 1. `BUILD_SOURCE_ROOT_IDENTITY` (`1`) is the read-only `Source` root, backed either by an immutable compiler-captured `CapturedBuildSourceInput` or by an explicitly admitted `BoundDirectory` directory capability.
 2. `BUILD_OUTPUT_ROOT_IDENTITY` (`2`) is the append-and-seal `Output` staging directory (`build_dir`), governed by a `FilesystemSponsor`.
-3. `NamedBuildInput` slots (`3..`) bind additional read-only `CapturedBuildSourceInput` snapshots under `$OmegaBuildInputSlots`.
 */
 
 /*
@@ -29,7 +28,7 @@ pub(super) mod runtime_directory;
 pub(super) mod successor_directory;
 
 use super::observations::{
-    BuildActivation, BuildCapturedSourceInventory, BuildNamedInputInventory,
+    BuildActivation, BuildCapturedSourceInventory,
     BuildRequiredOutputSettlement,
 };
 use crate::BuildCanonicalSourceMetadataIdentity;
@@ -39,14 +38,8 @@ use filesystem_authority::{
     FilesystemGrantRoot, FilesystemGrantRootIdentity, FilesystemMetadataLayout, FilesystemSponsor,
     FilesystemSponsorEntry, FsGrants,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BuildMachineCapturedFilesystemRoot {
-    pub identity: FilesystemGrantRootIdentity,
-    pub snapshot: CapturedBuildSourceInput,
-}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum BuildMachineFilesystemAccess {
@@ -59,7 +52,7 @@ pub enum BuildMachineFilesystemAccess {
         sponsor: FilesystemSponsor,
     },
     CapturedScoped {
-        inputs: Vec<BuildMachineCapturedFilesystemRoot>,
+        source: CapturedBuildSourceInput,
         grants: FsGrants,
         sponsor: Option<FilesystemSponsor>,
     },
@@ -101,14 +94,6 @@ pub struct BuildMachineFilesystemScope {
     pub(super) product_source_directory: Option<Vec<u8>>,
     required_outputs: BTreeSet<Vec<u8>>, // Declared required sealed output paths in canonical order.
     directories: runtime_directory::BuildDirectoryMappings,
-    named_inputs: Vec<NamedBuildInput>, // Assigned named input roots (`3..`).
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct NamedBuildInput {
-    name: Vec<u8>,                                 // Validated UTF-8 slot name.
-    input: CapturedBuildSourceInput,               // Immutable captured input inventory.
-    root: FilesystemGrantRootIdentity, // Activation-local grant root identity (`>= 3`).
 }
 
 const REQUIRED_BUILD_OUTPUT_LIMIT: usize = 4_096;
@@ -203,7 +188,6 @@ impl BuildMachineFilesystemScope {
             required_outputs: BTreeSet::new(),
             product_source_directory: None,
             directories: Default::default(),
-            named_inputs: Vec::new(),
         }
     }
 
@@ -230,7 +214,6 @@ impl BuildMachineFilesystemScope {
             required_outputs: BTreeSet::new(),
             product_source_directory: None,
             directories: Default::default(),
-            named_inputs: Vec::new(),
         }
     }
 
@@ -291,70 +274,6 @@ impl BuildMachineFilesystemScope {
         self.captured_source_input = Some(input);
         self.live_source = None;
         Ok(self)
-    }
-
-    pub(crate) fn with_named_inputs(
-        mut self,
-        inputs: &BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
-    ) -> Self {
-        if inputs.is_empty() {
-            return self;
-        }
-        self.named_inputs = inputs
-            .iter()
-            .enumerate()
-            .map(|(index, (name, input))| NamedBuildInput {
-                name: name.clone(),
-                input: input.clone(),
-                root: FilesystemGrantRootIdentity::new(index as u32 + 3)
-                    .expect("bounded slot ordinal follows the source and output roots"),
-            })
-            .collect();
-        self
-    }
-
-    pub(crate) fn named_input_facet(&self) -> build_time_values::BuildTimeValue {
-        use build_time_values::BuildTimeValue;
-        BuildTimeValue::Struct {
-            type_name: "$OmegaBuildInputSlots".to_owned(),
-            fields: self
-                .named_inputs
-                .iter()
-                .map(|input| {
-                    (
-                        String::from_utf8(input.name.clone()).expect("validated UTF-8 slot"),
-                        BuildTimeValue::Struct {
-                            type_name: "$OmegaBuildSourceRoot".to_owned(),
-                            fields: vec![(
-                                "root".to_owned(),
-                                BuildTimeValue::Int(i64::from(input.root.get())),
-                            )],
-                        },
-                    )
-                })
-                .collect(),
-        }
-    }
-
-    pub(crate) fn named_input_inventory(
-        &self,
-        root: FilesystemGrantRootIdentity,
-    ) -> Option<BuildCapturedSourceInventory> {
-        self.named_inputs
-            .iter()
-            .find(|input| input.root == root)
-            .map(|input| input.input.inventory())
-    }
-
-    pub(crate) fn named_input_inventories(&self) -> Vec<BuildNamedInputInventory> {
-        self.named_inputs
-            .iter()
-            .map(|input| BuildNamedInputInventory {
-                name: input.name.clone(),
-                root_identity: input.root.get(),
-                inventory: input.input.inventory(),
-            })
-            .collect()
     }
 
     pub(crate) fn with_required_outputs(
@@ -449,13 +368,7 @@ impl BuildMachineFilesystemScope {
 
     pub(crate) fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
         let mut read_roots = Vec::new();
-        let mut captured_roots = Vec::new();
-        if let Some(snapshot) = &self.captured_source_input {
-            captured_roots.push(BuildMachineCapturedFilesystemRoot {
-                identity: BUILD_SOURCE_ROOT_IDENTITY,
-                snapshot: snapshot.clone(),
-            });
-        } else {
+        if self.captured_source_input.is_none() {
             let mut source_root = FilesystemGrantRoot::new(
                 BUILD_SOURCE_ROOT_IDENTITY,
                 self.source_root.clone(),
@@ -465,12 +378,6 @@ impl BuildMachineFilesystemScope {
             }
             read_roots.push(source_root);
         }
-        captured_roots.extend(self.named_inputs.iter().map(|input| {
-            BuildMachineCapturedFilesystemRoot {
-                identity: input.root,
-                snapshot: input.input.clone(),
-            }
-        }));
         let grants = FsGrants {
             read_roots,
             write_roots: vec![FilesystemGrantRoot::new(
@@ -478,9 +385,9 @@ impl BuildMachineFilesystemScope {
                 self.build_dir.clone(),
             )],
         };
-        if !captured_roots.is_empty() {
+        if let Some(source) = &self.captured_source_input {
             return BuildMachineFilesystemAccess::CapturedScoped {
-                inputs: captured_roots,
+                source: source.clone(),
                 grants,
                 sponsor: self.sponsor.clone(),
             };

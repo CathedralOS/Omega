@@ -9,7 +9,7 @@ define the wire encoding independently of Rust compiler objects.
 **Incomplete physical specification:** the outer framing, semantic contents,
 commitment preimage, validation order, publication rules, outcome frame
 layout, coordinate spaces, diagnostic phases, scalar-resource table, the
-subject/invocation field/tag tables except the package-origin encoding below,
+subject/invocation field/tag tables for named packages,
 the assigned `Reject` inventory
 below — including the syntax distinction granularity and the checking codes —
 and the named `Incomplete` coverage provisions are settled. Refusals publish
@@ -130,11 +130,47 @@ canonical name/lineage inputs must produce identical keys in package management,
 the bootstrap compiler and the Omega compiler. Their canonical identity encoding and hashing must be specified once
 and exercised by shared vectors, not independently invented per consumer.
 
-The structured source-lineage encoding must specify its tags, field framing
-and canonical identity preimage. The superseded two-tag `external_local`/`git`
-encoding with opaque lineage text must not be reinterpreted as this structure.
-The encoding must preserve the [package identity rules](declarations.md#names-lineage-and-resolution);
-private implementation fields do not override those rules.
+The row's `lineage` field is one length-framed `bytes` value. Its payload is
+the package acquisition lineage encoding below. All discriminants occupy one
+byte. Each text field uses a little-endian `u32` byte length and canonical
+UTF-8 bytes. A digest occupies exactly 32 bytes. Consume the payload exactly.
+
+| Tag | Family | Payload after the tag, in order |
+| --- | --- | --- |
+| 0 | GitHub | owner, repository |
+| 1 | GitLab | repository path |
+| 2 | Git | transport byte (0 HTTPS, 1 SSH URL, 2 SCP-like), optional user, host, optional port, repository path |
+| 3 | Workspace | workspace identity digest, relative member path |
+| 4 | External local | source-context digest, canonical absolute path |
+| 5 | Bundled | library digest, directory |
+
+An option starts with a one-byte tag. Zero ends an absent option. One precedes
+the user text or the unsigned little-endian two-byte port. Phase 2 rejects an
+unknown discriminant at that byte, a missing inner byte at the lineage end,
+and trailing bytes at the first extra byte. Canonical source spellings are
+checked during semantic validation. The row has no opaque origin-text form.
+
+For a named package, compute SHA-256 over the following sequence. A hash field
+is an eight-byte unsigned big-endian length followed by the value bytes.
+
+1. Append the hash fields `omega-package-key-identity-v1` and the declared package name.
+2. Append the family as a hash field using respectively `github`, `gitlab`, `git`,
+   `workspace`, `external-local`, or `bundled`.
+3. Append the family's fields in table order. Hash each text or raw digest as
+   one field. For Git, hash transport as `https`, `ssh-url`, or `scp-like`.
+   For each option append a single raw byte 0 or 1, followed when present by
+   the hash field. Encode a present port in shortest unsigned decimal ASCII.
+
+Source acquisition defines canonical values for these fields. Both compilers
+must recompute the digest from those values. For the declared name `program`,
+the following locators yield these keys after canonicalization.
+
+| Locator | Package key (SHA-256, hexadecimal) |
+| --- | --- |
+| `https://github.com/example/pkg` | `b920e334cbd47dbd1b5f883a6a80e552c59a182564933336e8b1ffb401fdd14d` |
+| `ssh://git@git.example:2222/org/pkg` | `1611dce5bd070c631c3f213ed3ee32d6b539291c8c3299c05a3f0ec1260dc21e` |
+
+The invocation's subject commitment separately covers the exact wire bytes.
 
 ### Source snapshots
 
@@ -181,7 +217,7 @@ Each package row is, in order:
 | Order | Field | Encoding |
 | --- | --- | --- |
 | 1 | `name` | `bytes`, the declared package name |
-| 2 | `lineage` | Shared tagged structural source-lineage record; physical encoding remains to be completed under the rule above |
+| 2 | `lineage` | `bytes` containing the [structured source lineage](#shared-package-identity) |
 | 3 | `revision` | `bytes`, exact selected revision resolution |
 | 4 | `tree` | `bytes`, exact tree resolution |
 | 5 | `content` | `bytes`, exact content resolution |

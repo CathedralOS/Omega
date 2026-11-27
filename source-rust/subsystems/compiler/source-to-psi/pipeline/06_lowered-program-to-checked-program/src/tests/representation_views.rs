@@ -75,18 +75,16 @@ machine entry() crashes Trap {
             terminal_codec::TerminalPublication::Invocation,
         ))
     };
-    // `signed` and `unsigned` return the referenced scalar, which
-    // `wiki/spec/language/expressions.md`, "Explicit dereference", requires
-    // to be written `$value`. With that spelling the storage-flow replay
-    // cannot yet account for the origin of `scalar` in `entry`, so the
-    // program is refused rather than accepted. `TASKS.md`,
-    // STATE-LOCAL-VALUE-FRONTIER, owns accepting it and restoring the
-    // execution check this test made before.
-    let verdict = judge_source(source);
-    assert!(
-        matches!(&verdict, Ok(RouteVerdict::FallBack(refusal))
-            if refusal.detail == "reference descriptor has no current origin account in machine `entry`"),
-        "same-width views are refused at the origin of `scalar` until the replay accounts for it: {verdict:?}"
+    let accepted = match judge_source(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        verdict => panic!("same-width scalar recasts must be accepted: {verdict:?}"),
+    };
+    accepted.publish_invocation().unwrap();
+    assert_eq!(
+        super::stored_references::run(source),
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
     );
 
     // A shared representation still freezes the original storage. Changing
@@ -95,15 +93,96 @@ machine entry() crashes Trap {
         "let value: @i64 = @bits as @i64;",
         "let value: @i64 = @bits as @i64; overwrite(@mutable bits);",
     );
-    // Until the replay accounts for `scalar`, the same refusal reaches this
-    // twin before its write conflict is judged; it must never be accepted.
     let refused = judge_source(&competing);
     assert!(
-        matches!(&refused, Ok(RouteVerdict::Rejected { conflicts, .. }) if !conflicts.is_empty())
-            || matches!(&refused, Ok(RouteVerdict::FallBack(refusal))
-                if refusal.detail == "reference descriptor has no current origin account in machine `entry`"),
-        "{refused:?}"
+        matches!(&refused, Ok(RouteVerdict::Rejected { conflicts, .. }) if !conflicts.is_empty()),
+        "a competing write while a shared scalar recast is live must reject: {refused:?}"
     );
+}
+
+#[test]
+fn shared_scalar_recasts_of_fields_and_borrowed_scalars_read_and_return_views() {
+    let source = r#"
+data Cell [copy] { head: u8; other: u8; }
+machine read_field(cell: @Cell) -> i8 {
+    let seen: @i8 = @cell.other as @i8;
+    $seen
+}
+machine view_field(cell: @Cell) -> @i8 {
+    @cell.other as @i8
+}
+machine view_byte(byte: @u8) -> @i8 {
+    byte as @i8
+}
+machine flag_byte(flag: @bool) -> u8 {
+    let seen: @u8 = flag as @u8;
+    $seen
+}
+machine entry() crashes Trap {
+    let cell: Cell = Cell { head: 1u8, other: 255u8 };
+    let local_seen: @i8 = @cell.other as @i8;
+    let from_field: @i8 = view_field(@cell);
+    let byte: u8 = 254u8;
+    let from_byte: @i8 = view_byte(@byte);
+    let flag: bool = true;
+    transition read_field(@cell) == -1i8
+        && $local_seen == -1i8
+        && $from_field == -1i8
+        && $from_byte == -2i8
+        && flag_byte(@flag) == 1u8 {
+        true -> done(),
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    assert_eq!(
+        super::stored_references::run(source),
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
+    );
+
+    // Negative twins: every u8 representation is not a valid bool, so an
+    // unproved `@bool` recast of a `u8` field or borrowed `u8` must be refused.
+    let unproved_field_bool = r#"
+data Cell [copy] { other: u8; }
+machine view_bool(cell: @Cell) -> bool {
+    let seen: @bool = @cell.other as @bool;
+    $seen
+}
+"#;
+    assert_ne!(
+        verdict(unproved_field_bool),
+        "accepted",
+        "an unproved @u8 -> @bool field recast must never be accepted"
+    );
+
+    let unproved_byte_bool = r#"
+machine view_bool(byte: @u8) -> @bool {
+    byte as @bool
+}
+"#;
+    assert_ne!(
+        verdict(unproved_byte_bool),
+        "accepted",
+        "an unproved @u8 -> @bool parameter recast must never be accepted"
+    );
+
+    // Negative twin: a returned scalar recast still freezes its source storage.
+    let competing = r#"
+data Cell [copy] { head: u8; other: u8; }
+machine view_field(cell: @Cell) -> @i8 { @cell.other as @i8 }
+machine clobber(cell: @mutable Cell) { cell.other = 0u8; }
+machine entry() -> i8 {
+    let mutable cell: Cell = Cell { head: 1u8, other: 255u8 };
+    let view: @i8 = view_field(@cell);
+    clobber(@mutable cell);
+    $view
+}
+"#;
+    assert_eq!(verdict(competing), "rejected");
 }
 
 #[test]

@@ -83,7 +83,8 @@ fn assert_change_rejects(original: &[u8], replacement: &[u8]) {
     let (mut file, initial) = fixture.open();
     fixture.replace_bytes(replacement, &initial);
     let path = fixture.root.join("source.bin");
-    let error = read_opened_file_bounded(&mut file, &initial, &path, 1024, 1024)
+    let mut scratch = vec![0_u8; super::FILE_READ_BUFFER_BYTES];
+    let error = read_opened_file_bounded(&mut file, &initial, &path, 1024, 1024, &mut scratch)
         .expect_err("changed input must not become a captured source file");
     assert!(
         matches!(error, SourceResolveError::LocalSourceChanged { path: observed } if observed == path)
@@ -117,13 +118,14 @@ fn bounded_copy_keeps_budget_exhaustion_distinct_from_source_drift() {
     let fixture = SourceFixture::new(b"small");
     let (mut file, initial) = fixture.open();
     let path = fixture.root.join("source.bin");
+    let mut scratch = vec![0_u8; super::FILE_READ_BUFFER_BYTES];
     assert!(matches!(
-        read_opened_file_bounded(&mut file, &initial, &path, 4, 100),
+        read_opened_file_bounded(&mut file, &initial, &path, 4, 100, &mut scratch),
         Err(SourceResolveError::TooManyBytes { limit: 100 })
     ));
     fixture.replace_bytes(b"larger than budget", &initial);
     assert!(matches!(
-        read_opened_file_bounded(&mut file, &initial, &path, 10, 100),
+        read_opened_file_bounded(&mut file, &initial, &path, 10, 100, &mut scratch),
         Err(SourceResolveError::TooManyBytes { limit: 100 })
     ));
 }

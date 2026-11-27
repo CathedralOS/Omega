@@ -4,7 +4,7 @@
 use crate::calling_policy_plans::CallingProgram;
 use crate::target_supply::{NormalizedNativeSupply, SelectedProviderRealization};
 use diagnostics::Diagnostic;
-use evaluation_receipts::NativeBindingMaterialization;
+use build_model::receipts::NativeBindingMaterialization;
 use provider_demand::PackageReviewRequirements;
 use semantic_vocabulary::BoundaryMachineId;
 use terminal_psi::TerminalModule;
@@ -230,5 +230,5 @@ pub struct ReviewedNativeBindings {
 pub struct ReviewedNativeBinding {
     pub boundary: BoundaryMachineId,
     pub materialization: NativeBindingMaterialization,
-    pub binding: provider_plans::EvaluatedNativeBinding,
+    pub binding: build_providers::plans::EvaluatedNativeBinding,
 }

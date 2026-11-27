@@ -2058,7 +2058,7 @@ pub(crate) mod byte_sequences {
     }
     pub(crate) mod storage {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
-        use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+        use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 
         #[derive(Debug)]
         pub(crate) struct ByteSequenceStorage {
@@ -2176,8 +2176,8 @@ pub(crate) mod byte_sequences {
             use super::ByteSequenceStorage;
             use crate::boundary::errors::malformed;
             use crate::storage::byte_sequences::ByteSequenceView;
-            use evaluation_accounting::BuildEvaluationSponsor;
-            use evaluation_contracts::{
+            use build_model::accounting::BuildEvaluationSponsor;
+            use build_model::contracts::{
                 BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
                 TerminalStorageScheduleIdentity,
             };
@@ -2198,7 +2198,7 @@ pub(crate) mod byte_sequences {
                 bytes: u64,
             ) -> (
                 BuildEvaluationSponsor,
-                evaluation_accounting::EvaluationInvocationAccount,
+                build_model::accounting::EvaluationInvocationAccount,
             ) {
                 let sponsor = sponsor(bytes);
                 let account = sponsor
@@ -3005,20 +3005,6 @@ pub(crate) mod byte_sequences {
     impl Eq for ByteSequenceView {}
 
     impl ByteSequenceView {
-        pub(crate) fn relocate_checked_entry(
-            &mut self,
-            map: &crate::continuation::Coordinates<'_, '_>,
-        ) -> Result<(), String> {
-            if let Some(home) = &mut self.descriptor_home {
-                map.value(home)?;
-            }
-            if let Some(window) = &mut self.original_array {
-                map.array(&mut window.array)?;
-                map.ty(&mut window.array_type)?;
-            }
-            Ok(())
-        }
-
         pub(crate) fn shares_backing(&self, other: &Self) -> bool {
             Arc::ptr_eq(&self.backing, &other.backing)
         }
@@ -3126,7 +3112,7 @@ pub(crate) mod byte_sequences {
 
         pub(crate) fn into_account(
             self,
-            account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+            account: Option<&build_model::accounting::EvaluationInvocationAccount>,
         ) -> Result<Self, crate::boundary::errors::TerminalInterpretError> {
             let same = match (self.backing.storage.account(), account) {
                 (None, None) => true,
@@ -3203,7 +3189,7 @@ pub(crate) mod element_views {
     pub(crate) mod immutable_sequence {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
         use crate::boundary::values::TerminalStructuralValue;
-        use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+        use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 
         pub(crate) struct ImmutableStructuralSequence {
             elements: Vec<TerminalStructuralValue>,
@@ -4370,7 +4356,8 @@ pub(crate) mod element_views {
                         terminal_semantics::CollectionExtent::Fixed(length) => length,
                         terminal_semantics::CollectionExtent::LiveLength { capacity } => capacity,
                         terminal_semantics::CollectionExtent::StoredLength
-                        | terminal_semantics::CollectionExtent::Parameter { .. } => {
+                        | terminal_semantics::CollectionExtent::Parameter { .. }
+                        | terminal_semantics::CollectionExtent::Application(_) => {
                             return Err(malformed());
                         }
                     };

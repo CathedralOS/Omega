@@ -40,7 +40,7 @@ fn check(source: &str) -> Result<(), Vec<Diagnostic>> {
     std::fs::create_dir(&product).unwrap();
     std::fs::write(
         product.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "product"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "product" }; }"#,
     )
     .unwrap();
     std::fs::write(product.join("main.omg"), "public data Item {}").unwrap();
@@ -130,16 +130,16 @@ fn an_untaken_arm_still_requires_its_supplied_backing() {
     let source = r#"use main.omg as app;
 use {omega}/language/core/program_image.omg as image;
 use {images}/main.omg as backing;
-machine build(builder: @mutable Build) suspends {
-    Build::application(builder, "untaken_readiness");
+machine build(builder: @mutable BuildPlan) suspends {
+    builder.product = BuildProduct::Application { name: "untaken_readiness" };
     transition false {
         true -> suspend unused(builder),
         false -> finish(builder)
     }
-    machine unused(builder: @mutable Build) suspends {
+    machine unused(builder: @mutable BuildPlan) suspends {
         suspend Build::await_provider::<|image|::ProgramImage, |backing|::TestImage>(builder);
     }
-    machine finish(builder: @mutable Build) { Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main); }
+    machine finish(builder: @mutable BuildPlan) { Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main); }
 }
 "#;
     check(source).unwrap();

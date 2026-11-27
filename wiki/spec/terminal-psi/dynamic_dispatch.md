@@ -137,7 +137,7 @@ verification rejects forged descriptors, stale openings, mismatched witnesses,
 wrong contracts and missing custody transfers. The interpreter and native
 realization must agree, including mutable referent writes and returned loans.
 
-The [encoding contract](encoding.md) records current wire forms separately from
+The [encoding contract](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md) records current wire forms separately from
 this ratified target. Implement producer, codec, interpreter, verifier and native
 consumers together; do not silently reinterpret legacy selector-table bytes as
 machine values or invent unsupported operation tags in documentation.

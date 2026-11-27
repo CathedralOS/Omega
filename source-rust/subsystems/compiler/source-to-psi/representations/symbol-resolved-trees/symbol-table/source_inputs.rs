@@ -1,4 +1,6 @@
 //! Source settlement owns activation, visibility and the mutable source catalogue.
+use language_core::bundled_files::BundledFile;
+use record_storage::{Record, RecordError, RecordReader, RecordWriter};
 use source_admission::SourceFile;
 use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
@@ -32,14 +34,57 @@ pub trait InvocationSourceConsent: Send + Sync {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SourceMap {
     files: Vec<SourceFile>,
+    bundled_core_files: Vec<Option<BundledFile>>,
     selection: SourceSelection,
     source_rejoins: Vec<(SourceId, SourceId)>, // Producer-issued correspondence when an anonymous Build capture becomes a Product instance.
     product_dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>, // Authorized `DependencyPurpose::Product` alias edges by requester.
     query_dependencies: Option<(PathBuf, BTreeMap<String, PackageKeyIdentity>)>, // Invocation-local routing before Build has a final declaration owner.
     returned_product: Option<ReturnedBuildProduct>,
+}
+
+impl Record for SourceMap {
+    fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
+        output.record(|output| {
+            self.files.write(output)?;
+            self.selection.write(output)?;
+            self.source_rejoins.write(output)?;
+            self.product_dependencies.write(output)?;
+            self.query_dependencies.write(output)?;
+            self.returned_product.write(output)?;
+            Ok(())
+        })
+    }
+
+    fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
+        input.record(|input| {
+            let files = Vec::<SourceFile>::read(input)?;
+            let selection = SourceSelection::read(input)?;
+            let source_rejoins = Vec::<(SourceId, SourceId)>::read(input)?;
+            let product_dependencies =
+                BTreeMap::<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>::read(input)?;
+            let query_dependencies =
+                Option::<(PathBuf, BTreeMap<String, PackageKeyIdentity>)>::read(input)?;
+            let returned_product = Option::<ReturnedBuildProduct>::read(input)?;
+            // Re-authenticate bundled core files against the running compiler's
+            // embedded bytes rather than trusting a persisted tag on decode.
+            let bundled_core_files = files
+                .iter()
+                .map(crate::source_symbols::recognize_bundled_core_file)
+                .collect();
+            Ok(Self {
+                files,
+                bundled_core_files,
+                selection,
+                source_rejoins,
+                product_dependencies,
+                query_dependencies,
+                returned_product,
+            })
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
@@ -79,6 +124,7 @@ impl SourceCatalogue {
     pub fn begin_selection(&self) -> SourceMap {
         SourceMap {
             files: self.backing.files.clone(),
+            bundled_core_files: self.backing.bundled_core_files.clone(),
             selection: SourceSelection::Explicit(vec![false; self.backing.files.len()]),
             source_rejoins: Vec::new(),
             product_dependencies: BTreeMap::new(),
@@ -194,6 +240,9 @@ impl SourceCatalogue {
         selection
             .files
             .extend_from_slice(&self.backing.files[previous_length..]);
+        selection
+            .bundled_core_files
+            .extend_from_slice(&self.backing.bundled_core_files[previous_length..]);
         if let SourceSelection::Explicit(selected) = &mut selection.selection {
             selected.resize(self.backing.files.len(), false);
             selected[admitted.0] = true;
@@ -213,8 +262,13 @@ impl SourceSelection {
 
 impl SourceMap {
     pub fn from_files(files: Vec<SourceFile>) -> Self {
+        let bundled_core_files = files
+            .iter()
+            .map(crate::source_symbols::recognize_bundled_core_file)
+            .collect();
         Self {
             files,
+            bundled_core_files,
             selection: SourceSelection::All,
             source_rejoins: Vec::new(),
             product_dependencies: BTreeMap::new(),
@@ -645,7 +699,7 @@ impl SourceMap {
         resolution_stratum: SourceResolutionStratum,
         dependency_scope: DependencyScope,
     ) -> &SourceFile {
-        self.files.push(SourceFile {
+        let file = SourceFile {
             source_id: SourceId(self.files.len()),
             path,
             package_root,
@@ -654,7 +708,10 @@ impl SourceMap {
             origin,
             resolution_stratum,
             source: source.into(),
-        });
+        };
+        let bundled = crate::source_symbols::recognize_bundled_core_file(&file);
+        self.files.push(file);
+        self.bundled_core_files.push(bundled);
         if let SourceSelection::Explicit(selected) = &mut self.selection {
             selected.push(true);
         }
@@ -666,6 +723,11 @@ impl SourceMap {
 
     pub fn get(&self, source_id: SourceId) -> Option<&SourceFile> {
         self.files.get(source_id.0)
+    }
+
+    /// Bundled core file recognized at admission for `source_id`, if any.
+    pub fn bundled_core_file(&self, source_id: SourceId) -> Option<BundledFile> {
+        self.bundled_core_files.get(source_id.0).copied().flatten()
     }
 
     pub fn file_at(&self, source_span: SourceSpan) -> Option<&SourceFile> {
@@ -767,17 +829,6 @@ impl SourceMap {
         compiles whose selected files, identities and routing agree have equal
         views, whatever else the invocation's catalogue holds.
     */
-    pub fn selection_view(&self) -> Self {
-        let mut view = self.clone();
-        for file in &mut view.files {
-            if !self.selection.includes(file.source_id) {
-                file.path = PathBuf::new();
-                file.package_root = PathBuf::new();
-                file.source = Arc::from("");
-            }
-        }
-        view
-    }
 
     pub fn selected_files(&self) -> impl Iterator<Item = &SourceFile> {
         self.files
@@ -1295,5 +1346,79 @@ mod identity_tests {
             generated,
             consumed_source_unit(&file, true).expect("generated Build")
         );
+    }
+
+    #[test]
+    fn bundled_core_identity_is_authenticated_at_admission_and_record_decode() {
+        let layout_text =
+            std::str::from_utf8(bundled_declarations::bytes(BundledFile::CoreLayout)).unwrap();
+        let mut sources = SourceMap::default();
+        let core_id = sources
+            .add_with_metadata(
+                PathBuf::from("/compiler/core/layout.omg"),
+                layout_text.to_owned(),
+                PathBuf::from("/compiler/core"),
+                None,
+                SourceOrigin::Toolchain,
+            )
+            .source_id;
+        let user_id = sources
+            .add_with_metadata(
+                PathBuf::from("/workspace/layout.omg"),
+                layout_text.to_owned(),
+                PathBuf::from("/workspace"),
+                None,
+                SourceOrigin::User,
+            )
+            .source_id;
+        let edited_id = sources
+            .add_with_metadata(
+                PathBuf::from("/compiler/core/layout.omg"),
+                format!("{layout_text}\n// edited"),
+                PathBuf::from("/compiler/core"),
+                None,
+                SourceOrigin::Toolchain,
+            )
+            .source_id;
+        let wrong_path_id = sources
+            .add_with_metadata(
+                PathBuf::from("/compiler/core/other.omg"),
+                layout_text.to_owned(),
+                PathBuf::from("/compiler/core"),
+                None,
+                SourceOrigin::Toolchain,
+            )
+            .source_id;
+        let packaged_id = sources
+            .add_with_metadata(
+                PathBuf::from("/compiler/core/layout.omg"),
+                layout_text.to_owned(),
+                PathBuf::from("/compiler/core"),
+                source_provenance::PackageKeyIdentity::from_digest([7; 32]),
+                SourceOrigin::Toolchain,
+            )
+            .source_id;
+
+        assert_eq!(
+            sources.bundled_core_file(core_id),
+            Some(BundledFile::CoreLayout)
+        );
+        assert_eq!(sources.bundled_core_file(user_id), None);
+        assert_eq!(sources.bundled_core_file(edited_id), None);
+        assert_eq!(sources.bundled_core_file(wrong_path_id), None);
+        assert_eq!(sources.bundled_core_file(packaged_id), None);
+
+        let limits = record_storage::RecordLimits::default();
+        let bytes = record_storage::encode(&sources, limits).unwrap();
+        let restored: SourceMap = record_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(restored, sources);
+        assert_eq!(
+            restored.bundled_core_file(core_id),
+            Some(BundledFile::CoreLayout)
+        );
+        assert_eq!(restored.bundled_core_file(user_id), None);
+        assert_eq!(restored.bundled_core_file(edited_id), None);
+        assert_eq!(restored.bundled_core_file(wrong_path_id), None);
+        assert_eq!(restored.bundled_core_file(packaged_id), None);
     }
 }

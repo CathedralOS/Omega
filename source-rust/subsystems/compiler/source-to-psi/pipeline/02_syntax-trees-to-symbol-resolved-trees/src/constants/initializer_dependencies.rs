@@ -75,10 +75,12 @@ mod types {
             }
             if self.follow_dependencies && !self.expanded_constants.contains(&symbol) {
                 self.expanded_constants.push(symbol);
-                self.types.push(DependencyWork {
-                    value: &declaration.declared_type,
-                    lexical_owner: symbol,
-                });
+                if let Some(declared_type) = &declaration.declared_type {
+                    self.types.push(DependencyWork {
+                        value: declared_type,
+                        lexical_owner: symbol,
+                    });
+                }
                 let initializer = if declaration.authored_initializer.is_valid() {
                     declaration.authored_initializer
                 } else {
@@ -322,15 +324,28 @@ mod types {
             self.type_parameters(definition.type_parameters)?;
             self.type_arguments(definition.arguments)?;
             for row in &definition.rows {
-                let machine =
-                    crate::resolution::names::owned_conformance_realization(self.program, row)?;
-                if crate::resolution::names::owned_conformance_namespace(self.program, machine)?
-                    != symbol
-                {
-                    return Err(
-                        "constant dependency implementation member lost its exact owner".into(),
-                    );
-                }
+                let machine = if row.source.owns_realization() {
+                    let machine =
+                        crate::resolution::names::owned_conformance_realization(self.program, row)?;
+                    if crate::resolution::names::owned_conformance_namespace(self.program, machine)?
+                        != symbol
+                    {
+                        return Err(
+                            "constant dependency implementation member lost its exact owner".into(),
+                        );
+                    }
+                    machine
+                } else {
+                    let machine = row.realization_machine;
+                    if !machine.is_valid()
+                        || self.program.machines.unique_by_symbol(machine).is_none()
+                    {
+                        return Err(
+                            "constant dependency reference row lost its selected machine".into(),
+                        );
+                    }
+                    machine
+                };
                 self.machines.push(machine);
             }
             Ok(())
@@ -533,7 +548,12 @@ pub(crate) fn collect_machine_body_demand(
                 };
                 expression_roots.contains(&initializer)
             })
-            .map(|declaration| DependencyWork::unscoped(&declaration.declared_type))
+            .filter_map(|declaration| {
+                declaration
+                    .declared_type
+                    .as_ref()
+                    .map(DependencyWork::unscoped)
+            })
             .collect(),
         deferred_machines: Some(Vec::new()),
         purpose: DependencyPurpose::DeclarationReadiness,
@@ -592,7 +612,7 @@ pub(crate) fn collect_machine_body_demand(
 pub(crate) fn collect_declaration(
     program: &SymbolResolvedTrees,
     root: ExpressionHandle,
-    destination: &TypeReference,
+    destination: Option<&TypeReference>,
     purpose: DependencyPurpose,
     retained_base: Option<&SymbolResolvedTrees>,
     selected_calls: Option<&[(SourceSpan, SourceSpan)]>,
@@ -601,7 +621,10 @@ pub(crate) fn collect_declaration(
         expressions: vec![DependencyWork::unscoped(root)],
         initializer_expressions: vec![DependencyWork::unscoped(root)],
         selected_calls,
-        types: vec![DependencyWork::unscoped(destination)],
+        types: destination
+            .map(DependencyWork::unscoped)
+            .into_iter()
+            .collect(),
         purpose,
         ..Collector::new(program)
     };
@@ -1298,7 +1321,23 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 }
                 self.queue_expressions(fields.iter().rev().map(|field| field.value));
             }
-            ExpressionNode::Block(block) => self.queue_expression(block.tail),
+            ExpressionNode::Block(block) => {
+                if block.tail.is_valid() {
+                    self.queue_expression(block.tail);
+                }
+                let statements = program
+                    .tables
+                    .declarations
+                    .state_statements
+                    .span_or_empty(block.statements);
+                for statement in statements.iter().rev() {
+                    statement.visit_operands(table, |operand| {
+                        if operand.is_valid() {
+                            self.queue_expression(operand);
+                        }
+                    });
+                }
+            }
             ExpressionNode::Match(dispatch) => {
                 let arms = table.match_arms(dispatch.arms);
                 if arms.len() != dispatch.arms.len() {

@@ -3,12 +3,12 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use checked_program_to_psi::{CheckedSourceCall, ProducedTerminalProgram, SourceInvocationSite};
 use typed_trees::source_state;
 
-use build_scalar_evaluation::PURE_PSI_WORK_BUDGET;
-pub use build_scalar_evaluation::{
+use build_time_evaluation::scalars::PURE_PSI_WORK_BUDGET;
+pub use build_time_evaluation::scalars::{
     CanonicalScalarEvaluationReceipt, PureTerminalEvaluationOutcome,
 };
 
@@ -85,9 +85,9 @@ pub struct PureTerminalEvaluationReceipt {
     requested_by_constant: bool,
     arguments: Arc<[BuildTimeValue]>,
     inputs: Arc<[BuildTimeValue]>,
-    admission: evaluation_admission::AdmittedCompilerEvaluation,
-    execution: Option<build_invocation::InvocationReceipt>,
-    account: evaluation_accounting::EvaluationInvocationAccount,
+    admission: build_model::admission::AdmittedCompilerEvaluation,
+    execution: Option<build_time_evaluation::invocations::InvocationReceipt>,
+    account: build_model::accounting::EvaluationInvocationAccount,
     outcome: PureTerminalEvaluationOutcome,
     usage: terminal_work::WorkUsage,
 }
@@ -101,7 +101,7 @@ pub struct SourceInvocationInputs<'a> {
 
 /// The interpreter's result and the evidence of the work it actually performed.
 pub struct RecordedSourceInvocation {
-    value: Result<build_invocation::InvocationValue, String>,
+    value: Result<build_time_evaluation::invocations::InvocationValue, String>,
     receipt: PureTerminalEvaluationReceipt,
     constant_input: Option<Arc<source_state::TypedTrees>>,
 }
@@ -110,9 +110,9 @@ impl RecordedSourceInvocation {
     pub fn record(
         call: SourceInvocationInputs<'_>,
         program: &ProducedTerminalProgram,
-        admission: evaluation_admission::AdmittedCompilerEvaluation,
-        meter: &evaluation_work::EvaluationWorkMeter,
-        run: Result<build_invocation::InvocationOutcome, String>,
+        admission: build_model::admission::AdmittedCompilerEvaluation,
+        meter: &build_model::work::EvaluationWorkMeter,
+        run: Result<build_time_evaluation::invocations::InvocationOutcome, String>,
     ) -> Result<Self, String> {
         let checked = call.site.check(program)?;
         let account = meter
@@ -171,7 +171,7 @@ impl RecordedSourceInvocation {
     pub fn finish<T>(
         mut self,
         accounting: &mut SourceCompletionAccounting,
-        complete: impl FnOnce(build_invocation::InvocationValue) -> Result<T, String>,
+        complete: impl FnOnce(build_time_evaluation::invocations::InvocationValue) -> Result<T, String>,
     ) -> Result<T, String> {
         let result = self.value.and_then(complete);
         if let Err(reason) = &result {
@@ -235,7 +235,7 @@ impl PureTerminalEvaluationReceipt {
     pub fn arguments(&self) -> &[BuildTimeValue] {
         &self.arguments
     }
-    pub fn admission(&self) -> &evaluation_admission::AdmittedCompilerEvaluation {
+    pub fn admission(&self) -> &build_model::admission::AdmittedCompilerEvaluation {
         &self.admission
     }
     pub fn outcome(&self) -> &PureTerminalEvaluationOutcome {

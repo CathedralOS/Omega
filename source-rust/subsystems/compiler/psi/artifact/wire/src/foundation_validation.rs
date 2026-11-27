@@ -5015,6 +5015,20 @@ pub(crate) mod scalar_applications {
                     );
                 }
             }
+            for expected in terminal_semantics::array_extent_literal_conditions(module, machine)
+                .map_err(CodecError::MalformedStructuralFoundation)?
+            {
+                let ScalarConditionSubject::Declaration(owner) = expected.subject else {
+                    return malformed(
+                        "array extent literal condition has no exact declaration owner",
+                    );
+                };
+                if !pending.contains(&owner) || !conditions.predicates().contains(&expected) {
+                    return malformed(
+                        "array literal lost its exact pending target extent condition",
+                    );
+                }
+            }
             if !module.scalars.scalar_applications.declarations().is_empty() {
                 let types = terminal_semantics::SortedValueTypes::new(
                     super::proof_values(machine)
@@ -10242,8 +10256,17 @@ pub(crate) mod value_foundations {
                 |element| scalar_index.constant_value(element),
             )
             || !super::is_op_result_place(machine, operation, result)
-            || scalar_array_leaf_shape(module.types.structural_types.iter(), result.structural_type)
-                .is_none_or(|(_, count)| u64::try_from(elements.len()).ok() != Some(count))
+            || match scalar_array_leaf_shape(
+                module.types.structural_types.iter(),
+                result.structural_type,
+            ) {
+                Some((_, count)) => u64::try_from(elements.len()).ok() != Some(count),
+                None => terminal_semantics::scalar_array_application_leaf(
+                    module.types.structural_types.iter(),
+                    result.structural_type,
+                )
+                .is_none(),
+            }
         {
             return malformed("scalar array establishment has an invalid result shape");
         }
@@ -10252,6 +10275,11 @@ pub(crate) mod value_foundations {
             result.structural_type,
         )
         .is_some_and(|(leaf, count)| count != 0 && leaf.scalar_restriction.is_some())
+            || terminal_semantics::scalar_array_application_leaf(
+                module.types.structural_types.iter(),
+                result.structural_type,
+            )
+            .is_some_and(|(leaf, _)| !elements.is_empty() && leaf.scalar_restriction.is_some())
         {
             return malformed("scalar array initializer lacks receiving restriction obligations");
         }
@@ -10718,11 +10746,16 @@ pub(crate) mod value_foundations {
             .shape;
         let element = match shape {
             StructuralTypeShape::FixedArray { element, length } => {
-                let Some(length) = length.literal() else {
-                    return malformed("array construction requires a closed element count");
-                };
-                if u64::try_from(elements.len()).ok() != Some(length) {
-                    return malformed("array element count differs");
+                match length {
+                    terminal_psi::ArrayExtent::Literal(length) => {
+                        if u64::try_from(elements.len()).ok() != Some(*length) {
+                            return malformed("array element count differs");
+                        }
+                    }
+                    terminal_psi::ArrayExtent::Application(_) => {}
+                    terminal_psi::ArrayExtent::Parameter { .. } => {
+                        return malformed("array construction requires a closed element count");
+                    }
                 }
                 *element
             }

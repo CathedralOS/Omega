@@ -428,7 +428,9 @@ pub(crate) fn pending_const_initializer_leaves(
     }
 
     let mut leaves = Vec::new();
-    if !requires_const_initializer_evaluation(syntax, definition) {
+    if !definition.type_reference.is_valid()
+        || !requires_const_initializer_evaluation(syntax, definition)
+    {
         return Ok(leaves);
     }
     collect(

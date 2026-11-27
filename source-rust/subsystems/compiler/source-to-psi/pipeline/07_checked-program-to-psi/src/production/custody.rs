@@ -14,7 +14,7 @@ use terminal_codec::entry_receipt::rejoin_program_entry_receipt;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
 
 // Check the format before decoding a call's operation and typed Build operand.
-const PRODUCED_PROGRAM_SCHEMA: u64 = u64::from_le_bytes(*b"OMGBLD03");
+const PRODUCED_PROGRAM_SCHEMA: u64 = u64::from_le_bytes(*b"OMGBLD04");
 
 #[cfg(test)]
 mod schema_tests {
@@ -22,7 +22,7 @@ mod schema_tests {
     fn old_companion_rows_refuse_before_artifact_decoding() {
         for bytes in [
             record_storage::encode(&b"PSITERM\0".to_vec(), Default::default()).unwrap(),
-            record_storage::encode(&u64::from_le_bytes(*b"OMGBLD02"), Default::default()).unwrap(),
+            record_storage::encode(&u64::from_le_bytes(*b"OMGBLD03"), Default::default()).unwrap(),
         ] {
             let error = record_storage::decode::<super::ProducedTerminalProgram>(
                 &bytes,

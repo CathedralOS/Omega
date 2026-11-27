@@ -2,11 +2,11 @@
 // mechanisms before any provider selection or admission.
 
 use super::*;
-use evaluation_accounting::BuildEvaluationSponsor;
-use evaluation_contracts::{
+use build_model::accounting::BuildEvaluationSponsor;
+use build_model::contracts::{
     BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
 };
-use evaluation_receipts::{NativeBindingMaterialization, NativeBuildEvaluation};
+use build_model::receipts::{NativeBindingMaterialization, NativeBuildEvaluation};
 use semantic_vocabulary::WorkScheduleIdentity;
 use semantic_vocabulary::source_selections::ProductTarget;
 use std::sync::Arc;
@@ -76,7 +76,7 @@ fn a_native_locator_receipt_retains_its_authored_target() {
         &mut Default::default(),
     )
     .expect("an authored target's valid locator retains its evaluation receipt");
-    let provider_plans::EvaluatedNativeBinding::Syscall(binding) = binding else {
+    let build_providers::plans::EvaluatedNativeBinding::Syscall(binding) = binding else {
         panic!("the syscall locator must retain its mechanism");
     };
     assert_eq!(binding.target(), target::TargetProfile::LinuxArm64);

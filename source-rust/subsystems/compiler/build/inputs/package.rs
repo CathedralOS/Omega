@@ -43,7 +43,7 @@ mod native_output_identity;
 mod provider_defaults;
 mod provider_identity;
 mod provider_selections;
-use evaluation_receipts::NativeBuildEvaluation;
+use build_model::receipts::NativeBuildEvaluation;
 pub use native_bindings::NativeBindingProducer;
 
 pub use bindings::{

@@ -255,7 +255,7 @@ impl<'a> Storage<'a> {
             return Ok(false);
         };
         let backing =
-            self.collection_backing_source(argument, parameter.position, *element, concerns)?;
+            self.collection_backing_source(argument, parameter.position, Some(*element), concerns)?;
         if terminal_semantics::fixed_byte_array_loan(
             self.types.iter(),
             self.module.types.structural_domains.iter(),
@@ -279,7 +279,7 @@ impl<'a> Storage<'a> {
         &self,
         argument: &StructuralArgument,
         position: u32,
-        element: semantic_vocabulary::StructuralTypeId,
+        erased_element: Option<semantic_vocabulary::StructuralTypeId>,
         concerns: Construct,
     ) -> Checked<std::borrow::Cow<'_, terminal_psi::StructuralParameterDeclaration>> {
         let selected = terminal_semantics::runtime_structural_path_tip(
@@ -311,13 +311,22 @@ impl<'a> Storage<'a> {
                         result.claims.is_empty() && result.qualification_establishments.is_empty()
                     })
                 });
-        let plain_element = self.domains.get(selected.id).is_some_and(Vec::is_empty)
-            && self.domains.get(element).is_some_and(Vec::is_empty)
-            && self
-                .declaration(element, concerns)?
-                .scalar_restriction
-                .is_none();
-        if !unclaimed || !plain_element {
+        let element_admitted = match erased_element {
+            Some(element) => {
+                self.declared_requires(element).is_some_and(<[_]>::is_empty)
+                    && self
+                        .declaration(element, concerns)?
+                        .scalar_restriction
+                        .is_none()
+            }
+            None => true,
+        };
+        if !unclaimed
+            || !self
+                .declared_requires(selected.id)
+                .is_some_and(<[_]>::is_empty)
+            || !element_admitted
+        {
             return Err(self.unsupported(
                 concerns,
                 "an array view without plain element storage and unclaimed backing",
@@ -385,9 +394,8 @@ impl<'a> Storage<'a> {
             || !result.additional_input_qualifications.is_empty()
             || !result.claims.is_empty()
             || !self
-                .domains
-                .get(result.structural_type)
-                .is_some_and(Vec::is_empty)
+                .declared_requires(result.structural_type)
+                .is_some_and(<[_]>::is_empty)
             || self
                 .declaration(result.structural_type, concerns)?
                 .scalar_restriction
@@ -439,7 +447,20 @@ impl<'a> Storage<'a> {
                 .ok_or_else(|| {
                     self.foreign(concerns, "collection view changes its element type")
                 })?;
-        let actual = self.collection_backing_source(source, 0, element, concerns)?;
+        // The element's own defaults follow its declared identity through a
+        // typed view. A byte descriptor exposes a different account of storage.
+        let keeps_element = typed
+            && matches!(
+                selected.shape,
+                StructuralTypeShape::ElementView { element: actual, .. }
+                    | StructuralTypeShape::FixedArray { element: actual, .. } if element == actual
+            );
+        let actual = self.collection_backing_source(
+            source,
+            0,
+            (!keeps_element).then_some(element),
+            concerns,
+        )?;
         let (whole, projected) = StructuralPathQualification::select_restorable(
             &actual.qualifications,
             &actual.projected_qualifications,
@@ -503,6 +524,7 @@ impl<'a> Storage<'a> {
         if matches!(
             backing.extent,
             terminal_semantics::CollectionExtent::Parameter { .. }
+                | terminal_semantics::CollectionExtent::Application(_)
         ) {
             let is_byte = is_plain_byte_element(self.declaration(element, concerns)?);
             if typed == is_byte
@@ -648,8 +670,10 @@ impl<'a> Storage<'a> {
         {
             return Err(self.foreign(concerns, "a byte view re-views elements that are not bytes"));
         }
-        let actual = self.collection_backing_source(source, 0, source_element, concerns)?;
-        if !self.domains.get(*element).is_some_and(Vec::is_empty)
+        let actual = self.collection_backing_source(source, 0, Some(source_element), concerns)?;
+        if !self
+            .declared_requires(*element)
+            .is_some_and(<[_]>::is_empty)
             || self
                 .declaration(*element, concerns)?
                 .scalar_restriction
@@ -945,9 +969,8 @@ impl<'a> Storage<'a> {
             || !source.projected_qualifications.is_empty()
             || !source.additional_input_qualifications.is_empty()
             || !self
-                .domains
-                .get(source.structural_type)
-                .is_some_and(Vec::is_empty)
+                .declared_requires(source.structural_type)
+                .is_some_and(<[_]>::is_empty)
         {
             return Err(self.unsupported(
                 concerns,
@@ -1096,7 +1119,7 @@ impl<'a> Storage<'a> {
                             let local_extent = match length {
                                 ArrayExtent::Literal(length) => *length != 0,
                                 ArrayExtent::Parameter { owner, .. } => *owner == self.machine,
-                                ArrayExtent::Application(_) => false,
+                                ArrayExtent::Application(_) => true,
                             };
                             let matching_element = match element {
                                 Some(element) => *backing_element == element,
@@ -1378,6 +1401,36 @@ value,
                             let input = ScalarTerm::value(value, ScalarType::Integer(source_type));
                             if source_type == integer { return Ok(Some(input)); }
                             return ScalarTerm::integer_widen(source_type, integer, input).map(Some).map_err(|_| self.foreign(concerns, "array extent cannot widen exactly to its descriptor length"));
+                        }
+                        terminal_semantics::CollectionExtent::Application(application) => {
+                            let source_type = self
+                                .module
+                                .scalars
+                                .scalar_applications
+                                .declaration(application)
+                                .and_then(|declaration| declaration.scalar_type())
+                                .and_then(|scalar| scalar.as_integer())
+                                .ok_or_else(|| {
+                                    self.foreign(
+                                        concerns,
+                                        "array extent has no integer application",
+                                    )
+                                })?;
+                            let input = ScalarTerm::Application {
+                                application,
+                                scalar_type: ScalarType::Integer(source_type),
+                            };
+                            if source_type == integer {
+                                return Ok(Some(input));
+                            }
+                            return ScalarTerm::integer_widen(source_type, integer, input)
+                                .map(Some)
+                                .map_err(|_| {
+                                    self.foreign(
+                                        concerns,
+                                        "array extent cannot widen exactly to its descriptor length",
+                                    )
+                                });
                         }
                         terminal_semantics::CollectionExtent::LiveLength { .. } => {
                             return Err(self

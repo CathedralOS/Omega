@@ -62,3 +62,104 @@ fn a_literal_initializer_supplies_its_declared_array_length() {
     let expected = std::fs::read_to_string(fixture("fail").join("expected.txt")).unwrap();
     assert!(report.contains(expected.trim_end()), "{report}");
 }
+
+fn target_const_array_program(literal: &str, last_index: u64) -> String {
+    format!(
+        r#"const SIZE: u64 = size_of::<u64>();
+
+machine sized(a: [u8; SIZE]) -> [u8; SIZE] {{ a }}
+
+machine read_at(a: @[u8; SIZE], i: u64) -> u8 requires i < SIZE {{
+    a[i]
+}}
+
+machine make_literal() -> [u8; SIZE] {{
+    {literal}
+}}
+
+machine main() crashes Trap {{
+    let zeroed: [u8; SIZE];
+    let items: [u8; SIZE] = sized(make_literal());
+    transition zeroed.length == SIZE && 0u64 < SIZE && {last_index}u64 < SIZE {{
+        true -> check(@items),
+        false -> failed()
+    }}
+    machine check(items: @[u8; SIZE]) crashes Trap
+        requires 0u64 < SIZE && {last_index}u64 < SIZE
+    {{
+        transition read_at(items, 0u64) == 10u8 && read_at(items, {last_index}u64) == 80u8 {{
+            true -> done(),
+            false -> failed()
+        }}
+    }}
+    machine done() {{}}
+    machine failed() crashes Trap {{ crash Trap; }}
+}}
+"#
+    )
+}
+
+#[test]
+fn target_layout_const_array_extent_checks_and_runs_on_native_and_psi() {
+    let source = target_const_array_program("[10u8, 20u8, 30u8, 40u8, 50u8, 60u8, 70u8, 80u8]", 7);
+    let (check_output, check_report) = invoke(&source, &["--check"]);
+    assert!(check_output.status.success(), "{check_report}");
+    program::assert_silent_return(&source);
+}
+
+#[test]
+fn target_layout_const_array_extent_refuses_unproved_index() {
+    let source = r#"const SIZE: u64 = size_of::<u64>();
+
+machine read_at(a: @[u8; SIZE], i: u64) -> u8 {
+    a[i]
+}
+
+machine main() {
+    let zeroed: [u8; SIZE];
+    let _: u8 = read_at(@zeroed, 0u64);
+}
+"#;
+    let (output, report) = invoke(source, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("index") || report.contains("bounds") || report.contains("cannot prove"),
+        "expected index-bound refusal:\n{report}"
+    );
+}
+
+#[test]
+fn target_layout_const_array_extent_refuses_out_of_bounds_index_at_closure() {
+    let source = target_const_array_program("[10u8, 20u8, 30u8, 40u8, 50u8, 60u8, 70u8, 80u8]", 8);
+    let (check_output, check_report) = invoke(&source, &["--check"]);
+    assert!(!check_output.status.success(), "{check_report}");
+    assert!(
+        check_report.contains("scalar predicate is false"),
+        "expected target-closure predicate refusal:\n{check_report}"
+    );
+    for engine in ["psi", "native"] {
+        let (output, report) = invoke(&source, &["run", "--engine", engine]);
+        assert!(
+            !output.status.success(),
+            "expected {engine} refusal for out-of-bounds index:\n{report}"
+        );
+    }
+}
+
+#[test]
+fn target_layout_const_array_extent_refuses_mismatched_literal_length_at_closure() {
+    let source = target_const_array_program("[10u8, 20u8, 30u8]", 2);
+    let (check_output, check_report) = invoke(&source, &["--check"]);
+    assert!(!check_output.status.success(), "{check_report}");
+    assert!(
+        check_report.contains("array literal length (3) matches target-dependent extent"),
+        "expected literal-extent mismatch refusal:\n{check_report}"
+    );
+    for engine in ["psi", "native"] {
+        let (output, report) = invoke(&source, &["run", "--engine", engine]);
+        assert!(
+            !output.status.success(),
+            "expected {engine} refusal for mismatched literal length:\n{report}"
+        );
+    }
+}

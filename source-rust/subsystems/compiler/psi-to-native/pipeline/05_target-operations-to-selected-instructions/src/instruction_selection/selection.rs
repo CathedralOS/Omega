@@ -753,6 +753,7 @@ pub(crate) mod construction {
     }
 }
 pub(in crate::instruction_selection) use crate::instruction_selection::selection_edge_transfers as edge_transfers;
+pub(in crate::instruction_selection) use crate::instruction_selection::selection_shared_parameters as shared_parameters;
 pub(crate) mod element_view_homes {
     use selected_instructions::VirtualRegisterId;
     use semantic_vocabulary::{PlaceId, ValueId};

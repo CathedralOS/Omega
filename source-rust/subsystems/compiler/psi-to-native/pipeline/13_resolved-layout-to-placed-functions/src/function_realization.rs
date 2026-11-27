@@ -10,8 +10,7 @@ use machine_code::{
     WholeFunctionExitContractIdentity, X86BranchRelaxationIdentity,
 };
 use optimization_core::{
-    FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationExecutionPhase,
-    OptimizationSelectionIdentity, OptimizationSelections,
+    OptimizationExecutionPhase, OptimizationSelectionIdentity, OptimizationSelections,
     PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
     SelectedLoweringOptimizationCompletionIdentity,
 };
@@ -65,7 +64,6 @@ pub enum FunctionRelativeFrameDisposition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionRelativeOptimizationRealizationManifest {
-    pub identity: FunctionRelativeOptimizationRealizationManifestIdentity,
     pub stage: FunctionRelativeOptimizationRealizationStage,
     pub selections: OptimizationSelectionIdentity,
     pub selected_lowering_selections: OptimizationSelectionIdentity,
@@ -147,7 +145,6 @@ pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
     frame: TargetFrameLayoutIdentity,
     protocol: TargetFrameProtocolEncodingIdentity,
     exit_contract: WholeFunctionExitContractIdentity,
-    realization: FunctionRelativeOptimizationRealizationManifestIdentity,
 }
 
 wire::record_views! {
@@ -160,7 +157,6 @@ wire::record_views! {
         frame: TargetFrameLayoutIdentity,
         protocol: TargetFrameProtocolEncodingIdentity,
         exit_contract: WholeFunctionExitContractIdentity,
-        realization: FunctionRelativeOptimizationRealizationManifestIdentity,
     }
 }
 
@@ -232,7 +228,7 @@ pub fn assemble_fixed_frame_realization(
         stage_whole_function_exit_contract_for_layout(layout_optimization.function_exits())
             .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_fixed_frame_manifest(current, &exit_contract)?;
-    let custody = fixed_frame_custody(&current.program, &exit_contract, &manifest);
+    let custody = fixed_frame_custody(&current.program, &exit_contract);
     Ok(StagedFixedFrameFunctionRelativeRealization {
         layout_optimization,
         exit_contract,
@@ -271,7 +267,7 @@ pub(crate) fn check_published_realization(
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest =
         expected_fixed_frame_manifest(staged.layout_optimization.current(), &staged.exit_contract)?;
-    let custody = fixed_frame_custody(program, &staged.exit_contract, &manifest);
+    let custody = fixed_frame_custody(program, &staged.exit_contract);
     if manifest.record != staged.manifest.record || custody != staged.custody {
         return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
     }
@@ -349,10 +345,7 @@ fn expected_fixed_frame_manifest(
     }
 
     let unavailable = FunctionRelativeOptimizationUnavailableData::Unavailable;
-    let mut record = FunctionRelativeOptimizationRealizationManifest {
-        identity: FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(
-            b"pending",
-        ),
+    let record = FunctionRelativeOptimizationRealizationManifest {
         stage: FunctionRelativeOptimizationRealizationStage::ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1,
         selections: selections.identity(),
         selected_lowering_selections: selected_lowering.identity(),
@@ -388,15 +381,12 @@ fn expected_fixed_frame_manifest(
         installation: unavailable,
         publication: unavailable,
     };
-    record.identity = record.recomputed_identity();
     Ok(ValidatedFunctionRelativeOptimizationRealizationManifest { record })
 }
 
-#[allow(clippy::too_many_arguments)]
 fn fixed_frame_custody(
     program: &machine_code::ResolvedMachineProgram,
     exit_contract: &StagedWholeFunctionExitContract,
-    manifest: &ValidatedFunctionRelativeOptimizationRealizationManifest,
 ) -> StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
     StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
         source: program.context.publication.record().identity,
@@ -406,7 +396,6 @@ fn fixed_frame_custody(
         frame: program.frame_identity,
         protocol: program.protocol_identity,
         exit_contract: exit_contract.identity(),
-        realization: manifest.record.identity,
     }
 }
 
@@ -473,124 +462,4 @@ fn function_relative_statistics(
                 .count(),
         )?,
     })
-}
-
-impl FunctionRelativeOptimizationRealizationManifest {
-    pub fn recomputed_identity(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
-        let mut canonical = Vec::new();
-        canonical
-            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v12\0");
-        canonical.extend_from_slice(&encode_manifest_content(self));
-        FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(&canonical)
-    }
-}
-
-fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationManifest) -> Vec<u8> {
-    let mut canonical = Vec::new();
-    canonical.push(match manifest.stage {
-        FunctionRelativeOptimizationRealizationStage::ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1 => 1,
-    });
-    canonical.extend_from_slice(&manifest.selections.bytes());
-    canonical.extend_from_slice(&manifest.selected_lowering_selections.bytes());
-    match manifest.selected_lowering_completion {
-        Some(identity) => {
-            canonical.push(1);
-            canonical.extend_from_slice(&identity.bytes());
-        }
-        None => canonical.push(0),
-    }
-    canonical.extend_from_slice(&manifest.allocation_recovery_selections.bytes());
-    for identity in [
-        manifest.post_allocation_machine_selections.bytes(),
-        manifest.function_relative_layout_selections.bytes(),
-        manifest.pre_physical_manifest.bytes(),
-        manifest.post_allocation_manifest.bytes(),
-        manifest.selected.bytes(),
-        manifest.pre_allocation_machine_effects.bytes(),
-        manifest.post_allocation_machine.bytes(),
-        manifest.baseline_pre_layout.bytes(),
-        manifest.pre_layout.bytes(),
-        manifest.baseline_resolved_layout.bytes(),
-        manifest.resolved_layout.bytes(),
-    ] {
-        canonical.extend_from_slice(&identity);
-    }
-    match manifest.x86_branch_relaxation {
-        Some(identity) => {
-            canonical.push(1);
-            canonical.extend_from_slice(&identity.bytes());
-        }
-        None => canonical.push(0),
-    }
-    encode_optional_custody(
-        &mut canonical,
-        manifest.post_allocation_machine_optimization,
-    );
-    canonical.extend_from_slice(&manifest.whole_function_exit_contract.bytes());
-    encode_target(&mut canonical, manifest.target);
-    canonical.push(match manifest.layout_policy {
-        SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 1,
-        SelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 2,
-        SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1 => 4,
-        SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1 => 5,
-    });
-    canonical.push(match manifest.scope {
-        FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1 => 1,
-    });
-    for value in [
-        manifest.statistics.functions,
-        manifest.statistics.blocks,
-        manifest.statistics.instructions,
-        manifest.statistics.bytes,
-        manifest.statistics.resolved_conditional_branches,
-        manifest.statistics.unresolved_internal_machine_fixups,
-    ] {
-        crate::codec_bytes::push_encoded(&mut canonical, value.to_le_bytes());
-    }
-    match manifest.frame {
-        FunctionRelativeFrameDisposition::Unavailable => canonical.push(1),
-        FunctionRelativeFrameDisposition::CanonicalFixedFrameV1 { layout, protocol } => {
-            canonical.push(2);
-            canonical.extend_from_slice(&layout.bytes());
-            canonical.extend_from_slice(&protocol.bytes());
-        }
-    }
-    for unavailable in [
-        manifest.machine_emission,
-        manifest.section_placement,
-        manifest.symbols,
-        manifest.object_relocations,
-        manifest.executable_image,
-        manifest.installation,
-        manifest.publication,
-    ] {
-        canonical.push(match unavailable {
-            FunctionRelativeOptimizationUnavailableData::Unavailable => 1,
-        });
-    }
-    canonical
-}
-
-fn encode_optional_custody(
-    bytes: &mut Vec<u8>,
-    custody: Option<PostAllocationMachineOptimizationCustody>,
-) {
-    match custody {
-        Some(custody) => {
-            bytes.push(1);
-            bytes.push(custody.optimization() as u8);
-            bytes.extend_from_slice(&custody.artifact_identity());
-            bytes.extend_from_slice(&custody.selections().bytes());
-            bytes.extend_from_slice(&custody.post_allocation_machine_selections().bytes());
-            bytes.extend_from_slice(&custody.source().bytes());
-            crate::codec_bytes::push_encoded(bytes, (custody.action_count() as u64).to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, custody.baseline_bytes().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, custody.selected_bytes().to_le_bytes());
-        }
-        None => bytes.push(0),
-    }
-}
-
-fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
-    bytes.extend_from_slice(&target.wire_identity_bytes());
 }

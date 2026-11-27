@@ -262,12 +262,112 @@ fn a_lift_is_refused_when_its_requirement_does_not_give_the_operations() {
     );
 }
 
+/// The lifted operation of `LIFTED` with an operation on representatives
+/// and on classes that require nothing, so the kernel's `lift` defines it
+/// and a clause may apply it with nothing to show, and a law
+/// `uses_the_operation` stating `claim` of it.
+fn applied(claim: &str) -> String {
+    let source = proofs(LIFTED)
+        .replace(
+            "machine normal(value: Representative) -> Representative\n\
+             requires |proof|::Identity::<Representative>(value, value)\n{",
+            "machine normal(value: Representative) -> Representative\n{",
+        )
+        .replace(
+            "requires\n    same_sign(left, right),\n    \
+             |proof|::Identity::<Representative>(left, left),\n    \
+             |proof|::Identity::<Representative>(right, right)\n\
+             ensures same_sign(normal(left), normal(right))",
+            "requires same_sign(left, right)\nensures same_sign(normal(left), normal(right))",
+        )
+        .replace(
+            "machine normal_class(value: Sign) -> Sign\n\
+             requires |proof|::Identity::<Sign>(value, value)\n{",
+            "machine normal_class(value: Sign) -> Sign\n{",
+        )
+        .replace(LIFT, "Quotient::lift::<normal, normal_respects>(value)");
+    assert!(!source.contains("requires |proof|::Identity::<Representative>(value, value)"));
+    assert!(!source.contains("requires |proof|::Identity::<Sign>(value, value)"));
+    assert_eq!(
+        source
+            .matches("Quotient::lift::<normal, normal_respects>(value)")
+            .count(),
+        1
+    );
+    format!("{source}\nmachine uses_the_operation(a: Representative)\nensures {claim}\n{{\n}}\n")
+}
+
+const AT_A_CLASS: &str = "|proof|::Identity::<Sign>(normal_class(a as Sign), normal(a) as Sign)";
+
 #[test]
-fn an_operation_lifted_to_a_quotient_is_not_a_term() {
+fn an_operation_lifted_to_a_quotient_computes_at_a_class() {
+    // `normal_class` is the kernel's `lift` of `normal`, so at the class of
+    // `a` it is the class of `normal(a)`. That holds by `lift`'s point
+    // computation, a theorem derived from the quotient's `beta`, so the law
+    // rests on `beta` beside the quotient's type, its classes and soundness.
+    let verdicts = judged(&applied(AT_A_CLASS));
+    let judgment = signature(&verdicts);
+    let law = judged_laws(judgment, "uses_the_operation");
+    eprintln!("uses_the_operation {law:?}");
+    // Seven: the quotient type, the class of a value, that the quotient is
+    // a set, soundness, the eliminator and its point computation, which
+    // `lift` and its derived computation rest on, and the statement of
+    // `normal_respects`, which is proved as a law of its own.
+    assert!(matches!(law.as_slice(), [(_, 7)]), "{law:?}");
+}
+
+#[test]
+fn an_operation_lifted_to_a_quotient_gives_only_its_operation_s_class() {
+    // The twin claims every class goes to the class of zero, which `normal`
+    // does not do for a number other than zero.
+    let claim = "|proof|::Identity::<Sign>(normal_class(a as Sign), Representative::Zero as Sign)";
+    let verdicts = judged(&applied(claim));
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "uses_the_operation");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+}
+
+#[test]
+fn an_operation_lifted_to_data_or_with_a_number_as_it_is_computes_at_a_class() {
+    // `sign_of` returns plain data, a set by Hedberg's theorem; `pick_class`
+    // passes `other` to `pick` as it is.
+    let law = |claim: &str| {
+        format!(
+            "{}{PICK}\nmachine uses_the_operation(a: Representative, b: Representative)\n\
+             ensures {claim}\n{{\n}}\n",
+            proofs(CLASS)
+        )
+    };
+    for claim in [
+        "|proof|::Identity::<Representative>(sign_of(a as Sign), sign(a))",
+        "|proof|::Identity::<Sign>(pick_class(b, a as Sign), pick(a, b) as Sign)",
+    ] {
+        let verdicts = judged(&law(claim));
+        let judgment = signature(&verdicts);
+        assert!(
+            matches!(judged_laws(judgment, "uses_the_operation").as_slice(), [_]),
+            "{claim}: {judgment:?}"
+        );
+    }
+    // Each twin names the other argument where the operation took this one.
+    for claim in [
+        "|proof|::Identity::<Representative>(sign_of(a as Sign), sign(b))",
+        "|proof|::Identity::<Sign>(pick_class(b, a as Sign), pick(b, a) as Sign)",
+    ] {
+        let verdicts = judged(&law(claim));
+        let law = unproved(&verdicts);
+        assert_eq!(law.machine, "uses_the_operation", "{claim}");
+        assert_eq!(law.cause, UnprovedCause::NoDerivation, "{claim}");
+    }
+}
+
+#[test]
+fn an_operation_whose_representatives_must_meet_a_requirement_is_not_a_term() {
+    // `lift` defines a function only from a total operation on
+    // representatives; `normal` here requires something of its argument.
     let source = format!(
         "{}\nmachine uses_the_operation(a: Representative)\n\
-         requires |proof|::Identity::<Sign>(a as Sign, a as Sign)\n\
-         ensures |proof|::Identity::<Sign>(normal_class(a as Sign), normal_class(a as Sign))\n{{\n}}\n",
+         ensures {AT_A_CLASS}\n{{\n}}\n",
         proofs(LIFTED)
     );
     let verdicts = judged(&source);
@@ -280,21 +380,15 @@ fn an_operation_lifted_to_a_quotient_is_not_a_term() {
         .collect();
     assert!(
         matches!(refused.as_slice(), [detail]
-            if detail.contains("term that applies an operation lifted to a quotient")),
+            if detail.contains("whose operation on representatives requires something of them")),
         "{verdicts:?}"
     );
 }
 
-#[test]
-fn an_argument_that_is_no_class_is_shared_by_both_calls() {
-    // `pick` takes a number and a second number it ignores. Its lift takes
-    // them in the other order, the second as it is, so the congruence has
-    // two representatives of the class and one `other`. `sign_of` returns a
-    // number, not a class, so its congruence ends in an equality.
-    let source = format!(
-        "{}{}",
-        proofs(CLASS),
-        r"
+/// An operation `pick_class` on classes that also takes a number as it is,
+/// lifted from `pick`, and `sign_of`, which returns a number and not a
+/// class.
+const PICK: &str = r"
 machine pick(value: Representative, other: Representative) -> Representative {
     sign(value)
 }
@@ -318,8 +412,15 @@ ensures |proof|::Identity::<Representative>(sign(left), sign(right))
 machine sign_of(value: Sign) -> Representative {
     Quotient::define::<sign, sign_respects>(value)
 }
-"
-    );
+";
+
+#[test]
+fn an_argument_that_is_no_class_is_shared_by_both_calls() {
+    // `pick` takes a number and a second number it ignores. Its lift takes
+    // them in the other order, the second as it is, so the congruence has
+    // two representatives of the class and one `other`. `sign_of` returns a
+    // number, not a class, so its congruence ends in an equality.
+    let source = format!("{}{PICK}", proofs(CLASS));
     let verdicts = judged(&source);
     let judgment = signature(&verdicts);
     assert!(
@@ -353,6 +454,196 @@ machine sign_of(value: Sign) -> Representative {
         matches!(refused.as_slice(), [detail]
             if detail.contains("theorem of a quotient operation over other than two representatives")),
         "{verdicts:?}"
+    );
+}
+
+/// The fallback refusals of `verdicts`.
+fn refusals(verdicts: &[RouteVerdict]) -> Vec<&str> {
+    verdicts
+        .iter()
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::FallBack(refusal) => Some(refusal.detail.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+
+const PICKED: &str = "Quotient::lift::<pick, pick_respects>(value, other)";
+
+/// `CLASS` and `PICK` with `pick_class` lifting `pick` by `lift`, and a law
+/// `uses_the_operation` stating `claim` of two numbers `a` and `b`.
+fn picked(lift: &str, claim: &str) -> String {
+    let source = format!("{}{PICK}", proofs(CLASS));
+    assert_eq!(source.matches(PICKED).count(), 1);
+    format!(
+        "{}\nmachine uses_the_operation(a: Representative, b: Representative)\n\
+         ensures {claim}\n{{\n}}\n",
+        source.replace(PICKED, lift)
+    )
+}
+
+#[test]
+fn an_operation_lifted_with_a_computed_or_omitted_argument_computes_at_a_class() {
+    // `pick_class` passes `sign(other)` to `pick`, or a constant where it
+    // leaves `other` out. The congruence is stated of `pick`'s parameters,
+    // so `pick_respects` serves both, and at the class of `a` the operation
+    // is the class of `pick` at what it passes.
+    for (lift, claim) in [
+        (
+            "Quotient::lift::<pick, pick_respects>(value, sign(other))",
+            "|proof|::Identity::<Sign>(pick_class(b, a as Sign), pick(a, sign(b)) as Sign)",
+        ),
+        (
+            "Quotient::lift::<pick, pick_respects>(value, Representative::Zero)",
+            "|proof|::Identity::<Sign>(pick_class(b, a as Sign), \
+             pick(a, Representative::Zero) as Sign)",
+        ),
+    ] {
+        let verdicts = judged(&picked(lift, claim));
+        let judgment = signature(&verdicts);
+        assert!(
+            matches!(judged_laws(judgment, "uses_the_operation").as_slice(), [_]),
+            "{lift}: {verdicts:?}"
+        );
+        assert!(
+            matches!(judged_laws(judgment, "pick_respects").as_slice(), [(_, 0)]),
+            "{lift}: {judgment:?}"
+        );
+        assert!(judged_laws(judgment, "pick_class").is_empty(), "{lift}");
+    }
+}
+
+#[test]
+fn an_operation_lifted_with_a_computed_or_omitted_argument_gives_only_its_class() {
+    // Each twin claims the operation takes the class of `b` where it took
+    // the class of `a`.
+    for (lift, claim) in [
+        (
+            "Quotient::lift::<pick, pick_respects>(value, sign(other))",
+            "|proof|::Identity::<Sign>(pick_class(b, a as Sign), pick(b, sign(a)) as Sign)",
+        ),
+        (
+            "Quotient::lift::<pick, pick_respects>(value, Representative::Zero)",
+            "|proof|::Identity::<Sign>(pick_class(b, a as Sign), \
+             pick(b, Representative::Zero) as Sign)",
+        ),
+    ] {
+        let verdicts = judged(&picked(lift, claim));
+        let law = unproved(&verdicts);
+        assert_eq!(law.machine, "uses_the_operation", "{lift}");
+        assert_eq!(law.cause, UnprovedCause::NoDerivation, "{lift}");
+    }
+}
+
+/// `both` takes two numbers, and `both_class` passes it one class twice.
+/// Its congruence relates two pairs of representatives.
+const BOTH: &str = r"
+machine both(value: Representative, other: Representative) -> Representative {
+    sign(other)
+}
+
+machine both_respects(
+    left: Representative,
+    right: Representative,
+    other_left: Representative,
+    other_right: Representative
+)
+requires same_sign(left, right), same_sign(other_left, other_right)
+ensures same_sign(both(left, other_left), both(right, other_right))
+{
+}
+
+machine both_class(value: Sign) -> Sign {
+    Quotient::lift::<both, both_respects>(value, value)
+}
+";
+
+#[test]
+fn an_operation_lifted_with_a_repeated_class_computes_at_a_class() {
+    let law = |claim: &str| {
+        format!(
+            "{}{BOTH}\nmachine uses_the_operation(a: Representative, b: Representative)\n\
+             ensures {claim}\n{{\n}}\n",
+            proofs(CLASS)
+        )
+    };
+    let verdicts = judged(&law(
+        "|proof|::Identity::<Sign>(both_class(a as Sign), both(a, a) as Sign)",
+    ));
+    let judgment = signature(&verdicts);
+    assert!(
+        matches!(judged_laws(judgment, "both_respects").as_slice(), [(_, 0)]),
+        "{verdicts:?}"
+    );
+    assert!(
+        matches!(judged_laws(judgment, "uses_the_operation").as_slice(), [_]),
+        "{judgment:?}"
+    );
+    // The twin passes the class of `b` to the second parameter, which the
+    // operation passes the class of `a`.
+    let verdicts = judged(&law(
+        "|proof|::Identity::<Sign>(both_class(a as Sign), both(a, b) as Sign)",
+    ));
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "uses_the_operation");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+}
+
+#[test]
+fn a_repeated_class_needs_a_congruence_for_each_pair() {
+    // The congruence relates only the first pair, so nothing relates the
+    // representatives the second parameter takes, and it is not proved.
+    let source = format!("{}{BOTH}", proofs(CLASS)).replace(
+        "requires same_sign(left, right), same_sign(other_left, other_right)",
+        "requires same_sign(left, right)",
+    );
+    assert!(source.contains("requires same_sign(left, right)\nensures same_sign(both("));
+    let verdicts = judged(&source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "both_respects");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+}
+
+#[test]
+fn a_lift_that_computes_an_argument_owes_its_transport_itself() {
+    // A transport theorem is stated over the congruence's binders, which a
+    // computed argument has no formal for. The same lift with `other` as it
+    // is is `an_operation_on_a_quotient_is_judged_by_the_theorems_it_selects`.
+    let source = picked(
+        "Quotient::lift::<pick, pick_respects, sign_respects>(value, sign(other))",
+        "|proof|::Identity::<Representative>(a, a)",
+    );
+    let verdicts = judged(&source);
+    assert!(
+        matches!(refusals(&verdicts).as_slice(), [detail]
+            if detail.contains("transport theorem of a quotient operation that computes, repeats or leaves out an argument")),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_computed_argument_is_never_a_class() {
+    // `pick_class` passes the class `same_class` computes where `pick`
+    // takes a number: `lift` takes a class only as one of the machine's
+    // formals, so that the class it eliminates is one it was given.
+    let source = picked(
+        "Quotient::lift::<pick, pick_respects>(same_class(value), other)",
+        "|proof|::Identity::<Representative>(a, a)",
+    )
+    .replace(
+        "machine pick_class(",
+        "machine same_class(value: Sign) -> Sign {\n    value\n}\n\nmachine pick_class(",
+    );
+    assert!(
+        source.contains("machine same_class(value: Sign)"),
+        "{source}"
+    );
+    let verdicts = judged(&source);
+    assert!(
+        matches!(refusals(&verdicts).as_slice(), [detail]
+            if detail.contains("a class is passed only as a formal")),
+        "{:?}",
+        refusals(&verdicts)
     );
 }
 
@@ -536,4 +827,41 @@ fn quotient_effectivity_uses_selected_mere_equivalence_laws() {
     let law = unproved(&verdicts);
     assert_eq!(law.machine, "equal_classes_are_related");
     assert_eq!(law.cause, UnprovedCause::NoDerivation);
+}
+
+/// The executable quotient of the `quotient_closed_literal` sample family,
+/// over a record that stores an `i32`.
+const STORED: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../../samples/cli/facts/quotient_closed_literal/parameter/main.omg"
+));
+
+#[test]
+fn a_law_over_classes_of_stored_data_is_refused_by_name() {
+    // `related_representatives_have_one_class` proves this law of a
+    // quotient of mathematical data. Over data that stores an `i32` the
+    // mathematical signature has no quotient to state it with, so it is
+    // refused as that, not proved and not dropped.
+    let start = STORED
+        .find("data Representative")
+        .expect("the sample's carrier");
+    let end = STORED
+        .find("machine representative(")
+        .expect("the sample's operation");
+    let source = format!(
+        "use {{omega}}/language/core/relation.omg;\n\
+         use {{omega}}/language/core/foundation.omg as proof;\n{}\n\
+         machine one_class(a: Representative, b: Representative)\n\
+         requires equivalent(a, b)\n\
+         ensures |proof|::Identity::<EquivalenceClass>(a as EquivalenceClass, b as EquivalenceClass)\n\
+         {{\n}}\n",
+        &STORED[start..end]
+    );
+    let verdicts = judged(&source);
+    assert!(
+        matches!(refusals(&verdicts).as_slice(), [detail]
+            if detail.contains("quotient of data that has storage")),
+        "{:?}",
+        refusals(&verdicts)
+    );
 }

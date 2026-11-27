@@ -34,29 +34,22 @@ reaches |process_exit|::ProcessExit + |process_authority|::StandardInput crashes
     let first: u32 = block read_word();
     transition first {
         0 -> block version(input),
-        _ -> block header(input, first, 3)
+        _ -> |input_packet|::malformed()
     }
     machine version(input: @mutable |input_packet|::ConstructionInput) {
         let version_word: u32 = block read_word();
         transition version_word {
-            1 -> block version_one(input),
+            1 -> block header(input),
             2 -> block version_two(input),
             _ -> |input_packet|::malformed()
         }
     }
-    machine version_one(input: @mutable |input_packet|::ConstructionInput) {
-        let packages_word: u32 = block read_word();
-        transition { _ -> block header(input, packages_word, 5) }
-    }
     machine version_two(input: @mutable |input_packet|::ConstructionInput) {
         input.has_build_sources = true;
-        transition { _ -> block version_one(input) }
+        transition { _ -> block header(input) }
     }
-    machine header(input: @mutable |input_packet|::ConstructionInput, packages_word: u32, unit_words: u32)
-    requires unit_words <= 5
-    {
-        input.package_count = packages_word;
-        input.unit_row_words = unit_words;
+    machine header(input: @mutable |input_packet|::ConstructionInput) {
+        input.package_count = block read_word();
         input.edge_count = block read_word();
         input.unit_count = block read_word();
         input.entry_unit = block read_word();
@@ -64,32 +57,30 @@ reaches |process_exit|::ProcessExit + |process_authority|::StandardInput crashes
         input.entry_name_end = block read_word();
         input.buffer_length = block read_word();
         transition input.has_build_sources {
-            true -> block build_count(input, unit_words),
-            _ -> block layout(input, unit_words, 0)
+            true -> block build_count(input),
+            _ -> block layout(input, 0)
         }
     }
-    machine build_count(input: @mutable |input_packet|::ConstructionInput, unit_words: u32)
-    requires unit_words <= 5
-    {
+    machine build_count(input: @mutable |input_packet|::ConstructionInput) {
         input.build_unit_count = block read_word();
         transition input.package_count <= 64 && input.build_unit_count > 0 && input.build_unit_count <= 512 {
-            true -> block build_layout(input, unit_words),
+            true -> block build_layout(input),
             _ -> |input_packet|::malformed()
         }
     }
-    machine build_layout(input: @mutable |input_packet|::ConstructionInput, unit_words: u32)
-    requires unit_words <= 5, input.package_count <= 64, input.build_unit_count <= 512
+    machine build_layout(input: @mutable |input_packet|::ConstructionInput)
+    requires input.package_count <= 64, input.build_unit_count <= 512
     {
         let extra: u64 = input.package_count as u64 * 2 + input.build_unit_count as u64 * 5;
-        transition { _ -> block layout(input, unit_words, extra) }
+        transition { _ -> block layout(input, extra) }
     }
-    machine layout(input: @mutable |input_packet|::ConstructionInput, unit_words: u32, extra: u64)
-    requires unit_words <= 5, extra <= 2688
+    machine layout(input: @mutable |input_packet|::ConstructionInput, extra: u64)
+    requires extra <= 2688
     {
         let packages: u64 = input.package_count as u64;
         let edges: u64 = input.edge_count as u64;
         let units: u64 = input.unit_count as u64;
-        let row_count: u64 = packages * 3 + edges * 4 + units * (unit_words as u64) + extra;
+        let row_count: u64 = packages * 3 + edges * 4 + units * 5 + extra;
         transition input.package_count > 0 && input.package_count <= 64
             && input.edge_count <= 256
             && row_count <= 6464

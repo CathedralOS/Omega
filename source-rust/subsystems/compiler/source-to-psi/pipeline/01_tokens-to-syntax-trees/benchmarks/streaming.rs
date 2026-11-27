@@ -46,7 +46,7 @@ fn measure() -> Result<(), String> {
         .append(&mut syntax, &mut CompileTimings::default())
         .map_err(|error| format!("{error:?}"))?;
     syntax
-        .snapshot_json()
+        .record_bytes()
         .map_err(|error| error.to_string())?
         .hash(&mut fingerprint);
     format!("{parsed:?}").hash(&mut fingerprint);

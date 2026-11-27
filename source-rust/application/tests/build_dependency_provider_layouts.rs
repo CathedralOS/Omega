@@ -96,7 +96,7 @@ fn a_chosen_dependency_default_with_an_invalid_layout_is_refused() {
     let main = std::fs::read_to_string(fixture().join("main.omg")).expect("kept program");
     let root = default_only("reached", &main);
     // The authored Windows row must be valid even when the requested output is Linux.
-    let (accepted, diagnostic) = project::status(project::omega(
+    let (accepted, diagnostic) = project::status(&project::omega(
         root.path(),
         &["--check", "--target", "linux_x86_64", "build.omg"],
     ));

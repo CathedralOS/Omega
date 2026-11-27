@@ -28,7 +28,8 @@ Other satisfies Service { machine value() -> u64 { 8 } }
 machine main() reaches Service { let seen: u64 = Service::value(); }
 ";
 
-const HELPER: &str = "machine configure<const Flag: bool, const Tag: u64>(builder: @mutable Build)
+const HELPER: &str =
+    "machine configure<const Flag: bool, const Tag: u64>(builder: @mutable BuildPlan)
 requires Tag == 17u64
 {
     Build::select_provider::<|app|::Service, |app|::Provider>(builder, linux_x86_64);
@@ -40,8 +41,8 @@ requires Tag == 17u64
 fn check(name: &str, body: &str) -> (bool, String) {
     let build = format!(
         "use main.omg as app;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, \"configured\");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: \"configured\" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 {body}}}
 {HELPER}"

@@ -16,19 +16,19 @@ use std::path::Path;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::{OperationKind, TerminalModule, Terminator};
 
-const CONSUMER: &str = "use {kit}/main.omg as kit;\n\nmachine entry() -> i32 {\n    |kit|::value()\n}\n";
+const CONSUMER: &str =
+    "use {kit}/main.omg as kit;\n\nmachine entry() -> i32 {\n    |kit|::value()\n}\n";
 
 const CONSUMER_BUILD: &str = "use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"consumer\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"consumer\" };
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
     |dependency|::with_alias(@mutable description, \"kit\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
 }
 ";
 
-const PROVIDER_BUILD: &str =
-    "machine build(builder: @mutable Build) {\n    Build::package(builder, \"kernel\");\n}\n";
+const PROVIDER_BUILD: &str = "machine build(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Package { name: \"kernel\" };\n}\n";
 
 /// Compile the consumer against a provider whose `value` returns `literal`,
 /// and read back the Psi file the compiler saved.
@@ -154,7 +154,7 @@ fn a_missing_or_changed_dependency_is_refused_in_the_consumer() {
     let (ok, report) = checked(scratch.path(), "unchanged", CONSUMER_BUILD, value);
     assert!(ok, "{report}");
 
-    let unregistered = "machine build(builder: @mutable Build) {\n    Build::application(builder, \"consumer\");\n}\n";
+    let unregistered = "machine build(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Application { name: \"consumer\" };\n}\n";
     let other_alias = CONSUMER_BUILD.replace("\"kit\"", "\"other\"");
     for (name, build) in [
         ("unregistered", unregistered),
@@ -163,9 +163,7 @@ fn a_missing_or_changed_dependency_is_refused_in_the_consumer() {
         let (ok, report) = checked(scratch.path(), name, build, value);
         assert!(!ok, "{name}: {report}");
         assert!(
-            report.contains(
-                "no direct product dependency named `kit` supplies `main.omg`"
-            ),
+            report.contains("no direct product dependency named `kit` supplies `main.omg`"),
             "{name}: {report}"
         );
     }

@@ -1,7 +1,7 @@
 //! Check the nominated direct provider rows against the exact sources of an execution scope.
 use crate::DirectBoundaryLeaf;
 use diagnostics::Diagnostic;
-use selected_provider_plans::SelectedProviderPlanFacts;
+use build_providers::selections::SelectedProviderPlanFacts;
 use std::{collections::BTreeSet, sync::Arc};
 use native_execution_reach::ExecutionReach;
 
@@ -113,7 +113,7 @@ fn check_nominees(
 #[cfg(test)]
 mod tests {
     use super::{VerifiedDirectProviderSelection, check_nominees};
-    use selected_provider_plans::SelectedProviderPlanFacts;
+    use build_providers::selections::SelectedProviderPlanFacts;
     use std::sync::Arc;
     use native_execution_reach::ExecutionReach;
 

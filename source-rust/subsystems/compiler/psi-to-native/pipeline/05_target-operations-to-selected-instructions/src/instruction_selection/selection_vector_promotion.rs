@@ -2891,7 +2891,7 @@ fn reconcile_memory_accesses(
     function.memory_accesses = expanded;
 }
 
-fn prune_dead_metadata(function: &mut SelectedFunction) {
+pub(crate) fn prune_dead_metadata(function: &mut SelectedFunction) {
     let mut live_insts = HashSet::new();
     let mut live_vregs = HashSet::new();
     let mut live_slots = HashSet::new();

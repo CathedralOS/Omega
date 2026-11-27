@@ -1,6 +1,6 @@
 use super::validate_task_activations;
-use selected_provider_plans::SelectedProviderPlanFacts;
-use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+use build_providers::plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+use build_providers::selections::SelectedProviderPlanFacts;
 use target::TargetProfile;
 use terminal_psi::*;
 

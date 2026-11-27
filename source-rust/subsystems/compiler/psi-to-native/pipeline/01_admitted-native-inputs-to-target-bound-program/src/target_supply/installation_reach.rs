@@ -12,15 +12,15 @@ pub struct NormalizedNativeSupplies {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedNativeSupply {
     pub boundary: BoundaryMachineId,
-    pub binding: provider_plans::EvaluatedNativeBinding,
+    pub binding: build_providers::plans::EvaluatedNativeBinding,
 }
 
 /// Use the selected body's own closure to resolve each authored installation bound.
 pub(super) fn resolve_installation_reach(
     module: &TerminalModule,
     installation_requirements: &[BoundaryMachineId],
-    selected: selected_provider_plans::SelectedProviderPlanFacts,
-) -> Result<selected_provider_plans::SelectedProviderPlanFacts, Vec<Diagnostic>> {
+    selected: build_providers::selections::SelectedProviderPlanFacts,
+) -> Result<build_providers::selections::SelectedProviderPlanFacts, Vec<Diagnostic>> {
     let fail = |reason: String| vec![Diagnostic::error(reason)];
     if installation_requirements.is_empty() {
         return if module

@@ -1,15 +1,14 @@
+use crate::plans::ProviderBinding;
 use component_description::retained_plan::ProviderPlanInput;
-use provider_plans::{
-    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceReceiverApplication,
-};
 
-include!("../plans/selected_plan_fixture.rs");
+use crate::plans::selected_plan_fixture::selected_plan;
 
 #[test]
 fn selection_identity_matches_the_published_v6_digest() {
-    let empty = crate::SelectedProviderPlanFacts::default();
+    let empty = crate::selections::SelectedProviderPlanFacts::default();
     let selected =
-        crate::SelectedProviderPlanFacts::from_selected_plans(vec![selected_plan()]).unwrap();
+        crate::selections::SelectedProviderPlanFacts::from_selected_plans(vec![selected_plan()])
+            .unwrap();
     assert_eq!(
         wire::digest_encoder::hex(empty.identity_digest().as_bytes()),
         "ec730138e882da5a89e820e855d4a91b275d9e7bd579dfecf770f41c4769a7f2"
@@ -60,7 +59,9 @@ fn selected_custody_binds_numeric_declarations_in_canonical_row_order() {
             .collect::<Vec<_>>(),
         ["Boundary::consume(opaque)", "Boundary::produce(opaque)"],
     );
-    let facts = |plan| crate::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap();
+    let facts = |plan| {
+        crate::selections::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap()
+    };
     let selected = facts(plan.clone());
     let mut reordered = plan.clone();
     reordered.rows.reverse();
@@ -78,7 +79,7 @@ fn selected_custody_binds_numeric_declarations_in_canonical_row_order() {
     );
     plan.row_numeric_realizations.pop();
     assert!(
-        crate::SelectedProviderPlanFacts::from_selected_plans(vec![plan])
+        crate::selections::SelectedProviderPlanFacts::from_selected_plans(vec![plan])
             .unwrap_err()
             .contains("incomplete external row declarations")
     );
@@ -97,7 +98,9 @@ fn exact_local_rows_share_a_schema_without_sharing_bindings() {
     second.binding = ProviderBinding::Syscall { number: 2 };
     plan.rows.push(second);
     assert!(plan.validate_against_schema().is_empty());
-    let facts = crate::SelectedProviderPlanFacts::from_selected_plans(vec![plan.clone()]).unwrap();
+    let facts =
+        crate::selections::SelectedProviderPlanFacts::from_selected_plans(vec![plan.clone()])
+            .unwrap();
     for (identity, number) in [
         ("Boundary::consume<First>(opaque)", 1),
         ("Boundary::consume<Second>(opaque)", 2),

@@ -1,6 +1,6 @@
 //! A target-specific canonical artifact commits the exact providers used by scalar evaluation.
 use target_provider_admission::{SelectedCheckedInvocationRow, selected_checked_invocation_rows};
-use provider_plans::ProviderPlan;
+use build_providers::plans::ProviderPlan;
 use std::sync::Arc;
 use terminal_codec::{CanonicalTerminalArtifact, EvidenceSeals};
 

@@ -349,7 +349,6 @@ impl ReplayScope<'_> {
         &mut self,
     ) -> (
         FormedModule<'_>,
-        &arena::IdTable<StructuralTypeId, Vec<Proposition>>,
         &mut terminal_check_tables::CheckTables,
         &arena::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
         &[MachineId],
@@ -358,10 +357,9 @@ impl ReplayScope<'_> {
             FormedModule {
                 module: &self.elaboration.module,
                 nominal_calls: &self.elaboration.nominal_calls,
-            schemas: &self.elaboration.static_schemas,
+                schemas: &self.elaboration.static_schemas,
                 domain_sources: &self.elaboration.domain_sources,
             },
-            &self.elaboration.domains,
             &mut self.elaboration.tables,
             &self.elaboration.sources,
             &self.elaboration.requirements,

@@ -1,6 +1,6 @@
+use build_model::work::EvaluationWorkMeter;
 use psi_scalar_applications::{ScalarApplicationClosure, ScalarApplicationObservations};
 use semantic_vocabulary::ScalarApplicationId;
-use evaluation_work::EvaluationWorkMeter;
 
 /// The deployment target one build-time invocation runs under.
 ///
@@ -48,7 +48,7 @@ pub(super) fn complete_invocation_scalar_applications<'artifact>(
         ScalarApplicationObservations::new(artifact, Some(selected), providers, Some(facts))?
             .with_target_carriers(target.carrier_layout)?
             .with_invocation_roots(&[declaration])?;
-    let conditions = build_scalar_evaluation::evaluate_scalar_applications(
+    let conditions = build_time_evaluation::scalars::evaluate_scalar_applications(
         &mut observations,
         Some(name),
         requested,

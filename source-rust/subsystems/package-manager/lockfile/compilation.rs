@@ -2,13 +2,13 @@
 // Source, purpose, and target are supplied by the containing occurrence; ordinary compilation verifies those coordinates before using this data.
 
 use super::PackageLockError;
-use provider_acceptance::AcceptedSemanticBinding;
+use build_providers::acceptance::AcceptedSemanticBinding;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AcceptedPackageCompilation {
     compiler_identity: [u8; 32],
     semantic_bindings: Vec<AcceptedSemanticBinding>,
-    pub(super) native_bindings: Vec<evaluation_receipts::NativeBindingMaterialization>,
+    pub(super) native_bindings: Vec<build_model::receipts::NativeBindingMaterialization>,
 }
 
 impl AcceptedPackageCompilation {
@@ -30,7 +30,7 @@ impl AcceptedPackageCompilation {
         self.compiler_identity
     }
 
-    pub(crate) fn native_bindings(&self) -> &[evaluation_receipts::NativeBindingMaterialization] {
+    pub(crate) fn native_bindings(&self) -> &[build_model::receipts::NativeBindingMaterialization] {
         &self.native_bindings
     }
 

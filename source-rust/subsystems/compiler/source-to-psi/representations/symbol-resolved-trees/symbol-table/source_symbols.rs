@@ -18,6 +18,21 @@ pub use table::{
     same_semantic_name,
 };
 /*
+    Authenticate a single source file against the bundled core library: only a
+    file the core supplied, outside any admitted package graph, whose
+    package-relative path and complete bytes match one bundled file passes.
+*/
+pub fn recognize_bundled_core_file(
+    file: &source_admission::SourceFile,
+) -> Option<language_core::bundled_files::BundledFile> {
+    if file.origin != source_admission::SourceOrigin::Toolchain || file.package_identity.is_some() {
+        return None;
+    }
+    let relative = file.path.strip_prefix(&file.package_root).ok()?;
+    bundled_declarations::recognize_core_file(relative, file.source.as_bytes())
+}
+
+/*
     The custody gate in front of the sealed intrinsic catalog: only a file the
     core supplied, outside any admitted package graph, can be classified,
     and its package-relative path, declaration path and exact source bytes
@@ -28,10 +43,10 @@ pub fn sealed_intrinsic_at(
     file: &source_admission::SourceFile,
     declaration: &str,
 ) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
-    bundled_declarations::sealed_intrinsics::SealedIntrinsicCatalog::classify(core_site(
-        file,
+    language_core::sealed_intrinsics::SealedIntrinsicCatalog::classify_bundled(
+        recognize_bundled_core_file(file)?,
         declaration,
-    )?)
+    )
 }
 
 /*
@@ -43,10 +58,10 @@ pub fn core_vocabulary_at(
     file: &source_admission::SourceFile,
     declaration: &str,
 ) -> Option<language_core::core_vocabulary::CoreVocabulary> {
-    bundled_declarations::core_vocabulary::CoreVocabularyCatalog::classify(core_site(
-        file,
+    language_core::core_vocabulary::CoreVocabularyCatalog::classify_bundled(
+        recognize_bundled_core_file(file)?,
         declaration,
-    )?)
+    )
 }
 
 /*
@@ -56,23 +71,8 @@ pub fn core_vocabulary_at(
 pub fn core_source_at(
     file: &source_admission::SourceFile,
 ) -> Option<language_core::core_vocabulary::CoreSource> {
-    let site = core_site(file, "")?;
-    bundled_declarations::core_vocabulary::CoreVocabularyCatalog::source(site.file, site.source)
-}
-
-fn core_site<'a>(
-    file: &'a source_admission::SourceFile,
-    declaration: &'a str,
-) -> Option<bundled_declarations::sealed_intrinsics::SealedDeclarationSite<'a>> {
-    if file.origin != source_admission::SourceOrigin::Toolchain || file.package_identity.is_some() {
-        return None;
-    }
-    Some(
-        bundled_declarations::sealed_intrinsics::SealedDeclarationSite {
-            file: file.path.strip_prefix(&file.package_root).ok()?,
-            declaration,
-            source: file.source.as_bytes(),
-        },
+    language_core::core_vocabulary::CoreVocabularyCatalog::source_bundled(
+        recognize_bundled_core_file(file)?,
     )
 }
 

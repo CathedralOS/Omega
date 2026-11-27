@@ -1,9 +1,11 @@
 use crate::CodecError;
+use crate::fields::{Field, Flag, Id, Ids, Index, List, Nominal, Optional, OptionalId, Text, U64};
 use crate::wire::{Reader, Writer, decode_canonical, decode_counted};
+use crate::{wire_enum, wire_record};
 use terminal_psi::{
-    NominalDeclarationIdentity, TerminalAccessLifecycleExecution, TerminalAccessLifecycleOperation,
+    TargetLayoutInput, TerminalAccessLifecycleExecution, TerminalAccessLifecycleOperation,
     TerminalAccessLifecyclePlan, TerminalAccessOwner, TerminalAccessProfileRequirement,
-    TerminalAccessStorage, TerminalIdentityIndex,
+    TerminalAccessStorage,
 };
 
 /// Writes each lifecycle with the placement and storage its operations use.
@@ -25,77 +27,62 @@ pub fn decode_access_lifecycle_catalog(
     )
 }
 
+wire_record! {
+    Target: TargetLayoutInput {
+        target: Text,
+        pointer_size: U64,
+        pointer_alignment: U64,
+        case_tag_size: U64,
+        case_tag_alignment: U64,
+        little_endian: Flag,
+    }
+    ProfileRequirement: TerminalAccessProfileRequirement {
+        boundary: Id,
+        owner: Nominal,
+        callable: Index,
+    }
+}
+
+wire_enum! {
+    Operation: TerminalAccessLifecycleOperation, "access lifecycle operation" {
+        0 => Initialize,
+        1 => MoveOut,
+        2 => View,
+        3 => Relocate,
+    }
+    Execution: TerminalAccessLifecycleExecution, "access lifecycle execution" {
+        0 => SelectedProvider,
+        1 => CompilerPrimitive {
+            profile_type: OptionalId,
+            profile_requirements: List<ProfileRequirement>,
+        },
+    }
+    Owner: TerminalAccessOwner, "placement content owner" {
+        0 => Extent,
+        1 => Run { carrier: Id, storage: Id, count: Id, singleton: OptionalId },
+    }
+}
+
 pub fn encode(writer: &mut Writer, plan: &TerminalAccessLifecyclePlan) -> Result<(), CodecError> {
     writer.id(plan.boundary);
-    writer.u8(u8::from(plan.target.is_some()));
-    if let Some(target) = &plan.target {
-        writer.string("lifecycle target", &target.target)?;
-        writer.u64(target.pointer_size);
-        writer.u64(target.pointer_alignment);
-        writer.u64(target.case_tag_size);
-        writer.u64(target.case_tag_alignment);
-        writer.u8(u8::from(target.little_endian));
-    }
-    writer.u8(match plan.operation {
-        TerminalAccessLifecycleOperation::Initialize => 0,
-        TerminalAccessLifecycleOperation::MoveOut => 1,
-        TerminalAccessLifecycleOperation::View => 2,
-        TerminalAccessLifecycleOperation::Relocate => 3,
-    });
-    match &plan.execution {
-        TerminalAccessLifecycleExecution::SelectedProvider => writer.u8(0),
-        TerminalAccessLifecycleExecution::CompilerPrimitive {
-            profile_type,
-            profile_requirements,
-        } => {
-            writer.u8(1);
-            writer.u8(u8::from(profile_type.is_some()));
-            if let Some(profile_type) = profile_type {
-                writer.id(*profile_type);
-            }
-            writer.counted(
-                "placement profile requirements",
-                profile_requirements,
-                |writer, requirement| {
-                    writer.id(requirement.boundary);
-                    writer.u32(requirement.owner.identity().0);
-                    writer.u32(requirement.callable.0);
-                    Ok(())
-                },
-            )?;
-        }
-    }
+    Optional::<Target>::write(writer, &plan.target)?;
+    Operation::write(writer, &plan.operation)?;
+    Execution::write(writer, &plan.execution)?;
     writer.id(plan.schema);
-    writer.ids("placement image fields", &plan.image_fields)?;
-    writer.id(plan.storage.carrier);
-    match plan.storage.owner {
-        TerminalAccessOwner::Extent => writer.u8(0),
-        TerminalAccessOwner::Run {
-            carrier,
-            storage,
-            count,
-            singleton,
-        } => {
-            writer.u8(1);
-            writer.id(carrier);
-            writer.id(storage);
-            writer.id(count);
-            writer.u8(u8::from(singleton.is_some()));
-            if let Some(singleton) = singleton {
-                writer.id(singleton);
-            }
-        }
-    }
-    writer.id(plan.storage.base);
-    writer.id(plan.storage.length);
-    writer.id(plan.storage.granted);
+    Ids::write(writer, &plan.image_fields)?;
+    let storage = &plan.storage;
+    writer.id(storage.carrier);
+    Owner::write(writer, &storage.owner)?;
+    writer.id(storage.base);
+    writer.id(storage.length);
+    writer.id(storage.granted);
+    // A view borrows content it does not own, so it names no content domains.
     if plan.operation == TerminalAccessLifecycleOperation::View {
-        if plan.storage.vacant.is_some() || plan.storage.resident.is_some() {
+        if storage.vacant.is_some() || storage.resident.is_some() {
             return Err(CodecError::NonCanonicalEncoding);
         }
     } else {
-        let (vacant, resident) = plan
-            .storage
+        let (vacant, resident) = storage
             .owned_content()
             .map_err(|_| CodecError::NonCanonicalEncoding)?;
         writer.id(vacant);
@@ -106,94 +93,28 @@ pub fn encode(writer: &mut Writer, plan: &TerminalAccessLifecyclePlan) -> Result
         plan.policy_plan_machine_identity,
         plan.schema_identity,
     ] {
-        writer.u32(identity.0);
+        Index::write(writer, &identity)?;
     }
     crate::access::views::encode_placement(writer, &plan.placement)
 }
 
 pub fn decode(reader: &mut Reader<'_>) -> Result<TerminalAccessLifecyclePlan, CodecError> {
-    let boundary = reader.id("access lifecycle boundary")?;
-    let target = match reader.u8()? {
-        0 => None,
-        1 => Some(terminal_psi::TargetLayoutInput {
-            target: reader.string("lifecycle target")?,
-            pointer_size: reader.u64()?,
-            pointer_alignment: reader.u64()?,
-            case_tag_size: reader.u64()?,
-            case_tag_alignment: reader.u64()?,
-            little_endian: match reader.u8()? {
-                0 => false,
-                1 => true,
-                tag => return Err(CodecError::InvalidTag("lifecycle target byte order", tag)),
-            },
-        }),
-        tag => return Err(CodecError::InvalidTag("lifecycle target input", tag)),
+    let boundary = Id::read(reader)?;
+    let target = Optional::<Target>::read(reader)?;
+    let operation = Operation::read(reader)?;
+    let execution = Execution::read(reader)?;
+    let schema = Id::read(reader)?;
+    let image_fields = Ids::read(reader)?;
+    let carrier = Id::read(reader)?;
+    let owner = Owner::read(reader)?;
+    let base = Id::read(reader)?;
+    let length = Id::read(reader)?;
+    let granted = Id::read(reader)?;
+    let (vacant, resident) = if operation == TerminalAccessLifecycleOperation::View {
+        (None, None)
+    } else {
+        (Some(Id::read(reader)?), Some(Id::read(reader)?))
     };
-    let operation = match reader.u8()? {
-        0 => TerminalAccessLifecycleOperation::Initialize,
-        1 => TerminalAccessLifecycleOperation::MoveOut,
-        2 => TerminalAccessLifecycleOperation::View,
-        3 => TerminalAccessLifecycleOperation::Relocate,
-        tag => return Err(CodecError::InvalidTag("access lifecycle operation", tag)),
-    };
-    let execution = match reader.u8()? {
-        0 => TerminalAccessLifecycleExecution::SelectedProvider,
-        1 => {
-            let profile_type = match reader.u8()? {
-                0 => None,
-                1 => Some(reader.id("placement profile type")?),
-                tag => return Err(CodecError::InvalidTag("placement profile presence", tag)),
-            };
-            let profile_requirements = decode_counted(reader, |reader| {
-                Ok(TerminalAccessProfileRequirement {
-                    boundary: reader.id("placement profile requirement")?,
-                    owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
-                    callable: TerminalIdentityIndex(reader.u32()?),
-                })
-            })?;
-            TerminalAccessLifecycleExecution::CompilerPrimitive {
-                profile_type,
-                profile_requirements,
-            }
-        }
-        tag => return Err(CodecError::InvalidTag("access lifecycle execution", tag)),
-    };
-    let schema = reader.id("access lifecycle schema")?;
-    let image_fields = crate::wire::decode_ids(reader, "placement image field")?;
-    let storage = TerminalAccessStorage {
-        carrier: reader.id("placement extent carrier")?,
-        owner: match reader.u8()? {
-            0 => TerminalAccessOwner::Extent,
-            1 => TerminalAccessOwner::Run {
-                carrier: reader.id("run owner carrier")?,
-                storage: reader.id("run storage field")?,
-                count: reader.id("run count field")?,
-                singleton: match reader.u8()? {
-                    0 => None,
-                    1 => Some(reader.id("run singleton domain")?),
-                    tag => return Err(CodecError::InvalidTag("run singleton presence", tag)),
-                },
-            },
-            tag => return Err(CodecError::InvalidTag("placement content owner", tag)),
-        },
-        base: reader.id("placement extent base field")?,
-        length: reader.id("placement extent length field")?,
-        granted: reader.id("placement extent grant domain")?,
-        vacant: if operation == TerminalAccessLifecycleOperation::View {
-            None
-        } else {
-            Some(reader.id("placement extent vacant domain")?)
-        },
-        resident: if operation == TerminalAccessLifecycleOperation::View {
-            None
-        } else {
-            Some(reader.id("placement extent resident domain")?)
-        },
-    };
-    let policy_identity = TerminalIdentityIndex(reader.u32()?);
-    let policy_plan_machine_identity = TerminalIdentityIndex(reader.u32()?);
-    let schema_identity = TerminalIdentityIndex(reader.u32()?);
-    let placement = crate::access::views::decode_placement(reader)?;
     Ok(TerminalAccessLifecyclePlan {
         boundary,
         target,
@@ -201,10 +122,18 @@ pub fn decode(reader: &mut Reader<'_>) -> Result<TerminalAccessLifecyclePlan, Co
         execution,
         schema,
         image_fields,
-        storage,
-        policy_identity,
-        policy_plan_machine_identity,
-        schema_identity,
-        placement,
+        storage: TerminalAccessStorage {
+            carrier,
+            owner,
+            base,
+            length,
+            granted,
+            vacant,
+            resident,
+        },
+        policy_identity: Index::read(reader)?,
+        policy_plan_machine_identity: Index::read(reader)?,
+        schema_identity: Index::read(reader)?,
+        placement: crate::access::views::decode_placement(reader)?,
     })
 }

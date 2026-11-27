@@ -271,10 +271,12 @@ fn a_data_requirement_is_judged_on_the_operand_in_the_slot_it_reads() {
         "{rejection:?}"
     );
 
-    // Handing `n` the operand written for `count` contradicts the write the
-    // construction records for its slot, and is refused.
+    // Handing `n` the operand written for `count` attaches the clause to
+    // another value. The checker reads the slot's operand from the
+    // construction itself, so `n` holds `count`'s 0 and the clause is
+    // unproved.
     let count = fields[0].value.clone();
-    let refusal = lawful
+    let rejection = lawful
         .judged_in("build", |machine| {
             let OperationKind::EstablishRecord { fields } = &mut operation_mut(machine, id).kind
             else {
@@ -282,11 +284,9 @@ fn a_data_requirement_is_judged_on_the_operand_in_the_slot_it_reads() {
             };
             fields[1].value = count.clone();
         })
-        .refused();
+        .rejected();
     assert!(
-        refusal
-            .detail
-            .contains("a write row is not what its operation stores"),
-        "{refusal:?}"
+        rejection.unproved.len() == 1 && rejection.unproved[0].starts_with("DataDomain"),
+        "{rejection:?}"
     );
 }

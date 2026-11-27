@@ -197,11 +197,11 @@ impl SelectedProviderResult {
             .map(target::TargetProfile::native_target)
     }
 
-    pub fn plans(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
+    pub fn plans(&self) -> &build_providers::selections::SelectedProviderPlanFacts {
         self.realization.plans()
     }
 
-    pub fn shared_plans(&self) -> &Arc<selected_provider_plans::SelectedProviderPlanFacts> {
+    pub fn shared_plans(&self) -> &Arc<build_providers::selections::SelectedProviderPlanFacts> {
         self.realization.shared_plans()
     }
 

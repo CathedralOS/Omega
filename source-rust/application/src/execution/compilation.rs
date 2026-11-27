@@ -135,7 +135,15 @@ pub(super) fn compile(
                 entry_memory: &private_entry_ram,
             },
         };
-        let product = match compiler::compile(request, Default::default())
+        let mut declaration_usage = project_build::DeclarationUsageAdvisories::default();
+        planned.collect_declaration_usage(&mut declaration_usage);
+        let product = match compiler::compile(
+            request,
+            compiler::CompileOptions {
+                declaration_usage: Some(&mut declaration_usage),
+                ..Default::default()
+            },
+        )
             .map_err(|failure| {
                 let mut rows = failure.into_diagnostics();
                 planned.attribute_diagnostics(&mut rows);
@@ -155,6 +163,7 @@ pub(super) fn compile(
         let mut file_imports = project_build::FileImportAdvisories::default();
         planned.collect_file_imports(&mut file_imports);
         crate::commands::report_unused_imports(&file_imports);
+        crate::commands::report_unused_declarations(&declaration_usage);
         (product, profile, Some(plan))
     };
     Ok(CompiledRun {

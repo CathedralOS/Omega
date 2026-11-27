@@ -402,7 +402,7 @@ fn read_proposition_row(
             left: decode_scalar_term(reader)?,
             right: decode_scalar_term(reader)?,
         },
-        20 => Proposition::FloatIntegerConversion(IntegerConversion::read(reader)?),
+        20 => Proposition::FloatIntegerConversion(Box::new(IntegerConversion::read(reader)?)),
         21 => Proposition::IeeeFloatIntegerExact {
             source: decode_scalar_term(reader)?,
             target: decode_integer_type(reader)?,
@@ -458,7 +458,7 @@ mod meaning_equation_tests {
                     .unwrap(),
                 target: IeeeFloatFormat::Binary32,
             },
-            Proposition::FloatIntegerConversion(graph.clone()),
+            Proposition::FloatIntegerConversion(Box::new(graph.clone())),
             Proposition::IeeeFloatIntegerExact { source, target },
         ] {
             let mut writer = Writer::default();

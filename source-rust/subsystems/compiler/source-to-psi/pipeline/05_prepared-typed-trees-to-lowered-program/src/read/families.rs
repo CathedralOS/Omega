@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 Data indexed by values.
 
@@ -53,13 +54,13 @@ use semantic_vocabulary::{
 };
 use source_text::SourceSpan;
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 use super::Program;
 use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::places::RecordSource;
+use crate::Unserved;
 use crate::body::{CaseType, RecordField, RecordType, StorageShape, ValueType};
-use crate::{Unserved, refuse};
 
 /// A data declaration indexed by values, as the signature needs it.
 #[derive(Debug, Clone)]
@@ -256,7 +257,7 @@ impl Program<'_> {
         state: &State,
     ) -> Checked<FamilyTheorem> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let formals = typed
             .state_parameters
             .span(state.parameters)
@@ -527,7 +528,7 @@ impl Program<'_> {
         read: &mut FamilyTheoremCase,
     ) -> Checked<()> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let case = &family.cases[position];
         let step = self
             .entered_machine(target)
@@ -769,7 +770,7 @@ impl Program<'_> {
                 )
             })
             && data.quotient.is_none()
-            && self.contains_itself(data)
+            && self.contains_itself_directly(data)
     }
 
     /// Whether the machine is a theorem over indexed data: it returns
@@ -827,7 +828,7 @@ impl Program<'_> {
         reference: TypeReferenceHandle,
     ) -> Checked<Vec<FamilyTerm>> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
         let TypeReferenceNode::Generic {
             base_symbol,
             lifetime_arguments,
@@ -886,7 +887,7 @@ impl Program<'_> {
         argument: TypeReferenceHandle,
     ) -> Checked<WrittenIndex> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
         let literal = |text: &str| {
             text.parse::<i128>()
                 .map(WrittenIndex::Literal)
@@ -920,7 +921,7 @@ impl Program<'_> {
     ) -> Checked<WrittenIndex> {
         use crate::source_state::expression::BinaryOperator;
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
         match typed.expression_table.expression(expression) {
             ExpressionNode::Name(path) if path.symbol.is_valid() => {
                 Ok(WrittenIndex::Name(path.symbol))
@@ -976,7 +977,7 @@ impl Program<'_> {
         reference: TypeReferenceHandle,
     ) -> Checked<()> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
         let TypeReferenceNode::Generic {
             arguments,
             lifetime_arguments,
@@ -1065,7 +1066,7 @@ impl Program<'_> {
         field: SymbolHandle,
     ) -> Checked<Option<Applied>> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let Some(data) = self.held_data(holder) else {
             return Ok(None);
         };
@@ -1178,7 +1179,7 @@ impl Program<'_> {
         index_equalities: &mut Vec<IndexEquality>,
     ) -> Checked<()> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let source = Some(typed.expression_table.source_span(literal));
         let ExpressionNode::StructLiteral(literal) = typed.expression_table.expression(literal)
         else {
@@ -1239,7 +1240,7 @@ impl Program<'_> {
             return Ok(ValueType::record(known.record));
         }
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
         if !data.lifetime_parameters.is_empty()
             || !data.conformance_bounds.is_empty()
             || data.cleanup_selection.is_some()
@@ -1664,7 +1665,7 @@ impl Program<'_> {
             if self.proof_machine(machine)
                 || typed
                     .machine_instantiation(machine.symbol)
-                    .map_err(|reason| refuse(id, Construct::Machine, Unserved::Machine(reason)))?
+                    .map_err(|reason| refuse_at(id, Unserved::Machine(reason)))?
                     .is_some()
                 || !self.owned_by_subject(id, machine.symbol, subjects, purpose)?
             {
@@ -1682,7 +1683,7 @@ impl Program<'_> {
 
     fn evidence_use(&mut self, id: MachineId, machine: &Machine) -> Checked<Option<EvidenceUse>> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let mut parameters = Vec::new();
         let mut plain = true;
         for parameter in typed.machine_type_parameters(machine) {
@@ -1829,7 +1830,7 @@ impl Program<'_> {
         own: &[SymbolHandle],
         reference: TypeReferenceHandle,
     ) -> Checked<Applied> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let value_type = self.value_type(id, reference)?;
         let family = self
             .family_of(value_type)
@@ -1887,7 +1888,7 @@ impl Program<'_> {
     ) -> Checked<Option<HandedOn>> {
         use crate::source_state::mathematical::{MathematicalBody, MathematicalType};
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         let Some(definition) = typed
             .mathematical_definitions()
             .iter()
@@ -2012,7 +2013,7 @@ impl Program<'_> {
         index_equalities: &mut Vec<IndexEquality>,
     ) -> Checked<bool> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         if let StatementNode::LocalData(local) = statement
             && local.type_reference.is_valid()
             && self.names_indexed_data(local.type_reference)
@@ -2156,7 +2157,7 @@ impl Program<'_> {
         kinds: &[(SymbolHandle, bool)],
         written: &[crate::source_state::expression::StaticMachineArgument],
     ) -> Checked<Vec<Written>> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         if kinds.len() != written.len() {
             return Err(unserved(
                 "evidence passed without an argument for each parameter",
@@ -2247,7 +2248,7 @@ impl Program<'_> {
         mismatch: &'static str,
         index_equalities: &mut Vec<IndexEquality>,
     ) -> Checked<()> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         if passed.record != expected.record || passed.at.len() != expected.at.len() {
             return Err(unserved(mismatch));
         }
@@ -2284,7 +2285,7 @@ impl Program<'_> {
         index_equalities: &mut Vec<IndexEquality>,
     ) -> Checked<bool> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         // Which arguments name evidence the machine holds, in any form.
         let mut naming = Vec::with_capacity(arguments.len());
         for argument in arguments {
@@ -2401,7 +2402,7 @@ impl Program<'_> {
         index_equalities: &mut Vec<IndexEquality>,
     ) -> Checked<()> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let unserved = |what| refuse_at(id, Unserved::Machine(what));
         if !initializer.is_valid() {
             return Err(unserved(
                 "erased local of indexed data without an initializer",

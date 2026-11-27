@@ -12,7 +12,9 @@ guard capture against concurrent drift; they never enter canonical source
 identity.
 */
 
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
+#[cfg(test)]
+use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -99,6 +101,9 @@ pub(crate) fn open_captured_directory(
     Ok(child)
 }
 
+pub(crate) const FILE_READ_BUFFER_BYTES: usize = 64 * 1024;
+
+#[cfg(all(test, unix))]
 pub(crate) fn read_capability_file_bounded(
     directory: &CapabilityDirectory,
     name: &OsStr,
@@ -106,15 +111,63 @@ pub(crate) fn read_capability_file_bounded(
     remaining: u64,
     limit: u64,
 ) -> Result<(Vec<u8>, bool), SourceResolveError> {
+    let mut chunk = vec![0_u8; FILE_READ_BUFFER_BYTES];
+    let (_, bytes, executable) = read_capability_file_observed(
+        directory,
+        name,
+        display_path,
+        None,
+        |_len| Ok(remaining),
+        limit,
+        &mut chunk,
+    )?;
+    Ok((bytes, executable))
+}
+
+/// Open a regular file without following symlinks, reserve its byte budget from
+/// the opened handle's metadata, copy its bytes into memory, and verify both
+/// the handle and parent-relative entry stayed unchanged across the read.
+pub(crate) fn read_capability_file_observed(
+    directory: &CapabilityDirectory,
+    name: &OsStr,
+    display_path: &Path,
+    expected_opening: Option<&cap_std::fs::Metadata>,
+    reserve_budget: impl FnOnce(u64) -> Result<u64, SourceResolveError>,
+    limit: u64,
+    chunk: &mut [u8],
+) -> Result<(cap_std::fs::Metadata, Vec<u8>, bool), SourceResolveError> {
     let mut options = CapabilityOpenOptions::new();
     options.read(true).follow(FollowSymlinks::No);
-    let mut file = directory.open_with(name, &options).at(display_path)?;
+    let mut file = match directory.open_with(name, &options) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(local_source_changed(display_path));
+        }
+        Err(error) => return Err(io_error(display_path, error)),
+    };
     let metadata = file.metadata().at(display_path)?;
-    let bytes = read_opened_file_bounded(&mut file, &metadata, display_path, remaining, limit)?;
+    if let Some(opening) = expected_opening {
+        require_unchanged_source_file(opening, &metadata, display_path)?;
+    }
+    if !metadata.is_file() {
+        return Err(SourceResolveError::UnsupportedFileType {
+            path: display_path.to_path_buf(),
+        });
+    }
+    let remaining = reserve_budget(metadata.len())?;
+    let bytes =
+        read_opened_file_bounded(&mut file, &metadata, display_path, remaining, limit, chunk)?;
     record_source_file_read("tree_capture", display_path, bytes.len() as u64);
-    let final_entry = directory.symlink_metadata(name).at(display_path)?;
+    let final_entry = match directory.symlink_metadata(name) {
+        Ok(entry) => entry,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(local_source_changed(display_path));
+        }
+        Err(error) => return Err(io_error(display_path, error)),
+    };
     require_unchanged_source_file(&metadata, &final_entry, display_path)?;
-    Ok((bytes, capability_metadata_is_executable(&metadata)))
+    let executable = capability_metadata_is_executable(&metadata);
+    Ok((metadata, bytes, executable))
 }
 
 fn read_opened_file_bounded(
@@ -123,6 +176,7 @@ fn read_opened_file_bounded(
     display_path: &Path,
     remaining: u64,
     limit: u64,
+    chunk: &mut [u8],
 ) -> Result<Vec<u8>, SourceResolveError> {
     if !metadata.is_file() {
         return Err(SourceResolveError::UnsupportedFileType {
@@ -139,9 +193,8 @@ fn read_opened_file_bounded(
     bytes
         .try_reserve_exact(initial_capacity)
         .map_err(|_| SourceResolveError::TooManyBytes { limit })?;
-    let mut chunk = [0_u8; 64 * 1024];
     loop {
-        let count = file.read(&mut chunk).at(display_path)?;
+        let count = file.read(chunk).at(display_path)?;
         if count == 0 {
             break;
         }
@@ -162,6 +215,7 @@ fn read_opened_file_bounded(
     Ok(bytes)
 }
 
+#[cfg(test)]
 pub(crate) struct CapturedEntryObservation {
     pub(crate) name: OsString,
     pub(crate) metadata: cap_std::fs::Metadata,

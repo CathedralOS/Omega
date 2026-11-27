@@ -147,7 +147,7 @@ pub(super) fn mechanism_row(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use provider_plans::BoundaryCallingPlanCommitment;
+    use build_providers::plans::BoundaryCallingPlanCommitment;
     use semantic_vocabulary::TerminalAuthorityClass;
     use terminal_authority_receipts::CheckedSyscallArgumentContractIdentity;
 

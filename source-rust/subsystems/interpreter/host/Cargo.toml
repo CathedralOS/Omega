@@ -14,9 +14,7 @@ psi-entry-memory = { path = "../../compiler/psi/execution-inputs/entry-memory" }
 psi-target-layouts = { path = "../../compiler/psi/execution-inputs/target-layouts" }
 published-runtime-input = { path = "../../compiler/psi-to-native/verification/runtime-publication" }
 access-vocabulary = { path = "../../compiler/psi/access/policies" }
-storage-access = { path = "../memory/storage-access" }
 extent-contracts = { path = "../../compiler/psi/access/extents" }
-extents = { path = "../memory/extents" }
 native-provider-runtime = { path = "native-worker" }
 runtime-abi = { path = "../../compiler/psi-to-native/targets/runtime-abi" }
 semantic-vocabulary = { path = "../../compiler/foundation/semantic-records" }

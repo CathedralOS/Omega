@@ -47,7 +47,7 @@ impl Program<'_> {
         let source = source
             .scope
             .supplied_type_reference(self.typed, source.reference)
-            .map_err(|detail| super::services::unavailable(machine, detail))?;
+            .map_err(|detail| crate::read::unavailable(machine, detail))?;
         if let TypeReferenceNode::Named { symbol, .. } = self
             .typed
             .type_reference_table

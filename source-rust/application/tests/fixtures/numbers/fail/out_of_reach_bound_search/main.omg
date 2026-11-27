@@ -1,0 +1,40 @@
+// Two exact operations whose range the prover cannot establish from the many
+// path facts of the matches above them. Each bound it tries asks for the sign
+// of another term, which asks for further bounds.
+data Decoder [copy] {
+    value: u32;
+    range: u32;
+    max_bits: i64;
+}
+
+machine fresh_bits(count: u32) -> u32 requires true reaches none crashes none {
+    count
+}
+
+machine floor_log2(value: u32) -> u32 requires true reaches none crashes none {
+    transition { _ -> halve(value, 0u32) }
+
+    machine halve(value: u32, counted: u32) -> u32 requires counted <= 32u32 {
+        transition value > 1u32 && counted < 32u32 {
+            true -> halve(value / 2u32, counted + 1u32),
+            false -> counted,
+        }
+    }
+}
+
+machine renormalize(decoder: @mutable Decoder) requires true reaches none crashes none {
+    let shift: u32 = 15u32 - (floor_log2(decoder.range) % 16u32);
+    let available: i64 = match decoder.max_bits > 0i64 { true -> decoder.max_bits, false -> 0i64 };
+    let count: u32 = match (shift as i64) < available { true -> shift, false -> ((available % 16i64) as u32) };
+    let fresh: u32 = fresh_bits(count % 16u32) % 65536u32;
+    let padded: u32 in Wrapping = (fresh as +Wrapping) << (((shift - match count <= shift { true -> count, false -> shift }) % 16u32) as +Wrapping);
+    let widened: u32 in Wrapping = (((decoder.value as +Wrapping) + 1) << (shift as +Wrapping)) - 1;
+    decoder.range = ((((decoder.range as +Wrapping) << (shift as +Wrapping))) as -Wrapping) % 65536u32;
+    decoder.value = ((padded ^ widened) as -Wrapping) % 65536u32;
+    decoder.max_bits = decoder.max_bits - (shift as i64);
+}
+
+machine main() {
+    let mutable decoder: Decoder = Decoder { value: 100u32, range: 300u32, max_bits: 64i64 };
+    renormalize(@mutable decoder);
+}

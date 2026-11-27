@@ -120,17 +120,16 @@ fn module_remains_an_identifier_after_retiring_the_header() {
 /// The line the compiler prints for a file that does not parse, with the
 /// `path:line:column:` position it reports.
 fn parse_diagnostic(source: &str) -> String {
-    let loaded = [LoadedSource {
+    let mut loaded = LoadedSource {
         path: "case.omg".into(),
         source: std::sync::Arc::from(source),
         ..Default::default()
-    }]
-    .into_iter()
-    .collect();
-    let lexed = lexing::lex(loaded).expect("tokenization should succeed for diagnostics test");
-    parsing::parse(&lexed, Default::default())
-        .err()
-        .expect("parse should fail for diagnostics test")
+    };
+    let mut lexed = lexing::lex_file(&mut loaded, &mut tokens::TokenScratch::default())
+        .expect("tokenization should succeed for diagnostics test");
+    let mut syntax = syntax_trees::SyntaxTrees::default();
+    parsing::parse_file(&mut syntax, &mut lexed)
+        .expect_err("parse should fail for diagnostics test")
         .into_diagnostic()
         .message
 }
@@ -181,39 +180,6 @@ fn a_source_that_ends_early_reports_the_end_of_the_file() {
             "case.omg:3:1: expected expression",
             "case.omg:2:20: expected expression",
         ]
-    );
-}
-
-/// Running out of page identities is a limit of the parse, not a mistake in
-/// a file. With one identity left, the first of two sources is placed and the
-/// error names the first token of the second, which sits on its third line.
-#[test]
-fn a_page_directory_limit_reports_the_first_source_left_without_a_page() {
-    let loaded = [
-        ("first.omg", "machine first() {}"),
-        ("second.omg", "\n\n    machine second() {}"),
-    ]
-    .into_iter()
-    .map(|(path, source)| LoadedSource {
-        path: path.into(),
-        source: std::sync::Arc::from(source),
-        ..Default::default()
-    })
-    .collect();
-    let lexed = lexing::lex(loaded).expect("tokenize");
-    let diagnostic = parsing::parse(
-        &lexed,
-        parsing::ParseOptions {
-            first_page_identity: u32::MAX,
-            layout: parsing::ParseLayout::IndependentUnits,
-        },
-    )
-    .err()
-    .expect("two sources need two page identities")
-    .into_diagnostic();
-    assert_eq!(
-        diagnostic.message,
-        "second.omg:3:5: parser exhausted its source-page directory"
     );
 }
 

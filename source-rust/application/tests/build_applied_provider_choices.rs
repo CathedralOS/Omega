@@ -41,11 +41,11 @@ fn check(name: &str, choice: &str) -> (bool, String) {
 fn check_tag(name: &str, choice: &str, package: &str, tag: u64) -> (bool, String) {
     let build = format!(
         "use main.omg as app;
-machine build(builder: @mutable Build) {{
-    Build::package(builder, \"reading\");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Package {{ name: \"reading\" }};
     configure::<(8u64 + 9u64)>(builder);
 }}
-machine configure<const Tag: u64>(builder: @mutable Build) {{
+machine configure<const Tag: u64>(builder: @mutable BuildPlan) {{
     {choice}
 }}
 "
@@ -70,8 +70,8 @@ fn check_package(name: &str, build: &str, files: &[(&str, &str)], main: &str) ->
                 "program/build.omg",
                 "use main.omg as app;
 use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"reader\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"reader\" };
     let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: \"../reading\" }));
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
@@ -175,8 +175,8 @@ fn a_package_selects_its_slot_and_provider_from_separate_files() {
         r#"use slot.omg;
 use provider.omg;
 use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "reading");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "reading" };
     let kit_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "kit" }));
     Build::select_provider::<|slot|::Reading, |provider|::Selected>(builder, linux_x86_64);
 }"#,
@@ -192,7 +192,7 @@ machine build(builder: @mutable Build) {
             ),
             (
                 "kit/build.omg",
-                r#"machine build(builder: @mutable Build) { Build::package(builder, "kit"); }"#,
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "kit" }; }"#,
             ),
             ("kit/math.omg", "public machine answer() -> u64 { 42 }"),
         ],
@@ -206,8 +206,8 @@ fn a_dependency_retains_the_domain_used_in_each_provider_choice() {
     let (compiled, report) = check_package(
         "qualified_inputs",
         r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "reading");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "reading" };
     Build::select_provider::<|app|::Reading<|app|::Tag in |app|::Tag::Left>, |app|::First>(builder, linux_x86_64);
     Build::select_provider::<|app|::Reading<|app|::Tag in |app|::Tag::Right>, |app|::Second>(builder, linux_x86_64);
 }"#,

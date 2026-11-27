@@ -117,6 +117,9 @@ mod assignments {
                 let Item::Const(constant) = item else {
                     return None;
                 };
+                if !constant.type_reference.is_valid() {
+                    return None;
+                }
                 Some((
                     constant.value(),
                     constant.type_reference,

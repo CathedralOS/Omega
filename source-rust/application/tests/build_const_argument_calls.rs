@@ -35,8 +35,8 @@ fn check(name: &str, declarations: &str, held: &str) -> (bool, String) {
     let build = format!(
         "use main.omg as app;
 {declarations}
-machine build(builder: @mutable Build) {{
-    Build::application(builder, \"computed\");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: \"computed\" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     let held: {held};
 }}

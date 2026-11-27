@@ -1,17 +1,18 @@
 //! A type variable has a logical identity and an independent storage carrier.
 //! The carrier keeps the original binder and unknown contents. It grants no
 //! geometry, field access or cleanup permission.
+use crate::read::refuse_at;
 
 use crate::source_state::data::TypeParameterKind;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use symbols::SymbolHandle;
+use terminal_check_tables::Checked;
 use terminal_check_tables::values::RigidType;
-use terminal_check_tables::{Checked, Construct};
 
 use super::{Program, places::RecordSource};
+use crate::Unserved;
 use crate::body::{RecordType, StorageShape, ValueType};
-use crate::{Unserved, refuse};
 
 pub(super) struct ParameterStorage {
     pub rigid: RigidType,
@@ -75,7 +76,7 @@ impl Program<'_> {
         rigid: RigidType,
         reference: TypeReferenceHandle,
     ) -> Checked<ValueType> {
-        let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+        let unavailable = |detail| refuse_at(machine, Unserved::Type(detail));
         let table = &self.typed.type_reference_table;
         let TypeReferenceNode::Named { symbol, .. } = table.type_reference(reference) else {
             return Err(unavailable(
@@ -103,9 +104,7 @@ impl Program<'_> {
             .find(|parameter| parameter.symbol == symbol)
             .ok_or_else(|| unavailable("type parameter has no binder in its declaring scope"))?;
         if parameter.kind != TypeParameterKind::Type {
-            return Err(unavailable(
-                "type parameter has an unrepresented kind",
-            ));
+            return Err(unavailable("type parameter has an unrepresented kind"));
         }
         let identity = self.typed.package_qualified_type_identity_text(reference);
         if identity.is_empty() {
@@ -117,12 +116,8 @@ impl Program<'_> {
             language_core::Multiplicity::Unrestricted => {
                 terminal_psi::StructuralMultiplicity::Unrestricted
             }
-            language_core::Multiplicity::Affine => {
-                terminal_psi::StructuralMultiplicity::Affine
-            }
-            language_core::Multiplicity::Linear => {
-                terminal_psi::StructuralMultiplicity::Linear
-            }
+            language_core::Multiplicity::Affine => terminal_psi::StructuralMultiplicity::Affine,
+            language_core::Multiplicity::Linear => terminal_psi::StructuralMultiplicity::Linear,
         };
         let storage = self.records.push(RecordType {
             multiplicity,
@@ -168,9 +163,8 @@ impl Program<'_> {
             .flatten()
             .map(|parameter| {
                 if self.records.get(parameter.storage).is_none() {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         machine,
-                        Construct::Machine,
                         Unserved::Type("registered type parameter lost its storage carrier"),
                     ));
                 }

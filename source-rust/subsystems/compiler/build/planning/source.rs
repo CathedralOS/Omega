@@ -58,6 +58,7 @@ pub struct PreparedPlanningStage {
 #[derive(Clone)]
 pub(super) struct PlanningSource {
     pub(super) file_imports: source_compiler::FileImportAdvisories,
+    pub(super) declaration_usage: source_compiler::DeclarationUsageAdvisories,
     query_authors: Option<Arc<SourceMap>>,
     query_declarations: Option<(ProductQueryInputs, ProductDeclarations)>,
     pub(super) deferred: DeferredProductSources,
@@ -71,6 +72,7 @@ pub(super) struct PlanningSource {
 /// The opened Product and the exact Build and package graph that admitted it.
 pub struct PlannedProduct {
     file_imports: source_compiler::FileImportAdvisories,
+    declaration_usage: source_compiler::DeclarationUsageAdvisories,
     pub(super) supplied_build_libraries: Arc<[SuppliedBuildLibrary]>,
     pub(crate) evaluated: EvaluatedBuild,
     pub(crate) build_profile: TargetProfile,
@@ -180,6 +182,14 @@ impl PlannedProduct {
         for supplier in self.suppliers.values() {
             supplier.collect_file_imports(uses);
         }
+    }
+
+    /// Fold this validation subject's Build-stage declaration usage into the invocation's advisories.
+    pub fn collect_declaration_usage(
+        &self,
+        uses: &mut source_compiler::DeclarationUsageAdvisories,
+    ) {
+        uses.extend(&self.declaration_usage);
     }
 
     pub fn preparation(&self) -> &SourcePreparation {
@@ -344,11 +354,14 @@ pub fn prepare(
     .map_err(|failure| locate_failure(failure, &assembled.parsed.files, inputs))?;
     let mut file_imports = std::mem::take(&mut preparations.file_imports);
     file_imports.observe_build(&assembled.parsed, &interval.program);
+    let mut declaration_usage = std::mem::take(&mut preparations.declaration_usage);
+    declaration_usage.extend(evaluation.declaration_usage());
     Ok(PreparedPlanningStage {
         preparations,
         evaluation,
         source: PlanningSource {
             file_imports,
+            declaration_usage,
             supplied_libraries,
             query_authors: interval.program.symbols.source_map(),
             query_declarations: None,
@@ -653,6 +666,7 @@ impl PlanningSource {
         self.file_imports.observe_product(&source.parsed);
         Ok(PlannedProduct {
             file_imports: self.file_imports,
+            declaration_usage: self.declaration_usage,
             supplied_build_libraries: self.supplied_libraries,
             evaluated,
             build_profile: self.profile,

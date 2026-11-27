@@ -208,7 +208,6 @@ pub fn prepare_filesystem_scope(
             } else {
                 build_machine_filesystem_scope.with_captured_source_input(captured_input)?
             }
-            .with_named_inputs(build_snapshot.inputs())
             .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
         build_machine_filesystem_scope.directories = build_snapshot.directories().clone();
         build_machine_filesystem_scope.product_source_directory = build_snapshot

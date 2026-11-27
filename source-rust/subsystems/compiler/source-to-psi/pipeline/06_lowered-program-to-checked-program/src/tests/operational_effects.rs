@@ -211,6 +211,109 @@ fn a_call_that_may_suspend_is_a_crossing_with_its_live_frontier() {
     );
 }
 
+#[test]
+fn a_pending_host_call_resumes_the_same_borrow_and_outstanding_return() {
+    use std::cell::Cell;
+    use terminal_interpreter::{
+        TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
+        TerminalExecutionStatus, TerminalImportAdapter, TerminalImportSignature,
+        TerminalInstantiation, TerminalProgram, TerminalRuntimeSupplyRequest, TerminalScalarValue,
+    };
+    struct Gate<'a> {
+        signature: TerminalImportSignature,
+        calls: &'a Cell<usize>,
+        ready: &'a Cell<bool>,
+    }
+    impl TerminalImportAdapter for Gate<'_> {
+        fn implemented_signature(&self) -> TerminalImportSignature {
+            self.signature.clone()
+        }
+    }
+    impl TerminalEffectHandler for Gate<'_> {
+        fn poll_host_computation(
+            &mut self,
+            _: &TerminalEffect,
+        ) -> Result<bool, TerminalEffectRejection> {
+            Ok(self.calls.get() == 0 || self.ready.get())
+        }
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            self.calls.set(self.calls.get() + 1);
+            Ok(())
+        }
+    }
+
+    let source = r"
+boundary trait Gate { machine visit() reaches none crashes none suspends; }
+machine initial() -> u8 reaches Gate invokes Gate suspends {
+    suspend Gate::visit();
+    3
+}
+machine later() -> u8 reaches Gate invokes Gate suspends {
+    suspend Gate::visit();
+    7
+}
+machine main() -> bool reaches Gate invokes Gate suspends {
+    let mutable cell: u8 = suspend initial();
+    let held: @mutable u8 = @mutable cell;
+    let value: u8 = suspend later();
+    let initial_value: u8 = $held;
+    $held = value;
+    initial_value == 3 && cell == 7
+}";
+    let checked = accepted(source).publish_invocation().unwrap();
+    let program = TerminalProgram::borrow(checked.artifact.view());
+    let imports: Vec<_> = program.imports().collect();
+    let [gate] = imports.as_slice() else {
+        panic!("one callable host slot expected")
+    };
+    let supplies = program
+        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            host_imports: &[gate.id],
+            installation: None,
+            target_machines: None,
+            target_layouts: None,
+            native_code_layouts: None,
+            x86_flags: None,
+            memory_ordering: None,
+            entry: None,
+            external_completions: &[],
+        })
+        .unwrap();
+    let calls = Cell::new(0);
+    let ready = Cell::new(false);
+    let mut instance = program
+        .instantiate(TerminalInstantiation {
+            installation: Some(&supplies),
+            ..Default::default()
+        })
+        .unwrap();
+    instance
+        .bind_import(
+            gate.id,
+            Gate {
+                signature: TerminalImportSignature::from(*gate),
+                calls: &calls,
+                ready: &ready,
+            },
+        )
+        .unwrap();
+    let mut meter = terminal_work::WorkMeter::with_budget(10_000);
+    assert!(matches!(
+        instance.invoke(&mut meter).unwrap(),
+        TerminalExecutionStatus::HostComputationPending(_)
+    ));
+    assert_eq!(calls.get(), 1);
+    assert!(instance.caller_sites().next().is_some());
+    ready.set(true);
+    assert!(matches!(
+        instance.invoke(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Boolean(true)
+        ))
+    ));
+    assert_eq!(calls.get(), 2);
+}
+
 /// A crossing is the checker's to reconstruct, not the producer's to
 /// assert: "Matching a producer's site and plan is not enough: deleting both
 /// must not erase a required crossing", and "Missing, duplicate, redirected,

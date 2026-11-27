@@ -1,7 +1,7 @@
 //! Restricted operations a Build asks its receiving host to authorize.
 #![forbid(unsafe_code)]
 use build_output::BuildCapturedSourceInventory;
-use evaluation_contracts::BuildEvaluationSponsorLimits;
+use build_model::contracts::BuildEvaluationSponsorLimits;
 
 /// The source occurrence identified by the host asking for a package decision.
 #[derive(Debug, Clone, PartialEq, Eq)]

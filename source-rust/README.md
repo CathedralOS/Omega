@@ -28,7 +28,7 @@ checks the original inputs retained for that emission before releasing the image
 
 The [source driver](subsystems/compiler/source-to-psi/driver.rs) and [native driver](subsystems/compiler/psi-to-native/driver/mod.rs) coordinate their numbered transformations in `pipeline/`. Put the data passed between its stages in the corresponding [source representations](subsystems/compiler/source-to-psi/representations) or [native representations](subsystems/compiler/psi-to-native/representations).
 
-The [Build scalar evaluator](subsystems/compiler/build/evaluation/scalars/) runs the calculations requested by a published Psi program. [Psi's execution inputs](subsystems/compiler/psi/execution-inputs/) check the supplied scalar results against the program, its providers and its target layout. The interpreter and native compiler both use those checks.
+The [Build scalar evaluator](subsystems/compiler/build/build-time/scalars/) runs the calculations requested by a published Psi program. [Psi's execution inputs](subsystems/compiler/psi/execution-inputs/) check the supplied scalar results against the program, its providers and its target layout. The interpreter and native compiler both use those checks.
 
 [Compiler foundations](subsystems/compiler/foundation) hold compiler identities and vocabulary used across these boundaries. The [Rust foundation](foundation) provides cross-subsystem facilities, including arenas, exact arithmetic, record storage, byte encoding and [host filesystem operations](foundation/filesystem/src/lib.rs).
 

@@ -1735,7 +1735,9 @@ pub(crate) mod image_output {
                 Some(identifier) => image_macho::emit_macho_executable_signed(image, identifier),
                 None => image_macho::emit_macho_executable(image),
             },
-            ObjectFormat::Coff => image_pe::emit_pe_executable(image, subsystem),
+            ObjectFormat::Coff => {
+                image_pe::emit_pe_executable(image, subsystem, pe_stack_reserve(artifact)?)
+            }
         }?;
         // Writers resolve fixups and place emitted regions. Independent replay
         // belongs to retained-artifact receiving checks and backend tests.
@@ -1755,6 +1757,25 @@ pub(crate) mod image_output {
             final_image_symbol_digest,
             output,
         })
+    }
+
+    /// A hosted entry on the loader's stack gets a reserve that fits its
+    /// checked frames; any other entry runs on its own stack.
+    fn pe_stack_reserve(artifact: &ObjectArtifact) -> Result<u64, Diagnostic> {
+        let Some(entry) = artifact.hosted_entry.as_ref() else {
+            return Ok(target::WINDOWS_LOADER_STACK_RESERVE_BYTES);
+        };
+        let context = entry.context();
+        if !matches!(
+            context.backing,
+            physical_recipes::hosted_program::HostedStackBacking::Loader
+        ) {
+            return Ok(target::WINDOWS_LOADER_STACK_RESERVE_BYTES);
+        }
+        artifact
+            .target
+            .loader_stack_supply_bytes(context.demand.known_stack_bytes())
+            .ok_or_else(|| Diagnostic::error("hosted loader-stack entry: stack reserve overflows"))
     }
 
     pub fn validate_direct_executable_image(

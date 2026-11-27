@@ -1226,7 +1226,7 @@ fn a_scalar_cast_must_establish_each_required_membership_on_its_own_arrival() {
     let text = "domain u16::Stored requires self > 0u16;
                 data Kept = u16 in Stored;
                 domain Kept::Side;
-                machine make() -> Kept in Side { 7u16 as +Side +Stored }";
+                machine entry() -> Kept in Side { 7u16 as +Side +Stored }";
     let elaboration = invocation(text).unwrap();
     let mut missing = elaboration.clone();
     let catalog = &mut missing.module.types.scalar_qualifications;

@@ -337,49 +337,52 @@ fn rewrite_block_statements(
         .block_statements(block.statements)
         .to_vec();
     for statement in statements {
-        let rewritten =
-            match syntax_trees.statements.statement(statement).clone() {
-                StatementNode::LocalData(mut local) => {
-                    local.initial_value = rewrite_optional_expression(
-                        syntax_trees,
-                        local.initial_value,
-                        subject,
-                        &visible,
-                        captures,
-                    );
-                    let name = local.name.as_str(syntax_trees).to_owned();
-                    visible.retain(|field| field.binding.as_str(syntax_trees) != name);
-                    StatementNode::LocalData(local)
-                }
-                StatementNode::Assignment(assignment) => {
-                    StatementNode::Assignment(TableAssignment {
-                        target: rewrite_expression(
-                            syntax_trees,
-                            assignment.target,
-                            subject,
-                            &visible,
-                            captures,
-                        ),
-                        value: rewrite_expression(
-                            syntax_trees,
-                            assignment.value,
-                            subject,
-                            &visible,
-                            captures,
-                        ),
-                    })
-                }
-                StatementNode::Call(mut call) => {
-                    call.expression = rewrite_expression(
-                        syntax_trees, call.expression, subject, &visible, captures,
-                    );
-                    StatementNode::Call(call)
-                }
-                StatementNode::Expression(expression) => StatementNode::Expression(
-                    rewrite_expression(syntax_trees, expression, subject, &visible, captures),
+        let rewritten = match syntax_trees.statements.statement(statement).clone() {
+            StatementNode::LocalData(mut local) => {
+                local.initial_value = rewrite_optional_expression(
+                    syntax_trees,
+                    local.initial_value,
+                    subject,
+                    &visible,
+                    captures,
+                );
+                let name = local.name.as_str(syntax_trees).to_owned();
+                visible.retain(|field| field.binding.as_str(syntax_trees) != name);
+                StatementNode::LocalData(local)
+            }
+            StatementNode::Assignment(assignment) => StatementNode::Assignment(TableAssignment {
+                target: rewrite_expression(
+                    syntax_trees,
+                    assignment.target,
+                    subject,
+                    &visible,
+                    captures,
                 ),
-                other => other,
-            };
+                value: rewrite_expression(
+                    syntax_trees,
+                    assignment.value,
+                    subject,
+                    &visible,
+                    captures,
+                ),
+            }),
+            StatementNode::Call(mut call) => {
+                call.expression =
+                    rewrite_expression(syntax_trees, call.expression, subject, &visible, captures);
+                StatementNode::Call(call)
+            }
+            StatementNode::Expression(expression) => StatementNode::Expression(rewrite_expression(
+                syntax_trees,
+                expression,
+                subject,
+                &visible,
+                captures,
+            )),
+            StatementNode::Dispatch(dispatch) => StatementNode::Dispatch(
+                rewrite_dispatch_statement(syntax_trees, dispatch, subject, &visible, captures),
+            ),
+            other => other,
+        };
         syntax_trees
             .statements
             .replace_statement(statement, rewritten);
@@ -387,6 +390,124 @@ fn rewrite_block_statements(
     ExpressionNode::Block(TableBlockExpression {
         statements: block.statements,
         tail: rewrite_optional_expression(syntax_trees, block.tail, subject, &visible, captures),
+    })
+}
+
+fn rewrite_dispatch_statement(
+    syntax_trees: &mut SyntaxTrees,
+    dispatch: arena::Handle<syntax_trees::statement::TableDispatch>,
+    subject: ExpressionHandle,
+    fields: &[DestructureBinding],
+    captures: &mut SubjectCopies,
+) -> arena::Handle<syntax_trees::statement::TableDispatch> {
+    use syntax_trees::expression::{MatchFieldAction, MatchPattern};
+    use syntax_trees::statement::{
+        DispatchArm, DispatchPattern, TableDispatch, TransitionGuardNode, TransitionTargetNode,
+    };
+    let original = syntax_trees.statements.dispatch(dispatch).clone();
+    let subjects = syntax_trees
+        .statements
+        .expression_handles(original.subjects)
+        .to_vec()
+        .into_iter()
+        .map(|expr| rewrite_expression(syntax_trees, expr, subject, fields, captures))
+        .collect::<Vec<_>>();
+    let subjects = syntax_trees.statements.insert_expression_handles(subjects);
+    let mut arms = Vec::with_capacity(original.arms.len());
+    for arm in original.arms.iter() {
+        let mut visible = fields.to_vec();
+        let mut patterns = Vec::with_capacity(arm.patterns.len());
+        for entry in arm.patterns.iter() {
+            let pattern = match entry.pattern {
+                MatchPattern::Value(value) => MatchPattern::Value(rewrite_expression(
+                    syntax_trees,
+                    value,
+                    subject,
+                    &visible,
+                    captures,
+                )),
+                MatchPattern::Guard(guard) => MatchPattern::Guard(rewrite_expression(
+                    syntax_trees,
+                    guard,
+                    subject,
+                    &visible,
+                    captures,
+                )),
+                MatchPattern::Destructure(mut destructure) => {
+                    let bound = syntax_trees
+                        .expressions
+                        .match_fields(destructure.fields)
+                        .iter()
+                        .filter_map(|field| match &field.action {
+                            MatchFieldAction::Bind(name) => {
+                                Some(name.as_str(syntax_trees).to_owned())
+                            }
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    visible.retain(|field| {
+                        !bound
+                            .iter()
+                            .any(|name| name == field.binding.as_str(syntax_trees))
+                    });
+                    destructure.guard = rewrite_optional_expression(
+                        syntax_trees,
+                        destructure.guard,
+                        subject,
+                        &visible,
+                        captures,
+                    );
+                    MatchPattern::Destructure(destructure)
+                }
+                MatchPattern::Wildcard => MatchPattern::Wildcard,
+            };
+            patterns.push(DispatchPattern {
+                pattern,
+                capture: entry.capture,
+            });
+        }
+        let patterns = patterns.into_boxed_slice();
+        let guard = match arm.guard {
+            TransitionGuardNode::Always => TransitionGuardNode::Always,
+            TransitionGuardNode::When(guard) => TransitionGuardNode::When(rewrite_expression(
+                syntax_trees,
+                guard,
+                subject,
+                &visible,
+                captures,
+            )),
+        };
+        let target = match syntax_trees
+            .statements
+            .transition_target(arm.target)
+            .clone()
+        {
+            TransitionTargetNode::Terminal => arm.target,
+            TransitionTargetNode::Value(value) => {
+                let value = rewrite_expression(syntax_trees, value, subject, &visible, captures);
+                syntax_trees
+                    .statements
+                    .insert_transition_target(TransitionTargetNode::Value(value))
+            }
+            TransitionTargetNode::Named(value) => {
+                let value = rewrite_expression(syntax_trees, value, subject, &visible, captures);
+                syntax_trees
+                    .statements
+                    .insert_transition_target(TransitionTargetNode::Named(value))
+            }
+        };
+        arms.push(DispatchArm {
+            patterns,
+            guard,
+            target,
+            source_span: arm.source_span,
+        });
+    }
+    syntax_trees.statements.insert_dispatch(TableDispatch {
+        subjects_span: original.subjects_span,
+        subjects,
+        arms: arms.into_boxed_slice(),
+        source_span: original.source_span,
     })
 }
 

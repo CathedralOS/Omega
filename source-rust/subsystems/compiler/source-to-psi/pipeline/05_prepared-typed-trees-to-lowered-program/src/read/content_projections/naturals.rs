@@ -1,12 +1,13 @@
 //! Normalize the total natural fragment using the ordinary typed clause reader for arithmetic.
 use super::Program;
-use crate::{Unserved, refuse};
+use crate::Unserved;
+use crate::read::refuse_at;
 use crate::source_state::data::DataMember;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
 use crate::source_state::types::TypeReferenceNode;
 use language_core::core_vocabulary::CoreVocabulary;
 use semantic_vocabulary::{ContentProjectionScalar, MachineId};
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 impl Program<'_> {
     pub(super) fn content_natural(
@@ -20,9 +21,8 @@ impl Program<'_> {
         let typed = self.typed;
         let table = &typed.expression_table;
         let unsupported = || {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Declaration(
                     "content magnitude or endpoint outside the supported closed proof-natural fragment",
                 ),
@@ -199,9 +199,8 @@ impl Program<'_> {
             CanonicalStructuralPathSegment, IntegerMathTerm, ScalarTerm, ScalarType,
         };
         let missing = || {
-            refuse(
+            refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Declaration(
                     "content requires nonnegative proof arithmetic over u8/u16/u32/u64/address subject fields",
                 ),

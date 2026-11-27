@@ -2023,7 +2023,10 @@ mod propositions {
         ContentConservation(ContentConservation),
         /// The total graph of an integer-valued semantic conversion. This
         /// guarantee remains separate from source exactness and FloatMeaning.
-        FloatIntegerConversion(crate::FloatIntegerConversion),
+        ///
+        /// Boxed: the conversion record is several times wider than any other
+        /// variant, and every proposition would otherwise be as wide as it.
+        FloatIntegerConversion(Box<crate::FloatIntegerConversion>),
         /// The source is finite, integral, fits the destination, and is not
         /// negative zero. This predicate never invokes a partial conversion.
         IeeeFloatIntegerExact {
