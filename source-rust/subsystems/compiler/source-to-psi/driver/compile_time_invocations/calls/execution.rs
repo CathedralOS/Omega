@@ -63,14 +63,7 @@ impl PreparedBuildMachineEntry {
         &self,
         targets: &[(&str, Option<&layout_plans::LayoutTargetFacts>)],
         accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
-    ) -> Result<
-        (
-            Vec<crate::compile_time_invocations::BuildTimeValue>,
-            typed_trees_to_prepared_typed_trees::TargetInputs,
-        ),
-        String,
-    > {
-        use typed_trees_to_prepared_typed_trees::{PreparedTarget, TargetInputs};
+    ) -> Result<Vec<crate::compile_time_invocations::BuildTimeValue>, String> {
         let produced = Arc::new(self.produce_invocation()?);
         let module = produced.view().module();
         if !Self::uses_target_layout(module) {
@@ -80,10 +73,9 @@ impl PreparedBuildMachineEntry {
                 carrier_layout: None,
                 address_model: None,
             };
-            return Ok((
-                vec![self.invoke_produced_recorded(produced, target, accounting)?],
-                TargetInputs::None,
-            ));
+            return Ok(vec![
+                self.invoke_produced_recorded(produced, target, accounting)?,
+            ]);
         }
         if targets.is_empty() {
             return Err(
@@ -93,7 +85,6 @@ impl PreparedBuildMachineEntry {
             );
         }
         let mut values = Vec::with_capacity(targets.len());
-        let mut inputs = Vec::with_capacity(targets.len());
         for &(name, facts) in targets {
             let facts = facts.ok_or_else(|| format!("deployment `{name}` has no complete layout facts for the layout it stores through"))?;
             let target = InvocationTarget {
@@ -107,12 +98,8 @@ impl PreparedBuildMachineEntry {
                 target,
                 accounting,
             )?);
-            inputs.push(PreparedTarget {
-                deployment: name.to_owned(),
-                layout: facts.clone(),
-            });
         }
-        Ok((values, TargetInputs::Observed(inputs)))
+        Ok(values)
     }
 
     fn admit_invocation(

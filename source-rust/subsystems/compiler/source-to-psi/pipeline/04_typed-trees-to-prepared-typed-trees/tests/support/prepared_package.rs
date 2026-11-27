@@ -245,7 +245,7 @@ impl Prepared {
                     .to_owned(),
             },
             constants,
-            targets: row.targets.clone(),
+            targets: row.targets,
         }
     }
 

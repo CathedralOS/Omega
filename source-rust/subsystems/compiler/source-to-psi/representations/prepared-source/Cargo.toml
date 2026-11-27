@@ -10,11 +10,14 @@ autobenches = false
 [lib]
 path = "lib.rs"
 
+[features]
+# Lets tests read back the demanded inputs to prepare changed trees again.
+test-support = []
+
 [dependencies]
 prepared-source-issuer = { path = "issuer" }
 typed-trees = { path = "../typed-trees" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-layout-plans = { path = "../../../psi/layouts/geometry" }
 arena = { path = "../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 symbols = { path = "../../../foundation/declaration-identity" }

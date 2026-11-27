@@ -9,7 +9,7 @@ use prepared_source_issuer::PreparationIssuer;
 use symbols::SymbolHandle;
 use typed_trees::source_state::static_applications::StaticMachineApplicationHandle;
 use typed_trees::source_state::{self, FrozenTypedTrees, TypedTrees};
-pub use values::{PreparedTarget, PreparedValue, TargetInputs, ValueInputs};
+pub use values::{PreparedValue, TargetInputs, ValueInputs};
 
 /// A static application selected as an entry in this typed source. Its arena
 /// coordinates belong to this program, including when its trees are cloned.
@@ -65,6 +65,8 @@ pub struct DomainSchema {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedTypedTrees {
     typed: std::sync::Arc<FrozenTypedTrees>,
+    /// Only tests read the inputs back, to re-prepare changed trees.
+    #[cfg(feature = "test-support")]
     values: std::sync::Arc<[ValueInputs]>,
     constants: std::sync::Arc<[arena::Handle<source_state::constant::ConstDeclaration>]>,
     entries: std::sync::Arc<[(EntryApplication, SymbolHandle)]>,
@@ -88,6 +90,7 @@ impl PreparedTypedTrees {
         let constants = values::constant_inputs(&program, values)?;
         Ok(Self {
             typed: std::sync::Arc::new(program.into()),
+            #[cfg(feature = "test-support")]
             values: values.into(),
             constants: constants.into(),
             entries: entries.into(),
@@ -113,7 +116,9 @@ impl PreparedTypedTrees {
             .map(|(_, machine)| *machine)
     }
 
-    /// The source computations demanded during this preparation.
+    /// The source computations demanded during this preparation. Lowering
+    /// reads only the constants they selected, so only tests need these.
+    #[cfg(feature = "test-support")]
     pub fn values(&self) -> &[ValueInputs] {
         &self.values
     }

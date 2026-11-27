@@ -13,7 +13,7 @@ use typed_trees::source_state;
 
 mod passes;
 pub use prepared_source::{
-    EntryApplication, PreparedTarget, PreparedTypedTrees, PreparedValue, TargetInputs, ValueInputs,
+    EntryApplication, PreparedTypedTrees, PreparedValue, TargetInputs, ValueInputs,
 };
 
 use crate::source_state::TypedTrees;
