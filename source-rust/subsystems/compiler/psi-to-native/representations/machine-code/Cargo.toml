@@ -28,3 +28,6 @@ selected-instructions = { path = "../selected-instructions" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
 sha2 = "0.10.9"
+
+[dev-dependencies]
+post-allocation-machine = { path = "../post-allocation-machine", features = ["test-support"] }

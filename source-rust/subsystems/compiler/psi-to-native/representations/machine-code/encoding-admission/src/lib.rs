@@ -250,10 +250,10 @@ pub fn validate_encoded_integrity(
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     if encoding.identity() != context.checked_encoding
         || encoding.recomputed_identity() != context.checked_encoding
-        || encoding.machine() != context.machine.identity
+        || *encoding.machine() != context.plan
         || encoding.selected() != context.machine.selected
         || encoding.frame.as_deref() != Some(frame)
-        || frame.post_allocation_machine != context.machine.identity
+        || frame.post_allocation_machine != context.plan
         || frame.register_environment != context.environment.identity()
         || frame.physical_register_model != context.physical().identity()
         || frame.target != context.target

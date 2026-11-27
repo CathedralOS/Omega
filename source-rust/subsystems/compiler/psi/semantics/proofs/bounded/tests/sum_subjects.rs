@@ -4,8 +4,9 @@
 
 use proof_admission::{
     BoundedImplicationType, BoundedTheoremError, Budget, Context, DataFieldShape, DataSubject,
-    DataSubjectShape, DeclarationKind, Level, Signature, Sort, Term, TermHandle, check_signature,
-    convertible, denote_bounded_implication_type, infer_sort, instantiate,
+    DataSubjectShape, DeclarationKind, Level, PrimitiveJudgment, ProofNode, ProofRule, Signature,
+    Sort, Term, TermHandle, check_signature, convertible, denote_bounded_implication_type,
+    infer_sort, instantiate, verify_bounded_theorem,
 };
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue,
@@ -107,8 +108,9 @@ fn denote(
     denote_bounded_implication_type(&[], data, &[], premises, conclusion, &mut Budget::default())
 }
 
-/// The type checks against its own signature, and binds the sum inputs and
-/// then each premise.
+/// The type checks against its own signature, and binds the sum inputs,
+/// each followed by the two carrier bounds of each of its integer payloads,
+/// and then each premise.
 fn assert_well_formed(mut ty: BoundedImplicationType, binders: usize) {
     check_signature(&mut ty.arena, &ty.signature, &mut Budget::default())
         .expect("the sum's declaration is a checked inductive block");
@@ -139,7 +141,8 @@ fn a_case_test_and_its_payload_read_form_one_implication_over_the_sum() {
     let premise = is_case(1, case(1));
     let conclusion = nonzero(read(1, case(1), field(1), u8_type()));
     let ty = denote(&[subject(1, choice(u8_type()))], &[premise], &conclusion).unwrap();
-    assert_well_formed(ty, 2);
+    // The input, two bounds on each of `x` and `y`, and the premise.
+    assert_well_formed(ty, 6);
 }
 
 #[test]
@@ -345,8 +348,9 @@ fn two_inputs_of_one_sum_share_its_declaration_and_compare_by_identity() {
         &identity(2, 1, ty_id),
     )
     .unwrap();
-    // The two inputs and the premise.
-    assert_well_formed(ty, 3);
+    // The two inputs, each with two bounds on each of `x` and `y`, and the
+    // premise.
+    assert_well_formed(ty, 11);
 }
 
 #[test]
@@ -382,4 +386,59 @@ fn a_sum_input_is_named_once() {
         &is_case(1, case(3)),
     ));
     assert!(!refused.is_empty(), "one place is one input");
+}
+
+fn u8_literal(value: u64) -> ScalarTerm {
+    ScalarTerm::integer(
+        IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+        IntegerValue::Unsigned(value.into()),
+    )
+    .unwrap()
+}
+
+fn carrier_proof(goal: &Proposition) -> Result<usize, String> {
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::Primitive(PrimitiveJudgment::IntegerCarrierBound),
+    };
+    let theorem = verify_bounded_theorem(
+        &[],
+        &[subject(1, choice(u8_type()))],
+        &[],
+        goal,
+        &[is_case(1, case(1))],
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .map_err(|error| format!("{error:?}"))?;
+    assert!(theorem.denotation.certificate.context.is_empty());
+    let (mut body, mut count) = (theorem.denotation.certificate.expected, 0);
+    while let Term::Pi { codomain, .. } = theorem.denotation.arena.get(body) {
+        count += 1;
+        body = codomain;
+    }
+    Ok(count)
+}
+
+/// A payload holds a value of its carrier, so its carrier bound proves
+/// through the binder the sum input brings for it.
+#[test]
+fn a_payload_read_has_its_carrier_bounds() {
+    let x = read(1, case(1), field(1), u8_type());
+    let lower = Proposition::LessOrEqual(u8_literal(0), x.clone());
+    let upper = Proposition::LessOrEqual(x, u8_literal(255));
+    // The input, two bounds on each of `x` and `y`, and the premise.
+    assert_eq!(carrier_proof(&lower), Ok(6));
+    assert_eq!(carrier_proof(&upper), Ok(6));
+}
+
+#[test]
+fn a_payload_read_has_no_bound_inside_its_carrier() {
+    let x = read(1, case(1), field(1), u8_type());
+    let refused = carrier_proof(&Proposition::LessOrEqual(u8_literal(1), x)).unwrap_err();
+    assert!(
+        refused.contains("JudgmentDoesNotEstablishGoal"),
+        "{refused}"
+    );
 }

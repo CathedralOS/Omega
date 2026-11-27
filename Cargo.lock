@@ -1977,7 +1977,6 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
- "sha2",
  "target",
  "target-operations",
  "target-vocabulary",

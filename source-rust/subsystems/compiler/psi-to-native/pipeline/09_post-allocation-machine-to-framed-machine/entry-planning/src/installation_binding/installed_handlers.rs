@@ -257,6 +257,6 @@ fn plan_fault_exclusion(
         ));
     }
     Ok(Some(InstalledBodyFaultPremises {
-        physical_program_identity: physical.identity.bytes(),
+        physical_program_identity: selected.identity,
     }))
 }

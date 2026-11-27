@@ -10,7 +10,6 @@ use machine_code::{
     SelectedFormEncoding, SelectedFormEncodingRow, SelectedFormEncodingState,
     SelectedFormMachineDisposition,
 };
-use post_allocation_machine::PostAllocationMachineOptimizationCustody;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::SelectedBlockId;
 use target::Architecture;
@@ -38,23 +37,15 @@ pub(crate) fn validate(
     let machine = selected;
     let machine_plan = machine;
     if pre_layout.selected() != machine.selected
-        || pre_layout.machine() != machine.machine
+        || *pre_layout.machine() != machine.machine
         || selected_plan.target != machine_plan.target
         || selected_plan.target.architecture != physical.model().architecture
         || selected_plan.functions.len() != machine_plan.alternatives.len()
-        || pre_layout.post_allocation_machine_optimization().is_some()
     {
         return Err(Error::RootMismatch);
     }
     let expected_policy = select(&selected_plan.functions)?;
-    validate_roots(
-        selected,
-        machine,
-        pre_layout,
-        None,
-        expected_policy,
-        artifact,
-    )?;
+    validate_roots(selected, machine, pre_layout, expected_policy, artifact)?;
     validate_ordinary(
         selected,
         machine,
@@ -70,14 +61,12 @@ fn validate_roots(
     selected: &EncodedLayoutRequirements,
     machine: &EncodedLayoutRequirements,
     pre_layout: &SelectedFormEncoding,
-    optimization: Option<PostAllocationMachineOptimizationCustody>,
     policy: SelectedFunctionLayoutPolicy,
     artifact: &ResolvedMachineLayout,
 ) -> Result<(), Error> {
     if artifact.selected() != machine.selected
-        || artifact.machine() != machine.machine
+        || *artifact.machine() != machine.machine
         || artifact.pre_layout() != pre_layout.identity()
-        || artifact.post_allocation_machine_optimization() != optimization
         || artifact.target() != selected.target
         || artifact.policy() != policy
     {

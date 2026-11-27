@@ -1,5 +1,5 @@
 //! Placeholder frame and layout plans for unit tests that need a plan to point
-//! at but never read its rows.
+//! at but never read its rows. Both point at the same placeholder machine plan.
 use std::sync::Arc;
 
 use machine_code::{ResolvedMachineLayout, TargetFrameLayoutPlan};
@@ -7,9 +7,7 @@ use target::NativeTarget;
 
 pub(crate) fn frame_plan() -> Arc<TargetFrameLayoutPlan> {
     Arc::new(TargetFrameLayoutPlan {
-        post_allocation_machine: post_allocation_machine::PostAllocationMachineIdentity::from_bytes(
-            [3; 32],
-        ),
+        post_allocation_machine: post_allocation_machine::test_support::placeholder_plan(),
         callee_saved_requirements:
             register_homes::AllocatedCalleeSavedRequirementIdentity::from_bytes([12; 32]),
         callee_save_storage: machine_code::NonAuthoritativeCalleeSaveStorageIdentity::from_bytes(
@@ -29,9 +27,8 @@ pub(crate) fn frame_plan() -> Arc<TargetFrameLayoutPlan> {
 pub(crate) fn resolved_layout() -> Arc<ResolvedMachineLayout> {
     Arc::new(ResolvedMachineLayout {
         selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([1; 32]),
-        machine: post_allocation_machine::PostAllocationMachineIdentity::from_bytes([3; 32]),
+        machine: post_allocation_machine::test_support::placeholder_plan(),
         pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([6; 32]),
-        post_allocation_machine_optimization: None,
         target: NativeTarget::linux_x64(),
         policy: machine_code::SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
         functions: Vec::new(),

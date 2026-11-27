@@ -1,0 +1,36 @@
+//! A placeholder machine plan for unit tests whose records must point at a
+//! plan but never read its rows. Its roots are fixed placeholder bytes, so it
+//! matches no plan a compilation produces.
+use std::sync::Arc;
+
+use optimization_core::PostAllocationOptimizationManifestIdentity;
+use register_homes::{AllocationLegalityIdentity, RegisterHomeIdentity};
+use register_model::{
+    PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
+    TargetRegisterEnvironmentIdentity,
+};
+use selected_instructions::{
+    LiveRangeIdentity, MachineEffectCatalogIdentity, PreAllocationMachineEffectIdentity,
+    SelectedInstructionPlanIdentity,
+};
+use target::NativeTarget;
+
+use crate::{MachineAlternativeChoiceRule, PostAllocationMachinePlan};
+
+pub fn placeholder_plan() -> Arc<PostAllocationMachinePlan> {
+    Arc::new(PostAllocationMachinePlan {
+        selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
+        effects: PreAllocationMachineEffectIdentity::from_bytes([2; 32]),
+        ranges: LiveRangeIdentity::from_bytes([3; 32]),
+        legality: AllocationLegalityIdentity::from_bytes([4; 32]),
+        homes: RegisterHomeIdentity::from_bytes([5; 32]),
+        post_allocation_manifest: PostAllocationOptimizationManifestIdentity::from_bytes([6; 32]),
+        target: NativeTarget::linux_x64(),
+        register_environment: TargetRegisterEnvironmentIdentity::from_bytes([7; 32]),
+        physical_register_model: PhysicalRegisterModelIdentity::from_bytes([8; 32]),
+        register_constraints: RegisterConstraintCatalogIdentity::from_bytes([9; 32]),
+        machine_effect_catalog: MachineEffectCatalogIdentity::from_bytes([10; 32]),
+        choice_rule: MachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1,
+        functions: Vec::new(),
+    })
+}

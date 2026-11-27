@@ -20,12 +20,12 @@ Because rewriting an instruction onto an optimizer form only adds clobbers, it
 can only shorten unit liveness; a single `UnitLivenessTable` computed per
 function and unit set remains conservatively sound across all candidates in
 that function. After all selected rules finish and work usage is checked
-against the phase budget, we recompute the plan's canonical digest only when a
-rule committed a rewrite; identity runs keep the source digest unchanged.
+against the phase budget. Later stages share the rewritten plan itself, so
+the phase records no digest of it.
 
 When the build selects no post-allocation rule, the phase reports one iteration
 and no work. That always fits, because every budget axis is nonzero, so we skip
-the successor table, the budget walk and the rehash entirely.
+the successor table and the budget walk entirely.
 */
 
 use optimization_core::{
@@ -33,8 +33,7 @@ use optimization_core::{
     OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
 };
 use post_allocation_machine::{
-    PostAllocationMachineFunction, PostAllocationMachineIdentity, PostAllocationMachineInstruction,
-    PostAllocationMachinePlan, post_allocation_machine_identity,
+    PostAllocationMachineFunction, PostAllocationMachineInstruction, PostAllocationMachinePlan,
 };
 use register_model::RegisterUnitId;
 use selected_instructions::{
@@ -45,8 +44,6 @@ use selected_instructions::{
 use semantic_vocabulary::IntegerValue;
 use target::Architecture;
 
-/// `plan.identity` must already be the digest of `plan`; the baseline
-/// constructor seals it so, and a run that commits no rewrite keeps it.
 pub(crate) fn execute_post_allocation_machine_optimizations(
     plan: &mut PostAllocationMachinePlan,
     selected: &SelectedInstructionPlan,
@@ -57,7 +54,6 @@ pub(crate) fn execute_post_allocation_machine_optimizations(
     let phase = OptimizationExecutionPhase::PostAllocationMachine;
     let projection = selections.project_phase(phase);
     let rules = projection.selections().as_slice();
-    let source = plan.identity;
     let mut usage = OptimizationWorkUsage {
         iterations: 1,
         ..OptimizationWorkUsage::default()
@@ -67,14 +63,9 @@ pub(crate) fn execute_post_allocation_machine_optimizations(
     } else {
         execute_rules(plan, selected, effects, rules, budget, &mut usage)?
     };
-    if usage.commits != 0 {
-        plan.identity = post_allocation_machine_identity(plan);
-    }
     Ok(PostAllocationMachineOptimizationRun {
         complete_selection: projection.complete_selection(),
         phase_selections: projection.selections().identity(),
-        source,
-        result: plan.identity,
         executions,
         usage,
     })
@@ -124,8 +115,6 @@ fn execute_rules(
 pub struct PostAllocationMachineOptimizationRun {
     complete_selection: OptimizationSelectionIdentity, // Identity of the complete build selection.
     phase_selections: OptimizationSelectionIdentity, // Identity of the executed post-allocation projection.
-    source: PostAllocationMachineIdentity,           // Plan identity before phase rules ran.
-    result: PostAllocationMachineIdentity,           // Plan identity after phase rules ran.
     executions: Vec<PostAllocationMachineRuleExecution>,
     usage: OptimizationWorkUsage,
 }
@@ -138,8 +127,6 @@ impl PostAllocationMachineOptimizationRun {
     copied_accessors! {
         complete_selection: OptimizationSelectionIdentity,
         phase_selections: OptimizationSelectionIdentity,
-        source: PostAllocationMachineIdentity,
-        result: PostAllocationMachineIdentity,
         usage: OptimizationWorkUsage,
     }
 

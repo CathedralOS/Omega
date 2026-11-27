@@ -24,4 +24,5 @@ target = { path = "../../../targets/target" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 
 [dev-dependencies]
+post-allocation-machine = { path = "../../post-allocation-machine", features = ["test-support"] }
 register-homes = { path = "../../register-homes" }

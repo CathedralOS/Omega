@@ -61,7 +61,7 @@ fn local_slot_region<'function, 'frame>(
 }
 
 pub fn validate_frame_root(
-    machine: &PostAllocationMachinePlan,
+    machine: &std::sync::Arc<PostAllocationMachinePlan>,
     frame: Option<&TargetFrameLayoutPlan>,
 ) -> Result<(), Error> {
     let Some(frame) = frame else {
@@ -73,7 +73,7 @@ pub fn validate_frame_root(
             Err(Error::ArtifactMismatch)
         };
     };
-    if frame.post_allocation_machine != machine.identity
+    if frame.post_allocation_machine != *machine
         || frame.target != machine.target
         || frame.register_environment != machine.register_environment
         || frame.physical_register_model != machine.physical_register_model
@@ -666,8 +666,7 @@ mod tests {
             blocks: Vec::new(),
         };
         let frame = TargetFrameLayoutPlan {
-            post_allocation_machine:
-                post_allocation_machine::PostAllocationMachineIdentity::from_bytes([0; 32]),
+            post_allocation_machine: post_allocation_machine::test_support::placeholder_plan(),
             callee_saved_requirements:
                 register_homes::AllocatedCalleeSavedRequirementIdentity::from_bytes([0; 32]),
             callee_save_storage:

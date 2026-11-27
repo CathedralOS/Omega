@@ -31,7 +31,7 @@ impl RetainedPhysicalInputs {
         let program = &layout.program;
         self.machine.current().identity == program.context.identity
             && self.allocation.publication() == &program.context.publication
-            && self.machine.machine().plan().identity == program.context.machine.identity
+            && self.machine.machine().shared_plan() == program.context.plan
             && program.bindings == self.encoding.bindings
             && program.bindings == self.baseline_layout.bindings
             && program.protocol_identity == self.encoding.protocol_identity
@@ -462,7 +462,6 @@ pub mod physical {
             phase: post_allocation_machine::PostAllocationMachinePhaseReceipt::from_parts(
                 originals.machine.optimization().complete_selection(),
                 originals.machine.optimization().phase_selections(),
-                originals.machine.optimization().result(),
             ),
         };
         post_allocation_machine::program_validation::validate_current_program(instructions, replay)

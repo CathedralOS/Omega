@@ -1,6 +1,6 @@
 /*
 Canonical SHA-256 identity encoding for `SelectedFormEncoding` (`SelectedFormEncodingIdentity`,
-schema `omega.terminal.layout-independent-selected-form-encoding.v32`) and footprint interning
+schema `omega.terminal.layout-independent-selected-form-encoding.v33`) and footprint interning
 buckets (`omega.selected-form-decoded-footprint.storage.v1`).
 
 Each encoded row hashes its own instruction bytes and decoded footprint through its span and handle
@@ -8,24 +8,18 @@ into `SelectedFormEncodedRowStore`, keeping the canonical digest independent of 
 consolidation or `Arc` sharing.
 */
 
-use crate::encode_units;
-use crate::identity_encoding::{encode_invocation_site, encode_nested_identity, encode_views};
-use post_allocation_machine::{
-    PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
-};
-
 use super::{
     DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodedRowStore,
     SelectedFormEncodingCounts, SelectedFormEncodingIdentity, SelectedFormEncodingRow,
     SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
+use crate::encode_units;
+use crate::identity_encoding::{encode_invocation_site, encode_nested_identity, encode_views};
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v32";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v33";
 
 pub(super) fn encoding_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
-    machine: PostAllocationMachineIdentity,
-    post_allocation_machine_optimization: Option<PostAllocationMachineOptimizationCustody>,
     rows: &[SelectedFormEncodingRow],
     encoded: &SelectedFormEncodedRowStore,
     frame: Option<&crate::TargetFrameLayoutPlan>,
@@ -33,21 +27,8 @@ pub(super) fn encoding_identity(
 ) -> SelectedFormEncodingIdentity {
     let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(ENCODER_SCHEMA);
     hasher.raw(&selected.bytes());
-    hasher.raw(&machine.bytes());
-    match post_allocation_machine_optimization {
-        None => hasher.byte(0),
-        Some(custody) => {
-            hasher.byte(1);
-            hasher.byte(custody.optimization() as u8);
-            hasher.raw(&custody.artifact_identity());
-            hasher.raw(&custody.selections().bytes());
-            hasher.raw(&custody.post_allocation_machine_selections().bytes());
-            hasher.raw(&custody.source().bytes());
-            hasher.u64(custody.action_count() as u64);
-            hasher.raw(&custody.baseline_bytes().to_le_bytes());
-            hasher.raw(&custody.selected_bytes().to_le_bytes());
-        }
-    }
+    // Checks compare the shared machine plan itself wherever an encoding
+    // meets one, so the plan is not hashed here.
     hasher.u64(rows.len() as u64);
     for row in rows {
         encode_encoding_row(&mut hasher, row, encoded);
@@ -358,11 +339,10 @@ fn encode_machine_disposition(
 #[cfg(test)]
 mod tests {
     use super::super::{
-        DeferredControlEncodingReason, PostAllocationMachineIdentity, ResolvedPhysicalAddress,
-        SelectedFormDecodedFootprint, SelectedFormDecodedFootprintHandle,
-        SelectedFormEncodedByteSpan, SelectedFormEncoding, SelectedFormEncodingCounts,
-        SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
-        SelectedFormMachineDisposition,
+        DeferredControlEncodingReason, ResolvedPhysicalAddress, SelectedFormDecodedFootprint,
+        SelectedFormDecodedFootprintHandle, SelectedFormEncodedByteSpan, SelectedFormEncoding,
+        SelectedFormEncodingCounts, SelectedFormEncodingIdentity, SelectedFormEncodingRow,
+        SelectedFormEncodingState, SelectedFormMachineDisposition,
     };
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionId,
@@ -372,8 +352,7 @@ mod tests {
     fn deferred_program() -> SelectedFormEncoding {
         SelectedFormEncoding {
             selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
-            machine: PostAllocationMachineIdentity::from_bytes([2; 32]),
-            post_allocation_machine_optimization: None,
+            machine: post_allocation_machine::test_support::placeholder_plan(),
             identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
             rows: vec![SelectedFormEncodingRow {
                 instruction: SelectedInstructionId(7),
@@ -515,14 +494,12 @@ mod tests {
     }
 
     #[test]
-    fn current_encoding_binds_the_version_32_control_alternative_schema() {
+    fn current_encoding_binds_the_version_33_control_alternative_schema() {
         let mut program = deferred_program();
         use sha2::{Digest, Sha256};
         let mut canonical =
-            b"omega.terminal.layout-independent-selected-form-encoding.v32".to_vec();
+            b"omega.terminal.layout-independent-selected-form-encoding.v33".to_vec();
         canonical.extend_from_slice(&[1; 32]);
-        canonical.extend_from_slice(&[2; 32]);
-        canonical.push(0);
         crate::codec_bytes::push_encoded(&mut canonical, 1_u64.to_le_bytes());
         crate::codec_bytes::push_encoded(&mut canonical, 7_u32.to_le_bytes());
         crate::codec_bytes::push_encoded(&mut canonical, 6_u16.to_le_bytes());
@@ -543,10 +520,10 @@ mod tests {
         for count in [0_u64, 1, 0, 0, 0, 0] {
             crate::codec_bytes::push_encoded(&mut canonical, count.to_le_bytes());
         }
-        assert_eq!(canonical.len(), 303);
+        assert_eq!(canonical.len(), 270);
         let expected = [
-            152, 54, 99, 20, 167, 82, 237, 143, 178, 206, 250, 162, 221, 149, 126, 172, 232, 168,
-            86, 92, 89, 10, 124, 131, 21, 119, 104, 210, 137, 137, 109, 22,
+            117, 237, 56, 203, 111, 230, 48, 63, 72, 238, 228, 107, 103, 183, 167, 50, 154, 214,
+            184, 82, 13, 197, 63, 121, 44, 121, 229, 85, 75, 103, 245, 173,
         ];
         assert_eq!(<[u8; 32]>::from(Sha256::digest(&canonical)), expected);
         assert_eq!(program.recomputed_identity().bytes(), expected);
@@ -589,7 +566,7 @@ mod tests {
     }
 
     #[test]
-    fn encoding_identity_binds_current_rows_counts_and_roots() {
+    fn encoding_identity_binds_current_rows_counts_and_selected_root() {
         let program = deferred_program();
         let identity = program.recomputed_identity();
         let mut changed = program.clone();
@@ -599,7 +576,7 @@ mod tests {
         changed.counts.ordinary_deferred_control = 2;
         assert_ne!(changed.recomputed_identity(), identity);
         changed = program;
-        changed.machine = PostAllocationMachineIdentity::from_bytes([3; 32]);
+        changed.selected = SelectedInstructionPlanIdentity::from_bytes([3; 32]);
         assert_ne!(changed.recomputed_identity(), identity);
     }
 

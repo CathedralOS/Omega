@@ -141,7 +141,7 @@ fn validate_layout_forms(
     check_control_alternatives(program)?;
     crate::validate_encoded_integrity(&program.context, &program.frame, &program.encoding)
         .map_err(|_| OptimizedResolvedSelectedFormLayoutError::RootMismatch)?;
-    if program.layout_requirements.machine != program.context.machine.identity
+    if program.layout_requirements.machine != program.context.plan
         || program.layout_requirements.selected != program.context.machine.selected
         || program.layout_requirements.target != program.context.target
     {

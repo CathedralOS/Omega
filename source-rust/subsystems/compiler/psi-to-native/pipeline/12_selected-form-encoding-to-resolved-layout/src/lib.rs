@@ -112,10 +112,9 @@ fn compute(
     pre_layout: &SelectedFormEncoding,
 ) -> Result<ResolvedMachineLayout, OptimizedResolvedSelectedFormLayoutError> {
     if pre_layout.selected() != input.selected
-        || pre_layout.machine() != input.machine
+        || *pre_layout.machine() != input.machine
         || input.target.architecture != physical.model().architecture
         || input.functions.len() != input.alternatives.len()
-        || pre_layout.post_allocation_machine_optimization().is_some()
     {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
@@ -146,14 +145,13 @@ fn compute(
     }
 
     let selected_root = input.selected;
-    let machine_root = input.machine;
+    let machine_root = Arc::clone(&input.machine);
     let pre_layout_root = pre_layout.identity();
     let target = input.target;
     Ok(ResolvedMachineLayout {
         selected: selected_root,
         machine: machine_root,
         pre_layout: pre_layout_root,
-        post_allocation_machine_optimization: None,
         target,
         policy,
         functions,

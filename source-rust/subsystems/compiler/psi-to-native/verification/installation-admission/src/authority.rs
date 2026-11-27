@@ -41,7 +41,7 @@ impl BoundInstallationAuthority {
             || root.is_some_and(|root| root.adapter != entry.machine)
             || plan.target != entry.target
             || physical.identity != physical.recomputed_identity()
-            || plan.post_allocation_machine != physical.machine.identity
+            || plan.post_allocation_machine != physical.machine
         {
             return Err(
                 "installation resources differ from the final physical program, target or entry",

@@ -45,25 +45,23 @@ impl PostAllocationMachineProgram {
         self.environment.physical()
     }
 
-    /// Bind the current instruction/contract chunks and validated machine ID.
-    /// Independent replay also checks the machine's canonical body against
-    /// its original checked owner; this digest does not hash that body again.
+    /// Bind the current instruction/contract chunks and settled roots. The
+    /// machine plan is not hashed: every record that meets it shares the plan
+    /// and compares it directly.
     pub fn recomputed_identity(&self) -> [u8; 32] {
         let mut digest =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.physical-machine-program.v3\0");
+            crate::digest_encoder::DomainDigestEncoder::new(b"omega.physical-machine-program.v4\0");
         digest.raw(self.psi.program_fingerprint.as_bytes());
         digest.raw(&self.psi.vocabulary_marker.get().to_le_bytes());
         digest.raw(&self.work_schedule.marker().to_le_bytes());
         digest.raw(&self.entry.get().to_le_bytes());
         digest.raw(&self.contracts.identity_bytes());
-        digest.raw(&self.machine.identity.bytes());
         digest.raw(&self.environment.identity().bytes());
         digest.raw(&self.physical().identity().bytes());
         digest.raw(&self.preservation.identity().bytes());
         digest.raw(&self.publication.identity_bytes());
         digest.raw(&self.phase.complete_selection().bytes());
         digest.raw(&self.phase.phase_selections().bytes());
-        digest.raw(&self.phase.result().bytes());
         digest.u64(self.functions.len() as u64);
         for function in self.functions.identity_digests() {
             digest.raw(&function);

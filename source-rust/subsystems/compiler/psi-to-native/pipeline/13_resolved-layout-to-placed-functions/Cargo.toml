@@ -28,6 +28,7 @@ post-allocation-machine = { path = "../../representations/post-allocation-machin
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 
 [dev-dependencies]
+post-allocation-machine = { path = "../../representations/post-allocation-machine", features = ["test-support"] }
 encoding-admission = { path = "../../representations/machine-code/encoding-admission" }
 isa-aarch64 = { path = "../11_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }
 isa-x86_64 = { path = "../11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }

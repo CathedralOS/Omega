@@ -61,7 +61,7 @@ pub fn capture(
         psi: selected.psi,
         entry: selected.entry,
         target: physical.target,
-        physical_identity: physical.identity.bytes(),
+        physical_identity: selected.identity,
         functions,
     })
 }

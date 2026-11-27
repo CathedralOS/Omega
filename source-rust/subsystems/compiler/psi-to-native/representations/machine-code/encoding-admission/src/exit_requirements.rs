@@ -141,10 +141,9 @@ pub fn prepare_exit_requirements(
         abi,
         encoding: ExitEncoding {
             selected: encoding.selected(),
-            machine: encoding.machine(),
+            machine: std::sync::Arc::clone(encoding.machine()),
             identity: encoding.identity(),
             frame: encoding.frame.clone(),
-            has_machine_optimization: encoding.post_allocation_machine_optimization().is_some(),
             decoded: std::sync::Arc::clone(&encoding.encoded),
         },
         functions,
