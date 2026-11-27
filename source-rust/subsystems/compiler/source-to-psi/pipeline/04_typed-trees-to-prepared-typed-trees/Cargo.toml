@@ -7,6 +7,9 @@ autotests = false
 autoexamples = false
 autobenches = false
 
+[features]
+test-support = ["prepared-source/test-support"]
+
 [dependencies]
 prepared-source = { path = "../../representations/prepared-source" }
 prepared-source-issuer = { path = "../../representations/prepared-source/issuer" }

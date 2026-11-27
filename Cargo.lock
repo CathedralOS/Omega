@@ -2083,7 +2083,6 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "diagnostics",
- "layout-plans",
  "prepared-source-issuer",
  "semantic-vocabulary",
  "symbols",

@@ -18,21 +18,13 @@ pub enum PreparedValue {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Whether a value still waits for the deployment that will evaluate it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetInputs {
-    /// This value has no admitted deployment input.
+    /// Preparation settled this value without waiting for a deployment.
     None,
     /// The initializer or extent remains open until its deployment supplies the inputs.
     Deferred,
-    /// These deployments actually admitted an evaluation of this value.
-    Observed(Vec<PreparedTarget>),
-}
-
-/// A deployment selected by a completed invocation and the immutable geometry it received.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PreparedTarget {
-    pub deployment: String,
-    pub layout: layout_plans::LayoutTargetFacts,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
