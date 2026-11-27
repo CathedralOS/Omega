@@ -47,7 +47,7 @@ pub(super) fn library_declarations() -> String {
     program
 }
 
-fn judged(source: &str) -> Vec<RouteVerdict> {
+pub(super) fn judged(source: &str) -> Vec<RouteVerdict> {
     let typed = super::build_purpose::frontier_with_core(
         source,
         "machine build_entry() {}",
@@ -68,7 +68,7 @@ fn judged(source: &str) -> Vec<RouteVerdict> {
         .collect()
 }
 
-fn signature(verdicts: &[RouteVerdict]) -> &SignatureJudgment {
+pub(super) fn signature(verdicts: &[RouteVerdict]) -> &SignatureJudgment {
     let mut laws = None;
     for verdict in verdicts {
         match verdict {
@@ -82,7 +82,7 @@ fn signature(verdicts: &[RouteVerdict]) -> &SignatureJudgment {
     laws.expect("the signature's judgment")
 }
 
-fn unproved(verdicts: &[RouteVerdict]) -> &UnprovedLaw {
+pub(super) fn unproved(verdicts: &[RouteVerdict]) -> &UnprovedLaw {
     let mut laws = verdicts.iter().filter_map(|verdict| match verdict {
         RouteVerdict::UnprovedLaws(laws) => Some(laws),
         RouteVerdict::Laws(judgment) => panic!("the law must not be accepted: {judgment:?}"),
@@ -255,4 +255,77 @@ fn generic_data_recursive_at_other_arguments_is_refused() {
         refused.contains("generic data that contains itself at other arguments"),
         "{refused}"
     );
+}
+
+/// `reverse_reverse`'s published certificate, with `forge` applied to the
+/// recursor of the generic `Seq` block in its signature, through the wire
+/// format a Psi consumer reads, and the kernel's verdict on it.
+fn verify_forged(
+    forge: impl FnOnce(&mut proof_admission::TermArena, &mut Vec<proof_admission::Declaration>, usize),
+) -> Result<(), proof_admission::CoreError> {
+    let verdicts = judged(&library_declarations());
+    let judgment = signature(&verdicts);
+    let law = judgment
+        .laws
+        .iter()
+        .find(|law| law.machine == "reverse_reverse")
+        .expect("the law is judged");
+    let mut decoded = terminal_codec::decode_mathematical_certificate(&law.certificate).unwrap();
+    // The block's recursor: the one whose family has a uniform parameter.
+    let signature = &mut decoded.certificate.signature;
+    let recursor = signature
+        .iter()
+        .position(|declaration| match declaration.kind {
+            proof_admission::DeclarationKind::Recursor { inductive } => matches!(
+                signature[inductive as usize].kind,
+                proof_admission::DeclarationKind::Inductive { num_params: 1, .. }
+            ),
+            _ => false,
+        })
+        .expect("the generic block's recursor");
+    forge(&mut decoded.arena, signature, recursor);
+    let bytes =
+        terminal_codec::encode_mathematical_certificate(&decoded.arena, &decoded.certificate)
+            .expect("a forged certificate still encodes");
+    let mut read = terminal_codec::decode_mathematical_certificate(&bytes).unwrap();
+    proof_admission::verify_mathematical_certificate(
+        &mut read.arena,
+        &read.certificate,
+        &mut Default::default(),
+    )
+    .map(|_| ())
+}
+
+#[test]
+fn a_published_seq_proof_checks_on_its_own() {
+    verify_forged(|_, _, _| {}).expect("the certificate as published verifies");
+}
+
+#[test]
+fn a_published_seq_proof_with_a_forged_recursor_type_is_refused() {
+    // The recursor stated at the family's own type: not the type the kernel
+    // derives from the block.
+    let refused = verify_forged(|_, signature, recursor| {
+        let proof_admission::DeclarationKind::Recursor { inductive } = signature[recursor].kind
+        else {
+            unreachable!()
+        };
+        signature[recursor].ty = signature[inductive as usize].ty;
+    });
+    assert_eq!(
+        refused,
+        Err(proof_admission::CoreError::InvalidRecursorType)
+    );
+}
+
+#[test]
+fn a_published_seq_proof_whose_recursor_is_an_assumption_is_refused() {
+    // The same type as an ordinary assumption: it no longer computes on the
+    // block's constructors, and the block lacks its recursor.
+    let refused = verify_forged(|_, signature, recursor| {
+        let ty = signature[recursor].ty;
+        let level_arity = signature[recursor].level_arity;
+        signature[recursor] = proof_admission::Declaration::assumption(level_arity, ty);
+    });
+    assert!(refused.is_err(), "{refused:?}");
 }

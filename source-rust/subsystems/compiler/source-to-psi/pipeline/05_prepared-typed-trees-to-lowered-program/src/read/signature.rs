@@ -459,6 +459,10 @@ enum Read {
 struct Bound {
     term: TermHandle,
     field: Option<u32>,
+    /// With `field`, a field that holds a function to the data applied to
+    /// this argument: the child there, whose recursion is the field's
+    /// hypothesis at the argument.
+    applied: Option<TermHandle>,
 }
 
 struct Scope<'s> {
@@ -471,7 +475,7 @@ struct Scope<'s> {
     case: Option<(usize, usize, &'s [TermHandle])>,
     /// The machine whose body this is and, for each field of the case, the
     /// recursion's result for it.
-    recursion: Option<(MachineId, usize, &'s [Option<TermHandle>])>,
+    recursion: Option<Recursion<'s>>,
     /// How many fields the enclosing cases of a law bind: its terms are
     /// stated under the law's formals and then those fields.
     depth: u32,
@@ -481,6 +485,39 @@ struct Scope<'s> {
     induction: bool,
     /// Set where a body is read for its value.
     value: Option<&'s Valuing<'s>>,
+}
+
+/// A definition by cases read as the kernel's recursion: a call of the
+/// machine, or of another machine of its group, at a field of the case is the
+/// recursion's result at that field.
+#[derive(Clone, Copy)]
+struct Recursion<'s> {
+    machine: MachineId,
+    /// The dispatched formal.
+    subject: usize,
+    /// For each field of the case, the recursion's result there, if the
+    /// field holds the data or another member of its block.
+    results: &'s [Option<TermHandle>],
+    /// For a definition by mutual recursion over a block of data: each
+    /// machine defined with it, with the member it dispatches on. Empty
+    /// otherwise.
+    group: &'s [(MachineId, u32)],
+    /// For each field of the case, the member of the block it holds.
+    members: &'s [Option<u32>],
+}
+
+impl Recursion<'_> {
+    /// Whether a call of `callee` is the recursion, and, for a mutual group,
+    /// the member it recurses on.
+    fn calls(&self, callee: MachineId) -> Option<Option<u32>> {
+        if self.group.is_empty() {
+            return (callee == self.machine).then_some(None);
+        }
+        self.group
+            .iter()
+            .find(|(machine, _)| *machine == callee)
+            .map(|(_, member)| Some(*member))
+    }
 }
 
 /// How many variables `scope` binds inside the formals of the machine
@@ -749,12 +786,22 @@ impl<'p> Converter<'p, '_> {
                 "data that contains itself through another declaration",
             ));
         }
-        self.declaring.push(record);
-        let read = if source
+        let generic = source
             .application
             .as_ref()
-            .is_some_and(|application| !application.substitutions.is_empty())
-        {
+            .is_some_and(|application| !application.substitutions.is_empty());
+        if !generic {
+            let block = program
+                .typed
+                .unique_data_definition_by_symbol(source.declaration)
+                .map(|definition| program.mutual_block(definition))
+                .unwrap_or_default();
+            if block.len() > 1 {
+                return self.mutual_data(id, record, &block);
+            }
+        }
+        self.declaring.push(record);
+        let read = if generic {
             self.generic_application(id, record)
         } else {
             self.plain_data(id, record)
@@ -799,6 +846,221 @@ impl<'p> Converter<'p, '_> {
         Ok(entry)
     }
 
+    /// Declares the mutual block of data that contains itself through the
+    /// other declarations of `block` (`Program::mutual_block`), one native
+    /// inductive block: each member's type, every member's constructors and
+    /// each member's recursor. A field of a member is a recursive child of
+    /// that member, and any other field a payload. Returns `record`'s entry.
+    fn mutual_data(
+        &mut self,
+        id: MachineId,
+        record: StructuralTypeId,
+        block: &[SymbolHandle],
+    ) -> Checked<u32> {
+        let program = self.program;
+        // Each member's record: the block's records are read together, since
+        // a field of one names another.
+        let mut records = Vec::with_capacity(block.len());
+        for &symbol in block {
+            let found = program.self_containing.iter().copied().find(|&known| {
+                program.record_sources.get(known).is_some_and(|source| {
+                    source.declaration == symbol
+                        && source
+                            .application
+                            .as_ref()
+                            .is_none_or(|application| application.substitutions.is_empty())
+                })
+            });
+            records.push(found.ok_or_else(|| {
+                unserved(id, "member of a mutual block of data that no type reads")
+            })?);
+        }
+        if records.iter().any(|record| self.declaring.contains(record)) {
+            return Err(unserved(
+                id,
+                "mutual block of data whose payload contains the block",
+            ));
+        }
+        self.declaring.extend(records.iter().copied());
+        let read = (|| {
+            let mut members = Vec::with_capacity(records.len());
+            for (own, &member) in records.iter().enumerate() {
+                let declared = program
+                    .records
+                    .get(member)
+                    .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
+                let mut cases = Vec::with_capacity(declared.cases().len());
+                for case in declared.cases() {
+                    let mut fields = Vec::with_capacity(case.fields.len());
+                    for field in &case.fields {
+                        fields.push(self.data_field(id, field.value_type, &records, own)?);
+                    }
+                    cases.push(fields);
+                }
+                members.push(cases);
+            }
+            PlainData::block(members)
+                .ok_or_else(|| unserved(id, "mutual block of data with a member without a case"))
+        })();
+        self.declaring
+            .truncate(self.declaring.len() - records.len());
+        let shapes = read?;
+        let first = index(id, self.signature.declarations.len())?;
+        let declarations = shapes[0].declarations(&mut self.signature.arena, first);
+        index(id, self.signature.declarations.len() + declarations.len())?;
+        let mut kinds = Vec::with_capacity(declarations.len());
+        let mut names = Vec::with_capacity(records.len());
+        for (member, &member_record) in records.iter().enumerate() {
+            let declared = program
+                .records
+                .get(member_record)
+                .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
+            names.push(self.name(block[member]));
+            kinds.push((
+                SignatureEntryKind::Data {
+                    declaration: block[member],
+                    shape: shapes[member].clone(),
+                    type_identity: declared.identity.clone(),
+                },
+                names[member].clone(),
+            ));
+        }
+        for (member, &member_record) in records.iter().enumerate() {
+            let source = program
+                .record_sources
+                .get(member_record)
+                .ok_or_else(|| unserved(id, "mathematical data lost its declaration"))?;
+            for (case, (symbol, _)) in source.cases.iter().enumerate() {
+                kinds.push((
+                    SignatureEntryKind::Constructor {
+                        data: first + member as u32,
+                        case: case as u32,
+                    },
+                    format!("{}::{}", names[member], self.name(*symbol)),
+                ));
+            }
+        }
+        for (member, name) in names.iter().enumerate() {
+            kinds.push((
+                SignatureEntryKind::Encoding {
+                    data: first + member as u32,
+                },
+                name.clone(),
+            ));
+        }
+        if kinds.len() != declarations.len() {
+            return Err(unserved(
+                id,
+                "mutual block of data whose cases differ from its declarations",
+            ));
+        }
+        for (declaration, (kind, name)) in declarations.into_iter().zip(kinds) {
+            self.push(declaration, kind, name);
+        }
+        for (member, &member_record) in records.iter().enumerate() {
+            self.data.push((member_record, first + member as u32));
+        }
+        let at = records
+            .iter()
+            .position(|&member| member == record)
+            .expect("the record is a member of its own block");
+        Ok(first + at as u32)
+    }
+
+    /// What a field of type `value_type` of member `own` of the block whose
+    /// members' records are `records`, in order, holds: a member, a callable
+    /// to a member, which holds a child for each argument, or a payload of
+    /// its own kernel type. A callable whose parameter names the block is a
+    /// negative occurrence and is refused, as is one whose result holds the
+    /// block inside another type.
+    fn data_field(
+        &mut self,
+        id: MachineId,
+        value_type: ValueType,
+        records: &[StructuralTypeId],
+        own: usize,
+    ) -> Checked<PlainField> {
+        let member = |ty: ValueType| {
+            records
+                .iter()
+                .position(|&other| ty == ValueType::record(other))
+        };
+        if let Some(at) = member(value_type) {
+            return Ok(if at == own {
+                PlainField::Recursive
+            } else {
+                PlainField::Member(at as u32)
+            });
+        }
+        if let ValueType::Scalar(ScalarType::Callable(contract), _) = value_type
+            && self.mentions_block(value_type, records, 0)
+        {
+            let signature = self
+                .program
+                .callables
+                .contracts
+                .get(contract)
+                .map(|row| row.signature.clone())
+                .ok_or_else(|| unserved(id, "stored callable lost its contract"))?;
+            if signature
+                .parameters
+                .iter()
+                .any(|&parameter| self.mentions_block(parameter, records, 0))
+            {
+                return Err(unserved(
+                    id,
+                    "data that contains itself as the input of a stored callable: a negative occurrence",
+                ));
+            }
+            let Some(at) = signature.result.and_then(member) else {
+                return Err(unserved(
+                    id,
+                    "data that contains itself inside the result of a stored callable",
+                ));
+            };
+            let (&[parameter], true, true) = (
+                signature.parameters.as_slice(),
+                signature.erased.is_empty(),
+                signature.borrowed.is_empty(),
+            ) else {
+                return Err(unserved(
+                    id,
+                    "data that contains itself through a stored callable of other than one plain parameter",
+                ));
+            };
+            let argument = self.value_ty(id, parameter)?.0;
+            return Ok(PlainField::Function {
+                argument,
+                member: at as u32,
+            });
+        }
+        Ok(PlainField::Payload(self.value_ty(id, value_type)?.0))
+    }
+
+    /// Whether a type is a member of the block, or a callable that takes or
+    /// returns one, however deeply.
+    fn mentions_block(&self, ty: ValueType, records: &[StructuralTypeId], depth: u32) -> bool {
+        if records
+            .iter()
+            .any(|&record| ty == ValueType::record(record))
+        {
+            return true;
+        }
+        let ValueType::Scalar(ScalarType::Callable(contract), _) = ty else {
+            return false;
+        };
+        let Some(row) = self.program.callables.contracts.get(contract) else {
+            return false;
+        };
+        depth < 16
+            && row
+                .signature
+                .parameters
+                .iter()
+                .chain(row.signature.result.iter())
+                .any(|&inner| self.mentions_block(inner, records, depth + 1))
+    }
+
     /// The cases of plain data that contains itself, each field either the
     /// data itself or a payload of a type the signature declares, and its
     /// declarations from the next free entry on.
@@ -816,11 +1078,7 @@ impl<'p> Converter<'p, '_> {
         for case in declared.cases() {
             let mut fields = Vec::with_capacity(case.fields.len());
             for field in &case.fields {
-                fields.push(if field.value_type == ValueType::record(record) {
-                    PlainField::Recursive
-                } else {
-                    PlainField::Payload(self.value_ty(id, field.value_type)?.0)
-                });
+                fields.push(self.data_field(id, field.value_type, &[record], 0)?);
             }
             cases.push(fields);
         }
@@ -1805,7 +2063,13 @@ impl<'p> Converter<'p, '_> {
     ) -> Checked<Vec<TermHandle>> {
         let slots: Vec<_> = values
             .iter()
-            .map(|&term| Some(Bound { term, field: None }))
+            .map(|&term| {
+                Some(Bound {
+                    term,
+                    field: None,
+                    applied: None,
+                })
+            })
             .collect();
         let aliases: Vec<usize> = (0..values.len()).collect();
         let scope = Scope {
@@ -2920,6 +3184,35 @@ impl<'p> Converter<'p, '_> {
             let carrier = self.declare_integers(id)?;
             return Ok((self.constant(carrier), carrier));
         }
+        // A stored callable of one plain parameter is the function from it:
+        // the kernel's `Π`, at the entry of its result.
+        if let ValueType::Scalar(ScalarType::Callable(contract), _) = value_type {
+            let signature = self
+                .program
+                .callables
+                .contracts
+                .get(contract)
+                .map(|row| row.signature.clone())
+                .ok_or_else(|| unserved(id, "stored callable lost its contract"))?;
+            let (&[parameter], Some(result), true, true) = (
+                signature.parameters.as_slice(),
+                signature.result,
+                signature.erased.is_empty(),
+                signature.borrowed.is_empty(),
+            ) else {
+                return Err(unserved(
+                    id,
+                    "mathematical stored callable of other than one plain parameter and a result",
+                ));
+            };
+            let (domain, _) = self.value_ty(id, parameter)?;
+            let (codomain, entry) = self.value_ty(id, result)?;
+            let codomain = shift(&mut self.signature.arena, codomain, 0, 1);
+            return Ok((
+                self.signature.arena.insert(Term::Pi { domain, codomain }),
+                entry,
+            ));
+        }
         self.ty(id, value_type)
     }
 
@@ -3265,7 +3558,7 @@ impl<'p> Converter<'p, '_> {
         };
         let structural = by_cases.map(|(subject, arms)| self.by_cases(&defining, subject, arms));
         let (mut term, cases) = match (structural, ranked) {
-            (Some(Ok((term, cases))), _) => (term, Some(cases)),
+            (Some(Ok((term, cases))), _) => (term, cases),
             (Some(Err(refusal)), None) => return Err(refusal),
             // It calls itself somewhere else, or chooses by a computed
             // value first: the recursion is on fuel taken from its measure.
@@ -3324,7 +3617,7 @@ impl<'p> Converter<'p, '_> {
         defining: &Defining<'_>,
         subject: usize,
         arms: &[(CaseSelector, Target, crate::SourceOrigin)],
-    ) -> Checked<(TermHandle, FunctionCases)> {
+    ) -> Checked<(TermHandle, Option<FunctionCases>)> {
         let id = defining.id;
         let formals = defining.formals;
         let count = formals.len();
@@ -3342,6 +3635,9 @@ impl<'p> Converter<'p, '_> {
             ));
         };
         let shape = shape.clone();
+        if shape.is_mutual() {
+            return Ok((self.by_mutual_cases(defining, &shape, data, arms)?, None));
+        }
         let others: Vec<usize> = (0..count).filter(|formal| *formal != subject).collect();
         // A generic machine's machine parameters come first among the
         // arguments the motive's function takes, so each branch binds them
@@ -3397,12 +3693,17 @@ impl<'p> Converter<'p, '_> {
             slots[subject] = Some(Bound {
                 term: shape.case_value(arena, data, case, rest),
                 field: None,
+                applied: None,
             });
             let mut actuals = vec![slots[subject].expect("bound above").term; count];
             let after = others.len() as u32;
             for (position, &other) in others.iter().enumerate() {
                 let term = self.variable(after - 1 - position as u32);
-                slots[other] = Some(Bound { term, field: None });
+                slots[other] = Some(Bound {
+                    term,
+                    field: None,
+                    applied: None,
+                });
                 actuals[other] = term;
             }
             // The variables of the branch: the case's fields, the recursion
@@ -3443,7 +3744,13 @@ impl<'p> Converter<'p, '_> {
                 slots: &slots,
                 aliases: &aliases,
                 case: Some((subject, case, &fields)),
-                recursion: Some((id, subject, &results)),
+                recursion: Some(Recursion {
+                    machine: id,
+                    subject,
+                    results: &results,
+                    group: &[],
+                    members: &[],
+                }),
                 depth: 0,
                 induction: true,
                 value: Some(&valuing),
@@ -3471,14 +3778,403 @@ impl<'p> Converter<'p, '_> {
         );
         Ok((
             self.signature.arena.apply_arguments(induction, &arguments),
-            FunctionCases {
+            Some(FunctionCases {
                 data,
                 subject: parameters + subject as u32,
                 arity: parameters + count as u32,
                 motive,
                 branches,
-            },
+            }),
         ))
+    }
+
+    /// A definition by cases on the one formal of a machine over a member of
+    /// a mutual block of data, as the block's recursion. The machines it
+    /// calls, directly or through each other, that call it again are defined
+    /// with it (`mutual_group`): each takes one value of a member and
+    /// dispatches on it, and a call of one at a field of its member is the
+    /// recursion's result there. The recursion takes one motive per member
+    /// and one branch per constructor of the block. A member no machine of
+    /// the group dispatches on gets a motive into `Two` and branches that
+    /// ignore their fields: nothing reads their value.
+    fn by_mutual_cases(
+        &mut self,
+        defining: &Defining<'_>,
+        shape: &PlainData,
+        data: u32,
+        arms: &[(CaseSelector, Target, crate::SourceOrigin)],
+    ) -> Checked<TermHandle> {
+        let id = defining.id;
+        if defining.formals.len() != 1 || !defining.premises.is_empty() {
+            return Err(unserved(
+                id,
+                "definition by cases over a mutual block of data with other formals or a premise",
+            ));
+        }
+        let first = shape.member_entry(data, 0);
+        let group = self
+            .mutual_group(id, first, shape.members())?
+            .into_iter()
+            .map(|(machine, member, result)| {
+                result
+                    .map(|result| (machine, member, result))
+                    .ok_or_else(|| {
+                        unserved(machine, "machine of a mutual recursion with no result")
+                    })
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        let members: Vec<(MachineId, u32)> = group
+            .iter()
+            .map(|&(machine, member, _)| (machine, member))
+            .collect();
+        let two = self.signature.arena.insert(Term::Two);
+        let landings: Vec<TermHandle> = (0..shape.members())
+            .map(|member| {
+                group
+                    .iter()
+                    .find(|(_, of, _)| *of == member)
+                    .map_or(two, |(_, _, result)| *result)
+            })
+            .collect();
+        let motives: Vec<TermHandle> = (0..shape.members())
+            .map(|member| {
+                let ty = self.constant(first + member);
+                self.signature.arena.insert(Term::Lambda {
+                    domain: ty,
+                    body: landings[member as usize],
+                })
+            })
+            .collect();
+        let bodies = self.bodies;
+        let mut branches = Vec::new();
+        for member in 0..shape.members() {
+            let at = shape.at_member(member).expect("a member of the block");
+            let entry = first + member;
+            let Some(&(machine, _, result)) = group.iter().find(|(_, of, _)| *of == member) else {
+                for case in 0..at.cases() {
+                    let ignored = self.signature.arena.insert(Term::TwoZero);
+                    branches.push(at.branch_in(
+                        &mut self.signature.arena,
+                        entry,
+                        &motives,
+                        case,
+                        ignored,
+                    ));
+                }
+                continue;
+            };
+            let body = bodies
+                .get(machine)
+                .ok_or_else(|| unserved(machine, "mathematical machine lost its body"))?;
+            let (aliases, statements) = spine(body);
+            let machine_arms = if machine == id {
+                arms
+            } else {
+                match statements.as_slice() {
+                    [
+                        Statement::Dispatch {
+                            arms,
+                            default: None,
+                            ..
+                        },
+                    ] => arms.as_slice(),
+                    _ => {
+                        return Err(unserved(
+                            machine,
+                            "machine of a mutual recursion that is not one dispatch on its formal",
+                        ));
+                    }
+                }
+            };
+            if machine_arms.len() != at.cases() {
+                return Err(unserved(
+                    machine,
+                    "mathematical dispatch without exactly one value arm per case",
+                ));
+            }
+            for case in 0..at.cases() {
+                let mut selected = machine_arms
+                    .iter()
+                    .filter(|(selector, _, _)| selector.case == case);
+                let (Some((selector, Target::Value(value), _)), None) =
+                    (selected.next(), selected.next())
+                else {
+                    return Err(unserved(
+                        machine,
+                        "mathematical dispatch without exactly one value arm per case",
+                    ));
+                };
+                if selector.condition.is_some() {
+                    return Err(unserved(machine, "mathematical dispatch on a field value"));
+                }
+                let arity = at.arity(case);
+                let arena = &mut self.signature.arena;
+                let fields: Vec<_> = (0..arity)
+                    .map(|field| at.field(arena, case, field, 0))
+                    .collect();
+                let results: Vec<_> = (0..arity)
+                    .map(|field| at.hypothesis(arena, case, field, 0))
+                    .collect();
+                let field_members: Vec<_> = (0..arity)
+                    .map(|field| at.field_member(case, field))
+                    .collect();
+                let mut slots = vec![None; body.slots.len().max(1)];
+                slots[0] = Some(Bound {
+                    term: at.case_value(arena, entry, case, 0),
+                    field: None,
+                    applied: None,
+                });
+                // The variables of the branch: the case's fields, then the
+                // recursion at each field of a member, into that member's
+                // motive.
+                let mut context = at.field_types(arena, entry, case);
+                context.extend(
+                    field_members
+                        .iter()
+                        .flatten()
+                        .map(|&of| landings[of as usize]),
+                );
+                let valuing = Valuing {
+                    owner: machine,
+                    context: &context,
+                    result,
+                    fuel: None,
+                    premises: &[],
+                    facts: &[],
+                    cited: &[],
+                };
+                let scope = Scope {
+                    slots: &slots,
+                    aliases: &aliases,
+                    case: Some((0, case, &fields)),
+                    recursion: Some(Recursion {
+                        machine,
+                        subject: 0,
+                        results: &results,
+                        group: &members,
+                        members: &field_members,
+                    }),
+                    depth: 0,
+                    induction: true,
+                    value: Some(&valuing),
+                };
+                let branch = self.expression(machine, value, &scope)?.term;
+                branches.push(at.branch_in(
+                    &mut self.signature.arena,
+                    entry,
+                    &motives,
+                    case,
+                    branch,
+                ));
+            }
+        }
+        let tree = self.variable(0);
+        Ok(shape.induct_in(
+            &mut self.signature.arena,
+            data,
+            Level::Constant(0),
+            &motives,
+            &branches,
+            tree,
+        ))
+    }
+
+    /// The laws proved with law `id` by induction over a member of a mutual
+    /// block of data: the machines its arms cite, directly or through each
+    /// other, that cite it again (`mutual_group`), each with the member it
+    /// dispatches on, and for each member of the block the machine whose law
+    /// is about it. The block's induction takes a motive per member, so each
+    /// states one equality about one value of its member, with no premise;
+    /// a member none is about gets a motive into `Two` in stage 06.
+    #[allow(clippy::type_complexity)]
+    fn mutual_laws(
+        &mut self,
+        id: MachineId,
+        shape: &PlainData,
+        data: u32,
+    ) -> Checked<(Vec<(MachineId, u32)>, Vec<Option<SymbolHandle>>)> {
+        let first = shape.member_entry(data, 0);
+        let group = self.mutual_group(id, first, shape.members())?;
+        if !group.iter().any(|(machine, ..)| *machine == id) {
+            return Err(unserved(
+                id,
+                "law by induction over a mutual block of data with other formals",
+            ));
+        }
+        let mut mutual = vec![None; shape.members() as usize];
+        for &(machine, member, _) in &group {
+            let single = self
+                .program
+                .signatures
+                .get(machine)
+                .is_some_and(|signature| {
+                    signature.ensures.len() == 1 && signature.requires.is_empty()
+                });
+            let satisfies = self
+                .satisfactions
+                .iter()
+                .any(|satisfaction| satisfaction.machine == machine);
+            if !single || satisfies {
+                return Err(unserved(
+                    machine,
+                    "law of a mutual induction that is not one equality with no premise",
+                ));
+            }
+            let symbol =
+                *self.program.symbols.get(machine).ok_or_else(|| {
+                    unserved(machine, "mathematical machine lost its declaration")
+                })?;
+            mutual[member as usize] = Some(symbol);
+        }
+        let group = group
+            .into_iter()
+            .map(|(machine, member, _)| (machine, member))
+            .collect();
+        Ok((group, mutual))
+    }
+
+    /// The machines defined with `id` by mutual recursion over the block
+    /// whose first member is at entry `first`: those it calls in its arms,
+    /// directly or through each other, that call it again. Each takes one
+    /// value of a member, and no two dispatch on one
+    /// member. Each with the member it dispatches on and its result type.
+    fn mutual_group(
+        &mut self,
+        id: MachineId,
+        first: u32,
+        members: u32,
+    ) -> Checked<Vec<(MachineId, u32, Option<TermHandle>)>> {
+        let mut reached: Vec<(MachineId, u32, Option<TermHandle>, Vec<MachineId>)> = Vec::new();
+        let mut queue = vec![id];
+        while let Some(machine) = queue.pop() {
+            if reached.iter().any(|(known, ..)| *known == machine) {
+                continue;
+            }
+            let Some((member, result)) = self.mutual_member(machine, first, members)? else {
+                continue;
+            };
+            let callees = self.dispatch_callees(machine);
+            queue.extend(callees.iter().copied());
+            reached.push((machine, member, result, callees));
+        }
+        // Those that reach `id` again through the reached machines' calls.
+        let reaches = |from: MachineId| {
+            let mut seen = vec![from];
+            let mut at = 0;
+            while let Some(&machine) = seen.get(at) {
+                at += 1;
+                let Some((.., callees)) = reached.iter().find(|(known, ..)| *known == machine)
+                else {
+                    continue;
+                };
+                if callees.contains(&id) {
+                    return true;
+                }
+                for &callee in callees {
+                    if !seen.contains(&callee) {
+                        seen.push(callee);
+                    }
+                }
+            }
+            false
+        };
+        let group: Vec<(MachineId, u32, Option<TermHandle>)> = reached
+            .iter()
+            .filter(|(machine, ..)| *machine == id || reaches(*machine))
+            .map(|(machine, member, result, _)| (*machine, *member, *result))
+            .collect();
+        for (position, (_, member, _)) in group.iter().enumerate() {
+            if group[..position]
+                .iter()
+                .any(|(_, other, _)| other == member)
+            {
+                return Err(unserved(
+                    id,
+                    "mutual recursion with two machines over one member of the block",
+                ));
+            }
+        }
+        Ok(group)
+    }
+
+    /// The member of the block at `first` that `machine` dispatches on and
+    /// its result type, if any, when it takes exactly one value of a member.
+    fn mutual_member(
+        &mut self,
+        machine: MachineId,
+        first: u32,
+        members: u32,
+    ) -> Checked<Option<(u32, Option<TermHandle>)>> {
+        let Some(signature) = self.program.signatures.get(machine) else {
+            return Ok(None);
+        };
+        let (&[ValueType::Record(record, ..)], result) =
+            (signature.parameters.as_slice(), signature.result)
+        else {
+            return Ok(None);
+        };
+        if self.program.self_containing.binary_search(&record).is_err() {
+            return Ok(None);
+        }
+        let entry = self.data(machine, record)?;
+        if !(first..first + members).contains(&entry) {
+            return Ok(None);
+        }
+        let result = match result {
+            Some(result) => Some(self.ty(machine, result)?.0),
+            None => None,
+        };
+        Ok(Some((entry - first, result)))
+    }
+
+    /// Every machine called in the value arms of `machine`'s body.
+    fn dispatch_callees(&self, machine: MachineId) -> Vec<MachineId> {
+        fn walk(expression: &Expression, found: &mut Vec<MachineId>) {
+            match &expression.kind {
+                ExpressionKind::Call {
+                    callee: CallTarget::Machine(callee),
+                    arguments,
+                    ..
+                } => {
+                    if !found.contains(callee) {
+                        found.push(*callee);
+                    }
+                    for argument in arguments {
+                        walk(argument, found);
+                    }
+                }
+                ExpressionKind::Case { fields, .. } | ExpressionKind::Record { fields, .. } => {
+                    for (_, operand) in fields {
+                        walk(operand, found);
+                    }
+                }
+                ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
+                    walk(base, found)
+                }
+                _ => {}
+            }
+        }
+        let mut found = Vec::new();
+        let Some(body) = self.bodies.get(machine) else {
+            return found;
+        };
+        for statement in &body.statements {
+            match statement {
+                Statement::Dispatch { arms, .. } => {
+                    for (_, target, _) in arms {
+                        if let Target::Value(value) = target {
+                            walk(value, &mut found);
+                        }
+                    }
+                }
+                Statement::Bind { value, .. }
+                | Statement::Evaluate {
+                    expression: value, ..
+                } => walk(value, &mut found),
+                _ => {}
+            }
+        }
+        found
     }
 
     /// A definition whose recursion is not at a field of a case, as a term
@@ -3518,6 +4214,14 @@ impl<'p> Converter<'p, '_> {
             ));
         };
         let shape = shape.clone();
+        if shape.is_mutual() {
+            // The fuel's descent is in the natural order, which only data
+            // shaped like `Nat` has (`natural_order`).
+            return Err(unserved(
+                id,
+                "recursive call at a computed value of a mutual block of data, which has no natural order",
+            ));
+        }
         let default = self.inhabitant(id, result_entry)?;
         // The definition over fuel is a declaration of its own: a generic
         // machine's machine parameters are its arguments too, after the
@@ -3677,9 +4381,12 @@ impl<'p> Converter<'p, '_> {
         let shape = shape.clone();
         let zero = (0..shape.cases()).find(|&case| shape.arity(case) == 0);
         let successor = (0..shape.cases()).find(|&case| shape.arity(case) == 1);
-        let (2, Some(zero), Some(successor), false) =
-            (shape.cases(), zero, successor, shape.has_payload())
-        else {
+        let (2, Some(zero), Some(successor), false) = (
+            shape.cases(),
+            zero,
+            successor,
+            shape.has_payload() || shape.is_mutual(),
+        ) else {
             return Err(refused());
         };
         let functions: Vec<u32> = (0..self.signature.entries.len() as u32)
@@ -3808,7 +4515,8 @@ impl<'p> Converter<'p, '_> {
                             "mathematical machine recursing on fuel whose result has no case without fields",
                         )
                     })?;
-                Ok(self.constant(entry + 1 + case as u32))
+                let constructor = shape.constructor_entry(entry, case);
+                Ok(self.constant(constructor))
             }
             SignatureEntryKind::Record { fields, .. } => {
                 let mut values = Vec::with_capacity(fields.len());
@@ -3837,7 +4545,7 @@ impl<'p> Converter<'p, '_> {
         &mut self,
         machine: MachineId,
         mut slots: Vec<Option<Bound>>,
-        recursion: Option<(MachineId, usize, &[Option<TermHandle>])>,
+        recursion: Option<Recursion<'_>>,
         valuing: &Valuing<'_>,
     ) -> Checked<TermHandle> {
         let body = self
@@ -4037,9 +4745,19 @@ impl<'p> Converter<'p, '_> {
             slots[slot] = Some(Bound {
                 term: shape.case_value(arena, data, case, outer),
                 field: None,
+                applied: None,
             });
+            // A dispatch is a case analysis: at a field of another member of
+            // a mutual block its hypothesis is a `Two` nothing reads.
             let mut context = shape.field_types(&mut self.signature.arena, data, case);
-            context.extend(vec![landing; shape.hypotheses(case) as usize]);
+            let two = self.signature.arena.insert(Term::Two);
+            for field in 0..arity {
+                match shape.field_member(case, field) {
+                    Some(member) if member == shape.member() => context.push(landing),
+                    Some(_) => context.push(two),
+                    None => {}
+                }
+            }
             context.extend(valuing.context.iter().copied());
             // The terms of the scope are terms of the branch as they stand,
             // so the branch knows its subject is this case.
@@ -4261,7 +4979,9 @@ impl<'p> Converter<'p, '_> {
         let cases = shape.cases();
         let zero = (0..cases).find(|&case| shape.arity(case) == 0);
         let successor = (0..cases).find(|&case| shape.arity(case) == 1);
-        let (Some(zero), Some(successor), false) = (zero, successor, shape.has_payload()) else {
+        let (Some(zero), Some(successor), false) =
+            (zero, successor, shape.has_payload() || shape.is_mutual())
+        else {
             return Err(unserved(
                 id,
                 "natural order over data without zero and successor",
@@ -4398,13 +5118,27 @@ impl<'p> Converter<'p, '_> {
         expression: &Expression,
         scope: &Scope<'_>,
     ) -> Checked<Bound> {
-        let plain = |term| Bound { term, field: None };
+        let plain = |term| Bound {
+            term,
+            field: None,
+            applied: None,
+        };
         match &expression.kind {
             ExpressionKind::Boolean(value) => Ok(plain(self.signature.arena.insert(if *value {
                 Term::TwoOne
             } else {
                 Term::TwoZero
             }))),
+            // A fixed-width literal is the integer it holds, as a payload or
+            // formal of that type is (`value_ty`).
+            ExpressionKind::Integer(literal) => {
+                let value = match *literal {
+                    IntegerValue::Signed(value) => bignum::BigInt::from_i128(value),
+                    IntegerValue::Unsigned(value) => bignum::BigInt::from_u128(value),
+                };
+                self.declare_integers(id)?;
+                Ok(plain(self.integer_literal(id, value)?))
+            }
             ExpressionKind::Slot(slot) => scope
                 .slots
                 .get(scope.aliases.get(*slot).copied().unwrap_or(*slot))
@@ -4425,6 +5159,7 @@ impl<'p> Converter<'p, '_> {
                     Ok(Bound {
                         term: fields[*field],
                         field: scope.induction.then_some(*field as u32),
+                        applied: None,
                     })
                 }
                 _ => Err(unserved(
@@ -4485,10 +5220,42 @@ impl<'p> Converter<'p, '_> {
                     .into_iter()
                     .collect::<Option<_>>()
                     .ok_or_else(|| unserved(id, "mathematical constructor misses a field"))?;
-                let constructor = self.constant(data + 1 + *case as u32);
+                let constructor = match &self.signature.entries[data as usize].kind {
+                    SignatureEntryKind::Data { shape, .. } => shape.constructor_entry(data, *case),
+                    _ => data + 1 + *case as u32,
+                };
+                let constructor = self.constant(constructor);
                 Ok(plain(
                     self.signature.arena.apply_arguments(constructor, &operands),
                 ))
+            }
+            // A call of a stored callable is the function applied. A field
+            // that holds a function to the data, applied, is the child there,
+            // which a recursion may descend to.
+            ExpressionKind::Call {
+                callee: CallTarget::Selected { callable, .. },
+                arguments,
+                ..
+            } => {
+                let function = self.expression(id, callable, scope)?;
+                let mut operands = Vec::with_capacity(arguments.len());
+                for argument in arguments {
+                    operands.push(self.expression(id, argument, scope)?.term);
+                }
+                let term = self
+                    .signature
+                    .arena
+                    .apply_arguments(function.term, &operands);
+                Ok(
+                    match (function.field, function.applied, operands.as_slice()) {
+                        (Some(field), None, &[argument]) => Bound {
+                            term,
+                            field: Some(field),
+                            applied: Some(argument),
+                        },
+                        _ => plain(term),
+                    },
+                )
             }
             ExpressionKind::Applied {
                 head,
@@ -4512,7 +5279,9 @@ impl<'p> Converter<'p, '_> {
                 let own = scope
                     .value
                     .is_some_and(|valuing| valuing.fuel.is_some_and(|fuel| fuel.machine == head))
-                    || scope.recursion.is_some_and(|(machine, ..)| machine == head);
+                    || scope
+                        .recursion
+                        .is_some_and(|recursion| recursion.machine == head);
                 if own {
                     // The machine calling itself, at its own machine
                     // parameters or others: the recursion's function takes
@@ -4544,7 +5313,13 @@ impl<'p> Converter<'p, '_> {
                             None => fuel.default,
                         }));
                     }
-                    let Some((machine, subject, results)) = scope.recursion else {
+                    let Some(Recursion {
+                        machine,
+                        subject,
+                        results,
+                        ..
+                    }) = scope.recursion
+                    else {
                         return Err(unserved(id, "recursive call outside its recursion"));
                     };
                     let field = operands
@@ -4621,9 +5396,10 @@ impl<'p> Converter<'p, '_> {
                         None => fuel.default,
                     }));
                 }
-                if let Some((machine, subject, results)) = scope.recursion
-                    && machine == *callee
+                if let Some(recursion) = scope.recursion
+                    && let Some(member) = recursion.calls(*callee)
                 {
+                    let (subject, results) = (recursion.subject, recursion.results);
                     self.owed(id, *callee, &operands, scope)?;
                     let field = operands
                         .get(subject)
@@ -4634,7 +5410,17 @@ impl<'p> Converter<'p, '_> {
                                 "recursive call whose ranked argument is not a field of the dispatched case",
                             )
                         })?;
-                    self.ranked_on(machine, subject, true)?;
+                    // A machine of a mutual group recurses on its own member:
+                    // the field must hold that member.
+                    if member.is_some()
+                        && recursion.members.get(field as usize).copied().flatten() != member
+                    {
+                        return Err(unserved(
+                            id,
+                            "mutual recursive call at a field of another member of the block",
+                        ));
+                    }
+                    self.ranked_on(*callee, subject, true)?;
                     let rest: Vec<_> = operands
                         .iter()
                         .enumerate()
@@ -4652,6 +5438,15 @@ impl<'p> Converter<'p, '_> {
                                     "recursive call at a field that does not hold the data",
                                 )
                             })?;
+                    // At a field that holds a function to the data, the
+                    // recursion is at the child the call applies it to.
+                    let result = match operands[subject].applied {
+                        Some(argument) => self.signature.arena.insert(Term::Apply {
+                            function: result,
+                            argument,
+                        }),
+                        None => result,
+                    };
                     return Ok(plain(self.signature.arena.apply_arguments(result, &rest)));
                 }
                 if self.helper(*callee)
@@ -4715,6 +5510,31 @@ impl<'p> Converter<'p, '_> {
                 Ok(plain(
                     self.signature.arena.apply_arguments(function, &operands),
                 ))
+            }
+            // A stored selection of a mathematical machine is its definition,
+            // the function itself. Nothing calls it here, so a premise it
+            // owes at a call has no arguments to be proved at.
+            ExpressionKind::MachineValue { descriptor, .. } => {
+                let selected = self
+                    .program
+                    .callables
+                    .descriptors
+                    .get(*descriptor)
+                    .map(|selection| selection.machine)
+                    .ok_or_else(|| unserved(id, "machine value lost its selection"))?;
+                if self
+                    .program
+                    .signatures
+                    .get(selected)
+                    .is_none_or(|signature| !signature.requires.is_empty())
+                {
+                    return Err(unserved(
+                        id,
+                        "mathematical machine value whose machine has a premise",
+                    ));
+                }
+                let function = self.function(selected)?;
+                Ok(plain(self.constant(function)))
             }
             _ => Err(unserved(
                 id,
@@ -5396,7 +6216,13 @@ impl<'p> Converter<'p, '_> {
                 continue;
             };
             if let Some(case) = source.cases.iter().position(|(case, _)| *case == member) {
-                return Ok(self.data(id, record)? + 1 + case as u32);
+                let entry = self.data(id, record)?;
+                let SignatureEntryKind::Data { shape, .. } =
+                    &self.signature.entries[entry as usize].kind
+                else {
+                    return Err(unserved(id, "case of data without cases"));
+                };
+                return Ok(shape.constructor_entry(entry, case));
             }
         }
         if let Some(law) = satisfaction {
@@ -5431,6 +6257,7 @@ impl<'p> Converter<'p, '_> {
                 (slot < formals).then(|| Bound {
                     term: self.variable((formals - 1 - slot) as u32),
                     field: None,
+                    applied: None,
                 })
             })
             .collect()
@@ -5579,6 +6406,11 @@ impl<'p> Converter<'p, '_> {
         self.ranked_on(id, subject, false)?;
         let data = formals[subject].1;
         let shape = self.shape(data);
+        let (group, mutual) = if shape.is_mutual() {
+            self.mutual_laws(id, &shape, data)?
+        } else {
+            (Vec::new(), Vec::new())
+        };
         let record = self
             .data
             .iter()
@@ -5614,11 +6446,15 @@ impl<'p> Converter<'p, '_> {
             let fields: Vec<_> = (0..arity)
                 .map(|field| self.variable(arity - 1 - field))
                 .collect();
+            let field_members: Vec<_> = (0..arity)
+                .map(|field| shape.field_member(case, field))
+                .collect();
             let slots: Vec<_> = (0..count)
                 .map(|formal| {
                     Some(Bound {
                         term: self.variable((count - 1 - formal) as u32 + arity),
                         field: None,
+                        applied: None,
                     })
                 })
                 .collect();
@@ -5626,7 +6462,13 @@ impl<'p> Converter<'p, '_> {
                 slots: &slots,
                 aliases: &aliases,
                 case: Some((subject, case, &fields)),
-                recursion: Some((id, subject, &[])),
+                recursion: Some(Recursion {
+                    machine: id,
+                    subject,
+                    results: &[],
+                    group: &group,
+                    members: &field_members,
+                }),
                 depth: arity,
                 induction: true,
                 value: None,
@@ -5662,6 +6504,7 @@ impl<'p> Converter<'p, '_> {
             formal: (callables + subject) as u32,
             data,
             cases,
+            mutual,
         })
     }
 
@@ -5725,6 +6568,9 @@ impl<'p> Converter<'p, '_> {
                     bound.map(|bound| Bound {
                         term: shift(&mut self.signature.arena, bound.term, 0, arity),
                         field: bound.field,
+                        applied: bound
+                            .applied
+                            .map(|applied| shift(&mut self.signature.arena, applied, 0, arity)),
                     })
                 })
                 .collect();
@@ -5912,7 +6758,28 @@ impl<'p> Converter<'p, '_> {
                 }
                 Ok(())
             }
-            ExpressionKind::Slot(_) | ExpressionKind::Payload { .. } if nested || returns => Ok(()),
+            // A stored callable applied, as an operand: a term, which cites
+            // what its operands cite.
+            ExpressionKind::Call {
+                callee: CallTarget::Selected { callable, .. },
+                arguments,
+                ..
+            } if nested || returns => {
+                self.cite_within(law, machine, callable, scope, script, true)?;
+                for argument in arguments {
+                    self.cite_within(law, machine, argument, scope, script, true)?;
+                }
+                Ok(())
+            }
+            ExpressionKind::Slot(_)
+            | ExpressionKind::Payload { .. }
+            | ExpressionKind::Integer(_)
+            | ExpressionKind::Boolean(_)
+            | ExpressionKind::MachineValue { .. }
+                if nested || returns =>
+            {
+                Ok(())
+            }
             _ => Err(unserved(machine, "law body statement other than a call")),
         }
     }
@@ -5985,15 +6852,46 @@ impl<'p> Converter<'p, '_> {
             });
             return Ok(());
         }
+        if let Some(recursion) = scope.recursion
+            && recursion.machine == law
+            && let Some(Some(member)) = recursion.calls(*callee)
+        {
+            // A law of a mutual induction at a field of the dispatched case
+            // that holds its member is the block's induction hypothesis
+            // there: each law of the group has the one formal.
+            let at = operands.first().and_then(|operand| operand.applied);
+            let field = operands
+                .first()
+                .and_then(|operand| operand.field)
+                .ok_or_else(|| {
+                    unserved(
+                        machine,
+                        "law of a mutual induction cited at an argument that is not a field of the dispatched case",
+                    )
+                })?;
+            if recursion.members.get(field as usize).copied().flatten() != Some(member) {
+                return Err(unserved(
+                    machine,
+                    "law of a mutual induction cited at a field of another member of the block",
+                ));
+            }
+            self.ranked_on(*callee, 0, true)?;
+            script.citations.push(Citation {
+                evidence: Evidence::Hypothesis { field, at },
+                arguments: Vec::new(),
+            });
+            return Ok(());
+        }
         if *callee == law {
             // The law at a field of the dispatched case is the induction
             // hypothesis. At any other argument it would be its own evidence.
-            let Some((_, subject, _)) = scope.recursion else {
+            let Some(Recursion { subject, .. }) = scope.recursion else {
                 return Err(unserved(
                     machine,
                     "law cites itself without dispatching on a formal",
                 ));
             };
+            let at = operands.get(subject).and_then(|operand| operand.applied);
             let field = operands
                 .get(subject)
                 .and_then(|operand| operand.field)
@@ -6015,7 +6913,7 @@ impl<'p> Converter<'p, '_> {
                     .map(|(_, operand)| operand.term),
             );
             script.citations.push(Citation {
-                evidence: Evidence::Hypothesis { field },
+                evidence: Evidence::Hypothesis { field, at },
                 arguments,
             });
             return Ok(());

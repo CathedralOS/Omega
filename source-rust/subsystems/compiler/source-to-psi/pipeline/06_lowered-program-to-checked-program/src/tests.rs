@@ -74,6 +74,7 @@ mod machine_inputs;
 mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;
+mod mutual_data;
 mod nat_semiring;
 mod nested_cases;
 mod operational_effects;
