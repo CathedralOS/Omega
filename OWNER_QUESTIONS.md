@@ -130,12 +130,9 @@ always-defined subject per field, because a payload exists only in its case.
 #### Proposed solution
 
 **Recommend:** *A logical contract's sum input denotes its active case and that
-case's payload. Its subjects are one Boolean per case, of which exactly one
-holds, and the scalar payload fields of every case. A clause that reads a
-payload field holds only in that field's case, as in an ordinary contract, so
-applying the law to a sum in another case fails its premise. The implication
-must hold for every payload value, so an inactive case's payload constrains
-nothing. Self-containing data stays an indexed family's evidence.*
+case's payload. A clause that reads a payload field holds only in that field's
+case, as in an ordinary contract, so applying the law to a sum in another case
+fails its premise.*
 
 **Before**
 
@@ -145,55 +142,53 @@ data Choice {
     case Two(y: u8);
 }
 
-data OneIsPositive = machine(c: Choice)
-    requires c in Choice::One && c.x != 0u8
+data Law = machine(c: Choice)
+    requires c.x != 0u8
     ensures c.x > 0u8;
 
-machine one_is_positive(c: Choice)
-requires c in Choice::One && c.x != 0u8
+machine law(c: Choice)
+requires c.x != 0u8
 ensures c.x > 0u8
 {
 }
 
-machine use_law<Law: OneIsPositive>(c: Choice)
-requires c in Choice::One && c.x != 0u8
-ensures c.x > 0u8
+machine apply<L: Law>(c: Choice)
+requires c.x != 0u8
 {
-    Law(c);
+    L(c);
 }
 
 machine entry() -> u8 {
-    use_law::<one_is_positive>(Choice::One { x: 7u8 });
+    apply::<law>(Choice::One { x: 7u8 });
     0u8
 }
 ```
 
-Observed: refused at `use_law`'s signature with "logical data subject is not a
+Observed: refused at `apply`'s signature with "logical data subject is not a
 plain record".
 
 **After: accepted.** Source unchanged.
 
-Expected: accepted. `Law(c)` owes `c in Choice::One && c.x != 0u8`, which
-`use_law`'s own `requires` supplies, and then gives `c.x > 0u8`.
+Expected: accepted. `L(c)` owes `c.x != 0u8`, which `apply`'s own `requires`
+supplies.
 
 **After: rejected.** Rest as Before.
 
 ```omega
 machine entry() -> u8 {
-    use_law::<one_is_positive>(Choice::Two { y: 7u8 }); // another case
+    apply::<law>(Choice::Two { y: 7u8 }); // another case
     0u8
 }
 ```
 
-Expected: rejected at the call, because `c in Choice::One` is unproved. Observed
-today for the ordinary call `one_is_positive(Choice::Two { y: 7u8 })`: refused
-with "the clause's observation has no reaching value identity".
+Expected: rejected at the call, because `c.x` has no value outside
+`Choice::One`. Observed today for the ordinary call `law(Choice::Two { y: 7u8 })`:
+refused with "the clause's observation has no reaching value identity".
 
-Accepting the source needs Stage 05 to read a sum input's case and payload
-clauses. Recording the obligation reuses the existing premise goals. Proving it
-needs the checker to read each case Boolean and active payload from what reaches
-the application. An inactive payload gets any fixed value, which is sound
-because the law quantifies over it.
+Compiler work, not part of the ruling: the contract's subjects are one Boolean
+per case and the scalar payload fields of every case. The law must hold for
+every payload value, so an inactive case's payload can take any fixed value at
+an application. Self-containing data stays an indexed family's evidence.
 
 #### Alternates
 
@@ -203,4 +198,4 @@ because the law quantifies over it.
   `requires c == d`. It costs a non-scalar binder in Terminal Psi's theorem
   contract, the kernel contract type and citation checking.
 - **Keep the refusal.** Both After blocks keep the Before outcome: refused at
-  `use_law`'s signature. Users restate sum laws over payload scalars at each use.
+  `apply`'s signature. Users restate sum laws over payload scalars at each use.
