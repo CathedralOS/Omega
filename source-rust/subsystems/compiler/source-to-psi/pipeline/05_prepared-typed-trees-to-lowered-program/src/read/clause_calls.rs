@@ -206,7 +206,7 @@ impl Program<'_> {
                 && matches!(
                     value_type,
                     ValueType::Scalar(_, Qualification::NONE)
-                        | ValueType::Record(_, Qualification::NONE, crate::body::Regions::NONE)
+                        | ValueType::Record(_, Qualification::NONE, _)
                 )
             {
                 let crate::source_state::expression::ExpressionNode::Name(path) =
@@ -226,7 +226,17 @@ impl Program<'_> {
                     );
                 };
                 let slot = &scope.slots[slot_index];
-                if slot.borrowed.is_none() || slot.erased || slot.value_type != value_type {
+                // The callee's loan regions are its own names for the
+                // caller's loan: one clause reads at one point, so only the
+                // type applied at them must agree.
+                let same_type = match (slot.value_type, value_type) {
+                    (
+                        ValueType::Record(lent, lent_qualification, _),
+                        ValueType::Record(formal, formal_qualification, _),
+                    ) => lent == formal && lent_qualification == formal_qualification,
+                    (lent, formal) => lent == formal,
+                };
+                if slot.borrowed.is_none() || slot.erased || !same_type {
                     return unserved(
                         "borrowed argument in a clause call differs from its parameter type",
                     );
