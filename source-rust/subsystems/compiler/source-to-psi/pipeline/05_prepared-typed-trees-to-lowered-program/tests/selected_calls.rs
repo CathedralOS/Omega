@@ -213,13 +213,17 @@ fn picks(main: &str) -> [(MachineId, MachineId, MachineId); 1] {
     )]
 }
 
+/// Each caller names its callee through a file alias. Imports give no bare
+/// names, so the alias alone says which same-spelled `pick` a call means
+/// (wiki/spec/language/modules.md#import-scope-and-exposure).
 #[test]
 fn qualified_and_imported_calls_keep_the_module_of_same_spelled_machines() {
     let caller = |qualified: &str, imported: &str| {
         format!(
-            "use {imported}\\pick;
-machine qualified(a: u8, b: u8) -> u8 {{ {qualified}\\pick(a, b) }}
-machine imported(a: u8, b: u8) -> u8 {{ pick(a, b) }}
+            "use east/pick.omg as east;
+use west/pick.omg as west;
+machine qualified(a: u8, b: u8) -> u8 {{ |{qualified}|::pick(a, b) }}
+machine imported(a: u8, b: u8) -> u8 {{ |{imported}|::pick(a, b) }}
 "
         )
     };

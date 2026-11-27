@@ -56,6 +56,48 @@ pub(crate) fn demanded_declarations(
     from_supplied_roots(program, &dependencies, pending, supplies).map_err(str::to_owned)
 }
 
+/// The request's scopes, each target with layout facts also rooted at every
+/// declaration of the request's subject packages. A check starts from every
+/// subject declaration, including unused ones, and follows its layouts
+/// (wiki/spec/build/validation_subjects.md#closure); source bodies carry no
+/// target tags (wiki/spec/layouts/plans.md#layout-demand-and-validation), so
+/// each checked target demands them. A scope without facts gains nothing: its
+/// layouts stay deferred and a consumer of their geometry is refused.
+pub(crate) fn with_subject_roots(
+    program: &TypedTrees,
+    request: production::TerminalSourceCompilation<'_>,
+    scopes: &[super::FixedLayoutTargetScope],
+) -> Result<Vec<super::FixedLayoutTargetScope>, String> {
+    let mut subjects = Vec::new();
+    if !request.subjects.is_empty() && scopes.iter().any(|scope| scope.facts.is_some()) {
+        for symbol in crate::source_state::references::collect_program_declarations(program) {
+            if crate::source_state::source_subjects::contains(
+                program,
+                symbol,
+                request.subjects,
+                request.purpose,
+            )? {
+                subjects.push(symbol);
+            }
+        }
+    }
+    Ok(scopes
+        .iter()
+        .map(|scope| {
+            let mut scope = scope.clone();
+            if scope.facts.is_some() {
+                let written = scope.entry_declarations.len();
+                for symbol in &subjects {
+                    if !scope.entry_declarations[..written].contains(symbol) {
+                        scope.entry_declarations.push(*symbol);
+                    }
+                }
+            }
+            scope
+        })
+        .collect())
+}
+
 impl super::FixedLayoutTargetScope {
     /// `dependencies` must be built from `program` as it is now; one
     /// inventory serves every scope of an unchanged program.

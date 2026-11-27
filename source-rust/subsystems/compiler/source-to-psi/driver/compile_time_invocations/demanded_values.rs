@@ -153,13 +153,15 @@ pub(crate) fn evaluate_demanded_values(
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<EvaluatedValues, Vec<Diagnostic>> {
     super::constants::retain_evaluation_entries(program)?;
-    let mut layouts = super::fixed_layouts::Layouts::demanded(program, demand.layout_scopes)?;
-    let demanded = super::demanded_declarations(program, demand.compilation, demand.layout_scopes)
+    let scopes = super::demands::with_subject_roots(program, demand.compilation, demand.layout_scopes)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let mut layouts = super::fixed_layouts::Layouts::demanded(program, &scopes)?;
+    let demanded = super::demanded_declarations(program, demand.compilation, &scopes)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut plans = super::domain_access_plans::AccessPlans::demanded(program, &demanded);
     let mut arguments = super::constants::Arguments::demanded(program, &demanded);
     let mut initializers =
-        super::constants::Initializers::demanded(program, &demanded, demand.layout_scopes)?;
+        super::constants::Initializers::demanded(program, &demanded, &scopes)?;
     settle_in_demand_order(
         program,
         demand,

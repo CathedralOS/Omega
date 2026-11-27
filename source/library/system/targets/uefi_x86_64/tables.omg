@@ -53,7 +53,7 @@ EfiLoadedImageLayout satisfies |layout|::FixedLayout<EfiLoadedImage> {
 }
 
 // Both firmware tables start with the 24-byte EFI_TABLE_HEADER.
-data EfiTableHeader {
+public data EfiTableHeader {
     signature: u64;
     revision: u32;
     header_size: u32;
@@ -63,7 +63,7 @@ data EfiTableHeader {
 
 public data EfiSystemTable = |layout|::LayoutStorage<EfiSystemTableView, EfiSystemTableViewLayout>;
 
-data EfiSystemTableView {
+public data EfiSystemTableView {
     header: |c_layout|::CLayout<EfiTableHeader>;
     firmware_vendor: u64;
     firmware_revision: u32;
@@ -79,7 +79,7 @@ data EfiSystemTableView {
     configuration_table: u64;
 }
 
-EfiSystemTableViewLayout satisfies |layout|::FixedLayout<EfiSystemTableView> {
+public EfiSystemTableViewLayout satisfies |layout|::FixedLayout<EfiSystemTableView> {
     machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
     reaches none
     terminates {
