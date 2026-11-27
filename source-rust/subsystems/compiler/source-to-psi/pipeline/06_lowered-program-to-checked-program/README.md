@@ -388,8 +388,9 @@ substitutes its evaluated actual arguments".
 
 [result_summaries.rs](src/calls/result_summaries.rs) runs before anything is
 decided. For each machine elaboration lists in `Elaboration::local_results`
-(a private machine of the subject package: no other verification unit can
-call it), callees first, it describes every normal return in the machine's
+(a private machine of the subject package or of a dependency whose body the
+compilation reads: only its own package can call it, so no other verification
+unit can), callees first, it describes every normal return in the machine's
 formals and `result`: each comparison known on that return that names
 `result` (what the returned value equals when that is a formal or a literal,
 what a callee's guarantee or a guard says of it), and the literal bounds the
