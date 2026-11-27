@@ -69,7 +69,7 @@ fn prepare_subjects(
     for (value, scalar_type) in subjects {
         let subject = ScalarTerm::value(*value, *scalar_type);
         let term = match scalar_type {
-            ScalarType::Boolean => denotation.scalar_term(&subject)?,
+            ScalarType::Boolean | ScalarType::IeeeFloat(_) => denotation.scalar_term(&subject)?,
             ScalarType::Integer(_) => denotation.fixed_scalar_term(&subject)?,
             _ => return Err(BoundedTheoremError::UnsupportedSubject(*scalar_type)),
         };

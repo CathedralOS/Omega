@@ -53,10 +53,12 @@ pub fn contract_subjects(
         {
             return Err("logical contract has another fixed subject telescope");
         }
-        if !matches!(formal.scalar_type, ScalarType::Boolean)
-            && !matches!(formal.scalar_type, ScalarType::Integer(integer) if integer.bits().is_some())
+        if !matches!(
+            formal.scalar_type,
+            ScalarType::Boolean | ScalarType::IeeeFloat(_)
+        ) && !matches!(formal.scalar_type, ScalarType::Integer(integer) if integer.bits().is_some())
         {
-            return Err("logical contract needs a closed-width integer or Boolean subject");
+            return Err("logical contract needs a closed-width integer, float or Boolean subject");
         }
         subjects.push((formal.id, formal.scalar_type));
     }
@@ -75,7 +77,8 @@ pub fn contract_subjects(
             | Proposition::LessOrEqual(..)
             | Proposition::IntegerMathEqual(..)
             | Proposition::IntegerMathLessThan(..)
-            | Proposition::IntegerMathLessOrEqual(..) => {}
+            | Proposition::IntegerMathLessOrEqual(..)
+            | Proposition::ScalarIeeeFloatComparison { .. } => {}
             Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
                 pending.extend(parts)
             }
@@ -407,11 +410,15 @@ fn citation_goals_with(
             "cited theorem's own proof formals are not exactly the proof parameters of the aliased contract",
         );
     }
-    if supplied.parameters != expected.parameters
-        || supplied
-            .parameter_order
-            .iter()
-            .any(|kind| *kind != terminal_psi::BoundaryParameterKind::Scalar)
+    if supplied.parameters != expected.parameters {
+        return Err(
+            "cited theorem's subjects are not the aliased contract's subjects and carriers",
+        );
+    }
+    if supplied
+        .parameter_order
+        .iter()
+        .any(|kind| *kind != terminal_psi::BoundaryParameterKind::Scalar)
         || supplied.parameter_order.len() != supplied.parameters.len()
         || !supplied.structural_parameters.is_empty()
         || !matches!(supplied.result, terminal_psi::TerminalMachineResult::Unit)
