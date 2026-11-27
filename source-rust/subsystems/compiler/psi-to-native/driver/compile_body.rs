@@ -81,6 +81,36 @@ impl std::fmt::Display for OptimizedVerifiedPhysicalPipelineError {
 
 impl std::error::Error for OptimizedVerifiedPhysicalPipelineError {}
 
+impl OptimizedVerifiedPhysicalPipelineError {
+    /// The selected optimization that this target has no implementation of, when that is
+    /// why staging failed.
+    pub(crate) fn unimplemented_optimization(&self) -> Option<optimization_core::Optimization> {
+        match self {
+            Self::SelectedOptimization(error) => error.unimplemented_optimization(),
+            Self::PostAllocationMachine(error) => error.unimplemented_optimization(),
+            Self::Layout(error) => error.unimplemented_optimization(),
+            _ => None,
+        }
+    }
+}
+
+/// A selected native optimization that the target has no implementation of fails the build
+/// with its name and the target, never by running without it.
+pub(crate) fn unimplemented_optimization(
+    optimization: optimization_core::Optimization,
+    architecture: target::Architecture,
+) -> Vec<diagnostics::Diagnostic> {
+    let target = match architecture {
+        target::Architecture::X86_64 => "x86_64",
+        target::Architecture::Aarch64 => "arm64",
+    };
+    vec![diagnostics::Diagnostic::error(format!(
+        "not supported yet: native optimization `{}` is not implemented for {target} targets; \
+         remove it from the build's optimizations; no output was installed",
+        optimization.build_case_name(),
+    ))]
+}
+
 pub(crate) type PreparedPhysicalBody = PhysicalBody<entry_planning::imports::PreparedFunctionBody>;
 pub(crate) type BoundPhysicalBody = PhysicalBody<installation_binding::BoundFunctionBody>;
 

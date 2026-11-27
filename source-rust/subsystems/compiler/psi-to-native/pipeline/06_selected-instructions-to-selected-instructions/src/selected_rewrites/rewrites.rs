@@ -2825,7 +2825,7 @@ pub(crate) use selected_lowering::{
 };
 pub use selected_lowering::{LiteralFoldIdentity, ValidatedLiteralFold};
 pub(crate) use selected_lowering::{
-    enabled_pair_rules, fold_selected_incoming_literal, literal_fold_identity,
+    enabled_pair_rules_by_optimization, fold_selected_incoming_literal, literal_fold_identity,
 };
 
 pub(crate) use selected_instruction_analyses::rewriting::*;

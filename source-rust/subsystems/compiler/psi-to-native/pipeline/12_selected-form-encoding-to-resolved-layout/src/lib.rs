@@ -36,6 +36,20 @@ pub enum LayoutError {
     Relaxation(ResolvedLayoutOptimizationError),
 }
 
+impl LayoutError {
+    /// The selected optimization that this target has no implementation of, when that is
+    /// why layout failed.
+    pub fn unimplemented_optimization(&self) -> Option<optimization_core::Optimization> {
+        use machine_code::layout::relaxation_policy::FunctionRelativeLayoutCatalogError;
+        match self {
+            Self::Relaxation(ResolvedLayoutOptimizationError::Catalog(
+                FunctionRelativeLayoutCatalogError::UnsupportedTarget { optimization, .. },
+            )) => Some(*optimization),
+            _ => None,
+        }
+    }
+}
+
 /// The issued function layout and the optional input to independent replay.
 pub struct LayoutResolution<Contracts> {
     pub layout: ResolvedFunctionLayout<Contracts>,

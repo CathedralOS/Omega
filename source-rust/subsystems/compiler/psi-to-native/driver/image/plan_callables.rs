@@ -97,7 +97,7 @@ pub(super) fn plan_callable(
             realization_error("callable abstract optimization", error)
         }
         NativeBodyPlanningError::Target(error) => {
-            realization_error("callable target lowering", error)
+            target_lowering_failed("callable target lowering", error)
         }
     })?;
     Ok((
@@ -178,7 +178,7 @@ pub fn plan_program<'contract>(
         NativeBodyPlanningError::AbstractOptimization(error) => {
             realization_error("canonical abstract optimization", error)
         }
-        NativeBodyPlanningError::Target(error) => realization_error("target lowering", error),
+        NativeBodyPlanningError::Target(error) => target_lowering_failed("target lowering", error),
     })?;
     let bodies = PlannedProgramBodies::from_root(
         root,
@@ -376,4 +376,16 @@ fn plan_callback_target(
         request.retain_native_stage_inputs,
     )
     .map(|(target, _)| target)
+}
+
+fn target_lowering_failed(
+    context: &'static str,
+    error: target_lowering::LoweringError,
+) -> Vec<Diagnostic> {
+    match error {
+        target_lowering::LoweringError::TargetOptimizationArchitecture { rule, actual, .. } => {
+            crate::driver::compile_body::unimplemented_optimization(rule, actual)
+        }
+        error => realization_error(context, error),
+    }
 }
