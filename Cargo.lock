@@ -2051,6 +2051,7 @@ dependencies = [
  "cap-fs-ext",
  "cap-primitives",
  "cap-std",
+ "sha2",
 ]
 
 [[package]]

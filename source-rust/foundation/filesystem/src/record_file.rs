@@ -31,6 +31,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 mod lock;
+mod output;
 mod stage;
 
 pub use lock::RecordFileLock;
@@ -93,6 +94,28 @@ impl RecordFileRoot {
         verify_regular_identity(&self.directory, file_name, &metadata, &display_path)
     }
 
+    fn open_regular_optional(
+        &self,
+        file_name: &OsStr,
+        display_path: &Path,
+    ) -> Result<Option<CapabilityFile>, RecordFileError> {
+        let path_metadata = match self.directory.symlink_metadata(file_name) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(io_error(display_path, error)),
+        };
+        if path_metadata.file_type().is_symlink() || !path_metadata.is_file() {
+            return Err(RecordFileError::NotRegularFile {
+                path: display_path.to_owned(),
+            });
+        }
+        let mut options = CapabilityOpenOptions::new();
+        options.read(true).follow(FollowSymlinks::No);
+        let file = io_at(self.directory.open_with(file_name, &options), display_path)?;
+        self.verify_regular(file_name, &file)?;
+        Ok(Some(file))
+    }
+
     pub fn read(
         &self,
         relative_path: &Path,
@@ -113,18 +136,9 @@ impl RecordFileRoot {
     ) -> Result<Option<RootRecordRead<'_>>, RecordFileError> {
         let file_name = single_file_name(relative_path)?;
         let display_path = self.display_path.join(file_name);
-        let path_metadata = match self.directory.symlink_metadata(file_name) {
-            Ok(metadata) => metadata,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(io_error(&display_path, error)),
+        let Some(file) = self.open_regular_optional(file_name, &display_path)? else {
+            return Ok(None);
         };
-        if path_metadata.file_type().is_symlink() || !path_metadata.is_file() {
-            return Err(RecordFileError::NotRegularFile { path: display_path });
-        }
-        let mut options = CapabilityOpenOptions::new();
-        options.read(true).follow(FollowSymlinks::No);
-        let file = io_at(self.directory.open_with(file_name, &options), &display_path)?;
-        self.verify_regular(file_name, &file)?;
         let metadata = io_at(file.metadata(), &display_path)?;
         if metadata.len() > u64::try_from(limits.maximum_bytes).unwrap_or(u64::MAX) {
             return Err(RecordFileError::ByteLimitExceeded {
@@ -404,10 +418,30 @@ fn replay_exact(
     limits: RecordFileLimits,
 ) -> Result<(), RecordFileError> {
     io_at(file.seek(SeekFrom::Start(0)), path)?;
-    if read_bytes_bounded(&mut *file, path, limits)? != expected {
-        return Err(RecordFileError::ContentsChanged {
-            path: path.to_path_buf(),
+    enforce_byte_limit(expected.len(), limits)?;
+    let changed = || RecordFileError::ContentsChanged {
+        path: path.to_owned(),
+    };
+    let length = io_at(file.metadata(), path)?.len();
+    if length > limits.maximum_bytes as u64 {
+        return Err(RecordFileError::ByteLimitExceeded {
+            actual: length,
+            maximum: limits.maximum_bytes,
         });
+    }
+    if length != expected.len() as u64 {
+        return Err(changed());
+    }
+    let mut buffer = [0; 8192];
+    for chunk in expected.chunks(buffer.len()) {
+        let read = &mut buffer[..chunk.len()];
+        io_at(file.read_exact(read), path)?;
+        if read != chunk {
+            return Err(changed());
+        }
+    }
+    if io_at(file.read(&mut buffer[..1]), path)? != 0 {
+        return Err(changed());
     }
     Ok(())
 }
