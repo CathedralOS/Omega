@@ -41,7 +41,6 @@ machine = { package = "register-homes-to-post-allocation-machine", path = "pipel
 installation-admission = { path = "verification/installation-admission" }
 physical-program = { path = "representations/post-allocation-machine/body-facts" }
 provider-admission = { path = "verification/provider-admission" }
-installation-binding = { path = "pipeline/10_framed-machine-to-bound-framed-machine" }
 arena = { path = "../../../foundation/arena" }
 function-identity = { path = "representations/function-identity" }
 selected-instructions = { path = "representations/selected-instructions" }

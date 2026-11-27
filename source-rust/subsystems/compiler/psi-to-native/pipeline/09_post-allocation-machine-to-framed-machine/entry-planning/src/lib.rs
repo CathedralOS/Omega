@@ -22,6 +22,7 @@ pub mod callable_entry;
 pub mod hosted_entry;
 pub mod hosted_program;
 pub mod imports;
+pub mod installation_binding;
 pub mod native_entry_bridge;
 pub mod native_foreign_bridge;
 pub mod physical_entry;

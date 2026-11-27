@@ -27,7 +27,7 @@ use std::sync::Arc;
 ///     let _ = native_encoding::encode_bound_function_body(body);
 /// }
 /// ```
-/// Only the binding stage imports the issuer.
+/// Only stage 09's installation binding imports the issuer.
 /// ```compile_fail,E0432
 /// use installation_binding_issuer::BINDER;
 /// ```

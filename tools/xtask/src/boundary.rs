@@ -23,6 +23,8 @@ pub const NATIVE_PROVIDER_RUNTIME_ROOT: &str = "source-rust/subsystems/interpret
 
 const BOUND_FRAMED_MACHINE: &str = "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine";
 const BINDING_ISSUER: &str = "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/issuer";
+// Stage 09 binds each framed body after the driver measures every retained handler.
+const INSTALLATION_BINDING: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning";
 
 const PSI_RECORDS: &str = "source-rust/subsystems/compiler/psi";
 const PSI_ARTIFACT: &str = "source-rust/subsystems/compiler/psi/artifact";
@@ -170,7 +172,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         forbidden_packages: vec![BINDING_ISSUER],
         allowed: vec![
             Allowance {
-                owner: NATIVE_STAGES[9],
+                owner: INSTALLATION_BINDING,
                 dependency: BINDING_ISSUER,
             },
             Allowance {
@@ -1320,18 +1322,26 @@ mod tests {
         let metadata = Metadata {
             workspace_root: "/repo".into(),
             packages: vec![
-                pkg(
-                    "installation-binding",
-                    linear_pipeline::NATIVE_STAGES[9],
-                    &key,
-                ),
+                pkg("entry-planning", INSTALLATION_BINDING, &key),
+                pkg("frame-planning", linear_pipeline::NATIVE_STAGES[8], &key),
                 pkg("bound-framed-machine", BOUND_FRAMED_MACHINE, &key),
-                pkg("native-encoding", linear_pipeline::NATIVE_STAGES[10], &key),
+                pkg("native-encoding", linear_pipeline::NATIVE_STAGES[9], &key),
             ],
         };
         let violations = forbidden_dependency_violations(&metadata, &rules).unwrap();
-        assert_eq!(violations.len(), 1, "{violations:?}");
-        assert!(violations[0].contains("native-encoding"), "{violations:?}");
+        assert_eq!(violations.len(), 2, "{violations:?}");
+        assert!(
+            violations
+                .iter()
+                .any(|row| row.starts_with("frame-planning ->")),
+            "{violations:?}"
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|row| row.starts_with("native-encoding ->")),
+            "{violations:?}"
+        );
     }
 
     #[test]
@@ -1473,12 +1483,12 @@ mod tests {
 
     #[test]
     fn only_the_native_driver_runs_omega_stages() {
-        let library = linear_pipeline::NATIVE_STAGES[12];
+        let library = linear_pipeline::NATIVE_STAGES[11];
         let stages = linear_pipeline::NATIVE_STAGES;
         for (owner, dependency, kind, permitted) in [
             (native_stages::DRIVER, stages[6], None, true),
-            (stages[13], stages[11], None, true),
-            (stages[14], stages[11], None, false),
+            (stages[12], stages[10], None, true),
+            (stages[13], stages[10], None, false),
             (linear_pipeline::PSI_STAGES[7], SOURCE_PROVIDER_PUBLICATION, None, true),
             (NATIVE_PROVIDER_DEMAND, SOURCE_PROVIDER_PUBLICATION, None, true),
             (PACKAGE_MANAGER, SOURCE_PROVIDER_PUBLICATION, None, false),

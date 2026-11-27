@@ -4,6 +4,7 @@
 
 use crate::driver::observations::{NativePipelineObservation, NativePipelineStage};
 use artifact_lowering::VerifiedNativeArtifactInput;
+use entry_planning::installation_binding;
 use function_layout::FunctionRelativeOptimizationRealizationError;
 use instruction_selection::OptimizedSelectionPipelineError;
 use machine::OptimizedPostAllocationMachinePipelineError;

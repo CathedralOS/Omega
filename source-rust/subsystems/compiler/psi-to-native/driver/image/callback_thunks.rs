@@ -13,6 +13,7 @@ mod handler_order;
 
 use super::plan_callables::{CallableTargetProduct, PrivateEntryContract};
 use diagnostics::Diagnostic;
+use entry_planning::installation_binding;
 use image_emission::PrivateFunctionObject;
 use provider_admission::{
     AdmittedInstalledInterruptCohort, AdmittedInstalledInterruptEntry,

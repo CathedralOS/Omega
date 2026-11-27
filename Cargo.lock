@@ -739,11 +739,13 @@ name = "entry-planning"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "bound-framed-machine",
  "calling-conventions",
  "diagnostics",
  "frame-admission",
  "function-identity",
  "installation-admission",
+ "installation-binding-issuer",
  "installation-conditions",
  "machine-code",
  "operation-operands",
@@ -1038,27 +1040,6 @@ dependencies = [
  "target",
  "target-vocabulary",
  "target-x86_64",
- "terminal-psi",
-]
-
-[[package]]
-name = "installation-binding"
-version = "0.1.0"
-dependencies = [
- "bound-framed-machine",
- "entry-planning",
- "function-identity",
- "installation-admission",
- "installation-binding-issuer",
- "installation-conditions",
- "machine-code",
- "physical-program",
- "physical-recipes",
- "post-allocation-machine-to-framed-machine",
- "runtime-abi",
- "selected-instructions",
- "semantic-vocabulary",
- "target",
  "terminal-psi",
 ]
 
@@ -1485,7 +1466,6 @@ dependencies = [
  "iced-x86",
  "image-emission",
  "installation-admission",
- "installation-binding",
  "installation-conditions",
  "isa-aarch64",
  "isa-x86_64",

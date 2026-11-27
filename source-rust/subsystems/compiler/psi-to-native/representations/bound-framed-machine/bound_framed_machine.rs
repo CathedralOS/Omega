@@ -1,4 +1,5 @@
-//! Stage 10 binds the selected frame and installation resources before stage 11 encodes them.
+//! Stage 09's installation binding binds the selected frame and installation resources
+//! before stage 11 encodes them.
 #![forbid(unsafe_code)]
 
 pub mod entries;

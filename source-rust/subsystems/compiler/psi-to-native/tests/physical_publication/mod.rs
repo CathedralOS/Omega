@@ -135,7 +135,7 @@ fn emit_body_inspecting_physical<'execution>(
     );
     let bound = physical
         .bind(
-            &installation_binding::RetainedHandlerMeasurements::default(),
+            &entry_planning::installation_binding::RetainedHandlerMeasurements::default(),
             None,
         )
         .unwrap();

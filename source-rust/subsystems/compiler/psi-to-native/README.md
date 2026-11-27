@@ -32,11 +32,21 @@ ELF, Mach-O and PE writer tests use fixed encoded inputs with known instruction 
 ## Stage map
 
 Each numbered stage, the form it hands on, and what reads that form. Lines are
-production Rust outside `tests/` directories, measured on `d75a30117`. Stages 06
-and 10 change nothing about the representation. The driver waits for every
+production Rust outside `tests/` directories, measured on `d75a30117`. Stage 06
+changes nothing about the representation. The driver waits for every
 body at two points: after stage 04, for the callee closure in
-[`plan_callables.rs`](driver/plan_callables.rs), and after stage 09, for handler
-measurement and entry planning in [`object_emission.rs`](driver/image/object_emission.rs).
+[`plan_callables.rs`](driver/plan_callables.rs), and between stage 09's two
+phases, for handler measurement and entry planning in
+[`object_emission.rs`](driver/image/object_emission.rs).
+
+Stage 09 runs in two phases because one body's installed-handler stack bound
+depends on other bodies. First it frames each body on its own. The driver then
+measures every retained installed handler across the whole body roster. Last,
+stage 09's [installation binding](pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/installation_binding.rs)
+checks each body's installation guards against those measurements and issues
+the `BoundFunctionBody` and bound entry recipes that stage 11 encodes. Only that
+module links the [binding issuer](representations/bound-framed-machine/issuer/issuer.rs),
+so stage 11 cannot accept a body or entry that skipped the check.
 
 | Stage | Lines | Produces | Read by |
 | --- | --- | --- | --- |
@@ -48,15 +58,14 @@ measurement and entry planning in [`object_emission.rs`](driver/image/object_emi
 | 06 selected rewrites | 26,880 | `SelectedAllocationInput` (same form plus liveness) | 07, `SelectedInstructionRewriteReplay` |
 | 07 register allocation | 16,292 | `RetainedAllocation` | 08, `FixedFrameCorrespondence` |
 | 08 post-allocation machine | 2,119 | `StagedOptimizedPostAllocationMachinePlan` | 09, `FixedFrameCorrespondence` |
-| 09 frame | 10,139 | `FramedNativeBody`, `PreparedFunctionBody` | 10 and driver entry planning |
-| 10 installation binding | 491 | `BoundFunctionBody` (newtype plus handler stack checks) | 11 only |
+| 09 frame and installation binding | 10,630 | `FramedNativeBody`, `PreparedFunctionBody`, then `BoundFunctionBody` | driver entry planning and handler measurement, then 11 |
 | 11 encoding | 23,475 | `EncodedMachineProgram` | 12 and validator replay |
 | 12 layout | 4,396 | `ResolvedFunctionLayout` | 13 |
 | 13 function placement | 10,004 | `FunctionPlacement` | 14 only |
 | 14 relocation-free object | 5,776 | `PublishedFunctionObject` | 15 |
 | 15 objects and image | 51,561 | `FinishedNativeImage` | Build publication |
 
-There is no stage 03. Stage 04 receives the abstract program Stage 02 lowered,
+There is no stage 03 or stage 10. Stage 09 binds installations itself (above). Stage 04 receives the abstract program Stage 02 lowered,
 unchanged, because a receiving native lowerer does not rerun Psi passes
 ([Terminal Psi product](../../../../wiki/spec/terminal-psi/product.md#optimization-ordering)). The
 native abstract-operations optimizer that used to sit there never ran in the
