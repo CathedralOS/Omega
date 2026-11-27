@@ -226,15 +226,21 @@ pub fn accept_certificate_with_machine_parameters(
     if &proof.conclusion != goal {
         return Err(ProofError::CertificateConclusionMismatch);
     }
-    let mathematical_core = re_decide_in_mathematical_core(
+    let denoted = verify_bounded_certificate_with_machine_parameters(
         context,
         goal,
         assumptions,
         semantic_axioms,
         machine_parameter_values,
         proof,
-    )?;
-    Ok(acceptance.finish(mathematical_core))
+        &mut Budget::default(),
+    )
+    .map_err(|error| ProofError::MathematicalCore(Box::new(error)))?;
+    let finished = acceptance.finish(MathematicalCoreDecision::Judged(denoted.receipt()));
+    assert_eq!(finished.rules, denoted.rules, "TEMP-EQUIV rules");
+    assert_eq!(finished.assumptions, denoted.assumptions, "TEMP-EQUIV assumptions");
+    assert_eq!(finished.semantic_axioms, denoted.semantic_axioms, "TEMP-EQUIV axioms");
+    Ok(finished)
 }
 
 fn re_decide_in_mathematical_core(
