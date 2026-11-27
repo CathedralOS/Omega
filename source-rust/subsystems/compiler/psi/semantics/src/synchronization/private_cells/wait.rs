@@ -128,7 +128,7 @@ pub(super) fn apply(
                     {
                         return Ok(literal);
                     }
-                    Err(classify_entries(memory, &location, ty, |_| {
+                    Err(classify_entries(memory, &location, ty, requirements, |_, _| {
                         Some(ProgressFailure::Unproved)
                     }))
                 },
