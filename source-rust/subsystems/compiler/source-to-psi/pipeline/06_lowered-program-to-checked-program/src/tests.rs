@@ -106,6 +106,7 @@ mod rule_violations;
 mod runtime_indexed_elements;
 mod scalar_joins;
 mod semiring_identity;
+mod seq_laws;
 mod sequence_regions;
 mod source_operators;
 mod stored_references;

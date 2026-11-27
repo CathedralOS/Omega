@@ -7,8 +7,8 @@ use super::{
 };
 use compiler::SelectedProviderResult;
 use diagnostics::Diagnostic;
-use provider_acceptance::AcceptedSemanticBinding;
-use provider_plans::{ServiceMethod, ServiceSchema};
+use build_providers::acceptance::AcceptedSemanticBinding;
+use build_providers::plans::{ServiceMethod, ServiceSchema};
 use review_evidence::record::PackageReviewTypeIdentity;
 use review_evidence::record::{
     PackagePolicyServiceAuthority, PackagePolicyServiceSignature, PackagePolicyTerminalPermission,
@@ -133,7 +133,7 @@ pub(super) fn project(
 
 fn permission_requirement<'a>(
     binding: &'a AcceptedSemanticBinding,
-    grant: &provider_acceptance::ServiceTerminalAuthorityPermission,
+    grant: &build_providers::acceptance::ServiceTerminalAuthorityPermission,
 ) -> Result<&'a str, Vec<Diagnostic>> {
     if grant.service_schema() != binding.normalized_schema_digest() {
         return Err(unavailable(

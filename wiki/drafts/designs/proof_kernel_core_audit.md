@@ -1111,7 +1111,7 @@ kernel, from the library file as it stands.
   the case, which `le_of_succ_le` and `pred_eq_succ` need). It also
   normalizes again after each rewrite. With that, the kernel judges every
   law in the file but the three below: 34 laws when the file's declarations
-  are compiled as a program (`every_law_of_nat_but_three_recursions_is_judged`).
+  are compiled as a program (`every_law_of_nat_but_division_and_gcd_is_judged`).
   The largest, `sub_lt_of_le`, took 42,717 kernel conversion steps of the
   65,536 budget when this landed; the next bullet brought the largest down
   to 5,628 (`sub_lt`).
@@ -1136,7 +1136,8 @@ kernel, from the library file as it stands.
   law, which a shared check would remove.
 - **`mod`, `div` and `gcd`** were not read at this step: their recursion is
   on `saturating_sub(a, b)`, not on a field of the dispatched case. Step 4
-  defines them by recursion on fuel (below).
+  defines them by recursion on fuel (below); `div` and `mod` have since
+  become structural.
 - **The two operator machines** were not read at this step. `<=` and `-`
   were written as machines the `Nat` declaration owns
   (`machine <= Nat::less_or_equal`), and compiling the file's declarations
@@ -1288,6 +1289,16 @@ starts with records.
   twin calling `mod(a, b)` is refused at that call. Still owed: the
   well-foundedness of the order discharged once and a proof that the fuel
   suffices.
+- **Structural division (2026-11-27).** Core `div` and `mod` are no longer
+  defined on fuel. Both read one structural helper, `divide_step(n, k, q, c)`,
+  which recurses on the dividend `n` one unit at a time while counting `c`
+  down from the divisor less one and bumping the quotient `q` when `c` runs
+  out; `div(a, b)` is its quotient and `mod(a, b)` its remainder. Its laws
+  `divide_reconstructs` and `divide_bounds` are proved by induction on `n`,
+  so `div_mod_reconstruction` (`div(a, b) * b + mod(a, b) = a`) and `mod`'s
+  strict bound hold on every admitted input. The prover now reduces a
+  projection of a pair, so a law can read a field of a computed record. Only
+  `gcd` still recurses at a computed value, on fuel with its descent checked.
 - **A choice by a computed value** (`rat_eq`, `mod`) is a definition by
   cases of its own over its subject and the variables in scope, so the
   prover computes with it as with any other. In a law, a split on a computed
@@ -1321,6 +1332,20 @@ starts with records.
   state `cauchy_at` under the bounds it requires. With `cauchy.omg` added,
   the five files give 96 judged laws; its four take 1,297 to 4,674
   conversion steps.
+- **Machines passed to generic machines (2026-11-27).** A clause may pass
+  a concrete mathematical machine for a machine parameter:
+  `twice::<succ>(a)` is `twice`'s definition applied to `succ`'s, and the
+  kernel unfolds both. The machine must have exactly the parameter's
+  formals and result and no premise, since a machine with a premise is no
+  total function. One generic machine may cite another, at its own machine
+  parameters or at concrete machines; the cited law's premises are owed at
+  the machines it names, so citing `twice_keeps_a_fixed_point::<Other>`
+  where only `Step` is known to fix `a` is refused. A body's call at
+  concrete machines names the closed copy the typed trees made for it; a
+  generic machine's citation reads the selected machines from that copy's
+  specialization receipt and cites the generic law. Customers:
+  `generic_machine/pass/twice_at_a_concrete_machine` and
+  `generic_machine/pass/cited_at_its_own_machine`, each with its twin.
 - **The order and subtraction operators (2026-11-25).** `nat.omg` declares
   `<=` and `-` as free public operator machines,
   `machine <= less_or_equal(left: Nat, right: Nat) -> bool` and
@@ -1337,9 +1362,10 @@ starts with records.
   program outside core imports both machines to select them by their
   tokens (`nat_order` fixtures).
 - **Not done:**
-  - A generic mathematical machine whose body dispatches, a citation of
-    one generic machine from another, and a concrete machine passed for a
-    machine parameter. Nothing in the library does any of these.
+  - A generic mathematical machine whose body dispatches, and a body that
+    is not generic citing or calling a generic machine at concrete
+    machines, which names the typed trees' closed copy and is refused.
+    Nothing in the library does either.
   - `extent.omg`'s contract over `IntervalSet<Nat>` (the plan's
     `extent.omg:219`) is a clause of a runtime boundary trait over generic
     data. It is read by the carrier clause reader when a program reaches

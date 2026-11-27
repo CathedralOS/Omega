@@ -5,10 +5,10 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+build-time-evaluation = { path = "../../../../build/build-time" }
+build-providers = { path = "../../../../build/providers" }
 numeric-intrinsic-admission = { path = "../../../verification/numeric-intrinsics" }
 target-provider-admission = { path = "../../../verification/target-providers" }
-selected-provider-plans = { path = "../../../../build/providers/selections" }
-build-scalar-evaluation = { path = "../../../../build/evaluation/scalars" }
 psi-scalar-applications = { path = "../../../../psi/execution-inputs/scalar-applications" }
 psi-provider-selections = { path = "../../../../psi/execution-inputs/providers" }
 psi-target-layouts = { path = "../../../../psi/execution-inputs/target-layouts" }

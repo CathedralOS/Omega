@@ -8,9 +8,8 @@ version.workspace = true
 path = "receipt.rs"
 
 [dependencies]
+build-providers = { path = "../../../../build/providers" }
 native-intrinsics = { path = "../../../targets/intrinsics" }
-provider-plans = { path = "../../../../build/providers/plans" }
-selected-provider-plans = { path = "../../../../build/providers/selections" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }
 terminal-psi = { path = "../../../../psi" }

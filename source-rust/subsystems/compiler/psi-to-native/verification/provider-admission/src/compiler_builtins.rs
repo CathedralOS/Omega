@@ -19,9 +19,9 @@ use target_bound_program::builtins::SelectedCompilerBuiltin;
 use crate::AdmittedTerminalMechanism;
 use crate::{AdmissionSource, ProviderAdmissionRequest};
 use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
+use build_providers::plans::{ProviderPlan, ServiceSchema};
 use diagnostics::Diagnostic;
 use native_intrinsics::CompilerAccessorScalarOperation;
-use provider_plans::{ProviderPlan, ServiceSchema};
 use semantic_vocabulary::{
     BoundaryCompletion, ClosedScalarType, ExternalCompletionKind, IeeeFloatFormat, IntegerSign,
 };
@@ -703,7 +703,7 @@ fn require_access_backing_origins(
 #[cfg(test)]
 mod selected_completion_contract_tests {
     use super::*;
-    use provider_plans::{ProviderBinding, ProviderPlanRow, ServiceMethod};
+    use build_providers::plans::{ProviderBinding, ProviderPlanRow, ServiceMethod};
     use semantic_vocabulary::BoundaryMachineId;
     use terminal_psi::{
         BoundaryDeclarationRole, BoundaryMachineResult, NominalDeclarationIdentity,

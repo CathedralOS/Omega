@@ -3,7 +3,7 @@
 //! it once with the kernel and judges each law against the entries before it.
 //!
 //! Data that contains itself has no storage, so it and the machines over it
-//! exist only here: the data as the canonical trees of a W type with its
+//! exist only here: the data as a native inductive declaration with its
 //! constructors and induction principle, each machine defined by cases as a
 //! definition, and each law as a statement whose proof stage 06 produces. A law's own statement is not among the entries its
 //! proof is checked against, so a law cannot supply its own evidence.
@@ -215,7 +215,9 @@ pub struct SignatureEntry {
 
 #[derive(Debug, Clone)]
 pub enum SignatureEntryKind {
-    /// A plain data declaration: the canonical trees of its cases.
+    /// A plain data declaration, or one application of generic data: its
+    /// type, whose cases and fields `shape` describes. The constructors and
+    /// the induction principle follow it.
     Data {
         declaration: SymbolHandle,
         shape: PlainData,
@@ -239,12 +241,17 @@ pub enum SignatureEntryKind {
     /// (kernel_metatheory.md, "Boolean values denote `Two`"). A signature
     /// declares it once, the first time a machine needs it.
     Boolean,
+    /// The inductive former of a generic data declaration (`Seq<T>`), a
+    /// function from its type parameters to a type. Its constructors and
+    /// recursor follow it as `Encoding` entries; each application the
+    /// program uses is declared after them as a `Data` entry equal to the
+    /// former at the application's type arguments.
+    GenericData { declaration: SymbolHandle },
     /// A case of the data declared at index `data`, as a function of its fields.
     Constructor { data: u32, case: u32 },
-    /// A declaration the encoding of the data at index `data` needs besides
-    /// the data and its constructors: its case labels, their child
-    /// positions, its raw trees, the canonical-tree condition or its
-    /// induction principle.
+    /// A declaration of the data at index `data` besides the data and its
+    /// constructors: its induction principle, or a constructor or the
+    /// recursor of a generic block.
     Encoding { data: u32 },
     /// A machine with a result. `cases` says how it computes when its body
     /// dispatches on one parameter.

@@ -6,9 +6,9 @@
 
 use std::sync::Arc;
 
+use build_providers::plans::ProviderPlan;
 use direct_boundary_bindings::DirectBoundaryLeaf;
 use native_intrinsics::CompilerIntrinsicExecutionIdentity;
-use provider_plans::ProviderPlan;
 use terminal_psi::TerminalModule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,9 +29,10 @@ pub struct TargetSupplyRealizationInput {
     pub direct_boundary_leaves: Vec<DirectBoundaryLeaf>,
     pub calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
-    pub evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
+    pub evaluated_native_bindings: Vec<build_providers::plans::EvaluatedNativeBinding>,
     pub evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
-    pub terminal_authority_permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
+    pub terminal_authority_permissions:
+        Vec<build_providers::acceptance::ServiceTerminalAuthorityPermission>,
     pub terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
 }
 
@@ -52,14 +53,15 @@ pub struct RealizedTargetSupply(SelectedProviderRealization);
 pub struct SelectedProviderRealization {
     program: terminal_psi::TerminalPsiIdentity,
     target: Option<String>,
-    plans: Arc<selected_provider_plans::SelectedProviderPlanFacts>,
+    plans: Arc<build_providers::selections::SelectedProviderPlanFacts>,
     realizations: Vec<PlanRealization>,
     direct_boundary_leaves: Vec<DirectBoundaryLeaf>,
     calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     external_bindings: Vec<calling_conventions::ExternalBindingRow>,
-    evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
+    evaluated_native_bindings: Vec<build_providers::plans::EvaluatedNativeBinding>,
     evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
-    terminal_authority_permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
+    terminal_authority_permissions:
+        Vec<build_providers::acceptance::ServiceTerminalAuthorityPermission>,
     terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
 }
 
@@ -118,9 +120,11 @@ impl RealizedTargetSupply {
                 format!("provider realization lost its canonical program: {error:?}")
             })?,
             target: target.map(str::to_owned),
-            plans: Arc::new(selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(
-                Vec::new(),
-            )?),
+            plans: Arc::new(
+                build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(
+                    Vec::new(),
+                )?,
+            ),
             realizations: Vec::new(),
             direct_boundary_leaves: Vec::new(),
             calling_applications: Vec::new(),
@@ -202,7 +206,7 @@ impl RealizedTargetSupply {
             if plan.rows.iter().any(|row| {
                 matches!(
                     row.binding,
-                    provider_plans::ProviderBinding::CheckedAdapter { .. }
+                    build_providers::plans::ProviderBinding::CheckedAdapter { .. }
                 )
             }) {
                 declaration
@@ -226,7 +230,7 @@ impl RealizedTargetSupply {
             {
                 if !matches!(
                     row.binding,
-                    provider_plans::ProviderBinding::CompilerIntrinsic { .. }
+                    build_providers::plans::ProviderBinding::CompilerIntrinsic { .. }
                 ) && (execution.is_some() || numeric.is_some())
                 {
                     return Err(
@@ -342,7 +346,7 @@ impl RealizedTargetSupply {
                             return Err("direct syscall changes its admitted native binding".into());
                         }
                         let receipts = input.evaluated_native_bindings.iter().filter(|binding| {
-                            matches!(binding, provider_plans::EvaluatedNativeBinding::Syscall(syscall)
+                            matches!(binding, build_providers::plans::EvaluatedNativeBinding::Syscall(syscall)
                                 if syscall.number() == number && syscall.target().target_name() == input.target)
                                 && binding.receipt().build_origin().is_some_and(|origin| {
                                     input.evaluated_binding_identities.text(origin.requirement_identity)
@@ -407,7 +411,8 @@ impl RealizedTargetSupply {
                 executions: selected.row_executions,
             });
         }
-        let plans = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(plans)?;
+        let plans =
+            build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(plans)?;
         Ok(Self(SelectedProviderRealization {
             program: terminal_codec::terminal_psi_identity(module).map_err(|error| {
                 format!("provider realization lost its canonical program: {error:?}")
@@ -549,10 +554,10 @@ impl SelectedProviderRealization {
     pub fn target(&self) -> Option<&str> {
         self.target.as_deref()
     }
-    pub fn plans(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
+    pub fn plans(&self) -> &build_providers::selections::SelectedProviderPlanFacts {
         &self.plans
     }
-    pub fn shared_plans(&self) -> &Arc<selected_provider_plans::SelectedProviderPlanFacts> {
+    pub fn shared_plans(&self) -> &Arc<build_providers::selections::SelectedProviderPlanFacts> {
         &self.plans
     }
     pub fn provider_declarations(&self) -> &[ProviderPlan] {
@@ -588,13 +593,15 @@ impl SelectedProviderRealization {
     pub fn external_bindings(&self) -> &[calling_conventions::ExternalBindingRow] {
         &self.external_bindings
     }
-    pub fn evaluated_native_bindings(&self) -> &[provider_plans::EvaluatedNativeBinding] {
+    pub fn evaluated_native_bindings(&self) -> &[build_providers::plans::EvaluatedNativeBinding] {
         &self.evaluated_native_bindings
     }
     pub fn evaluated_binding_identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.evaluated_binding_identities
     }
-    pub fn terminal_authority_permissions(&self) -> &[provider_acceptance::ServiceTerminalAuthorityPermission] {
+    pub fn terminal_authority_permissions(
+        &self,
+    ) -> &[build_providers::acceptance::ServiceTerminalAuthorityPermission] {
         &self.terminal_authority_permissions
     }
     pub fn terminal_authority_permission_identities(&self) -> &terminal_psi::TerminalIdentityTable {

@@ -74,7 +74,7 @@ struct CallSite<'body> {
     terminal: bool,
     required_contract: Option<semantic_vocabulary::ContractId>,
     arguments: &'body [Expression],
-    proof_arguments: &'body [terminal_psi::TheoremSource],
+    proof_arguments: &'body [crate::body::ProofSupply],
 }
 
 pub(crate) fn index(machine: MachineId) -> usize {
@@ -693,8 +693,9 @@ fn cyclic_theorems(
                 .proof_arguments
                 .iter()
                 .enumerate()
-                .all(|(position, source)| {
-                    *source == terminal_psi::TheoremSource::Formal(position as u32)
+                .all(|(position, supply)| {
+                    supply.instantiation.is_empty()
+                        && supply.source == terminal_psi::TheoremSource::Formal(position as u32)
                 })
     };
     calls
@@ -719,7 +720,7 @@ fn call<'body>(
     callee: &'body CallTarget,
     arguments: &'body [Expression],
     required_contract: Option<semantic_vocabulary::ContractId>,
-    proof_arguments: &'body [terminal_psi::TheoremSource],
+    proof_arguments: &'body [crate::body::ProofSupply],
     terminal: bool,
     walk: &mut BodyWalk<'body, '_>,
 ) {

@@ -3,7 +3,7 @@ use super::super::{
 };
 use super::{filesystem_host_permission_rows, time_host_permission_rows};
 use crate::terminal_authority_permission_policy::terminal_authority_permission_policy_with_rows;
-use provider_plans::{BoundaryCallingPlanCommitment, ServiceMethod, ServiceSchema};
+use build_providers::plans::{BoundaryCallingPlanCommitment, ServiceMethod, ServiceSchema};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::Arc;
 use terminal_authority_receipts::NormalizedForeignTerminalMechanismIdentity;

@@ -138,10 +138,10 @@ mod tests {
         );
         let leaf = |class| {
             TerminalAuthorityClosureLeaf::new(
-                provider_plans::ServiceSchemaDigest::from_digest([1; 32]),
+                build_providers::plans::ServiceSchemaDigest::from_digest([1; 32]),
                 requirement,
                 requirement,
-                provider_plans::ProviderPlanDigest::from_digest([2; 32]),
+                build_providers::plans::ProviderPlanDigest::from_digest([2; 32]),
                 call.into(),
                 TerminalAuthorityClosureLeafOrigin::SelectedBoundary,
                 Some(TerminalAuthorityDisposition::from_classes([class])),

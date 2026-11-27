@@ -1075,7 +1075,7 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
 
 #[test]
 fn review_nominates_the_referenced_host_declaration() {
-    use provider_acceptance::AcceptedSemanticBindingRole;
+    use build_providers::acceptance::AcceptedSemanticBindingRole;
 
     let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
         "review-host-by-file",
@@ -1153,7 +1153,7 @@ fn review_nominates_the_referenced_host_declaration() {
 
 #[test]
 fn reviewing_a_selected_hosted_exit_uses_its_product_declaration() {
-    use provider_acceptance::AcceptedSemanticBindingRole;
+    use build_providers::acceptance::AcceptedSemanticBindingRole;
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
         "review-hosted-exit-product",
         false,
@@ -1210,10 +1210,10 @@ use {omega}/language/core/process_exit_native.omg;
 
 #[test]
 fn review_records_an_explicit_empty_grant_and_the_unpermitted_sibling() {
-    use provider_acceptance::{
+    use build_providers::acceptance::{
         AcceptedSemanticBinding, AcceptedSemanticBindingRole, ServiceTerminalAuthorityPermission,
     };
-    use provider_plans::ServiceSchema;
+    use build_providers::plans::ServiceSchema;
     use semantic_vocabulary::TerminalAuthorityDisposition;
 
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(

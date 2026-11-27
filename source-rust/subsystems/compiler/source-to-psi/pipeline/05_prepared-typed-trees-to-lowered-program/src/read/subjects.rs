@@ -409,8 +409,11 @@ impl Program<'_> {
         }
         let mut data = Vec::new();
         for declared in typed.data_definitions() {
+            // A generic declaration is declared once, from its template, by
+            // the first application the signature reads (`generic_data`).
             if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject
                 && !names_only(declared)
+                && declared.type_parameters.is_empty()
                 && self.is_mathematical_data(declared)
             {
                 data.push(declared.symbol);

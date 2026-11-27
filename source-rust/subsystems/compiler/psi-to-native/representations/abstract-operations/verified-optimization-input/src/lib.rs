@@ -71,7 +71,8 @@ pub struct VerifiedPsiOptimizationInput {
     admitted_native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
     admitted_installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
     target_context: Option<TerminalTargetContext>,
-    external_requirement_applications: Vec<selected_provider_plans::SelectedExternalRequirementApplication>,
+    external_requirement_applications:
+        Vec<build_providers::selections::SelectedExternalRequirementApplication>,
     selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable,
     evidence: ObligationEvidence,
 }
@@ -233,7 +234,9 @@ impl VerifiedPsiOptimizationInput {
     /// Retain exact selected external requirement applications and their identity table.
     pub fn retain_selected_providers(
         &mut self,
-        external_requirement_applications: Vec<selected_provider_plans::SelectedExternalRequirementApplication>,
+        external_requirement_applications: Vec<
+            build_providers::selections::SelectedExternalRequirementApplication,
+        >,
         identities: terminal_psi::TerminalIdentityTable,
         selected_provider_closure: [u8; 32],
     ) -> Result<(), &'static str> {
@@ -249,7 +252,7 @@ impl VerifiedPsiOptimizationInput {
     pub fn validate_behavior_exclusions(
         &self,
         exclusions: &native_behavior_exclusions::BehaviorExclusions,
-        providers: &selected_provider_plans::SelectedProviderPlanFacts,
+        providers: &build_providers::selections::SelectedProviderPlanFacts,
         profile: target::TargetProfile,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         if !exclusions.has_semantic_exclusions() {

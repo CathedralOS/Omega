@@ -3,7 +3,7 @@
 //! just to recover that contract's nominal result and progress information.
 
 use language_core::sealed_intrinsics::HostedOperation;
-use provider_plans::{ServiceMethod, ServiceSchema, ServiceSurface};
+use build_providers::plans::{ServiceMethod, ServiceSchema, ServiceSurface};
 use semantic_vocabulary::BoundaryMachineId;
 use service_surface::{ServiceReceiverApplication, ServiceSynchronousInvocation};
 use terminal_psi::{CheckedBoundaryExecution, TerminalCallableInvocation, TerminalModule};

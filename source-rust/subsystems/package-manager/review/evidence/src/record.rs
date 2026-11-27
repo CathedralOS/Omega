@@ -29,6 +29,8 @@ pub use authority::{
 pub use baseline::{
     PackagePolicyBaseline, PackagePolicyComponentAssumption, PackagePolicyNativeBinding,
 };
+use build_providers::acceptance::AcceptedSemanticBinding;
+use build_providers::plans::ServiceSchema;
 pub(crate) use calling::{
     PackagePolicyCallbackBinder, PackagePolicyCallbackDemand, PackagePolicyCallbackDestination,
     PackagePolicyCallbackInlineField, PackagePolicyCallbackLayout,
@@ -89,8 +91,6 @@ pub use policy_rows::{
     PACKAGE_POLICY_ROW_VERSION, PackagePolicyRow, PackagePolicyRowKind, PackagePolicyRowLimits,
     PackagePolicyRowUsage,
 };
-use provider_acceptance::AcceptedSemanticBinding;
-use provider_plans::ServiceSchema;
 pub(in crate::record) use public_policy::validation;
 pub use public_policy::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,

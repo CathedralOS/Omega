@@ -1423,39 +1423,24 @@ impl Program<'_> {
                         ));
                     }
                     let mut arguments = Vec::with_capacity(actuals.len());
-                    // A machine argument is a function passed whole: the
-                    // machine parameter it names, applied to nothing. It
-                    // comes before the value arguments, as the generic
-                    // machine's definition takes them.
-                    for argument in call.machine_arguments.iter() {
-                        let signature = self.callable_parameter(argument.symbol).ok_or_else(|| {
-                            unavailable(
-                                "generic mathematical machine applied to something other than a machine parameter",
-                            )
-                        })?;
-                        let ValueType::Record(record, ..) =
-                            self.value_type(id, signature.return_type)?
-                        else {
+                    // A machine argument is a function passed whole: a
+                    // machine parameter or a concrete mathematical machine
+                    // (`machine_argument`). Machine arguments come before
+                    // the value arguments, as the generic machine's
+                    // definition takes them.
+                    if !call.machine_arguments.is_empty() {
+                        let callee = typed
+                            .machine_by_symbol(target)
+                            .ok_or_else(|| unavailable("clause application lost its machine"))?;
+                        let required = self.required_callables(id, callee)?;
+                        if required.len() != call.machine_arguments.len() {
                             return Err(unavailable(
-                                "machine argument whose result is not mathematical data",
+                                "generic mathematical machine applied to the wrong number of machines",
                             ));
-                        };
-                        let position = u32::try_from(values.len())
-                            .map_err(|_| unavailable("clause term table overflow"))?;
-                        values.push(ClauseValue {
-                            carrier: ClauseCarrier::Structural(record),
-                            operand: ClauseOperand::Application {
-                                declaration: ClauseDeclaration {
-                                    member: (
-                                        argument.symbol.arena_index(),
-                                        argument.symbol.generation(),
-                                    ),
-                                    supplier: None,
-                                },
-                                arguments: Vec::new(),
-                            },
-                        });
-                        arguments.push(position);
+                        }
+                        for (argument, required) in call.machine_arguments.iter().zip(&required) {
+                            arguments.push(self.machine_argument(id, argument, required, values)?);
+                        }
                     }
                     for (formal, &actual) in parameters.iter().zip(actuals) {
                         let ty = self.value_type(id, formal.type_reference)?;
@@ -1479,7 +1464,19 @@ impl Program<'_> {
                         .case_symbol
                         .filter(|symbol| symbol.is_valid() && literal.type_symbol.is_valid())
                         .ok_or_else(|| unavailable("clause constructor without a case"))?;
-                    let constructed = self.record(id, literal.type_symbol)?;
+                    // A case of generic data is read at the application the
+                    // literal constructs (`Seq::Empty` as a `Seq<u64>`), not
+                    // at the declaration it names.
+                    let application = [
+                        literal.application_type,
+                        table.constructed_value_type_reference(expression),
+                    ]
+                    .into_iter()
+                    .find(|reference| reference.is_valid());
+                    let constructed = match application {
+                        Some(reference) => self.value_type(id, reference)?,
+                        None => self.record(id, literal.type_symbol)?,
+                    };
                     let ValueType::Record(record, ..) = constructed else {
                         return Err(unavailable("clause constructor of a scalar type"));
                     };

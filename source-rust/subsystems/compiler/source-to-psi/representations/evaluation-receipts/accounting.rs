@@ -7,8 +7,8 @@ use build_model::values::BuildTimeValue;
 use checked_program_to_psi::{CheckedSourceCall, ProducedTerminalProgram, SourceInvocationSite};
 use typed_trees::source_state;
 
-use build_scalar_evaluation::PURE_PSI_WORK_BUDGET;
-pub use build_scalar_evaluation::{
+use build_time_evaluation::scalars::PURE_PSI_WORK_BUDGET;
+pub use build_time_evaluation::scalars::{
     CanonicalScalarEvaluationReceipt, PureTerminalEvaluationOutcome,
 };
 
@@ -86,7 +86,7 @@ pub struct PureTerminalEvaluationReceipt {
     arguments: Arc<[BuildTimeValue]>,
     inputs: Arc<[BuildTimeValue]>,
     admission: build_model::admission::AdmittedCompilerEvaluation,
-    execution: Option<build_invocation::InvocationReceipt>,
+    execution: Option<build_time_evaluation::invocations::InvocationReceipt>,
     account: build_model::accounting::EvaluationInvocationAccount,
     outcome: PureTerminalEvaluationOutcome,
     usage: terminal_work::WorkUsage,
@@ -101,7 +101,7 @@ pub struct SourceInvocationInputs<'a> {
 
 /// The interpreter's result and the evidence of the work it actually performed.
 pub struct RecordedSourceInvocation {
-    value: Result<build_invocation::InvocationValue, String>,
+    value: Result<build_time_evaluation::invocations::InvocationValue, String>,
     receipt: PureTerminalEvaluationReceipt,
     constant_input: Option<Arc<source_state::TypedTrees>>,
 }
@@ -112,7 +112,7 @@ impl RecordedSourceInvocation {
         program: &ProducedTerminalProgram,
         admission: build_model::admission::AdmittedCompilerEvaluation,
         meter: &build_model::work::EvaluationWorkMeter,
-        run: Result<build_invocation::InvocationOutcome, String>,
+        run: Result<build_time_evaluation::invocations::InvocationOutcome, String>,
     ) -> Result<Self, String> {
         let checked = call.site.check(program)?;
         let account = meter
@@ -171,7 +171,7 @@ impl RecordedSourceInvocation {
     pub fn finish<T>(
         mut self,
         accounting: &mut SourceCompletionAccounting,
-        complete: impl FnOnce(build_invocation::InvocationValue) -> Result<T, String>,
+        complete: impl FnOnce(build_time_evaluation::invocations::InvocationValue) -> Result<T, String>,
     ) -> Result<T, String> {
         let result = self.value.and_then(complete);
         if let Err(reason) = &result {

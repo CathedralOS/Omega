@@ -11,11 +11,11 @@ requirement text can be absent from the program plan's identity table.
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use build_providers::plans::{ProviderBinding, ProviderPlanDigest, ServiceSchemaDigest};
+use semantic_vocabulary::BoundaryMachineId;
 use terminal_authority_receipts::{
     TerminalAuthorityClosureLeaf, TerminalAuthorityClosureLeafOrigin, TerminalMechanismIdentity,
 };
-use provider_plans::{ProviderBinding, ProviderPlanDigest, ServiceSchemaDigest};
-use semantic_vocabulary::BoundaryMachineId;
 
 use super::context::ReviewContext;
 

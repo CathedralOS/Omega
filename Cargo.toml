@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "source-rust/subsystems/compiler/build/build-time",
+    "source-rust/subsystems/compiler/build/providers",
     "source-rust/subsystems/compiler/build/model",
     "source-rust/application",
     "source-rust/foundation/arena",
@@ -23,14 +25,8 @@ members = [
     "source-rust/subsystems/compiler/build/evaluation/authority/consent",
     "source-rust/subsystems/compiler/build/evaluation/authority/filesystem",
     "source-rust/subsystems/compiler/build/evaluation/authority/program",
-    "source-rust/subsystems/compiler/build/evaluation/invocations",
-    "source-rust/subsystems/compiler/build/evaluation/scalars",
-    "source-rust/subsystems/compiler/build/evaluation/values/projection",
     "source-rust/subsystems/compiler/build/settings/optimizations",
     "source-rust/subsystems/compiler/build/inputs",
-    "source-rust/subsystems/compiler/build/providers/acceptance",
-    "source-rust/subsystems/compiler/build/providers/plans",
-    "source-rust/subsystems/compiler/build/providers/selections",
     "source-rust/subsystems/compiler/foundation/check-site",
     "source-rust/subsystems/compiler/foundation/compiler-identity",
     "source-rust/subsystems/compiler/foundation/declaration-identity",

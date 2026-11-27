@@ -230,5 +230,5 @@ pub struct ReviewedNativeBindings {
 pub struct ReviewedNativeBinding {
     pub boundary: BoundaryMachineId,
     pub materialization: NativeBindingMaterialization,
-    pub binding: provider_plans::EvaluatedNativeBinding,
+    pub binding: build_providers::plans::EvaluatedNativeBinding,
 }

@@ -144,11 +144,14 @@ pub(super) fn judged_library_files(nat: &str, files: &[(&str, &str)]) -> Vec<Rou
 }
 
 #[test]
-fn mod_div_and_gcd_of_nat_are_defined_and_mod_keeps_its_bound() {
-    // The three machines of `core/nat.omg` whose recursion is on
-    // `saturating_sub(a, b)` or on `mod(a, b)`. `mod` states that its result
-    // is below the divisor; `gcd` calls `mod`, which has a premise, and owes
-    // it at that call.
+fn core_division_is_structural_and_gcd_descends_by_the_remainder_bound() {
+    // `div` and `mod` of `core/nat.omg` project one structural helper,
+    // `divide_step`, so neither recurses on fuel nor owes a descent. `mod`
+    // states its strict bound and `div_mod_reconstruction` the equation
+    // `div(a, b) * b + mod(a, b) = a`, each from the helper's invariant.
+    // `gcd` still calls itself at the computed `mod(a, b)`: it owes `mod`'s
+    // premise at that call and the call's descent, which `mod`'s bound
+    // proves.
     let verdicts = judged_library(&[]);
     let judgment = signature(&verdicts);
     let judged = |machine: &str| {
@@ -164,16 +167,15 @@ fn mod_div_and_gcd_of_nat_are_defined_and_mod_keeps_its_bound() {
             })
             .count()
     };
-    // Each of the three also owes the descent of its recursive call, which
-    // its citation of `sub_lt` (`mod`, `div`) or `mod`'s own bound (`gcd`)
-    // proves.
-    assert_eq!(judged("mod"), 2, "its own bound and its descent");
-    assert_eq!(judged("div"), 1, "its descent");
+    assert_eq!(judged("mod"), 1, "its own bound");
+    assert_eq!(judged("div"), 0, "no descent: the helper is structural");
+    assert_eq!(judged("div_mod_reconstruction"), 1, "reconstruction");
+    assert_eq!(judged("divide_reconstructs"), 1, "the helper's invariant");
+    assert_eq!(judged("divide_bounds"), 1, "the helper's remainder bound");
     assert!(
         judged("gcd") >= 2,
         "the premise of `mod` at its call and the descent"
     );
-
     for law in &judgment.laws {
         assert!(
             matches!(law.decision, MathematicalCoreDecision::Judged(_)),

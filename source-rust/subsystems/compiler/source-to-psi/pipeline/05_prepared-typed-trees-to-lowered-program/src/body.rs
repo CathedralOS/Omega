@@ -1543,10 +1543,27 @@ pub enum ExpressionKind {
         required_contract: Option<semantic_vocabulary::ContractId>,
         static_reach_binding: Option<u32>,
         static_reach_arguments: Vec<terminal_psi::static_reach::StaticReachArgument>,
-        proof_arguments: Vec<terminal_psi::TheoremSource>,
+        proof_arguments: Vec<ProofSupply>,
         arguments: Vec<Expression>,
         designated: Option<DesignatedOperands>,
     },
+}
+
+/// One proof argument of a call: its source and, when that source is a named
+/// theorem with proof parameters of its own, one supply for each of them.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProofSupply {
+    pub source: terminal_psi::TheoremSource,
+    pub instantiation: Vec<terminal_psi::TheoremSource>,
+}
+
+impl ProofSupply {
+    pub fn plain(source: terminal_psi::TheoremSource) -> Self {
+        Self {
+            source,
+            instantiation: Vec::new(),
+        }
+    }
 }
 
 /// The code operand remains separate from every explicit argument. A selected

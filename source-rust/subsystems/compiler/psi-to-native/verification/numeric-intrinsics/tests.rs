@@ -1,8 +1,8 @@
 use super::*;
+use build_providers::plans::ProviderPlan;
 use native_intrinsics::CompilerIntrinsicExecutionIdentity;
 use numerics::intrinsics::NumericIntrinsic;
 use provider_correspondence::external_providers::reconcile_numeric_meaning;
-use provider_plans::ProviderPlan;
 use std::collections::BTreeSet;
 #[test]
 fn intrinsic_slots_are_lent_only_to_the_execution_that_selected_them() {
@@ -64,7 +64,7 @@ fn portable_numeric_meaning_cannot_authorize_or_replace_provider_custody() {
     ));
 }
 
-fn intrinsic_plan(realization: &str) -> selected_provider_plans::SelectedProviderPlanFacts {
+fn intrinsic_plan(realization: &str) -> build_providers::selections::SelectedProviderPlanFacts {
     let mut plan = ProviderPlan {
         name: "selected".into(),
         provider_type: "NativeFloats".into(),
@@ -75,25 +75,27 @@ fn intrinsic_plan(realization: &str) -> selected_provider_plans::SelectedProvide
     };
     let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
     declaration.trait_name = declaration.identities.intern("Float");
-    declaration.methods.push(provider_plans::ServiceMethod {
-        name: "add".into(),
-        requirement_owner: "Float".into(),
-        requirement_identity: declaration.identities.intern("Float::add"),
-        ..Default::default()
-    });
+    declaration
+        .methods
+        .push(build_providers::plans::ServiceMethod {
+            name: "add".into(),
+            requirement_owner: "Float".into(),
+            requirement_identity: declaration.identities.intern("Float::add"),
+            ..Default::default()
+        });
     let requirement = plan.identities.intern("Float::add");
-    plan.rows.push(provider_plans::ProviderPlanRow {
+    plan.rows.push(build_providers::plans::ProviderPlanRow {
         method: "add".into(),
         requirement_identity: requirement,
         declared_requirement_identity: requirement,
         calling_signature: None,
         requirement_lifetime_partition: Vec::new(),
         admitted_same_stack_bytes: 0,
-        binding: provider_plans::ProviderBinding::CompilerIntrinsic {
+        binding: build_providers::plans::ProviderBinding::CompilerIntrinsic {
             machine: "float_add".into(),
         },
     });
-    selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap()
+    build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap()
 }
 
 #[test]

@@ -13,6 +13,15 @@ const FIXED: &str =
 const UNFOUNDED: &str = include_str!(
     "../../tests/fixtures/generic_machine/fail/twice_without_the_fixed_point/main.omg"
 );
+const CONCRETE: &str =
+    include_str!("../../tests/fixtures/generic_machine/pass/twice_at_a_concrete_machine/main.omg");
+const CONCRETE_ADDS_ONE: &str = include_str!(
+    "../../tests/fixtures/generic_machine/fail/twice_at_a_concrete_machine_adds_one/main.omg"
+);
+const CITED: &str =
+    include_str!("../../tests/fixtures/generic_machine/pass/cited_at_its_own_machine/main.omg");
+const CITED_ELSEWHERE: &str =
+    include_str!("../../tests/fixtures/generic_machine/fail/cited_at_another_machine/main.omg");
 
 fn proofs(source: &str) -> String {
     let start = source.find("data Peano").expect("the fixture's data");
@@ -42,6 +51,27 @@ fn judged(source: &str) -> Vec<RouteVerdict> {
         .into_iter()
         .map(|verdict| verdict.expect("a judged part"))
         .collect()
+}
+
+/// The one refusal of a program whose signature cannot be read.
+fn refusal(verdicts: &[RouteVerdict]) -> &str {
+    let mut refusals = verdicts.iter().filter_map(|verdict| match verdict {
+        RouteVerdict::FallBack(refusal) => Some(refusal.detail.as_str()),
+        RouteVerdict::Laws(judgment) => panic!("the program must be refused: {judgment:?}"),
+        _ => None,
+    });
+    let (Some(refusal), None) = (refusals.next(), refusals.next()) else {
+        panic!("expected exactly one refusal: {verdicts:?}")
+    };
+    refusal
+}
+
+fn judged_law<'v>(verdicts: &'v [RouteVerdict], machine: &str) -> &'v crate::laws::LawJudgment {
+    signature(verdicts)
+        .laws
+        .iter()
+        .find(|law| law.machine == machine)
+        .unwrap_or_else(|| panic!("the law `{machine}` must be judged: {verdicts:?}"))
 }
 
 fn signature(verdicts: &[RouteVerdict]) -> &SignatureJudgment {
@@ -128,5 +158,146 @@ fn without_its_premise_the_generic_law_stays_unproved() {
         law.statement,
         "cannot prove ensures contract for `twice_keeps_a_fixed_point`: \
          core\\Identity::<Peano>(twice(Step, a), a)"
+    );
+}
+
+#[test]
+fn a_clause_passes_a_concrete_machine_to_a_generic_one() {
+    let verdicts = judged(&proofs(CONCRETE));
+    let law = judged_law(&verdicts, "twice_succ_adds_two");
+    let MathematicalCoreDecision::Judged(receipt) = law.decision;
+    assert_eq!((receipt.context_depth, receipt.assumption_closure), (0, 0));
+}
+
+#[test]
+fn a_concrete_machine_is_unfolded_not_assumed() {
+    let source = proofs(CONCRETE_ADDS_ONE);
+    assert_eq!(
+        source,
+        proofs(CONCRETE).replace(
+            "Peano::Succ { pred: Peano::Succ { pred: a } })",
+            "Peano::Succ { pred: a })"
+        )
+    );
+    let verdicts = judged(&source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "twice_succ_adds_two");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+    assert_eq!(
+        law.statement,
+        "cannot prove ensures contract for `twice_succ_adds_two`: \
+         core\\Identity::<Peano>(twice(succ, a), Peano::Succ(a))"
+    );
+}
+
+#[test]
+fn a_generic_machine_cites_another_at_its_own_machine() {
+    let verdicts = judged(&proofs(CITED));
+    judged_law(&verdicts, "twice_keeps_a_fixed_point");
+    judged_law(&verdicts, "twice_keeps_one_fixed_point");
+}
+
+#[test]
+fn a_citation_owes_its_premise_at_the_machine_it_names() {
+    let source = proofs(CITED_ELSEWHERE);
+    assert_eq!(
+        source,
+        proofs(CITED).replace(
+            "twice_keeps_a_fixed_point::<Step>(a);",
+            "twice_keeps_a_fixed_point::<Other>(a);"
+        )
+    );
+    let verdicts = judged(&source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "twice_keeps_one_fixed_point");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+}
+
+/// `pass/cited_at_its_own_machine` with two concrete machines, and a law
+/// generic over `Other` that cites the generic law at `concrete`.
+fn cited_at(concrete: &str) -> String {
+    proofs(CITED).replace(
+        "machine twice_keeps_one_fixed_point",
+        &format!(
+            "machine id(a: Peano) -> Peano
+{{
+    transition {{ _ -> (a) }}
+}}
+
+machine succ(a: Peano) -> Peano
+{{
+    transition {{ _ -> Peano::Succ {{ pred: a }} }}
+}}
+
+machine twice_keeps_at_a_concrete_machine<machine Other>(a: Peano)
+requires machine Other(a: Peano) -> Peano terminates;
+ensures
+    |proof|::Identity::<Peano>(twice::<id>(a), a)
+{{
+    twice_keeps_a_fixed_point::<{concrete}>(a);
+}}
+
+machine twice_keeps_one_fixed_point"
+        ),
+    )
+}
+
+#[test]
+fn a_generic_machine_cites_another_at_a_concrete_machine() {
+    let verdicts = judged(&cited_at("id"));
+    judged_law(&verdicts, "twice_keeps_at_a_concrete_machine");
+    // The citation's premise is owed at the machine it names: `succ` does
+    // not leave `a` as it is.
+    let verdicts = judged(&cited_at("succ"));
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "twice_keeps_at_a_concrete_machine");
+}
+
+#[test]
+fn a_concrete_machine_with_a_premise_is_refused_as_a_machine_argument() {
+    // Such a machine is not a total function of its formals, so the
+    // signature has no definition to pass for the parameter.
+    let source = proofs(CONCRETE).replace(
+        "machine succ(a: Peano) -> Peano\n",
+        "machine succ(a: Peano) -> Peano\nrequires |proof|::Identity::<Peano>(a, a)\n",
+    );
+    assert_ne!(source, proofs(CONCRETE));
+    let verdicts = judged(&source);
+    assert!(
+        refusal(&verdicts).starts_with(
+            "contract machine argument of a generic mathematical machine with a premise"
+        ),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn an_ordinary_body_citing_a_generic_law_at_a_concrete_machine_is_refused() {
+    // The call names the closed copy the typed trees make for it, a second
+    // proof of the generic law; it is refused rather than read.
+    let source = proofs(CONCRETE).replace(
+        "machine twice_succ_adds_two(a: Peano)",
+        "machine twice_keeps_a_fixed_point<machine Step>(a: Peano)
+requires machine Step(a: Peano) -> Peano terminates;
+requires
+    |proof|::Identity::<Peano>(Step(a), a)
+ensures
+    |proof|::Identity::<Peano>(twice::<Step>(a), a)
+{
+}
+
+machine cites_at_succ(a: Peano)
+{
+    twice_keeps_a_fixed_point::<succ>(a);
+}
+
+machine twice_succ_adds_two(a: Peano)",
+    );
+    let verdicts = judged(&source);
+    assert!(
+        refusal(&verdicts).starts_with(
+            "machine body that calls a generic mathematical machine at concrete machines"
+        ),
+        "{verdicts:?}"
     );
 }

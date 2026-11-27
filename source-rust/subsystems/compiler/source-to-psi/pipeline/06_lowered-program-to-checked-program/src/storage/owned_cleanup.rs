@@ -332,7 +332,6 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
         };
         actual.requirement_obligations = requirements;
     }
-    materialize_writes(elaboration)?;
     Ok(())
 }
 
@@ -546,76 +545,6 @@ pub(crate) fn writes(
         }
     }
     Ok(writes)
-}
-
-fn materialize_writes(elaboration: &mut Elaboration) -> Checked<()> {
-    let mut pending = Vec::new();
-    for caller in &elaboration.module.machines {
-        let graph = crate::places::reference_graph_with_generic_calls(
-            &elaboration.module,
-            caller.id,
-            &elaboration.nominal_calls,
-            &elaboration.static_schemas,
-        )?;
-        let mut analysis =
-            terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-                &elaboration.module.types.structural_types,
-                &graph,
-            );
-        pending.push((
-            caller.id,
-            writes(&elaboration.module, caller, &mut analysis)?,
-        ));
-    }
-    for (id, writes) in pending {
-        let tables = elaboration.tables.machines.get_mut(id).ok_or_else(|| {
-            crate::refusal(
-                RefusalReason::ForeignIdentity,
-                id,
-                Construct::Machine,
-                "cleanup writes have no caller tables",
-            )
-        })?;
-        if tables
-            .writes
-            .values()
-            .any(|row| matches!(row.at, ProgramPoint::AfterCleanup { .. }))
-        {
-            continue;
-        }
-        for write in writes {
-            let mut place = *tables.roots.get(write.captured.root).ok_or_else(|| {
-                crate::refusal(
-                    RefusalReason::ForeignIdentity,
-                    id,
-                    Construct::Edge(write.edge),
-                    "cleanup write has no actual root",
-                )
-            })?;
-            for segment in write.captured.path {
-                place = terminal_check_tables::bindings::intern_projection(
-                    id,
-                    &mut tables.places,
-                    place,
-                    segment,
-                )?;
-            }
-            terminal_check_tables::bindings::record_write(
-                id,
-                &tables.places,
-                &mut tables.writes,
-                terminal_check_tables::bindings::WriteRow {
-                    place,
-                    at: ProgramPoint::AfterCleanup {
-                        edge: write.edge,
-                        action_ordinal: write.action_ordinal,
-                    },
-                    content: write.content,
-                },
-            )?;
-        }
-    }
-    Ok(())
 }
 
 pub(crate) fn edge_entry_points(

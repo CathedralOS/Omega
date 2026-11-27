@@ -390,17 +390,16 @@ machine entry(first: bool) -> bool {
     assert!(!when_true.cleanup_actions.is_empty());
     let mut activity = crate::ProofSearchActivity::default();
     let mut scope = crate::prepare_replay(&mut input, &mut activity).unwrap();
-    let (formed, domains, checking, _, _) = scope.checking();
+    let (formed, checking, _, _) = scope.checking();
     let module = formed.source();
     let tables = checking.machines.get_mut(identity).unwrap();
-    let prepared = crate::prepare(formed, domains, identity, tables).unwrap();
+    let prepared = crate::prepare(formed, identity, tables).unwrap();
     let mut references = prepared.references(&module.types.structural_types);
     let machine = module.machine(identity).unwrap();
     let storage = crate::places::Storage::new(
         identity,
         machine,
         module,
-        domains,
         &prepared.graph,
         tables,
         &prepared.types,
@@ -659,16 +658,15 @@ machine main() crashes Trap {
 
     let mut activity = crate::ProofSearchActivity::default();
     let mut scope = crate::prepare_replay(&mut input, &mut activity).unwrap();
-    let (formed, domains, checking, _, _) = scope.checking();
+    let (formed, checking, _, _) = scope.checking();
     let module = formed.source();
     let tables = checking.machines.get_mut(identity).unwrap();
-    let prepared = crate::prepare(formed, domains, identity, tables).unwrap();
+    let prepared = crate::prepare(formed, identity, tables).unwrap();
     let mut references = prepared.references(&module.types.structural_types);
     let storage = crate::places::Storage::new(
         identity,
         module.machine(identity).unwrap(),
         module,
-        domains,
         &prepared.graph,
         tables,
         &prepared.types,
@@ -1265,16 +1263,15 @@ requires index < 2 {
     // successors, with the full source module and its actual tables intact.
     let mut activity = crate::ProofSearchActivity::default();
     let mut scope = crate::prepare_replay(&mut input, &mut activity).unwrap();
-    let (formed, domains, checking, _, _) = scope.checking();
+    let (formed, checking, _, _) = scope.checking();
     let module = formed.source();
     let tables = checking.machines.get_mut(identity).unwrap();
-    let prepared = crate::prepare(formed, domains, identity, tables).unwrap();
+    let prepared = crate::prepare(formed, identity, tables).unwrap();
     let mut references = prepared.references(&module.types.structural_types);
     let storage = crate::places::Storage::new(
         identity,
         module.machine(identity).unwrap(),
         module,
-        domains,
         &prepared.graph,
         tables,
         &prepared.types,

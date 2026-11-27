@@ -310,11 +310,17 @@ pub fn substitute(
 /// A machine may satisfy its runtime guarantee by never returning. A logical
 /// citation must prove the implication over its admitted inputs, then check
 /// that its premises and guarantee satisfy the alias's complete contract.
+///
+/// `instantiated` counts the supplies a citation gives the cited machine's
+/// own proof parameters. Each must be a declared logical formal; they are
+/// checked separately against that machine's aliases. The three goals here
+/// do not use them: the cited implication is proved from its contract alone.
 pub fn citation_goals(
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
+    instantiated: usize,
 ) -> Result<[Proposition; 3], &'static str> {
-    citation_goals_with(expected, supplied, |contract| {
+    citation_goals_with(expected, supplied, instantiated, |contract| {
         contract_type(contract, &mut proof_admission::Budget::default()).map(drop)
     })
 }
@@ -324,8 +330,9 @@ pub fn citation_goals(
 pub fn recorded_citation_goals(
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
+    instantiated: usize,
 ) -> Result<[Proposition; 3], &'static str> {
-    citation_goals_with(expected, supplied, |contract| {
+    citation_goals_with(expected, supplied, instantiated, |contract| {
         contract_subjects(contract).map(drop)
     })
 }
@@ -333,8 +340,17 @@ pub fn recorded_citation_goals(
 fn citation_goals_with(
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
+    instantiated: usize,
     check: impl Fn(&TheoremContract) -> Result<(), &'static str>,
 ) -> Result<[Proposition; 3], &'static str> {
+    if supplied.erased_proof_formals.len() != instantiated
+        || supplied
+            .erased_proof_formals
+            .iter()
+            .any(|formal| !matches!(formal.source, ProofFormalSource::GenericParameter(_)))
+    {
+        return Err("cited theorem needs one logical supply for each of its own proof formals");
+    }
     if supplied.parameters != expected.parameters
         || supplied
             .parameter_order
@@ -344,7 +360,6 @@ fn citation_goals_with(
         || !supplied.structural_parameters.is_empty()
         || !matches!(supplied.result, terminal_psi::TerminalMachineResult::Unit)
         || !supplied.erased_scalar_formals.is_empty()
-        || !supplied.erased_proof_formals.is_empty()
         || !supplied.entry_claims.is_empty()
         || !supplied.content_entry_claims.is_empty()
         || !supplied.membership_ensures.is_empty()
@@ -557,11 +572,12 @@ fn weaken_closed_proof(
 pub fn denote_citation(
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
+    instantiated: usize,
     derivations: &[terminal_psi::CertificateEnvelope],
     budget: &mut proof_admission::Budget,
 ) -> Result<proof_admission::BoundedTheorem, &'static str> {
     use terminal_psi::{ProofNode, ProofRule};
-    let goals = citation_goals(expected, supplied)?;
+    let goals = citation_goals(expected, supplied, instantiated)?;
     let subjects: Vec<_> = expected
         .parameters
         .iter()

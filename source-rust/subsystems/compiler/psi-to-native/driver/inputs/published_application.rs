@@ -23,7 +23,7 @@ pub struct SourceNativeTarget<'a> {
     /// and has no ambient foreign-call adapter.
     pub isolated_execution_grant: Option<provider_admission::IsolatedExecutionGrant>,
     pub package_permissions: Option<declaration_scope::ProductDeclarationScope>,
-    pub semantic_bindings: Arc<[provider_acceptance::AcceptedSemanticBinding]>,
+    pub semantic_bindings: Arc<[build_providers::acceptance::AcceptedSemanticBinding]>,
     pub installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 }
 
@@ -112,7 +112,7 @@ fn source_demand(
     publication: provider_demand::PublishedTargetProviders,
     profile: target::TargetProfile,
     permissions: Option<declaration_scope::ProductDeclarationScope>,
-    bindings: Arc<[provider_acceptance::AcceptedSemanticBinding]>,
+    bindings: Arc<[build_providers::acceptance::AcceptedSemanticBinding]>,
 ) -> Result<
     provider_demand::IssuedProviderDemand<terminal_codec::TerminalArtifactIdentity>,
     Vec<Diagnostic>,

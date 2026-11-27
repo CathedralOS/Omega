@@ -76,7 +76,7 @@ fn a_native_locator_receipt_retains_its_authored_target() {
         &mut Default::default(),
     )
     .expect("an authored target's valid locator retains its evaluation receipt");
-    let provider_plans::EvaluatedNativeBinding::Syscall(binding) = binding else {
+    let build_providers::plans::EvaluatedNativeBinding::Syscall(binding) = binding else {
         panic!("the syscall locator must retain its mechanism");
     };
     assert_eq!(binding.target(), target::TargetProfile::LinuxArm64);
