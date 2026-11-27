@@ -126,10 +126,13 @@ Extend existing codec, interpreter, embedding and performance suites:
   No premature buffer reuse, repeated host effect or discarded-guest resumption;
   an uncooperative provider leaves its outstanding storage retained and accounted.
 
-The existing **PROOF-KERNEL-CORE** work remains: finish identity and metatheory;
-source mutual, nested and derivation families; higher indices and open carrier
-transport; polymorphic-identity storage receipts; and UIP/extensionality rejection
-controls. Retain its `--both` acceptance for
+The existing **PROOF-KERNEL-CORE** work remains: finish explicit identity, and
+source mutual, nested and derivation families (multiple and value indices
+included). The kernel's K/UIP, identity eta, function extensionality and
+equality reflection rejection controls exist. Open-carrier transport needs no
+separate rule, since identity elimination already ranges over any carrier
+variable. No storage receipt is added for polymorphic identity, because the
+receiving kernel checks the citation itself. Retain its `--both` acceptance for
 `samples/cli/facts/{closed_integer_bound,negated_mathematical_order,source_indexed_*,erased_reference_contract}`
 and `proofs/quotient_*`. This docs decision completes none of those implementations.
 

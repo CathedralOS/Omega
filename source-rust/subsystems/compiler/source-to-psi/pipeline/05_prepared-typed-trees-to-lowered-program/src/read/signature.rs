@@ -894,20 +894,20 @@ impl<'p> Converter<'p, '_> {
                 "data that contains itself through another declaration",
             ));
         }
+        let block = self.record_block(record);
+        if block.len() > 1 {
+            return self.mutual_data(id, record, &block);
+        }
+        // Generic data is declared once from its template when the kernel
+        // can state the template with a uniform parameter per type
+        // parameter. Otherwise the application is declared as written, as
+        // data of its own: a template field `Seq<T>` of `Tagged<T>` is a
+        // `Seq<u64>` payload of `Tagged<u64>`.
         let generic = source
             .application
             .as_ref()
-            .is_some_and(|application| !application.substitutions.is_empty());
-        if !generic {
-            let block = program
-                .typed
-                .unique_data_definition_by_symbol(source.declaration)
-                .map(|definition| program.mutual_block(definition))
-                .unwrap_or_default();
-            if block.len() > 1 {
-                return self.mutual_data(id, record, &block);
-            }
-        }
+            .is_some_and(|application| !application.substitutions.is_empty())
+            && program.generic_template_fields(source.declaration).is_ok();
         self.declaring.push(record);
         let read = if generic {
             self.generic_application(id, record)
@@ -954,35 +954,82 @@ impl<'p> Converter<'p, '_> {
         Ok(entry)
     }
 
+    /// The mutual block of the record of data that contains itself
+    /// `record`: the records of such data that its fields reach, directly
+    /// or through stored callables, and that reach it back, in record order.
+    /// The block is read from records, not declarations, so a closed
+    /// application of generic data is a member as the program uses it:
+    /// `Seq<Rose>` with `Rose` when `Rose` holds a `Seq<Rose>` (a nested
+    /// inductive), and `Tree<u64>` with `Forest<u64>` when the generic
+    /// `Tree<T>` and `Forest<T>` hold each other.
+    fn record_block(&self, record: StructuralTypeId) -> Vec<StructuralTypeId> {
+        let reached = self.reached_records(record);
+        let mut block: Vec<StructuralTypeId> = reached
+            .into_iter()
+            .filter(|&other| other == record || self.reached_records(other).contains(&record))
+            .collect();
+        block.sort_unstable();
+        block
+    }
+
+    /// The records of data that contains itself that the cases of `record`
+    /// reach, `record` first.
+    fn reached_records(&self, record: StructuralTypeId) -> Vec<StructuralTypeId> {
+        let program = self.program;
+        let mut reached = vec![record];
+        let mut at = 0;
+        while let Some(&next) = reached.get(at) {
+            at += 1;
+            let Some(declared) = program.records.get(next) else {
+                continue;
+            };
+            for field in declared.cases().iter().flat_map(|case| &case.fields) {
+                self.named_records(field.value_type, &mut reached, 0);
+            }
+        }
+        reached
+    }
+
+    /// Adds each record of data that contains itself that `ty` is or that a
+    /// callable of it takes or returns, however deeply.
+    fn named_records(&self, ty: ValueType, named: &mut Vec<StructuralTypeId>, depth: u32) {
+        let program = self.program;
+        if let ValueType::Record(record, ..) = ty {
+            if program.self_containing.binary_search(&record).is_ok() && !named.contains(&record) {
+                named.push(record);
+            }
+            return;
+        }
+        let ValueType::Scalar(ScalarType::Callable(contract), _) = ty else {
+            return;
+        };
+        let Some(row) = program.callables.contracts.get(contract) else {
+            return;
+        };
+        if depth < 16 {
+            for &inner in row
+                .signature
+                .parameters
+                .iter()
+                .chain(row.signature.result.iter())
+            {
+                self.named_records(inner, named, depth + 1);
+            }
+        }
+    }
+
     /// Declares the mutual block of data that contains itself through the
-    /// other declarations of `block` (`Program::mutual_block`), one native
-    /// inductive block: each member's type, every member's constructors and
-    /// each member's recursor. A field of a member is a recursive child of
-    /// that member, and any other field a payload. Returns `record`'s entry.
+    /// other records of `records` (`record_block`), one native inductive
+    /// block: each member's type, every member's constructors and each
+    /// member's recursor. A field of a member is a recursive child of that
+    /// member, and any other field a payload. Returns `record`'s entry.
     fn mutual_data(
         &mut self,
         id: MachineId,
         record: StructuralTypeId,
-        block: &[SymbolHandle],
+        records: &[StructuralTypeId],
     ) -> Checked<u32> {
         let program = self.program;
-        // Each member's record: the block's records are read together, since
-        // a field of one names another.
-        let mut records = Vec::with_capacity(block.len());
-        for &symbol in block {
-            let found = program.self_containing.iter().copied().find(|&known| {
-                program.record_sources.get(known).is_some_and(|source| {
-                    source.declaration == symbol
-                        && source
-                            .application
-                            .as_ref()
-                            .is_none_or(|application| application.substitutions.is_empty())
-                })
-            });
-            records.push(found.ok_or_else(|| {
-                unserved(id, "member of a mutual block of data that no type reads")
-            })?);
-        }
         if records.iter().any(|record| self.declaring.contains(record)) {
             return Err(unserved(
                 id,
@@ -1001,7 +1048,7 @@ impl<'p> Converter<'p, '_> {
                 for case in declared.cases() {
                     let mut fields = Vec::with_capacity(case.fields.len());
                     for field in &case.fields {
-                        fields.push(self.data_field(id, field.value_type, &records, own)?);
+                        fields.push(self.data_field(id, field.value_type, records, own)?);
                     }
                     cases.push(fields);
                 }
@@ -1023,10 +1070,24 @@ impl<'p> Converter<'p, '_> {
                 .records
                 .get(member_record)
                 .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
-            names.push(self.name(block[member]));
+            let source = program
+                .record_sources
+                .get(member_record)
+                .ok_or_else(|| unserved(id, "mathematical data lost its declaration"))?;
+            // A closed application of generic data is named by its type, as
+            // one declared on its own is.
+            let applied = source
+                .application
+                .as_ref()
+                .is_some_and(|application| !application.substitutions.is_empty());
+            names.push(if applied {
+                declared.identity.clone()
+            } else {
+                self.name(source.declaration)
+            });
             kinds.push((
                 SignatureEntryKind::Data {
-                    declaration: block[member],
+                    declaration: source.declaration,
                     shape: shapes[member].clone(),
                     type_identity: declared.identity.clone(),
                 },
@@ -7412,7 +7473,14 @@ impl<'p> Converter<'p, '_> {
                             self.signature.arena.apply_arguments(variable, &operands)
                         }
                         (None, None) => {
-                            let head = self.declaration(id, member, satisfaction)?;
+                            // A case is read at the data the value is of:
+                            // `Seq::Empty` names one case of every
+                            // application of `Seq`.
+                            let constructed = match value.carrier {
+                                ClauseCarrier::Structural(record) => Some(record),
+                                _ => None,
+                            };
+                            let head = self.declaration(id, member, constructed, satisfaction)?;
                             self.owed_in_clause(id, member, &operands)?;
                             let head = self.constant(head);
                             self.signature.arena.apply_arguments(head, &operands)
@@ -7492,13 +7560,19 @@ impl<'p> Converter<'p, '_> {
         &mut self,
         id: MachineId,
         member: SymbolHandle,
+        constructed: Option<StructuralTypeId>,
         satisfaction: Option<&Satisfaction>,
     ) -> Checked<u32> {
         let program = self.program;
         if let Some((machine, _)) = program.symbols.iter().find(|(_, known)| **known == member) {
             return self.function(machine);
         }
-        for &record in &program.self_containing {
+        // The data a case literal constructs comes first: every application
+        // of generic data has the same case symbols.
+        let records = constructed
+            .into_iter()
+            .chain(program.self_containing.iter().copied());
+        for record in records {
             let Some(source) = program.record_sources.get(record) else {
                 continue;
             };

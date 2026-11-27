@@ -4180,6 +4180,179 @@ use crate::{
     QuotientFamily, Signature, Sort, Term, TermArena, TermHandle, check_signature, quotient_scheme,
 };
 
+/// Rejection controls for what the kernel metatheory does not claim
+/// (`wiki/spec/proofs/kernel_metatheory.md`). Each refusal is paired with the
+/// nearest judgment the kernel does admit, so a control fails if the rule it
+/// guards is either missing or widened.
+mod unclaimed_principles {
+    use super::{apply, default_budget, id, lambda, pi, refl, type_sort, variable};
+    use crate::{Context, CoreError, TermArena, check_type, convertible};
+
+    /// Identity evidence in the context does not make its endpoints
+    /// convertible: there is no equality reflection.
+    #[test]
+    fn identity_evidence_does_not_reflect_into_conversion() {
+        let mut arena = TermArena::new();
+        let mut budget = default_budget();
+        // A : Type 0, x : A, y : A, p : Id A x y
+        let type_zero = type_sort(&mut arena, 0);
+        let x_type = variable(&mut arena, 0);
+        let y_type = variable(&mut arena, 1);
+        let p_type = {
+            let carrier = variable(&mut arena, 2);
+            let x = variable(&mut arena, 1);
+            let y = variable(&mut arena, 0);
+            id(&mut arena, carrier, x, y)
+        };
+        let context = Context::empty()
+            .extend(type_zero)
+            .extend(x_type)
+            .extend(y_type)
+            .extend(p_type);
+        let (carrier, x, y, p) = (
+            variable(&mut arena, 3),
+            variable(&mut arena, 2),
+            variable(&mut arena, 1),
+            variable(&mut arena, 0),
+        );
+        let x_to_y = id(&mut arena, carrier, x, y);
+        check_type(&mut arena, &context, p, x_to_y, &mut budget).unwrap();
+        let x_to_x = id(&mut arena, carrier, x, x);
+        let reflexive = refl(&mut arena, carrier, x);
+        check_type(&mut arena, &context, reflexive, x_to_x, &mut budget).unwrap();
+
+        assert!(!convertible(&mut arena, &context, x, y, carrier, &mut budget).unwrap());
+        let error = check_type(&mut arena, &context, reflexive, x_to_y, &mut budget).unwrap_err();
+        assert!(
+            matches!(error, CoreError::TypeMismatch { .. }),
+            "a premise p : x = y must not let refl x prove x = y: {error:?}"
+        );
+    }
+
+    /// A loop p : x = x is not definitionally refl x (no identity eta), and
+    /// refl cannot prove p = refl x (no K or UIP for an arbitrary carrier).
+    #[test]
+    fn a_loop_is_neither_convertible_nor_provably_equal_to_refl() {
+        let mut arena = TermArena::new();
+        let mut budget = default_budget();
+        // A : Type 0, x : A, p : Id A x x
+        let type_zero = type_sort(&mut arena, 0);
+        let x_type = variable(&mut arena, 0);
+        let p_type = {
+            let carrier = variable(&mut arena, 1);
+            let x = variable(&mut arena, 0);
+            id(&mut arena, carrier, x, x)
+        };
+        let context = Context::empty()
+            .extend(type_zero)
+            .extend(x_type)
+            .extend(p_type);
+        let (carrier, x, p) = (
+            variable(&mut arena, 2),
+            variable(&mut arena, 1),
+            variable(&mut arena, 0),
+        );
+        let loop_type = id(&mut arena, carrier, x, x);
+        let base = refl(&mut arena, carrier, x);
+        check_type(&mut arena, &context, p, loop_type, &mut budget).unwrap();
+
+        assert!(!convertible(&mut arena, &context, p, base, loop_type, &mut budget).unwrap());
+        assert!(!convertible(&mut arena, &context, base, p, loop_type, &mut budget).unwrap());
+
+        let base_is_base = id(&mut arena, loop_type, base, base);
+        let base_refl = refl(&mut arena, loop_type, base);
+        check_type(&mut arena, &context, base_refl, base_is_base, &mut budget).unwrap();
+
+        let p_is_base = id(&mut arena, loop_type, p, base);
+        for witness in [refl(&mut arena, loop_type, p), base_refl] {
+            let error =
+                check_type(&mut arena, &context, witness, p_is_base, &mut budget).unwrap_err();
+            assert!(
+                matches!(error, CoreError::TypeMismatch { .. }),
+                "refl must not prove an arbitrary loop equal to refl: {error:?}"
+            );
+        }
+    }
+
+    /// Pointwise identity evidence does not make two functions convertible
+    /// or let refl prove them identical (no function extensionality), while
+    /// typed eta still identifies a function with its expansion.
+    #[test]
+    fn pointwise_evidence_does_not_identify_functions() {
+        let mut arena = TermArena::new();
+        let mut budget = default_budget();
+        // A : Type 0, B : Type 0, f : A -> B, g : A -> B,
+        // h : (x : A) -> Id B (f x) (g x)
+        let a_type = type_sort(&mut arena, 0);
+        let b_type = type_sort(&mut arena, 0);
+        let f_type = {
+            let a = variable(&mut arena, 1);
+            let b = variable(&mut arena, 1);
+            pi(&mut arena, a, b)
+        };
+        let g_type = {
+            let a = variable(&mut arena, 2);
+            let b = variable(&mut arena, 2);
+            pi(&mut arena, a, b)
+        };
+        let h_type = {
+            let a = variable(&mut arena, 3);
+            let b = variable(&mut arena, 3);
+            let (f, g, x) = (
+                variable(&mut arena, 2),
+                variable(&mut arena, 1),
+                variable(&mut arena, 0),
+            );
+            let fx = apply(&mut arena, f, x);
+            let gx = apply(&mut arena, g, x);
+            let pointwise = id(&mut arena, b, fx, gx);
+            pi(&mut arena, a, pointwise)
+        };
+        let context = Context::empty()
+            .extend(a_type)
+            .extend(b_type)
+            .extend(f_type)
+            .extend(g_type)
+            .extend(h_type);
+        let function_type = {
+            let a = variable(&mut arena, 4);
+            let b = variable(&mut arena, 4);
+            pi(&mut arena, a, b)
+        };
+        let (f, g) = (variable(&mut arena, 2), variable(&mut arena, 1));
+
+        let expanded = {
+            let a = variable(&mut arena, 4);
+            let f = variable(&mut arena, 3);
+            let x = variable(&mut arena, 0);
+            let body = apply(&mut arena, f, x);
+            lambda(&mut arena, a, body)
+        };
+        assert!(
+            convertible(
+                &mut arena,
+                &context,
+                expanded,
+                f,
+                function_type,
+                &mut budget
+            )
+            .unwrap()
+        );
+        let eta_identity = id(&mut arena, function_type, expanded, f);
+        let f_refl = refl(&mut arena, function_type, f);
+        check_type(&mut arena, &context, f_refl, eta_identity, &mut budget).unwrap();
+
+        assert!(!convertible(&mut arena, &context, f, g, function_type, &mut budget).unwrap());
+        let f_is_g = id(&mut arena, function_type, f, g);
+        let error = check_type(&mut arena, &context, f_refl, f_is_g, &mut budget).unwrap_err();
+        assert!(
+            matches!(error, CoreError::TypeMismatch { .. }),
+            "pointwise identity must not let refl f prove f = g: {error:?}"
+        );
+    }
+}
+
 pub(crate) fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
     arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))
 }

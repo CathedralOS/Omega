@@ -94,32 +94,6 @@ pub(super) fn unproved(verdicts: &[RouteVerdict]) -> &UnprovedLaw {
     law
 }
 
-/// The refusal of a program whose data declaration is refused: the
-/// declaration's own, which each machine over the data repeats.
-fn refusal(verdicts: &[RouteVerdict]) -> String {
-    let refused: Vec<_> = verdicts
-        .iter()
-        .filter(|verdict| !matches!(verdict, RouteVerdict::Accepted(_)))
-        .map(|verdict| match verdict {
-            RouteVerdict::FallBack(refusal) => refusal.detail.clone(),
-            other => panic!("the data must be refused before any law is judged: {other:?}"),
-        })
-        .collect();
-    let declaration = refused
-        .iter()
-        .find(|detail| detail.ends_with("the mathematical declaration of `Tagged`"))
-        .unwrap_or_else(|| panic!("the declaration is refused: {refused:#?}"))
-        .clone();
-    let reason = declaration
-        .strip_suffix(" while reading the mathematical declaration of `Tagged`")
-        .expect("found above");
-    assert!(
-        refused.iter().all(|detail| detail.contains(reason)),
-        "{refused:#?}"
-    );
-    declaration
-}
-
 /// The laws of `seq.omg`, each proved by the kernel over the native
 /// inductive `Seq`.
 const SEQ_LAWS: [&str; 12] = [
@@ -236,24 +210,45 @@ fn generic_data_with_a_field_of_its_parameter_is_judged() {
 }
 
 #[test]
-fn generic_data_with_a_field_applying_its_parameter_is_refused() {
-    // `Seq<T>` names the parameter inside another application: a nested
-    // inductive, which the profile does not declare.
-    let refused = refusal(&judged(&generic_program("Seq<T>", "Tagged<T>")));
+fn generic_data_with_a_field_applying_its_parameter_is_judged_at_its_application() {
+    // `Seq<T>` names the parameter inside another application, which no
+    // uniform parameter of one generic block states. `Tagged<u64>` is
+    // declared as written instead, with a `Seq<u64>` payload.
+    let verdicts = judged(&generic_program("Seq<T>", "Tagged<T>"));
+    let judgment = signature(&verdicts);
     assert!(
-        refused.contains("generic data with a field whose type applies a parameter"),
-        "{refused}"
+        judgment.laws.iter().any(|law| law.machine == "count_nil"
+            && matches!(law.decision, MathematicalCoreDecision::Judged(_))),
+        "{judgment:?}"
     );
 }
 
 #[test]
-fn generic_data_recursive_at_other_arguments_is_refused() {
+fn a_false_law_over_generic_data_declared_at_its_application_is_refused() {
+    let source = generic_program("Seq<T>", "Tagged<T>").replace(
+        "count(Tagged::Nil), Nat::Zero)",
+        "count(Tagged::Nil), Nat::Succ { prev: Nat::Zero })",
+    );
+    assert_ne!(
+        source,
+        generic_program("Seq<T>", "Tagged<T>"),
+        "the law is changed"
+    );
+    let verdicts = judged(&source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "count_nil", "{law:?}");
+}
+
+#[test]
+fn generic_data_recursive_at_other_arguments_is_judged_at_its_application() {
     // A recursion at `Tagged<u64>` inside `Tagged<T>` is not uniform in the
-    // parameter, so it is no inductive with that parameter.
-    let refused = refusal(&judged(&generic_program("T", "Tagged<u64>")));
+    // parameter, but `Tagged<u64>` holds itself as written.
+    let verdicts = judged(&generic_program("T", "Tagged<u64>"));
+    let judgment = signature(&verdicts);
     assert!(
-        refused.contains("generic data that contains itself at other arguments"),
-        "{refused}"
+        judgment.laws.iter().any(|law| law.machine == "count_nil"
+            && matches!(law.decision, MathematicalCoreDecision::Judged(_))),
+        "{judgment:?}"
     );
 }
 
