@@ -1751,12 +1751,29 @@ impl Program<'_> {
                                 .operand(id)?,
                         );
                     }
+                    let declaration = ClauseDeclaration {
+                        member: (member.arena_index(), member.generation()),
+                        supplier: supplier
+                            .map(|symbol| (symbol.arena_index(), symbol.generation())),
+                    };
+                    if let Some(realization) = &realization {
+                        let carriers = arguments
+                            .iter()
+                            .map(|&argument| {
+                                values.get(argument as usize).map(|value| value.carrier)
+                            })
+                            .collect::<Option<Vec<_>>>()
+                            .ok_or_else(|| unavailable("clause application lost an operand"))?;
+                        self.record_applied_operation(
+                            id,
+                            realization.symbol,
+                            declaration,
+                            &carriers,
+                            result,
+                        )?;
+                    }
                     ClauseOperand::Application {
-                        declaration: ClauseDeclaration {
-                            member: (member.arena_index(), member.generation()),
-                            supplier: supplier
-                                .map(|symbol| (symbol.arena_index(), symbol.generation())),
-                        },
+                        declaration,
                         arguments,
                     }
                 }
@@ -2260,9 +2277,17 @@ impl Program<'_> {
     ) -> Checked<Option<Proposition>> {
         let typed = self.typed;
         let table = &typed.expression_table;
-        let (applied, literal) = match (table.expression(left), table.expression(right)) {
-            (ExpressionNode::Call(_), ExpressionNode::Boolean(literal)) => (left, *literal),
-            (ExpressionNode::Boolean(literal), ExpressionNode::Call(_)) => (right, *literal),
+        // The other side is a literal, or, for `==`, a truth value the
+        // operation's result is stated to equal: `result == (a == b)`.
+        let (applied, other) = match (table.expression(left), table.expression(right)) {
+            (ExpressionNode::Call(_), ExpressionNode::Boolean(literal)) => (left, Ok(*literal)),
+            (ExpressionNode::Boolean(literal), ExpressionNode::Call(_)) => (right, Ok(*literal)),
+            (ExpressionNode::Call(_), _) if comparison == BinaryOperator::Equal => {
+                (left, Err(right))
+            }
+            (_, ExpressionNode::Call(_)) if comparison == BinaryOperator::Equal => {
+                (right, Err(left))
+            }
             _ => return Ok(None),
         };
         let ExpressionNode::Call(call) = table.expression(applied) else {
@@ -2283,14 +2308,114 @@ impl Program<'_> {
                 Unserved::Contract("applied comparison is not a Boolean result"),
             ));
         };
-        let holds = literal == (comparison == BinaryOperator::Equal);
+        let stated_term = match other {
+            Ok(literal) => ScalarTerm::Boolean(literal == (comparison == BinaryOperator::Equal)),
+            Err(other) => match self.clause_term(
+                id,
+                scope,
+                other,
+                ClauseUse::Scalar(Some(ScalarType::Boolean)),
+            )? {
+                ClauseTerm::Scalar(term, _) if term.scalar_type() == ScalarType::Boolean => term,
+                _ => {
+                    return Err(refuse_at(
+                        id,
+                        Unserved::Contract("applied comparison equals no truth value"),
+                    ));
+                }
+            },
+        };
         let stated = identity
             .values
             .get_mut(identity.right as usize)
             .ok_or_else(|| {
                 refuse_at(id, Unserved::Contract("applied comparison lost its result"))
             })?;
-        stated.operand = ClauseOperand::Scalar(ScalarTerm::Boolean(holds));
+        stated.operand = ClauseOperand::Scalar(stated_term);
         Ok(Some(Proposition::DeclarationIdentity(identity)))
+    }
+
+    /// Record, for the machine `id` whose clause names a selected row's
+    /// operation, what a call of the row's member returns: the operation
+    /// applied to the member's own formals. A member whose formals are not
+    /// all shared loans records nothing, so its calls stay opaque.
+    fn record_applied_operation(
+        &mut self,
+        id: MachineId,
+        member: SymbolHandle,
+        declaration: ClauseDeclaration,
+        carriers: &[ClauseCarrier],
+        result: ValueType,
+    ) -> Checked<()> {
+        let unavailable = |what| refuse_at(id, Unserved::Contract(what));
+        let typed = self.typed;
+        let Some(ScalarType::Boolean) = result.scalar() else {
+            return Ok(());
+        };
+        let entry = typed
+            .machine_by_symbol(member)
+            .and_then(|machine| typed.machine_states(machine).first())
+            .ok_or_else(|| unavailable("clause application lost its member's entry"))?;
+        let parameters = typed.state_parameters(entry);
+        if parameters.len() != carriers.len() {
+            return Err(unavailable(
+                "clause application arity differs from its member",
+            ));
+        }
+        let mut values = Vec::with_capacity(carriers.len() + 2);
+        for (position, (parameter, &carrier)) in parameters.iter().zip(carriers).enumerate() {
+            let (_, erased, borrowed) = self.formal(id, parameter)?;
+            if erased
+                || parameter.is_mutable
+                || borrowed.is_none_or(|borrowed| {
+                    borrowed.access != language_core::ReferenceAccess::Shared
+                })
+            {
+                return Ok(());
+            }
+            // Every formal is a shared loan, so the member's places are
+            // its formals in order (`contracts::formal_place`).
+            let place = semantic_vocabulary::PlaceId::new(position as u64 + 1)
+                .ok_or_else(|| unavailable("formal place identity"))?;
+            values.push(ClauseValue {
+                carrier,
+                operand: ClauseOperand::Input(semantic_vocabulary::StructuralCaseSubject::new(
+                    place,
+                    Vec::new(),
+                )),
+            });
+        }
+        let applied =
+            u32::try_from(values.len()).map_err(|_| unavailable("clause term table overflow"))?;
+        values.push(ClauseValue {
+            carrier: ClauseCarrier::Scalar(ScalarType::Boolean),
+            operand: ClauseOperand::Application {
+                declaration,
+                arguments: (0..applied).collect(),
+            },
+        });
+        // With no scalar formal, the result is the member's first value
+        // (`machine::signature`'s `result_value`).
+        let result_value =
+            semantic_vocabulary::ValueId::new(1).ok_or_else(|| unavailable("result identity"))?;
+        values.push(ClauseValue {
+            carrier: ClauseCarrier::Scalar(ScalarType::Boolean),
+            operand: ClauseOperand::Scalar(ScalarTerm::value(result_value, ScalarType::Boolean)),
+        });
+        let statement = Proposition::DeclarationIdentity(semantic_vocabulary::ClauseIdentity {
+            values,
+            left: applied,
+            right: applied + 1,
+        });
+        if !self
+            .applied_operations
+            .iter()
+            .any(|(machine, callee, known)| {
+                *machine == id && *callee == member && *known == statement
+            })
+        {
+            self.applied_operations.push((id, member, statement));
+        }
+        Ok(())
     }
 }

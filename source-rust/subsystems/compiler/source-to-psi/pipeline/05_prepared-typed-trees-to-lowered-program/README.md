@@ -357,7 +357,15 @@ another operation. The row must itself be written `reaches none crashes none
 terminates`, since `Equatable::equals` promises none of them. A lent operand
 is a by-value formal or a shared borrowed one; a `@mutable` formal is
 refused, because the machine may write its referent before the clause is
-used.
+used. `result == (a == b)` states the operation equal to another truth value.
+A clause that names a selected row's operation also records, for the
+machine, what any call of that row returns: the operation applied to the
+call's own arguments (`record_applied_operation`,
+`MachineTables::applied_operations`). Stage 06 states it after each such
+call, so `requires a == b` proves a body's `a == b` true by call congruence
+([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
+"Repeated admitted pure comparisons with the same selected operation and
+exact unchanged arguments have the same Boolean denotation").
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
 

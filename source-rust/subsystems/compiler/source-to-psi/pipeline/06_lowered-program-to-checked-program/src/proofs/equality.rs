@@ -3335,14 +3335,22 @@ pub(crate) fn discharge(
         let Proposition::DeclarationIdentity(actual) = premise else {
             continue;
         };
-        let Some(Justification::CalleeGuarantee { invocation, clause }) = justification else {
-            continue;
+        // The result of an earlier call of a total comparison is the same
+        // application of its operation to the same, unmodified inputs
+        // (`contracts.md#equality-bridges-and-comparison-facts`).
+        let (invocation, clause) = match justification {
+            Some(Justification::CalleeGuarantee { invocation, clause }) => {
+                (invocation, Some(clause))
+            }
+            Some(Justification::CallCongruence { invocation }) => (invocation, None),
+            _ => continue,
         };
         let call = tables
             .invocations
             .get(*invocation)
             .ok_or_else(|| unavailable("citation lost its invocation"))?;
-        if let Callee::Declared(TargetMachineCallable::Machine(callee)) = call.callee
+        if let Some(clause) = clause
+            && let Callee::Declared(TargetMachineCallable::Machine(callee)) = call.callee
             && law_instances.binary_search(&callee).is_ok()
         {
             let call = call_contracts::invocation(module, machine, tables, *invocation, call)?;
@@ -3366,9 +3374,13 @@ pub(crate) fn discharge(
         // the call site supplies the same field or value identity premise as
         // an entry requirement (`contracts.md#record-identity-from-field-identities`),
         // provided every local place it names is unmodified since the call.
+        // A repeated comparison relates the values the call read, which are
+        // the entry values only if nothing in the machine writes them, a
+        // structural parameter declared `mutable` included.
+        let congruence = clause.is_none();
         let fresh = actual.values.iter().all(|value| match &value.operand {
             ClauseOperand::Input(subject) => {
-                machine.structural_parameter(subject.root()).is_some()
+                (!congruence && machine.structural_parameter(subject.root()).is_some())
                     || matches!(
                         call.site,
                         terminal_check_tables::InvocationSite::Operation(operation)

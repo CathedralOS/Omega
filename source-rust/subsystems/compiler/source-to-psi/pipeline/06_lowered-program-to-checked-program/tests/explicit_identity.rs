@@ -195,3 +195,83 @@ machine stale(a: @mutable P, b: @P) requires |proof|::Identity::<P>($a, $b) { a.
         "Identity operand has no exact input observation",
     );
 }
+
+#[test]
+fn a_precondition_proves_the_same_comparison_the_body_returns() {
+    accepted(&coin(
+        "machine same(a: Coin, b: Coin) -> bool requires a == b ensures result { a == b }\n",
+    ));
+    accepted(&coin(
+        "machine same(a: @Coin, b: @Coin) -> bool requires a == b ensures result { a == b }\n",
+    ));
+    accepted(&coin(
+        "machine differ(a: Coin, b: Coin) -> bool requires a != b ensures !result { a == b }\n",
+    ));
+}
+
+#[test]
+fn the_body_returns_the_operation_without_a_precondition() {
+    accepted(&coin(
+        "machine same(a: Coin, b: Coin) -> bool ensures result == (a == b) { a == b }\n",
+    ));
+}
+
+#[test]
+fn congruence_needs_the_same_values() {
+    call_requirement_or_ensures_unproved(&coin(
+        "machine same(a: Coin, b: Coin, c: Coin) -> bool requires a == b ensures result { a == c }\n",
+    ));
+    call_requirement_or_ensures_unproved(&coin(
+        "machine same(a: Coin, b: Coin) -> bool requires a == b ensures result { b == a }\n",
+    ));
+}
+
+#[test]
+fn congruence_needs_the_same_operation() {
+    let two = "data Coin { value: i32; year: i32; }
+CoinByValue satisfies Equatable<Coin> {
+    machine equals(left: @Coin, right: @Coin) -> bool reaches none crashes none terminates {
+        left.value == right.value
+    }
+}
+CoinByYear satisfies Equatable<Coin> {
+    machine equals(left: @Coin, right: @Coin) -> bool reaches none crashes none terminates {
+        left.year == right.year
+    }
+}
+";
+    call_requirement_or_ensures_unproved(&format!(
+        "{two}machine same(a: Coin, b: Coin) -> bool requires CoinByValue::equals(@a, @b) ensures result {{ CoinByYear::equals(@a, @b) }}\n"
+    ));
+    accepted(&format!(
+        "{two}machine same(a: Coin, b: Coin) -> bool requires CoinByYear::equals(@a, @b) ensures result {{ CoinByYear::equals(@a, @b) }}\n"
+    ));
+}
+
+#[track_caller]
+fn call_requirement_or_ensures_unproved(main: &str) {
+    let verdict = checked(main);
+    let text = format!("{verdict:?}");
+    assert!(
+        text.contains("unproved: [\"CallRequirement")
+            || text.contains("unproved: [\"NormalGuarantee")
+            || text.contains("cannot prove ensures"),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn a_written_input_is_not_the_value_the_precondition_compared() {
+    // `a` is written before the comparison, so its result is about another
+    // value than the one `requires` compared.
+    call_requirement_or_ensures_unproved(&coin(
+        "machine same(mutable a: Coin, b: Coin) -> bool requires a == b ensures result { a.value = 3i32; a == b }\n",
+    ));
+}
+
+#[test]
+fn the_returned_comparison_is_the_operation_on_the_same_values() {
+    call_requirement_or_ensures_unproved(&coin(
+        "machine same(a: Coin, b: Coin) -> bool ensures result == (a == b) { b == a }\n",
+    ));
+}
