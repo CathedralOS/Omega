@@ -13,7 +13,7 @@ requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < RENDER_HEIGH
     }
     machine title(frame: @|frame|::Frame, x: i32, y: i32) -> i32
     requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
-        transition x >= 12 && x < 60 && y >= 5 && y < 15 {
+        transition x >= 12 && x < 84 && y >= 5 && y < 15 {
             true -> title_pixel(frame, (x - 12) / 2, (y - 5) / 2),
             _ -> room_name(frame, x, y)
         }
@@ -21,9 +21,9 @@ requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < RENDER_HEIGH
     machine title_pixel(frame: @|frame|::Frame, x: i32, y: i32) -> i32
     requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
         let title: [u8; 6] = "HOLLOW";
-        let index: i32 = x / 4;
+        let index: i32 = x / 6;
         transition index >= 0 && index < 6 {
-            true -> title_letter(title[index], x % 4, y),
+            true -> title_letter(title[index], x % 6, y),
             _ -> (1119769)
         }
     }
@@ -33,8 +33,8 @@ requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < RENDER_HEIGH
     }
     machine room_name(frame: @|frame|::Frame, x: i32, y: i32) -> i32
     requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
-        transition x >= 12 && x < 52 && y >= 21 && y < 26 {
-            true -> room_letter(frame, (x - 12) / 4, (x - 12) % 4, y - 21),
+        transition x >= 12 && x < 72 && y >= 21 && y < 26 {
+            true -> room_letter(frame, (x - 12) / 6, (x - 12) % 6, y - 21),
             _ -> hearts(frame, x, y)
         }
     }
@@ -116,8 +116,8 @@ requires x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < RENDER_HEIGH
     }
     machine overlay_text(frame: @|frame|::Frame, x: i32, y: i32) -> i32
     requires x >= -512 && x <= 512 && y >= -512 && y <= 512 {
-        transition x >= 92 && x < 164 && y >= 72 && y < 82 {
-            true -> outcome(frame, (x - 92) / 8, ((x - 92) % 8) / 2, (y - 72) / 2),
+        transition x >= 74 && x < 182 && y >= 72 && y < 82 {
+            true -> outcome(frame, (x - 74) / 12, ((x - 74) % 12) / 2, (y - 72) / 2),
             _ -> (1119769)
         }
     }
@@ -295,34 +295,35 @@ requires x >= 0 && x < 12 && y >= 0 && y < 16 {
 }
 
 public machine letter_pixel(character: u8, x: i32, y: i32) -> bool {
-    transition x >= 0 && x < 3 && y >= 0 && y < 5 { true -> glyph(character, x, y), _ -> (false) }
+    transition x >= 0 && x < 5 && y >= 0 && y < 5 { true -> glyph(character, x, y), _ -> (false) }
     machine glyph(character: u8, x: i32, y: i32) -> bool
-    requires x >= 0 && x < 3 && y >= 0 && y < 5 {
+    requires x >= 0 && x < 5 && y >= 0 && y < 5 {
         let bits: u32 = glyph_bits(character);
-        let offset: u32 = (y * 3 + x) as u32;
+        let offset: u32 = (y * 5 + x) as u32;
         (bits & (1u32 << offset)) != 0
     }
 }
 
 machine glyph_bits(character: u8) -> u32 {
     transition character {
-        65 -> (23530),
-        67 -> (25126),
-        68 -> (15211),
-        69 -> (29391),
-        70 -> (4815),
-        71 -> (27470),
-        72 -> (23533),
-        73 -> (29847),
-        76 -> (29257),
-        77 -> (23549),
-        78 -> (24557),
-        79 -> (31599),
-        82 -> (23375),
-        83 -> (31183),
-        84 -> (9367),
-        85 -> (31597),
-        87 -> (24557),
+        65 -> (18415150),
+        67 -> (31491134),
+        68 -> (16303663),
+        69 -> (32554047),
+        70 -> (1096767),
+        71 -> (32044094),
+        72 -> (18415153),
+        73 -> (32641183),
+        76 -> (32539681),
+        77 -> (18405233),
+        78 -> (18667121),
+        79 -> (15255086),
+        82 -> (18136623),
+        83 -> (16267326),
+        84 -> (4329631),
+        85 -> (15255089),
+        86 -> (4539953),
+        87 -> (18732593),
         _ -> (0)
     }
 }

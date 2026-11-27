@@ -3,9 +3,10 @@
 
 mod memberships;
 
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use terminal_codec::{TerminalArtifactView, TerminalExecutionIdentity, TerminalExecutionView};
 use terminal_psi::TerminalPsiIdentity;
+use terminal_semantics::synchronization::{SpinWait, component_spin_wait, stuck_private_wait};
 
 use crate::{
     AdmittedProviderSelections, ProviderInstallationSelection, admit_provider_installation,
@@ -19,6 +20,7 @@ pub struct AdmittedComponentProvider {
     provider_boundary: BoundaryMachineId,
     candidate: MachineId,
     selection: AdmittedProviderSelections,
+    wait: Option<SpinWait>,
     input_memberships: memberships::InputMemberships,
     result_memberships: memberships::Memberships,
 }
@@ -74,13 +76,15 @@ pub fn admit_component_provider<'receiver>(
     let receiver = receiver.into();
     let receiving = receiver
         .module()
-        .interfaces.boundary_machines
+        .interfaces
+        .boundary_machines
         .iter()
         .find(|row| row.id == receiving_boundary)
         .ok_or("component import names no receiving boundary")?;
     let supplying = provider
         .module()
-        .interfaces.boundary_machines
+        .interfaces
+        .boundary_machines
         .iter()
         .find(|row| row.id == selected.boundary)
         .ok_or("component export names no producing boundary")?;
@@ -143,7 +147,63 @@ pub fn admit_component_provider<'receiver>(
         provider_boundary: selected.boundary,
         candidate: selected.candidate,
         selection,
+        wait: component_spin_wait(
+            receiver.module(),
+            receiving,
+            provider.module(),
+            selected.candidate,
+        ),
         input_memberships,
         result_memberships,
     })
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ComponentDeadlock {
+    pub caller: MachineId,
+    pub operation: OperationId,
+}
+
+impl std::fmt::Display for ComponentDeadlock {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "synchronization deadlock in machine {} at operation {}: the call retries on an unchanged private atomic cell",
+            self.caller.get(),
+            self.operation.get(),
+        )
+    }
+}
+
+/// Find an entry's private wait that its selected imports make permanent.
+/// Only a selection admitted for this receiver can describe one of its calls.
+/// Missing, opaque and unrecognized suppliers leave that call unknown.
+pub fn component_wait_deadlock<'a, 'receiver>(
+    receiver: impl Into<TerminalExecutionView<'receiver>>,
+    entry: MachineId,
+    installed: impl IntoIterator<Item = &'a AdmittedComponentProvider>,
+) -> Option<ComponentDeadlock> {
+    let receiver = receiver.into();
+    let identity = receiver.custody_identity();
+    let mut imports: Vec<_> = installed
+        .into_iter()
+        .filter(|supplier| supplier.receiver() == &identity)
+        .collect();
+    if imports.iter().all(|supplier| supplier.wait.is_none()) {
+        return None;
+    }
+    imports.sort_unstable_by_key(|supplier| supplier.receiving_boundary);
+    let (caller, operation) = stuck_private_wait(receiver.module(), entry, |slot| {
+        let first = imports.partition_point(|supplier| supplier.receiving_boundary < slot);
+        let supplier = imports.get(first)?;
+        if supplier.receiving_boundary != slot
+            || imports
+                .get(first + 1)
+                .is_some_and(|other| other.receiving_boundary == slot)
+        {
+            return None;
+        }
+        supplier.wait.clone()
+    })?;
+    Some(ComponentDeadlock { caller, operation })
 }
