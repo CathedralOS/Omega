@@ -1254,6 +1254,9 @@ mod tests {
         fs::create_dir_all(repository.join("src")).unwrap();
         fs::create_dir_all(repository.join("samples")).unwrap();
         fs::write(repository.join(".gitignore"), "/target/\n").unwrap();
+        // Pin checkout line endings as the repository's own `.gitattributes`
+        // does, so a host `core.autocrlf` cannot rewrite the restored bytes.
+        fs::write(repository.join(".gitattributes"), "* text=auto eol=lf\n").unwrap();
         fs::write(repository.join("src/lib.rs"), "// source\n").unwrap();
         fs::write(
             repository.join("samples/input.omg"),
