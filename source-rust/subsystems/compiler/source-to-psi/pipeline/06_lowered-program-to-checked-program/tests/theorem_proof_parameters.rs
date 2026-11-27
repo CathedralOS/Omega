@@ -1760,3 +1760,59 @@ fn a_signed_strict_bound_theorem_concludes_only_the_adjacent_bound() {
         "{refused}\n{verdict:?}"
     );
 }
+
+/// Every value of `Choice` is in one of its cases. The alias concludes
+/// `c in Choice::One || c in Choice::Two` and the cited machine promises
+/// nothing: the citation's refinement splits on the case from no premise,
+/// and the kernel derives it through the sum's recursor.
+fn concluding_a_case(conclusion: &str) -> String {
+    ONE_IS_POSITIVE
+        .replace(
+            "    requires c in Choice::One && c.x != 0u8\n    ensures c.x > 0u8;",
+            &format!("    requires true\n    ensures {conclusion};"),
+        )
+        .replace(
+            "requires c in Choice::One && c.x != 0u8\nensures c.x > 0u8",
+            "requires true\nensures true",
+        )
+}
+
+#[test]
+fn a_theorem_concludes_that_its_sum_is_in_one_of_its_cases() {
+    for conclusion in [
+        "c in Choice::One || c in Choice::Two",
+        "c in Choice::Two || c in Choice::One",
+    ] {
+        let source = concluding_a_case(conclusion);
+        assert!(
+            source.contains(&format!("    requires true\n    ensures {conclusion};")),
+            "{source}"
+        );
+        assert!(
+            source.contains("machine one_is_positive(c: Choice)\nrequires true\nensures true"),
+            "{source}"
+        );
+        let verdict = stored(&source);
+        assert!(
+            matches!(verdict, Ok(Verdict::Accepted)),
+            "{conclusion}: {verdict:?}"
+        );
+    }
+}
+
+/// A third case leaves a value in neither: the split is not exhaustive, and
+/// the citation does not establish the alias's conclusion.
+#[test]
+fn a_theorem_cannot_conclude_its_sum_is_in_some_of_its_cases() {
+    let source = concluding_a_case("c in Choice::One || c in Choice::Two").replace(
+        "    case Two(y: u8);\n",
+        "    case Two(y: u8);\n    case Three(z: u8);\n",
+    );
+    assert!(source.contains("case Three(z: u8);"), "{source}");
+    let verdict = stored(&source);
+    let shown = format!("{verdict:?}");
+    assert!(
+        shown.contains("explicit proof argument does not establish the complete aliased contract"),
+        "{shown}"
+    );
+}

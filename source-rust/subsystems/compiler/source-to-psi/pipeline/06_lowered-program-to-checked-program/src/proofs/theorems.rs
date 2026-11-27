@@ -340,6 +340,7 @@ pub(crate) fn finalize_citations(
             )
             .map_err(invalid)?;
             citation.derivations = derive_citation(
+                module,
                 row.machine,
                 &context.parameter.contract,
                 &goals,
@@ -555,11 +556,12 @@ fn derive_supply(
     let goals =
         terminal_semantics::theorems::citation_goals(module, expected, machine, &formals, 0)
             .map_err(invalid)?;
-    derive_citation(owner, expected, &goals, failure, activity)
+    derive_citation(module, owner, expected, &goals, failure, activity)
 }
 
 /// Prove a citation's three goals over the alias's subjects.
 fn derive_citation(
+    module: &TerminalModule,
     owner: MachineId,
     expected: &terminal_psi::TheoremContract,
     goals: &[Proposition; 3],
@@ -581,17 +583,25 @@ fn derive_citation(
         .collect();
     let proposition_context =
         terminal_semantics::theorems::contract_context(expected).map_err(invalid)?;
+    // A sum subject is one value of its declaration, so a goal may split on
+    // its case (`StructuralCaseExhaustion`).
+    let data = terminal_semantics::theorems::contract_data_subjects(
+        expected,
+        &terminal_semantics::theorems::module_sums(module),
+    )
+    .map_err(invalid)?;
     let mut derivations = Vec::with_capacity(goals.len());
     for (position, goal) in goals.iter().enumerate() {
         let obligation = semantic_vocabulary::ObligationId::new(position as u64 + 1)
             .ok_or_else(|| invalid("theorem derivation role overflow"))?;
         derivations.push(
-            crate::derive_contract_obligation(
+            crate::derive_theorem_obligation(
                 owner.into(),
                 &proposition_context,
                 obligation,
                 goal,
                 &declarations,
+                &data,
                 activity,
             )
             .map_err(|mut error| {

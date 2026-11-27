@@ -317,8 +317,9 @@ pub(crate) mod admission {
 
             #[test]
             fn proof_system_marker_has_no_compatibility_ladder() {
-                assert_eq!(ProofSystemMarker::new(9), Some(ProofSystemMarker::CURRENT));
-                assert!(ProofSystemMarker::new(10).is_none());
+                assert_eq!(ProofSystemMarker::new(10), Some(ProofSystemMarker::CURRENT));
+                assert!(ProofSystemMarker::new(11).is_none());
+                assert!(ProofSystemMarker::new(9).is_none());
                 assert!(ProofSystemMarker::new(8).is_none());
                 assert!(ProofSystemMarker::new(7).is_none());
                 assert!(ProofSystemMarker::new(6).is_none());
@@ -458,7 +459,8 @@ pub use proof::subtract_antitone::{UnsignedDifference, unsigned_difference};
 pub use proof::{
     AcceptedPremise, AcceptedProofRule, CertificateAcceptance, MathematicalCoreDecision,
     MathematicalJudgmentReceipt, ProofError, ProofNode, ProofRule, accept_certificate,
-    accept_certificate_with_machine_parameters, check_certificate, lift_exact_integer_order,
+    accept_certificate_over_data, accept_certificate_with_machine_parameters,
+    case_exhaustion_cases, check_certificate, lift_exact_integer_order,
     lift_fixed_integer_relation, lower_integer_math_relation,
 };
 

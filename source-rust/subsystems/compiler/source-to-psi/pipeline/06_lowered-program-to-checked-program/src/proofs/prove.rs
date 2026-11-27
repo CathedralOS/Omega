@@ -914,6 +914,9 @@ pub(crate) struct Prover<'a> {
     branch: bool,
     /// The budget the last top-level goal was given.
     step_limit: usize,
+    /// A theorem's sum subjects, bound to their declarations, so that a goal
+    /// may conclude one is in one of its cases. Empty outside a theorem.
+    data_subjects: &'a [proof_admission::DataSubject],
 }
 
 fn node(conclusion: Proposition, rule: ProofRule) -> ProofNode {
@@ -1399,7 +1402,27 @@ impl<'a> Prover<'a> {
             steps_exhausted: false,
             branch: is_branch,
             step_limit: PROOF_STEP_BUDGET,
+            data_subjects: &[],
         }
+    }
+
+    pub(crate) fn over_data(mut self, data_subjects: &'a [proof_admission::DataSubject]) -> Self {
+        self.data_subjects = data_subjects;
+        self
+    }
+
+    /// `c in S::A || c in S::B || ...` naming every case of a theorem's sum
+    /// subject once: the kernel derives it by induction over `c`.
+    fn case_exhaustion(&self, goal: &Proposition) -> Option<ProofNode> {
+        let (place, cases) = proof_admission::case_exhaustion_cases(goal).ok()?;
+        let subject = self.data_subjects.iter().find(|data| data.place == place)?;
+        (cases.len() == subject.shape.cases.len()
+            && subject
+                .shape
+                .cases
+                .iter()
+                .all(|(case, _)| cases.contains(case)))
+        .then(|| node(goal.clone(), ProofRule::StructuralCaseExhaustion))
     }
 
     fn exact_fact(&mut self, goal: &Proposition) -> Option<usize> {
@@ -2370,6 +2393,7 @@ impl<'a> Prover<'a> {
             Some((&self.facts, &self.normalized_premises)),
         );
         branch.case_split = self.case_split;
+        branch.data_subjects = self.data_subjects;
         branch.remaining_case_combinations = self.remaining_case_combinations;
         branch.case_combinations_exhausted = self.case_combinations_exhausted;
         branch.remaining_steps = self.remaining_steps;
@@ -2551,7 +2575,7 @@ impl<'a> Prover<'a> {
                     }
                 }
                 self.case_split = case_split;
-                Err(last)
+                self.case_exhaustion(goal).ok_or(last)
             }
             Proposition::LessOrEqual(left, right) | Proposition::LessThan(left, right) => {
                 if let Some(proof) = self.closed(goal.clone()) {

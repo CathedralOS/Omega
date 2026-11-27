@@ -546,6 +546,7 @@ impl Transport<'_> {
                 ProofRule::IeeeFloatOrderChain(children(parts)?)
             }
             ProofRule::IntegerFloatExact => ProofRule::IntegerFloatExact,
+            ProofRule::StructuralCaseExhaustion => ProofRule::StructuralCaseExhaustion,
             ProofRule::FloatIntegerConversion { premise, computed } => {
                 ProofRule::FloatIntegerConversion {
                     premise: child(premise)?,

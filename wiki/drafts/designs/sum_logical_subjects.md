@@ -48,10 +48,13 @@ unsupported shape is refused by name.
 3. **Stage 05.** Read a sum formal on a theorem alias and on a cited machine
    into a data subject. Record inputs stay flattened.
 4. **Citation.** A cited machine with a sum formal supplies its contract over
-   the same data subject. The implication's proof needs case analysis, so the
-   prover gains a case-analysis rule. The rule takes one branch per case, and
-   the kernel justifies it by the recursor. The cited machine must still
-   return without running anything.
+   the same data subject. Where the implication needs a split on the case,
+   the prover concludes `c in S::A || c in S::B || ...`, naming every case
+   once, by the rule `StructuralCaseExhaustion`. The kernel derives it by
+   induction over the sum: the motive is that disjunction of case tests,
+   and at each case its own test computes to `0 = 0`. The rule is checked
+   only over a theorem's sum input, where the declaration is bound. The
+   cited machine must still return without running anything.
 5. **Application.** Where the law is applied, the checker builds the actual
    value as the constructor of the case known at the edge, applied to the
    payload values reaching it. The premise then reduces to scalar
@@ -61,8 +64,8 @@ unsupported shape is refused by name.
 
 ## Risks
 
-- The case-analysis rule is new trusted proof vocabulary. It needs a kernel
-  derivation through the recursor, not an axiom.
+- The case-analysis rule is new proof vocabulary (proof-system marker 10).
+  The kernel derives each use through the recursor; it is not an axiom.
 - Step 1 changes the wire format. Committed `.psi` fixtures that carry the old
   format marker need regenerating.
 - Whole-sum identity is only a proposition the contract states. It does not

@@ -722,12 +722,12 @@ mod tests {
         .unwrap();
         assert_eq!(
             rebuilt.manifest().identity().to_string(),
-            "bdc09d2788aafff6e9d273da01e7b691a3ec2ff9b613cd0454c473233963212b"
+            "e3bb2f8242b9e6151ccd7edbb235cb0ccbe9017ef7c6c4d1799fa597317ce983"
         );
         let encoded = rebuilt.to_bytes();
         assert_eq!(
             hex(&content_identity(&encoded)),
-            "72da467198f8b9bbcf8b3bfbca3d387d6174aa9ab0f942948f5a80b65f5257bb"
+            "25241cbdb5eb2253109faba193441a9d90ec7b444b505f944c19efe8d5d7c065"
         );
         assert!(encoded.as_slice() == bytes);
     }
