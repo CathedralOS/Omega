@@ -149,7 +149,7 @@ machine build(
     ) {
         build_segment(maze_builder, level, random, |map|::CellId::R03, |map|::CellId::R04, 4u32 as +Wrapping, 0u32 as +Wrapping, |map|::Direction::North);
         level.room_count = 8;
-        level.deepest_depth = |math|::max_u32(level.deepest_depth as u32, 4) as u32 +Wrapping;
+        level.deepest_depth = |math|::max_u32(level.deepest_depth as -Wrapping, 4) as +Wrapping;
     }
 }
 
@@ -273,7 +273,7 @@ machine should_carve(
     random: @mutable |random_state|::RandomState,
     depth: u32 in Wrapping
     ) -> bool {
-    let carve_probability: u32 in Wrapping = |math|::max_u32(15, (80 - depth * 6) as u32) as u32 +Wrapping;
+    let carve_probability: u32 in Wrapping = |math|::max_u32(15, (80 - depth * 6) as -Wrapping) as +Wrapping;
     let rolled: bool = |random|::chance(@mutable maze_builder.rng, random, carve_probability, 100u32 as +Wrapping);
 
     transition {
@@ -303,7 +303,7 @@ machine carve_room(
     room.discovered = cell == start_cell;
     |room_events|::roll_event(@mutable maze_builder.events, depth, random, @mutable room.event);
     level.room_count = |math|::max_u64(level.room_count, index + 1);
-    level.deepest_depth = |math|::max_u32(level.deepest_depth as u32, depth as u32) as u32 +Wrapping;
+    level.deepest_depth = |math|::max_u32(level.deepest_depth as -Wrapping, depth as -Wrapping) as +Wrapping;
 }
 
 machine connect(

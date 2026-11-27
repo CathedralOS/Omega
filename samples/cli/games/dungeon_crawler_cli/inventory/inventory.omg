@@ -145,7 +145,7 @@ machine find_item_at(items: @[|items|::InventoryItem],
         let next_index: u64 in Wrapping = index + 1;
 
         transition found {
-            true -> (index as u64),
+            true -> (index as -Wrapping),
             false -> scan_next(items, kind, next_index)
         }
     }

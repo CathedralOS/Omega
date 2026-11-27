@@ -27,8 +27,7 @@ private call paths while keeping the current command-processing algorithm.
 
 What it is trying to prove:
 
-- an attached entry machine with an explicit mutable `Main` data argument can drive a stateful
-  terminal application
+- the selected entry machine owns the mutable `Main` state throughout the game loop
 - console input/output goes through the standard library `Console` boundary
 - room entry is explicit and visible in the state graph
 - level data can be hardcoded without hardcoding traversal logic
@@ -39,7 +38,7 @@ What it is trying to prove:
 ## Runtime acceptance
 
 The October runs below exercised closed stdin and help/exit on macOS ARM64 and
-Windows x86_64. The authored Build binds `entry_start` on four hosted targets.
+Windows x86_64. The authored Build binds `entry_start` on five hosted targets.
 Check each output against its transcript as well as its exit status.
 [Build](build.omg) · [Native compiler](../../../../source-rust/subsystems/compiler/psi-to-native/README.md) · [Release criteria](../../../../wiki/drafts/reference/rust_compiler_completion.md)
 
@@ -105,11 +104,10 @@ Sample layout:
 - `rooms/`, `inventory/`, `events/`, `combat/`, `player/`, `enemies/`,
   and `rewards/`: domain-owned models plus their behavior
 
-The build declares the system dependency and binds `entry_start` explicitly for
-Windows x64, Linux x64/ARM64 and macOS ARM64. Ordinary target defaults select
-console and process-exit providers; the sample does not bind each provider
-separately. Selection is not proof of native provider implementation or runtime
-acceptance.
+The Build grants the system dependency standard input, standard output and
+process exit. It binds the same entry on Windows x64/ARM64, Linux x64/ARM64
+and macOS ARM64. The target supplies the console and process-exit providers.
+The runtime results above identify the hosts actually exercised.
 
 Build output:
 

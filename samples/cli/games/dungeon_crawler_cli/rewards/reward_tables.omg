@@ -15,7 +15,7 @@ machine roll_room_treasure(
     reward: @mutable |rewards|::Reward
 ) {
     reward.kind = |rewards|::RewardKind::GoldAndItem;
-    reward.gold = 20 + depth * 8 + (|random|::range(@mutable reward_tables.rng, random, 15u32 as +Wrapping) as u32 +Wrapping);
+    reward.gold = 20 + depth * 8 + (|random|::range(@mutable reward_tables.rng, random, 15u32 as +Wrapping) as +Wrapping);
     reward.item = roll_item(reward_tables, depth, random);
 }
 
@@ -26,7 +26,7 @@ machine roll_gold_cache(
     reward: @mutable |rewards|::Reward
 ) {
     reward.kind = |rewards|::RewardKind::Gold;
-    reward.gold = 8 + depth * 5 + (|random|::range(@mutable reward_tables.rng, random, 12u32 as +Wrapping) as u32 +Wrapping);
+    reward.gold = 8 + depth * 5 + (|random|::range(@mutable reward_tables.rng, random, 12u32 as +Wrapping) as +Wrapping);
     reward.item = |items|::ItemKind::RustedDagger;
 }
 
@@ -49,7 +49,7 @@ machine roll_enemy_reward(
         reward: @mutable |rewards|::Reward
     ) {
         reward.kind = |rewards|::RewardKind::GoldAndItem;
-        reward.gold = 1 + enemy.depth + (|random|::range(@mutable reward_tables.rng, random, 5u32 as +Wrapping) as u32 +Wrapping);
+        reward.gold = 1 + enemy.depth + (|random|::range(@mutable reward_tables.rng, random, 5u32 as +Wrapping) as +Wrapping);
         reward.item = roll_item(reward_tables, enemy.depth, random);
     }
 
@@ -60,7 +60,7 @@ machine roll_enemy_reward(
         reward: @mutable |rewards|::Reward
     ) {
         reward.kind = |rewards|::RewardKind::Gold;
-        reward.gold = 2 + enemy.depth * 2 + (|random|::range(@mutable reward_tables.rng, random, 6u32 as +Wrapping) as u32 +Wrapping);
+        reward.gold = 2 + enemy.depth * 2 + (|random|::range(@mutable reward_tables.rng, random, 6u32 as +Wrapping) as +Wrapping);
         reward.item = |items|::ItemKind::RustedDagger;
     }
 }
@@ -70,7 +70,7 @@ machine roll_item(
     depth: u32 in Wrapping,
     random: @mutable |random_state|::RandomState
     ) -> |items|::ItemKind {
-    let roll: u32 in Wrapping = |random|::range(@mutable reward_tables.rng, random, 100u32 as +Wrapping) as u32 +Wrapping;
+    let roll: u32 in Wrapping = |random|::range(@mutable reward_tables.rng, random, 100u32 as +Wrapping) as +Wrapping;
 
     let is_early_dagger: bool = depth <= 2 && roll < 50;
     let is_early_buckler: bool = depth <= 3 && roll < 75;
