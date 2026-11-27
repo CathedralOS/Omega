@@ -3255,6 +3255,83 @@ pub(crate) mod program {
     }
 
     #[cfg(test)]
+    mod instance_containment_tests {
+        use super::*;
+        use crate::{TerminalExecutionStatus, TerminalInstanceCloseError, TerminalInstanceError};
+
+        fn instantiate<'artifact>(
+            authorized: &'artifact psi_authorization::AuthorizedTerminalArtifact,
+        ) -> TerminalInstance<'static, 'artifact> {
+            TerminalProgram::admit(authorized)
+                .instantiate(TerminalInstantiation {
+                    float_evaluation: Default::default(),
+                    scalar_arguments: &[],
+                    structural_inputs: Default::default(),
+                    installation: None,
+                    account: None,
+                    entry_results: None,
+                    scalar_application: None,
+                    scalar_admission: None,
+                })
+                .unwrap()
+        }
+
+        // A work-budget pause keeps the activation and its custody: the
+        // instance cannot be closed out from under it, and resuming
+        // continues it rather than starting over. Once it settles, closing
+        // ends every entry, observation and binding.
+        #[test]
+        fn a_paused_instance_keeps_its_activation_until_it_settles() {
+            let bytes = std::fs::read(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
+            ))
+            .unwrap();
+            let received = std::sync::Arc::new(
+                terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap(),
+            );
+            let host = psi_authorization::HostProducerTrust::accept("containment test host");
+            let authorized =
+                psi_authorization::authorize_terminal_artifact(received, Some(&host)).unwrap();
+
+            let mut instance = instantiate(&authorized);
+            assert!(matches!(
+                instance.invoke(&mut terminal_work::WorkMeter::with_budget(1)),
+                Ok(TerminalExecutionStatus::SponsorExhausted(_))
+            ));
+            assert!(!instance.is_finished());
+            assert_eq!(instance.close(), Err(TerminalInstanceCloseError::Busy));
+            assert!(!instance.is_closed());
+            assert!(matches!(
+                instance.invoke(&mut terminal_work::WorkMeter::unbounded()),
+                Ok(TerminalExecutionStatus::Complete(_))
+            ));
+            assert!(instance.is_finished());
+
+            assert_eq!(instance.close(), Ok(()));
+            assert!(instance.is_closed());
+            assert!(matches!(
+                instance.invoke(&mut terminal_work::WorkMeter::unbounded()),
+                Err(TerminalInstanceError::Closed)
+            ));
+            assert!(matches!(
+                instance.observe_private_entry_ram(),
+                Err(TerminalInstanceError::Closed)
+            ));
+            assert!(instance.take_returned_provider_storage(&[]).is_err());
+            assert!(instance.effects().is_empty());
+
+            // A fresh instance of the same program is independent: closing
+            // the first left nothing it could reach.
+            let mut fresh = instantiate(&authorized);
+            assert!(matches!(
+                fresh.invoke(&mut terminal_work::WorkMeter::unbounded()),
+                Ok(TerminalExecutionStatus::Complete(_))
+            ));
+        }
+    }
+
+    #[cfg(test)]
     mod private_entry_target_tests {
         use super::*;
 
