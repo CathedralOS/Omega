@@ -154,7 +154,8 @@ rematerialization policies.
 The selected rewrite code admits ordinary non-address fixed 8/16/32/64-bit
 integer, Boolean and GPR-resident IEEE payloads whose single defining
 instruction dominates their uses, cyclic functions included. It also spills a
-128-bit packed vector that vector promotion created in a `VECTOR128` register:
+128-bit packed vector that vector promotion (`SelectedPackedVectorPromotionV1`)
+created in a `VECTOR128` register:
 the register's `u128` type selects a 16-byte private slot written by
 `FrameAddress` plus `PackedStore128` and read back by `PackedLoad128`. The
 spill reads the width from the value's type, never from its class, so an

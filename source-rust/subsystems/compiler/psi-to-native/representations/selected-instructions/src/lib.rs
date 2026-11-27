@@ -53,6 +53,7 @@ pub(crate) use ::wire::digest_encoder;
 mod atomic;
 mod blocks;
 pub mod calls;
+pub mod compaction;
 pub mod constraints;
 pub mod control_flow;
 pub mod effects;
