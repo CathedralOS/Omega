@@ -1277,7 +1277,6 @@ fn a_row_at_every_index_must_prove_the_relation_there() {
     assert_eq!(unproved(&judged(&source)).machine, "Agree::reflexive");
 }
 
-
 /// An operation on the classes of `POINTWISE`, whose congruence also takes
 /// the index.
 const SUCCESSOR: &str = r"
