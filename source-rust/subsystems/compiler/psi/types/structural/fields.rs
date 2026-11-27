@@ -270,16 +270,6 @@ pub enum ByteSequenceCarrier {
 }
 
 impl ByteSequenceCarrier {
-    pub const fn supports_field_predicates(&self) -> bool {
-        matches!(
-            self,
-            Self::BoundedOwned { .. }
-                | Self::BorrowedView {
-                    access: Some(crate::StructuralAccess::SharedBorrow),
-                }
-        )
-    }
-
     pub const fn is_borrowed(&self) -> bool {
         matches!(self, Self::BorrowedView { .. } | Self::BoundedView { .. })
     }

@@ -15,7 +15,6 @@ psi-declaration-encoding = { path = "../declaration-encoding" }
 service-surface = { path = "../../interfaces/service-surface" }
 proof-applications = { path = "../../proofs/applications" }
 application-identity = { path = "../../identities/applications" }
-numeric-literals = { path = "../../../foundation/numeric-literals" }
 bignum = { path = "../../../../../foundation/bignum" }
 wire = { path = "../../../../../foundation/wire" }
 language-core = { path = "../../../foundation/language-core" }
@@ -28,6 +27,9 @@ terminal-psi = { path = "../.." }
 terminal-semantics = { path = "../../semantics" }
 
 layout-plans = { path = "../../layouts/geometry" }
+
+[dev-dependencies]
+numeric-literals = { path = "../../../foundation/numeric-literals" }
 
 [features]
 # Lets terminal-codec's tests encode deliberately malformed modules.

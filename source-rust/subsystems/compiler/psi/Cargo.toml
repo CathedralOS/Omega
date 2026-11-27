@@ -18,7 +18,6 @@ application-identity = { path = "identities/applications" }
 source-text = { path = "../../../foundation/source-text" }
 bignum = { path = "../../../foundation/bignum" }
 wire = { path = "../../../foundation/wire" }
-symbols = { path = "../foundation/declaration-identity" }
 record-storage = { path = "../../../foundation/record-storage" }
 arena = { path = "../../../foundation/arena" }
 numerics = { path = "../foundation/numerics" }

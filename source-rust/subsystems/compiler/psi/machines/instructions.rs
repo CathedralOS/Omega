@@ -13,7 +13,7 @@ impl Psi {
     }
 
     pub fn machine(&self, id: MachineId) -> Option<&TerminalMachine> {
-        self.machines.iter().find(|machine| machine.id == id)
+        crate::find_by_identity(&self.machines, id, |machine| machine.id)
     }
 
     /// Whether any block can end the whole process (`ProcessExit`) instead of

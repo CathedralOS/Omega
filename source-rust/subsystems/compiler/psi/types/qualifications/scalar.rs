@@ -131,20 +131,6 @@ impl ScalarFloatRange {
             && (candidate < Self::decode(self.maximum)
                 || (self.maximum_inclusive && candidate == Self::decode(self.maximum)))
     }
-
-    pub fn contains_range(&self, inner: &Self) -> bool {
-        if inner.format() != self.format() {
-            return false;
-        }
-        let inner_minimum = Self::decode(inner.minimum);
-        let outer_minimum = Self::decode(self.minimum);
-        let inner_maximum = Self::decode(inner.maximum);
-        let outer_maximum = Self::decode(self.maximum);
-        inner_minimum >= outer_minimum
-            && (inner_maximum < outer_maximum
-                || (inner_maximum == outer_maximum
-                    && (self.maximum_inclusive || !inner.maximum_inclusive)))
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -174,18 +160,6 @@ impl ScalarIntegerRange {
             && self
                 .integer_type
                 .compare(value, self.maximum)
-                .is_some_and(|ordering| !ordering.is_gt())
-    }
-
-    pub fn contains_range(&self, inner: &Self) -> bool {
-        self.integer_type == inner.integer_type
-            && self
-                .integer_type
-                .compare(self.minimum, inner.minimum)
-                .is_some_and(|ordering| !ordering.is_gt())
-            && self
-                .integer_type
-                .compare(inner.maximum, self.maximum)
                 .is_some_and(|ordering| !ordering.is_gt())
     }
 }

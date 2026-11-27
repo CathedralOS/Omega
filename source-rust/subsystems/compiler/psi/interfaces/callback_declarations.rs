@@ -1,7 +1,3 @@
-#[path = "callback_declarations_prepared.rs"]
-mod prepared;
-pub use prepared::PreparedCallbackDeclarations;
-
 use crate::{CheckedMachineDeclaration, NominalDeclarationIdentity};
 use application_identity::callback_declarations::CallbackDeclaration;
 use application_identity::callback_declarations::CallbackRegistrationDeclaration;

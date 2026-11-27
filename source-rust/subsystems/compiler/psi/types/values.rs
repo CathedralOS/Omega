@@ -1486,20 +1486,6 @@ pub(crate) mod signatures {
             ) && self.qualifications.is_empty()
                 && self.projected_qualifications.is_empty()
         }
-
-        pub fn is_unqualified_owned_affine(&self) -> bool {
-            self.access == StructuralAccess::Owned
-                && self.multiplicity == StructuralMultiplicity::Affine
-                && self.qualifications.is_empty()
-                && self.projected_qualifications.is_empty()
-        }
-
-        pub fn admits_scalar_read_at(&self, path_is_empty: bool) -> bool {
-            (self.multiplicity == StructuralMultiplicity::Unrestricted
-                || (!path_is_empty && self.multiplicity == StructuralMultiplicity::Affine))
-                && self.qualifications.is_empty()
-                && self.projected_qualifications.is_empty()
-        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
