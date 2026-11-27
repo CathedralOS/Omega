@@ -53,3 +53,44 @@ fn the_index_must_be_strictly_below_the_length() {
         "{report}"
     );
 }
+
+/// A lookup table wider than an application key: 3,072 elements of `u32`
+/// encode past the 64 KiB and 4,096-node bounds on a key, but a constant's
+/// own value has its own, larger bounds.
+fn wide_table(guard: &str) -> String {
+    let elements = (0..3_072u32)
+        .map(|index| format!("{}u32", 4_000_000_000u32 - index))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "const TABLE: [u32; 3072] = [{elements}];\n\
+         \n\
+         machine read(position: u64) -> u32\n\
+         requires {guard}\n\
+         crashes none\n\
+         {{ TABLE[position] }}\n\
+         \n\
+         machine main() crashes Trap {{\n    \
+             transition read(0u64) == 4000000000u32 && read(3071u64) == 3999996929u32 {{\n        \
+                 true -> done(), false -> bad()\n    \
+             }}\n    \
+             machine done() {{}}\n    \
+             machine bad() crashes Trap {{ crash Trap; }}\n\
+         }}\n"
+    )
+}
+
+#[test]
+fn a_table_wider_than_an_application_key_reads_its_last_element() {
+    program::assert_silent_return(&wide_table("position < 3072u64"));
+}
+
+#[test]
+fn the_wide_table_still_checks_every_index_against_its_length() {
+    let (output, report) = program::invoke(&wide_table("position <= 3072u64"), &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("cannot prove index is within length 3072"),
+        "{report}"
+    );
+}

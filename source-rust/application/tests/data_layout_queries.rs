@@ -44,7 +44,7 @@ fn layout_queries_observe_the_selected_c_layout_in_native_and_psi() {
     );
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let artifact = std::fs::read(saved).unwrap();
-    terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact)
+    let _reconstructed = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact)
         .expect("the saved schema reconstructs the target's address field geometry");
 }
 
