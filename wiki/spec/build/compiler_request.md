@@ -601,6 +601,7 @@ provision, whether a capacity or a coverage limitation:
 | 34 | `proof_obligation_identities` | 65,536 | 3 internal row | identity of the obligation left unproved |
 | 35 | `proof_search_integer_certificate_work` | 65,536 | 3 internal row | identity of the obligation left unproved |
 | 36 | `coverage_proof_goal_forms` | 0 | 3 internal row | identity of the obligation whose form the prover has no rule for |
+| 37 | `proof_search_goal_steps` | 100,000 | 3 internal row | identity of the obligation left unproved |
 
 Code 36 is a coverage provision, not a proof-search budget. Its requested
 amount is 1 for the unsupported obligation named by its coordinate. Raising
@@ -636,6 +637,13 @@ the declined draw as `requested`: one past the provisioned limit for a unit
 draw, or the refused amount for a bulk check. A decline is a search bound,
 not a disproof of the module: the unproved obligation publishes
 `Incomplete`, and no artifact carrying the request may publish `checked`.
+
+`proof_search_goal_steps` (code 37) bounds one required goal's proof search:
+a step for each goal it starts and one for each known fact a case branch
+prepares again. Once one machine's checking has spent a full limit on goals
+that ran out, each later goal in that machine has 8,192 steps, and the
+refusal reports that selected limit. Its coordinate is the obligation left
+unproved and its requested amount is one past the selected limit.
 
 The request-extent provisions bound the declared subject and invocation
 section lengths; both sit inside the fixed request header and are checked at

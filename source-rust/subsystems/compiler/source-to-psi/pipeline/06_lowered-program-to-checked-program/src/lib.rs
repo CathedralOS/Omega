@@ -3734,7 +3734,9 @@ fn search_certificate(
         // written, and the form of the operations that define the values it
         // names (`prove::reach`).
         let cause = if prover.steps_exhausted() {
-            UnprovedCause::BudgetExhausted
+            UnprovedCause::GoalStepsExhausted {
+                limit: prover.step_limit(),
+            }
         } else if prover.has_rules_for(goal) && !prover.beyond_rules(goal, unreached) {
             UnprovedCause::NoDerivation
         } else {
@@ -4001,7 +4003,9 @@ pub fn derive_contract_obligation(
     let mut prover = prove::Prover::new(context, &[], &[], &values, activity);
     let proof = prover.prove(goal).map_err(|detail| {
         let cause = if prover.steps_exhausted() {
-            UnprovedCause::BudgetExhausted
+            UnprovedCause::GoalStepsExhausted {
+                limit: prover.step_limit(),
+            }
         } else if prover.has_rules_for(goal) {
             UnprovedCause::NoDerivation
         } else {

@@ -207,12 +207,10 @@ pub enum RefusalReason {
 /// reject in Psi checking"). `NoRuleForGoalForm` publishes `Incomplete`: the
 /// program may be valid and the prover cannot judge it, which is the
 /// outcome table's "unsupported valid case" (owner ruling on
-/// `unproved-goal-form-outcome`). There is no exhaustion cause because the
-/// lowered-form prover has no search or resource bound. A bound added later
-/// needs its own cause, published as `Incomplete` with the resource
-/// diagnostic (`wiki/spec/build/configuration.md`: "Exhaustion leaves an
-/// unproved obligation and a resource diagnostic; it grants no ... runtime
-/// fallback").
+/// `unproved-goal-form-outcome`). `GoalStepsExhausted` publishes `Incomplete`
+/// at its resource code (`wiki/spec/build/configuration.md`: "Exhaustion
+/// leaves an unproved obligation and a resource diagnostic; it grants no ...
+/// runtime fallback").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnprovedCause {
     /// The prover has rules for the goal's form and found no derivation of
@@ -220,6 +218,9 @@ pub enum UnprovedCause {
     NoDerivation,
     /// Proof search or kernel conversion reached its configured work limit.
     BudgetExhausted,
+    /// One goal's proof search ran out of its step budget, `limit` steps
+    /// (`proof_search_goal_steps`, code 37). It says nothing about the goal.
+    GoalStepsExhausted { limit: u32 },
     /// The prover has no rule for the goal's form (an order or equality over
     /// non-integers, a proposition form it does not reason about), so it
     /// cannot judge the obligation either way.
@@ -239,6 +240,7 @@ impl UnprovedCause {
     pub const fn describe(self) -> &'static str {
         match self {
             Self::BudgetExhausted => "mathematical proof budget exhausted",
+            Self::GoalStepsExhausted { .. } => "proof search step budget exhausted",
             Self::NoDerivation => "no proof found from the facts available here",
             Self::NoRuleForGoalForm => "the prover has no rule for this form of goal",
             Self::KernelRefused => "invalid proof: the proof kernel refused the certificate",
@@ -248,7 +250,10 @@ impl UnprovedCause {
 
     /// True when the outcome is `Incomplete` rather than `Reject`.
     pub const fn is_incomplete(self) -> bool {
-        matches!(self, Self::NoRuleForGoalForm | Self::BudgetExhausted)
+        matches!(
+            self,
+            Self::NoRuleForGoalForm | Self::BudgetExhausted | Self::GoalStepsExhausted { .. }
+        )
     }
 }
 
