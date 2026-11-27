@@ -7,12 +7,13 @@ retained declaration and evaluated ABI. Checked calibration, wait splitting, and
 retries stay in guest code. All selected slots share one supplied clock;
 snapshot reads do not advance it and finite waits advance its elapsed and Unix
 time, whereas live supply reads the executing OS and finite waits consume real
-time. Signed and unsigned 32-bit clock IDs share native word interpretation
-without changing either declaration or admitting other widths; negative signed
-IDs retain their bits so Linux descriptor-backed clocks still require their
-unavailable custody model. Native placement and authenticated loans select
-timespec storage rather than record names or host pointers, and read-only
-requests receive no writeback.
+time. `HostWithin` also refuses any wait past its granted ceiling. Signed and
+unsigned 32-bit clock IDs share native word interpretation without changing
+either declaration or admitting other widths; negative signed IDs retain their
+bits so Linux descriptor-backed clocks still require their unavailable custody
+model. Native placement and authenticated loans select timespec storage rather
+than record names or host pointers, and read-only requests receive no
+writeback.
 
 CPU accounting, signals, and descriptor readiness remain unsupported because a
 private snapshot cannot establish native latency or interruption equivalence.
@@ -53,6 +54,13 @@ pub struct TerminalClockSnapshot {
 pub enum TerminalClockEnvironment {
     Snapshot(TerminalClockSnapshot),
     Host,
+    /// Live host time whose waits together may last at most the granted
+    /// nanoseconds. A wait past what remains is refused before it starts,
+    /// so a guest admitted without producer trust holds its thread no
+    /// longer than the host allowed.
+    HostWithin {
+        remaining_wait_nanoseconds: u64,
+    },
 }
 
 impl From<TerminalClockSnapshot> for TerminalClockEnvironment {
@@ -118,7 +126,7 @@ impl TerminalClockEnvironment {
     ) -> Result<u64, TerminalEffectRejection> {
         match self {
             Self::Snapshot(snapshot) => snapshot.reading(namespace, selector),
-            Self::Host => {
+            Self::Host | Self::HostWithin { .. } => {
                 namespace.validate_selector(selector)?;
                 read_host_clock_nanoseconds(selector as u32).map_err(|error| {
                     TerminalEffectRejection::new(format!("host clock observation: {error}"))
@@ -131,8 +139,26 @@ impl TerminalClockEnvironment {
         match self {
             Self::Snapshot(snapshot) => *snapshot = snapshot.advanced(nanoseconds)?,
             Self::Host => std::thread::sleep(std::time::Duration::from_nanos(nanoseconds)),
+            Self::HostWithin {
+                remaining_wait_nanoseconds,
+            } => {
+                *remaining_wait_nanoseconds = remaining_wait_nanoseconds
+                    .checked_sub(nanoseconds)
+                    .ok_or_else(|| {
+                    TerminalEffectRejection::new("wait exceeds the granted live wait ceiling")
+                })?;
+                std::thread::sleep(std::time::Duration::from_nanos(nanoseconds));
+            }
         }
         Ok(())
+    }
+
+    const fn is_live(&self) -> bool {
+        matches!(self, Self::Host | Self::HostWithin { .. })
+    }
+
+    const fn serves_contained_execution(&self) -> bool {
+        matches!(self, Self::Snapshot(_) | Self::HostWithin { .. })
     }
 }
 
@@ -194,14 +220,13 @@ impl ClockImport {
             .map(|locator| locator.target())
             .or_else(|| binding.system_call().map(|call| call.target));
         let host_target = target::TargetProfile::host_if_supported();
-        if matches!(
-            *clock
-                .lock()
-                .map_err(|_| TerminalRuntimeError::InvalidProvision(
-                    "clock environment lock is poisoned"
-                ))?,
-            TerminalClockEnvironment::Host
-        ) && (host_target.is_none() || selected_target != host_target)
+        if clock
+            .lock()
+            .map_err(|_| {
+                TerminalRuntimeError::InvalidProvision("clock environment lock is poisoned")
+            })?
+            .is_live()
+            && (host_target.is_none() || selected_target != host_target)
         {
             return Err(TerminalRuntimeError::missing(
                 "runtime-clock",
@@ -277,12 +302,12 @@ fn wait(
     Ok(result)
 }
 
-// A snapshot is private modeled time. Live time waits in real time with no
-// ceiling the host has granted, so it does not serve contained execution.
+// A snapshot is private modeled time. Live time serves contained execution
+// only under a wait ceiling the host granted.
 import_signature_via_clone!(ClockImport, contained: |adapter| adapter
     .clock
     .lock()
-    .is_ok_and(|clock| matches!(*clock, TerminalClockEnvironment::Snapshot(_))));
+    .is_ok_and(|clock| clock.serves_contained_execution()));
 
 impl TerminalEffectHandler for ClockImport {
     fn storage_requirements(
@@ -485,5 +510,33 @@ mod tests {
                 .is_err()
             );
         }
+    }
+
+    // Waits under a ceiling draw it down and a wait past what remains is
+    // refused before it sleeps; only a ceilinged live clock or a snapshot
+    // serves a contained guest.
+    #[test]
+    fn a_live_wait_ceiling_refuses_waits_past_what_remains() {
+        let mut clock = TerminalClockEnvironment::HostWithin {
+            remaining_wait_nanoseconds: 1_000,
+        };
+        assert!(clock.serves_contained_execution() && clock.is_live());
+        clock.wait(600).unwrap();
+        clock.wait(400).unwrap();
+        assert!(clock.wait(1).is_err());
+        assert!(matches!(
+            clock,
+            TerminalClockEnvironment::HostWithin {
+                remaining_wait_nanoseconds: 0
+            }
+        ));
+        assert!(!TerminalClockEnvironment::Host.serves_contained_execution());
+        assert!(
+            TerminalClockEnvironment::Snapshot(TerminalClockSnapshot {
+                monotonic_nanoseconds: 0,
+                unix_nanoseconds: 0,
+            })
+            .serves_contained_execution()
+        );
     }
 }

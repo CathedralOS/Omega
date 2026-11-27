@@ -105,7 +105,8 @@ pub(super) fn execute_installed(
         request.native_services,
         request.filesystem,
     )?
-    .with_output_limits(request.output_limits);
+    .with_output_limits(request.output_limits)
+    .with_allocation_account(request.containment.map(|containment| containment.account));
     let component_slots = component_products
         .iter()
         .map(|component| component.selection().receiving_boundary())

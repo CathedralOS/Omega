@@ -80,8 +80,8 @@ The runtime host's bindings, reviewed one by one:
 | Numeric, absolute value, affine transform, integer division, integer parsing, network address, descriptor mode | Yes | Safe Rust over copied values and invocation-private state. Nothing outlives the call or reaches the host. |
 | Buffered output | With output limits | Output reaches only the invocation's capped buffers. |
 | Descriptor I/O | Without filesystem delegation, with output limits | Finite replay input and capped private output. Delegated descriptors reach the host kernel. |
-| Clock | Snapshot only | Snapshot time is private and modeled. Live time sleeps in real time with no granted ceiling. |
-| Allocation emulation | No | `calloc` has no allocation ceiling tied to the invocation account. |
+| Clock | Snapshot, or live time under a granted wait ceiling | Snapshot time is private and modeled. `TerminalClockEnvironment::HostWithin` refuses any wait past what remains of its ceiling before it sleeps; unbounded `Host` time does not serve. `a_live_wait_ceiling_refuses_waits_past_what_remains` |
+| Allocation emulation | Yes, charged to the invocation account | Each `calloc` reserves one cell and its bytes on the contained guest's account, and returns null when the account cannot cover it. `free` returns the bytes; the cell stays because addresses never recycle. `a_charged_ledger_bounds_live_allocation_by_its_account` |
 | Linux filesystem, filesystem delegation | No | Kernel calls on the host's namespace. |
 | Native provider | No | Runs foreign native code. |
 
@@ -90,10 +90,8 @@ The runtime host's bindings, reviewed one by one:
 1. **A command-line route.** `omega run` names only the trusted route.
    [Owner question 4](../../../OWNER_QUESTIONS.md#untrusted-psi-run-flag) asks
    whether to add one.
-2. **Wider bindings.** Allocation emulation needs a ceiling charged to the
-   invocation account, and live time needs a granted wait ceiling, before they
-   can serve contained execution. Filesystem delegation and native providers
-   stay unavailable.
+2. **Wider bindings.** Filesystem delegation and native providers stay
+   unavailable to contained execution.
 3. **A waiting component.** Discarding a pending component invocation reuses the
    instance discard, but no test parks a component provider on a host
    operation yet. Contained instances take no components, so this concerns
