@@ -10,6 +10,8 @@ mod scalar_arguments;
 mod suspending_calls;
 mod threshold_waits;
 
+mod callbacks;
+
 use super::build_purpose::{execute_unit, judge_build};
 use crate::RouteVerdict;
 

@@ -171,15 +171,9 @@ fn advance<'m>(
                         call.structural_arguments,
                     )
                 } else if let Some(call) = op.kind.callable_invocation() {
-                    let reached = computed.site(module, boundary, frame.machine.id, op.id)?;
-                    let [callee] = reached.selected_machines.as_slice() else {
-                        return None;
-                    };
-                    if !reached.targets_are_resolved() {
-                        return None;
-                    }
+                    let callee = computed.selected_at(module, boundary, frame, op.id, &call)?;
                     (
-                        Some(SelectedCall::Local(*callee)),
+                        Some(SelectedCall::Local(callee)),
                         call.arguments,
                         call.structural_arguments,
                     )

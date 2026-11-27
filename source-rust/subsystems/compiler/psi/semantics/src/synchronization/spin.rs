@@ -78,6 +78,15 @@ pub(super) fn constant(operation: &Operation) -> Option<Scalar> {
             Some(Scalar::Integer { scalar_type, value })
         }
         OperationKind::BooleanConstant { value } => Some(Scalar::Boolean(value)),
+        OperationKind::SelectMachine { descriptor } => {
+            let ScalarType::Callable(contract) = operation.result.scalar()?.scalar_type else {
+                return None;
+            };
+            Some(Scalar::Callable {
+                contract,
+                descriptor,
+            })
+        }
         _ => None,
     }
 }

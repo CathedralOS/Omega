@@ -2952,33 +2952,10 @@ impl<'artifact> TerminalExecution<'artifact> {
             callee: operand, contract, ref arguments, ref structural_arguments,
             ref claim_transfers, ..
         });
-        let crate::boundary::values::TerminalScalarValue::Callable {
-            contract: actual_contract,
-            descriptor,
-        } = self.scalar_value(operand)?
-        else {
-            return Err(malformed());
-        };
-        if actual_contract != contract
-            || program
-                .catalogs
-                .execution
-                .callables
-                .contract(contract)
-                .is_none()
-        {
-            return Err(malformed());
-        }
-        let selected = program
-            .catalogs
-            .execution
-            .callables
-            .descriptor(descriptor)
+        let callee = self
+            .scalar_value(operand)?
+            .selected_machine(&program.catalogs.execution.callables, contract)
             .ok_or_else(malformed)?;
-        if selected.contract != contract {
-            return Err(malformed());
-        }
-        let callee = selected.machine;
         let (scalar_arguments, prepared_arguments) =
             self.resolve_call_arguments(callee, arguments, structural_arguments)?;
         match &operation.result {
