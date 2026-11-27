@@ -8,10 +8,9 @@
 */
 
 pub(crate) mod atomic_operations {
-    use semantic_vocabulary::{IntegerValue, PlaceId};
+    use semantic_vocabulary::PlaceId;
     use terminal_psi::{
-        AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationResult, StructuralAccess,
-        StructuralPathSegment,
+        AtomicAccessEvent, Operation, OperationResult, StructuralAccess, StructuralPathSegment,
     };
 
     use crate::boundary::errors::{TerminalInterpretError, malformed};
@@ -77,7 +76,11 @@ pub(crate) mod atomic_operations {
                     operand: value,
                     ..
                 } => Some(
-                    read_modify_write(arithmetic, prior.ok_or(malformed())?, operand(value)?)
+                    terminal_semantics::atomic_read_modify_write(
+                        arithmetic,
+                        prior.ok_or(malformed())?,
+                        operand(value)?,
+                    )
                         .ok_or(malformed())?,
                 ),
                 AtomicAccessEvent::CompareExchange {
@@ -165,37 +168,6 @@ pub(crate) mod atomic_operations {
             writes.commit(self)?;
             Ok(())
         }
-    }
-
-    fn read_modify_write(
-        operation: AtomicReadModifyWrite,
-        prior: TerminalScalarValue,
-        operand: TerminalScalarValue,
-    ) -> Option<TerminalScalarValue> {
-        let (
-            TerminalScalarValue::Integer {
-                scalar_type,
-                value: prior,
-            },
-            TerminalScalarValue::Integer {
-                scalar_type: operand_type,
-                value: operand,
-            },
-        ) = (prior, operand)
-        else {
-            return None;
-        };
-        if scalar_type != operand_type || scalar_type.is_address() {
-            return None;
-        }
-        let value: IntegerValue = match operation {
-            AtomicReadModifyWrite::FetchAdd => scalar_type.wrapping_add(prior, operand),
-            AtomicReadModifyWrite::FetchSub => scalar_type.wrapping_sub(prior, operand),
-            AtomicReadModifyWrite::FetchAnd => scalar_type.bitwise_and(prior, operand),
-            AtomicReadModifyWrite::FetchOr => scalar_type.bitwise_or(prior, operand),
-            AtomicReadModifyWrite::FetchXor => scalar_type.bitwise_xor(prior, operand),
-        }?;
-        Some(TerminalScalarValue::Integer { scalar_type, value })
     }
 }
 

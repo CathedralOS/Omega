@@ -6,7 +6,8 @@ use checked_program_to_psi as production;
 use std::sync::Arc;
 
 use crate::source_state::references::{
-    ComputationDependencyRows, collect_program_type_occurrences, collect_type_symbol_dependencies,
+    ComputationDependencyRows, DeclarationSelection, collect_layout_type_occurrences,
+    collect_type_symbol_dependencies,
 };
 use crate::source_state::{
     PlanLaidGeometry, PlanLaidLayout, PlanLaidRealizations, PlanLaidRetiredFieldIdentity,
@@ -20,6 +21,7 @@ use super::{FixedLayoutTargetScope, PlannedCall, PreparedBuildMachineProgram};
 use crate::compile_time_invocations::{BuildTimeValue, InvocationTarget, SourceCompletionAccounting};
 
 mod placements;
+mod recasts;
 mod reflection;
 mod schema;
 #[cfg(test)]
@@ -100,6 +102,7 @@ impl<'scope> Layouts<'scope> {
     pub(super) fn demanded(
         typed: &mut TypedTrees,
         scopes: &'scope [FixedLayoutTargetScope],
+        checked: &DeclarationSelection,
         dependencies: &ComputationDependencyRows,
     ) -> Result<Self, Vec<Diagnostic>> {
         if !typed.plan_laid_layouts.is_empty() || !typed.plan_laid_target_layouts.is_empty() {
@@ -139,7 +142,9 @@ impl<'scope> Layouts<'scope> {
         // roots, retain the declarations' deferred requests without preparing
         // a whole-program occurrence inventory or running any layout policy.
         if scopes.iter().all(|scope| {
-            scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty()
+            !scope.checks_subject
+                && scope.entry_declarations.is_empty()
+                && scope.provider_declarations.is_empty()
         }) {
             super::frontier::refresh_evaluated_requests(typed)?;
             return Ok(demanded);
@@ -154,28 +159,50 @@ impl<'scope> Layouts<'scope> {
         // Whether an occurrence names a closed storage application does not
         // depend on the deployment. Find those first: a program with none
         // demands no layout, whichever declarations each scope reaches.
-        let written_storage = collect_program_type_occurrences(typed)
+        let (occurrences, recasts) = collect_layout_type_occurrences(typed);
+        let written_storage = occurrences
             .into_iter()
             .filter_map(|occurrence| {
                 closed_storage(typed, occurrence.reference).map(|storage| (occurrence, storage))
             })
             .collect::<Vec<_>>();
-        if written_storage.is_empty() {
+        if written_storage.is_empty() && recasts.is_empty() {
             super::frontier::refresh_evaluated_requests(typed)?;
             return Ok(demanded);
         }
-        let mut requests = Vec::new();
-        for (scope_index, scope) in scopes.iter().enumerate() {
-            if scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty() {
-                continue;
-            }
-            let selection = scope
-                .demanded_declarations(typed, dependencies)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            for (occurrence, storage) in &written_storage {
-                if !selection.contains(typed.refusal_declaration(occurrence.lexical_owner)) {
-                    continue;
+        let selections = scopes
+            .iter()
+            .map(|scope| scope.demanded_declarations(typed, dependencies))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        // A checked consumer outside all deployment closures still needs the
+        // actual storage it views. An unrelated type named by its declaration
+        // stays deferred. Deployed consumers keep their own target scopes.
+        let mut checked_storage = Vec::new();
+        for occurrence in recasts {
+            let owner = typed.refusal_declaration(occurrence.lexical_owner);
+            if checked.contains(owner) && !selections.iter().any(|scope| scope.contains(owner)) {
+                for storage in recasts::storage(typed, occurrence.reference) {
+                    checked_storage.push((occurrence, storage));
                 }
+            }
+        }
+        let mut requests = Vec::new();
+        for (scope_index, (scope, selection)) in scopes.iter().zip(&selections).enumerate() {
+            let reached = written_storage.iter().filter(|(occurrence, _)| {
+                selection.contains(typed.refusal_declaration(occurrence.lexical_owner))
+            });
+            let subject = checked_storage.iter().filter(|(occurrence, _)| {
+                let authored = typed
+                    .machine_declaration_for_lexical_scope(occurrence.lexical_owner)
+                    .and_then(|machine| {
+                        typed
+                            .machine_authored_target(machine)
+                            .or_else(|| typed.source_target_context(machine))
+                    });
+                authored.map_or(scope.checks_subject, |target| target == scope.target)
+            });
+            for (occurrence, storage) in reached.chain(subject) {
                 requests.push((
                     scope_index,
                     typed.normalized_type_identity(storage.application),
@@ -195,6 +222,7 @@ impl<'scope> Layouts<'scope> {
         let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
         let mut written = written_storage
             .iter()
+            .chain(&checked_storage)
             .map(|(occurrence, storage)| {
                 (
                     typed.normalized_type_identity(storage.application),

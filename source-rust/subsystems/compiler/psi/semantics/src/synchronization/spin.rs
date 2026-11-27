@@ -41,6 +41,8 @@ pub(super) struct CellWait {
 pub(super) enum CellUpdate {
     Observe,
     Replace(Scalar),
+    BitwiseAnd(Scalar),
+    BitwiseOr(Scalar),
     CompareExchange {
         expected: Scalar,
         replacement: Scalar,
@@ -48,10 +50,16 @@ pub(super) enum CellUpdate {
 }
 
 impl CellUpdate {
-    pub(super) fn apply(self, prior: Scalar) -> Scalar {
-        match self {
+    pub(super) fn apply(self, prior: Scalar) -> Option<Scalar> {
+        Some(match self {
             Self::Observe => prior,
             Self::Replace(value) => value,
+            Self::BitwiseAnd(mask) => condition::masked(prior, Some(mask))?,
+            Self::BitwiseOr(mask) => crate::atomic_read_modify_write(
+                terminal_psi::AtomicReadModifyWrite::FetchOr,
+                prior,
+                mask,
+            )?,
             Self::CompareExchange {
                 expected,
                 replacement,
@@ -62,7 +70,7 @@ impl CellUpdate {
                     prior
                 }
             }
-        }
+        })
     }
 }
 
@@ -83,6 +91,7 @@ pub(super) fn constant(operation: &Operation) -> Option<Scalar> {
 enum Word {
     Literal(Scalar),
     Observed,
+    Masked(Scalar),
     Test(SpinCondition),
 }
 
@@ -94,6 +103,22 @@ impl Word {
         }
     }
 
+    fn bitwise_and(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            (Self::Observed, Self::Literal(mask)) | (Self::Literal(mask), Self::Observed) => {
+                Some(Self::Masked(mask))
+            }
+            (Self::Masked(prior), Self::Literal(mask))
+            | (Self::Literal(mask), Self::Masked(prior)) => {
+                Some(Self::Masked(condition::masked(prior, Some(mask))?))
+            }
+            (Self::Literal(left), Self::Literal(right)) => {
+                Some(Self::Literal(condition::masked(left, Some(right))?))
+            }
+            _ => None,
+        }
+    }
+
     fn compare(self, comparison: Comparison, positive: bool) -> Option<Self> {
         let condition = SpinCondition {
             comparison,
@@ -101,6 +126,13 @@ impl Word {
         };
         match self {
             Self::Observed => Some(Self::Test(condition)),
+            Self::Masked(mask) => Some(Self::Test(SpinCondition {
+                comparison: Comparison {
+                    mask: Some(mask),
+                    ..comparison
+                },
+                positive,
+            })),
             Self::Test(mut test) if comparison.order.is_eq() => {
                 let Scalar::Boolean(value) = comparison.pivot else {
                     return None;
@@ -347,6 +379,20 @@ impl Trace {
                         AtomicAccessEvent::Swap { value, .. } => {
                             CellUpdate::Replace(self.scalar(*value)?.literal()?)
                         }
+                        AtomicAccessEvent::ReadModifyWrite {
+                            operation, operand, ..
+                        } => {
+                            let mask = self.scalar(*operand)?.literal()?;
+                            match operation {
+                                terminal_psi::AtomicReadModifyWrite::FetchAnd => {
+                                    CellUpdate::BitwiseAnd(mask)
+                                }
+                                terminal_psi::AtomicReadModifyWrite::FetchOr => {
+                                    CellUpdate::BitwiseOr(mask)
+                                }
+                                _ => return None,
+                            }
+                        }
                         AtomicAccessEvent::CompareExchange {
                             expected,
                             replacement,
@@ -374,6 +420,9 @@ impl Trace {
                 {
                     Word::Literal(Scalar::Boolean(self.cases.get(source)?.is(*case)))
                 }
+                OperationKind::IntegerBitwiseAnd { left, right } => {
+                    self.scalar(*left)?.bitwise_and(self.scalar(*right)?)?
+                }
                 OperationKind::BooleanNot { operand } => {
                     self.scalar(*operand)?.equal(Scalar::Boolean(false))?
                 }
@@ -385,12 +434,20 @@ impl Trace {
                     let left = self.scalar(*left)?;
                     let right = self.scalar(*right)?;
                     if let Some(pivot) = right.literal() {
-                        left.compare(Comparison { pivot, order }, positive)?
+                        left.compare(
+                            Comparison {
+                                pivot,
+                                order,
+                                mask: None,
+                            },
+                            positive,
+                        )?
                     } else {
                         right.compare(
                             Comparison {
                                 pivot: left.literal()?,
                                 order: order.reverse(),
+                                mask: None,
                             },
                             positive,
                         )?
@@ -406,7 +463,7 @@ impl Trace {
     fn branch(&mut self, condition: ValueId, equal_case: bool) -> Option<bool> {
         let condition = match self.scalar(condition)? {
             Word::Literal(Scalar::Boolean(known)) => return Some(known),
-            Word::Literal(_) => return None,
+            Word::Literal(_) | Word::Masked(_) => return None,
             Word::Observed => SpinCondition {
                 comparison: Comparison::equal(Scalar::Boolean(true)),
                 positive: true,

@@ -268,14 +268,24 @@ impl Stored {
             } if expected == replacement => {
                 return self.clone();
             }
-            CellUpdate::CompareExchange { expected, .. } => expected,
+            CellUpdate::CompareExchange { expected, .. }
+            | CellUpdate::BitwiseAnd(expected)
+            | CellUpdate::BitwiseOr(expected) => expected,
         };
+        self.map_scalars(expected.scalar_type(), |prior| match prior {
+            ScalarFact::Literal(bits) => update.apply(bits).map(ScalarFact::Literal),
+            ScalarFact::EntryInput(_) => None,
+        })
+    }
+
+    pub(in super::super) fn map_scalars(
+        &self,
+        ty: ScalarType,
+        mut apply: impl FnMut(ScalarFact) -> Option<ScalarFact>,
+    ) -> Self {
         let mut result: Option<Self> = None;
-        let mapped = self.visit_scalars(expected.scalar_type(), |prior| {
-            let value = match prior {
-                ScalarFact::Literal(bits) => Self::Scalar(ScalarFact::Literal(update.apply(bits))),
-                ScalarFact::EntryInput(_) => Self::Unknown,
-            };
+        let mapped = self.visit_scalars(ty, |prior| {
+            let value = Self::from(apply(prior));
             if let Some(existing) = &mut result {
                 existing.join(&value);
             } else {

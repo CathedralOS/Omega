@@ -90,3 +90,78 @@ fn selecting_the_compound_wait_as_an_entry_checks_its_own_observation() {
     let (entry, _) = sample.split_once("machine await_change").unwrap();
     super::requires_an_external_enabler(&entry.replace("await_ready", "build_entry"), "load");
 }
+
+#[test]
+fn an_unchanged_private_word_cannot_satisfy_disjoint_comparisons() {
+    let source = wait("a < 5 && b > 8", "input", "0")
+        .replace("await_change(@left, @right)", "await_change(@left, @left)");
+    for input in [0, 4, 5, 8, 9, u32::MAX] {
+        execute_with_input(&source, input);
+    }
+}
+
+#[test]
+fn adjacent_comparisons_cover_every_value_of_one_private_word() {
+    let source = wait("a < 5 || b > 4", "input", "0")
+        .replace("await_change(@left, @right)", "await_change(@left, @left)");
+    reject_deadlock(&source);
+}
+
+#[test]
+fn overlapping_ranges_and_independent_words_still_need_a_proof() {
+    let overlap = wait("a < 9 && b > 5", "input", "0")
+        .replace("await_change(@left, @right)", "await_change(@left, @left)");
+    expect_unproved_progress(&overlap);
+
+    let independent = wait("a < 5 && b > 8", "input", "other").replace(
+        "build_entry(input: u32)",
+        "build_entry(input: u32, other: u32)",
+    );
+    expect_unproved_progress(&independent);
+}
+
+#[test]
+fn two_choices_over_the_same_candidates_can_observe_different_words() {
+    let program = wait("a < 5 && b > 8", "3", "12")
+        .replace(
+            "machine await_ready(",
+            "data View<'s> { flag: @'s Flag; } machine await_ready(",
+        )
+        .replace(
+            "build_entry(input: u32)",
+            "build_entry(first: bool, second: bool)",
+        )
+        .replace(
+            "await_change(@left, @right)",
+            "let one: View = match first {
+                true -> View { flag: @left }, false -> View { flag: @right }
+            };
+            let two: View = match second {
+                true -> View { flag: @left }, false -> View { flag: @right }
+            };
+            await_change(one.flag, two.flag)",
+        );
+    expect_unproved_progress(&program);
+}
+
+#[test]
+fn separate_bits_of_one_runtime_word_can_enable_different_branches() {
+    let same_word = |condition| {
+        wait(condition, "input", "0")
+            .replace("await_change(@left, @right)", "await_change(@left, @left)")
+    };
+    // Input 2 retries, whereas 0 returns. Both tests see the same raw word.
+    expect_unproved_progress(&same_word("(a & 1) == 0 && (b & 2) != 0"));
+    let disjoint = same_word("(a & 2) == 0 && (b & 2) != 0");
+    for input in [0, 2, u32::MAX] {
+        execute_with_input(&disjoint, input);
+    }
+    reject_deadlock(&same_word("(a & 2) == 0 || (b & 2) != 0"));
+}
+
+#[test]
+fn separate_loads_of_a_supplied_shared_word_can_observe_different_values() {
+    let source = supplied("a < 5 && b > 8", "0")
+        .replace("await_change(@left, external)", "await_change(external, external)");
+    super::requires_an_external_enabler(&source, "await_change");
+}

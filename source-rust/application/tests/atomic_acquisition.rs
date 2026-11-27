@@ -169,3 +169,74 @@ fn an_exchange_in_the_entry_supplies_the_actual_bits_and_case_to_a_later_wait() 
         .replace("::Exchanged -> finished()", "::Exchanged -> acquire(@flag)");
     program::assert_silent_return(&format!("{library}{released}"));
 }
+
+#[test]
+fn atomic_read_modify_write_returns_the_old_word_and_installs_the_typed_result() {
+    let source = include_str!(
+        "../../../tests/fixtures/synchronization/reject/read_modify_write_before_wait/main.omg"
+    );
+    for (initial, operation) in [
+        (0, "fetch_or(1"),
+        (3, "fetch_and(1"),
+        (u32::MAX, "fetch_xor(4294967294"),
+        (u32::MAX, "fetch_add(2"),
+        (0, "fetch_sub(4294967295"),
+    ] {
+        let held = source
+            .replace("held.store(0", &format!("held.store({initial}"))
+            .replace("fetch_or(1", operation)
+            .replace("prior == 0", &format!("prior == {initial}"));
+        let (output, diagnostic) = program::invoke(&held, &["--check"]);
+        assert!(!output.status.success(), "{operation}: {diagnostic}");
+        assert!(
+            diagnostic.contains("synchronization deadlock"),
+            "{operation}: {diagnostic}"
+        );
+    }
+    // Updating a different cell leaves the flag clear. Clearing a flag that
+    // started held enables the same wait and still returns the old word.
+    program::assert_silent_return(&source.replace("held.fetch_or", "other.fetch_or"));
+    program::assert_silent_return(
+        &source
+            .replace("held.store(0", "held.store(1")
+            .replace("fetch_or(1", "fetch_and(0")
+            .replace("prior == 0", "prior == 1"),
+    );
+}
+
+#[test]
+fn a_private_bit_lock_tracks_its_bit_and_ignores_other_status_bits() {
+    let set = include_str!("../../../tests/fixtures/synchronization/run/masked_bit_lock/main.omg");
+    let (acquisition, entry) = set.split_once("machine main()").unwrap();
+    let clear = format!(
+        "{}machine main(){}",
+        acquisition
+            .replace("fetch_or(4,", "fetch_and(4294967291,")
+            .replace("(prior & 4) == 0", "(4 & prior) != 0"),
+        entry
+            .replace("store(2,", "store(6,")
+            .replace("fetch_and(4294967291,", "fetch_or(4,")
+    );
+    // Toggling a held bit enables this loop on its second attempt. Treating
+    // XOR as an idempotent operation would incorrectly report a deadlock.
+    program::assert_silent_return(
+        &set.replace("fetch_or(4,", "fetch_xor(4,")
+            .replace("store(2,", "store(6,"),
+    );
+    for source in [set, &clear] {
+        program::assert_silent_return(source);
+        // Both acquisitions target the original cell. Calling the release
+        // on the sibling cell leaves the original lock held.
+        let (acquire, entry) = source.split_once("machine main()").unwrap();
+        let held = format!(
+            "{acquire}machine main(){}",
+            entry.replace("flags.word.fetch_", "flags.other.fetch_")
+        );
+        let (outcome, diagnostic) = program::invoke(&held, &["--check"]);
+        assert!(!outcome.status.success(), "{diagnostic}");
+        assert!(
+            diagnostic.contains("synchronization deadlock"),
+            "{diagnostic}"
+        );
+    }
+}

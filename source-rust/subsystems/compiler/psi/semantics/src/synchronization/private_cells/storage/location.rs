@@ -3,10 +3,11 @@
 //! independently select a different one.
 
 use semantic_vocabulary::PlaceId;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use terminal_psi::StructuralPathSegment as Segment;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(super) enum Allocation {
     Private(usize),
     ExclusiveInput(usize),
@@ -36,7 +37,19 @@ impl PartialEq for Root {
 }
 impl Eq for Root {}
 
-#[derive(Clone, PartialEq, Eq)]
+// A copied choice denotes the same selection; another selection over the
+// same candidates can pick differently. Hash the same identity that Eq uses.
+impl Hash for Root {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        match self {
+            Self::Allocation(home) => home.hash(state),
+            Self::Choice(homes) => Rc::as_ptr(homes).cast::<Home>().hash(state),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(in super::super) struct Location {
     root: Root,
     pub(super) path: Vec<Segment>,
@@ -54,7 +67,7 @@ impl Location {
         Self::allocation(Allocation::SharedInput(place))
     }
 
-    pub(super) fn includes_shared(&self) -> bool {
+    pub(in super::super) fn includes_shared(&self) -> bool {
         let mut shared = false;
         self.each_home(|home, _| shared |= matches!(home, Allocation::SharedInput(_)));
         shared

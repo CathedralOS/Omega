@@ -25,7 +25,8 @@ pub(super) fn apply(
     };
     match &wait.0 {
         WaitRule::Cell(cell) => {
-            let location = locate(cell.subject.parameter, &cell.subject.path).ok_or(ProgressFailure::Unproved)?;
+            let location = locate(cell.subject.parameter, &cell.subject.path)
+                .ok_or(ProgressFailure::Unproved)?;
             let stored = memory.get(&location);
             let cause = classify(
                 memory,
@@ -48,14 +49,19 @@ pub(super) fn apply(
         WaitRule::Observations(predicate) => {
             let retry = predicate.evaluate(|subject, test| {
                 let Some(location) = locate(subject.parameter, &subject.path) else {
-                    return Observation::Unproved;
+                    return (Observation::Unproved, None);
                 };
-                match classify(memory, &location, test, CellUpdate::Observe, requirements) {
-                    None => Observation::Known(false),
-                    Some(ProgressFailure::Deadlock) => Observation::Known(true),
-                    Some(ProgressFailure::Unproved | ProgressFailure::UnprovedImport) => Observation::Unproved,
-                    Some(ProgressFailure::UnprovedExternal) => Observation::Supplied,
-                }
+                let observation =
+                    match classify(memory, &location, test, CellUpdate::Observe, requirements) {
+                        None => Observation::Known(false),
+                        Some(ProgressFailure::Deadlock) => Observation::Known(true),
+                        Some(ProgressFailure::Unproved | ProgressFailure::UnprovedImport) => {
+                            Observation::Unproved
+                        }
+                        Some(ProgressFailure::UnprovedExternal) => Observation::Supplied,
+                    };
+                let stable = (!location.includes_shared()).then_some(location);
+                (observation, stable)
             });
             match retry {
                 Observation::Known(false) => Ok(()),

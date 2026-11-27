@@ -16,7 +16,7 @@ use terminal_psi::{
 #[derive(Clone, PartialEq, Eq)]
 enum Word {
     Literal(Scalar),
-    Cell(Subject),
+    Cell(Subject, Option<Scalar>),
     Boolean(Guard),
 }
 
@@ -37,7 +37,7 @@ impl Analysis<'_> {
         match word {
             Word::Boolean(value) => Some(*value),
             Word::Literal(Scalar::Boolean(value)) => Some(if *value { ALWAYS } else { NEVER }),
-            Word::Cell(subject) => Some(self.predicate.observe(
+            Word::Cell(subject, None) => Some(self.predicate.observe(
                 subject.clone(),
                 SpinCondition {
                     comparison: Comparison::equal(Scalar::Boolean(true)),
@@ -64,7 +64,22 @@ impl Analysis<'_> {
                     resident_obligation: None,
                 } => {
                     self.first_read.get_or_insert(operation.id);
-                    Word::Cell(self.resources.subject(*place, path)?)
+                    Word::Cell(self.resources.subject(*place, path)?, None)
+                }
+                OperationKind::IntegerBitwiseAnd { left, right } => {
+                    let left = self.words.get(left)?;
+                    let right = self.words.get(right)?;
+                    match (left, right) {
+                        (Word::Cell(subject, prior), Word::Literal(mask))
+                        | (Word::Literal(mask), Word::Cell(subject, prior)) => Word::Cell(
+                            subject.clone(),
+                            Some(super::condition::masked(*mask, *prior)?),
+                        ),
+                        (Word::Literal(left), Word::Literal(right)) => {
+                            Word::Literal(super::condition::masked(*left, Some(*right))?)
+                        }
+                        _ => return None,
+                    }
                 }
                 OperationKind::BooleanNot { operand } => {
                     let word = self.words.get(operand)?.clone();
@@ -80,11 +95,24 @@ impl Analysis<'_> {
                         _ => return None,
                     };
                     let condition = SpinCondition {
-                        comparison: Comparison { pivot, order },
+                        comparison: Comparison {
+                            pivot,
+                            order,
+                            mask: None,
+                        },
                         positive,
                     };
                     let result = match word {
-                        Word::Cell(subject) => self.predicate.observe(subject, condition),
+                        Word::Cell(subject, mask) => self.predicate.observe(
+                            subject,
+                            SpinCondition {
+                                comparison: Comparison {
+                                    mask,
+                                    ..condition.comparison
+                                },
+                                ..condition
+                            },
+                        ),
                         Word::Literal(value) => {
                             if condition.matches(value)? {
                                 ALWAYS

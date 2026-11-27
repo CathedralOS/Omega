@@ -346,6 +346,21 @@ impl<'m> Frame<'m> {
                     | AtomicAccessEvent::Swap { value, .. } => {
                         bindings.values.get(value).copied().into()
                     }
+                    AtomicAccessEvent::ReadModifyWrite {
+                        operation, operand, ..
+                    } => {
+                        let ty = op.result.scalar()?.scalar_type;
+                        let operand = bindings.values.get(operand).copied();
+                        memory.get(&location).map_scalars(ty, |prior| {
+                            let (ScalarFact::Literal(prior), Some(ScalarFact::Literal(operand))) =
+                                (prior, operand)
+                            else {
+                                return None;
+                            };
+                            crate::atomic_read_modify_write(*operation, prior, operand)
+                                .map(ScalarFact::Literal)
+                        })
+                    }
                     AtomicAccessEvent::CompareExchange {
                         expected,
                         replacement,

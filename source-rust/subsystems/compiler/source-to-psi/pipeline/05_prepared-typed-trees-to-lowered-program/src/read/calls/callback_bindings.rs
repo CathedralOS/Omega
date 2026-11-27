@@ -278,6 +278,82 @@ impl Program<'_> {
         Ok(())
     }
 
+    /// The selected requirement owns the substituted callback headers. Every
+    /// invocation supplies its own callback selection, even when another call
+    /// interned the same closed requirement first.
+    pub(super) fn requirement_callbacks(
+        &mut self,
+        caller: MachineId,
+        target: SymbolHandle,
+        application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+    ) -> Checked<()> {
+        use crate::source_state::{
+            data::TypeParameterKind, static_applications::StaticMachineBindingValue,
+        };
+        let Some(closed) = self.typed.closed_requirement_application(target) else {
+            return Ok(());
+        };
+        if matches!(
+            self.typed.symbols.sealed_intrinsic(closed.template),
+            Some(
+                language_core::sealed_intrinsics::SealedIntrinsic::TaskRuntimeStart
+                    | language_core::sealed_intrinsics::SealedIntrinsic::TaskRuntimeTryStart
+            )
+        ) {
+            return Err(refuse_at(
+                caller,
+                Unserved::Call(
+                    "task start has no checked runtime authority, storage plan and transfer of execution custody",
+                ),
+            ));
+        }
+        if !closed
+            .invocation_contract_parameters
+            .iter()
+            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
+        {
+            return Ok(());
+        }
+        let unavailable = |detail| refuse_at(caller, Unserved::Call(detail));
+        self.typed
+            .require_closed_requirement_call_application(target, application)
+            .map_err(unavailable)?;
+        let lexical_owner = self
+            .typed
+            .expression_table
+            .static_machine_application(application)
+            .lexical_owner;
+        let actuals = self
+            .typed
+            .expression_table
+            .static_machine_application_bindings(application);
+        for (formal, argument) in closed.invocation_contract_parameters.iter().zip(actuals) {
+            let TypeParameterKind::Machine { contract } = &formal.kind else {
+                continue;
+            };
+            let StaticMachineBindingValue::Machine(selected) = &argument.value else {
+                return Err(unavailable("requirement callback has no selected machine"));
+            };
+            let required = self
+                .typed
+                .machine_parameter_contract_view(contract)
+                .ok_or_else(|| unavailable("requirement callback lost its applied contract"))?
+                .signature();
+            let signature = self.callback_requirement_signature(caller, required)?;
+            self.callback_conformance(
+                caller,
+                RequiredCallback {
+                    parameter: argument.parameter,
+                    source: required,
+                    signature,
+                },
+                selected,
+                lexical_owner,
+            )?;
+        }
+        Ok(())
+    }
+
     fn callback_conformance(
         &mut self,
         caller: MachineId,
