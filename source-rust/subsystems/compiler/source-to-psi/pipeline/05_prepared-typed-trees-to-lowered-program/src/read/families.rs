@@ -367,17 +367,17 @@ impl Program<'_> {
             );
         }
         let saved = std::mem::take(&mut self.data_indices);
-        let indices = self.bind(bindings);
+        let mut indices = Vec::new();
+        self.bind(bindings, &mut indices);
         let read = self.family_theorem_body(id, machine, state, &family, &values, &indices);
         self.data_indices = saved;
         read
     }
 
-    /// Splits the bindings of a family's values: the integers, returned
-    /// for a clause scope's `bound`, and the data, which the clause reader
-    /// finds in `data_indices`.
-    fn bind(&mut self, bindings: Vec<IndexBinding>) -> Vec<(SymbolHandle, ScalarTerm)> {
-        let mut bound = Vec::new();
+    /// Splits the bindings of a family's values: the integers, added to a
+    /// clause scope's `bound`, and the data, which the clause reader finds
+    /// in `data_indices`.
+    fn bind(&mut self, bindings: Vec<IndexBinding>, bound: &mut Vec<(SymbolHandle, ScalarTerm)>) {
         for binding in bindings {
             match binding {
                 IndexBinding::Scalar(symbol, term) => bound.push((symbol, term)),
@@ -386,7 +386,6 @@ impl Program<'_> {
                 }
             }
         }
-        bound
     }
 
     /// The body of a theorem over indexed data, read with the family's
@@ -792,7 +791,7 @@ impl Program<'_> {
             }
         }
         let held = self.data_indices.len();
-        bound.extend(self.bind(bindings));
+        self.bind(bindings, &mut bound);
         let scope = ClauseScope {
             slots: &[],
             values: &[],
@@ -1577,7 +1576,8 @@ impl Program<'_> {
             ));
         }
         let saved = std::mem::take(&mut self.data_indices);
-        let bound = self.bind(bindings);
+        let mut bound = Vec::new();
+        self.bind(bindings, &mut bound);
         let root = crate::body::self_place().ok_or_else(|| unserved("self place identity"))?;
         let scope = ClauseScope {
             slots: &[],
