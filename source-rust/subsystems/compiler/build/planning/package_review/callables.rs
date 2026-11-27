@@ -536,7 +536,22 @@ impl PolicySource<'_> {
                     }
                 }
             },
-            checked_crash: crashes(header)?,
+            checked_crash: crashes(header, || {
+                let typed = self.typed();
+                self.signature_crash_routes(
+                    typed
+                        .machine_contracts(declaration)
+                        .iter()
+                        .chain(typed.state_contracts(state)),
+                    super::declarations::ContractScope {
+                        owner: state.symbol,
+                        subject: None,
+                        parameters: typed.state_parameters(state),
+                        statics: typed.machine_type_parameters(declaration),
+                        result: None,
+                    },
+                )
+            })?,
             mutation,
         })
     }
@@ -616,6 +631,68 @@ impl PolicySource<'_> {
         rows.dedup();
         Ok(rows)
     }
+    /// effects.md, "Guarded crashes": each `crashes` clause names one cause,
+    /// its route guards are alternatives, and an empty route list means `true`.
+    /// The guards read the inputs as a `requires` does, so they are reviewed in
+    /// the same positional scope. A `true` alternative covers the whole cause.
+    pub(super) fn signature_crash_routes<'clause>(
+        &self,
+        clauses: impl IntoIterator<
+            Item = &'clause source_compiler::representations::source_state::signature::SignatureContract,
+        >,
+        scope: super::declarations::ContractScope<'_>,
+    ) -> Result<Vec<PackagePolicyCrashRoute>, Vec<Diagnostic>> {
+        use review_evidence::record::PackageReviewContractFact;
+        use source_compiler::representations::source_state::signature::SignatureContractKind;
+        let mut routes: Vec<PackagePolicyCrashRoute> = Vec::new();
+        for clause in clauses {
+            let SignatureContractKind::Crashes { cause } = clause.kind else {
+                continue;
+            };
+            use source_compiler::representations::source_state::signature::CrashCause;
+            let cause = match cause {
+                CrashCause::Trap => PackageReviewCrashCause::Trap,
+                CrashCause::Abort => PackageReviewCrashCause::Abort,
+            };
+            let facts = self
+                .typed()
+                .proof_facts
+                .span(clause.facts)
+                .ok_or_else(|| unavailable("a crash clause's retained guards"))?;
+            let mut guards = Vec::new();
+            if facts.is_empty() {
+                guards.push(PackagePolicyCrashGuard::Truth);
+            }
+            for fact in facts {
+                match self.review_fact(fact, scope)? {
+                    PackageReviewContractFact::Expression(guard) => {
+                        guards.push(PackagePolicyCrashGuard::Expression(guard));
+                    }
+                    _ => return Err(unavailable("a crash guard that is not an expression")),
+                }
+            }
+            match routes.iter_mut().find(|route| route.cause == cause) {
+                Some(route) => route.alternative_guards.extend(guards),
+                None => routes.push(PackagePolicyCrashRoute {
+                    cause,
+                    alternative_guards: guards,
+                }),
+            }
+        }
+        for route in &mut routes {
+            if route
+                .alternative_guards
+                .contains(&PackagePolicyCrashGuard::Truth)
+            {
+                route.alternative_guards = vec![PackagePolicyCrashGuard::Truth];
+            }
+            route.alternative_guards.sort();
+            route.alternative_guards.dedup();
+        }
+        routes.sort_by_key(|route| route.cause);
+        Ok(routes)
+    }
+
     pub(super) fn review_fact(
         &self,
         fact: &source_compiler::representations::source_state::domain::ProofFact,
@@ -917,7 +994,10 @@ fn mutation(
     })
 }
 
-fn crashes(header: &MachineContract) -> Result<PackagePolicyCrash, Vec<Diagnostic>> {
+fn crashes(
+    header: &MachineContract,
+    source: impl FnOnce() -> Result<Vec<PackagePolicyCrashRoute>, Vec<Diagnostic>>,
+) -> Result<PackagePolicyCrash, Vec<Diagnostic>> {
     let Some(declared) = &header.declared_crash_routes else {
         let mut causes: Vec<_> = header
             .crash_routes
@@ -935,7 +1015,7 @@ fn crashes(header: &MachineContract) -> Result<PackagePolicyCrash, Vec<Diagnosti
     };
     Ok(PackagePolicyCrash {
         interface: PackageReviewCrashInterface::PublishedCeiling,
-        published: published_crash_routes(declared)?,
+        published: published_source_crash_routes(declared, source)?,
         structural_runtime_requirements: None,
         inferred: PackagePolicyInferredCrash::Unknown,
     })
@@ -965,6 +1045,44 @@ pub(super) fn published_crash_routes(
     }
     published.sort_by_key(|route| route.cause);
     Ok(published)
+}
+
+/// A guarded route is reviewed from its source clause, which states the guard
+/// over the callable's parameter positions. The checked buckets still decide
+/// which causes are guarded, so the two readings must agree on both.
+pub(super) fn published_source_crash_routes(
+    checked: &[terminal_psi::CrashRouteBucket],
+    source: impl FnOnce() -> Result<Vec<PackagePolicyCrashRoute>, Vec<Diagnostic>>,
+) -> Result<Vec<PackagePolicyCrashRoute>, Vec<Diagnostic>> {
+    if checked
+        .iter()
+        .all(|route| route.alternatives.as_slice() == [CrashRouteGuard::Truth])
+    {
+        return published_crash_routes(checked);
+    }
+    let reviewed = source()?;
+    let mut causes: Vec<_> = checked
+        .iter()
+        .map(|route| {
+            (
+                reviewed_crash_cause(route.cause),
+                route.alternatives.contains(&CrashRouteGuard::Truth),
+            )
+        })
+        .collect();
+    causes.sort();
+    causes.dedup();
+    if !causes.iter().copied().eq(reviewed.iter().map(|route| {
+        (
+            route.cause,
+            route.alternative_guards == [PackagePolicyCrashGuard::Truth],
+        )
+    })) {
+        return Err(unavailable(
+            "the callable's published crash guards as its checked routes state them",
+        ));
+    }
+    Ok(reviewed)
 }
 
 #[cfg(test)]
