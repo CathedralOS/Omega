@@ -80,6 +80,17 @@ pub struct TerminalOutputLimits {
     pub combined_bytes: usize,
 }
 
+/// Run a guest the host admitted without producer trust
+/// (`psi_authorization::admit_contained_interpretation`). Its storage is
+/// charged to `account`, only adapters that serve contained execution bind,
+/// and the request may grant no native provider, native services, filesystem
+/// delegation or components. Output needs `output_limits`.
+#[derive(Clone, Copy)]
+pub struct TerminalRuntimeContainment<'program> {
+    pub artifact: &'program psi_authorization::ContainedTerminalArtifact,
+    pub account: &'program build_model::accounting::EvaluationInvocationAccount,
+}
+
 /// Host capabilities for execution of a canonical Terminal program.
 ///
 /// ```compile_fail
@@ -104,6 +115,8 @@ pub struct TerminalRuntimeRequest<'program> {
     pub output_limits: Option<TerminalOutputLimits>,
     pub standard_input: Option<Box<dyn std::io::Read + Send + 'program>>, // Explicit finite replay stream; `None` supplies no stdin capability.
     pub clock: Option<TerminalClockEnvironment>,
+    /// `None` runs an artifact this host trusts; see [`TerminalRuntimeContainment`].
+    pub containment: Option<TerminalRuntimeContainment<'program>>,
 }
 
 pub type ObservedFiles = std::collections::BTreeMap<Vec<u8>, Option<Vec<u8>>>;
@@ -252,6 +265,34 @@ pub fn execute_with_image_installation(
     hosted_invocation::execute_installed(host, installation, quantum)
 }
 
+fn require_containable(
+    request: &TerminalRuntimeRequest<'_>,
+    containment: TerminalRuntimeContainment<'_>,
+) -> Result<(), TerminalRuntimeError> {
+    let refuse = TerminalRuntimeError::InvalidProvision;
+    if !std::ptr::eq(containment.artifact.artifact(), request.artifact) {
+        return Err(refuse(
+            "contained execution runs only the artifact its admission names",
+        ));
+    }
+    if request.native_provider.is_some()
+        || request.native_services != TerminalNativeServiceDelegation::Unprovided
+    {
+        return Err(refuse(
+            "a guest admitted without producer trust cannot reach native providers or services",
+        ));
+    }
+    if !matches!(request.filesystem, TerminalFilesystemDelegation::Unprovided) {
+        return Err(refuse(
+            "a guest admitted without producer trust gets no filesystem delegation",
+        ));
+    }
+    if request.output_limits.is_none() {
+        return Err(refuse("contained execution requires output limits"));
+    }
+    Ok(())
+}
+
 /// Checked host choices for PSI's explicit low-level installation API.
 pub struct HostedTerminalProgram<'program> {
     request: TerminalRuntimeRequest<'program>,
@@ -269,12 +310,19 @@ impl<'program> HostedTerminalProgram<'program> {
     ) -> Result<Self, TerminalRuntimeError> {
         let artifact = request.artifact.view();
         // Received Psi executes only after the host authorized its exact
-        // artifact and producer (`psi_authorization::authorize_terminal_artifact`).
-        let program = TerminalProgram::borrow(artifact).map_err(|_| {
-            TerminalRuntimeError::InvalidProvision(
-                "received Psi requires the host's authorization of its exact artifact and producer",
-            )
-        })?;
+        // artifact and producer (`psi_authorization::authorize_terminal_artifact`),
+        // or admitted it for contained interpretation.
+        let program = match request.containment {
+            Some(containment) => {
+                require_containable(&request, containment)?;
+                TerminalProgram::admit_contained(containment.artifact)
+            }
+            None => TerminalProgram::borrow(artifact).map_err(|_| {
+                TerminalRuntimeError::InvalidProvision(
+                    "received Psi requires the host's authorization of its exact artifact and producer",
+                )
+            })?,
+        };
         if let Some(entry) = request.entry {
             if entry.terminal_psi_identity() != program.terminal_psi() {
                 return Err(TerminalRuntimeError::InvalidProvision(
@@ -460,5 +508,112 @@ mod unavailability_tests {
         assert!(!after.unavailable_before_guest_effects());
         let malformed = TerminalRuntimeError::InvalidProvision("malformed");
         assert!(!malformed.unavailable_before_guest_effects());
+    }
+}
+
+#[cfg(test)]
+mod containment_tests {
+    use super::*;
+    use build_model::accounting::BuildEvaluationSponsor;
+    use build_model::contracts::{
+        BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    use std::sync::Arc;
+
+    const LIMITS: TerminalOutputLimits = TerminalOutputLimits {
+        stdout_bytes: 1024,
+        stderr_bytes: 1024,
+        combined_bytes: 2048,
+    };
+
+    fn request<'program>(
+        artifact: &'program terminal_codec::CanonicalTerminalArtifact,
+        containment: TerminalRuntimeContainment<'program>,
+    ) -> TerminalRuntimeRequest<'program> {
+        TerminalRuntimeRequest {
+            entry: None,
+            native_provider: None,
+            native_services: TerminalNativeServiceDelegation::Unprovided,
+            filesystem: TerminalFilesystemDelegation::Unprovided,
+            x86_flags: None,
+            memory_ordering: None,
+            artifact,
+            target: None,
+            provisions: None,
+            provider_proposal: None,
+            work_budget: 1_000_000,
+            domain_exit: TerminalDomainExitDelegation::Unprovided,
+            output_limits: Some(LIMITS),
+            standard_input: None,
+            clock: None,
+            containment: Some(containment),
+        }
+    }
+
+    // A received artifact the host does not trust runs only on the contained
+    // route, and that route refuses every grant it cannot contain.
+    #[test]
+    fn an_untrusted_artifact_runs_only_with_containable_grants() {
+        let bytes = include_bytes!(
+            "../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
+        );
+        let received =
+            Arc::new(terminal_codec::CanonicalTerminalArtifact::from_bytes(bytes).unwrap());
+        let contained =
+            psi_authorization::admit_contained_interpretation(Arc::clone(&received)).unwrap();
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(
+                1_000_000, 1, 1, 1, 100_000, 1_000_000, 100_000, 1_000_000,
+            )
+            .unwrap(),
+            EvaluationMeasurementIdentity::TerminalPsi {
+                work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
+                storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+            },
+        )
+        .unwrap();
+        let account = sponsor
+            .begin_invocation(sponsor.measurement(), 1_000_000)
+            .unwrap();
+        let containment = TerminalRuntimeContainment {
+            artifact: &contained,
+            account: &account,
+        };
+
+        // The received copy itself is never trusted.
+        let mut trusted = request(&received, containment);
+        trusted.containment = None;
+        assert!(matches!(
+            HostedTerminalProgram::prepare(trusted),
+            Err(TerminalRuntimeError::InvalidProvision(_))
+        ));
+        assert!(matches!(
+            HostedTerminalProgram::prepare(request(&received, containment)),
+            Err(TerminalRuntimeError::InvalidProvision(
+                "contained execution runs only the artifact its admission names"
+            ))
+        ));
+        let refused = |change: fn(&mut TerminalRuntimeRequest<'_>)| {
+            let mut request = request(contained.artifact(), containment);
+            change(&mut request);
+            matches!(
+                HostedTerminalProgram::prepare(request),
+                Err(TerminalRuntimeError::InvalidProvision(_))
+            )
+        };
+        assert!(refused(|request| {
+            request.native_services = TerminalNativeServiceDelegation::MatchingHost;
+        }));
+        assert!(refused(|request| {
+            request.filesystem = TerminalFilesystemDelegation::HostNamespace;
+        }));
+        assert!(refused(|request| request.output_limits = None));
+
+        let observation = execute(request(contained.artifact(), containment)).unwrap();
+        assert!(matches!(
+            observation.status,
+            TerminalExecutionStatus::Complete(_)
+        ));
     }
 }

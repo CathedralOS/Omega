@@ -193,6 +193,7 @@ fn interpret(
                 Box::new(std::io::Cursor::new(bytes)) as Box<dyn std::io::Read + Send>
             }),
             clock: None,
+            containment: None,
         },
         report.retained_native_artifact(),
     );
