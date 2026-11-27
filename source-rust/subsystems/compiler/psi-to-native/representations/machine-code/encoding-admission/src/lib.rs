@@ -36,7 +36,7 @@ use selected_instructions::{
 };
 use std::sync::Arc;
 use target::NativeTarget;
-pub use validation::{validate_row, validate_size};
+pub use validation::{admits_address_operation, validate_row, validate_size};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedSelectedFormEncodingError {
@@ -252,7 +252,7 @@ pub fn validate_encoded_integrity(
         || encoding.recomputed_identity() != context.checked_encoding
         || encoding.machine() != context.machine.identity
         || encoding.selected() != context.machine.selected
-        || encoding.frame.as_ref() != Some(frame)
+        || encoding.frame.as_deref() != Some(frame)
         || frame.post_allocation_machine != context.machine.identity
         || frame.register_environment != context.environment.identity()
         || frame.physical_register_model != context.physical().identity()

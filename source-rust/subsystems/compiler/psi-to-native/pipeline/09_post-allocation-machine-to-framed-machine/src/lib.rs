@@ -62,12 +62,12 @@ pub fn plan_function_frame(
 > {
     let body = std::sync::Arc::clone(machine.body_facts());
     if body.retains_stage_inputs() {
-        let frame = frame_instructions(machine.current().clone())?;
+        let frame = frame_instructions(machine.current().clone(), true)?;
         Ok((FramedNativeBody { frame, facts: body }, Some(machine)))
     } else {
         Ok((
             FramedNativeBody {
-                frame: frame_instructions(machine.into_current())?,
+                frame: frame_instructions(machine.into_current(), false)?,
                 facts: body,
             },
             None,
@@ -75,8 +75,11 @@ pub fn plan_function_frame(
     }
 }
 
+/// `audit` is set when the body retains its stage inputs; only then does frame
+/// admission replay the storage and layout derivations.
 fn frame_instructions(
     program: PostAllocationMachineProgram,
+    audit: bool,
 ) -> Result<PhysicalFrameProgram, PhysicalFrameError> {
     let environment = &program.environment;
     let requirements = program.preservation.clone();
@@ -86,6 +89,7 @@ fn frame_instructions(
         environment,
         NonAuthoritativeCalleeSaveStoragePolicy::CanonicalTargetPreservationGroupsV1,
         budget,
+        audit,
     )
     .map_err(PhysicalFrameError::CalleeSaveStorage)?;
     let layout = stage_target_frame_layout(
@@ -94,6 +98,7 @@ fn frame_instructions(
         &storage,
         environment,
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+        audit,
     )
     .map_err(PhysicalFrameError::FrameLayout)?;
     let protocols = plan_target_frame_protocols(

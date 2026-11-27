@@ -81,9 +81,10 @@ impl RealizedTargetSupply {
     /// An unscoped check cannot choose a target's provider. Its actual roots
     /// must reach no boundary before a no-demand realization can be retained.
     pub fn unscoped(
-        module: &TerminalModule,
+        artifact: terminal_codec::TerminalArtifactView<'_>,
         roots: &[semantic_vocabulary::MachineId],
     ) -> Result<Self, String> {
+        let module = artifact.module();
         let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)?;
         let mut demanded_roots = roots.to_vec();
         for root in graph.scalar_evaluation_roots(roots, None)? {
@@ -107,18 +108,19 @@ impl RealizedTargetSupply {
                 return Err("boundary requirements require an explicit deployment target".into());
             }
         }
-        Self::no_demand(module, None)
+        Self::no_demand(artifact.identity(), None)
     }
 
-    pub(super) fn no_demand(module: &TerminalModule, target: Option<&str>) -> Result<Self, String> {
+    pub(super) fn no_demand(
+        program: terminal_psi::TerminalPsiIdentity,
+        target: Option<&str>,
+    ) -> Result<Self, String> {
         if let Some(target) = target {
             target::TargetProfile::from_canonical_target_name(target)
                 .map_err(|error| error.to_string())?;
         }
         Ok(Self(SelectedProviderRealization {
-            program: terminal_codec::terminal_psi_identity(module).map_err(|error| {
-                format!("provider realization lost its canonical program: {error:?}")
-            })?,
+            program,
             target: target.map(str::to_owned),
             plans: Arc::new(
                 build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(
@@ -136,15 +138,16 @@ impl RealizedTargetSupply {
         }))
     }
 
-    pub fn from_checked(
+    /// `program` is the identity of `module` that `realize_target_supply`
+    /// already checked against the closed logical providers.
+    pub(crate) fn from_checked(
         module: &TerminalModule,
+        program: terminal_psi::TerminalPsiIdentity,
         mut input: TargetSupplyRealizationInput,
     ) -> Result<Self, String> {
         let profile = target::TargetProfile::from_canonical_target_name(&input.target)
             .map_err(|error| error.to_string())?;
         let native_target = profile.native_realization();
-        let program =
-            terminal_codec::terminal_psi_identity(module).map_err(|reason| reason.to_string())?;
         for selected in &input.plans {
             let declaration = &selected.declaration;
             let plan = declaration;
@@ -414,9 +417,7 @@ impl RealizedTargetSupply {
         let plans =
             build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(plans)?;
         Ok(Self(SelectedProviderRealization {
-            program: terminal_codec::terminal_psi_identity(module).map_err(|error| {
-                format!("provider realization lost its canonical program: {error:?}")
-            })?,
+            program,
             target: Some(input.target),
             plans: Arc::new(plans),
             realizations,
@@ -431,16 +432,15 @@ impl RealizedTargetSupply {
         }))
     }
 
-    pub fn resolve_installation_reach(
+    /// `program` is the identity of `module`, which must be the program this
+    /// supply was realized for.
+    pub(crate) fn resolve_installation_reach(
         mut self,
         module: &TerminalModule,
+        program: terminal_psi::TerminalPsiIdentity,
         installation_requirements: &[semantic_vocabulary::BoundaryMachineId],
     ) -> Result<Self, String> {
-        self.require_program(
-            terminal_codec::terminal_psi_identity(module).map_err(|error| {
-                format!("installation input lost its canonical program: {error:?}")
-            })?,
-        )?;
+        self.require_program(program)?;
         let plans = super::installation_reach::resolve_installation_reach(
             module,
             installation_requirements,

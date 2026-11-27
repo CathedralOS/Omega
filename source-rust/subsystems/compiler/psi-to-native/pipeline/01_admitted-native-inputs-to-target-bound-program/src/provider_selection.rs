@@ -95,7 +95,7 @@ fn plan_provider_inputs(
     use crate::{NativeProgramPlanningError, target_supply::TargetSupplyRealizationError};
     let (profile, logical, bodies, labels, origins, review, has_bound_applications) = match demand {
         ProviderDemandInputs::Unscoped { artifact, roots } => {
-            return crate::plan_unscoped_execution(artifact.semantic_module(), &roots);
+            return crate::plan_unscoped_execution(artifact.view(), &roots);
         }
         ProviderDemandInputs::Target {
             profile,

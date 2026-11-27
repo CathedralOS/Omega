@@ -454,11 +454,20 @@ pub fn validate_non_authoritative_callee_save_storage(
     if candidate.functions != replayed.functions {
         return Err(NonAuthoritativeCalleeSaveStorageError::NonCanonicalStorage);
     }
-    let receipt = seal_storage(&candidate);
-    Ok(ValidatedNonAuthoritativeCalleeSaveStorage {
-        plan: candidate,
-        receipt,
-    })
+    Ok(seal_admitted_callee_save_storage(candidate))
+}
+
+/// Seal storage that `admit_storage_plan` just built from its roots.
+///
+/// `admit_storage_plan` fixes the roots and enforces the work budget, and the
+/// derivation it ran rejects a requirement no storage group preserves. Replaying
+/// the derivation would only compare it with itself; a body that retains its
+/// stage inputs calls `validate_non_authoritative_callee_save_storage` instead.
+pub fn seal_admitted_callee_save_storage(
+    plan: NonAuthoritativeCalleeSaveStoragePlan,
+) -> ValidatedNonAuthoritativeCalleeSaveStorage {
+    let receipt = seal_storage(&plan);
+    ValidatedNonAuthoritativeCalleeSaveStorage { plan, receipt }
 }
 
 pub fn admit_storage_plan(
@@ -778,6 +787,44 @@ pub fn validate_target_frame_demands(
     environment: &ValidatedTargetRegisterEnvironment,
     candidate: TargetFrameLayoutPlan,
 ) -> Result<ValidatedTargetFrameLayout, TargetFrameLayoutError> {
+    validate_frame_roots(&machine, requirements, storage, environment, &candidate)?;
+    validate_frame_layout_plan(&machine, requirements, storage, environment, &candidate)?;
+    Ok(seal_validated_frame_layout(machine, candidate))
+}
+
+/// Seal a layout that frame planning just derived from these roots.
+///
+/// Frame planning already enforces the layout rules while it derives the plan,
+/// so replaying them here would only compare the derivation with itself. A
+/// body that retains its stage inputs calls `validate_target_frame_demands`
+/// instead, which replays every rule.
+pub fn seal_derived_target_frame_layout(
+    machine: Arc<machine_code::frame_demands::MachineFrameDemands>,
+    requirements: &AllocatedCalleeSavedRequirements,
+    storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
+    environment: &ValidatedTargetRegisterEnvironment,
+    candidate: TargetFrameLayoutPlan,
+) -> Result<ValidatedTargetFrameLayout, TargetFrameLayoutError> {
+    validate_frame_roots(&machine, requirements, storage, environment, &candidate)?;
+    if candidate.functions.len() != machine.functions.len()
+        || candidate
+            .functions
+            .iter()
+            .zip(&machine.functions)
+            .any(|(row, source)| row.machine != source.machine)
+    {
+        return Err(TargetFrameLayoutError::FunctionRosterMismatch);
+    }
+    Ok(seal_validated_frame_layout(machine, candidate))
+}
+
+fn validate_frame_roots(
+    machine: &machine_code::frame_demands::MachineFrameDemands,
+    requirements: &AllocatedCalleeSavedRequirements,
+    storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
+    environment: &ValidatedTargetRegisterEnvironment,
+    candidate: &TargetFrameLayoutPlan,
+) -> Result<(), TargetFrameLayoutError> {
     if candidate.post_allocation_machine != machine.identity
         || candidate.callee_saved_requirements != requirements.identity()
         || candidate.callee_save_storage != storage.receipt().identity()
@@ -788,13 +835,19 @@ pub fn validate_target_frame_demands(
     {
         return Err(TargetFrameLayoutError::RootMismatch);
     }
-    validate_frame_layout_plan(&machine, requirements, storage, environment, &candidate)?;
+    Ok(())
+}
+
+fn seal_validated_frame_layout(
+    machine: Arc<machine_code::frame_demands::MachineFrameDemands>,
+    candidate: TargetFrameLayoutPlan,
+) -> ValidatedTargetFrameLayout {
     let receipt = seal_frame_layout(&candidate);
-    Ok(ValidatedTargetFrameLayout {
+    ValidatedTargetFrameLayout {
         demands: machine,
         plan: Arc::new(candidate),
         receipt,
-    })
+    }
 }
 
 fn seal_frame_layout(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutReceipt {

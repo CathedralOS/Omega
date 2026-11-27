@@ -5,8 +5,9 @@ decoded footprint into the shared `SelectedFormEncodedRowStore`
 (`:RouteDrivenEncoding`).
 
 Each `SelectedInstructionKind` declares its encoding route (`route_of`):
-- `RowRoute::ResolvedAddress` requires a resolved physical address in the
-  matching `AddressOperationFamily` and encodes the frame, memory, or hosted
+- `RowRoute::ResolvedAddress` requires a resolved physical address whose
+  operation encoding admission accepts for the kind
+  (`admits_address_operation`) and encodes the frame, memory, or hosted
   byte-channel instruction form.
 - `RowRoute::InternalCallTemplate` encodes a dynamic call or a direct internal
   scalar call template carrying an `UnresolvedInternalMachineCall` fixup.
@@ -25,7 +26,8 @@ Each `SelectedInstructionKind` declares its encoding route (`route_of`):
 Every non-address route rejects a present `ResolvedPhysicalAddress`, and every
 encoded draft verifies that the ISA encoder's register reads, register writes,
 implicit unit effects, and byte length match the machine alternative's
-declarations before interning.
+declarations before interning. These are the encoding contracts every build
+enforces; encoding admission's byte replay runs only for an audited body.
 */
 
 use calling_conventions::{NativePlace, ValueLocation};
@@ -59,7 +61,7 @@ use machine_code::{
     SelectedFormMachineDisposition, SelectedFormNormalizedForeignCallFixup,
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
-use post_allocation_machine::{PhysicalAddressOperation, PostAllocationMachineInstruction};
+use post_allocation_machine::PostAllocationMachineInstruction;
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineAlternativeKey, MachineEncodedEffects, SelectedInstruction, SelectedInstructionId,
@@ -68,7 +70,7 @@ use selected_instructions::{
 use target::{Architecture, NativeTarget};
 
 use crate::OptimizedSelectedFormEncodingError as Error;
-use encoding_admission::{normalized_foreign_call_record, validate_size};
+use encoding_admission::{admits_address_operation, normalized_foreign_call_record, validate_size};
 
 macro_rules! selected_encoded_parts {
     ($encoded:expr) => {{
@@ -145,65 +147,6 @@ impl SelectedFormEncodedRowDraft {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[rustfmt::skip]
-enum AddressOperationFamily {
-    AccessorScalarAccess,
-    Store,
-    AddressOffset,
-    Load64,
-    LoadPacked,
-    StorePacked,
-    Load8,
-    Load16,
-    Load32,
-    Load8Indexed,
-    LoadScaledIndex,
-    HostedReadByte,
-    HostedWriteByteI32,
-    Store64,
-    FrameAddress,
-    SaveFloatingControl,
-    RestoreFloatingControl,
-}
-
-impl AddressOperationFamily {
-    fn admits(self, operation: PhysicalAddressOperation) -> bool {
-        use PhysicalAddressOperation as Operation;
-        matches!(
-            (self, operation),
-            (
-                Self::AccessorScalarAccess,
-                Operation::AccessorScalarAccess { .. }
-            ) | (Self::Store, Operation::Store { .. })
-                | (Self::AddressOffset, Operation::AddressOffset { .. })
-                | (Self::Load64, Operation::Load64 { .. })
-                | (Self::LoadPacked, Operation::LoadPacked { .. })
-                | (Self::StorePacked, Operation::StorePacked { .. })
-                | (Self::Load8, Operation::Load8 { .. })
-                | (Self::Load16, Operation::Load16 { .. })
-                | (Self::Load32, Operation::Load32 { .. })
-                | (Self::Load8Indexed, Operation::Load8Indexed { .. })
-                | (Self::LoadScaledIndex, Operation::LoadScaledIndex { .. })
-                | (Self::HostedReadByte, Operation::HostedReadByte { .. })
-                | (
-                    Self::HostedWriteByteI32,
-                    Operation::HostedWriteByteI32 { .. }
-                )
-                | (
-                    Self::SaveFloatingControl,
-                    Operation::SaveFloatingControl { .. }
-                )
-                | (
-                    Self::RestoreFloatingControl,
-                    Operation::RestoreFloatingControl { .. }
-                )
-                | (Self::Store64, Operation::Store64 { .. })
-                | (Self::FrameAddress, Operation::FrameAddress { .. })
-        )
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HostedChannel {
     None,
     WriteByteI32,
@@ -213,10 +156,7 @@ enum HostedChannel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RowRoute {
-    ResolvedAddress {
-        operation: AddressOperationFamily,
-        channel: HostedChannel,
-    },
+    ResolvedAddress { channel: HostedChannel },
     InternalCallTemplate,
     NormalizedForeignCallTemplate,
     ByteLiteralAddress,
@@ -228,38 +168,30 @@ enum RowRoute {
 
 fn route_of(kind: SelectedInstructionKind) -> RowRoute {
     use SelectedInstructionKind as Kind;
-    let addressed = |operation| RowRoute::ResolvedAddress {
-        operation,
-        channel: HostedChannel::None,
-    };
     match kind {
-        Kind::AccessorScalarAccess { .. } => {
-            addressed(AddressOperationFamily::AccessorScalarAccess)
-        }
-        Kind::Store { .. } => addressed(AddressOperationFamily::Store),
-        Kind::AddressOffset { .. } => addressed(AddressOperationFamily::AddressOffset),
-        Kind::Load64 { .. } => addressed(AddressOperationFamily::Load64),
-        Kind::LoadPacked { .. } => addressed(AddressOperationFamily::LoadPacked),
-        Kind::StorePacked { .. } => addressed(AddressOperationFamily::StorePacked),
-        Kind::Load8 { .. } => addressed(AddressOperationFamily::Load8),
-        Kind::Load16 { .. } => addressed(AddressOperationFamily::Load16),
-        Kind::Load32 { .. } => addressed(AddressOperationFamily::Load32),
-        Kind::Load16Indexed | Kind::Load32Indexed | Kind::Load64Indexed => {
-            addressed(AddressOperationFamily::LoadScaledIndex)
-        }
-        Kind::Load8Indexed => addressed(AddressOperationFamily::Load8Indexed),
-        Kind::SaveFloatingControl { .. } => addressed(AddressOperationFamily::SaveFloatingControl),
-        Kind::RestoreFloatingControl { .. } => {
-            addressed(AddressOperationFamily::RestoreFloatingControl)
-        }
-        Kind::Store64 { .. } => addressed(AddressOperationFamily::Store64),
-        Kind::FrameAddress { .. } => addressed(AddressOperationFamily::FrameAddress),
+        Kind::AccessorScalarAccess { .. }
+        | Kind::Store { .. }
+        | Kind::AddressOffset { .. }
+        | Kind::Load64 { .. }
+        | Kind::LoadPacked { .. }
+        | Kind::StorePacked { .. }
+        | Kind::Load8 { .. }
+        | Kind::Load16 { .. }
+        | Kind::Load32 { .. }
+        | Kind::Load8Indexed
+        | Kind::Load16Indexed
+        | Kind::Load32Indexed
+        | Kind::Load64Indexed
+        | Kind::SaveFloatingControl { .. }
+        | Kind::RestoreFloatingControl { .. }
+        | Kind::Store64 { .. }
+        | Kind::FrameAddress { .. } => RowRoute::ResolvedAddress {
+            channel: HostedChannel::None,
+        },
         Kind::HostedReadByte { .. } => RowRoute::ResolvedAddress {
-            operation: AddressOperationFamily::HostedReadByte,
             channel: HostedChannel::ReadByte,
         },
         Kind::HostedWriteByteI32 { .. } => RowRoute::ResolvedAddress {
-            operation: AddressOperationFamily::HostedWriteByteI32,
             channel: HostedChannel::WriteByteI32,
         },
         selected_instructions::selected_call_pattern!(..) => RowRoute::InternalCallTemplate,
@@ -290,9 +222,9 @@ pub(super) fn encode_row(
     let alternative = machine.alternative.key;
     let route = route_of(selected.kind);
     let draft = match route {
-        RowRoute::ResolvedAddress { operation, channel } => {
+        RowRoute::ResolvedAddress { channel } => {
             let address = address.ok_or(Error::ArtifactMismatch)?;
-            if !operation.admits(address.symbolic) {
+            if !admits_address_operation(selected.kind, address.symbolic) {
                 return Err(Error::ArtifactMismatch);
             }
             encode_address_routed(
@@ -635,6 +567,10 @@ fn decoded_footprint(
     })
 }
 
+/// Admit an encoded call row: every external operand resolves, the encoder's
+/// effects equal the ones the allocator assumed, and the bytes fit the size the
+/// allocator declared. These checks run on every build; the audit replay in
+/// encoding admission repeats them on independently decoded bytes.
 fn validated_encoded_draft(
     instruction: SelectedInstructionId,
     machine: &PostAllocationMachineInstruction,
@@ -643,6 +579,9 @@ fn validated_encoded_draft(
     state: SelectedFormEncodingState,
 ) -> Result<SelectedFormEncodedRowDraft, Error> {
     let footprint = decoded_footprint(machine, effects)?;
+    if *effects != machine.alternative.encoded {
+        return Err(Error::ImplicitFootprintMismatch(instruction));
+    }
     validate_size(instruction, machine.alternative.size, bytes.len())?;
     Ok(SelectedFormEncodedRowDraft::encoded(
         state, bytes, footprint,
@@ -804,7 +743,7 @@ fn encode_normalized_foreign_call(
         .map(|operand| operand.access)
         .collect::<Vec<_>>();
     if record.call.binding.table_dispatch().is_some() {
-        let (bytes, effects) = match target.architecture {
+        let (bytes, reads, writes, effects) = match target.architecture {
             Architecture::X86_64 => {
                 let encoded = isa_x86_64::encode_x86_64_selected_table_call_form(
                     record,
@@ -813,10 +752,7 @@ fn encode_normalized_foreign_call(
                     &accesses,
                 )
                 .map_err(Error::X86_64)?;
-                (
-                    encoded.bytes().to_vec(),
-                    encoded.footprint().encoded.clone(),
-                )
+                selected_encoded_parts!(encoded)
             }
             Architecture::Aarch64 => {
                 let encoded = isa_aarch64::encode_aarch64_selected_table_call_form(
@@ -826,12 +762,10 @@ fn encode_normalized_foreign_call(
                     &accesses,
                 )
                 .map_err(Error::Aarch64)?;
-                (
-                    encoded.bytes().to_vec(),
-                    encoded.footprint().encoded.clone(),
-                )
+                selected_encoded_parts!(encoded)
             }
         };
+        validate_operand_footprint(instruction, machine, &effects, &reads, &writes)?;
         return validated_encoded_draft(
             instruction,
             machine,
@@ -844,7 +778,7 @@ fn encode_normalized_foreign_call(
         if !record.call.callbacks.is_empty() {
             return Err(Error::ArtifactMismatch);
         }
-        let (bytes, effects) = match target.architecture {
+        let (bytes, reads, writes, effects) = match target.architecture {
             Architecture::X86_64 => {
                 let encoded = isa_x86_64::encode_x86_64_selected_system_call_form(
                     target,
@@ -856,10 +790,7 @@ fn encode_normalized_foreign_call(
                     binding.number,
                 )
                 .map_err(|_| Error::ArtifactMismatch)?;
-                (
-                    encoded.bytes().to_vec(),
-                    encoded.footprint().encoded.clone(),
-                )
+                selected_encoded_parts!(encoded)
             }
             Architecture::Aarch64 => {
                 let encoded = isa_aarch64::encode_aarch64_selected_system_call_form(
@@ -872,12 +803,10 @@ fn encode_normalized_foreign_call(
                     binding.number,
                 )
                 .map_err(|_| Error::ArtifactMismatch)?;
-                (
-                    encoded.bytes().to_vec(),
-                    encoded.footprint().encoded.clone(),
-                )
+                selected_encoded_parts!(encoded)
             }
         };
+        validate_operand_footprint(instruction, machine, &effects, &reads, &writes)?;
         return validated_encoded_draft(
             instruction,
             machine,
