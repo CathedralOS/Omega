@@ -2247,7 +2247,7 @@ impl TerminalExecution<'_> {
             // rather than assuming a whole source must have a frame binding.
             let argument = StructuralArgument {
                 place: source,
-                path: copy_path.clone(),
+                path: copy_path,
                 access: StructuralAccess::SharedBorrow,
             };
             let descriptor = self.element_view_argument(&argument, &leaf)?;

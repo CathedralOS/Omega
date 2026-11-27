@@ -508,15 +508,29 @@ pub(crate) mod capabilities {
                     ));
                 }
             }
+            // `TerminalMachine::block` scans the machine's blocks, so this walk
+            // over every reachable block finds each one through a sorted index.
+            let mut block_positions = machine
+                .blocks
+                .iter()
+                .enumerate()
+                .map(|(position, block)| (block.id, position))
+                .collect::<Vec<_>>();
+            block_positions.sort_unstable();
             let mut blocks = vec![machine.entry];
-            let mut visited_blocks = BTreeSet::new();
+            let mut visited_blocks = vec![false; machine.blocks.len()];
             while let Some(block_id) = blocks.pop() {
-                if !visited_blocks.insert(block_id) {
+                // The first block with this id, as `TerminalMachine::block` finds it.
+                let first = block_positions.partition_point(|(id, _)| *id < block_id);
+                let position = block_positions
+                    .get(first)
+                    .filter(|(id, _)| *id == block_id)
+                    .map(|(_, position)| *position)
+                    .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
+                if std::mem::replace(&mut visited_blocks[position], true) {
                     continue;
                 }
-                let block = machine
-                    .block(&block_id)
-                    .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
+                let block = &machine.blocks[position];
                 storage_roots.extend(
                     block
                         .structural_parameters
@@ -3626,13 +3640,12 @@ pub(crate) mod execution {
             let program = std::sync::Arc::clone(&self.program);
             loop {
                 self.reclaim_orphan_scalar_records();
-                while let Some(operation) = program
-                    .verified_machine(self.current_machine)?
-                    .block(&self.current)
-                    .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
-                    .operations
-                    .get(self.next_operation)
-                {
+                // `TerminalMachine::block` scans the machine's blocks, so the
+                // loop finds the current block once and again only after an
+                // operation returns `Redispatch`, the one flow that moves
+                // execution to another machine or block.
+                let mut block = program.verified_block(self.current_machine, self.current)?;
+                while let Some(operation) = block.operations.get(self.next_operation) {
                     self.collect_retired_descriptor_storage(None);
                     let pending_component = matches!(
                         &operation.kind,
@@ -3912,7 +3925,10 @@ pub(crate) mod execution {
                                 self.observe_completed_entry_result(result.id)?;
                             }
                         }
-                        OperationFlow::Redispatch => continue,
+                        OperationFlow::Redispatch => {
+                            block = program.verified_block(self.current_machine, self.current)?;
+                            continue;
+                        }
                         OperationFlow::Yield(status) => {
                             if matches!(status, TerminalExecutionStatus::Complete(_)) {
                                 self.retire_access_view_occurrences();
@@ -3923,11 +3939,7 @@ pub(crate) mod execution {
                     self.next_operation += 1;
                 }
                 self.collect_retired_descriptor_storage(None);
-                let terminator = &program
-                    .verified_machine(self.current_machine)?
-                    .block(&self.current)
-                    .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
-                    .terminator;
+                let terminator = &block.terminator;
                 self.trace_scalar_state(format_args!("before terminator {terminator:?}"));
                 let flow = match &terminator {
                     // The checked actual storage path has no admitted value.
@@ -4073,7 +4085,7 @@ pub(crate) mod native_code_layouts {
             let mut storage = ConstructorStorage::new(self.account.as_ref());
             storage.stage_scalar_endpoint(
                 &PrimitiveStorageEndpoint::ScalarField(StructuralScalarRuntimeField::member(
-                    root.clone(),
+                    root,
                     entry_field,
                 )),
                 number(entry_type, layout.entry),

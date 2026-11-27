@@ -2144,7 +2144,7 @@ pub(crate) mod byte_buffers {
             let (_, bytes) = self.bounded_owner_snapshot(argument)?;
             Ok((
                 value.clone(),
-                ByteSequenceBinding::Immutable(bytes.with_descriptor_home(value.clone())),
+                ByteSequenceBinding::Immutable(bytes.with_descriptor_home(value)),
             ))
         }
 

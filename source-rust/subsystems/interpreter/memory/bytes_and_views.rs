@@ -998,7 +998,7 @@ pub(crate) mod byte_sequences {
                     });
                 }
                 let binding = if requested_access == StructuralAccess::WriteOnlyBorrow {
-                    binding.clone()
+                    binding
                 } else {
                     self.reborrow_byte_sequence_binding(&binding, &value, requested_access)
                         .map_err(|error| {
@@ -1455,7 +1455,6 @@ pub(crate) mod byte_sequences {
                 if !binding.matches_shared_home(source_value) || bytes.len() as u128 != *length {
                     return Err(malformed());
                 }
-                let bytes = bytes.clone();
                 self.structural_byte_sequence_fields.insert(
                     destination_field.clone(),
                     ByteSequenceBinding::Immutable(bytes),
@@ -1800,7 +1799,7 @@ pub(crate) mod byte_sequences {
                         {
                             return Err(malformed());
                         }
-                        bytes.clone()
+                        bytes
                     }
                 };
                 let expected =

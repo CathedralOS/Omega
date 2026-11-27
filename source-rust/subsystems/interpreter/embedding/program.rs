@@ -1618,7 +1618,7 @@ pub(crate) mod program {
     pub(crate) mod declarations {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
         use terminal_psi::{
-            Block, BoundaryMachineDeclaration, StructuralTypeDeclaration, TerminalMachine,
+            BoundaryMachineDeclaration, StructuralTypeDeclaration, TerminalMachine,
         };
 
         pub(crate) trait ProgramDeclaration {
@@ -1700,13 +1700,6 @@ pub(crate) mod program {
             }
         }
 
-        impl ProgramDeclaration for Block {
-            type Identity = semantic_vocabulary::BlockId;
-            fn identity(&self) -> &Self::Identity {
-                &self.id
-            }
-        }
-
         impl ProgramDeclaration for StructuralTypeDeclaration {
             type Identity = semantic_vocabulary::StructuralTypeId;
             fn identity(&self) -> &Self::Identity {
@@ -1726,7 +1719,7 @@ pub(crate) mod program {
     use crate::boundary::structural_inputs::TerminalStructuralInputs;
     use crate::boundary::values::TerminalScalarValue;
     use crate::embedding::instance::TerminalInstance;
-    use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
+    use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, StructuralTypeId};
     use std::collections::BTreeMap;
     use terminal_psi::{
         BoundaryMachineDeclaration, StructuralTypeDeclaration, TerminalModule, TerminalPsiIdentity,
@@ -1910,6 +1903,16 @@ pub(crate) mod program {
             self.machines()
                 .get(&machine)
                 .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(machine))
+        }
+
+        pub(crate) fn verified_block(
+            &self,
+            machine: MachineId,
+            block: BlockId,
+        ) -> Result<&terminal_psi::Block, TerminalInterpretError> {
+            self.verified_machine(machine)?
+                .block(&block)
+                .ok_or(TerminalInterpretError::VerifiedBlockMissing)
         }
 
         pub(crate) fn verified_boundary_machine(
