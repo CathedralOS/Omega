@@ -438,7 +438,6 @@ fn summarize(
     let mut scratch = original.clone();
     let (prepared, beyond) = crate::with_prepared_machine(
         scope.formed(),
-        &elaboration.domains,
         id,
         &mut scratch,
         inhabitation,

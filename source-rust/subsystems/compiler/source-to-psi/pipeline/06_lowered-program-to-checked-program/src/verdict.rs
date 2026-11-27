@@ -1040,7 +1040,6 @@ fn examine(
     let finished = crate::finish_discharge(
         crate::ElaborationView {
             module: &elaboration.module,
-            domains: &elaboration.domains,
             sources: &elaboration.sources,
             requirements: &elaboration.requirements,
             nominal_calls: &elaboration.nominal_calls,

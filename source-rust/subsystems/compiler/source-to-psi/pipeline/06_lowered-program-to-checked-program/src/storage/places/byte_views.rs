@@ -313,13 +313,13 @@ impl<'a> Storage<'a> {
                 });
         let element_admitted = match erased_element {
             Some(element) => {
-                self.domains.get(element).is_some_and(Vec::is_empty)
+                self.declared_requires(element).is_some_and(<[_]>::is_empty)
                     && self.declaration(element, concerns)?.scalar_restriction.is_none()
             }
             None => true,
         };
         if !unclaimed
-            || !self.domains.get(selected.id).is_some_and(Vec::is_empty)
+            || !self.declared_requires(selected.id).is_some_and(<[_]>::is_empty)
             || !element_admitted
         {
             return Err(self.unsupported(
@@ -388,10 +388,7 @@ impl<'a> Storage<'a> {
             || !result.qualification_establishments.is_empty()
             || !result.additional_input_qualifications.is_empty()
             || !result.claims.is_empty()
-            || !self
-                .domains
-                .get(result.structural_type)
-                .is_some_and(Vec::is_empty)
+            || !self.declared_requires(result.structural_type).is_some_and(<[_]>::is_empty)
             || self
                 .declaration(result.structural_type, concerns)?
                 .scalar_restriction
@@ -661,7 +658,7 @@ impl<'a> Storage<'a> {
             return Err(self.foreign(concerns, "a byte view re-views elements that are not bytes"));
         }
         let actual = self.collection_backing_source(source, 0, Some(source_element), concerns)?;
-        if !self.domains.get(*element).is_some_and(Vec::is_empty)
+        if !self.declared_requires(*element).is_some_and(<[_]>::is_empty)
             || self
                 .declaration(*element, concerns)?
                 .scalar_restriction
@@ -956,10 +953,7 @@ impl<'a> Storage<'a> {
             || !source.qualifications.is_empty()
             || !source.projected_qualifications.is_empty()
             || !source.additional_input_qualifications.is_empty()
-            || !self
-                .domains
-                .get(source.structural_type)
-                .is_some_and(Vec::is_empty)
+            || !self.declared_requires(source.structural_type).is_some_and(<[_]>::is_empty)
         {
             return Err(self.unsupported(
                 concerns,

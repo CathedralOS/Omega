@@ -792,7 +792,6 @@ machine entry<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64 {{
             lowered.id,
             &lowered,
             &elaboration.module,
-            &elaboration.domains,
             &graph,
             &tables,
             &types,

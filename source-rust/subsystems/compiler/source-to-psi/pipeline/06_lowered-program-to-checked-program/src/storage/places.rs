@@ -1253,9 +1253,6 @@ pub(crate) struct Storage<'a> {
     arrivals: Vec<Vec<arrivals::Arrival>>,
     cleanup_writes: Vec<crate::owned_cleanup::Write>,
     observations: Vec<BlockObservations>,
-    /// The `requires` clauses of each data type, by its identity
-    /// (`Elaboration::domains`).
-    domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
     defaults: terminal_semantics::structural_qualifications::DefaultRequirements<'a>,
     default_operations: IdTable<
         OperationId,
@@ -1281,7 +1278,6 @@ impl<'a> Storage<'a> {
         machine: MachineId,
         lowered: &'a TerminalMachine,
         module: &'a terminal_psi::TerminalModule,
-        domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
         graph: &'a Graph,
         tables: &MachineTables,
         value_types: &IdTable<ValueId, ScalarType>,
@@ -1409,7 +1405,6 @@ impl<'a> Storage<'a> {
             observations: (0..graph.block_count())
                 .map(|_| BlockObservations::default())
                 .collect(),
-            domains,
             defaults,
             default_operations,
             routed_write,
@@ -1417,8 +1412,6 @@ impl<'a> Storage<'a> {
         storage.initial_contents_are_declared(references, tables)?;
         storage.log = storage.stores(references, tables, value_types)?;
         storage.cleanup_writes = crate::owned_cleanup::writes(module, lowered, references)?;
-        storage.log_is_stated(tables)?;
-        storage.cleanup_log_is_stated(tables)?;
         // All writes have been authenticated against their operations. Keep the
         // writes to original guest addresses for reaching-value queries. Provider
         // scalar cells have no captured guest address, including when lent to a
@@ -1555,20 +1548,24 @@ impl<'a> Storage<'a> {
         ))
     }
 
-    /// The `requires` clauses of a structural type. The primitive type of a
-    /// scalar local's home is declared after the data types and has none.
+    /// The `requires` clauses a structural type's declaration states, in
+    /// authored order. These are the goals of every `DataDomain` obligation,
+    /// read from the module itself rather than from a table beside it.
     fn clauses_of(
         &self,
         structural_type: StructuralTypeId,
         concerns: Construct,
     ) -> Checked<&'a [Proposition]> {
-        match self.domains.get(structural_type) {
-            Some(clauses) => Ok(clauses),
-            None => match self.declaration(structural_type, concerns)?.shape {
-                StructuralTypeShape::PrimitiveScalar(_) => Ok(&[]),
-                _ => Err(self.foreign(concerns, "a data type has no row of requires clauses")),
-            },
-        }
+        Ok(self.declaration(structural_type, concerns)?.requires.as_slice())
+    }
+
+    /// The `requires` clauses of a declared structural type, or `None` when
+    /// the module declares no such type.
+    fn declared_requires(&self, structural_type: StructuralTypeId) -> Option<&'a [Proposition]> {
+        self.types
+            .get(index(structural_type.get()))
+            .filter(|declaration| declaration.id == structural_type)
+            .map(|declaration| declaration.requires.as_slice())
     }
 
     /// The first declared case of the sum a zero value holds at `beneath`
@@ -9448,7 +9445,6 @@ mod observation_tests {
             machine.id,
             machine,
             module,
-            &input.domains,
             &graph,
             tables,
             &types,
@@ -9683,7 +9679,6 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             machine.id,
             machine,
             module,
-            &input.domains,
             &graph,
             tables,
             &types,
@@ -9831,7 +9826,6 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
                 machine.id,
                 machine,
                 module,
-                &input.domains,
                 &graph,
                 tables,
                 &types,
@@ -9981,7 +9975,6 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             machine.id,
             machine,
             module,
-            &input.domains,
             &graph,
             tables,
             &types,
@@ -10122,7 +10115,6 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             machine.id,
             machine,
             module,
-            &input.domains,
             &cyclic_graph,
             &unseeded,
             &types,
@@ -10198,7 +10190,6 @@ machine entry() {
             machine.id,
             machine,
             module,
-            &input.domains,
             &graph,
             tables,
             &types,
@@ -10353,7 +10344,6 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
                 machine.id,
                 machine,
                 module,
-                &acyclic.domains,
                 &graph,
                 tables,
                 &types,
@@ -10503,7 +10493,6 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
                 machine.id,
                 machine,
                 module,
-                &cyclic.domains,
                 &graph,
                 tables,
                 &types,

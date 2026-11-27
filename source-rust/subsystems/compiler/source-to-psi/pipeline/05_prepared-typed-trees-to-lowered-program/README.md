@@ -1553,9 +1553,8 @@ case-membership proposition on such a path. Nothing proves or knows a clause
 in that form. Each type's declaration in the module states its clauses
 (`StructuralTypeDeclaration::requires`), so they are encoded with the module
 and part of its identity; the published module proves those clauses outside
-the module text, and its declarations state none. `Elaboration::domains` restates them by the
-type's identity for the checker, which refuses a table that differs from the
-declarations.
+the module text, and its declarations state none. The checker reads them
+from the unsealed module's declarations.
 
 **Domain predicates.** A named domain's `requires`
 ([domains](../../../../../../wiki/spec/language/domains.md#declaration-and-membership))
@@ -1809,9 +1808,9 @@ worked around by adding to `terminal-check-tables`.
 24. **Terminal Psi carries no data `requires`.** For
     `data R requires low <= high`, the published module holds the
     construction and the store with `range_obligation: None` and no clause
-    anywhere: it proves the domain outside the module text. The clauses therefore
-    travel in `Elaboration::domains`, a field of this crate's result, not in
-    the module and not in `terminal-check-tables`.
+    anywhere: it proves the domain outside the module text. The checker
+    reads the clauses from the unsealed module's type declarations, which
+    state them before publication.
 25. **No field in this subset has a `range_obligation`.** The slot is set
     for a field of bounded or refined type (`StructuralFieldType::BoundedInteger`,
     `RefinedScalar`), which a constrained field type or a named domain

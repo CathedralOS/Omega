@@ -222,7 +222,7 @@ use proof_admission::{
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IntegerMathTerm,
     InvocationSite, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext,
-    ScalarTerm, ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
+    ScalarTerm, ScalarType, StructuralCaseId, ValueId,
 };
 use terminal_check_tables::edges::{Actual, Callee, Destination};
 use terminal_check_tables::obligations::ObligationKind;
@@ -549,7 +549,6 @@ pub fn discharge_carrying(
 /// holding `AffineSummaries<'_>` against `module` alongside `&mut CheckTables`.
 pub(crate) struct ElaborationView<'a> {
     pub(crate) module: &'a TerminalModule,
-    pub(crate) domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
     pub(crate) sources: &'a IdTable<MachineId, terminal_check_tables::program::MachineSources>,
     pub(crate) requirements: &'a [MachineId],
     pub(crate) nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
@@ -783,7 +782,6 @@ pub(crate) fn finish_discharge<'m>(
             machine(
                 formed,
                 &inhabitation,
-                view.domains,
                 id,
                 tables,
                 &beyond,
@@ -834,7 +832,6 @@ pub(crate) fn discharge_inner(
     let discharged = finish_discharge(
         ElaborationView {
             module: &elaboration.module,
-            domains: &elaboration.domains,
             sources: &elaboration.sources,
             requirements: &elaboration.requirements,
             nominal_calls: &elaboration.nominal_calls,
@@ -946,7 +943,6 @@ fn terminal_machine(
 fn machine(
     formed: formation::FormedModule<'_>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
     unreached: &[ValueId],
@@ -971,7 +967,6 @@ fn machine(
     }
     let (prepared, mut discharge) = with_prepared_machine(
         formed,
-        domains,
         id,
         tables,
         inhabitation,
@@ -1834,13 +1829,12 @@ impl Prepared {
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn prepare(
     formed: formation::FormedModule<'_>,
-    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
 ) -> Checked<Prepared> {
     let module = formed.source();
     let inhabitation = prepare_inhabitation(module, id)?;
-    with_prepared_machine(formed, domains, id, tables, &inhabitation, None, |_, _| {
+    with_prepared_machine(formed, id, tables, &inhabitation, None, |_, _| {
         Ok(())
     })
     .map(|(prepared, ())| prepared)
@@ -1867,7 +1861,6 @@ fn prepare_inhabitation(
 /// machine. The returned values own no borrow of this local working state.
 fn with_prepared_machine<Outcome>(
     formed: formation::FormedModule<'_>,
-    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
@@ -1876,7 +1869,6 @@ fn with_prepared_machine<Outcome>(
 ) -> Checked<(Prepared, Outcome)> {
     let module = formed.source();
     let machines = &module.machines;
-    let structural_types = &module.types.structural_types;
     let lowered = terminal_machine(machines, id, id)?;
     let fill = tables.knowledge.is_empty();
     let types = tables.values.map(|_, row| row.scalar_type);
@@ -1893,7 +1885,6 @@ fn with_prepared_machine<Outcome>(
         inhabitation,
         summaries.map(|summaries| summaries.affine),
     )?;
-    minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
     theorems::validate(module, lowered, tables, &graph)?;
     minted::check_pending_operands(lowered, tables, &graph)?;
@@ -1918,7 +1909,6 @@ fn with_prepared_machine<Outcome>(
             id,
             lowered,
             module,
-            domains,
             &graph,
             tables,
             &types,

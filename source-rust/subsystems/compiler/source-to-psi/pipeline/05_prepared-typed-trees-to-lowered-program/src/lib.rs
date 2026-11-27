@@ -2238,7 +2238,6 @@ fn lower_program_with_parallel<'source>(
         &mut module,
         typed_source,
     )?;
-    let mut domains = IdTable::default();
     let (static_schemas, static_conformances) = static_contracts.publish(
         diagnostic,
         signatures.machines,
@@ -2258,9 +2257,6 @@ fn lower_program_with_parallel<'source>(
         .structural_changes
         .sort_unstable_by_key(|change| (change.machine, change.edge, change.argument_ordinal));
     module.types.structural_qualification_changes = qualifications.structural_changes;
-    for (_, record) in records.iter() {
-        domains.push(record.requires.clone());
-    }
     // Formation questions come from the completed module, including unread
     // structural headers. This emits questions only; the actual static-binder
     // roster arrives with source preparation and the checker admits it before
@@ -2335,7 +2331,6 @@ fn lower_program_with_parallel<'source>(
             machines: IdTable::default(),
             private_inputs: Vec::new(),
             local_results: local_summaries.map_or_else(Vec::new, |local| local.result_contracts),
-            domains,
             requirements: requirements.to_vec(),
             requirement_ceilings,
             selections: Vec::new(),
