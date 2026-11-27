@@ -605,8 +605,8 @@ merely because the kernel implements it. Kernel anchors are `typing.rs`,
 | `unbox` with a motive into `Type_j` or `sProp_j`; `unbox P f (box a) ≡ f a` (§3.5) | `BoxElim` accepts a motive into either sort; ι-unbox | Matches. |
 
 Beyond this selection the kernel adds the
-implemented profile's typed function eta, relevant identity, `Two` and `W`
-rules. These are extensions with
+implemented profile's typed function eta, relevant identity, `Two` rules
+and native inductive blocks. These are extensions with
 their own arguments above, not rows of the reference figure. Section 4's
 consistency argument translates sMLTT into extensional type theory (Fig. 3,
 Lemma 4.1, Theorem 4.2). It covers the matching and restricted rows. It does
@@ -649,7 +649,7 @@ proof stays distinct from a canonical `box`. `Squash` from
 [mathematical bindings](mathematical_bindings.md) has this kernel
 counterpart.
 
-Not claimed: K/UIP, identity eta, `Two` eta, W eta, function
+Not claimed: K/UIP, identity eta, `Two` eta, eta for inductive types, function
 extensionality, equality reflection, cumulativity, `imax`, impredicativity.
 Conversion decides definitional equality only; under a well-formed signature
 and context it is sound and bounded-incomplete under the ceiling. Normalization

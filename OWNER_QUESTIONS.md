@@ -254,47 +254,8 @@ rule to accept `0 <= value` for a declared address value alongside its existing
 fixed-integer endpoint cases. The mathematical rule for a selected address
 width continues to apply. [Elementary certificate rules](wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules)
 
-<a id="retired-w-encoding-text"></a>
-### 7. Retire W/IW wording from the proof specification
-
-**Owner ruling, 2026-11-27.** Describe the native inductive blocks that the
-kernel checks today. Keep constructor computation, induction, index checks
-and rejection of malformed declarations and forged recursors as requirements
-for future changes. Keep the old encoding's rationale and measurements in
-the experiment notes.
-
-The [inductive profile](wiki/spec/proofs/inductive_profile.md#required-evidence-and-measurements)
-says "The implementation's existing [W/IW metatheory](wiki/spec/proofs/kernel_metatheory.md)
-documents its earlier encoding" and "Retire the production W/IW encoding once
-this path preserves constructor computation, induction, index checks and
-refusal of malformed declarations and forged recursors." The kernel has had no
-`W` term since `f38e2d847`. Plain, payloaded, generic, indexed and mutual data,
-and data with a function field, are native inductive blocks from source
-through stage 06. [Kernel metatheory](wiki/spec/proofs/kernel_metatheory.md)
-already argues normalization and checking for those blocks under
-[native inductive declarations](wiki/spec/proofs/kernel_metatheory.md#native-inductive-declarations-and-scheme-correspondence).
-Two of its sentences still name W: "the implemented profile's typed function
-eta, relevant identity, `Two` and `W` rules" under reference rule
-correspondence, and "W eta" among the non-claims.
-
-Each condition the profile sets for retiring the encoding is checked from
-source. Constructor computation and induction are checked in the `seq_laws`,
-`mutual_data` and `nat_semiring` tests. Index checks are in `indexed_family`.
-Malformed declarations and forged recursors are refused in the kernel's
-`plain_data` and `native_inductives` tests and the `seq_laws` certificate
-tests. Costs from source sit beside the prototype figures in
-[the encoding experiments](wiki/drafts/designs/recursive_data_encoding_experiments.md#production-measurements-from-source).
-
-**Approved wording for the owners to apply.** In `inductive_profile.md`, the two sentences become
-"The [kernel metatheory](wiki/spec/proofs/kernel_metatheory.md#native-inductive-declarations-and-scheme-correspondence)
-argues these rules with the rest of the calculus." and "Each change keeps
-constructor computation, induction, index checks and refusal of malformed
-declarations and forged recursors." In `kernel_metatheory.md`, "`Two` and `W`
-rules" becomes "`Two` rules and native inductive blocks", and "W eta" becomes
-"eta for inductive types" in the list of properties the metatheory does not claim.
-
 <a id="fixed-extent-view-of-a-slice"></a>
-### 8. Explicit casts between slices and fixed-array references
+### 7. Explicit casts between slices and fixed-array references
 
 **Owner ruling, 2026-11-27.** Use ordinary checked `as` to convert between
 `@[T]` and `@[T; N]`. The author writes the conversion at the call site
