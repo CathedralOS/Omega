@@ -46,7 +46,7 @@ use mathematical_kernel::{
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue,
     IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarTerm, ScalarType,
-    StructuralCaseId, StructuralFieldId, StructuralTypeId,
+    StructuralCaseId, StructuralCaseSubject, StructuralFieldId, StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
@@ -57,7 +57,9 @@ use terminal_check_tables::mathematics::{
 use terminal_check_tables::{Checked, Construct, Refusal};
 
 use super::Program;
-use super::families::{EvidenceUse, FamilyRecord, FamilyTerm, FamilyTheorem};
+use super::families::{
+    EvidenceUse, FamilyDomain, FamilyRecord, FamilyTerm, FamilyTheorem, FamilyValue,
+};
 use super::proof_stratum::TemplateField;
 use super::quotients::{LiftArgument, LiftedOperation};
 use crate::Unserved;
@@ -195,9 +197,12 @@ impl Program<'_> {
             unfolding: None,
             within: None,
             result_as: None,
+            family_inputs: Vec::new(),
             callable_scope: Vec::new(),
+            bound_values: Vec::new(),
             generic_premises: Vec::new(),
             held: Vec::new(),
+            pointwise_laws: Vec::new(),
             stating_premises: false,
             integers: None,
             families: Vec::new(),
@@ -754,15 +759,26 @@ struct Converter<'p, 't> {
     /// While a law is read for its induction on fuel: the machine and the
     /// term its clauses' `result` stands for.
     result_as: Option<(MachineId, TermHandle)>,
+    /// While a clause over a family indexed by data is read: the term each
+    /// input that names an index or a payload value stands for
+    /// (`families::index_place`).
+    family_inputs: Vec<(StructuralCaseSubject, TermHandle)>,
     /// The machine parameters of the generic machine being read, each as
     /// the variable it is under that machine's formals.
     callable_scope: Vec<(SymbolHandle, TermHandle)>,
+    /// The values the for-every propositions being read bind, each with the
+    /// place its clause names it by and the variable it is under the
+    /// formals (`Proposition::Universal`).
+    bound_values: Vec<(semantic_vocabulary::PlaceId, TermHandle)>,
     /// The premises of each generic machine read so far, as terms under
     /// its machine parameters and formals: what a call of it owes.
     generic_premises: Vec<(MachineId, Vec<TermHandle>)>,
     /// The premises of the machine being read that are read so far, as
     /// terms under its formals: what a clause of it may rest a call on.
     held: Vec<TermHandle>,
+    /// Each theorem law sealed as pointwise, with the entry of the statement
+    /// it was sealed to (`pointwise`): the statement its users cite.
+    pointwise_laws: Vec<(u32, u32)>,
     /// Set while a called machine's premises are stated at a call's
     /// arguments: what those premises themselves call was owed where that
     /// machine was declared.
@@ -805,6 +821,9 @@ struct FamilyCaseTerms {
 struct Integers<'e> {
     indices: &'e [TermHandle],
     payload: Option<(StructuralCaseId, &'e [(StructuralFieldId, TermHandle)])>,
+    /// Each index or payload value that is data, as the input a clause
+    /// names it by and the term it is.
+    inputs: &'e [(StructuralCaseSubject, TermHandle)],
 }
 
 fn unserved(id: MachineId, what: &'static str) -> Refusal {
@@ -1513,9 +1532,11 @@ impl<'p> Converter<'p, '_> {
             };
             let ty = self.constant(carrier);
             let stated = &self.signature.laws[law as usize];
-            if stated.formals.len() != count as usize
-                || !stated
-                    .formals
+            // A row may also take the binders of the relation's arrow, after
+            // the values it relates (`pointwise`).
+            let binders = stated.formals.len().checked_sub(count as usize);
+            if binders.is_none()
+                || !stated.formals[..count as usize]
                     .iter()
                     .all(|&formal| self.signature.arena.structurally_equal(formal, ty))
             {
@@ -1524,6 +1545,7 @@ impl<'p> Converter<'p, '_> {
                     "row of a quotient's equivalence over other than values of its carrier",
                 ));
             }
+            let binders = binders.unwrap_or(0) as u32;
             entries[slot] = stated.statement;
             let related = self.constant(relation);
             let holds = |converter: &mut Self, left: u32, right: u32| {
@@ -1569,6 +1591,11 @@ impl<'p> Converter<'p, '_> {
                 self.name(quotient.declaration),
                 quotient.relation_name,
             );
+            if binders > 0 {
+                entries[slot] =
+                    self.pointwise(id, law, vec![ty; count as usize], premises, goal, binders)?;
+                continue;
+            }
             self.signature.laws[law as usize].declared = Some(DeclaredLaw {
                 premises,
                 goal,
@@ -1576,6 +1603,63 @@ impl<'p> Converter<'p, '_> {
             });
         }
         Ok(entries)
+    }
+
+    /// The statement a declaration needs, as a law of its own proved from
+    /// the row law `row`, which takes the binders of the needed
+    /// conclusion's arrow as its last `binders` formals
+    /// (`wiki/spec/proofs/mathematical_bindings.md`, "Pointwise theorem
+    /// citations"). Returns the new statement's entry. The kernel checks
+    /// the proof, so a row that proves something else fails it.
+    fn pointwise(
+        &mut self,
+        id: MachineId,
+        row: u32,
+        formals: Vec<TermHandle>,
+        premises: Vec<TermHandle>,
+        goal: TermHandle,
+        binders: u32,
+    ) -> Checked<u32> {
+        let law = index(id, self.signature.laws.len())?;
+        index(id, self.signature.declarations.len() + 1)?;
+        let mut statement = self.implication(&premises, goal);
+        for &domain in formals.iter().rev() {
+            statement = self.signature.arena.insert(Term::Pi {
+                domain,
+                codomain: statement,
+            });
+        }
+        let cited = &self.signature.laws[row as usize];
+        let (machine, clause, row_statement) = (cited.machine, cited.clause, cited.statement);
+        let (formal_names, machine_name, text, source) = (
+            cited.formal_names[..formals.len()].to_vec(),
+            cited.machine_name.clone(),
+            cited.text.clone(),
+            cited.source,
+        );
+        let entry = self.push(
+            Declaration::assumption(0, statement),
+            SignatureEntryKind::Statement { law },
+            machine_name.clone(),
+        );
+        self.signature.laws.push(Law {
+            machine,
+            clause,
+            statement: entry,
+            formals,
+            premises,
+            goal,
+            declared: None,
+            proof: LawProof::Pointwise {
+                row: row_statement,
+                binders,
+            },
+            formal_names,
+            machine_name,
+            text,
+            source,
+        });
+        Ok(entry)
     }
 
     /// Judges a machine whose body is one `Quotient::lift` or
@@ -1739,14 +1823,19 @@ impl<'p> Converter<'p, '_> {
             ));
         };
         let stated = &self.signature.laws[law as usize];
-        if stated.premises.len() != paired {
+        let pointwise = self
+            .pointwise_laws
+            .iter()
+            .find(|&&(known, _)| known == law)
+            .map(|&(_, entry)| entry);
+        if pointwise.is_none() && stated.premises.len() != paired {
             return Err(unserved(
                 congruence,
                 "congruence theorem of a quotient operation that requires more than related \
                  representatives",
             ));
         }
-        let statement = stated.statement;
+        let statement = pointwise.unwrap_or(stated.statement);
         if let &[first, second] = taken.as_slice() {
             let term = self.lifted_pair(
                 id,
@@ -2637,7 +2726,9 @@ impl<'p> Converter<'p, '_> {
         refusal: String,
     ) -> Checked<()> {
         let stated = &self.signature.laws[law as usize];
-        if stated.formals.len() != binders.len()
+        // A theorem may also take the binders of the needed conclusion's
+        // arrow after these (`pointwise`).
+        if stated.formals.len() < binders.len()
             || !stated
                 .formals
                 .iter()
@@ -2648,6 +2739,21 @@ impl<'p> Converter<'p, '_> {
                 machine,
                 "theorem of a quotient operation over other than two representatives of each class and one value of each other argument",
             ));
+        }
+        let extra = (stated.formals.len() - binders.len()) as u32;
+        if extra > 0 {
+            if self.pointwise_laws.iter().all(|&(known, _)| known != law) {
+                let entry = self.pointwise(
+                    machine,
+                    law,
+                    binders.to_vec(),
+                    premises.to_vec(),
+                    goal,
+                    extra,
+                )?;
+                self.pointwise_laws.push((law, entry));
+            }
+            return Ok(());
         }
         let arena = &self.signature.arena;
         if stated.declared.as_ref().is_some_and(|known| {
@@ -2929,6 +3035,24 @@ impl<'p> Converter<'p, '_> {
         scope: &Integers<'_>,
         components: &mut Vec<TermHandle>,
     ) -> Checked<()> {
+        match proposition {
+            Proposition::Conjunction(parts) => {
+                for part in parts {
+                    self.integer_proposition(id, part, scope, components)?;
+                }
+                return Ok(());
+            }
+            // An Identity over data, read as a law's is, with each index
+            // and payload value the term it stands for.
+            Proposition::DeclarationIdentity(_) => {
+                let saved = std::mem::replace(&mut self.family_inputs, scope.inputs.to_vec());
+                let term = self.equality(id, proposition, &[], None);
+                self.family_inputs = saved;
+                components.push(term?);
+                return Ok(());
+            }
+            _ => {}
+        }
         let vocabulary = self.integer_vocabulary(id)?;
         let related = |converter: &mut Self, relation: u32, left, right| {
             let relation = converter.constant(relation);
@@ -2945,12 +3069,6 @@ impl<'p> Converter<'p, '_> {
                 .insert(Term::Id { ty, left, right })
         };
         let term = match proposition {
-            Proposition::Conjunction(parts) => {
-                for part in parts {
-                    self.integer_proposition(id, part, scope, components)?;
-                }
-                return Ok(());
-            }
             Proposition::Equal(left, right) => {
                 let left = self.integer_scalar(id, left, scope)?;
                 let right = self.integer_scalar(id, right, scope)?;
@@ -2984,7 +3102,7 @@ impl<'p> Converter<'p, '_> {
             _ => {
                 return Err(unserved(
                     id,
-                    "clause over indexed data other than equalities and orders of integers",
+                    "clause over indexed data other than Identities and orders of integers",
                 ));
             }
         };
@@ -3002,8 +3120,11 @@ impl<'p> Converter<'p, '_> {
     /// proof of what the declaration requires of that case, and each child
     /// sits at the index its field's type names.
     fn indexed_family(&mut self, id: MachineId, family: &FamilyRecord) -> Checked<()> {
-        let vocabulary = self.integer_vocabulary(id)?;
-        let integer = self.constant(vocabulary.carrier);
+        let index_domains = family
+            .indices
+            .iter()
+            .map(|index| self.family_domain(id, index))
+            .collect::<Checked<Vec<_>>>()?;
         let indices = family.indices.len() as u32;
         // What the declaration requires of each case: one disjunct per
         // case, naming it.
@@ -3043,11 +3164,24 @@ impl<'p> Converter<'p, '_> {
                         .ok_or_else(|| unserved(id, "payload value lost its field"))?;
                     Ok((field, self.variable(payload - 1 - position as u32)))
                 })
-                .collect::<Checked<_>>()?;
+                .collect::<Checked<Vec<_>>>()?;
+            let inputs =
+                self.family_inputs(id, family, &index_terms, Some((case, &payload_terms)))?;
             let scope = Integers {
                 indices: &index_terms,
                 payload: Some((case.case, &payload_terms)),
+                inputs: &inputs,
             };
+            let payload_domains = case
+                .payload
+                .iter()
+                .map(|value| self.family_domain(id, value))
+                .collect::<Checked<Vec<_>>>()?;
+            let binders: Vec<_> = index_domains
+                .iter()
+                .chain(&payload_domains)
+                .copied()
+                .collect();
             let mut clauses = required.iter().filter(|parts| {
                 parts.iter().any(|part| {
                     matches!(part, Proposition::StructuralCaseMembership { case: named, .. }
@@ -3081,17 +3215,19 @@ impl<'p> Converter<'p, '_> {
                     at.push(self.family_term_kernel(id, term, &index_terms, &payload_terms)?);
                 }
                 let tuple = self.index_tuple(&at);
-                child_indices.push(self.over(integer, total, tuple));
+                child_indices.push(self.over(&binders, tuple));
                 children.push(at);
             }
             described.push(IndexedCase {
-                payload: (0..payload)
-                    .map(|position| IndexedField {
-                        name: indices + position,
-                        domain: integer,
+                payload: payload_domains
+                    .iter()
+                    .enumerate()
+                    .map(|(position, &domain)| IndexedField {
+                        name: indices + position as u32,
+                        domain,
                     })
                     .collect(),
-                constraints: self.over(integer, total, all),
+                constraints: self.over(&binders, all),
                 child_indices,
             });
             cases.push(FamilyCaseTerms {
@@ -3102,10 +3238,12 @@ impl<'p> Converter<'p, '_> {
         }
         let declared = IndexedData {
             parameters: Vec::new(),
-            fields: (0..indices)
-                .map(|index| IndexedField {
-                    name: index,
-                    domain: integer,
+            fields: index_domains
+                .iter()
+                .enumerate()
+                .map(|(index, &domain)| IndexedField {
+                    name: index as u32,
+                    domain,
                 })
                 .collect(),
             indices: (0..indices).collect(),
@@ -3144,6 +3282,7 @@ impl<'p> Converter<'p, '_> {
             let scope = Integers {
                 indices: &open,
                 payload: None,
+                inputs: &[],
             };
             if self
                 .integer_proposition(id, proposition, &scope, &mut components)
@@ -3333,12 +3472,63 @@ impl<'p> Converter<'p, '_> {
             .expect("indexed data has at least one index")
     }
 
-    /// `body` as a function of `count` values of `domain`.
-    fn over(&mut self, domain: TermHandle, count: u32, mut body: TermHandle) -> TermHandle {
-        for _ in 0..count {
+    /// `body` as a function of a value of each domain, outermost first.
+    fn over(&mut self, domains: &[TermHandle], mut body: TermHandle) -> TermHandle {
+        for &domain in domains.iter().rev() {
             body = self.signature.arena.insert(Term::Lambda { domain, body });
         }
         body
+    }
+
+    /// The type of an index or payload value of a family: the integer
+    /// carrier, or the data it is.
+    fn family_domain(&mut self, id: MachineId, value: &FamilyValue) -> Checked<TermHandle> {
+        let entry = match value.domain {
+            FamilyDomain::Integer(_) => self.integer_vocabulary(id)?.carrier,
+            FamilyDomain::Data(record) => self.data(id, record)?,
+        };
+        Ok(self.constant(entry))
+    }
+
+    /// The input each data index stands at in a family's clauses, with
+    /// its term, and each data payload value of `case` at its field.
+    fn family_inputs(
+        &self,
+        id: MachineId,
+        family: &FamilyRecord,
+        index_terms: &[TermHandle],
+        payload: Option<(
+            &super::families::FamilyCase,
+            &[(StructuralFieldId, TermHandle)],
+        )>,
+    ) -> Checked<Vec<(StructuralCaseSubject, TermHandle)>> {
+        let mut inputs = Vec::new();
+        for (position, (index, &term)) in family.indices.iter().zip(index_terms).enumerate() {
+            if let FamilyDomain::Data(_) = index.domain {
+                let place = super::families::index_place(position)
+                    .ok_or_else(|| unserved(id, "index place identity"))?;
+                inputs.push((StructuralCaseSubject::new(place, Vec::new()), term));
+            }
+        }
+        if let Some((case, terms)) = payload {
+            let root =
+                crate::body::self_place().ok_or_else(|| unserved(id, "self place identity"))?;
+            for (value, &(field, term)) in case.payload.iter().zip(terms) {
+                if let FamilyDomain::Data(_) = value.domain {
+                    inputs.push((
+                        StructuralCaseSubject::new(
+                            root,
+                            vec![
+                                CanonicalStructuralPathSegment::Case(case.case),
+                                CanonicalStructuralPathSegment::Field(field),
+                            ],
+                        ),
+                        term,
+                    ));
+                }
+            }
+        }
+        Ok(inputs)
     }
 
     /// A theorem over indexed data: for every index and every value of the
@@ -3366,8 +3556,11 @@ impl<'p> Converter<'p, '_> {
             .symbols
             .get(id)
             .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
-        let vocabulary = self.integer_vocabulary(id)?;
-        let integer = self.constant(vocabulary.carrier);
+        let index_domains = source
+            .indices
+            .iter()
+            .map(|index| self.family_domain(id, index))
+            .collect::<Checked<Vec<_>>>()?;
         let indices = source.indices.len() as u32;
         let open: Vec<_> = (0..indices)
             .map(|index| self.variable(indices - 1 - index))
@@ -3379,12 +3572,15 @@ impl<'p> Converter<'p, '_> {
         // What each step requires, per case, under the indices and the
         // case's payload; and, for the theorem's rank, that it is smaller
         // at each child the step cites.
-        let zero = self.integer_literal(id, bignum::BigInt::from_u128(0))?;
-        let one = self.integer_literal(id, bignum::BigInt::from_u128(1))?;
+        // Only an unsigned integer is natural, and only one may rank the
+        // theorem; a family of data alone needs no integers.
         let unsigned = |value: &super::families::FamilyValue| {
-            value.integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+            value
+                .integer()
+                .is_some_and(|integer| integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
         };
         let mut owed = Vec::with_capacity(theorem.cases.len());
+        let mut domains = Vec::with_capacity(theorem.cases.len());
         let mut ranked = Vec::with_capacity(theorem.cases.len());
         for ((case, read), terms) in source.cases.iter().zip(&theorem.cases).zip(&declared.cases) {
             let total = indices + terms.payload;
@@ -3401,18 +3597,25 @@ impl<'p> Converter<'p, '_> {
                         .ok_or_else(|| unserved(id, "payload value lost its field"))?;
                     Ok((field, self.variable(terms.payload - 1 - position as u32)))
                 })
-                .collect::<Checked<_>>()?;
+                .collect::<Checked<Vec<_>>>()?;
+            let inputs =
+                self.family_inputs(id, source, &index_terms, Some((case, &payload_terms)))?;
             let scope = Integers {
                 indices: &index_terms,
                 payload: Some((case.case, &payload_terms)),
+                inputs: &inputs,
             };
             let mut required = Vec::new();
             for proposition in &read.requires {
                 self.integer_proposition(id, proposition, &scope, &mut required)?;
             }
             owed.push(required);
-            let at_most = self.constant(vocabulary.less_or_equal);
-            let add = self.constant(vocabulary.add);
+            let payload_domains = case
+                .payload
+                .iter()
+                .map(|value| self.family_domain(id, value))
+                .collect::<Checked<Vec<_>>>()?;
+            domains.push(payload_domains);
             let mut natural = Vec::new();
             let held = source.indices.iter().zip(&index_terms).chain(
                 case.payload
@@ -3421,6 +3624,9 @@ impl<'p> Converter<'p, '_> {
             );
             for (value, &term) in held {
                 if unsigned(value) {
+                    let at_most = self.integer_vocabulary(id)?.less_or_equal;
+                    let at_most = self.constant(at_most);
+                    let zero = self.integer_literal(id, bignum::BigInt::from_u128(0))?;
                     natural.push(self.signature.arena.apply_arguments(at_most, &[zero, term]));
                 }
             }
@@ -3434,6 +3640,10 @@ impl<'p> Converter<'p, '_> {
                         .get(child)
                         .and_then(|at| at.get(rank as usize))
                         .ok_or_else(|| unserved(id, "cited child without the ranked index"))?;
+                    let vocabulary = self.integer_vocabulary(id)?;
+                    let at_most = self.constant(vocabulary.less_or_equal);
+                    let add = self.constant(vocabulary.add);
+                    let one = self.integer_literal(id, bignum::BigInt::from_u128(1))?;
                     let arena = &mut self.signature.arena;
                     let next = arena.apply_arguments(add, &[smaller, one]);
                     descent
@@ -3443,6 +3653,7 @@ impl<'p> Converter<'p, '_> {
             ranked.push((natural, descent));
         }
         let mut laws = Vec::with_capacity(theorem.ensures.len());
+        let inputs = self.family_inputs(id, source, &open, None)?;
         for (clause, proposition) in theorem.ensures.iter().enumerate() {
             let mut components = Vec::new();
             self.integer_proposition(
@@ -3451,6 +3662,7 @@ impl<'p> Converter<'p, '_> {
                 &Integers {
                     indices: &open,
                     payload: None,
+                    inputs: &inputs,
                 },
                 &mut components,
             )?;
@@ -3503,13 +3715,14 @@ impl<'p> Converter<'p, '_> {
             let (text, text_source) = names
                 .ensures
                 .get(clause)
+                .or(theorem.ensures_text.get(clause))
                 .map(|text| (names.authored(text), text.source))
                 .unwrap_or_default();
             self.signature.laws.push(Law {
                 machine: symbol,
                 clause: clause as u32,
                 statement: entry,
-                formals: vec![integer; indices as usize],
+                formals: index_domains.clone(),
                 premises: Vec::new(),
                 goal,
                 declared: None,
@@ -3521,18 +3734,25 @@ impl<'p> Converter<'p, '_> {
                         .iter()
                         .zip(&theorem.cases)
                         .zip(owed.iter().zip(&source.cases))
-                        .zip(&ranked)
+                        .zip(ranked.iter().zip(&domains))
                         .map(
-                            |(((terms, read), (owed, case)), (natural, descent))| FamilyLawCase {
-                                natural: natural.clone(),
-                                descent: descent.clone(),
-                                name: format!("{}::{}", self.name(source.declaration), case.name),
-                                payload: terms.payload,
-                                constraints: terms.constraints.clone(),
-                                children: terms.children.clone(),
-                                cited: read.cited.clone(),
-                                owed: owed.clone(),
-                                source: read.source,
+                            |(((terms, read), (owed, case)), ((natural, descent), domains))| {
+                                FamilyLawCase {
+                                    natural: natural.clone(),
+                                    descent: descent.clone(),
+                                    name: format!(
+                                        "{}::{}",
+                                        self.name(source.declaration),
+                                        case.name
+                                    ),
+                                    payload: terms.payload,
+                                    payload_domains: domains.clone(),
+                                    constraints: terms.constraints.clone(),
+                                    children: terms.children.clone(),
+                                    cited: read.cited.clone(),
+                                    owed: owed.clone(),
+                                    source: read.source,
+                                }
                             },
                         )
                         .collect(),
@@ -7497,6 +7717,61 @@ impl<'p> Converter<'p, '_> {
                 codomain: inner_pi,
             }));
         }
+        // The squash of a proposition and the box of a strict one are the
+        // kernel's own type formers over the inner statement.
+        if let Proposition::Squash(inner) | Proposition::Boxed(inner) = proposition {
+            let ty = self.equality(id, inner, formals, satisfaction)?;
+            let term = match proposition {
+                Proposition::Squash(_) => Term::Squash { ty },
+                _ => Term::Box { ty },
+            };
+            return Ok(self.signature.arena.insert(term));
+        }
+        // For every value of the data, the body: a dependent product whose
+        // body names the value as variable 0, every term of the enclosing
+        // scope one binder further out.
+        if let Proposition::Universal {
+            carrier,
+            binder,
+            body,
+        } = proposition
+        {
+            let entry = self.data(id, *carrier)?;
+            let domain = self.constant(entry);
+            let arena = &mut self.signature.arena;
+            let mut lift = |term: TermHandle| shift(arena, term, 0, 1);
+            let inner: Vec<TermHandle> = formals.iter().map(|&formal| lift(formal)).collect();
+            let callables: Vec<_> = self
+                .callable_scope
+                .iter()
+                .map(|&(symbol, term)| (symbol, lift(term)))
+                .collect();
+            let mut bound: Vec<_> = self
+                .bound_values
+                .iter()
+                .map(|&(place, term)| (place, lift(term)))
+                .collect();
+            let held: Vec<_> = self.held.iter().map(|&premise| lift(premise)).collect();
+            let result_as = self
+                .result_as
+                .map(|(machine, result)| (machine, lift(result)));
+            bound.push((*binder, arena.insert(Term::Variable(0))));
+            let outer = (
+                std::mem::replace(&mut self.callable_scope, callables),
+                std::mem::replace(&mut self.bound_values, bound),
+                std::mem::replace(&mut self.held, held),
+                std::mem::replace(&mut self.result_as, result_as),
+            );
+            let codomain = self.equality(id, body, &inner, satisfaction);
+            (
+                self.callable_scope,
+                self.bound_values,
+                self.held,
+                self.result_as,
+            ) = outer;
+            let codomain = codomain?;
+            return Ok(self.signature.arena.insert(Term::Pi { domain, codomain }));
+        }
         let Proposition::DeclarationIdentity(clause) = proposition else {
             return Err(unserved(id, "law guarantee other than an Identity"));
         };
@@ -7703,12 +7978,36 @@ impl<'p> Converter<'p, '_> {
                 }
             });
             let term = match &value.operand {
+                // An index or payload value of a family, in its clause.
+                ClauseOperand::Input(subject)
+                    if let Some(&(_, term)) = self
+                        .family_inputs
+                        .iter()
+                        .find(|(input, _)| input == subject) =>
+                {
+                    term
+                }
                 ClauseOperand::Scalar(ScalarTerm::Boolean(truth))
                     if value.carrier == ClauseCarrier::Scalar(ScalarType::Boolean) =>
                 {
                     self.signature
                         .arena
                         .insert(if *truth { Term::TwoOne } else { Term::TwoZero })
+                }
+                // A value a for-every proposition binds.
+                ClauseOperand::Input(subject)
+                    if subject.path().is_empty()
+                        && self
+                            .bound_values
+                            .iter()
+                            .any(|(place, _)| *place == subject.root()) =>
+                {
+                    self.bound_values
+                        .iter()
+                        .rev()
+                        .find(|(place, _)| *place == subject.root())
+                        .map(|&(_, term)| term)
+                        .expect("the guard found the bound value")
                 }
                 // The `k`-th formal that is a place, counting from zero, is
                 // place `k + 1`; a fixed-width formal before it is a value,

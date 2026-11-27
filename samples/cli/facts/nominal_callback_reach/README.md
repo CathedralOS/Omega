@@ -14,8 +14,7 @@ the selected callee is inlined or absent from the emitted machine set.
 
 Outer command:
 
-    omega run --engine native samples/cli/facts/nominal_callback_reach/<place>/main.omg
-    omega run --engine psi samples/cli/facts/nominal_callback_reach/<place>/main.omg
+    omega run samples/cli/facts/nominal_callback_reach/<place>/main.omg
 
 Reject twins (`<place>/invalid/`): `walk<noise>` selects a machine without
 `satisfies StepContract::step`, so checking rejects the unsatisfied binder.

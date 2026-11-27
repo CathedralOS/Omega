@@ -449,6 +449,13 @@ pub enum LawProof {
         invariant: TermHandle,
         cases: Vec<FamilyLawCase>,
     },
+    /// The statement a declaration needs, from the law at entry `row` that
+    /// takes the binders of the needed conclusion's dependent arrow as its
+    /// last `binders` formals (`wiki/spec/proofs/mathematical_bindings.md`,
+    /// "Pointwise theorem citations"). The needed conclusion is introduced
+    /// through its boxes, squashes and arrows, and the row is applied at
+    /// those binders, each of its premises met by a hypothesis.
+    Pointwise { row: u32, binders: u32 },
 }
 
 /// One case of an induction over data indexed by values. Its terms are
@@ -457,6 +464,9 @@ pub enum LawProof {
 pub struct FamilyLawCase {
     /// How many payload values the case holds.
     pub payload: u32,
+    /// The type of each payload value, in declared order: the integer
+    /// carrier, or the data it is. The law's formals are the indices'.
+    pub payload_domains: Vec<TermHandle>,
     /// What the data's declaration requires of a value in this case.
     pub constraints: Vec<TermHandle>,
     /// For each child, the index it sits at, one term per index.

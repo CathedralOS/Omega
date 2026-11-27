@@ -37,13 +37,12 @@ shared numerical project, external optimizer, or generated semantic witness.
 From the repository root, with a compiler built from this exact main base:
 
 ```sh
-omega packages update --project samples/cli/independent/transport_planner --target linux_x86_64
+omega packages update --project samples/cli/scientific/transport_planner --target linux_x86_64
 # Read and accept the actual pending review, then omega packages update --resume.
-omega --check --target linux_x86_64 samples/cli/independent/transport_planner/main.omg
-omega run --engine native --keep samples/cli/scientific/transport_planner/main.omg < samples/cli/scientific/transport_planner/data/nontrivial.txt
-omega run --engine psi --keep samples/cli/scientific/transport_planner/main.omg < samples/cli/scientific/transport_planner/data/nontrivial.txt
-omega --target linux_x86_64 samples/cli/independent/transport_planner/main.omg
-omega --check --target linux_x86_64 samples/cli/independent/transport_planner/intended_invalid/rejected.omg
+omega --check --target linux_x86_64 samples/cli/scientific/transport_planner/main.omg
+omega run --keep samples/cli/scientific/transport_planner/main.omg < samples/cli/scientific/transport_planner/data/nontrivial.txt
+omega --target linux_x86_64 samples/cli/scientific/transport_planner/main.omg
+omega --check --target linux_x86_64 samples/cli/scientific/transport_planner/intended_invalid/rejected.omg
 ```
 
 The last command must reject the complete separate program's `costs[9]`
@@ -69,7 +68,7 @@ Terminal stdout is checked independently by the validation-only Rust consumer
 in `validation/terminal_probe`. It prepares the accepted project, produces one
 native report, and executes that report's exact retained Terminal artifact with
 private replay stdin and buffered stdout/stderr. It uses the stable compiler
-runtime API and never calculates shipments on the host. The CLI compares termination and both
+runtime API and never calculates shipments on the host. The recorded comparison checked termination and both
 output streams. This additional consumer checks
 the Psi output against the expected bytes.
 The portable Cargo templates materialize a private validation workspace under

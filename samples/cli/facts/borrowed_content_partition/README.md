@@ -5,7 +5,7 @@ content and restores its source. The caller allocates 16 and 8 counted units fro
 48, keeps both results alive, and observes the residual 24. No runtime guard
 supplies the next allocation's static capacity premise.
 
-Run `omega run --both samples/cli/facts/borrowed_content_partition/main.omg`.
+Run `mbx xtask sample-gate --filter samples/cli/facts/borrowed_content_partition`.
 The oracle is exit 0 from both engines. This is numeric custody, not physical
 backing, resident placement, or a complete allocator.
 
@@ -36,7 +36,7 @@ parent acceptance, not claims established by this program.
 The nested-field/reversed-store fixture exercises the same operation without
 depending on field placement or store order.
 
-Run each positive with `omega run --both <place>/main.omg`; both engines must
+Run each positive with `mbx xtask sample-gate --filter samples/cli/facts/borrowed_content_partition/<place>`; both engines must
 exit 0. Every positive binds all four hosted targets. Execution on this host
 establishes macOS arm64 behavior, not other-host execution.
 

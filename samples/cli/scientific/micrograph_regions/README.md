@@ -55,21 +55,21 @@ From the repository root, with an exact compiler binary chosen as `OMEGA`:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-SAMPLE=samples/cli/independent/micrograph_regions
+SAMPLE=samples/cli/scientific/micrograph_regions
 "$OMEGA" update --project "$SAMPLE"
 # If a review is required, inspect the proposal and accept its local system/entry
 # decisions, then resume the normal documented review flow:
 "$OMEGA" update --resume --project "$SAMPLE"
 "$OMEGA" --check "$SAMPLE/main.omg"
 "$OMEGA" run "$SAMPLE/main.omg" < "$SAMPLE/data/synthetic4.txt"
-"$OMEGA" run --both "$SAMPLE/main.omg" < "$SAMPLE/data/synthetic8.txt"
+"$OMEGA" run "$SAMPLE/main.omg" < "$SAMPLE/data/synthetic8.txt"
 # To compile once and reuse the emitted executable for all native inputs:
 "$OMEGA" --build-dir "$SAMPLE/build/native" "$SAMPLE/main.omg"
 # Set NATIVE_EXE to the exact emitted executable named in that report.
 ```
 
 Run one compiler execution at a time. `--mode both` compiles once with
-`omega run --both --input ...` over every frozen case, which runs each case
+`omega run --input ...` over every frozen case, which runs each case
 natively and through the produced Terminal artifact; it checks both engines'
 stdout, stderr and exact exit, so agreement on termination alone does not pass.
 The checker and native/Terminal validation are separate requirements.

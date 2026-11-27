@@ -299,6 +299,14 @@ pub(crate) struct Program<'t> {
     /// (`contracts::named_proposition`) and the `let`s of a generic
     /// mathematical machine's body (`templates`).
     applied_propositions: Vec<contracts::AppliedProposition>,
+    /// The values a for-every definition being read binds, innermost last:
+    /// each binder's symbol, the place the clause names it by, and its type
+    /// (`mathematics::universal_application`).
+    universal_binders: Vec<(
+        SymbolHandle,
+        semantic_vocabulary::PlaceId,
+        crate::body::ValueType,
+    )>,
     /// The generic mathematical machine whose contract is being read, so
     /// that its body is read in the same scope (`templates`).
     reading_template: Option<SymbolHandle>,
@@ -317,6 +325,12 @@ pub(crate) struct Program<'t> {
     /// of it returns over its own formals, by the machine whose contract
     /// names it. Lowering hands each to the machines it was read for.
     pub(crate) applied_operations: Vec<(MachineId, SymbolHandle, semantic_vocabulary::Proposition)>,
+    /// Each member of an implementation whose own written contract ensures
+    /// something, with those clauses over its formals and result, read
+    /// before its caller-facing contract became its requirement's
+    /// (`machine::signature`). Lowering hands them to the other members of
+    /// the same implementation (`RealizedGuarantee`).
+    pub(crate) realized_ensures: Vec<(SymbolHandle, Vec<semantic_vocabulary::Proposition>)>,
     /// Each data declaration indexed by values read so far (`families`).
     pub(crate) families: Vec<families::FamilyRecord>,
     /// Each theorem over such data read so far (`families`).
@@ -379,6 +393,9 @@ pub(crate) struct Program<'t> {
     rigid_storage: Vec<Option<type_parameters::ParameterStorage>>,
     /// Binds sibling operations while reading a law supplied by this record.
     clause_supplier: Option<SymbolHandle>,
+    /// The implementation whose rows a requirement's clauses name while its
+    /// witness reads that requirement at the implementation's arguments.
+    witness_conformance: Option<SymbolHandle>,
     /// `scope` of each machine, pushed with its signature and restored
     /// when its body is read.
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
@@ -451,6 +468,14 @@ pub(crate) struct Program<'t> {
     /// The records of data that contains itself, in identity order. Such a
     /// record names a mathematical type and has no storage.
     pub(crate) self_containing: Vec<StructuralTypeId>,
+    /// While a clause over a family indexed by data values is read: each
+    /// name that stands for such an index or payload value, with its type
+    /// and the input a clause names it as (`families::index_place`).
+    pub(crate) data_indices: Vec<(
+        SymbolHandle,
+        ValueType,
+        semantic_vocabulary::StructuralCaseSubject,
+    )>,
     /// The declaration being read, which is the lexical owner of the
     /// lifetimes its types name when the typed trees retained none for an
     /// occurrence: the data declaration whose members are read, or the
@@ -647,12 +672,14 @@ impl<'t> Program<'t> {
             resolving_services: Vec::new(),
             unfolding_calls: Vec::new(),
             applied_propositions: Vec::new(),
+            universal_binders: Vec::new(),
             reading_template: None,
             template_bodies: Vec::new(),
             quotients: Vec::new(),
             executable_quotients: Vec::new(),
             quotient_soundness: Vec::new(),
             applied_operations: Vec::new(),
+            realized_ensures: Vec::new(),
             families: Vec::new(),
             family_theorems: Vec::new(),
             evidence_uses: Vec::new(),
@@ -674,6 +701,7 @@ impl<'t> Program<'t> {
             reading_schema: false,
             rigid_storage: Vec::new(),
             clause_supplier: None,
+            witness_conformance: None,
             scopes: IdTable::default(),
             nominal_calls: Vec::new(),
             const_scope: Vec::new(),
@@ -699,6 +727,7 @@ impl<'t> Program<'t> {
             resolving: Vec::new(),
             mathematical: false,
             self_containing: Vec::new(),
+            data_indices: Vec::new(),
             lifetime_owner: SymbolHandle::invalid(),
             region_tuples: vec![Vec::new()],
             fixed_regions: Vec::new(),
@@ -2526,6 +2555,7 @@ mod tests {
         let mut bodies = IdTable::default();
         bodies.push(crate::callable_refinement_body(&signature, call));
         bodies.push(crate::body::Body {
+            assembly_target_requirement: Default::default(),
             slots: signature.parameters.clone(),
             statements: Vec::new(),
         });

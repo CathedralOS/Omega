@@ -8,8 +8,7 @@
 mod declared_exit;
 #[path = "support/program.rs"]
 mod program;
-#[path = "support/project.rs"]
-mod project;
+use declared_exit::project;
 mod support;
 
 use std::path::{Path, PathBuf};

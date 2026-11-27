@@ -4123,13 +4123,10 @@ fn nzcv_effects_encoding(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::aarch64_physical_register_model;
     use crate::saturating_forms::SaturatingRealization;
     use crate::test_support::{reject_every_bit_flip, rejects_every_bit_flip};
     use optimization_core::AcceptedObligationFactIdentity;
-    use register_model::{
-        RegisterViewId, ValidatedPhysicalRegisterModel, validate_physical_register_model,
-    };
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
         AtomicForm, AtomicOperation, AtomicWidth, ByteSequencePredicate, FloatResultPolicyForm,
         FloatResultPolicyKind, FrameStorageSlotId, IeeeFloatArithmeticForm,
@@ -4146,8 +4143,8 @@ mod tests {
     };
     use target::NativeTarget;
 
-    fn phys() -> ValidatedPhysicalRegisterModel {
-        validate_physical_register_model(aarch64_physical_register_model()).unwrap()
+    fn phys() -> &'static ValidatedPhysicalRegisterModel {
+        crate::validated_aarch64_physical_register_model()
     }
 
     fn v(p: &ValidatedPhysicalRegisterModel, name: &str) -> RegisterViewId {
@@ -4226,52 +4223,52 @@ mod tests {
             (Kind::WrappingShiftRightI64, Fam::WrappingShiftRightI64, &["x1", "x2", "x3"], &[0x9ac2_2823], false),
         ];
         for (kind, family, names, expected, nzcv) in cases {
-            let ops = vs(&p, names);
+            let ops = vs(p, names);
             let k = key(family);
-            let encoded = encode_aarch64_selected_form(&p, kind, k, &ops).unwrap();
+            let encoded = encode_aarch64_selected_form(p, kind, k, &ops).unwrap();
             assert_eq!(encoded.bytes(), le(expected), "{kind:?}");
             assert_eq!(encoded.footprint().writes_nzcv, nzcv, "{kind:?}");
-            validate_aarch64_selected_form_encoding(&p, kind, k, &ops, encoded.bytes()).unwrap();
-            rejects_every_bit_flip(&p, kind, k, &ops, encoded.bytes());
+            validate_aarch64_selected_form_encoding(p, kind, k, &ops, encoded.bytes()).unwrap();
+            rejects_every_bit_flip(p, kind, k, &ops, encoded.bytes());
         }
         assert!(
             encode_aarch64_selected_form(
-                &p,
+                p,
                 Kind::ReturnScalar,
                 key(Fam::ReturnScalar),
-                &vs(&p, &["x1"])
+                &vs(p, &["x1"])
             )
             .is_err()
         );
         assert!(
             encode_aarch64_selected_form(
-                &p,
+                p,
                 Kind::ExactRemainderU64 {
                     obligation: ob(),
                     accepted_fact: fact()
                 },
                 key(Fam::ExactRemainderU64),
-                &vs(&p, &["x1", "x2", "x1"])
+                &vs(p, &["x1", "x2", "x1"])
             )
             .is_err()
         );
         assert_eq!(
             encode_aarch64_selected_form(
-                &p,
+                p,
                 Kind::CompareI64Immediate {
                     immediate: IntegerValue::Unsigned(4096)
                 },
                 key(Fam::CompareI64Immediate),
-                &vs(&p, &["x0"])
+                &vs(p, &["x0"])
             ),
             Err(Aarch64SelectedFormEncodingError::ImmediateOutsideU12)
         );
         assert_eq!(
-            encode_aarch64_selected_form(&p, Kind::PackedAddI16x8, key(Fam::CopyI64), &[]),
+            encode_aarch64_selected_form(p, Kind::PackedAddI16x8, key(Fam::CopyI64), &[]),
             Err(Aarch64SelectedFormEncodingError::AlternativeMismatch)
         );
         assert_eq!(
-            encode_aarch64_selected_form(&p, Kind::Jump, key(Fam::Jump), &[]),
+            encode_aarch64_selected_form(p, Kind::Jump, key(Fam::Jump), &[]),
             Err(Aarch64SelectedFormEncodingError::LayoutDependentForm)
         );
     }
@@ -4351,17 +4348,17 @@ mod tests {
                 ),
             };
             let n = SaturatingRealization::of(op, carrier).operand_count();
-            let ops = vs(&p, &["x1", "x2", "x3", "x4"][..n]);
-            let encoded = encode_aarch64_selected_form(&p, kind, key(family), &ops).unwrap();
+            let ops = vs(p, &["x1", "x2", "x3", "x4"][..n]);
+            let encoded = encode_aarch64_selected_form(p, kind, key(family), &ops).unwrap();
             assert_eq!(encoded.bytes(), le(expected), "{op:?} {carrier:?}");
-            rejects_every_bit_flip(&p, kind, key(family), &ops, encoded.bytes());
+            rejects_every_bit_flip(p, kind, key(family), &ops, encoded.bytes());
             if n == 4 {
                 assert!(
                     encode_aarch64_selected_form(
-                        &p,
+                        p,
                         kind,
                         key(family),
-                        &vs(&p, &["x1", "x2", "x3", "x3"])
+                        &vs(p, &["x1", "x2", "x3", "x3"])
                     )
                     .is_err()
                 );
@@ -4455,7 +4452,7 @@ mod tests {
             let form = TrappingForm { operation, carrier };
             let kind = Kind::TrappingInteger { form };
             let ops = vs(
-                &p,
+                p,
                 if form.source_count() == 1 {
                     &["x1", "x3", "x4"]
                 } else {
@@ -4463,7 +4460,7 @@ mod tests {
                 },
             );
             let encoded =
-                encode_aarch64_selected_form(&p, kind, key(Fam::TrappingInteger(form)), &ops)
+                encode_aarch64_selected_form(p, kind, key(Fam::TrappingInteger(form)), &ops)
                     .unwrap();
             assert_eq!(encoded.bytes(), le(expected), "{form:?}");
             assert_eq!(
@@ -4473,7 +4470,7 @@ mod tests {
                 encoded.bytes().len()
             );
             rejects_every_bit_flip(
-                &p,
+                p,
                 kind,
                 key(Fam::TrappingInteger(form)),
                 &ops,
@@ -4504,9 +4501,9 @@ mod tests {
                     width,
                 };
                 let kind = Kind::AtomicAccess { form };
-                let ops = vs(&p, &["x9", "x10", "x11"]);
+                let ops = vs(p, &["x9", "x10", "x11"]);
                 let encoded =
-                    encode_aarch64_selected_form(&p, kind, key(Fam::AtomicAccess(form)), &ops)
+                    encode_aarch64_selected_form(p, kind, key(Fam::AtomicAccess(form)), &ops)
                         .unwrap();
                 let alu = if width == AtomicWidth::Bits64 {
                     wide
@@ -4518,7 +4515,7 @@ mod tests {
                     le(&[0xd503_3fbf, load, alu, store, 0x35ff_ffb1, 0xd503_3fbf])
                 );
                 rejects_every_bit_flip(
-                    &p,
+                    p,
                     kind,
                     key(Fam::AtomicAccess(form)),
                     &ops,
@@ -4529,28 +4526,22 @@ mod tests {
         for form in AtomicForm::ALL {
             let kind = Kind::AtomicAccess { form };
             let ops = match form.operation {
-                AtomicOperation::Load | AtomicOperation::Store => vs(&p, &["x1", "x2"]),
-                AtomicOperation::CompareExchange => vs(&p, &["x9", "x10", "x11", "x12"]),
-                AtomicOperation::CompareExchangeOnce => vs(&p, &["x1", "x2", "x3", "x4", "x5"]),
-                _ => vs(&p, &["x9", "x10", "x11"]),
+                AtomicOperation::Load | AtomicOperation::Store => vs(p, &["x1", "x2"]),
+                AtomicOperation::CompareExchange => vs(p, &["x9", "x10", "x11", "x12"]),
+                AtomicOperation::CompareExchangeOnce => vs(p, &["x1", "x2", "x3", "x4", "x5"]),
+                _ => vs(p, &["x9", "x10", "x11"]),
             };
             let encoded =
-                encode_aarch64_selected_form(&p, kind, key(Fam::AtomicAccess(form)), &ops).unwrap();
+                encode_aarch64_selected_form(p, kind, key(Fam::AtomicAccess(form)), &ops).unwrap();
             validate_aarch64_selected_form_encoding(
-                &p,
+                p,
                 kind,
                 key(Fam::AtomicAccess(form)),
                 &ops,
                 encoded.bytes(),
             )
             .unwrap();
-            rejects_every_bit_flip(
-                &p,
-                kind,
-                key(Fam::AtomicAccess(form)),
-                &ops,
-                encoded.bytes(),
-            );
+            rejects_every_bit_flip(p, kind, key(Fam::AtomicAccess(form)), &ops, encoded.bytes());
         }
     }
 
@@ -4572,9 +4563,9 @@ mod tests {
             (IeeeFloatArithmeticForm { operation: FOp::Classify, format: Binary64 }, &["x0", "x0"], &[0x9e67_0010, 0xd374_f800, 0xb400_00a0, 0xd11f_fc00, 0xb400_0140, 0xd280_0040, 0x1400_000e, 0x9e66_0200, 0xd340_f800, 0xb400_0060, 0xd280_0060, 0x1400_0009, 0xd280_0080, 0x1400_0007, 0x9e66_0200, 0xd340_cc00, 0xb400_0060, 0xd280_0000, 0x1400_0002, 0xd280_0020, 0xb400_0100, 0x9e67_0011, 0x9e66_0200, 0xd37f_fc00, 0xd360_7c00, 0x9e67_0010, 0x0eb1_1e10, 0x9e66_0200]),
         ];
         for &(form, names, expected) in GOLDEN {
-            let ops = vs(&p, names);
+            let ops = vs(p, names);
             let encoded = encode_aarch64_selected_form(
-                &p,
+                p,
                 Kind::NearestIeeeFloatArithmetic { form },
                 key(Fam::NearestIeeeFloatArithmetic(form)),
                 &ops,
@@ -4584,12 +4575,12 @@ mod tests {
         }
         for form in IeeeFloatArithmeticForm::ALL {
             let ops = vs(
-                &p,
+                p,
                 &["x6", "x7", "x30", "x12"][4 - form.operand_count() - 1..],
             );
             let kind = Kind::NearestIeeeFloatArithmetic { form };
             let encoded = encode_aarch64_selected_form(
-                &p,
+                p,
                 kind,
                 key(Fam::NearestIeeeFloatArithmetic(form)),
                 &ops,
@@ -4601,7 +4592,7 @@ mod tests {
                 assert_eq!(encoded.bytes().len(), usize::from(n), "{form:?}");
             }
             rejects_every_bit_flip(
-                &p,
+                p,
                 kind,
                 key(Fam::NearestIeeeFloatArithmetic(form)),
                 &ops,
@@ -4610,7 +4601,7 @@ mod tests {
         }
         for form in FloatResultPolicyForm::ALL {
             let ops = vs(
-                &p,
+                p,
                 if form.can_trap() {
                     &["x3", "x4"]
                 } else {
@@ -4619,7 +4610,7 @@ mod tests {
             );
             let kind = Kind::FloatResultPolicy { form };
             let encoded =
-                encode_aarch64_selected_form(&p, kind, key(Fam::FloatResultPolicy(form)), &ops)
+                encode_aarch64_selected_form(p, kind, key(Fam::FloatResultPolicy(form)), &ops)
                     .unwrap();
             if form
                 == (FloatResultPolicyForm {
@@ -4646,7 +4637,7 @@ mod tests {
                 assert_eq!(encoded.bytes().len(), usize::from(n), "{form:?}");
             }
             rejects_every_bit_flip(
-                &p,
+                p,
                 kind,
                 key(Fam::FloatResultPolicy(form)),
                 &ops,
@@ -4679,20 +4670,19 @@ mod tests {
                 0x9e67_0064,
             ),
         ] {
-            let ops = vs(&p, names);
-            let encoded = encode_aarch64_selected_form(&p, kind, key(family), &ops).unwrap();
+            let ops = vs(p, names);
+            let encoded = encode_aarch64_selected_form(p, kind, key(family), &ops).unwrap();
             assert_eq!(encoded.bytes(), expected.to_le_bytes());
-            rejects_every_bit_flip(&p, kind, key(family), &ops, encoded.bytes());
+            rejects_every_bit_flip(p, kind, key(family), &ops, encoded.bytes());
         }
     }
 
     #[test]
     fn byte_sequences_and_encoded_scalar_match_golden_bytes_and_reject_mutations() {
         let p = phys();
-        let zero_ops = vs(&p, &["x0", "x1", "x2"]);
-        let zero =
-            encode_aarch64_selected_form(&p, Kind::ZeroBytes, key(Fam::ZeroBytes), &zero_ops)
-                .unwrap();
+        let zero_ops = vs(p, &["x0", "x1", "x2"]);
+        let zero = encode_aarch64_selected_form(p, Kind::ZeroBytes, key(Fam::ZeroBytes), &zero_ops)
+            .unwrap();
         assert_eq!(
             zero.bytes(),
             le(&[
@@ -4705,19 +4695,18 @@ mod tests {
             ])
         );
         rejects_every_bit_flip(
-            &p,
+            p,
             Kind::ZeroBytes,
             key(Fam::ZeroBytes),
             &zero_ops,
             zero.bytes(),
         );
 
-        let copy_ops = vs(&p, &["x0", "x1", "x2", "x3", "x4"]);
-        let copy =
-            encode_aarch64_selected_form(&p, Kind::CopyBytes, key(Fam::CopyBytes), &copy_ops)
-                .unwrap();
+        let copy_ops = vs(p, &["x0", "x1", "x2", "x3", "x4"]);
+        let copy = encode_aarch64_selected_form(p, Kind::CopyBytes, key(Fam::CopyBytes), &copy_ops)
+            .unwrap();
         rejects_every_bit_flip(
-            &p,
+            p,
             Kind::CopyBytes,
             key(Fam::CopyBytes),
             &copy_ops,
@@ -4725,24 +4714,24 @@ mod tests {
         );
         assert!(
             encode_aarch64_selected_form(
-                &p,
+                p,
                 Kind::CopyBytes,
                 key(Fam::CopyBytes),
-                &vs(&p, &["x0", "x1", "x2", "x0", "x4"])
+                &vs(p, &["x0", "x1", "x2", "x0", "x4"])
             )
             .is_err()
         );
 
-        let cmp_ops = vs(&p, &["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]);
+        let cmp_ops = vs(p, &["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]);
         let cmp = encode_aarch64_selected_form(
-            &p,
+            p,
             Kind::CompareByteSequences,
             key(Fam::CompareByteSequences),
             &cmp_ops,
         )
         .unwrap();
         rejects_every_bit_flip(
-            &p,
+            p,
             Kind::CompareByteSequences,
             key(Fam::CompareByteSequences),
             &cmp_ops,
@@ -4751,26 +4740,19 @@ mod tests {
 
         for pred in ByteSequencePredicate::ALL {
             let kind = Kind::ScanByteSequence { predicate: pred };
-            let scan =
-                encode_aarch64_selected_form(&p, kind, key(Fam::ScanByteSequence), &copy_ops)
-                    .unwrap();
-            rejects_every_bit_flip(
-                &p,
-                kind,
-                key(Fam::ScanByteSequence),
-                &copy_ops,
-                scan.bytes(),
-            );
+            let scan = encode_aarch64_selected_form(p, kind, key(Fam::ScanByteSequence), &copy_ops)
+                .unwrap();
+            rejects_every_bit_flip(p, kind, key(Fam::ScanByteSequence), &copy_ops, scan.bytes());
         }
 
-        let codec_ops: [RegisterViewId; 6] = vs(&p, &["x0", "x1", "x2", "x3", "x4", "x5"])
+        let codec_ops: [RegisterViewId; 6] = vs(p, &["x0", "x1", "x2", "x3", "x4", "x5"])
             .try_into()
             .unwrap();
         encoded_scalar_plan::harness::rejects_every_single_bit_mutation(
             codec_ops,
-            |k, alt, ops| encode_aarch64_selected_form(&p, k, alt, ops).map(|e| e.bytes),
+            |k, alt, ops| encode_aarch64_selected_form(p, k, alt, ops).map(|e| e.bytes),
             |k, alt, ops, bytes| {
-                validate_aarch64_selected_form_encoding(&p, k, alt, ops, bytes).is_err()
+                validate_aarch64_selected_form_encoding(p, k, alt, ops, bytes).is_err()
             },
         );
     }
@@ -4778,13 +4760,13 @@ mod tests {
     #[test]
     fn control_memory_frame_and_hosted_forms_match_golden_bytes_and_reject_mutations() {
         let p = phys();
-        let jmp = encode_aarch64_selected_jump_form(&p, key(Fam::Jump), -16).unwrap();
+        let jmp = encode_aarch64_selected_jump_form(p, key(Fam::Jump), -16).unwrap();
         assert_eq!(jmp.bytes(), 0x17ff_fffc_u32.to_le_bytes());
         reject_every_bit_flip(jmp.bytes(), "jump", |b| {
-            validate_aarch64_selected_jump_form(&p, key(Fam::Jump), -16, b).is_err()
+            validate_aarch64_selected_jump_form(p, key(Fam::Jump), -16, b).is_err()
         });
         assert_eq!(
-            encode_aarch64_selected_jump_form(&p, key(Fam::Jump), 2),
+            encode_aarch64_selected_jump_form(p, key(Fam::Jump), 2),
             Err(Aarch64SelectedFormEncodingError::BranchDisplacementMisaligned)
         );
 
@@ -4814,22 +4796,22 @@ mod tests {
                 &[0x5400_0040, 0x1403_ffff][..],
             ),
         ] {
-            let br = encode_aarch64_selected_conditional_branch_form(&p, key(fam), fam, form, disp)
+            let br = encode_aarch64_selected_conditional_branch_form(p, key(fam), fam, form, disp)
                 .unwrap();
             assert_eq!(br.bytes(), le(expected));
             reject_every_bit_flip(br.bytes(), "branch", |b| {
-                validate_aarch64_selected_conditional_branch_form(&p, key(fam), fam, form, disp, b)
+                validate_aarch64_selected_conditional_branch_form(p, key(fam), fam, form, disp, b)
                     .is_err()
             });
         }
         let cbnz =
-            encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(&p, v(&p, "x5"), 20)
+            encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(p, v(p, "x5"), 20)
                 .unwrap();
         assert_eq!(cbnz.bytes(), 0xb500_00a5_u32.to_le_bytes());
         reject_every_bit_flip(cbnz.bytes(), "cbnz", |b| {
             validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
-                &p,
-                v(&p, "x5"),
+                p,
+                v(p, "x5"),
                 20,
                 b,
             )
@@ -4847,7 +4829,7 @@ mod tests {
                 flags_untouched: !e.footprint().writes_nzcv,
             };
         isa_conformance::narrow_load::conformance(
-            &p,
+            p,
             &isa_conformance::narrow_load::Roster {
                 bases: &["x0", "x1", "x15", "x28"],
                 destination: "x2",
@@ -4860,25 +4842,25 @@ mod tests {
                 invalid_views: &["sp", "w1", "d0"],
                 invalid_offsets: &[(2, 1), (2, 8192), (1, 4096)],
             },
-            |k, alt, ops, d| encode_aarch64_selected_memory_form(&p, k, alt, ops, d).map(to_fp),
+            |k, alt, ops, d| encode_aarch64_selected_memory_form(p, k, alt, ops, d).map(to_fp),
             |k, alt, ops, d, b| {
-                validate_aarch64_selected_memory_form(&p, k, alt, ops, d, b).map(to_fp)
+                validate_aarch64_selected_memory_form(p, k, alt, ops, d, b).map(to_fp)
             },
         );
         let l32 = encode_aarch64_selected_memory_form(
-            &p,
+            p,
             Kind::Load32 { byte_offset: 4 },
             key(Fam::Load32),
-            &vs(&p, &["x1", "x2"]),
+            &vs(p, &["x1", "x2"]),
             4,
         )
         .unwrap();
         assert_eq!(l32.bytes(), &[0x22, 0x04, 0x40, 0xb9]);
         let idx = encode_aarch64_selected_memory_form(
-            &p,
+            p,
             Kind::Load8Indexed,
             key(Fam::Load8Indexed),
-            &vs(&p, &["x1", "x2", "x3"]),
+            &vs(p, &["x1", "x2", "x3"]),
             0,
         )
         .unwrap();
@@ -4887,22 +4869,21 @@ mod tests {
             byte_offset: 2,
             width: PackedByteWidth::Three,
         };
-        let pk_ops = vs(&p, &["x1", "x2", "x3"]);
-        let pk =
-            encode_aarch64_selected_memory_form(&p, pk_kind, key(Fam::LoadPacked3), &pk_ops, 2)
-                .unwrap();
+        let pk_ops = vs(p, &["x1", "x2", "x3"]);
+        let pk = encode_aarch64_selected_memory_form(p, pk_kind, key(Fam::LoadPacked3), &pk_ops, 2)
+            .unwrap();
         reject_every_bit_flip(pk.bytes(), "packed", |b| {
-            validate_aarch64_selected_memory_form(&p, pk_kind, key(Fam::LoadPacked3), &pk_ops, 2, b)
+            validate_aarch64_selected_memory_form(p, pk_kind, key(Fam::LoadPacked3), &pk_ops, 2, b)
                 .is_err()
         });
         let st = encode_aarch64_selected_memory_form(
-            &p,
+            p,
             Kind::Store {
                 byte_offset: 16,
                 byte_size: 8,
             },
             key(Fam::Store),
-            &vs(&p, &["x1", "x2"]),
+            &vs(p, &["x1", "x2"]),
             16,
         )
         .unwrap();
@@ -4912,26 +4893,26 @@ mod tests {
             place: PlaceId::new(102).unwrap(),
         });
         let fr = encode_aarch64_selected_frame_form(
-            &p,
+            p,
             Kind::Store64 {
                 slot,
                 byte_offset: 8,
             },
             key(Fam::Store64),
-            &vs(&p, &["x9", "x10"]),
+            &vs(p, &["x9", "x10"]),
             64,
             32,
         )
         .unwrap();
         reject_every_bit_flip(fr.bytes(), "aligned frame", |b| {
             validate_aarch64_selected_frame_form(
-                &p,
+                p,
                 Kind::Store64 {
                     slot,
                     byte_offset: 8,
                 },
                 key(Fam::Store64),
-                &vs(&p, &["x9", "x10"]),
+                &vs(p, &["x9", "x10"]),
                 64,
                 32,
                 b,
@@ -4943,7 +4924,7 @@ mod tests {
             operation: OperationId::new(1).unwrap(),
         };
         let fp = encode_aarch64_selected_floating_control_form(
-            &p,
+            p,
             Kind::SaveFloatingControl { slot: bslot },
             key(Fam::SaveFloatingControl),
             &[],
@@ -4952,7 +4933,7 @@ mod tests {
         .unwrap();
         reject_every_bit_flip(fp.bytes(), "fpcr", |b| {
             validate_aarch64_selected_memory_form(
-                &p,
+                p,
                 Kind::SaveFloatingControl { slot: bslot },
                 key(Fam::SaveFloatingControl),
                 &[],
@@ -4969,26 +4950,26 @@ mod tests {
         for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
             let ex = hosted_exit_process::encode_aarch64_selected_hosted_exit_process_form(
                 target,
-                &p,
+                p,
                 Kind::HostedExitProcessI32,
                 key(Fam::HostedExitProcessI32),
-                &vs(&p, &["x1"]),
+                &vs(p, &["x1"]),
             )
             .unwrap();
             reject_every_bit_flip(ex.bytes(), "hosted_exit", |b| {
                 hosted_exit_process::validate_aarch64_selected_hosted_exit_process_form(
                     target,
-                    &p,
+                    p,
                     Kind::HostedExitProcessI32,
                     key(Fam::HostedExitProcessI32),
-                    &vs(&p, &["x1"]),
+                    &vs(p, &["x1"]),
                     b,
                 )
                 .is_err()
             });
             let rd = hosted_read_byte::encode_aarch64_selected_hosted_read_byte_form(
                 target,
-                &p,
+                p,
                 Kind::HostedReadByte { slot: sslot },
                 key(Fam::HostedReadByte),
                 &[],
@@ -4998,7 +4979,7 @@ mod tests {
             reject_every_bit_flip(rd.bytes(), "hosted_read", |b| {
                 hosted_read_byte::validate_aarch64_selected_hosted_read_byte_form(
                     target,
-                    &p,
+                    p,
                     Kind::HostedReadByte { slot: sslot },
                     key(Fam::HostedReadByte),
                     &[],
@@ -5009,20 +4990,20 @@ mod tests {
             });
             let wr = encode_aarch64_selected_hosted_write_byte_form(
                 target,
-                &p,
+                p,
                 Kind::HostedWriteByteI32 { slot: bslot },
                 key(Fam::HostedWriteByteI32),
-                &vs(&p, &["x1"]),
+                &vs(p, &["x1"]),
                 16,
             )
             .unwrap();
             reject_every_bit_flip(wr.bytes(), "hosted_write", |b| {
                 validate_aarch64_selected_hosted_write_byte_form(
                     target,
-                    &p,
+                    p,
                     Kind::HostedWriteByteI32 { slot: bslot },
                     key(Fam::HostedWriteByteI32),
-                    &vs(&p, &["x1"]),
+                    &vs(p, &["x1"]),
                     16,
                     b,
                 )
@@ -5035,8 +5016,8 @@ mod tests {
     fn call_templates_and_callback_fields_cover_linux_macos_and_windows_arm64() {
         let p = phys();
         let constraints = crate::validate_aarch64_register_constraint_catalog(
-            crate::aarch64_register_constraint_catalog(&p),
-            &p,
+            crate::aarch64_register_constraint_catalog(p),
+            p,
         )
         .unwrap();
         let kind = Kind::CallScalar {
@@ -5053,7 +5034,7 @@ mod tests {
             NativeTarget::windows_arm64(),
         ] {
             let catalog = crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
-            let ops = vs(&p, &["x0", "x1", "x0"]);
+            let ops = vs(p, &["x0", "x1", "x0"]);
             let eff = &catalog
                 .declarations
                 .iter()
@@ -5066,7 +5047,7 @@ mod tests {
                 .encoded;
             let tmpl = encode_aarch64_selected_scalar_call_template(
                 target,
-                &p,
+                p,
                 kind,
                 key(Fam::CallScalar),
                 &ops,
@@ -5081,7 +5062,7 @@ mod tests {
             assert!(
                 validate_aarch64_selected_scalar_call_template(
                     target,
-                    &p,
+                    p,
                     kind,
                     key(Fam::CallScalar),
                     &ops,

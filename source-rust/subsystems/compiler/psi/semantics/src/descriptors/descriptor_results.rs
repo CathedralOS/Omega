@@ -3,13 +3,11 @@ pub(crate) use super::replay;
 pub(crate) use crate::exactly_one::exactly_one;
 pub(crate) use std::collections::{BTreeMap, BTreeSet};
 
-pub(crate) use semantic_vocabulary::{
-    MachineId, PlaceId, StructuralPlaceKind, StructuralTypeId,
-};
+pub(crate) use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind, StructuralTypeId};
 pub(crate) use terminal_psi::{
     ByteSequenceCarrier, Operation, OperationKind, StructuralAccess, StructuralArgument,
-    StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalMachine, TerminalModule, Terminator,
+    StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalMachine, TerminalModule, Terminator,
 };
 
 pub(crate) use crate::descriptors::descriptor_lifetimes::{
@@ -163,9 +161,7 @@ impl DescriptorSourceOrigin {
     pub fn captured_entry_slot(&self) -> Option<std::borrow::Cow<'_, DescriptorLocation>> {
         match self {
             Self::IncomingSlot(slot) => Some(std::borrow::Cow::Borrowed(slot)),
-            Self::IncomingContents { query, projection }
-                if *projection == Projection::new(&[]) =>
-            {
+            Self::IncomingContents { query, projection } if *projection == Projection::new(&[]) => {
                 Some(std::borrow::Cow::Owned(query.exact_location()?))
             }
             _ => None,
@@ -297,8 +293,7 @@ pub struct DescriptorMachine {
     pub flow: BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     pub case_constructors: BTreeMap<DescriptorPosition, Vec<DescriptorCasePredicate>>,
     pub case_successors: BTreeMap<DescriptorPosition, Vec<(DescriptorCasePredicate, bool)>>,
-    pub originations:
-        BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, DescriptorCallOrigin)>>,
+    pub originations: BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, DescriptorCallOrigin)>>,
     pub projections:
         BTreeMap<(DescriptorPosition, DescriptorLocation, DescriptorLocation), Projection>,
     pub contents_queries: DescriptorReadQueries,
@@ -311,19 +306,15 @@ pub struct DescriptorMachine {
     pub payload_scalar_definitions: BTreeMap<DescriptorPosition, Vec<ValueId>>,
     pub payload_scalar_postconditions: BTreeMap<DescriptorPosition, Vec<Proposition>>,
     pub payload_scalar_parameters: BTreeMap<semantic_vocabulary::BlockId, Vec<ValueId>>,
-    pub scalar_payload_reads:
-        BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, ScalarTerm)>>,
+    pub scalar_payload_reads: BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, ScalarTerm)>>,
     pub payload_edge_predicates: BTreeMap<DescriptorPosition, Vec<Option<Proposition>>>,
     pub payload_scalar_bindings: BTreeMap<DescriptorPosition, Vec<Vec<(ValueId, ScalarTerm)>>>,
-    pub scalar_payload_writes:
-        BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, ScalarTerm)>>,
-    pub payload_invalidations:
-        BTreeMap<DescriptorPosition, Vec<Option<DescriptorContentsQuery>>>,
+    pub scalar_payload_writes: BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, ScalarTerm)>>,
+    pub payload_invalidations: BTreeMap<DescriptorPosition, Vec<Option<DescriptorContentsQuery>>>,
     /// Owned input occurrences whose concrete bytes and claims a closed boundary cannot reach.
     pub private_observation_inputs: PrivateObservationInputs,
     pub unresolved_contents_writes: BTreeSet<DescriptorPosition>,
-    pub storage_derivations:
-        BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
+    pub storage_derivations: BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
     /// Missing is not a call; None is a real invocation whose effects
     /// cannot be represented. Known rows retain their exact ordered owners.
     pub calls: BTreeMap<DescriptorPosition, Option<Vec<DescriptorInvocation>>>,
@@ -342,12 +333,10 @@ pub fn insert_invocation(
     if !calls.is_empty()
         && (matches!(
             call.owner,
-            DescriptorInvocationOwner::Operation(_)
-                | DescriptorInvocationOwner::InvokeNoNormal(_)
+            DescriptorInvocationOwner::Operation(_) | DescriptorInvocationOwner::InvokeNoNormal(_)
         ) || matches!(
             calls[0].owner,
-            DescriptorInvocationOwner::Operation(_)
-                | DescriptorInvocationOwner::InvokeNoNormal(_)
+            DescriptorInvocationOwner::Operation(_) | DescriptorInvocationOwner::InvokeNoNormal(_)
         ))
     {
         return None;
@@ -374,14 +363,15 @@ impl DescriptorMachine {
     /// Resolve only indices captured from this machine's input storage. Other
     /// origins can carry coordinates formed in a different machine.
     pub(super) fn export_input_projection(&self, projection: &Projection) -> Projection {
-        projection
-            .clone()
-            .without_runtime_coordinates_with(|index| {
+        projection.clone().without_runtime_coordinates_with(
+            |index| {
                 self.unsigned_index_literals
                     .binary_search_by_key(&index, |&(id, _)| id)
                     .ok()
                     .map(|row| self.unsigned_index_literals[row].1)
-            }, |at| self.flow.contains_key(&at))
+            },
+            |at| self.flow.contains_key(&at),
+        )
     }
 
     pub fn calls_at(&self, position: DescriptorPosition) -> &[DescriptorInvocation] {
@@ -399,8 +389,7 @@ impl DescriptorMachine {
         };
         matches!(
             call.owner,
-            DescriptorInvocationOwner::Operation(_)
-                | DescriptorInvocationOwner::InvokeNoNormal(_)
+            DescriptorInvocationOwner::Operation(_) | DescriptorInvocationOwner::InvokeNoNormal(_)
         )
         .then_some(call)
     }
@@ -489,9 +478,9 @@ impl DescriptorMachine {
     pub fn known_invocations(
         &self,
     ) -> impl Iterator<Item = (&DescriptorPosition, &DescriptorInvocation)> {
-        self.calls.iter().flat_map(|(position, calls)| {
-            calls.iter().flatten().map(move |call| (position, call))
-        })
+        self.calls
+            .iter()
+            .flat_map(|(position, calls)| calls.iter().flatten().map(move |call| (position, call)))
     }
 
     pub(crate) fn producer(&self, root: PlaceId) -> Option<DescriptorPosition> {
@@ -849,9 +838,9 @@ impl DescriptorInvocation {
         {
             return;
         }
-        let Some(StructuralTypeShape::PrimitiveScalar(
-            semantic_vocabulary::ScalarType::Integer(integer),
-        )) = module.structural_type(*referent).map(|ty| &ty.shape)
+        let Some(StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(
+            integer,
+        ))) = module.structural_type(*referent).map(|ty| &ty.shape)
         else {
             return;
         };
@@ -1142,7 +1131,10 @@ pub fn terminal_borrowed_storage_graph_with_generic_calls(
         roots,
         DescriptorSlotKind::BorrowedStorage,
         selected_calls,
-        GenericCallInputs { nominal, scoped: Some(scoped) },
+        GenericCallInputs {
+            nominal,
+            scoped: Some(scoped),
+        },
     )
     .into_iter()
     .collect()
@@ -1205,17 +1197,15 @@ impl DescriptorGraphError {
 
     pub const fn machine(self) -> MachineId {
         match self {
-            Self::MissingOrAmbiguousMachine(machine)
-            | Self::IncompleteMachine { machine, .. } => machine,
+            Self::MissingOrAmbiguousMachine(machine) | Self::IncompleteMachine { machine, .. } => {
+                machine
+            }
         }
     }
 
     /// Resolve only an actual operation in the failed machine. Terminator
     /// failures retain their block and edge without becoming operations.
-    pub fn operation(
-        self,
-        module: &TerminalModule,
-    ) -> Option<semantic_vocabulary::OperationId> {
+    pub fn operation(self, module: &TerminalModule) -> Option<semantic_vocabulary::OperationId> {
         self.operation_row(module).map(|operation| operation.id)
     }
 
@@ -1297,28 +1287,37 @@ impl DescriptorGraphError {
             if let Some(block) = exactly_one(machine.blocks.iter(), |row| row.id == source) {
                 let mut scalar_arguments = None;
                 let structural_arguments = match &block.terminator {
-                    Terminator::Jump { edge, arguments, structural_arguments, .. }
-                        if *edge == identity => {
+                    Terminator::Jump {
+                        edge,
+                        arguments,
+                        structural_arguments,
+                        ..
+                    } if *edge == identity => {
                         scalar_arguments = Some(arguments.as_slice());
                         Some(structural_arguments.as_slice())
                     }
-                    Terminator::Conditional { when_true, when_false, .. } => {
-                        [when_true, when_false].into_iter()
-                            .find(|row| row.edge == identity)
-                            .map(|row| {
-                                scalar_arguments = Some(row.arguments.as_slice());
-                                row.structural_arguments.as_slice()
-                            })
-                    }
-                    Terminator::StructuralCase { source, path, cases } => {
-                        cases.iter().find(|row| row.edge == identity).map(|row| {
-                            detail.push_str(&format!(
-                                "; case payload actuals {:?} from {source:?} via {path:?} case {:?}",
-                                row.payload_fields, row.case,
-                            ));
+                    Terminator::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => [when_true, when_false]
+                        .into_iter()
+                        .find(|row| row.edge == identity)
+                        .map(|row| {
+                            scalar_arguments = Some(row.arguments.as_slice());
                             row.structural_arguments.as_slice()
-                        })
-                    }
+                        }),
+                    Terminator::StructuralCase {
+                        source,
+                        path,
+                        cases,
+                    } => cases.iter().find(|row| row.edge == identity).map(|row| {
+                        detail.push_str(&format!(
+                            "; case payload actuals {:?} from {source:?} via {path:?} case {:?}",
+                            row.payload_fields, row.case,
+                        ));
+                        row.structural_arguments.as_slice()
+                    }),
                     _ => None,
                 };
                 if let Some(arguments) = scalar_arguments {
@@ -1358,7 +1357,9 @@ impl DescriptorGraphError {
         }
         if let Some(name) = name {
             detail.push_str("; declaration ");
-            detail.push_str(name);
+            detail.push_str(&application_identity::type_identity::callable_display_path(
+                name,
+            ));
         }
         detail
     }
@@ -1377,8 +1378,7 @@ impl std::fmt::Display for DescriptorGraphError {
                 successor,
                 detail,
             } => {
-                let detail =
-                    detail.unwrap_or("descriptor storage flow cannot be reconstructed");
+                let detail = detail.unwrap_or("descriptor storage flow cannot be reconstructed");
                 write!(formatter, "{detail} for machine {machine:?}")?;
                 if let Some((block, index)) = position {
                     write!(formatter, " at block {block:?}, position {index}")?;

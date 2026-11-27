@@ -21,6 +21,11 @@ state machines:
 IR, artifact, interpreter and CLI subsystem are **Psi**. **Terminal Psi** names
 only the internal compiler stage/representation. Keep internal paths and wire
 identifiers intact; do not export that stage label into help, reports or guides.
+`omega run app.omg` always lowers the selected Product to Psi and interprets
+its entry. `--target` selects the environment for that interpretation. To
+verify a native executable, build it and launch the published executable
+on its target host. [CLI contract](wiki/spec/build/embedding.md#standalone-interpretation)
+
 For execution results, write "native/Psi agreement" or "Psi exit 0".
 
 **Words this file uses.** You will copy the vocabulary you read into what you

@@ -591,6 +591,7 @@ impl<'a> Lowering<'a> {
             invariants: Vec::new(),
             borrowed_roots: Vec::new(),
             exclusive_roots: Vec::new(),
+            assembly_target_requirement: RegisterTargetApplicability::Any,
             owns_body: true,
             fallthrough: None,
             block_ranks: IdTable::default(),
@@ -947,6 +948,7 @@ struct Lowering<'a> {
     /// Only the machine that declares a body publishes its source advisories.
     /// Other members of a terminal call cycle also contain its executable blocks.
     owns_body: bool,
+    assembly_target_requirement: RegisterTargetApplicability,
     /// The block a guarded arm's guard turns away to, when nothing has been
     /// lowered into it yet: an unguarded arm that begins there is taken
     /// only on that edge and is an authored branch too.
@@ -1090,6 +1092,17 @@ impl<'a> Lowering<'a> {
     /// the call (the right operand of `&&`, one arm of a `match`).
     fn body(&mut self, member: MachineId, body: &Body) -> Checked<()> {
         self.owns_body = member == self.id;
+        // Recursive transition heads can contribute several source bodies to one Psi machine.
+        self.assembly_target_requirement = self
+            .assembly_target_requirement
+            .intersect(body.assembly_target_requirement)
+            .ok_or_else(|| {
+                refuse(
+                    member,
+                    Construct::Machine,
+                    Unserved::Machine("transition bodies require incompatible assembly targets"),
+                )
+            })?;
         self.fallthrough = None;
         self.slot_homes = self.records.slot_homes(member, self.id)?;
         let entry = self.current()?;
@@ -1522,7 +1535,7 @@ impl<'a> Lowering<'a> {
             .collect::<Checked<Vec<_>>>()?;
         self.call_formations.sort_unstable_by_key(|row| row.site);
         let mut machine = TerminalMachine {
-            assembly_target_requirement: RegisterTargetApplicability::Any,
+            assembly_target_requirement: self.assembly_target_requirement,
             id: self.id,
             attachment: None,
             ranked_scc: None,

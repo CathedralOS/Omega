@@ -45,11 +45,10 @@ selection, inverse or variance decision depends on floating arithmetic.
 From the repository root, with an optimized compiler of recorded provenance:
 
 ```
-omega packages update --project samples/cli/independent/d_optimal_calibration_design --target linux_x86_64
+omega packages update --project samples/cli/scientific/d_optimal_calibration_design --target linux_x86_64
 # Inspect any pending review; accept only the authorized exact inventory, then resume.
-omega packages update --resume --project samples/cli/independent/d_optimal_calibration_design
-omega run --engine native --keep samples/cli/scientific/d_optimal_calibration_design/main.omg < samples/cli/scientific/d_optimal_calibration_design/input.txt
-omega run --engine psi --keep samples/cli/scientific/d_optimal_calibration_design/main.omg < samples/cli/scientific/d_optimal_calibration_design/input.txt
+omega packages update --resume --project samples/cli/scientific/d_optimal_calibration_design
+omega run --keep samples/cli/scientific/d_optimal_calibration_design/main.omg < samples/cli/scientific/d_optimal_calibration_design/input.txt
 ```
 
 The 46 frozen inputs cover unequal precision, nontrivial ties, repeated settings,

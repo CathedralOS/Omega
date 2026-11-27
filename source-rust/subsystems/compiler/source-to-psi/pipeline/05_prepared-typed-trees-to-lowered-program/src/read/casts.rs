@@ -1014,6 +1014,7 @@ mod tests {
         TableCastExpression {
             value: ExpressionHandle::invalid(),
             target_type: TypeReferenceHandle::invalid(),
+            recast_storage_type: Default::default(),
             result_type: TypeReferenceHandle::invalid(),
             target_label: arena::HandleSpan::empty(),
             domain: ArithmeticDomain::Exact,

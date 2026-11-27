@@ -369,9 +369,6 @@ pub(crate) mod optimized {
         let private_references = retained_private_references(&prepared, &lowering_facts);
         let selection = legalized_operations::PreparedInstructionSelection {
             plan: Arc::clone(&prepared),
-            optimization: optimized.optimization(),
-            projection: optimized.projection(),
-            manifest: optimized.pre_physical_manifest(),
             target_rules,
             selections: optimized.selections().clone(),
             budget_per_pass: optimized.budget_per_pass(),
@@ -456,7 +453,8 @@ pub(crate) mod optimized {
             &callable_invocations,
             lowering_facts.installed_interrupts(),
             &types,
-            optimized.pre_physical_manifest(),
+            optimized.selections().identity(),
+            optimized.budget_per_pass(),
         )
         .map_err(|error| LoweringError::Preparation(Box::new(error)))
     }

@@ -10,6 +10,8 @@ use std::fmt::{self, Write};
 
 #[path = "policy_callables.rs"]
 mod callables;
+#[path = "policy_native.rs"]
+mod native;
 
 pub(super) fn render(
     output: &mut Output,
@@ -139,6 +141,9 @@ pub(super) fn render(
     for supply in policy.external_supplies() {
         writeln!(output, "    external {}", names.name(supply.callable()))?;
         writeln!(output, "    binding {:?}", supply.binding())?;
+    }
+    for binding in policy.native_bindings() {
+        names.native_binding(output, binding)?;
     }
     names.providers(output, policy.selected_providers())?;
     writeln!(

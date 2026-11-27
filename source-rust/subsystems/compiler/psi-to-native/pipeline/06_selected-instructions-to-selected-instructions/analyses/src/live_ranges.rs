@@ -556,17 +556,6 @@ pub mod compute {
                     })
                 );
             }
-            #[test]
-            fn liveness_identity_binds_operand_membership() {
-                let mut function = function();
-                let original = selected_instructions::liveness_function_digest(&function);
-                function.blocks[0].instructions[0].operands =
-                    function.blocks[1].instructions[0].operands;
-                assert_ne!(
-                    original,
-                    selected_instructions::liveness_function_digest(&function)
-                );
-            }
         }
     }
     mod copy_affinities {
@@ -1462,7 +1451,6 @@ pub mod compute {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(LiveRangePlan {
             selected: selected.shared_selected_plan(),
-            liveness: liveness.receipt().identity(),
             optimization_unit: selected.optimization_unit_identity(),
             work_schedule: selected.work_schedule_identity(),
             target: selected.selected_plan().target,
@@ -1500,18 +1488,13 @@ pub(crate) mod validate {
         use super::FunctionCounts;
 
         use crate::{LiveRangeValidationReceipt, ValidatedLiveRanges};
-        use selected_instructions::{LiveRangePlan, live_range_identity_from_digests};
+        use selected_instructions::LiveRangePlan;
 
         pub fn admit(
             plan: LiveRangePlan,
             carried: &[bool],
-            previous_digests: &[[u8; 32]],
             previous_counts: &[FunctionCounts],
         ) -> ValidatedLiveRanges {
-            let function_digests =
-                crate::carried_digests(&plan.functions, carried, previous_digests, |function| {
-                    selected_instructions::live_range_function_digest(function)
-                });
             let function_counts: std::sync::Arc<[FunctionCounts]> = plan
                 .functions
                 .iter()
@@ -1521,23 +1504,19 @@ pub(crate) mod validate {
                     _ => FunctionCounts::new(function),
                 })
                 .collect();
-            let receipt = build_receipt(&plan, &function_digests, &function_counts);
+            let receipt = build_receipt(&plan, &function_counts);
             ValidatedLiveRanges {
                 plan: plan.into(),
                 receipt,
-                function_digests,
                 function_counts,
             }
         }
 
         fn build_receipt(
             plan: &LiveRangePlan,
-            function_digests: &[[u8; 32]],
             function_counts: &[FunctionCounts],
         ) -> LiveRangeValidationReceipt {
             LiveRangeValidationReceipt {
-                identity: live_range_identity_from_digests(plan, function_digests),
-                liveness: plan.liveness,
                 optimization_unit: plan.optimization_unit,
                 work_schedule: plan.work_schedule,
                 virtual_register_count: function_counts
@@ -1568,7 +1547,7 @@ pub(crate) mod validate {
 
 use crate::LivenessError;
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{LiveRangeIdentity, LiveRangePlan, LivenessIdentity};
+use selected_instructions::LiveRangePlan;
 use semantic_vocabulary::WorkScheduleIdentity;
 
 pub fn analyze_live_ranges<S: SelectedProgramView>(
@@ -1577,7 +1556,7 @@ pub fn analyze_live_ranges<S: SelectedProgramView>(
 ) -> Result<ValidatedLiveRanges, LiveRangeError> {
     validate::require_liveness_of(selected, liveness)?;
     let plan = compute::compute_terminal_live_ranges(selected, liveness)?;
-    Ok(validate::admit(plan, &[], &[], &[]))
+    Ok(validate::admit(plan, &[], &[]))
 }
 
 mod staging {
@@ -1596,50 +1575,33 @@ mod staging {
                 .map_err(OptimizedLiveRangeCustodyError::Analysis)
         }
     }
-    mod custody {
-        use crate::LiveRangeValidationReceipt;
-
-        use crate::StagedOptimizedLivenessCustodyReceipt;
-
-        use super::StagedOptimizedLiveRangeCustodyReceipt;
-
-        pub(super) fn live_range_custody_receipt(
-            upstream: StagedOptimizedLivenessCustodyReceipt,
-            ranges: LiveRangeValidationReceipt,
-        ) -> StagedOptimizedLiveRangeCustodyReceipt {
-            StagedOptimizedLiveRangeCustodyReceipt {
-                core: upstream.core(),
-                liveness: upstream.liveness(),
-                ranges: ranges.identity(),
-            }
-        }
-    }
 
     use crate::{LiveRangeError, StagedOptimizedLiveness, ValidatedLiveRanges, ValidatedLiveness};
     use optimization_core::{
-        OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
-        OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
-        PrePhysicalOptimizationManifestIdentity,
+        OptimizationSelectionIdentity, OptimizationSelections, OptimizationUnitIdentity,
+        OptimizationWorkBudget,
     };
     use register_environment::ValidatedTargetRegisterEnvironment;
-    use selected_instructions::LiveRangeIdentity;
     use selected_instructions::SelectedProgram;
     use selected_instructions::StagedOptimizedCustodyCore;
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use terminal_psi::TerminalPsiIdentity;
 
     /// Stage live ranges a rewrite already validated for `liveness`' program,
-    /// without computing them again. They must name that program and liveness.
+    /// without computing them again. They must name that program; liveness is
+    /// a function of the program alone, so naming it names the liveness too.
     pub fn admit_optimized_live_ranges(
         liveness: StagedOptimizedLiveness,
         ranges: ValidatedLiveRanges,
     ) -> Result<StagedOptimizedLiveRanges, OptimizedLiveRangeCustodyError> {
         if *ranges.plan().selected != *liveness.selected().plan
-            || ranges.receipt().liveness() != liveness.liveness().receipt().identity()
+            || *liveness.liveness().plan().selected != *liveness.selected().plan
         {
             return Err(OptimizedLiveRangeCustodyError::AnalysisMismatch);
         }
-        let custody = custody::live_range_custody_receipt(liveness.custody(), ranges.receipt());
+        let custody = StagedOptimizedLiveRangeCustodyReceipt {
+            core: liveness.custody().core(),
+        };
         Ok(StagedOptimizedLiveRanges {
             liveness,
             ranges,
@@ -1651,7 +1613,9 @@ mod staging {
         liveness: StagedOptimizedLiveness,
     ) -> Result<StagedOptimizedLiveRanges, OptimizedLiveRangeCustodyError> {
         let ranges = compute::compute_live_ranges(&liveness)?;
-        let custody = custody::live_range_custody_receipt(liveness.custody(), ranges.receipt());
+        let custody = StagedOptimizedLiveRangeCustodyReceipt {
+            core: liveness.custody().core(),
+        };
         Ok(StagedOptimizedLiveRanges {
             liveness,
             ranges,
@@ -1683,23 +1647,16 @@ mod staging {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct StagedOptimizedLiveRangeCustodyReceipt {
         core: StagedOptimizedCustodyCore,
-        liveness: selected_instructions::LivenessIdentity,
-        ranges: LiveRangeIdentity,
     }
 
     impl StagedOptimizedLiveRangeCustodyReceipt {
         selected_instructions::staging_custody_core_accessors!();
-
-        receipt_accessor_rows!(StagedOptimizedLiveRangeCustodyReceipt {
-            liveness: selected_instructions::LivenessIdentity,
-            ranges: LiveRangeIdentity,
-        });
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum OptimizedLiveRangeCustodyError {
         Analysis(LiveRangeError),
-        /// Admitted live ranges name another program or liveness analysis.
+        /// Admitted live ranges or liveness name another program.
         AnalysisMismatch,
     }
 
@@ -1717,8 +1674,6 @@ pub use staging::{
 copy_receipt! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct LiveRangeValidationReceipt {
-        pub(crate) identity: LiveRangeIdentity,
-        pub(crate) liveness: LivenessIdentity,
         pub(crate) optimization_unit: OptimizationUnitIdentity,
         pub(crate) work_schedule: WorkScheduleIdentity,
         pub(crate) virtual_register_count: usize,

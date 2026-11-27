@@ -26,7 +26,11 @@ fn inspect(project: &Path, root: &str, name: &str, artifact: &Path) -> Output {
 fn assert_reopened_inspection(name: &str, source: Output, reopened: Output) {
     let source = String::from_utf8(source.stdout).unwrap();
     let reopened = String::from_utf8(reopened.stdout).unwrap();
-    assert!(source.lines().any(|line| line.starts_with("psi program_fingerprint=")));
+    assert!(
+        source
+            .lines()
+            .any(|line| line.starts_with("psi program_fingerprint="))
+    );
     assert_eq!(
         source
             .strip_prefix(&format!("psi selected_machine={name} "))
@@ -41,13 +45,19 @@ fn assert_reopened_inspection(name: &str, source: Output, reopened: Output) {
 #[test]
 fn a_saved_process_exit_can_use_a_status_computed_before_a_borrow_ends() {
     let project = TemporaryDirectory::create("saved-process-exit-status", false).unwrap();
-    std::fs::write(project.path().join("build.omg"), r#"use main.omg as app;
+    std::fs::write(
+        project.path().join("build.omg"),
+        r#"use main.omg as app;
 machine build(plan: @mutable BuildPlan) {
     plan.product = BuildProduct::Application { name: "saved_status" };
     Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
 }
-"#).unwrap();
-    std::fs::write(project.path().join("main.omg"), r#"use {omega}/language/core/process_exit.omg as process;
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        project.path().join("main.omg"),
+        r#"use {omega}/language/core/process_exit.omg as process;
 
 public machine main() reaches |process|::ProcessExit crashes Trap {
     let status: i32 = next(6);
@@ -64,7 +74,9 @@ machine require_nonempty(bytes: @[u8]) {
     machine fail() { crash Trap; }
     machine done() {}
 }
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
     let destination = TemporaryDirectory::create("saved-process-output", false).unwrap();
     let file = destination.path().join("status.psi");
@@ -164,7 +176,10 @@ fn named_inspection_publishes_the_requested_reference_machine() {
         .and_then(|machine| machine.declaration.as_ref())
         .expect("entry has a source declaration");
     let identity = module.identities.text(declared.machine.identity()).unwrap();
-    assert!(identity.ends_with("path(main.omg::retained))"), "{identity}");
+    assert!(
+        identity.ends_with("path(main.omg::retained))"),
+        "{identity}"
+    );
 
     let loaded = omega(&project)
         .args(["psi", "inspect", "--artifact"])
@@ -310,7 +325,7 @@ fn assert_hosted_image(target: &str, path: &Path) {
 }
 
 #[test]
-fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
+fn reopened_program_can_be_interpreted_and_compiled_after_the_source_is_gone() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let fixture = root.join("tests/fixtures/calls/run/scalar_contract_route_exit");
     let targets = [
@@ -412,8 +427,7 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
     let short = length - 1;
     for args in [
         vec!["psi", "inspect", "--artifact"],
-        vec!["run", "--engine", "psi", "--trusted-artifact", &manifest],
-        vec!["run", "--engine", "native", "--trusted-artifact", &manifest],
+        vec!["run", "--trusted-artifact", &manifest],
         vec!["--trusted-artifact", &manifest],
     ] {
         let refused = command(&args, short);
@@ -426,15 +440,12 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
     }
     let inspected = command(&["psi", "inspect", "--artifact"], length);
     assert!(inspected.status.success(), "{inspected:?}");
-    let withheld = command(&["run", "--engine", "psi"], length);
+    let withheld = command(&["run"], length);
     assert!(!withheld.status.success());
     assert!(String::from_utf8_lossy(&withheld.stderr).contains("requires --trusted-artifact"));
     let mut wrong = manifest.clone();
     wrong.replace_range(..1, if manifest.starts_with('0') { "1" } else { "0" });
-    let refused = command(
-        &["run", "--engine", "native", "--trusted-artifact", &wrong],
-        length,
-    );
+    let refused = command(&["run", "--trusted-artifact", &wrong], length);
     assert!(!refused.status.success());
     assert!(
         String::from_utf8_lossy(&refused.stderr).contains("differs from the artifact authorized")
@@ -457,22 +468,26 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
         } else {
             "omega-program"
         };
-        assert_hosted_image(target, &consumer.path().join(target).join(executable));
+        let executable = consumer.path().join(target).join(executable);
+        assert_hosted_image(target, &executable);
+        if target == target::TargetProfile::host().target_name() {
+            let guest = Command::new(executable)
+                .stdin(Stdio::null())
+                .output()
+                .unwrap();
+            assert!(guest.status.success(), "{guest:?}");
+            assert!(guest.stdout.is_empty(), "{guest:?}");
+        }
     }
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let observed = command(
-            &["run", "--engine", engine, "--trusted-artifact", &manifest],
-            length,
-        );
-        assert!(observed.status.success(), "{observed:?}");
-        assert!(observed.stdout.is_empty(), "{observed:?}");
-        assert!(
-            String::from_utf8_lossy(&observed.stderr)
-                .lines()
-                .any(|line| line == expected),
-            "{observed:?}"
-        );
-    }
+    let observed = command(&["run", "--trusted-artifact", &manifest], length);
+    assert!(observed.status.success(), "{observed:?}");
+    assert!(observed.stdout.is_empty(), "{observed:?}");
+    assert!(
+        String::from_utf8_lossy(&observed.stderr)
+            .lines()
+            .any(|line| line == "Psi exit 0"),
+        "{observed:?}"
+    );
 }
 
 #[test]
@@ -683,16 +698,14 @@ fn reopened_program_uses_the_host_pinned_package_lock() {
         .status()
         .unwrap();
     assert_eq!(status.code(), Some(0));
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let observed = receive(&["run", "--engine", engine], Some(&digest));
-        assert!(observed.status.success(), "{observed:?}");
-        assert!(
-            String::from_utf8_lossy(&observed.stderr)
-                .lines()
-                .any(|line| line == expected),
-            "{observed:?}"
-        );
-    }
+    let observed = receive(&["run"], Some(&digest));
+    assert!(observed.status.success(), "{observed:?}");
+    assert!(
+        String::from_utf8_lossy(&observed.stderr)
+            .lines()
+            .any(|line| line == "Psi exit 0"),
+        "{observed:?}"
+    );
 }
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -710,8 +723,13 @@ fn authored_getpid_build_runs_and_reopens_its_published_psi() {
             .env("OMEGA_LIBRARY_ROOT", &library)
             .args(flags)
             .args([
-                "--target", "linux_x86_64", "--build-input", "build.omg",
-                "--build-input", "main.omg", "build.omg",
+                "--target",
+                "linux_x86_64",
+                "--build-input",
+                "build.omg",
+                "--build-input",
+                "main.omg",
+                "build.omg",
             ])
             .output()
             .unwrap();
@@ -719,7 +737,8 @@ fn authored_getpid_build_runs_and_reopens_its_published_psi() {
         String::from_utf8(output.stdout).unwrap()
     };
     let stdout = build(&["--build-dir", "native"]);
-    let executable = stdout.lines()
+    let executable = stdout
+        .lines()
         .find_map(|line| line.strip_prefix("published native output to "))
         .unwrap_or_else(|| panic!("build did not report a native executable: {stdout}"));
     // The fixture traps unless the selected syscall returns a positive process ID.
@@ -737,7 +756,9 @@ fn authored_getpid_build_runs_and_reopens_its_published_psi() {
     assert!(reopened.status.success(), "{reopened:?}");
     let stdout = String::from_utf8(reopened.stdout).unwrap();
     assert!(
-        stdout.lines().any(|line| line.starts_with("boundary ") && line.contains("HostProcessId::get")),
+        stdout
+            .lines()
+            .any(|line| line.starts_with("boundary ") && line.contains("HostProcessId::get")),
         "{stdout}"
     );
 }

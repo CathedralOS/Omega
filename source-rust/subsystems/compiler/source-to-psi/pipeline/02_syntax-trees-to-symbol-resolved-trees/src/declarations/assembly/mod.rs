@@ -39,6 +39,7 @@ pub(crate) fn prepare(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
         .collect();
     for (owner, body) in bodies {
         let mut prepared = Vec::new();
+        let mut target = *syntax.items.assembly_target_requirement_mut(owner);
         for statement in syntax.items.statements(body).to_vec() {
             if let StatementNode::AuthoredAssembly(handle) = syntax.statements.statement(statement)
             {
@@ -48,8 +49,14 @@ pub(crate) fn prepare(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
                 local.text.retain_from(&syntax.text);
                 let assembly = syntax.statements.authored_assembly(*handle);
                 let scope = syntax.expressions.expression_count();
-                let statements =
+                let (statements, requirement) =
                     expand(syntax, &mut local, assembly, scope).map_err(|error| vec![error])?;
+                target = target.intersect(requirement).ok_or_else(|| {
+                    vec![error(
+                        assembly.source_span,
+                        "assembly regions in one body require incompatible targets",
+                    )]
+                })?;
                 prepared.extend(syntax.copy_statements_from(&local, &statements));
             } else {
                 prepared.push(statement);
@@ -60,6 +67,7 @@ pub(crate) fn prepare(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
             body.push_contiguous(syntax.items.append_statement_handle(statement));
         }
         syntax.items.set_statement_body(owner, body);
+        *syntax.items.assembly_target_requirement_mut(owner) = target;
     }
     Ok(())
 }
@@ -69,7 +77,7 @@ fn expand(
     syntax_trees: &mut SyntaxTrees,
     contract: &AuthoredAssembly,
     scope: usize,
-) -> Result<Vec<StatementHandle>, Diagnostic> {
+) -> Result<(Vec<StatementHandle>, AsmTargetApplicability), Diagnostic> {
     let span = contract.source_span;
     let mut target_requirement = AsmTargetApplicability::Any;
     let mut blocks = Vec::new();
@@ -325,7 +333,7 @@ fn expand(
         && block.requires.is_empty()
         && block.ensures.is_empty()
     {
-        return Ok(block.instructions.clone());
+        return Ok((block.instructions.clone(), target_requirement));
     }
     flags.materialize(syntax_trees, &mut blocks, body_requires, &mut primitives);
     let (scratch, bindings) = generated_statements::bind(syntax_trees, scope);
@@ -363,7 +371,7 @@ fn expand(
         .insert(StatementNode::Assembly(graph));
     let mut statements = bindings;
     statements.push(statement);
-    Ok(statements)
+    Ok((statements, target_requirement))
 }
 
 #[derive(Default)]

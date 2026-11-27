@@ -11,4 +11,4 @@ their separate identities. The program checks the converted address, both
 authored values, and a bounded byte-region read.
 
 Prepare with `omega packages update --project samples/cli/memory/address_model_package`,
-then run `omega run --both samples/cli/memory/address_model_package/main.omg`.
+then run `mbx xtask sample-gate --filter samples/cli/probes/address_model_package`.

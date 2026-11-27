@@ -403,7 +403,23 @@ mod calls {
         match role {
             BinderRole::Type => return top_level(&[SymbolKind::BuiltinType, SymbolKind::Data]),
             BinderRole::Value => {
-                return top_level(&[SymbolKind::Const, SymbolKind::Conformance]);
+                let named = top_level(&[SymbolKind::Const, SymbolKind::Conformance]);
+                if named.is_valid() || owner.is_empty() {
+                    return named;
+                }
+                let Some(data) = symbols.find_top_level_by_name_and_kinds_from_source(
+                    &owner.joined_path(),
+                    &[SymbolKind::Data],
+                    diagnostic_path_source_span(owner),
+                ) else {
+                    return SymbolHandle::invalid();
+                };
+                return child_symbol_by_kinds(
+                    symbols,
+                    data,
+                    &[SymbolKind::Variant],
+                    target.as_str(),
+                );
             }
             BinderRole::Declaration => {}
         }

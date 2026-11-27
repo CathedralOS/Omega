@@ -7,7 +7,6 @@ use post_allocation_machine::adapters::{
     AdapterInstructions, AdapterOperation as Op, X86AdapterTemplate as Template, X86Condition,
     X86DescriptorTable,
 };
-use register_model::validate_physical_register_model;
 pub use runtime_abi::static_interrupts::{InstalledInterruptEntryPlan, InstalledInterruptFrame};
 use runtime_abi::static_interrupts::{InstalledInterruptProtocol, acknowledgement as ack, root};
 use target::Architecture;
@@ -395,14 +394,9 @@ pub fn plan_native_entry_bridge(
         scratch_register
     };
     let model = match request.target.architecture {
-        Architecture::Aarch64 => {
-            validate_physical_register_model(target_aarch64::aarch64_physical_register_model())
-        }
-        Architecture::X86_64 => {
-            validate_physical_register_model(target_x86_64::x86_64_physical_register_model())
-        }
-    }
-    .map_err(|_| Error::Encoding)?;
+        Architecture::Aarch64 => target_aarch64::validated_aarch64_physical_register_model(),
+        Architecture::X86_64 => target_x86_64::validated_x86_64_physical_register_model(),
+    };
     let mut encoding = Encoding {
         architecture: request.target.architecture,
         model,
@@ -786,8 +780,7 @@ pub fn plan_installed_interrupt_entry_bridge(
     let address_scratch = candidates.next().ok_or(Error::NoUnoccupiedScratch)?;
     let mut encoding = Encoding {
         architecture: Architecture::X86_64,
-        model: validate_physical_register_model(target_x86_64::x86_64_physical_register_model())
-            .map_err(|_| Error::Encoding)?,
+        model: target_x86_64::validated_x86_64_physical_register_model(),
         scratch,
         address_scratch,
         aligned_homes: Vec::new(),
@@ -938,8 +931,7 @@ fn plan_installed_fatal_entry_bridge(
     }
     let encoding = Encoding {
         architecture: Architecture::X86_64,
-        model: validate_physical_register_model(target_x86_64::x86_64_physical_register_model())
-            .map_err(|_| Error::Encoding)?,
+        model: target_x86_64::validated_x86_64_physical_register_model(),
         scratch: MachineRegister::X86Rax,
         address_scratch: MachineRegister::X86Rdx,
         aligned_homes: Vec::new(),

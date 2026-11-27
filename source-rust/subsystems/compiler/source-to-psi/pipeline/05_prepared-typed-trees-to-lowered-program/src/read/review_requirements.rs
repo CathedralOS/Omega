@@ -229,8 +229,8 @@ impl Program<'_> {
         }
         returned_parameters.sort_unstable();
         returned_parameters.dedup();
-        // The generic check form appends a scalar for each rigid value binder.
-        // Those scalars belong to the method's static telescope in package review.
+        // Both the abstract schema signature and a generic check form append
+        // the method's rigid value binders after the runtime parameters.
         let (formals, rigid_values) = signature
             .parameters
             .split_at_checked(parameter_types.len())
@@ -240,7 +240,12 @@ impl Program<'_> {
                 .value_parameters
                 .get(id)
                 .ok_or("public requirement lost its checked value parameter count")?,
-            None => 0,
+            None => self
+                .typed
+                .state_signature_type_parameters(source)
+                .iter()
+                .filter(|parameter| parameter.kind.is_const_or_value())
+                .count(),
         };
         if rigid_values.len() != rigid_count {
             return Err("public requirement source and lowered parameter counts differ".to_owned());

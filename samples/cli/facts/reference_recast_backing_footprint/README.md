@@ -106,8 +106,7 @@ independent exact-candidate final review and main publication are still owed;
 the successful row does not close either parent capability.
 
 ```sh
-omega run --engine native samples/cli/facts/reference_recast_backing_footprint/<place>/main.omg
-omega run --engine psi samples/cli/facts/reference_recast_backing_footprint/<place>/main.omg
+omega run samples/cli/facts/reference_recast_backing_footprint/<place>/main.omg
 omega --check samples/cli/facts/reference_recast_backing_footprint/<place>/invalid/main.omg
 ```
 

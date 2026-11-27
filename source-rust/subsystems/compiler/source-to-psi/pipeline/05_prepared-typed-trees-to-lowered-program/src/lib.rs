@@ -526,6 +526,7 @@ fn read_bodies(
         {
             if complete {
                 bodies.push(Body {
+                    assembly_target_requirement: Default::default(),
                     slots: Vec::new(),
                     statements: Vec::new(),
                 });
@@ -1130,6 +1131,7 @@ fn witness_call(
 pub(crate) fn callable_refinement_body(required: &body::Signature, call: Expression) -> Body {
     let source = call.source;
     Body {
+        assembly_target_requirement: Default::default(),
         slots: required.parameters.clone(),
         statements: vec![match required.result {
             Some(_) => Statement::Arm {
@@ -1164,6 +1166,7 @@ fn finish_logical_witness<'source>(
         let signature =
             terminal_check_tables::row(&program.signatures, id, entry, Construct::Machine)?;
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: signature.parameters.clone(),
             statements: Vec::new(),
         });
@@ -1393,6 +1396,7 @@ fn finish_reading_into<'source>(
                     .parameters
                     .clone();
                     bodies.push(Body {
+                        assembly_target_requirement: Default::default(),
                         slots,
                         statements: Vec::new(),
                     });
@@ -1608,8 +1612,11 @@ fn finish_reading_into<'source>(
     }
     qualifications::publish_access_plans(diagnostic, &program, &mut elaboration.module)?;
     elaboration.nominal_types = program.nominal_type_inputs();
-    elaboration.nominal_calls =
-        program.publish_nominal_calls(&source.calls, &mut elaboration.module)?;
+    elaboration.nominal_calls = program.publish_nominal_calls(
+        &source.calls,
+        &source.folded_calls,
+        &mut elaboration.module,
+    )?;
     source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
     for selected in &mut program.selections {
         if let Some(required) = selected.required_contract {
@@ -2197,6 +2204,38 @@ fn lower_program_with_parallel<'source>(
                     }),
             );
         }
+        if let (Some(source), Some(typed)) = (declarations, typed_source)
+            && let Some(own) = source.symbols.get(lowered_id)
+            && let Some((implementation, _)) = typed.owned_conformance_realization(*own)
+        {
+            for (member, ensures) in &source.realized_ensures {
+                if member == own
+                    || typed
+                        .owned_conformance_realization(*member)
+                        .is_none_or(|(other, _)| other.symbol != implementation.symbol)
+                {
+                    continue;
+                }
+                // Every reading of the member: a call names one of them.
+                for (callee, _) in source
+                    .symbols
+                    .iter()
+                    .filter(|(_, symbol)| *symbol == member)
+                {
+                    for (clause, statement) in ensures.iter().enumerate() {
+                        lowered.tables.realized_guarantees.push(
+                            terminal_check_tables::RealizedGuarantee {
+                                callee,
+                                clause: u32::try_from(clause).map_err(|_| {
+                                    crate::read::unavailable(lowered_id, "clause position")
+                                })?,
+                                statement: statement.clone(),
+                            },
+                        );
+                    }
+                }
+            }
+        }
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);
@@ -2617,6 +2656,7 @@ mod publication_scope_tests {
         let entry = MachineId::new(1).unwrap();
         let mut bodies = IdTable::default();
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: Vec::new(),
             statements: Vec::new(),
         });

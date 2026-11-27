@@ -57,6 +57,7 @@ access offset=4 count=4
 == membership-behind-pointer
 block SelectedBlockId(0) Source(BlockId(1))
   CopyI64
+  CopyI64
   Load64 { byte_offset: 0 }
   Load32 { byte_offset: 0 }
   MaterializeI64 Unsigned(0)
@@ -69,7 +70,13 @@ access offset=0 count=4
 slot size=4 align=4
 block SelectedBlockId(0) Source(BlockId(1))
   FrameAddress { slot: Local(Structural { operation: OperationId(1), place: PlaceId(1) }), byte_offset: 0 }
+  MaterializeI64 Unsigned(0)
+  Store { byte_offset: 0, byte_size: 4 }
+  MaterializeI64 Unsigned(0)
+  Store { byte_offset: 0, byte_size: 4 }
   term ReturnUnit
+access offset=0 count=4
+access offset=0 count=4
 access offset=0 count=4
 == activation-claim
 slot size=32 align=8

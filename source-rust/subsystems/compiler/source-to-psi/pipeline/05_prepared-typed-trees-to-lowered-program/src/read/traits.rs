@@ -1030,13 +1030,17 @@ impl<'program> Program<'program> {
                     SourceImplementation::Machine(machine)
                 };
                 let scope = self.applied_scope(context, application)?;
+                // The requirement's clauses name this implementation's rows.
+                let outer = self.witness_conformance.replace(symbol);
                 let signature = self.static_requirement_signature(
                     context,
                     applied_requirement,
                     scope,
                     application.declaration.is_boundary,
                     false,
-                )?;
+                );
+                self.witness_conformance = outer;
+                let signature = signature?;
                 if signature
                     .parameters
                     .iter()

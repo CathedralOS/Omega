@@ -104,7 +104,11 @@ fn explicit_array_views_retain_backing_and_a_separate_loan() {
         outcomes.push(returns_normally());
         outcomes.push(returns_normally());
         let lowered = lower_records(
-            Body { slots, statements },
+            Body {
+                assembly_target_requirement: Default::default(),
+                slots,
+                statements,
+            },
             &signatures,
             &outcomes,
             &array_types(structural),
@@ -203,6 +207,7 @@ fn direct_array_windows_check_endpoints_against_the_whole_loan() {
     outcomes.push(returns_normally());
     let lowered = lower_records(
         Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![array, view],
             statements,
         },

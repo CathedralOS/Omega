@@ -116,12 +116,79 @@ fn scope(module: TerminalModule, target: &str) -> Result<TargetReach, NativeExec
         )
         .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.to_string()))?;
     TargetReach::derive(ScopeInputs {
+        target,
         artifact: reloaded.view(),
         entry,
         entry_call: None,
         adapters: &[],
         callbacks: &[],
     })
+}
+
+#[test]
+fn assembly_target_is_checked_only_for_reachable_bodies() {
+    let mut module = graph();
+    module.machines[1].assembly_target_requirement =
+        terminal_psi::RegisterTargetApplicability::X86_64;
+    assert!(scope(module.clone(), "linux_arm64").is_ok());
+
+    module.machines[0].blocks[0].operations[0].kind = call(2);
+    assert!(scope(module.clone(), "linux_x86_64").is_ok());
+    let Err(NativeExecutionScopeError::TargetContext(reason)) = scope(module, "linux_arm64") else {
+        panic!("the selected ARM64 target reached an x86-64 assembly body");
+    };
+    assert!(
+        reason.contains("requires x86_64") && reason.contains("linux_arm64"),
+        "{reason}"
+    );
+}
+
+#[test]
+fn assembly_target_applies_to_a_body_emitted_for_a_dispatch_table() {
+    use terminal_psi::{TerminalDynamicInterface, TerminalDynamicSlot, TerminalDynamicTable};
+
+    let mut module = graph();
+    let mut identities = module.identities.clone().into_builder();
+    let interface = identities.intern("Operation");
+    let requirement = identities.intern("Operation::run");
+    let implementation = identities.intern("VectorOperation");
+    module.identities = identities.build();
+    let catalog = &mut module.execution.dynamic_dispatch;
+    catalog.interfaces.push(TerminalDynamicInterface {
+        id: 0,
+        identity: interface,
+        slots: vec![TerminalDynamicSlot {
+            slot: 0,
+            declaring_trait_identity: interface,
+            requirement_identity: requirement,
+            family_tuple: Vec::new(),
+            scalar_parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            entry_claim_paths: Vec::new(),
+            result: terminal_psi::BoundaryMachineResult::Scalar(scalar_type().into()),
+            result_claim_paths: Vec::new(),
+            result_reference_regions: Vec::new(),
+        }],
+    });
+    catalog.tables.push(TerminalDynamicTable {
+        id: 0,
+        interface: 0,
+        implementation_identity: implementation,
+        rows: vec![Some(machine_id(2))],
+    });
+    module.machines[1].assembly_target_requirement =
+        terminal_psi::RegisterTargetApplicability::X86_64;
+
+    // The entry returns a constant. Only the table's relocation needs machine 2.
+    let x86 = scope(module.clone(), "linux_x86_64").unwrap();
+    assert!(x86.emitted.contains_machine(machine_id(2)));
+    let Err(NativeExecutionScopeError::TargetContext(reason)) = scope(module, "linux_arm64") else {
+        panic!("the ARM64 image must refuse its table's x86-64 function");
+    };
+    assert!(
+        reason.contains("requires x86_64") && reason.contains("linux_arm64"),
+        "{reason}"
+    );
 }
 
 #[test]
@@ -363,6 +430,7 @@ fn emission_records_a_callback_only_when_its_registrar_runs() {
     ];
     for (entry, reached) in [(machine_id(1), false), (machine_id(2), true)] {
         let scope = TargetReach::derive(ScopeInputs {
+            target: "windows_x86_64",
             artifact: artifact.view(),
             entry,
             entry_call: None,

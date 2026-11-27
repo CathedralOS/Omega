@@ -8,8 +8,11 @@ the two most recent simulated positions.
 Run the sample from this directory to see the frame table.
 
 ```sh
-omega run --engine native build.omg
+omega run build.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/games/fixed_timestep` from the repository root.
 
 The first 4 ms frame runs zero ticks. The next frame adds 16 ms and runs
 two ticks. After the 27 ms frame, 7 ms are left over. The point's two latest
@@ -26,8 +29,8 @@ To capture the native and Psi streams for comparison with `expected_stdout.txt`,
 run the replay with the empty `input.txt` fixture.
 
 ```sh
-omega run --engine native --input input.txt --outputs build/replay-output-native build.omg
-omega run --engine psi --input input.txt --outputs build/replay-output-psi build.omg
+omega run --input input.txt --outputs build/replay-output-native build.omg
+omega run --input input.txt --outputs build/replay-output-psi build.omg
 ```
 
 The loop follows Glenn Fiedler's [Fix Your Timestep!](https://gafferongames.com/post/fix_your_timestep/).

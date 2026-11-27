@@ -62,6 +62,7 @@ fn machine(module: &TerminalModule, raw: u64) -> &TerminalMachine {
 fn countdown(signature: Signature) -> (Body, Signature) {
     (
         Body {
+            assembly_target_requirement: Default::default(),
             slots: scalars(vec![u32_type()]),
             statements: vec![
                 guarded(positive(0), call(1, vec![less_one(0)], Some(u32_type()))),
@@ -241,6 +242,7 @@ fn mutual() -> Vec<(Body, Signature)> {
     vec![
         (
             Body {
+                assembly_target_requirement: Default::default(),
                 slots: scalars(vec![u32_type()]),
                 statements: vec![
                     guarded(
@@ -254,12 +256,40 @@ fn mutual() -> Vec<(Body, Signature)> {
         ),
         (
             Body {
+                assembly_target_requirement: Default::default(),
                 slots: scalars(vec![u32_type()]),
                 statements: vec![returns(call(1, vec![less_one(0)], Some(u32_type())))],
             },
             right,
         ),
     ]
+}
+
+#[test]
+fn recursive_entries_share_the_target_needed_by_their_loop() {
+    use terminal_psi::RegisterTargetApplicability::{Aarch64, X86_64};
+
+    // The first entry calls the second. The second emits both bodies in its loop.
+    let mut entries = mutual();
+    entries[0].0.assembly_target_requirement = X86_64;
+    let elaboration = elaborate(entries).unwrap();
+    for id in [1, 2] {
+        assert_eq!(
+            machine(&elaboration.module, id).assembly_target_requirement,
+            X86_64
+        );
+    }
+
+    let mut entries = mutual();
+    entries[0].0.assembly_target_requirement = Aarch64;
+    entries[1].0.assembly_target_requirement = X86_64;
+    let Err(refusal) = elaborate(entries) else {
+        panic!("one loop cannot run on both instruction sets");
+    };
+    assert!(
+        refusal.detail.contains("incompatible assembly targets"),
+        "{refusal:?}"
+    );
 }
 
 #[test]
@@ -297,10 +327,12 @@ fn two_entries_share_a_loop_and_both_prove_the_receivers_requirement() {
 fn a_loop_with_no_way_out_never_completes_and_its_caller_does_not_continue() {
     // machine 1 { spin(); }   machine spin() { spin() }
     let caller = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![Statement::discard(call(2, Vec::new(), None))],
     };
     let spin = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![Statement::Arm {
             guard: ArmGuard::Always,
@@ -337,6 +369,7 @@ fn what_the_lane_does_not_serve_yet_on_a_cycle_is_refused_by_name() {
     };
     // machine f(n: u32) -> u32 { 1 + f(n) }: the call's result is used.
     let nested = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type()]),
         statements: vec![returns(strict(
             Strict::Add,
@@ -352,6 +385,7 @@ fn what_the_lane_does_not_serve_yet_on_a_cycle_is_refused_by_name() {
     // A completed match does not turn its scrutinee into a terminal call:
     // that call must return before the selector can choose an arm.
     let tested = Body {
+        assembly_target_requirement: Default::default(),
         slots: scalars(vec![u32_type()]),
         statements: vec![returns(expression(
             ExpressionKind::Match {
@@ -389,6 +423,7 @@ fn what_the_lane_does_not_serve_yet_on_a_cycle_is_refused_by_name() {
     let mut outer = signature(Vec::new(), Some(u32_type()));
     outer.termination = Termination::Promised;
     let caller = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![returns(call(2, vec![integer(3)], Some(u32_type())))],
     };
@@ -542,6 +577,7 @@ fn a_promise_over_a_ranked_loop_is_served_and_over_an_unranked_one_refused() {
         promised.termination = Termination::Promised;
         (
             Body {
+                assembly_target_requirement: Default::default(),
                 slots: Vec::new(),
                 statements: vec![returns(call(2, vec![integer(3)], Some(u32_type())))],
             },
@@ -580,6 +616,7 @@ fn a_promise_on_a_machine_that_reaches_no_cycle_is_served() {
     let mut promised = signature(Vec::new(), Some(u32_type()));
     promised.termination = Termination::Promised;
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![returns(integer(7))],
     };
@@ -659,6 +696,7 @@ fn a_tail_cycle_cannot_discard_a_supplied_theorem() {
         terminal_psi::TheoremSource::Formal(0),
     ));
     let body = Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![Statement::Arm {
             guard: ArmGuard::Always,

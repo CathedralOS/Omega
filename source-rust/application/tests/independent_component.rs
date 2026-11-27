@@ -4,6 +4,8 @@
     all(target_os = "windows", target_arch = "aarch64"),
 ))]
 
+#[path = "support/components.rs"]
+mod components;
 #[path = "support/project.rs"]
 mod project;
 
@@ -145,7 +147,7 @@ fn a_windows_arm64_consumer_imports_the_slot_exported_by_its_component() {
             .unwrap();
         assert!(native.status.success(), "{native:?}");
         let psi = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["run", "--engine", "psi", "--target", "windows_arm64"])
+            .args(["run", "--target", "windows_arm64"])
             .arg(consumer.join("build.omg"))
             .output()
             .unwrap();
@@ -251,7 +253,7 @@ fn independent_packages_can_call_an_independently_compiled_supplier() {
     );
     require_native_suppliers(&consumer, &root.join("out"), 2);
     let interpreted = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--engine", "psi", "--target", "linux_x86_64"])
+        .args(["run", "--target", "linux_x86_64"])
         .arg(build)
         .output()
         .unwrap();
@@ -323,4 +325,273 @@ machine main() crashes Trap {
         ),
     ];
     project::write(root, &sources);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn independent_wait_uses_the_selected_export_and_the_callers_private_cell() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/synchronization/run/independent_wait");
+    let read = |name: &str| fs::read_to_string(fixture.join(name)).unwrap();
+    let supplier_build = read("supplier/build.omg");
+    let supplier = read("supplier/main.omg");
+    let build = read("application/build.omg");
+    let main = read("application/main.omg");
+    for (provider, value, stuck) in [
+        ("ObservedWait", "1", true),
+        ("ObservedWait", "0", false),
+        ("ImmediateWait", "1", false),
+    ] {
+        let scratch = project::stage(
+            "independent-atomic-wait",
+            &[
+                ("supplier/build.omg", &supplier_build),
+                ("supplier/main.omg", &supplier),
+                (
+                    "application/build.omg",
+                    &build.replace("ObservedWait", provider),
+                ),
+                (
+                    "application/main.omg",
+                    &main.replace("store(0", &format!("store({value}")),
+                ),
+            ],
+        );
+        let application = scratch.path().join("application");
+        let (built, diagnostic) = project::status(&project::omega(
+            &application,
+            &[
+                "--target",
+                "linux_x86_64",
+                "--build-dir",
+                "out",
+                "build.omg",
+            ],
+        ));
+        assert_eq!(built, !stuck, "{provider}, {value}: {diagnostic}");
+        if stuck {
+            let (ran, psi_diagnostic) = project::status(&project::omega(
+                &application,
+                &[
+                    "run",
+                    "--target",
+                    "linux_x86_64",
+                    "--psi-work-budget",
+                    "10000",
+                    "build.omg",
+                ],
+            ));
+            assert!(!ran, "{psi_diagnostic}");
+            for report in [&diagnostic, &psi_diagnostic] {
+                assert!(
+                    report.contains("synchronization deadlock")
+                        && report.contains("unchanged private atomic"),
+                    "{report}"
+                );
+            }
+        } else {
+            let suppliers =
+                fs::read_to_string(application.join("out/omega-components.tsv")).unwrap();
+            assert!(
+                suppliers.contains(".so"),
+                "expected an independent native supplier: {suppliers}"
+            );
+            project::assert_native_returns(
+                &application.join("out/omega-program"),
+                &format!("{provider}, {value}"),
+            );
+        }
+    }
+}
+
+#[test]
+fn selected_component_wait_needs_progress_for_the_receivers_actual_input() {
+    use psi_provider_selections::{
+        ProgressScope, invocation_progress_failure,
+    };
+    use terminal_semantics::synchronization::ProgressFailure;
+
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/synchronization/run/independent_wait");
+    let read = |file: &str| fs::read_to_string(fixture.join(file)).unwrap();
+    let supplier_build = read("supplier/build.omg");
+    let mut supplier = read("supplier/main.omg");
+    supplier.push_str(
+        "
+public TwoWaits satisfies Wait {
+    machine until_clear(signal: @Signal) { wait_for_clear(signal); wait_for_clear(signal); }
+}",
+    );
+    let build = read("application/build.omg");
+    let application = read("application/main.omg");
+    for (requires, lend_before_wait, use_descriptor) in [
+        ("", false, false),
+        ("requires input != 1", false, false),
+        ("requires input != 1", true, false),
+        ("", false, true),
+        ("requires input != 1", false, true),
+        ("requires input != 1", true, true),
+    ] {
+        let mut work = application
+            .replace("machine main()", "public machine work(input: u32)")
+            .replace("crashes none {", &format!("crashes none {requires} {{"))
+            .replace("store(0, Publish)", "store(input, Publish)");
+        work.push_str("machine main() reaches |signals|::Wait crashes none { work(2); }");
+        if lend_before_wait {
+            work = work
+                .replace("reaches |signals|::Wait", "reaches |signals|::Wait + Gate")
+                .replace(
+                    "|signals|::Wait::until_clear(@signal);",
+                    "Gate::receive(@signal); |signals|::Wait::until_clear(@signal);",
+                );
+            work.push_str("public boundary trait Gate { machine receive(signal: @|signals|::Signal) reaches none crashes none; }");
+        }
+        if use_descriptor {
+            work = work.replace(
+                "|signals|::Wait::until_clear(@signal);",
+                "let run: Action = dispatch; run(@signal);",
+            );
+            work.push_str("
+data Action = machine(signal: @|signals|::Signal) reaches |signals|::Wait invokes |signals|::Wait crashes none;
+machine dispatch(signal: @|signals|::Signal) reaches |signals|::Wait invokes |signals|::Wait crashes none {
+    |signals|::Wait::until_clear(signal);
+}");
+        }
+        let scratch = project::stage(
+            "selected-component-wait-progress",
+            &[
+                ("supplier/build.omg", &supplier_build),
+                ("supplier/main.omg", &supplier),
+                ("application/build.omg", &build),
+                ("application/main.omg", &work),
+            ],
+        );
+        let receiver = components::inspect(&scratch.path().join("application"), "work");
+        let supplier = components::inspect(&scratch.path().join("supplier"), "wait_for_clear");
+        let module = supplier.semantic_module();
+        let root = receiver.semantic_module();
+        let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = root.entry else {
+            panic!("expected the selected work entry");
+        };
+        assert_eq!(module.interfaces.provider_candidates.len(), 3);
+        for candidate in &module.interfaces.provider_candidates {
+            let provider = module.identities.text(candidate.provider_identity).unwrap();
+            let admitted = components::admit(&receiver, &supplier, candidate);
+            if provider.ends_with("::ObservedWait") {
+                assert_eq!(
+                    invocation_progress_failure(
+                        supplier.view(),
+                        candidate.candidate,
+                        ProgressScope::OpenInterface,
+                        [],
+                        |_| None
+                    ),
+                    None
+                );
+                let standalone = invocation_progress_failure(
+                    supplier.view(),
+                    candidate.candidate,
+                    ProgressScope::Executable,
+                    [],
+                    |_| None,
+                )
+                .expect("a standalone provider has no incoming progress premise");
+                assert_eq!(standalone.cause, ProgressFailure::UnprovedExternal);
+            }
+            let failure = invocation_progress_failure(
+                receiver.view(),
+                entry,
+                ProgressScope::Executable,
+                [&admitted],
+                |_| None,
+            );
+            if provider.ends_with("::TwoWaits") {
+                let failure =
+                    failure.expect("an unprojected or unvisited input obligation stays open");
+                assert_eq!(failure.cause, ProgressFailure::UnprovedImport);
+                if !use_descriptor {
+                    assert_eq!(failure.machine, entry);
+                }
+            } else if provider.ends_with("::ObservedWait")
+                && (requires.is_empty() || lend_before_wait)
+            {
+                let failure =
+                    failure.expect("the installed provider may never see an enabled value");
+                assert_eq!(failure.cause, ProgressFailure::Unproved);
+                if !use_descriptor {
+                    assert_eq!(failure.machine, entry);
+                }
+                let call = root
+                    .machine(failure.machine)
+                    .unwrap()
+                    .operations()
+                    .find(|op| op.id == failure.operation)
+                    .unwrap();
+                if use_descriptor {
+                    assert!(call.kind.callable_invocation().is_some(), "{call:?}");
+                } else {
+                    assert_eq!(
+                        call.declared_invocation().unwrap().callee,
+                        terminal_psi::TargetMachineCallable::Boundary(admitted.receiving_boundary())
+                    );
+                }
+            } else {
+                assert_eq!(failure, None, "{provider} with {requires}");
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_fused_wait_uses_the_body_selected_by_the_actual_target() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/synchronization/run/independent_wait");
+    let read = |file: &str| fs::read_to_string(fixture.join(file)).unwrap();
+    let supplier_build = read("supplier/build.omg");
+    let supplier = read("supplier/main.omg");
+    let build = read("application/build.omg")
+        .replace("CompositionMode::Independent", "CompositionMode::Fused");
+    let main = read("application/main.omg").replace("store(0", "store(1");
+    for (provider, blocked) in [("ObservedWait", true), ("ImmediateWait", false)] {
+        let scratch = project::stage(
+            "fused-selected-wait",
+            &[
+                ("supplier/build.omg", &supplier_build),
+                ("supplier/main.omg", &supplier),
+                (
+                    "application/build.omg",
+                    &build.replace("ObservedWait", provider),
+                ),
+                ("application/main.omg", &main),
+            ],
+        );
+        let project_dir = scratch.path().join("application");
+        for command in [
+            &[
+                "--target",
+                "linux_x86_64",
+                "--build-dir",
+                "out",
+                "build.omg",
+            ][..],
+            &[
+                "run",
+                "--target",
+                "linux_x86_64",
+                "--psi-work-budget",
+                "10000",
+                "build.omg",
+            ][..],
+        ] {
+            let (ok, diagnostic) = project::status(&project::omega(&project_dir, command));
+            assert_eq!(ok, !blocked, "{provider} {command:?}: {diagnostic}");
+            if blocked {
+                assert!(
+                    diagnostic.contains("synchronization deadlock"),
+                    "{diagnostic}"
+                );
+            }
+        }
+    }
 }

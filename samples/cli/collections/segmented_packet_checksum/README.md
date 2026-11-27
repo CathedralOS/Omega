@@ -12,9 +12,11 @@ unchanged. Arithmetic is explicitly modulo 2^32, not cryptographic integrity.
 Run from the repository root:
 
 ```sh
-omega run --engine native samples/cli/collections/segmented_packet_checksum/main.omg
-omega run --engine psi samples/cli/collections/segmented_packet_checksum/main.omg
+omega run samples/cli/collections/segmented_packet_checksum/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/collections/segmented_packet_checksum` from the repository root.
 
 The complete sample exits 0 natively and in Terminal execution. It exercises
 typed case-path retirement, descriptor-aware residual cleanup and recursive zero

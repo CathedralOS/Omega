@@ -35,7 +35,7 @@ positive place carries the same `probe` premise `input < 4` into the same
 `count` call through a different transport, exercises subjects 0 and 3, and
 exits 0 only when both return unchanged. Each place binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64` and `linux_arm64`, declares
-`Expected exit: 0`, and passes `omega run --both` — native and Terminal Psi
+`Expected exit: 0`, and passes the native/Psi comparison — native and Terminal Psi
 legs agree.
 
 | Place | Positive | Fact-sensitive reject twins |
@@ -59,7 +59,7 @@ introduces no new scalar type or proof authority. The target-body twin checks
 all four authored target bodies. Positive and twin differ only in the
 construct's own bound — never in a caller guard.
 
-Run `omega run --both samples/cli/facts/range_fact_delivery/<place>/main.omg`
+Run `mbx xtask sample-gate --filter samples/cli/facts/range_fact_delivery/<place>`
 with finite stdin. Check a twin with `omega --check <place>/invalid/main.omg` or
 `omega --check <place>/controls/missing_bound/main.omg`.
 
@@ -93,7 +93,7 @@ with finite stdin. Check a twin with `omega --check <place>/invalid/main.omg` or
   `ensures` range obligations erase cleanly after verification, while the
   executable scalar operations, control flow, and calls lower without loss into
   canonical target-neutral Terminal Psi (`PSITERM\0`). The resulting programs
-  execute identically in the Terminal Psi interpreter (`omega run --both`).
+  execute identically in the Terminal Psi interpreter.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
   Companion build rows bind `ProgramEntry` and cross-package dependency
   `integer_range_delivery` across all four hosted targets (`windows_x86_64`,
@@ -112,7 +112,7 @@ with finite stdin. Check a twin with `omega --check <place>/invalid/main.omg` or
   conditional branch offsets with instruction reflow, binds IEEE float constants
   and symbol relocations, validates machine-state footprint evidence, and emits
   executable PE/ELF/Mach-O images whose execution outcomes agree with Terminal Psi
-  (`omega run --both` exit 0) across `windows_x86_64` and `macos_arm64`.
+  (exit 0) across `windows_x86_64` and `macos_arm64`.
 
 ## What remains open
 
@@ -127,19 +127,19 @@ narrowing shown here, remain open under the task.
 ## Run record
 
 Measured on `windows_x86_64` with prebuilt `omega-latest.exe`:
-- 10/10 samples meet their documented oracle on `windows_x86_64` with `omega run --both` exit 0.
+- 10/10 samples meet their documented oracle on `windows_x86_64` with the native/Psi comparison exit 0.
 - 18/18 intended-invalid controls (all 9 `<place>/invalid/` twins and 9 `<place>/controls/missing_bound/` controls) match their authored rejection (`cannot prove requires contract for call count ... index <= 4`).
 
 Baseline defect (qualification receipt `df135d5d`, base `ff8be1e0d47`):
 five places — `const_name`, `field`, `parameter`, `call_result`,
 `other_machine` — carried host-local `omega.lock` files whose recorded
-`compiler_identity` predated the current producer, so `omega run --both`
+`compiler_identity` predated the current producer, so the native/Psi comparison
 exited 200 with
 "accepted package `integer_range_delivery` compiler identity changed; run
 `omega packages update` for fresh review before compiling". That is stale
 accepted-review state, not a compiler defect (wiki/development/testing.md). Fresh
 `omega packages update` re-recorded the package review in this checkout for all nine
-places; the unchanged programs then passed `--both` with exit 0. No compiler
+places; the unchanged programs then passed the native/Psi comparison with exit 0. No compiler
 repair was needed.
 
 Every positive records native exit 0, every twin records its emitted

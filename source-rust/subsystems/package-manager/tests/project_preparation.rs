@@ -68,7 +68,10 @@ machine build(b: @mutable BuildPlan) {
     // the declaration captured before either member Build runs.
     fs::write(provider.join("build.omg"), "invalid replacement").unwrap();
     let first = subjects.next().unwrap();
-    assert_eq!(first.entry, consumer.join("build.omg"));
+    assert_eq!(
+        first.entry,
+        consumer.canonicalize().unwrap().join("build.omg")
+    );
     let products = first.products.unwrap();
     let selected = products.select(targets[0]).unwrap();
     let inputs = selected.package_inputs().unwrap();
@@ -79,7 +82,10 @@ machine build(b: @mutable BuildPlan) {
     products.settle_rechecks(targets[0]).unwrap();
 
     let second = subjects.next().unwrap();
-    assert_eq!(second.entry, provider.join("build.omg"));
+    assert_eq!(
+        second.entry,
+        provider.canonicalize().unwrap().join("build.omg")
+    );
     let products = second.products.unwrap();
     let selected = products.select(targets[0]).unwrap();
     let inputs = selected.package_inputs().unwrap();
@@ -735,7 +741,7 @@ machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: "client" }};
     let dependency: DependencyDescription = |dep|::from_source(Source::Path {{ location: "library" }});
     {registration}
-    Build::bind(builder, {}\{}, |app|::entry);
+    Build::bind(builder, {}::{}, |app|::entry);
 }}"#,
                 contract.owner, contract.slot_name
             ),
@@ -802,7 +808,7 @@ machine build(builder: @mutable BuildPlan) {{
     |dep|::with_alias(@mutable enabled, "wide");
     let allowed: [BoundaryServiceReference; 1] = [Build::service::<|policy|::Meter>(builder)];
     _ = |dep|::add(builder, enabled, @allowed[..]);
-    Build::bind(builder, {}\{}, |app|::entry);
+    Build::bind(builder, {}::{}, |app|::entry);
 }}"#,
         contract.owner, contract.slot_name
     );

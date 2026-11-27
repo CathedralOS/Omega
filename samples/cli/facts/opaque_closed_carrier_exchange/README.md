@@ -27,7 +27,7 @@ runtime tuples equal the originals. Source rejection differences are limited to
 two target-body machine/state labels; the qualified caller-name oracle was
 updated to its exact ordinary implementation. The untouched scalar-parent-tag
 control retains applicable original evidence and its original golden row.
-All 56 public positives also pass ordinary package review and `omega run --both`.
+All 56 public positives also pass ordinary package review and the native/Psi comparison.
 The four raw-result/laundering controls each check successfully and then reject
 native admission at `UncheckedFactory::make` for the original issuer-provenance
 obligation. All 53 public source-rejection controls refuse their intended obligation. The
@@ -129,7 +129,7 @@ are established as follows:
   mathematics or termination assumption is introduced.
 - **Checked-to-Terminal Psi (`Psi 06–08`):** canonical Terminal execution preserves
   opaque identities across these transports and record transactions. Public
-  `omega run --both` uses the admitted runtime provisions, not an injected corpus
+  the native/Psi comparison uses the admitted runtime provisions, not an injected corpus
   handler or a second source checker. No borrow-restoration, proof-tag, `dyn`,
   atomic or ranking claim is exercised by this row.
 - **Provider settlement, geometry and ABI (`Omega 00–02`):** exact normalized
@@ -164,7 +164,7 @@ these observations are distinct from final candidate review.
 
 Every positive declares the four hosted `ProgramEntry` bindings. Linux x86-64,
 macOS ARM64, and Windows x86-64 are observed execution targets for the direct
-row: all nine places run `omega run --both` with native exit 0 and Terminal
+row: all nine places were compared with native exit 0 and Terminal
 agreement, and every cleanup twin rejects at checking. Windows has no
 `inet_makeaddr` or `inet_lnaof` export, so those requirements bind
 `omega_host.dll`, the classful definition of those C functions, and the loader
@@ -238,7 +238,7 @@ package](independent/producer_invalid/main.omg). Its consumer source is identica
 positive. The four hosted entries remain in every positive build. Execution observations for
 this exchange cover all four hosted targets, including Linux ARM64 in run `40220498665`. On
 windows_x86_64 the producer declares the same `omega_host.dll` binding, publication emits a PE
-shared component beside the executable, and all nine places exit 0 under `omega run --both`.
+shared component beside the executable, and all nine places exit 0 under the native/Psi comparison.
 
 The applicable requirement categories above extend through the component edge:
 

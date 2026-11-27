@@ -1126,6 +1126,17 @@ pub(crate) fn canonical(proposition: Proposition, id: MachineId) -> Checked<Prop
             conclusion: Box::new(canonical(*conclusion, id)?),
         },
         Proposition::IsMere(inner) => Proposition::IsMere(Box::new(canonical(*inner, id)?)),
+        Proposition::Boxed(inner) => Proposition::Boxed(Box::new(canonical(*inner, id)?)),
+        Proposition::Squash(inner) => Proposition::Squash(Box::new(canonical(*inner, id)?)),
+        Proposition::Universal {
+            carrier,
+            binder,
+            body,
+        } => Proposition::Universal {
+            carrier,
+            binder,
+            body: Box::new(canonical(*body, id)?),
+        },
         other => other,
     })
 }

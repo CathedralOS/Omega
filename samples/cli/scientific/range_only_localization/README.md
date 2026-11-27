@@ -80,15 +80,14 @@ From the repository root, set `OMEGA_LIBRARY_ROOT` to this checkout's absolute
 `source/library` path and use a binary built from the recorded candidate:
 
 ```sh
-sample=samples/cli/independent/range_only_localization
+sample=samples/cli/scientific/range_only_localization
 omega packages update --project "$sample" --target linux_x86_64
 # Read the pending review, accept the local system entry/provider decisions,
 # then resume using the normal package-review workflow.
 omega packages update --resume --project "$sample"
 omega --check --target linux_x86_64 "$sample/main.omg"
 omega --target linux_x86_64 "$sample/main.omg"
-omega run --engine native "$sample/main.omg" < "$sample/data/unique.stdin"
-omega run --engine psi "$sample/main.omg" < "$sample/data/unique.stdin"
+omega run "$sample/main.omg" < "$sample/data/unique.stdin"
 # Reuse the corpus runner built from this exact compiler source.
 omega --check --target linux_x86_64 "$sample/intended_invalid/rejected.omg"
 ```

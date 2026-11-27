@@ -47,7 +47,7 @@ pub(crate) mod compute {
     }
 }
 pub(crate) mod custody {
-    use crate::allocation::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness};
+    use crate::allocation::ValidatedAllocationLegality;
 
     use crate::allocation::StagedOptimizedFixedViewCopyCustodyReceipt;
 
@@ -55,15 +55,10 @@ pub(crate) mod custody {
 
     pub(crate) fn selected_reanalysis_custody_receipt(
         source: StagedOptimizedFixedViewCopyCustodyReceipt,
-        liveness: &ValidatedLiveness,
-        ranges: &ValidatedLiveRanges,
         legality: &ValidatedAllocationLegality,
     ) -> StagedOptimizedSelectedReanalysisCustodyReceipt {
         StagedOptimizedSelectedReanalysisCustodyReceipt {
             source,
-            transformed_liveness: liveness.receipt().identity(),
-            transformed_ranges: ranges.receipt().identity(),
-            transformed_legality: legality.receipt().identity(),
             allocator_availability: legality.receipt().allocator_availability(),
         }
     }
@@ -98,12 +93,7 @@ pub fn stage_optimized_selected_reanalysis(
 ) -> Result<StagedOptimizedSelectedReanalysis, OptimizedSelectedReanalysisError> {
     let (liveness, ranges, legality) = compute::compute_selected_reanalysis(&transformation)?;
     invariants::require_no_transitions(&legality)?;
-    let custody = custody::selected_reanalysis_custody_receipt(
-        transformation.custody(),
-        &liveness,
-        &ranges,
-        &legality,
-    );
+    let custody = custody::selected_reanalysis_custody_receipt(transformation.custody(), &legality);
     Ok(StagedOptimizedSelectedReanalysis {
         transformation,
         liveness,
@@ -141,9 +131,6 @@ copy_receipt! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct StagedOptimizedSelectedReanalysisCustodyReceipt {
         source: StagedOptimizedFixedViewCopyCustodyReceipt,
-        transformed_liveness: selected_instructions::LivenessIdentity,
-        transformed_ranges: selected_instructions::LiveRangeIdentity,
-        transformed_legality: register_homes::AllocationLegalityIdentity,
         allocator_availability: register_homes::AllocatorAvailabilityIdentity,
     }
 }

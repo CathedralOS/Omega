@@ -195,7 +195,7 @@ pub(crate) fn allocate_word(cursor: &mut u32) -> Result<u32, Error> {
 
 pub(crate) struct Encoding {
     pub(crate) architecture: Architecture, // Target architecture for byte emission.
-    pub(crate) model: ValidatedPhysicalRegisterModel, // Validated physical register model for the target.
+    pub(crate) model: &'static ValidatedPhysicalRegisterModel, // Validated physical register model for the target.
     pub(crate) scratch: MachineRegister, // Primary volatile scratch register for value moves.
     pub(crate) address_scratch: MachineRegister, // Secondary volatile scratch register for address calculation.
     pub(crate) aligned_homes: Vec<AlignedHome>, // Over-aligned (>16-byte) frame intervals requiring dynamic masking.

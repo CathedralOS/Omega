@@ -53,15 +53,16 @@ fn write_provider_fixture(fixture: Fixture) -> (TemporaryDirectory, std::path::P
     let directory = TemporaryDirectory::create("provider-reference", false).unwrap();
     let root = directory.path().join("source");
     std::fs::create_dir(&root).unwrap();
-    let library = compile_provider(&directory,
-if forward {
+    let library = compile_provider(
+        &directory,
+        if forward {
             "#include <stdint.h>\nstatic int32_t cell = 37;\nconst int32_t *omega_reference_cell(void) { return &cell; }\nint32_t omega_reference_read(const int32_t *value) { return *value; }\n"
         } else if fixture == Fixture::Pair {
             "#include <stdint.h>\nstruct Pair { int32_t left; int32_t right; };\nstatic const struct Pair cell = { 37, 91 };\nconst struct Pair *omega_reference_cell(void) { return &cell; }\n"
         } else {
             "#include <stdint.h>\nstatic int32_t cell = 37;\nconst int32_t *omega_reference_cell(void) { return &cell; }\n"
         },
-if forward {
+        if forward {
             "REFERENCE_1.0 { global: omega_reference_cell; omega_reference_read; local: *; };\n"
         } else {
             "REFERENCE_1.0 { global: omega_reference_cell; local: *; };\n"
@@ -143,17 +144,33 @@ machine build(builder: @mutable BuildPlan) {{
     (directory, root)
 }
 
-/// Run one explicit engine in the fixture's source root.
-fn run(
+/// Exercise the emitted Linux program against the fixture's real provider library.
+fn compiled_program(
     directory: &TemporaryDirectory,
     root: &std::path::Path,
-    engine: &str,
-    file: &str,
 ) -> std::process::Output {
-    omega_command(directory, root)
-        .args(["run", "--engine", engine, "--keep", file])
+    let published = directory.path().join("compiled");
+    compile(
+        omega_command(directory, root)
+            .args(["build", "--build-dir"])
+            .arg(&published)
+            .arg("build.omg"),
+    );
+    Command::new(published.join("omega-program"))
+        .current_dir(root)
         .output()
         .unwrap()
+}
+
+fn publish_psi(directory: &TemporaryDirectory, root: &std::path::Path) -> Vec<u8> {
+    let saved = directory.path().join("program.psi");
+    compile(
+        omega_command(directory, root)
+            .arg("--emit-psi")
+            .arg(&saved)
+            .arg("build.omg"),
+    );
+    std::fs::read(saved).unwrap()
 }
 
 fn omega_command(directory: &TemporaryDirectory, root: &std::path::Path) -> Command {
@@ -177,20 +194,13 @@ fn execute_provider_fixture(fixture: Fixture) {
     // The run names the Build file: `omega run <file>` selects the Build in
     // the named file and ignores a neighboring `build.omg`
     // (wiki/spec/build/command_line.md, "Build-first entry selection").
-    let output = run(&directory, &root, "native", "build.omg");
-    let report = String::from_utf8(output.stderr).unwrap();
-    // `omega run` forwards the native program's stdout and stderr before it
-    // reports the native exit, so an empty stdout and a report that opens with
-    // the exit line show that the native program wrote nothing to either.
-    assert!(output.stdout.is_empty(), "{:?}", output.stdout);
-    assert_eq!(report.lines().next(), Some("native exit 0"), "{report}");
-    let retained = report
-        .lines()
-        .find_map(|line| line.strip_prefix("build dir kept: "))
-        .unwrap();
-    let retained = std::path::Path::new(retained);
-    assert!(retained.starts_with(directory.path()), "{retained:?}");
-    let bytes = std::fs::read(retained.join("program.oterm")).unwrap();
+    let compiled = compiled_program(&directory, &root);
+    assert!(compiled.status.success(), "{compiled:?}");
+    assert!(
+        compiled.stdout.is_empty() && compiled.stderr.is_empty(),
+        "{compiled:?}"
+    );
+    let bytes = publish_psi(&directory, &root);
     let program = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
     let boundary = program
         .view()
@@ -210,17 +220,25 @@ fn execute_provider_fixture(fixture: Fixture) {
     assert_eq!(groups.len(), 1);
     assert!(groups[0].inputs.is_empty());
     assert_eq!(groups[0].results, vec![Vec::new()]);
-    assert!(output.status.success(), "{report}");
-    let interpreted = run(&directory, &root, "psi", "build.omg");
+    let interpreted = omega_command(&directory, &root)
+        .args(["run", "--keep", "build.omg"])
+        .output()
+        .unwrap();
     let report = String::from_utf8(interpreted.stderr).unwrap();
     if forward {
         assert!(!interpreted.status.success(), "{report}");
-        assert!(report.contains("resident scalar belongs to a different original allocation"), "{report}");
+        assert!(
+            report.contains("resident scalar belongs to a different original allocation"),
+            "{report}"
+        );
     } else {
         assert!(interpreted.status.success(), "{report}");
         assert!(interpreted.stdout.is_empty());
         assert!(report.lines().any(|line| line == "Psi exit 0"), "{report}");
-        let kept = report.lines().find_map(|line| line.strip_prefix("build dir kept: ")).unwrap();
+        let kept = report
+            .lines()
+            .find_map(|line| line.strip_prefix("build dir kept: "))
+            .unwrap();
         let kept = std::path::Path::new(kept);
         assert!(kept.starts_with(directory.path()), "{kept:?}");
         for stream in ["terminal.stdout", "terminal.stderr"] {
@@ -251,7 +269,10 @@ fn canonical_provider_reference_reads_both_fields_of_its_live_pair() {
 #[test]
 fn the_program_file_alone_supplies_no_provider() {
     let (directory, root) = write_provider_fixture(Fixture::Scalar);
-    let output = run(&directory, &root, "psi", "main.omg");
+    let output = omega_command(&directory, &root)
+        .args(["run", "main.omg"])
+        .output()
+        .unwrap();
     let report = String::from_utf8(output.stderr).unwrap();
     assert!(!output.status.success(), "{report}");
     assert!(output.stdout.is_empty(), "{:?}", output.stdout);
@@ -263,10 +284,7 @@ fn the_program_file_alone_supplies_no_provider() {
         )),
         "{report}"
     );
-    assert!(
-        !report.lines().any(|line| line == "native exit 0"),
-        "{report}"
-    );
+    assert!(!report.lines().any(|line| line == "Psi exit 0"), "{report}");
 }
 
 #[test]
@@ -343,29 +361,12 @@ machine build<'selection>(builder: @mutable BuildPlan) {
         .replace("TARGET", target::TargetProfile::host().target_name())
         .replace("LIBRARY", library.to_str().unwrap());
     std::fs::write(root.join("build.omg"), &build).unwrap();
-    let observation = directory.path().join("observation");
-    let output = omega_command(&directory, &root)
-        .args(["run", "--engine", "native", "--keep", "--outputs"])
-        .arg(&observation)
-        .arg("build.omg")
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let status = std::fs::read_to_string(observation.join("termination.tsv")).unwrap();
-    assert!(status.starts_with("native\texit\t0\t"), "{status}");
+    let observed = compiled_program(&directory, &root);
+    assert!(observed.status.success(), "{observed:?}");
 
     // The checked table supplier and chosen dispatch field must also survive independent
     // host review and image publication after the source and SDK are unavailable.
-    let report = String::from_utf8(output.stderr).unwrap();
-    let kept = report
-        .lines()
-        .find_map(|line| line.strip_prefix("build dir kept: "))
-        .unwrap();
-    let saved = std::fs::read(std::path::Path::new(kept).join("program.oterm")).unwrap();
+    let saved = publish_psi(&directory, &root);
     let manifest = terminal_codec::CanonicalTerminalArtifact::from_bytes(&saved)
         .unwrap()
         .manifest()
@@ -474,7 +475,10 @@ machine build<'selection>(builder: @mutable BuildPlan) {
         .unwrap();
     assert!(!unchecked.status.success());
     let diagnostic = String::from_utf8_lossy(&unchecked.stderr);
-    assert!(diagnostic.contains("native function table needs provenance"), "{diagnostic}");
+    assert!(
+        diagnostic.contains("native function table needs provenance"),
+        "{diagnostic}"
+    );
 
     let overwritten = ordinary_program
         .replace(

@@ -748,8 +748,7 @@ mod compute {
             selected_keys: &TargetRegisterEnvironmentConstraintKeys,
         ) -> Result<(), FixedPrecoloredSegmentHomeError> {
             let split = requirements.plan();
-            if split.ranges != ranges.receipt().identity()
-                || split.legality != legality.receipt().identity()
+            if split.selected != ranges.plan().selected
                 || split.register_environment != register_environment
                 || split.allocator_availability != legality.receipt().allocator_availability()
                 || split.optimization_unit != ranges.receipt().optimization_unit()
@@ -757,7 +756,7 @@ mod compute {
                 || split.target != ranges.plan().target
                 || split.policy
                     != FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1
-                || legality.receipt().ranges() != ranges.receipt().identity()
+                || legality.plan().selected != ranges.plan().selected
                 || !infrastructure_environment_agrees(
                     ranges.plan().target,
                     physical,
@@ -829,8 +828,7 @@ mod compute {
         )?;
         let usage = work.finish(budget)?;
         Ok(FixedPrecoloredSegmentHomePlan {
-            ranges: ranges.receipt().identity(),
-            legality: legality.receipt().identity(),
+            selected: ranges.plan().selected.clone(),
             register_environment,
             allocator_availability: legality.receipt().allocator_availability(),
             optimization_unit: ranges.receipt().optimization_unit(),

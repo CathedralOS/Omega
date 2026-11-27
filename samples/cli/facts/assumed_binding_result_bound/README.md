@@ -30,7 +30,7 @@ accompanied by `<place>/invalid/` reject twins and `<place>/controls/insufficien
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | [other_machine/controls/insufficient_bound/main.omg](other_machine/controls/insufficient_bound/main.omg) | root-assumed bound forwarded through another machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | [target_body/controls/insufficient_bound/main.omg](target_body/controls/insufficient_bound/main.omg) | root-assumed bound consumed across target-scoped body implementations |
 
-Run each place with `omega run --both <place>/main.omg` after accepting its
+Run each place with `mbx xtask sample-gate --filter samples/cli/facts/assumed_binding_result_bound/<place>` after accepting its
 `assume_binding_contract` risk row with `omega packages update`. The root's
 `Build` authorization alone is not acceptance: without an `omega.lock` the
 compiler refuses the runtime Product, and a retained lock must match the rows
@@ -77,7 +77,7 @@ Full 8-layer specification and lowering evidence:
   without loss into canonical target-neutral Terminal Psi (`PSITERM\0`). Boundary-application
   demands (`Required::get`) and assumed exit certificates lower into canonical
   representations without erasing the boundary call demand, and execute in the
-  Terminal Psi interpreter (`omega run --both`) after provider settlement.
+  Terminal Psi interpreter after provider settlement.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
   Target realization joins Build companion rows (`ProgramEntry`, `ProviderPlan`,
   and `assume_binding_contract` risk rows) to connect `Supplied::get` to `Required::get`
@@ -95,7 +95,7 @@ Full 8-layer specification and lowering evidence:
   Symbolic stack-frame displacements and settled provider call targets resolve, basic
   blocks and branch offsets relax with offset reflow, machine-state footprint
   evidence validates, and direct PE/ELF/Mach-O images execute natively with
-  Terminal Psi agreement (`omega run --both` reports `native exit 0` and `interp exit: 0`)
+  Terminal Psi agreement (the native/Psi comparison reports `native exit 0` and `interp exit: 0`)
   on host platforms (`windows_x86_64` and `macos_arm64`).
 
 In the legacy implementation, input-side authority
@@ -137,4 +137,4 @@ retained lock before execution.
 
 ## Build-owned target-body migration
 
-The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement and its implementations publish `invokes Required` for the boundary call their bodies make, and `main` adds `SelectedBodyCheck` to its published reach. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under `omega run --both` (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.
+The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement and its implementations publish `invokes Required` for the boundary call their bodies make, and `main` adds `SelectedBodyCheck` to its published reach. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under the native/Psi comparison (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.

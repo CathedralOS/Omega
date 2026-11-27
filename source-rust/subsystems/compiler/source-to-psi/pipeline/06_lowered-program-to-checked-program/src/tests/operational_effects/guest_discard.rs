@@ -3,6 +3,8 @@
 //! consumed for settlement only, and an uncooperative provider's storage
 //! stays retained and charged until it settles.
 
+mod component;
+
 use super::accepted;
 use build_model::accounting::{BuildEvaluationSponsor, EvaluationInvocationAccount};
 use build_model::contracts::{
@@ -118,6 +120,22 @@ fn account() -> EvaluationInvocationAccount {
         .unwrap()
 }
 
+fn host_request(
+    imports: &[semantic_vocabulary::BoundaryMachineId],
+) -> TerminalRuntimeSupplyRequest<'_> {
+    TerminalRuntimeSupplyRequest {
+        host_imports: imports,
+        installation: None,
+        target_machines: None,
+        target_layouts: None,
+        native_code_layouts: None,
+        x86_flags: None,
+        memory_ordering: None,
+        entry: None,
+        external_completions: &[],
+    }
+}
+
 /// Run `body` against a guest parked on its provider. With `account`, the
 /// instance charges that invocation.
 fn with_waiting_guest(
@@ -131,17 +149,7 @@ fn with_waiting_guest(
         panic!("one callable host slot expected")
     };
     let supplies = program
-        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
-            host_imports: &[gate.id],
-            installation: None,
-            target_machines: None,
-            target_layouts: None,
-            native_code_layouts: None,
-            x86_flags: None,
-            memory_ordering: None,
-            entry: None,
-            external_completions: &[],
-        })
+        .admit_runtime_supplies(host_request(&[gate.id]))
         .unwrap();
     let provider = Rc::new(Provider::default());
     let mut instance = program

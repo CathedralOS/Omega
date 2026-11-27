@@ -5,7 +5,7 @@
     A named implementation may omit a requirement whose trait supplies a
     default body. Its closed block receives each omitted default as its own
     member row before symbol resolution, so typing, effects, proofs, dispatch
-    and both execution engines reuse the ordinary member path.
+    and code generation reuse the ordinary member path.
 
     A closed `Name satisfies Equatable<T> { }` block that authors no `equals`
     member receives a compiler-emitted `equals` member whose
@@ -603,6 +603,7 @@ fn synthesized_equality_member(
         .insert(StatementNode::Expression(equality));
     let statement = syntax.items.append_statement_handle(statement);
     signature.default_body = Some(syntax_trees::item::MachineBody {
+        assembly_target_requirement: Default::default(),
         statements: HandleSpan::from_parts(statement, 1),
         nested_machines: HandleSpan::empty(),
     });
@@ -704,6 +705,7 @@ fn machine_from_signature(
         parameters: signature.parameters,
         return_type: signature.return_type,
         contracts: HandleSpan::empty(),
+        assembly_target_requirement: body.assembly_target_requirement,
         statements: body.statements,
     };
     let state = syntax.items.insert_state(&state);

@@ -2,7 +2,7 @@
 // Each check exits with its own number when the call misbehaves, so a failure
 // names the rule it broke; exit 42 means every rule held.
 //
-// The test gives each engine a separate directory containing all 4200 files.
+// The test stages a separate directory for each invocation containing all 4200 files.
 //
 //  3, 4  open_with refuses truncate without write access, and truncate with
 //        append, instead of emptying the file.

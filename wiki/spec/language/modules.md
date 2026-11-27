@@ -37,7 +37,7 @@ and rooted `{geometry}/x.omg` address distinct sources. The toolchain supplies
 `{omega}/language/core/` in both checked build and product contexts.
 For example, `use {omega}/language/core/foundation.omg as proof;` exposes
 `|proof|::Identity` and `|proof|::Type` through an ordinary file-local alias.
-The [five mathematical declarations](../proofs/mathematical_bindings.md#importing-the-mathematical-foundation)
+The [six mathematical declarations](../proofs/mathematical_bindings.md#importing-the-mathematical-foundation)
 use this same lookup rule.
 
 Match the slash-separated logical filename exactly. Components may contain a

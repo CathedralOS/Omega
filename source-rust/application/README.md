@@ -18,7 +18,7 @@ For source inputs, the CLI asks the package manager to prepare the project and r
 | Operation | Request and result |
 | --- | --- |
 | [Compile](src/commands/compile.rs) | Product and targets to diagnostics, ordered reports and published files |
-| [Run](src/execution/mod.rs) | Execution options to the selected engine’s termination and output |
+| [Run](src/execution/mod.rs) | Run options to interpreted Psi termination and output |
 | [Inspect](src/inspection/mod.rs) | Source and machine, or a saved artifact, to a Psi inspection report |
 | [Package operations](src/commands/packages.rs) | Package selection and policy decisions to package-manager operations |
 
@@ -26,10 +26,11 @@ A grant in the root's `build.omg` accepts that claim or provider plan; a
 dependency's claims are accepted through `omega.lock`. There is no second
 admissions file.
 
-An application run selects native or Psi execution. Native is the default.
-With an explicit `--target`, the native engine emits the target image. The Psi
-engine executes with the selected target's admitted host adapters. A run uses
-a fresh temporary directory. `--keep` retains its artifacts.
+`omega run app.omg` lowers the admitted source program to Psi and interprets it.
+`--target` selects the target environment for interpretation. A run uses a
+fresh temporary directory. `--keep` retains its Psi artifacts. To produce
+a native executable, compile with `omega app.omg` and launch the published
+image on a matching host.
 
 `omega build --compare-tests build.omg` executes each enabled, registered test
 on both engines. The installed adapter supplies arguments and may check
@@ -41,9 +42,9 @@ test. A project with no selected tests reports zero comparisons.
 
 For repository samples with application entry points, run
 `mbx xtask sample-gate --filter samples/cli/basics/cli_mvp`. To inspect an
-individual program, run each engine with the same input and a fresh observation
-directory. Each writes `termination.tsv`, the guest stdout and stderr bytes,
-and any requested private entry RAM.
+individual interpreted program, use `omega run --outputs <new-dir> app.omg`.
+The directory contains `termination.tsv`, guest stdout and stderr, and any
+requested private entry RAM.
 
 Each registered test receives 4 MiB for stdout, 4 MiB for stderr and 8 MiB
 in total per engine. Native runs have 60 seconds for execution and cleanup.
@@ -56,30 +57,24 @@ different visible byte proves disagreement. A matching byte leaves the exact
 exit comparison unavailable. A zero status can also come from a normal return
 when the test has both paths.
 
-`run --engine psi --psi-work-budget <positive-u64>` supplies the full budget
+`run --psi-work-budget <positive-u64>` supplies the full budget
 to each invocation (default 10,000,000 logical work units). Exhaustion exits
 200. Kept Psi artifacts and case outputs include `psi.work.tsv` (case-prefixed
 in batch mode), recording the budget, units charged and schedule identity.
 
-Native `run --keep` retains the published image, its exact `program.oterm` and
-`native.identity.txt`. Host runs inherit the caller's stdin. Provide each engine
-the same finite file when inspecting a program that consumes input.
+For a single invocation, `omega run` reads guest input from stdin.
 
 `--inputs <dir> --outputs <dir>` runs many cases against one compilation.
 Every `*.stdin` file in the directory, in name order (or each repeated
 `--input <file>`, in the given order and named by file stem), is fed to the
-selected engine. With `--engine psi`, `--target` selects the target environment
-for every case. Each input has its own invocation and work allowance. A Psi-only
-batch creates a fresh output directory, writes the guest bytes to `<case>.stdout` and `<case>.stderr`, retains
+interpreter. `--target` selects the target environment for every case. Each
+input has its own invocation and work allowance. A batch creates a fresh output directory, writes the guest bytes to `<case>.stdout` and `<case>.stderr`, retains
 `<case>.psi.work.tsv`, and records the termination and its detail in
 `results.tsv`. A recorded return, exit or crash completes that case. An
 incomplete, unavailable or failed execution makes the batch exit 200. Case
 names must be distinct file stems and fit one TSV field.
 
-A native batch writes each case's raw `<case>.stdout` and `<case>.stderr`
-and records its process status in `results.tsv`. A successful capture of all
-cases exits zero. A native target-only build leaves stdin untouched. The
-command forwards buffered guest bytes before its diagnostics.
+The single-run command forwards buffered guest bytes before its diagnostics.
 
 Psi executes the selected program through the shared [hosted Terminal
 runtime](../subsystems/interpreter/host/README.md). The runtime gives the
@@ -128,13 +123,17 @@ it. Kept file names such as
 
 The CLI package is **`omega`** (binary `omega`); there is no `omega-cli`.
 
-The [standalone engine contract](../../wiki/spec/build/embedding.md#standalone-execution-selection)
-chooses the engine with `run --engine native|psi`, defaulting to native.
-A Psi-only run uses the admitted runtime. Target and provider choice are
-independent. A missing interpreter adapter refuses execution.
-`UNIVERSAL-INTERPRETER-CLOSURE` in
-[TASKS.md](../../../TASKS.md#universal-interpreter-cutover) tracks the remaining
-implementation.
+The standalone interpreter uses the admitted runtime for the selected target
+and providers. A missing adapter refuses execution.
+
+**Implementation status.** The [standalone contract](../../wiki/spec/build/embedding.md#standalone-interpretation)
+specifies bare `omega run app.psi` and confines both source and saved Products
+to the caller’s working directory by default. The current Rust CLI still
+requires `--trusted-artifact <manifest-id>` to run saved Psi. With no explicit
+run directory mappings it supplies the host filesystem namespace and enables
+matching-host adapters for admitted providers. The contained embedding
+currently refuses filesystem delegation. The CLI defaults and confined
+filesystem work are tracked in [PSI-UNTRUSTED-INTERPRETATION](../../TASKS.md#psi-untrusted-interpretation).
 
 ```bash
 mbx run -p omega -- packages update --project samples/cli/basics/cli_mvp --target macos_arm64
@@ -159,7 +158,7 @@ omega [--check] [--offline] [--timings]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>
 omega build [--compare-tests] <root.omg>
-omega run [--engine <native|psi>] [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name>] [(--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
+omega run [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name>] [--inputs <dir> | --input <file>...] [--outputs <dir>] <root.omg|program.psi>
 omega psi inspect --machine <qualified> [--target <name>] <root.omg>
 omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
@@ -199,20 +198,19 @@ halt value: 0 when the requested product is complete, 1 for a rejection, and 2
 a proof-search limit, with no verdict on the source. With several targets it
 exits 2 only when every refused target is incomplete; any rejection exits 1.
 Argument errors exit 64 (`EX_USAGE`) before compilation starts. `omega run`
-returns the program's exit status on completion, 200 on compile or launch
+returns the program's exit status on completion, 200 on compilation or execution
 failure, and 202 when compilation stops at a named private provision.
 
-`--engine psi` exits with the interpreted program's own status; 203 when the
+A single `omega run` without `--outputs` exits with the interpreted program's own status; 203 when the
 program crashes (the cause is reported, since a process cannot present the
 native trap signal without raising it); and 200 otherwise: `UNAVAILABLE` when a
 provider, host adapter or interpreter capability is missing and refused before
 the program's first instruction, `FAILED` for an execution error after it (its
 buffered output is lost), or execution that stops without a process result.
-The Psi engine requests the ordinary native product, which passes the same
-Build, package, trust, provider and entry admission, then stops before
-emitting an object or image. `--keep` keeps `program.oterm` and the
+Source interpretation uses Build, package, trust, provider and entry admission
+and lowers the program to Psi. `--keep` keeps `program.oterm` and the
 interpreter's streams, work and effect receipts, never a native image. A program that binds
-separately produced components is refused during compilation on this engine
+separately produced components is refused during compilation for interpretation
 (`Psi compile FAILED`, status 200), since those components only run as
 native images. Streams are forwarded afterwards, not live.
 
@@ -220,7 +218,10 @@ Compilation emits requested products and diagnostics, not debug dumps.
 `--timings` prints command-stage durations and total elapsed time to stderr;
 otherwise no timings are collected.
 `--report-file <path>` writes the compile report (product, target, summary and
-publication lines) to a plain-text file; there is no `--output-only` switch.
+publication lines) to a plain-text file. For a native publication, it includes
+the launchable executable path, the program’s process-exit capability and the
+target’s trap presentation. A verifier can launch that path and use the two
+observations to interpret the process status.
 The requested product decides the required proof and installation records. See
 the
 [compiler product contract](../subsystems/compiler/README.md).
@@ -239,8 +240,9 @@ artifact returns status 1; inspection grants no runtime authority.
 
 A host can pass `--max-psi-input-bytes <bytes>` to inspect, run, or compile
 a saved artifact. The CLI refuses an oversized file before decoding it.
-Running either engine and compiling a saved artifact still require the
-producer's exact manifest identity through `--trusted-artifact`.
+Compiling saved Psi to native code requires the trusted producer’s exact
+manifest identity through `--trusted-artifact`. For interpretation, see the
+[CLI implementation status](#command-surface).
 With `--emit-psi`, `--max-psi-output-bytes <bytes>` limits the new artifact.
 If it exceeds the quota, an existing destination keeps its previous contents.
 Omitting either option leaves the encoded byte count uncapped for that operation.

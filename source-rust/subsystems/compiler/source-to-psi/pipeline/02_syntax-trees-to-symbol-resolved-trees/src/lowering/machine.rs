@@ -506,7 +506,26 @@ fn lower_lexical_machine_parts(
             machine.clone(),
         ));
     }
+    let assembly_target_requirement = syntax_trees
+        .items
+        .state_handles(machine.states)
+        .iter()
+        .try_fold(
+            language_core::inline_assembly::AsmTargetApplicability::Any,
+            |required, handle| {
+                let state = syntax_trees.items.state(*handle);
+                required
+                    .intersect(state.assembly_target_requirement)
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "assembly regions in one machine require incompatible targets",
+                        )
+                        .with_source_span(state.name.source_span())
+                    })
+            },
+        )?;
     let declaration = lowerer.symbol_resolved_trees.machines.push(Machine {
+        assembly_target_requirement,
         symbol: SymbolHandle::invalid(),
         lexical_parent,
         name: machine_name,
@@ -986,7 +1005,7 @@ fn lower_machine_states(
     any. Lowering reads the catalog before the machine has a symbol, from the
     same toolchain file and declaration path the symbol table later reports.
 */
-fn sealed_intrinsic(
+pub(super) fn sealed_intrinsic(
     lowerer: &Lowerer,
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,

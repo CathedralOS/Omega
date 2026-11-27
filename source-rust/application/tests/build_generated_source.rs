@@ -7,13 +7,30 @@ use std::fs;
 use std::path::Path;
 use std::process::Output;
 
-fn run(project: &Path, engine: &str, inputs: &[&str]) -> Output {
-    let mut arguments = vec!["run", "--engine", engine, "--outputs", engine];
+fn run(project: &Path, command: &str, inputs: &[&str]) -> Output {
+    let mut arguments = vec![command];
+    if command == "run" {
+        arguments.extend(["--outputs", "observed"]);
+    }
     for path in inputs {
         arguments.extend(["--build-input", *path]);
     }
     arguments.push("build.omg");
-    project::omega(project, &arguments)
+    if command == "build" {
+        let mut build = std::process::Command::new(env!("CARGO_BIN_EXE_omega"));
+        build.args(arguments).current_dir(project);
+        let result = project::build_and_run_command(&mut build);
+        if let Some(execution) = result.execution {
+            assert!(execution.status.success(), "{execution:?}");
+            assert!(
+                execution.stdout.is_empty() && execution.stderr.is_empty(),
+                "{execution:?}"
+            );
+        }
+        result.compiler
+    } else {
+        project::omega(project, &arguments)
+    }
 }
 
 fn report(result: &Output) -> String {
@@ -24,16 +41,13 @@ fn report(result: &Output) -> String {
     )
 }
 
-fn assert_returned(root: &Path, engine: &str) {
-    let output = root.join(engine);
-    let termination = fs::read_to_string(output.join("termination.tsv")).unwrap();
-    match engine {
-        "psi" => assert_eq!(termination, "psi\treturn\n"),
-        _ => assert!(
-            termination.starts_with("native\texit\t0\t"),
-            "{termination}"
-        ),
+fn assert_returned(root: &Path, command: &str) {
+    if command == "build" {
+        return;
     }
+    let output = root.join("observed");
+    let termination = fs::read_to_string(output.join("termination.tsv")).unwrap();
+    assert_eq!(termination, "psi\treturn\n");
     assert!(fs::read(output.join("stdout")).unwrap().is_empty());
     assert!(fs::read(output.join("stderr")).unwrap().is_empty());
 }
@@ -99,16 +113,16 @@ machine copy<const N: u64>(plan: @mutable BuildPlan, source: @[u8], destination:
             entry_length = entry.len(),
         );
         fs::write(project.path().join("build.omg"), source).unwrap();
-        for engine in ["psi", "native"] {
+        for command in ["run", "build"] {
             let result = run(
                 project.path(),
-                engine,
+                command,
                 &["build.omg", "main.omg", "next.template", "asset.txt"],
             );
             let report = report(&result);
-            assert_eq!(result.status.success(), valid, "{engine}: {report}");
+            assert_eq!(result.status.success(), valid, "{command}: {report}");
             if valid {
-                assert_returned(project.path(), engine);
+                assert_returned(project.path(), command);
                 assert!(
                     !report.contains("unused file import `generated`"),
                     "{report}"
@@ -121,10 +135,10 @@ machine copy<const N: u64>(plan: @mutable BuildPlan, source: @[u8], destination:
             } else {
                 assert!(
                     report.contains("no visible declaration"),
-                    "{engine}: {report}"
+                    "{command}: {report}"
                 );
-                assert!(report.contains("generated.omg"), "{engine}: {report}");
-                assert!(report.contains("unused"), "{engine}: {report}");
+                assert!(report.contains("generated.omg"), "{command}: {report}");
+                assert!(report.contains("unused"), "{command}: {report}");
             }
         }
     }
@@ -152,7 +166,7 @@ fn a_build_cannot_import_its_own_future_product_file() {
     "#,
         )],
     );
-    let result = run(project.path(), "psi", &["build.omg"]);
+    let result = run(project.path(), "run", &["build.omg"]);
     assert!(!result.status.success());
     let missing = report(&result);
     assert!(
@@ -168,7 +182,7 @@ fn a_build_cannot_import_its_own_future_product_file() {
         "public machine read() -> u8 { 17u8 }",
     )
     .unwrap();
-    let entered = run(project.path(), "psi", &["build.omg", "generated.omg"]);
+    let entered = run(project.path(), "run", &["build.omg", "generated.omg"]);
     assert!(!entered.status.success());
     let message = report(&entered);
     assert!(
@@ -203,7 +217,7 @@ machine build(plan: @mutable BuildPlan) {{
             ),
         )
         .unwrap();
-        let result = run(project.path(), "psi", &["build.omg", "choices.omg"]);
+        let result = run(project.path(), "run", &["build.omg", "choices.omg"]);
         assert!(!result.status.success());
         let message = report(&result);
         assert!(message.contains(reason), "{argument}: {message}");
@@ -230,10 +244,10 @@ fn a_consumer_runs_its_nested_dependency_from_the_returned_directory() {
     ] {
         fs::copy(sample.join(name), root.join(name)).unwrap();
     }
-    for engine in ["psi", "native"] {
-        let result = run(root, engine, &[]);
+    for command in ["run", "build"] {
+        let result = run(root, command, &[]);
         assert!(result.status.success(), "{}", report(&result));
-        assert_returned(root, engine);
+        assert_returned(root, command);
     }
 
     let generator = root.join("dependency/build.omg");
@@ -248,7 +262,7 @@ fn a_consumer_runs_its_nested_dependency_from_the_returned_directory() {
         ),
     )
     .unwrap();
-    let result = run(root, "psi", &[]);
+    let result = run(root, "run", &[]);
     assert!(!result.status.success());
     assert!(
         report(&result).contains("Build path is not a canonical relative path"),

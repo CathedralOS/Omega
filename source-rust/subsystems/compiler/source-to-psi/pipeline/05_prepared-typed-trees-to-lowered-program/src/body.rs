@@ -1012,6 +1012,7 @@ impl Signature {
 /// and its statements in authored order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Body {
+    pub assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability,
     pub slots: Vec<ValueType>,
     pub statements: Vec<Statement>,
 }

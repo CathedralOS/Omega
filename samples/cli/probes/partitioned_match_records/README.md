@@ -9,9 +9,11 @@ Expected exit: 0 in native and Terminal execution.
 
 ```sh
 omega packages update --project samples/cli/collections/partitioned_match_records --target macos_arm64 --offline --dangerously-accept-all
-omega run --engine native samples/cli/collections/partitioned_match_records/main.omg
-omega run --engine psi samples/cli/collections/partitioned_match_records/main.omg
+omega run samples/cli/collections/partitioned_match_records/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/partitioned_match_records` from the repository root.
 
 Both engines must follow each stored view to its original backing before
 replacing the complete record. Indexing the descriptor as inline storage formerly

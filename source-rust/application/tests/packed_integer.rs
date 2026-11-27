@@ -5,7 +5,35 @@ mod support;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fs;
 
+/// Packed register promotion and call inlining are opt-in Stage 06 rewrites.
+/// Every packed program must agree on both engines without them, and with
+/// them where the host's native target implements them (x86-64 only).
+const SELECTIONS: &[&[&str]] = if cfg!(target_arch = "x86_64") {
+    &[
+        &[],
+        &[
+            "SelectedAcyclicCallInliningV1",
+            "SelectedPackedVectorPromotionV1",
+        ],
+    ]
+} else {
+    &[&[], &["SelectedAcyclicCallInliningV1"]]
+};
+
+fn assert_silent_return_under_each_selection(source: &str) {
+    for selected in SELECTIONS {
+        observations::assert_silent_return(
+            || selected_project_source(source, selected),
+            &["build.omg"],
+        );
+    }
+}
+
 fn project_source(source: &str) -> TemporaryDirectory {
+    selected_project_source(source, &[])
+}
+
+fn selected_project_source(source: &str, selected: &[&str]) -> TemporaryDirectory {
     let root = support::repository_root();
     let fixture = root.join("source-rust/application/tests/fixtures/simd/positive/wrapping_add");
     let scratch = TemporaryDirectory::create("packed-integer", false).unwrap();
@@ -15,19 +43,26 @@ fn project_source(source: &str) -> TemporaryDirectory {
         .join("source/library/system")
         .to_string_lossy()
         .replace('\\', "/");
-    fs::write(
-        scratch.path().join("build.omg"),
-        build.replace("../../../../../../../source/library/system", &library),
-    )
-    .unwrap();
+    let enabled: String = selected
+        .iter()
+        .map(|name| {
+            format!(
+                "    Optimizations::enable(@mutable builder.optimizations, Optimization::{name});\n"
+            )
+        })
+        .collect();
+    let build = build
+        .replace("../../../../../../../source/library/system", &library)
+        .replacen("    Build::bind(", &format!("{enabled}    Build::bind("), 1);
+    fs::write(scratch.path().join("build.omg"), build).unwrap();
     scratch
 }
 
-fn project(short_input: bool) -> TemporaryDirectory {
+fn fixture_source(short_input: bool) -> String {
     let root = support::repository_root();
     let fixture = root.join("source-rust/application/tests/fixtures/simd/positive/wrapping_add");
     let source = fs::read_to_string(fixture.join("main.omg")).unwrap();
-    let source = if short_input {
+    if short_input {
         let short = source
             .replace("left: [i16; 8]", "left: [i16; 7]")
             .replace("5i16, -6i16];", "5i16];");
@@ -35,13 +70,16 @@ fn project(short_input: bool) -> TemporaryDirectory {
         short
     } else {
         source
-    };
-    project_source(&source)
+    }
+}
+
+fn project(short_input: bool) -> TemporaryDirectory {
+    project_source(&fixture_source(short_input))
 }
 
 #[test]
 fn dependent_additions_wrap_each_lane() {
-    observations::assert_silent_return(|| project(false), &["build.omg"]);
+    assert_silent_return_under_each_selection(&fixture_source(false));
 }
 
 #[test]
@@ -69,7 +107,7 @@ public machine main() crashes Trap {
     machine wrong() { crash Trap; }
 }
 "#;
-    observations::assert_silent_return(|| project_source(source), &["build.omg"]);
+    assert_silent_return_under_each_selection(source);
 }
 
 /// A packed sum computed in a helper machine survives when the helper is
@@ -101,7 +139,7 @@ public machine main() crashes Trap {
     machine wrong() { crash Trap; }
 }
 "#;
-    observations::assert_silent_return(|| project_source(source), &["build.omg"]);
+    assert_silent_return_under_each_selection(source);
 }
 
 /// Windows of a view cast to `@[u8; 16]` load as lanes, on Psi and in native
@@ -128,7 +166,7 @@ public machine main() crashes Trap {
     machine wrong() { crash Trap; }
 }
 "#;
-    observations::assert_silent_return(|| project_source(source), &["build.omg"]);
+    assert_silent_return_under_each_selection(source);
 }
 
 #[test]
@@ -185,13 +223,12 @@ public machine main() crashes Trap {
     machine wrong() { crash Trap; }
 }
 "#;
-    observations::assert_silent_return(|| project_source(source), &["build.omg"]);
+    assert_silent_return_under_each_selection(source);
 }
 
 #[test]
 fn loading_eight_lanes_requires_eight_elements() {
-    let (output, report) =
-        observations::run(&project(true), &["run", "--engine", "psi"], &["build.omg"]);
+    let (output, report) = observations::run(&project(true), &["run"], &["build.omg"]);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("expects an array with 8 elements but the supplied array has 7"),
@@ -394,21 +431,44 @@ public machine main() crashes Trap {{
             r3 = i16_array(&rows[3]),
             verdict = verdicts.join(" && "),
         );
-        observations::assert_silent_return(|| project_source(&source), &["build.omg"]);
+        assert_silent_return_under_each_selection(&source);
     }
 }
 
-// Only x86-64 implements packed integer instructions. Another target refuses
-// the build by naming the machine and the missing target support.
+// A Build check and a native build both use the assembly catalog target of
+// the SIMD library machine reached by main.
 #[test]
-fn packed_instructions_refuse_arm64_native_builds_clearly() {
+fn packed_instruction_catalog_target_applies_to_checks_and_native_builds() {
     let scratch = project(false);
-    let (output, report) =
-        observations::run(&scratch, &["--target", "linux_arm64"], &["build.omg"]);
-    assert!(!output.status.success(), "{report}");
+    let build = scratch.path().join("build.omg");
+    let source = fs::read_to_string(&build).unwrap();
+    // Each invocation checks all the rows the Build binds. Select one entry
+    // row at a time so the successful x86 check exercises the same program.
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let build_source = source
+            .lines()
+            .filter(|line| !line.contains("Build::bind(") || line.contains(target))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&build, build_source).unwrap();
+        let (output, report) =
+            observations::run(&scratch, &["--check", "--target", target], &["build.omg"]);
+        if target == "linux_x86_64" {
+            assert!(output.status.success(), "{report}");
+            continue;
+        }
+        assert_catalog_refusal(&output, &report);
+        let (output, report) = observations::run(&scratch, &["--target", target], &["build.omg"]);
+        assert_catalog_refusal(&output, &report);
+    }
+}
+
+fn assert_catalog_refusal(output: &std::process::Output, report: &str) {
+    assert_eq!(output.status.code(), Some(1), "{report}");
     assert!(
-        report.contains("uses packed integer asm instructions, which only x86_64 implements")
-            && report.contains("target `linux_arm64` has no packed integer instructions yet"),
+        report.contains("wrapping_add")
+            && report.contains("requires x86_64")
+            && report.contains("target is `linux_arm64`"),
         "{report}"
     );
 }
@@ -422,11 +482,7 @@ use {omega}/language/core/assembly_packed_integer.omg as packed;
 
 public machine main() {}
 "#;
-    let (output, report) = observations::run(
-        &project_source(source),
-        &["run", "--engine", "psi"],
-        &["build.omg"],
-    );
+    let (output, report) = observations::run(&project_source(source), &["run"], &["build.omg"]);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("holds the checked asm instruction contracts"),

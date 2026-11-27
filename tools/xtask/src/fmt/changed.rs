@@ -219,9 +219,13 @@ pub(super) fn invocations(
 mod tests {
     use super::*;
 
-    #[test]
-    fn inherited_drift_is_separate_from_a_changed_line_or_new_file() {
-        let root = std::env::temp_dir().join(format!("omega-fmt-changes-{}", std::process::id()));
+    /// Commit `source` as `src/lib.rs` of a one-package repository and return
+    /// that repository, the file and the arguments that check its changes.
+    fn committed_fixture(
+        name: &str,
+        source: &str,
+    ) -> (std::path::PathBuf, std::path::PathBuf, [String; 5]) {
+        let root = std::env::temp_dir().join(format!("omega-fmt-{name}-{}", std::process::id()));
         std::fs::create_dir_all(root.join("src")).unwrap();
         std::fs::write(
             root.join("Cargo.toml"),
@@ -229,8 +233,7 @@ mod tests {
         )
         .unwrap();
         let path = root.join("src/lib.rs");
-        let old = "pub fn old()->usize{1}\n\npub fn current() -> usize {\n    2\n}\n\npub enum Rows {\n    First ,\n    Second,\n}\n";
-        std::fs::write(&path, old).unwrap();
+        std::fs::write(&path, source).unwrap();
         git(&root, &["init", "-q"]).unwrap();
         git(&root, &["add", "src/lib.rs", "Cargo.toml"]).unwrap();
         git(
@@ -255,6 +258,13 @@ mod tests {
             root.to_str().unwrap(),
         ]
         .map(String::from);
+        (root, path, args)
+    }
+
+    #[test]
+    fn inherited_drift_is_separate_from_a_changed_line_or_new_file() {
+        let old = "pub fn old()->usize{1}\n\npub fn current() -> usize {\n    2\n}\n\npub enum Rows {\n    First ,\n    Second,\n}\n";
+        let (root, path, args) = committed_fixture("changes", old);
         assert!(super::super::run(&args).is_ok());
         let changed_enum = old.replace("    Second,", "    Second,\n    Added,");
         std::fs::write(&path, &changed_enum).unwrap();
@@ -272,6 +282,30 @@ mod tests {
         assert!(super::super::run(&args).is_err());
         std::fs::write(&added, "pub fn added() {}\n").unwrap();
         assert!(super::super::run(&args).is_ok());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    /// Given only an interior line range of an enum whose first variant has a
+    /// doc comment, rustfmt 1.10.0-nightly `--file-lines` joins the opening
+    /// line with that comment (`pub enum Origin {    /// An invocation..`).
+    /// `ValueOrigin` and stage 06's `Reached` have this shape. The check
+    /// formats the whole file instead, so a clean new variant passes and a
+    /// malformed one still fails at its own line.
+    #[test]
+    fn a_variant_added_after_a_documented_first_variant_reports_only_itself() {
+        let old = "pub enum Origin {\n    /// An invocation formal, documented\n    /// across two lines.\n    Parameter { position: u32 },\n    /// The machine result.\n    Result,\n}\n";
+        let (root, path, args) = committed_fixture("documented-enum", old);
+        let anchor = "    Parameter { position: u32 },\n";
+        let added = old.replace(
+            anchor,
+            &format!("{anchor}    /// A storage case.\n    StorageCase {{ case: u32 }},\n"),
+        );
+        std::fs::write(&path, &added).unwrap();
+        assert!(super::super::run(&args).is_ok());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), added);
+        let malformed = added.replace("StorageCase { case: u32 },", "StorageCase{case:u32},");
+        std::fs::write(&path, malformed).unwrap();
+        assert!(super::super::run(&args).is_err());
         std::fs::remove_dir_all(root).unwrap();
     }
 }

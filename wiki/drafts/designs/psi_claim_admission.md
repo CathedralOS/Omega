@@ -4,16 +4,18 @@ Psi consumers reuse a trusted producer's checked judgments. Interpretation keeps
 concrete operation checks, while native lowering requires trusted input. The
 [product decision](../../spec/terminal-psi/product.md#publication-and-separate-consumption)
 replaces receiver proof rediscovery with explicit host trust and a separately
-audited route for untrusted interpretation. Its five steps and guest discard
-have landed; that route remains as **PSI-UNTRUSTED-INTERPRETATION** in
-[TASKS.md](../../../TASKS.md).
+audited route for untrusted interpretation. Its five steps, guest discard and
+the embedding's contained interpretation route have landed; what remains is
+**PSI-UNTRUSTED-INTERPRETATION** in [TASKS.md](../../../TASKS.md).
 
 ## Existing implementation and scope
 
-Steps 1 to 5 below have landed, and a faulted, stopped or waiting guest can be
-discarded under the embedding's four-step sequence. The
-[containment audit](psi_containment_audit.md) lists what an untrusted
-interpretation route still needs. Decoding marks a closed module as
+Steps 1 to 5 below have landed, a faulted, stopped or waiting guest can be
+discarded under the embedding's four-step sequence, and a host can run an
+artifact it does not trust through `psi_authorization::admit_contained_interpretation`
+and `TerminalProgram::admit_contained`. The
+[containment audit](psi_containment_audit.md) reviews each binding and lists
+what remains. Decoding marks a closed module as
 received, and the
 interpreter's `TerminalProgram::borrow` and `retain` refuse received code. Received
 Psi executes only through `TerminalProgram::admit`, `retain_authorized` or
@@ -132,7 +134,7 @@ included). The kernel's K/UIP, identity eta, function extensionality and
 equality reflection rejection controls exist. Open-carrier transport needs no
 separate rule, since identity elimination already ranges over any carrier
 variable. No storage receipt is added for polymorphic identity, because the
-receiving kernel checks the citation itself. Retain its `--both` acceptance for
+receiving kernel checks the citation itself. Retain native and interpreted acceptance for
 `samples/cli/facts/{closed_integer_bound,negated_mathematical_order,source_indexed_*,erased_reference_contract}`
 and `proofs/quotient_*`. This docs decision completes none of those implementations.
 

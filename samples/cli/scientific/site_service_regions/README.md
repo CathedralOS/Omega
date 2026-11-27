@@ -50,19 +50,18 @@ From repository root, set `OMEGA_LIBRARY_ROOT` to this checkout's
 and review the existing system package through the ordinary documented workflow:
 
 ```text
-omega packages update --project samples/cli/independent/site_service_regions --target linux_x86_64
-omega packages update --resume --project samples/cli/independent/site_service_regions
-omega --check --target linux_x86_64 samples/cli/independent/site_service_regions/main.omg
-omega --target linux_x86_64 samples/cli/independent/site_service_regions/main.omg
-omega run --engine native samples/cli/scientific/site_service_regions/main.omg < samples/cli/scientific/site_service_regions/data/split.txt
-omega run --engine psi samples/cli/scientific/site_service_regions/main.omg < samples/cli/scientific/site_service_regions/data/split.txt
-omega --check samples/cli/independent/site_service_regions/invalid/negative_quota.omg
+omega packages update --project samples/cli/scientific/site_service_regions --target linux_x86_64
+omega packages update --resume --project samples/cli/scientific/site_service_regions
+omega --check --target linux_x86_64 samples/cli/scientific/site_service_regions/main.omg
+omega --target linux_x86_64 samples/cli/scientific/site_service_regions/main.omg
+omega run samples/cli/scientific/site_service_regions/main.omg < samples/cli/scientific/site_service_regions/data/split.txt
+omega --check samples/cli/scientific/site_service_regions/invalid/negative_quota.omg
 ```
 
 Only resume after reviewing and accepting the precise pending package decisions.
 Generated binaries, outputs, diagnostic logs and run receipts go in ignored
 `build/`. Terminal `interp exit: <expected status>` must be observed explicitly; a
-`DECLINED` is reported as an unsupported comparison. The CLI compares termination, stdout and
+`DECLINED` is reported as an unsupported comparison. The recorded comparison checked termination, stdout and
 stderr between engines and forwards the
 native streams. The output oracles check those streams against expected values. Both
 engines run the application’s geometry assertions.

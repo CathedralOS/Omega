@@ -124,7 +124,10 @@ impl PredicateBudget {
                 self.content(value.left(), depth + 1)?;
                 self.content(value.right(), depth + 1)?;
             }
-            Proposition::IsMere(inner) => self.proposition(inner, depth + 1)?,
+            Proposition::IsMere(inner)
+            | Proposition::Squash(inner)
+            | Proposition::Boxed(inner)
+            | Proposition::Universal { body: inner, .. } => self.proposition(inner, depth + 1)?,
             Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
         }
         Ok(())

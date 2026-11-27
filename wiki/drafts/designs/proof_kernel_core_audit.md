@@ -1743,6 +1743,56 @@ same_sign> as SameSign;` is read into the mathematical signature when
   the point search also searches what each point computes to. Tests:
   `an_operation_lifted_with_two_classes_computes_at_both`,
   `an_operation_lifted_with_two_classes_needs_a_congruence_for_each`.
+- **For every value (2026-11-27).** A `let` with no static binders whose
+  body is a dependent arrow over named data,
+  `let agree(x: D): |proof|::Type<0> = (n: E) -> P`, is a premise for every
+  value: `Proposition::Universal` (wire tag 25), read where it is applied
+  with the written arguments for its formals, as a named proposition's
+  formula is, and its binders named by places counted down from
+  `UNIVERSAL_BINDER_PLACE`, which no formal reaches. The signature states
+  it as a kernel `Pi` over the data. A law uses one by instantiation: the
+  search applies each citation whose type is a `Pi` at every closed value
+  of its domain the goal names, as written or computed, and the
+  applications that are `Pi`s again in turn (at most 64 applications), so
+  a cited law's premise at a computed index such as `S(m)` is met at that
+  index. The checker still needs to establish `Pi` conclusions through
+  [pointwise theorem citations](../../spec/proofs/mathematical_bindings.md#pointwise-theorem-citations). The
+  `Real` quotient's relation needs this, and the
+  [boxed squash of its relation](../../spec/proofs/quotients.md#set-quotient-foundation).
+  Tests: `tests::for_every`.
+- **Box and Squash in source (2026-11-27).** A proposition's formula may
+  apply the foundation's `|proof|::Squash::<P>` and `|proof|::Box::<S>`,
+  as in `proposition close(a: D, b: D) = |proof|::Box::<|proof|::Squash::<same(a, b)>>`.
+  Each is `Proposition::Squash` or `Proposition::Boxed` (wire tags 26 and
+  27) over the proposition written as its static argument, and the
+  signature states it as the kernel's `Squash` or `Box`; the kernel
+  refuses a box of a relevant proposition (`NonStrictBoxDomain`). A box
+  is proved by `BoxIntro` of a proof of what it boxes. A squash goal is
+  proved by a citation of that type, or else by opening the first strict
+  citation, a squash by `SquashElim` and a box by `BoxElim`, both toward
+  the squash goal, or else by `SquashIntro` of a proof of the
+  proposition. Nothing opens a strict citation toward a relevant goal, so
+  a boxed squash never yields its witness. Tests: `tests::boxed`. A
+  quotient's relation may be a boxed squash: its `IsMere` row is proved by
+  `QUOTIENT_BOX_PROP` at the boxed type's strict level, so the relation of a
+  mathematical quotient need not be a set's Identity. Test:
+  `a_quotient_by_a_boxed_squash_relates_its_classes`.
+- **Pointwise equivalence rows (2026-11-27).** A row of the
+  `MereEquivalence` a quotient selects may take the binders of its
+  relation's arrow after the values it relates
+  ([pointwise theorem citations](../../spec/proofs/mathematical_bindings.md#pointwise-theorem-citations)).
+  Its own law is proved as written, and the statement the quotient needs
+  becomes a law of its own (`LawProof::Pointwise`), proved by introducing
+  the needed conclusion's boxes and squashes (opening each strict premise
+  toward the squash) and arrow binders, then applying the row there with
+  each of its premises met by a hypothesis or proved from them. The kernel
+  checks it, so a row that proves another statement, or only some indices,
+  is refused. Tests: `equivalence_rows_may_prove_the_relation_at_every_index`,
+  `a_row_proved_for_some_indices_only_leaves_the_rest_uncovered`,
+  `a_row_at_every_index_must_prove_the_relation_there`. A
+  `Quotient::lift` congruence may take them the same way (`seal` records
+  the pointwise statement its definition cites). Test:
+  `a_lifted_operation_may_respect_the_relation_at_every_index`.
 - **Not done:**
   - A lifted operation is a definition only where the kernel's `lift`
     gives one (2026-11-27): one or two classes in, a class or plain data out (the
@@ -2080,8 +2130,7 @@ Recorded questions and where each stands:
   controls. Results for duplicate parameters, duplicate declarations, a
   type-argument count and a Boolean statement are in
   [the table of rules not found](#what-todays-compiler-does-with-the-old-rules).
-  The duplicate-parameter program was also run with `omega run --engine
-  psi` (Psi exit 0); it was not run natively.
+  The duplicate-parameter program was also interpreted (Psi exit 0).
 - Second round of probes (2026-11-23), same binary, 24 more programs, each
   checked with `omega --check --target linux_x86_64`. The qualification
   probes: a pass-through and a forged cast as controls (accepted, refused);
@@ -2092,7 +2141,7 @@ Recorded questions and where each stands:
   shows the machine was judged); an unused forging machine (refused, which
   shows unused machines are judged). The vacant-storage probes: eight programs,
   most with one call between the move and the restoring store. The process-exit probes were
-  run with `omega run build.omg` on both engines: Psi exit 7 and native
+  tested by interpretation and by executing their native images: Psi exit 7 and native
   exit 7 for the honest provider, Psi exit 0 and native exit 0 for the one
   that passes 0. The view probe is a pair that differs in one call. Only
   `linux_x86_64` was tried. A program rooted at `main.omg` does not read

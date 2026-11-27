@@ -1202,8 +1202,8 @@ pub(crate) mod seeded_continuation {
         for row in &base.authored_service_reach_rows {
             if source
                 .authored_service_reach_rows
-                .iter()
-                .find(|next| next.owner == row.owner)
+                .owned_by(row.owner)
+                .next()
                 != Some(row)
             {
                 return Err(Diagnostic::error(
@@ -2322,13 +2322,15 @@ fn lower_authored_service_reach_row(
 pub(crate) fn append_authored_service_reach_rows(
     target: &mut TypedTrees,
     source: &SymbolResolvedTrees,
-    retained: &[crate::source_resolved::signature::AuthoredServiceReachRow],
+    retained: &source_symbol_table::owner_rows::OwnerSortedRows<
+        crate::source_resolved::signature::AuthoredServiceReachRow,
+    >,
 ) {
     target.authored_service_reach_rows.extend(
         source
             .authored_service_reach_rows
             .iter()
-            .filter(|row| !retained.iter().any(|retained| retained.owner == row.owner))
+            .filter(|row| retained.owned_by(row.owner).next().is_none())
             .map(lower_authored_service_reach_row),
     );
 }

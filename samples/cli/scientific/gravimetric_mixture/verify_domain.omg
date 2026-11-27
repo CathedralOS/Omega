@@ -4,7 +4,7 @@ use {omega}/language/core/process_exit.omg;
 use {system}/console.omg;
 // Supplemental runtime numeric checks from frozen data/expected.json.
 // The application is main.omg; this entry verifies the same private domain
-// through native and Terminal execution, since CLI --both compares statuses.
+// through compiled execution and Psi interpretation against the frozen values.
 // Expected exit: 0.
 // Expected output contains: VERIFIED: domain_oracles
 

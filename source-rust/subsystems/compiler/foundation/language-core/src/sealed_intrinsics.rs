@@ -26,6 +26,11 @@ use std::path::Path;
 pub enum SealedIntrinsic {
     /// Core's structural equality synthesis protocol; not an executable primitive.
     EqualityProtocol,
+    /// One of core's two equality evidence traits, `EqualImpliesIdentity` and
+    /// `IdentityImpliesEqual`. Each inherits `Equatable` and makes its
+    /// `equals` admissible in a proof clause
+    /// (wiki/spec/proofs/contracts.md, "Equality bridges and comparison facts").
+    EqualityEvidence,
     /// A bodyless machine supplied by a closed portable compiler catalog.
     CompilerPrimitive(CompilerPrimitive),
     /// A member of core's `NativeFloats` realization of `FloatNativeOperations`.
@@ -340,6 +345,18 @@ const ROWS: &[SealedIntrinsicRow] = &[
         "Equatable",
         BundledFile::CoreEquality,
         SealedIntrinsic::EqualityProtocol,
+    ),
+    row(
+        "equality.omg",
+        "EqualImpliesIdentity",
+        BundledFile::CoreEquality,
+        SealedIntrinsic::EqualityEvidence,
+    ),
+    row(
+        "equality.omg",
+        "IdentityImpliesEqual",
+        BundledFile::CoreEquality,
+        SealedIntrinsic::EqualityEvidence,
     ),
     row(
         "indexing/indexing.omg",

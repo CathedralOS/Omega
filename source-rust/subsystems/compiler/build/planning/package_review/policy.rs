@@ -97,10 +97,7 @@ pub(super) fn project(
             selected_availability: Vec::new(),
             demands: Vec::new(),
         },
-        native_bindings: native_bindings
-            .into_iter()
-            .map(|(binding, _)| binding)
-            .collect(),
+        native_bindings,
         external_supplies: Vec::new(),
         dangerous_capabilities: Vec::new(),
         slack_uses: Vec::new(),

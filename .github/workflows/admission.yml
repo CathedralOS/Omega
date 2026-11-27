@@ -2,7 +2,7 @@ name: Admission
 
 # Admission stays light and compiles nothing: heavy checks run on the LAN VMs,
 # never on a GitHub runner (AGENTS.md#heavy-checks-run-on-the-lan-vms).
-# It checks that the shared specification exists and that active code stays out of the archive.
+# It checks the shared specification, CLI examples and archive boundaries.
 on:
   pull_request:
     branches: [main]
@@ -32,6 +32,19 @@ jobs:
       - name: Require the shared Omega specification
         run: |
           compgen -G "$GITHUB_WORKSPACE/wiki/spec/*/*.md" > /dev/null || { echo "::error::The repository specification is missing"; exit 1; }
+      - name: Check Omega run examples and integration fixtures
+        run: |
+          refuse_matches() {
+            if git grep -nI -E "$@"; then
+              echo "::error::Use omega run for interpretation and omega build --compare-tests for registered test comparisons."
+              exit 1
+            else
+              test "$?" -eq 1
+            fi
+          }
+          refuse_matches -e 'omega[[:space:]]+run[[:space:]]+([^`[:space:]]+[[:space:]]+)*--(both|engine)([^[:alnum:]_-]|$)' -- \
+            '*.md' '*.omg' ':(exclude)_recycling/**'
+          refuse_matches -e '"--(both|engine)"' -- source-rust/application/tests
       - name: Check the repository archive and its boundary with active code
         run: |
           # A symlink can redirect an existing module or path dependency without editing its caller.

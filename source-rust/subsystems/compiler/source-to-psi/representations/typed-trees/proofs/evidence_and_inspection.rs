@@ -1752,6 +1752,12 @@ pub mod evidence {
             pub rank_range: Option<ExpressionHandle>,
         }
 
+        impl source_symbol_table::owner_rows::OwnedRow for RankingExpressionCustody {
+            fn row_owner(&self) -> symbols::SymbolHandle {
+                self.machine
+            }
+        }
+
         pub fn resolve_machine_witness_subjects(
             program: &TypedTrees,
             machine: &Machine,

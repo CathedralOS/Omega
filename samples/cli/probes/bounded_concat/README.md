@@ -14,9 +14,11 @@ before slicing and indexing under the
 The shared prefixes keep the ASCII proof from their backing arrays. Each copy
 proves that its writes preserve the destination's ASCII requirement.
 
-Run both engines with:
+Interpret the program with:
 
 ```sh
-mbx run -p omega -- run --engine native samples/cli/probes/bounded_concat/main.omg < /dev/null
-mbx run -p omega -- run --engine psi samples/cli/probes/bounded_concat/main.omg < /dev/null
+mbx run -p omega -- run samples/cli/probes/bounded_concat/main.omg < /dev/null
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/bounded_concat` from the repository root.

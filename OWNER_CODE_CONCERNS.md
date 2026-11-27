@@ -75,22 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-<a id="native-stages-compare-identities-that-restate-their-inputs"></a>
-### Native stages 04–15 compare three identities that only restate their inputs
-- Category: 8. Zombie machinery
-- Where: `OptimizedAbstractProgram::unoptimized` (`source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/unoptimized.rs`) issues `optimization`, `projection` and `pre_physical_manifest`; `PreparedInstructionSelection` (`representations/target-operations/legalized-operations/src/selection.rs`) carries them into stage 05's selected-instruction custody (`representations/selected-instructions/src/lib.rs:263-272`), the stage 06 analyses and stage 07 allocation receipts; `pre_physical` also enters `PostAllocationOptimizationManifest` (`representations/register-homes/src/post_allocation_manifest.rs`) and the execution facts (`target-vocabulary/src/execution_facts.rs`), and the projection reaches stage 15 (`native-artifact/src/physical/projection.rs`)
-- Saw: native stage 03 is archived, and its ledger, decision log, pass manifests, statistics and ownership-frontier facts are deleted, so these three digests bind nothing a later stage lacks. The optimization identity rehashes the selection identity; the projection rehashes the Terminal identity, work schedule, unit identity and selection identity; the manifest identity rehashes the projection, selection identity and budget. Stages 05–08 carry and compare all three beside the selections and budget they already hold.
-- Cost: each stage record carries three 32-byte fields and their comparisons, and a reader has to learn identities that no optimization run produces. A repair has stages 05–15 compare the selection identity, unit identity and budget directly and deletes the three identity types, or brings them back with a native optimization phase that changes the plan.
-- Reported: 2026-11-27, Claude Code, while archiving native stage 03; narrowed the same day after the empty optimizer records were deleted
-
-<a id="flattened-asm-regions-drop-their-target"></a>
-### Straight-line asm regions of place instructions lose their x86-64 requirement
-- Category: 6. A verdict with nothing behind it
-- Where: [`desugar` flattening](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/declarations/assembly/mod.rs#L315) and the [native reachability review](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_review/reachability.rs)
-- Saw: an `asm` region holding only `mov`/`ldr`/`str` or packed instructions over typed places becomes ordinary statements in stage 02, so the machine's `assembly_target_requirement` stays `Any`. The native reachability review now refuses packed integer operations on non-x86-64 targets by operation kind, but `--check --target linux_arm64` still accepts them and a flattened `mov` region keeps no target at all.
-- Cost: the catalog's target is enforced for packed instructions only at native admission, by a second rule beside the catalog.
-- Reported: 2026-11-26, Claude Code, while moving the SIMD library onto checked asm instructions.
-
 <a id="resuming-a-typing-from-retained-source-costs-more-than-typing-afresh"></a>
 ### Resuming a typing from retained source costs more than typing afresh
 - Category: 4. Re-deriving
@@ -119,22 +103,6 @@ framework or a list of unimplemented features.
 - Saw: the two `verdict.rs` walks now share one borrowed-storage graph and, with every walk of the module, one table of callee summaries. Each still runs the ownership walk ([`analyze`](source-rust/subsystems/compiler/psi/semantics/src/plain_affine.rs#L1537)) from scratch, in different modes: reference-end candidates change which roots it tracks, and verification adds claims and checks the stored schedule. The `minted.rs` walk runs after `prepare_replay` (`lib.rs:536`) has edited the module in place (`theorems::finalize_citations`), so it cannot reuse the graph or table of the `verdict.rs` walks and builds its own. Before this repair, the three walks were 2.7%, 2.3% and 2.6% of a popcount perf profile.
 - Cost: less than the 7.6% measured before; the graph build and most callee replays are no longer repeated, and the remaining cost is not profiled.
 - Reported: 2026-11-25, Claude Code, while profiling Psi 06 places and loans.
-
-<a id="a-stated-case-is-decided-twice"></a>
-### A stated case is decided by a table beside the case names
-- Category: 1. One idea, several implementations
-- Where: `source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/places.rs` (`stated_cases`, `Storage::entry_cases` and `returned_cases` beside `entry_case_names` and `returned_case_names`)
-- Saw: `requires x in S::C` stated as a conjunct is answered by the `stated_cases` table as a structural case, while the same test beside an alternative is a proposition over the boundary's case name (`ValueOrigin::StorageCase`). The conjunct could be the entry fact `name == true` instead, but payload reads (`case_at(..) != Some(CaseAnswer::Holds(true))`) accept only a structural case, so removing the table would refuse payload reads under `requires x in Result::Ok`.
-- Cost: two answers to "which case does this formal hold at entry" that must agree; a fix to one does not reach the other.
-- Reported: 2026-11-25, Claude Code, while naming a sum's case at storage boundaries.
-
-<a id="the-changed-line-format-check-reports-enums-it-did-not-change"></a>
-### The changed-line format check reports enums it did not change
-- Category: 10. Verifying costs more than writing
-- Where: `tools/xtask/src/fmt/changed.rs` (`--file-lines` ranges passed to the pinned rustfmt 1.10.0-nightly)
-- Saw: any range inside `ValueOrigin` (`representations/lowered-program/tables/values.rs`) or stage 06's `Reached` (`places.rs`), even one unchanged line (`--file-lines '[{"file":..,"range":[60,60]}]'`), makes rustfmt propose joining the enum's opening line with its first variant's doc comment (`pub enum ValueOrigin {    /// An invocation formal..`). `mbx xtask fmt --check --base origin/main` therefore fails on every change that adds a variant to such an enum.
-- Cost: a check agents are told to run before pushing fails on correctly formatted code, so its other findings are easy to dismiss.
-- Reported: 2026-11-25, Claude Code, while adding `ValueOrigin::StorageCase`.
 
 <a id="stage-03-rebuilds-the-whole-program-operand-owner-table-in-each-pass"></a>
 ### Stage 03 rebuilds the whole-program operand-owner table in each pass

@@ -15,7 +15,7 @@ contracts and assumption closure.
 ## Importing the mathematical foundation
 
 The toolchain file `{omega}/language/core/foundation.omg` exposes `Level`, `Type`,
-`Strict`, `Squash`, and `Identity` as public declarations. Examples
+`Strict`, `Squash`, `Box`, and `Identity` as public declarations. Examples
 on this page use the following file-local import.
 
 ```omega
@@ -27,7 +27,7 @@ alias and member. The proof kernel recognizes the exact declaration exposed
 by that toolchain file and applies its existing formation and elimination
 rules. Choosing a different alias preserves that identity. A local declaration
 or another package's declaration with the same name has its ordinary meaning.
-The five names are available to authors as identifiers. Only the explicit
+These names are available to authors as identifiers. Only the explicit
 import exposes these core members to another file.
 
 The sealed core mathematical declaration `|proof|::Identity::<T>(left, right)`
@@ -36,6 +36,16 @@ checked by the existing `Id` formation rules. It does not return an executable
 Boolean, assume its own proof or introduce arbitrary proposition-returning
 machines. Value `==` retains ordinary operator selection in facts; see
 [data identity in facts](contracts.md#data-identity-in-facts).
+
+For `S : |proof|::Strict<u>`, the imported declaration `|proof|::Box<S>`
+forms a type in `|proof|::Type<u>`. The kernel's `BoxIntro` rule constructs
+a boxed value from evidence of `S`. Its `BoxElim` rule opens the box in a
+dependent proof whose result may lie in either `Type` or `Strict`. Opening a
+box constructed from a proof supplies that proof to the elimination body.
+When `S` is `|proof|::Squash<W>`, the evidence obtained on opening the box
+still has type `|proof|::Squash<W>` and follows the ordinary squash elimination
+rule. See [the kernel rules](kernel_metatheory.md) and their use in
+[set quotients](quotients.md#set-quotient-foundation).
 
 ## Universes and mathematical function types
 
@@ -190,6 +200,24 @@ substituted exactly before checking; matching signatures are insufficient.
 The same elaboration must work outside traits, with no trait-proof-field
 conversion or automatic search. It neither runs the machine nor assumes the
 unfinished record's own constraint.
+
+### Pointwise theorem citations
+
+The same evidence rule applies when a theorem requirement's `ensures`
+unfolds to a dependent arrow. After the requirement's ordinary parameters,
+the cited theorem may take the arrow's binders as trailing explicit parameters,
+in order. Its body uses its own parameter names. For each arbitrary input at
+its dependent type, the checker establishes the cited theorem's premises from
+the available hypotheses and checks its guarantee against the instantiated
+codomain. This applies to theorem evidence in conformance rows and to
+congruence evidence for quotient lifts. Ordinary machine calls still supply
+all their arguments.
+
+For example, suppose `agree(x, z)` unfolds to `(n: Nat) -> close(x, z, n)`.
+A row requiring `agree(x, y)` and `agree(y, z)` and ensuring `agree(x, z)` can
+cite a theorem taking `x, y, z, n` that proves `close(x, z, n)` under those
+premises. A theorem that additionally requires `n > 0` leaves the case
+`n = 0` uncovered.
 
 Identity follows the evidence's actual sort under the
 [foundation](foundation.md#logical-proofs-and-mathematical-witnesses).

@@ -131,8 +131,6 @@ pub fn validate_current_program_integrity(
         || publication.identity != machine.post_allocation_manifest
         || publication.selected != machine.selected
         || publication.homes != machine.homes
-        || publication.ranges != machine.ranges
-        || publication.legality != machine.legality
         || publication.target != machine.target
         || publication.register_environment != machine.register_environment
     {
@@ -189,13 +187,13 @@ mod tests {
     use std::sync::Arc;
 
     use optimization_core::{OptimizationUnitIdentity, PostAllocationOptimizationManifestIdentity};
-    use register_homes::{AllocationLegalityIdentity, RegisterHomeIdentity};
+    use register_homes::RegisterHomeIdentity;
     use register_model::RegisterConstraintCatalogIdentity;
     use selected_instructions::{
-        LiveRangeIdentity, MachineEffectCatalogIdentity, MachineSemanticKind, SelectedBlock,
-        SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedFunctionContracts,
-        SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-        SelectedInstructionPlan, SelectedTerminator,
+        MachineEffectCatalogIdentity, MachineSemanticKind, SelectedBlock, SelectedBlockId,
+        SelectedBlockOrigin, SelectedFunction, SelectedFunctionContracts, SelectedInstruction,
+        SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+        SelectedTerminator,
     };
     use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, WorkScheduleIdentity};
     use target::NativeTarget;
@@ -286,8 +284,6 @@ mod tests {
         };
         let mut machine = PostAllocationMachinePlan {
             selected: Arc::new(selected.clone()),
-            ranges: LiveRangeIdentity::from_bytes([3; 32]),
-            legality: AllocationLegalityIdentity::from_bytes([4; 32]),
             homes: RegisterHomeIdentity::from_bytes([5; 32]),
             post_allocation_manifest: PostAllocationOptimizationManifestIdentity::from_bytes(
                 [6; 32],
@@ -314,17 +310,14 @@ mod tests {
         let mut publication_record = register_homes::PostAllocationOptimizationManifest {
             identity: PostAllocationOptimizationManifestIdentity::from_bytes([0; 32]),
             stage: register_homes::PostAllocationManifestStage::RegisterHomes,
-            pre_physical: optimization_core::PrePhysicalOptimizationManifestIdentity::from_bytes(
-                [10; 32],
-            ),
+            optimization_unit: optimization_core::OptimizationUnitIdentity::from_bytes([10; 32]),
+            selection: selections.identity(),
+            budget_per_pass: budget,
             target: machine.target,
             selected: Arc::clone(&machine.selected),
             selected_lowering_completion: None,
             pre_allocation_completion: None,
             selected_transformations: Vec::new(),
-            liveness: selected_instructions::LivenessIdentity::from_bytes([11; 32]),
-            ranges: machine.ranges,
-            legality: machine.legality,
             register_environment: machine.register_environment,
             allocator_availability: register_homes::AllocatorAvailabilityIdentity::from_bytes(
                 [12; 32],
@@ -625,7 +618,8 @@ mod tests {
                             optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
                                 b"metadata substitution",
                             ),
-                        pre_physical: original.publication.record().pre_physical,
+                        selection: original.publication.record().selection,
+                        budget_per_pass: original.publication.record().budget_per_pass,
                     },
                     Arc::new(
                         target_vocabulary::execution_facts::ReachableCallableInvocations {

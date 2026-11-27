@@ -1,0 +1,9 @@
+use main.omg as app;
+use {omega}/build/dependency.omg;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "dungeon_models" };
+    let engine_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../dungeon_crawler/engine" }));
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
+}

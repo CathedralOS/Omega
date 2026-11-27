@@ -13,6 +13,12 @@ The same ledger records the opaque host addresses that native imports return
 may be stored, copied, compared and passed back to a native import, but
 never resolved as interpreter storage: one inside the emulated span is
 refused, and no emulated allocation is placed over a recorded host address.
+
+A ledger given an invocation account (`charge_to`) charges every allocation
+to it: one cell for the ledger entry, which stays because addresses never
+recycle, and its bytes until `free`. A `calloc` the account cannot cover
+returns null, as an exhausted heap would. Only a charged ledger serves a
+guest admitted without producer trust.
 */
 
 mod admission;
@@ -43,6 +49,7 @@ struct Allocation {
     length: u64,
     issuer: u64,
     backing: terminal_interpreter::TerminalProviderBacking,
+    charge: Option<build_model::accounting::EvaluationStorageLease>,
 }
 
 #[derive(Default)]
@@ -50,9 +57,21 @@ pub(super) struct AllocationValues {
     allocations: Vec<Allocation>,
     next_address: u64,
     host_addresses: Vec<u64>,
+    account: Option<build_model::accounting::EvaluationInvocationAccount>,
 }
 
 impl AllocationValues {
+    pub(super) fn charge_to(
+        &mut self,
+        account: build_model::accounting::EvaluationInvocationAccount,
+    ) {
+        self.account = Some(account);
+    }
+
+    fn charged(&self) -> bool {
+        self.account.is_some()
+    }
+
     // `allocate` is the only writer of `allocations`, and it places each new
     // allocation at or above the previous one's aligned end. The table is
     // therefore sorted by address with disjoint spans, so a range can belong
@@ -98,6 +117,13 @@ impl AllocationValues {
                 "emulated allocation would cover an opaque host address",
             ));
         }
+        let charge = match &self.account {
+            Some(account) => match account.reserve_storage(1, length) {
+                Ok(lease) => Some(lease),
+                Err(_) => return Ok(0),
+            },
+            None => None,
+        };
         let mut bytes = Vec::new();
         if self.allocations.try_reserve(1).is_err() || bytes.try_reserve_exact(capacity).is_err() {
             return Ok(0);
@@ -108,6 +134,7 @@ impl AllocationValues {
             length,
             issuer,
             backing: terminal_interpreter::TerminalProviderBacking::new(bytes),
+            charge,
         });
         self.next_address = next;
         Ok(address)
@@ -149,7 +176,13 @@ impl AllocationValues {
                     "free address belongs to no allocation in this instance",
                 )
             })?;
-        self.allocations[position].backing.retire()?;
+        let allocation = &mut self.allocations[position];
+        allocation.backing.retire()?;
+        if let Some(charge) = &mut allocation.charge {
+            charge.shrink(0, allocation.length).map_err(|_| {
+                TerminalEffectRejection::new("allocation charge was already released")
+            })?;
+        }
         Ok(())
     }
 }
@@ -211,6 +244,11 @@ impl AllocationImport {
 impl TerminalImportAdapter for AllocationImport {
     fn implemented_signature(&self) -> TerminalImportSignature {
         self.signature.clone()
+    }
+
+    // Emulated storage is bounded only when the ledger charges an account.
+    fn serves_contained_execution(&self) -> bool {
+        self.values.lock().is_ok_and(|values| values.charged())
     }
 }
 
@@ -518,5 +556,53 @@ mod tests {
         assert!(values.release(0).is_ok());
         assert_eq!(values.allocations.len(), 1);
         assert!(values.release(address).is_ok());
+    }
+
+    fn account(payload_bytes: u64) -> build_model::accounting::EvaluationInvocationAccount {
+        use build_model::accounting::BuildEvaluationSponsor;
+        use build_model::contracts::{
+            BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+            TerminalStorageScheduleIdentity,
+        };
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(1_000, 1, 1, 1, 8, payload_bytes, 1, 1).unwrap(),
+            EvaluationMeasurementIdentity::TerminalPsi {
+                work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
+                storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+            },
+        )
+        .unwrap();
+        sponsor
+            .begin_invocation(sponsor.measurement(), 1_000)
+            .unwrap()
+    }
+
+    // A charged ledger returns null once the account cannot cover a request,
+    // gets the bytes back on `free`, and keeps one cell per entry because
+    // addresses never recycle.
+    #[test]
+    fn a_charged_ledger_bounds_live_allocation_by_its_account() {
+        let mut values = AllocationValues::default();
+        assert!(!values.charged());
+        values.charge_to(account(64));
+        assert!(values.charged());
+        let first = values.allocate(1, 48, 7).unwrap();
+        assert_ne!(first, 0);
+        assert_eq!(values.allocate(1, 48, 7).unwrap(), 0);
+        assert_eq!(values.allocations.len(), 1);
+        values.release(first).unwrap();
+        let second = values.allocate(1, 48, 7).unwrap();
+        assert_ne!(second, 0);
+        values.release(second).unwrap();
+        for _ in 0..6 {
+            let address = values.allocate(1, 1, 7).unwrap();
+            assert_ne!(address, 0);
+            values.release(address).unwrap();
+        }
+        assert_eq!(
+            values.allocate(1, 1, 7).unwrap(),
+            0,
+            "every retained entry holds a cell"
+        );
     }
 }

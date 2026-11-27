@@ -8,6 +8,7 @@ version.workspace = true
 path = "bindings.rs"
 
 [dependencies]
+application-identity = { path = "../../../psi/identities/applications" }
 build-providers = { path = "../../../build/providers" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 layout = { path = "../../targets/layout" }

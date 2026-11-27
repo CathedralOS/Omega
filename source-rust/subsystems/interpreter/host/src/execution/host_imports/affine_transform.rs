@@ -59,7 +59,9 @@ impl AffineTransformImport {
     }
 }
 
-import_signature_via_clone!(AffineTransformImport);
+// Safe Rust over copied scalars and captured storage: nothing it touches
+// outlives the call or reaches the host.
+import_signature_via_clone!(AffineTransformImport, contained: |_adapter| true);
 
 impl TerminalEffectHandler for AffineTransformImport {
     handle_effect_requires_dispatch!("affine construction requires result-aware dispatch");

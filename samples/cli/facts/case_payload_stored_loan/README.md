@@ -12,7 +12,7 @@ Lifetime evidence supplies neither a new loan nor an address.
 
 ## Acceptance
 
-Run `omega run --both samples/cli/facts/case_payload_stored_loan/main.omg`.
+Run `mbx xtask sample-gate --filter samples/cli/facts/case_payload_stored_loan`.
 The root must write 41 into the caller's original Cell, preserve the sibling's
 19, and exit 0 in both Terminal Psi and native execution. The consuming store
 requires its input equal 41. Each place's twin changes only the later
@@ -112,7 +112,7 @@ arm's constructed or unresolved origin.
   referent or independent copies. No erased mathematics or new proof rule is
   introduced.
 - **Psi 06–08:** the admitted programs must publish canonical Terminal Psi and
-  execute its actual loan, call, state and cleanup operations through `--both`.
+  execute its actual loan, call, state and cleanup operations through the native/Psi comparison.
   A source check or native-only result is not acceptance.
 - **Omega 00–02:** Build entry settlement, tagged payload/record/array layouts
   and ordinary borrowed/owned call placements are exercised by execution.

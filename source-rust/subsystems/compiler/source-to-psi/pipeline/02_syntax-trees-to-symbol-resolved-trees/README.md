@@ -4,6 +4,7 @@ Start at [resolver.rs](src/resolver.rs). A spelling such as `kit::pick` becomes 
 
 | If you want to know… | Start here |
 | --- | --- |
+| Which targets admit a machine’s inline assembly? | [Assembly preparation](src/declarations/assembly/mod.rs) intersects the instruction catalog targets for each body. The resolved machine keeps that requirement when place instructions become ordinary assignments. |
 | Where does a transition block acquire branches? | [Dispatch preparation](src/declarations/dispatches.rs) saves each runtime subject once and lowers the ordered arms. A complete Boolean pattern table can end with an unconditional branch. |
 | Why does this resolved body contain an extra local? | [Statement lowering](src/lowering/statement.rs) saves evaluations that source order requires to run once. Typing derives the type of each compiler-created temporary from the expression it stores. |
 | Who can supply this bodyless machine? | [Machine supply](src/lowering/machine_supply.rs) authenticates compiler-provided signatures. [Machine token bindings](src/selections/machine_token_bindings.rs) checks the resolved operand shapes for token-bearing declarations. |

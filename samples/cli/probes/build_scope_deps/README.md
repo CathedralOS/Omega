@@ -5,8 +5,7 @@ The first Build registers the local `dep/` package and returns `configure.omg` a
 The sample inventory excludes the three intentionally invalid projects in `controls/`. From this directory, run the same inputs on either engine.
 
 ```sh
-omega run --engine psi --build-input build.omg --build-input configure.omg --build-input main.omg --build-input dep build.omg
-omega run --engine native --build-input build.omg --build-input configure.omg --build-input main.omg --build-input dep build.omg
+omega run --build-input build.omg --build-input configure.omg --build-input main.omg --build-input dep build.omg
 ```
 
 Each control has its own Build and can run directly from its directory.

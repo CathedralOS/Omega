@@ -51,6 +51,12 @@ pub mod calls {
             pub installation_bound: bool,
         }
 
+        impl source_symbol_table::owner_rows::OwnedRow for AuthoredServiceReachRow {
+            fn row_owner(&self) -> SymbolHandle {
+                self.owner
+            }
+        }
+
         #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
         pub struct StateSignature {
             pub symbol: SymbolHandle,
@@ -153,6 +159,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
         pub struct Machine {
+            pub assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability,
             pub symbol: SymbolHandle,
             pub lexical_parent: Handle<Machine>,
             pub name: DiagnosticName,
@@ -327,6 +334,7 @@ pub mod control_flow {
         #[cfg(test)]
         pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
             Machine {
+                assembly_target_requirement: Default::default(),
                 lexical_parent: Handle::invalid(),
                 symbol: SymbolHandle::invalid(),
                 generic_data_origin: Default::default(),

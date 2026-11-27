@@ -69,9 +69,11 @@ the other two as a `ConflictingUse`.
 
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{MachineId, ObligationId};
+use terminal_check_tables::RootPurpose;
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::program::{Branch, Elaboration, SourceOrigin};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, UnprovedCause};
+use terminal_semantics::synchronization::ProgressScope;
 
 use crate::{Discharge, ImpossibleArm, describe, refusal};
 
@@ -480,11 +482,20 @@ fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) 
     Ok(())
 }
 
+/// A lowered row exists before the source checker runs. A private-cell
+/// progress obligation only arises after the selected call path identifies
+/// the storage and its possible writers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObligationSource {
+    Lowered(ObligationId),
+    SynchronizationProgress(semantic_vocabulary::OperationId),
+}
+
 /// One obligation the prover could not discharge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnprovedObligation {
     pub machine: MachineId,
-    pub obligation: ObligationId,
+    pub source: ObligationSource,
     pub kind: ObligationKind,
     /// Where the obligation arises in the source, from elaboration's own
     /// source correspondence.
@@ -927,7 +938,12 @@ pub(super) fn judge_owing_with_activity(
 ) -> Checked<RouteVerdict> {
     let mut further = Vec::new();
     match examine(elaborated, &[], &[], None, activity, &mut further) {
-        Ok(examined) => conclude(examined, applied, true, &mut further),
+        Ok(examined) => conclude(
+            examined,
+            applied,
+            JudgmentSubject::SelectedClosure(RootPurpose::Execution),
+            &mut further,
+        ),
         Err(decided) => decided,
     }
 }
@@ -1087,18 +1103,18 @@ fn check_affine(
     let mut unsupported = Unsupported::default();
     let reference_ends =
         terminal_semantics::reference_ends::candidates_in(analyses).map_err(|error| {
-        fall_back_or_defect(
-            Roster::of(elaboration).locate(refusal(
-                RefusalReason::Unsupported,
-                error.machine,
-                error
-                    .operation
-                    .map(Construct::Operation)
-                    .unwrap_or(Construct::Machine),
-                &error.detail,
-            )),
-        )
-    })?;
+            fall_back_or_defect(
+                Roster::of(elaboration).locate(refusal(
+                    RefusalReason::Unsupported,
+                    error.machine,
+                    error
+                        .operation
+                        .map(Construct::Operation)
+                        .unwrap_or(Construct::Machine),
+                    &error.detail,
+                )),
+            )
+        })?;
     // Plans are computed on the workers, then read in machine order: the
     // first deciding refusal and the noted machines are those one pass meets.
     let plans = plan_affine_machines(analyses, &reference_ends);
@@ -1313,13 +1329,19 @@ fn affine_plan(
     Ok((plan, received))
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum JudgmentSubject {
+    SelectedClosure(RootPurpose),
+    GenericFormOrWitness,
+}
+
 /// The verdict on an examined closure. A machine with an obligation the
 /// checker cannot judge yet falls back; each later such machine is put in
 /// `further` (`Unsupported`).
 fn conclude(
     examined: Examined,
     applied: AppliedContracts,
-    seal_operations: bool,
+    subject: JudgmentSubject,
     further: &mut Vec<Refusal>,
 ) -> Checked<RouteVerdict> {
     let Examined {
@@ -1410,7 +1432,7 @@ fn conclude(
             };
             unproved.push(UnprovedObligation {
                 machine,
-                obligation,
+                source: ObligationSource::Lowered(obligation),
                 kind: row.kind,
                 site: claim_site.unwrap_or(site),
                 cause,
@@ -1471,7 +1493,7 @@ fn conclude(
             )?;
             unproved.push(UnprovedObligation {
                 machine,
-                obligation: consumed.opened_by,
+                source: ObligationSource::Lowered(consumed.opened_by),
                 kind: row.kind,
                 site,
                 cause,
@@ -1561,6 +1583,52 @@ fn conclude(
             conflicts,
             exceeded,
         });
+    }
+    if let JudgmentSubject::SelectedClosure(purpose) = subject
+        && let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = elaboration.module.entry
+        && let Some(failure) = terminal_semantics::synchronization::private_wait_failure(
+            &elaboration.module,
+            entry,
+            match purpose {
+                RootPurpose::Execution => ProgressScope::Executable,
+                RootPurpose::Inspection => ProgressScope::OpenInterface,
+            },
+            |_| Some(terminal_semantics::synchronization::SelectedCall::PendingProvider),
+        )
+    {
+        use terminal_semantics::synchronization::ProgressFailure;
+        let machine = failure.machine;
+        let at = Construct::Operation(failure.operation);
+        match failure.cause {
+            ProgressFailure::Deadlock => {
+                let violation = refusal(
+                    RefusalReason::Violation,
+                    machine,
+                    at,
+                    &format!("synchronization deadlock: {}", failure.cause.detail()),
+                );
+                return fall_back_or_defect(Roster::of(&elaboration).locate(violation));
+            }
+            ProgressFailure::Unproved
+            | ProgressFailure::UnprovedExternal
+            | ProgressFailure::UnprovedImport
+            | ProgressFailure::UnprovedContinuation => {
+                let sources =
+                    terminal_check_tables::row(&elaboration.sources, machine, machine, at)?;
+                unproved.push(UnprovedObligation {
+                    machine,
+                    source: ObligationSource::SynchronizationProgress(failure.operation),
+                    kind: ObligationKind::OperationSafety {
+                        site: terminal_psi::ExecutionSite::Operation(failure.operation),
+                    },
+                    site: source_of(sources, machine, at)?,
+                    cause: UnprovedCause::NoDerivation,
+                    detail: failure.cause.detail().into(),
+                    statement: "cannot prove synchronization progress at this wait".into(),
+                    consumed: None,
+                });
+            }
+        }
     }
     if !unproved.is_empty() {
         // Classified after restated clauses are dropped: a published clause
@@ -1683,7 +1751,9 @@ fn conclude(
     // Only a published closure carries operation evidence seals. Generic check
     // forms and conformance witnesses are never published (`publication.rs`
     // retains only their elaboration and discharge for advisories).
-    let seals = if seal_operations && elaboration.generic_binders.is_empty() {
+    let seals = if matches!(subject, JudgmentSubject::SelectedClosure(_))
+        && elaboration.generic_binders.is_empty()
+    {
         match discharged.operation_seals(&elaboration) {
             Ok(seals) => seals,
             Err(refused) => return fall_back_or_defect(Roster::of(&elaboration).locate(refused)),
@@ -1829,7 +1899,12 @@ fn judge_compilation_with_activity_and_policy(
             );
             let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
             match examine(Ok(closure), &carried, laws, None, activity, &mut further) {
-                Ok(examined) => conclude(examined, AppliedContracts::Undecided, true, &mut further),
+                Ok(examined) => conclude(
+                    examined,
+                    AppliedContracts::Undecided,
+                    JudgmentSubject::SelectedClosure(prepared.root_purpose),
+                    &mut further,
+                ),
                 Err(decided) => decided,
             }
         }
@@ -1964,7 +2039,7 @@ fn append_form_and_witness_verdicts(
             GenericForm::Examined { examined, .. } => conclude(
                 examined,
                 AppliedContracts::OwnCheckForms,
-                false,
+                JudgmentSubject::GenericFormOrWitness,
                 &mut local_further,
             ),
         }
@@ -1977,7 +2052,7 @@ fn append_form_and_witness_verdicts(
             Ok(examined) => conclude(
                 examined,
                 AppliedContracts::OwnCheckForms,
-                false,
+                JudgmentSubject::GenericFormOrWitness,
                 &mut local_further,
             ),
             Err(decided) => decided,
@@ -2500,7 +2575,7 @@ fn without_restated_clauses(unproved: Vec<UnprovedObligation>) -> Vec<UnprovedOb
                     && matches!(
                         exit.kind,
                         ObligationKind::NormalGuarantee { published, .. }
-                            if published == candidate.obligation
+                            if candidate.source == ObligationSource::Lowered(published)
                     )
             })
     };

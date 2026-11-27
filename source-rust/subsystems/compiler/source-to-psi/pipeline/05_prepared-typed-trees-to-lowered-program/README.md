@@ -11,6 +11,8 @@ what it supports is refused. To check a source program without running its
 Build, see
 [Running the checker on a source program](../06_lowered-program-to-checked-program/README.md#running-the-checker-on-a-source-program).
 
+Each emitted Psi machine carries the instruction catalog target required by its source body. When recursive transitions share a machine, their bodies must admit a common target.
+
 Data that contains itself by value has no storage, so a machine over it never
 runs. Such declarations take a second route: [mathematics.rs](src/mathematics.rs)
 reads them with the same reader, in a reader of its own so none of them is
@@ -218,6 +220,24 @@ declared data to a value of that family at the same index, so a theorem about
 the indices holds whatever the types are. That the types agree where evidence
 is built or passed is typed preparation's check, as for any generic data.
 
+An index or payload value may also be mathematical data that is not itself a
+family: `data Lookup<C: Ctx, T: Ty> requires ((self in Lookup::Here) &&
+|proof|::Identity::<Ctx>(C, Ctx::Extend { ty: T, rest: self.rest })) || ..`
+is a derivation that `T` is in the context `C`, and `data Even<N: Nat>` is
+evidence that a natural is even. The family's binder for such a value has the
+data's own type, and its clauses relate values by Identities over data. A
+clause names a data index as the input at its index place
+(`families::index_place`, after `self`) and a data payload value as the input
+at `self`'s case and field, which the signature maps to the family's binders
+(`Converter::family_inputs`). A theorem over such a family takes the data as
+value parameters (`machine lookup_extended<C: Ctx, T: Ty>(evidence [erased]:
+Lookup<C, T>)`). Those parameters are no inputs of the machine, so its own
+signature states no contract; the signature reads the theorem's `ensures`
+from the theorem as for integers. Only an unsigned integer index can rank a
+theorem; a theorem over data is ranked on its evidence. Data that contains
+itself has no storage, so no machine that runs holds a value an index of such
+a family needs: its evidence is built and cited only inside theorems.
+
 A theorem over such data returns nothing and takes one erased value of it:
 `machine vector_bound<Length: u64, Total: u64>(evidence [erased]:
 Vector<Length, Total>) ensures embed(Total) <= 10 * embed(Length)`. Its body
@@ -229,8 +249,8 @@ declares for that child. The signature states the theorem for every index and
 every value of the family at it (`family_laws` in `read/signature.rs`), and
 records per case what the data requires, what the step requires, and which
 children the step cites. A clause over indexed data is read as equalities and
-orders of integers: an index or payload value is the integer it holds, and
-arithmetic is written on `embed`. A theorem that cites itself is ranked on
+orders of integers, or as an Identity over data: an integer index or payload
+value is the integer it holds, and arithmetic is written on `embed`. A theorem that cites itself is ranked on
 its evidence (`terminates by evidence`) or on one of its indices
 (`terminates by Length`), of an unsigned type. Ranked on the evidence, it
 owes nothing more: a step cites the theorem only at a child of its case,
@@ -366,6 +386,31 @@ call, so `requires a == b` proves a body's `a == b` true by call congruence
 ([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
 "Repeated admitted pure comparisons with the same selected operation and
 exact unchanged arguments have the same Boolean denotation").
+The core equality evidence traits `EqualImpliesIdentity<T>` and
+`IdentityImpliesEqual<T>` inherit `Equatable<T>`, and each law names the
+inherited `equals` ([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
+"Each law refers to the final selected implementation of that member").
+Read in the trait, that `equals` is `Equatable`'s requirement at the
+arguments the inheriting trait gives it, and it needs no envelope of its own
+there: "Either evidence bound guarantees that its inherited `equals` is
+admissible in a proof clause". Only a trait the sealed catalog marks as
+equality evidence (`SealedIntrinsic::EqualityEvidence`) gets that, and only
+for `Equatable`'s `equals`; any other trait law over its own abstract
+operation is still refused. Read anywhere for an implementation, `equals`
+is that implementation's row, exactly as `CoinByBoth::equals(@a, @b)`
+would be: in a member's own clauses, where typing calls the member but the
+selection names the requirement (`sibling_row`), and in the requirement's
+clauses at the implementation's arguments (`witness_conformance`, set while
+the member's routed contract, its witness, the applied implementation and a
+selected call read them), where `Identity::<T>` is the type the
+implementation supplies for `T`. So the row's own envelope is checked for
+every conformance, and a law about one comparison names no other. A member's
+own `ensures` beyond its requirement's is kept before its caller-facing
+contract becomes the requirement's (`realized_ensures`), and lowering hands
+it to the other members of the same implementation as
+`MachineTables::realized_guarantees`, so a law's body can use what its
+comparison ensures of itself. What an
+operation ensures does not stop a clause naming it; a precondition does.
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
 

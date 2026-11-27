@@ -374,6 +374,33 @@ impl CanonicalTerminalArtifact {
         }))
     }
 
+    /// Whether the host admitted this artifact only for contained
+    /// interpretation, without producer trust.
+    pub fn admitted_for_contained_interpretation(&self) -> bool {
+        self.semantic_module.admitted_for_contained_interpretation()
+    }
+
+    /// Records the receiving host's admission of this exact artifact for
+    /// contained interpretation, without producer trust.
+    ///
+    /// This is the authorization crate's hook: call
+    /// `psi_authorization::admit_contained_interpretation` instead. A
+    /// repository test refuses any other caller. The artifact passes the same
+    /// execution-only checks as an authorized one and still requires host
+    /// trust for every trusted route.
+    #[doc(hidden)]
+    pub fn record_contained_admission(
+        self: &std::sync::Arc<Self>,
+    ) -> Result<std::sync::Arc<Self>, CodecError> {
+        if self.admitted_for_contained_interpretation() {
+            return Ok(std::sync::Arc::clone(self));
+        }
+        Ok(std::sync::Arc::new(Self {
+            semantic_module: std::sync::Arc::new(self.semantic_module.contained_admitted()?),
+            ..Self::clone(self)
+        }))
+    }
+
     pub fn view(&self) -> TerminalArtifactView<'_> {
         TerminalArtifactView {
             closed: &self.semantic_module,
@@ -654,6 +681,40 @@ mod tests {
             module.identity(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn wire_guide_lists_both_artifact_envelopes() {
+        let closed = closed_module(false);
+        let record = optimization_record(&closed);
+        let bare = CanonicalTerminalArtifact::from_closed_parts(closed, record, None).unwrap();
+        let metadata = psi_publication_records::PublishedEntryMetadata::new(
+            Default::default(),
+            false,
+            vec![],
+            Ok(vec![]),
+        );
+        let published = bare
+            .clone()
+            .with_publication(metadata.into(), None)
+            .unwrap();
+        for (name, artifact) in [
+            ("canonical artifact", bare),
+            ("published artifact", published),
+        ] {
+            let bytes = artifact.to_bytes();
+            let marker = u16::from_le_bytes([bytes[8], bytes[9]]);
+            let row = format!(r"| {name} | `PSIART\0\0` | {marker} | no |");
+            assert!(
+                include_str!("../../wire/encoding.md")
+                    .lines()
+                    .any(|line| line == row)
+            );
+            assert_eq!(
+                CanonicalTerminalArtifact::from_bytes(&bytes).unwrap(),
+                artifact
+            );
+        }
     }
 
     #[test]

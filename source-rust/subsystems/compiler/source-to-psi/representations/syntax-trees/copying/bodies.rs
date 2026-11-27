@@ -57,10 +57,13 @@ macro_rules! copied_state_signature {
             blocks: $signature.blocks,
                 admitted_same_stack_bytes: $signature.admitted_same_stack_bytes,
             contracts: $self.copy_capability_contract_span($other, $signature.contracts),
-            default_body: $signature.default_body.map(|body| crate::item::MachineBody {
-                statements: $self.copy_statement_handle_span($other, body.statements),
-                nested_machines: $self.copy_nested_machines($other, body.nested_machines),
-            }),
+            default_body: $signature
+                .default_body
+                .map(|body| crate::item::MachineBody {
+                    assembly_target_requirement: body.assembly_target_requirement,
+                    statements: $self.copy_statement_handle_span($other, body.statements),
+                    nested_machines: $self.copy_nested_machines($other, body.nested_machines),
+                }),
             terminates_guarantee: $signature.terminates_guarantee,
             declares_no_crash_route: $signature.declares_no_crash_route,
         }
@@ -182,6 +185,7 @@ impl SyntaxCopy<'_> {
                 let contracts = this.copy_capability_contract_span(other, state.contracts);
                 let statements = this.copy_statement_handle_span(other, state.statements);
                 this.items.insert_state(&State {
+                    assembly_target_requirement: state.assembly_target_requirement,
                     name: state.name.clone(),
                     parameters,
                     return_type,

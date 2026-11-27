@@ -35,7 +35,7 @@ prove requires contract for call read_origin`.
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four
 hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`)
-and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi
+and declares `Expected exit: 0`. The native/Psi comparison reports Terminal Psi
 interpreter and native execution agreement (`native exit 0` and `interp exit: 0`):
 
 ```sh
@@ -113,7 +113,7 @@ fixtures are byte-identical copies of their twins, so sample and fixture cannot 
    selection, the recorded origin, and the consumer call lower without loss
    into canonical target-neutral Terminal Psi (`PSITERM\0`); the Terminal Psi
    interpreter executes root and all nine positive places in complete
-   agreement with native execution (`omega run --both`).
+   agreement with native execution.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
    Target realization joins Build companion rows (`ProgramEntry`,
    `ProviderPlan`, `CompilerBuiltinExecution`) across all four hosted targets;
@@ -129,7 +129,7 @@ fixtures are byte-identical copies of their twins, so sample and fixture cannot 
    (`Omega 07–09` + emission):** Final encoding resolves symbolic displacements,
    lays out blocks with short/near branch relaxation, binds relocations, and
    emits direct PE/ELF/Mach-O images that execute with exit code 0 and agree
-   with Terminal Psi (`omega run --both`) on this host.
+   with Terminal Psi on this host.
 
 Remaining open scope: the parent item's broader borrowed-join acceptance is
 carried by the other rows of the same family; this row closes only the

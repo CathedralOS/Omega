@@ -116,6 +116,21 @@ pub fn substitute_proposition_values_with<'input>(
         Proposition::IsMere(inner) => Proposition::IsMere(Box::new(
             substitute_proposition_values_with(inner, substitutions),
         )),
+        Proposition::Boxed(inner) => Proposition::Boxed(Box::new(
+            substitute_proposition_values_with(inner, substitutions),
+        )),
+        Proposition::Squash(inner) => Proposition::Squash(Box::new(
+            substitute_proposition_values_with(inner, substitutions),
+        )),
+        Proposition::Universal {
+            carrier,
+            binder,
+            body,
+        } => Proposition::Universal {
+            carrier: *carrier,
+            binder: *binder,
+            body: Box::new(substitute_proposition_values_with(body, substitutions)),
+        },
         Proposition::StructuralCaseMembership { subject, case } => {
             Proposition::StructuralCaseMembership {
                 subject: subject.clone(),
@@ -331,6 +346,29 @@ fn substitute_structural_places<'input>(
             substitutions,
             content_prefix,
         )?)),
+        Proposition::Boxed(inner) => Proposition::Boxed(Box::new(substitute_structural_places(
+            inner,
+            substitutions,
+            content_prefix,
+        )?)),
+        Proposition::Squash(inner) => Proposition::Squash(Box::new(substitute_structural_places(
+            inner,
+            substitutions,
+            content_prefix,
+        )?)),
+        Proposition::Universal {
+            carrier,
+            binder,
+            body,
+        } => Proposition::Universal {
+            carrier: *carrier,
+            binder: *binder,
+            body: Box::new(substitute_structural_places(
+                body,
+                substitutions,
+                content_prefix,
+            )?),
+        },
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
             conjuncts
                 .iter()

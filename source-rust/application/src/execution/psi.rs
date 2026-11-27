@@ -58,6 +58,7 @@ pub(super) fn execute(
             output_limits: None,
             standard_input: input,
             clock: Some(terminal_runtime::TerminalClockEnvironment::Host),
+            containment: None,
         },
         program.image,
     )

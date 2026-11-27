@@ -3621,16 +3621,23 @@ impl<'a> Lowering<'a> {
         source: SourceOrigin,
     ) -> Evaluation<Value> {
         let (root, steps, exact, _) = continuing!(self.capture_place(place));
+        let (root, steps, exact) = if operands.is_empty() {
+            (root, steps, exact)
+        } else {
+            self.capture_view_element(root, steps, exact, StructuralAccess::SharedBorrow, source)?
+        };
+        let mut values = Vec::with_capacity(operands.len());
+        for operand in operands {
+            values.push(continuing!(self.scalar(operand)));
+        }
+        // A dynamic index is proved at the actual atomic access after the
+        // arguments have been evaluated. Their operations can change the site.
         let operation = self.operation_identity(source);
         let path = self.storage_path(
             &steps,
             terminal_check_tables::obligations::ExecutionSite::Operation(operation),
             source,
         )?;
-        let mut values = Vec::with_capacity(operands.len());
-        for operand in operands {
-            values.push(continuing!(self.scalar(operand)));
-        }
         let event = event.try_map(|position| {
             values.get(position).copied().ok_or_else(|| {
                 self.internal("atomic event operand is outside its evaluation roster")
@@ -5868,6 +5875,7 @@ mod tests {
         });
         let mut bodies = IdTable::default();
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![plain, wrapping, plain, plain],
             statements: vec![
                 Statement::Declare {
@@ -5931,6 +5939,7 @@ mod tests {
         });
         signatures.push(signatures.get(machine).unwrap().clone());
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![plain],
             statements: vec![Statement::Arm {
                 guard: ArmGuard::Always,

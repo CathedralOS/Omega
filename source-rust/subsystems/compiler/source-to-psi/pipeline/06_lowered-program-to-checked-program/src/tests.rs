@@ -20,9 +20,7 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 
-use crate::{
-    Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge,
-};
+use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
 mod address_bounds;
@@ -34,6 +32,7 @@ mod arrays;
 mod atomic_wake;
 mod borrowed_restoration;
 mod boundary_calls;
+mod boxed;
 mod branch_warnings;
 mod build_purpose;
 mod byte_domains;
@@ -49,12 +48,14 @@ mod compiler_primitive_headers;
 mod connected_facts;
 mod content_guarantees;
 mod contract_formation;
+mod data_indexed_family;
 mod empty_records;
 mod entry_inputs;
 mod entryless;
 mod erased_fields;
 mod every_refusal;
 mod floats;
+mod for_every;
 mod fuel_recursion;
 mod generic_machine;
 mod guard_contradiction;
@@ -63,7 +64,6 @@ mod hosted_primitives;
 mod indexed_contracts;
 mod indexed_family;
 mod inferred_bounds;
-mod typed_locals;
 mod law_premise;
 mod layout_queries;
 mod lifetime_elision;
@@ -117,8 +117,10 @@ mod stored_views;
 mod structural_domains;
 mod successor_loans;
 mod sum_hypothesis;
+mod synchronization;
 mod termination;
 mod type_parameters;
+mod typed_locals;
 mod uninhabited_results;
 mod value_indexed_data;
 mod value_parameters;
@@ -272,6 +274,7 @@ fn lower(machines: Vec<Machine>) -> Checked<crate::lowering::Elaboration> {
         let mut slots = parameters.clone();
         slots.extend(machine.locals.into_iter().map(ValueType::plain));
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots,
             statements: machine.statements,
         });
@@ -1347,12 +1350,10 @@ fn the_prover_has_rules_for_integer_goals_and_not_for_other_forms() {
         ScalarTerm::boolean(false),
     )));
     // One uncovered part leaves the whole goal without a rule.
-    assert!(!crate::has_rules_for(&Proposition::Conjunction(
-        vec![
-            at_most(1, 10),
-            Proposition::Equal(flag, ScalarTerm::boolean(true)),
-        ]
-    )));
+    assert!(!crate::has_rules_for(&Proposition::Conjunction(vec![
+        at_most(1, 10),
+        Proposition::Equal(flag, ScalarTerm::boolean(true)),
+    ])));
     // A clause may state a Wrapping or Saturating operation directly
     // (`requires left +% right == 3`). The rules say nothing of what one
     // computes, at any depth of the compared term, so a goal over one has no
@@ -2043,6 +2044,7 @@ fn elaborate_over(
         let mut slots = machine.parameters.clone();
         slots.extend(machine.locals);
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots,
             statements: machine.statements,
         });
@@ -3466,7 +3468,14 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
 }
 
 fn case_of(case: usize, fields: Vec<(usize, Expression)>) -> Expression {
-    of_type(ExpressionKind::Case { case, fields, erased: Vec::new() }, shape())
+    of_type(
+        ExpressionKind::Case {
+            case,
+            fields,
+            erased: Vec::new(),
+        },
+        shape(),
+    )
 }
 
 /// The `u32` payload field `field` of case `case` of the sum `base` names.
@@ -3665,10 +3674,7 @@ fn payloads_of_two_cases_under_one_sum_overlap() {
     let of = |place| crate::places::lineage(id(1), &places, place).unwrap();
     let may = |left, right| {
         let forward = crate::places::overlap(&of(left), &of(right));
-        assert_eq!(
-            forward,
-            crate::places::overlap(&of(right), &of(left))
-        );
+        assert_eq!(forward, crate::places::overlap(&of(right), &of(left)));
         forward
     };
     assert!(may(at, l));
@@ -5408,7 +5414,7 @@ fn a_value_consumed_while_its_window_is_open_rejects_naming_the_write_and_the_us
         };
         // Both sites: the opening write is the obligation's own site, and
         // the first failing consumption point is beside it.
-        assert_eq!(entry.obligation, owed[1].0);
+        assert_eq!(entry.source, crate::ObligationSource::Lowered(owed[1].0));
         assert_eq!(
             entry.kind,
             ObligationKind::DataDomain {
@@ -6438,9 +6444,7 @@ mod generic_bodies {
     //     { Selected::apply(start) + 1 }
     use super::*;
     use crate::ProofSearchActivity;
-    use crate::{
-        Carried, CarriedForm, Selection, discharge_carrying, reverify_specialization,
-    };
+    use crate::{Carried, CarriedForm, Selection, discharge_carrying, reverify_specialization};
 
     /// The result pseudo-value of a machine with one scalar formal.
     fn result_at_most(value: u128) -> Proposition {
@@ -6529,6 +6533,7 @@ mod generic_bodies {
             let parameters: Vec<ValueType> =
                 machine.parameters.into_iter().map(Into::into).collect();
             bodies.push(Body {
+                assembly_target_requirement: Default::default(),
                 slots: parameters.clone(),
                 statements: machine.statements,
             });
@@ -6598,6 +6603,7 @@ mod generic_bodies {
         specializations.push(Some(template));
         specializations.push(None);
         TerminalCompilation::Prepared(PreparedCompilation {
+            root_purpose: terminal_check_tables::RootPurpose::Execution,
             arrivals: Vec::new(),
             closure: Ok(closure),
             further: Vec::new(),
@@ -6623,8 +6629,7 @@ mod generic_bodies {
                 prepared_refinement(selections, double(), lower(vec![witness(), double()]));
             let mut activity = crate::ProofSearchActivity::default();
             let before = activity.started();
-            let verdicts =
-                crate::verdict::judge_compilation_with_activity(prepared, &mut activity);
+            let verdicts = crate::verdict::judge_compilation_with_activity(prepared, &mut activity);
             assert_eq!(verdicts.len(), 3);
             assert!(
                 verdicts
@@ -6654,8 +6659,7 @@ mod generic_bodies {
             detail: "refinement unavailable".to_owned(),
             obligation: None,
         };
-        let verdicts =
-            crate::judge_compilation(prepared_refinement(2, double(), Err(refused)));
+        let verdicts = crate::judge_compilation(prepared_refinement(2, double(), Err(refused)));
         assert_eq!(verdicts.len(), 3);
         assert!(matches!(
             &verdicts[2],
@@ -7128,6 +7132,7 @@ fn crashing_below_ten(
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![
             Statement::Arm {
@@ -7220,6 +7225,7 @@ fn crashing_at_zero(requires: Vec<Proposition>) -> (crate::lowering::Elaboration
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![
             Statement::Arm {
@@ -7282,6 +7288,7 @@ fn calling_a_zero_route(requires: Vec<Proposition>) -> (crate::lowering::Elabora
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
     });
@@ -7302,6 +7309,7 @@ fn calling_a_zero_route(requires: Vec<Proposition>) -> (crate::lowering::Elabora
         ranking: None,
     });
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![
             Statement::Arm {
@@ -7413,6 +7421,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
         let mut bodies: IdTable<MachineId, Body> = IdTable::default();
         let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![u32_type().into()],
             statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
         });
@@ -7433,6 +7442,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             ranking: None,
         });
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![u32_type().into()],
             statements: vec![
                 Statement::Arm {

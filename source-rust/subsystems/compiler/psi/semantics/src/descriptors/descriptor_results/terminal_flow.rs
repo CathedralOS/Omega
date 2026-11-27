@@ -511,7 +511,11 @@ fn adapt_flow(
                             }
                             _ => false,
                         };
-                    step.may_escape |= !primitive;
+                    // An indexed structural copy inventories the selected value
+                    // below. The address used to read it is a distinct input.
+                    if !matches!(operation.kind, OperationKind::StructuralLeafCopy { .. }) {
+                        step.may_escape |= !primitive;
+                    }
                     let selected = DescriptorLocation::whole(root);
                     let access = access.map(|access| {
                         (

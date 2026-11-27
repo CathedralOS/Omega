@@ -570,6 +570,11 @@ fn tag_tables() -> Vec<TagTable> {
         table("debug-subject-tags", &["DebugSubject"], |reader| {
             debug_refusal(debug_map::decode_subject(reader))
         }),
+        table(
+            "certificate-declaration-kind-tags",
+            &["declaration kind"],
+            read::<_, certificate::DeclKind>,
+        ),
         table("certificate-term-tags", &["MathematicalTerm"], |reader| {
             refusal(certificate::decode_term(reader, &[]))
         }),
@@ -587,6 +592,27 @@ fn debug_refusal<T>(result: Result<T, debug_map::DebugMapError>) -> Refusal {
         Err(debug_map::DebugMapError::InvalidTag(space, tag)) => Some((space, tag)),
         _ => None,
     }
+}
+
+#[test]
+fn semantic_envelope_row_matches_the_codec() {
+    let (_, table) = ENCODING_PAGE
+        .split_once("<!-- envelope-markers -->")
+        .expect("the wire guide lists its envelope markers");
+    let marker = crate::FORMAT_MARKER.to_string();
+    let mut rows = table
+        .trim_start()
+        .lines()
+        .take_while(|row| row.starts_with('|'));
+    assert!(
+        rows.any(|row| row.trim_matches('|').split('|').map(str::trim).eq([
+            "semantic module",
+            r"`PSITERM\0`",
+            marker.as_str(),
+            "yes",
+        ])),
+        "the semantic module envelope uses marker {marker} and carries a vocabulary field"
+    );
 }
 
 #[test]

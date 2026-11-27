@@ -13,7 +13,7 @@ fn invoke(files: &[(&str, &str)], arguments: &[&str]) -> (ExitStatus, String) {
         }
     }
     command.push("build.omg");
-    let output = project::omega(scratch.path(), &command);
+    let output = project::observe(scratch.path(), &command);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -102,17 +102,16 @@ fn successive_builds_select_the_final_native_and_psi_entry() {
         machine main() crashes Trap {{ crash Trap; }}"#,
         host.target_name()
     );
-    for (engine, observation) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let (status, report) = invoke(
             &[
                 ("build.omg", &first),
                 ("stages/configure.omg", &middle),
                 ("release.lock.omg", &last),
             ],
-            &["run", "--engine", engine],
+            &[command],
         );
         assert!(status.success(), "{report}");
-        assert!(report.lines().any(|line| line == observation), "{report}");
     }
 }
 
@@ -209,7 +208,10 @@ machine build(plan: @mutable BuildPlan) {
         let (status, report) = invoke(
             &[
                 ("build.omg", &caller),
-                ("main.omg", "use {api}/main.omg as table; public data Header { value: |table|::Table; }"),
+                (
+                    "main.omg",
+                    "use {api}/main.omg as table; public data Header { value: |table|::Table; }",
+                ),
                 ("library/build.omg", &library),
                 ("library/main.omg", "public data Table { invoke: addr; }"),
             ],
@@ -245,7 +247,13 @@ machine select_workspace(plan: @mutable BuildPlan) {
             ("tools/build.omg", &tools),
             ("tools/main.omg", "public machine answer() -> u32 { 42u32 }"),
         ],
-        &["--check", "--build-input", "build.omg", "--build-input", "tools"],
+        &[
+            "--check",
+            "--build-input",
+            "build.omg",
+            "--build-input",
+            "tools",
+        ],
     );
     assert!(status.success(), "{report}");
 
@@ -383,7 +391,9 @@ use {{omega}}/language/core/unsafe.omg as native;
     let cases = [
         (read.to_owned(), None),
         (
-            format!("let selected: u32 = match false {{ true -> {{ {read} 1u32 }}, false -> 0u32 }};"),
+            format!(
+                "let selected: u32 = match false {{ true -> {{ {read} 1u32 }}, false -> 0u32 }};"
+            ),
             Some("did not enable Unsafe + RawMemoryRead"),
         ),
         (

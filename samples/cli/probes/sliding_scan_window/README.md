@@ -10,5 +10,5 @@ A no-write route preserves the original backing, while a successful advance
 updates the descriptor's address and extent. Neither route releases a detached
 child or permits mutation of backing still held by the window.
 
-Use `omega run --both samples/cli/collections/sliding_scan_window/main.omg`
+Use `mbx xtask sample-gate --filter samples/cli/probes/sliding_scan_window`
 to compare native execution with the Terminal interpreter; both must exit 0.

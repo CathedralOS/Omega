@@ -26,8 +26,8 @@ posterior or path. Malformed input prints `INVALID` and exits 64. Success exits 
 From the repository root, prepare packages with ordinary review first:
 
 ```
-omega packages update --project samples/cli/independent/hidden_markov_inference --target linux_x86_64
-omega run samples/cli/independent/hidden_markov_inference/main.omg < samples/cli/independent/hidden_markov_inference/data/standard.stdin
+omega packages update --project samples/cli/scientific/hidden_markov_inference --target linux_x86_64
+omega run samples/cli/scientific/hidden_markov_inference/main.omg < samples/cli/scientific/hidden_markov_inference/data/standard.stdin
 ```
 
 `expected.json` and the input digests were frozen before executing the

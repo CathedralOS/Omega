@@ -8,6 +8,7 @@ use crate::source_state::TypedTrees;
 use lowered_source_publication::{LoweredSourcePublication, PublicationSource};
 use lowered_source_publication_issuer::LOWERING;
 use symbols::SymbolHandle;
+use terminal_check_tables::RootPurpose;
 use terminal_check_tables::compilation::{GenericForms, PreparedCompilation, TerminalCompilation};
 
 type WitnessRow<'source> = (
@@ -87,7 +88,7 @@ pub fn prepare_compilation(
     compilation: crate::Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<LoweredCompilationWithSource, Vec<diagnostics::Diagnostic>> {
-    Ok(prepare_closure(typed, compilation, publication)?.complete())
+    Ok(prepare_closure(typed, compilation, publication)?.complete(RootPurpose::Execution))
 }
 
 /// One compilation lowered as far as its closure: the closure is read,
@@ -170,7 +171,7 @@ impl<'source> PreparedClosure<'source> {
     /// Prepare the mathematical signature and every conformance witness the
     /// closure and its generic forms owe, including the rows those witnesses
     /// discover in turn.
-    pub(crate) fn complete(self) -> LoweredCompilationWithSource {
+    pub(crate) fn complete(self, root_purpose: RootPurpose) -> LoweredCompilationWithSource {
         let read = match self.reading {
             ClosureReading::Unformed(program) => {
                 return LoweredCompilationWithSource {
@@ -239,6 +240,7 @@ impl<'source> PreparedClosure<'source> {
         LoweredCompilationWithSource {
             source,
             program: TerminalCompilation::Prepared(PreparedCompilation {
+                root_purpose,
                 closure,
                 further,
                 arrivals,

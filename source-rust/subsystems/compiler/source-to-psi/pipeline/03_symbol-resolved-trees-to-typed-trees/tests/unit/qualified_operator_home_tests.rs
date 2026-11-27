@@ -27,14 +27,26 @@ pub(crate) fn packages_with_equality(
     units: &[(u8, &str, &str)],
     dependencies: &[(u8, &str, u8)],
 ) -> Result<crate::source_state::TypedTrees, String> {
-    let mut sources = vec![(
-        0,
-        "equality.omg",
-        include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../source/library/core/equality.omg"
-        )),
-    )];
+    // Core equality's evidence traits state their laws with foundation's
+    // `Identity`, so the bundled pair arrives together.
+    let mut sources = vec![
+        (
+            0,
+            "equality.omg",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../../source/library/core/equality.omg"
+            )),
+        ),
+        (
+            0,
+            "foundation.omg",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../../source/library/core/foundation.omg"
+            )),
+        ),
+    ];
     sources.extend_from_slice(units);
     packages(&sources, dependencies)
 }

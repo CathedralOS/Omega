@@ -21,8 +21,8 @@ requires Rooms >= 1 && actor.room < Rooms && direction >= -1 && direction < 4 {
 machine resolve_step<const Rooms: u64>(actor: |actor_state|::Actor<Rooms>, dungeon: @|rooms|::Dungeon<Rooms>, direction: i32, key: bool, x: i32, y: i32) -> |actor_state|::Actor<Rooms>
 terminates
 requires Rooms >= 1 && actor.room < Rooms && direction >= 0 && direction < 4
-    && x >= - |configuration|::MAX_MOVEMENT_STEP && x < |configuration|::ROOM_WIDTH + |configuration|::MAX_MOVEMENT_STEP
-    && y >= - |configuration|::MAX_MOVEMENT_STEP && y < |configuration|::ROOM_HEIGHT + |configuration|::MAX_MOVEMENT_STEP {
+    && x >= |coordinates|::STEP_MIN && x < |coordinates|::STEP_X_LIMIT
+    && y >= |coordinates|::STEP_MIN && y < |coordinates|::STEP_Y_LIMIT {
     let crossing: bool = (direction == 0 && y <= |configuration|::COLLIDER_RADIUS) || (direction == 1 && x >= |configuration|::ROOM_WIDTH - |configuration|::COLLIDER_RADIUS - 1) || (direction == 2 && y >= |configuration|::ROOM_HEIGHT - |configuration|::COLLIDER_RADIUS - 1) || (direction == 3 && x <= |configuration|::COLLIDER_RADIUS);
     transition crossing { true -> door(actor, dungeon, direction, key), _ -> inside(actor, dungeon, direction, key, x, y) }
     machine door(actor: |actor_state|::Actor<Rooms>, dungeon: @|rooms|::Dungeon<Rooms>, direction: i32, key: bool) -> |actor_state|::Actor<Rooms>

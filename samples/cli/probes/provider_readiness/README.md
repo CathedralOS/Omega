@@ -32,12 +32,14 @@ The intended-invalid projects retain exact refusal oracles:
 Run these projects through the ordinary CLI and existing sample gate:
 
 ```text
-omega run --engine native samples/cli/compilation/provider_readiness/main.omg
-omega run --engine psi samples/cli/compilation/provider_readiness/main.omg
+omega run samples/cli/compilation/provider_readiness/main.omg
 ```
 
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/provider_readiness` from the repository root.
+
 The gate prepares normal local package acceptance for positive programs and
-checks invalid controls without granting acceptance. Use explicit `run --both`
+checks invalid controls without granting acceptance. Use explicit the native/Psi comparison
 for native/Terminal agreement; the sample gate's ordinary native leg alone
 does not establish it.
 

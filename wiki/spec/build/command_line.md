@@ -21,8 +21,8 @@ omega --emit-psi <file.psi> [--max-psi-output-bytes <bytes>] <root.omg>
 omega --trusted-artifact <manifest-id> [--max-psi-input-bytes <bytes>] <program.psi>
 omega --check [--floor-only] [--verify] [--validator <ExactName>]... [--every-validator] [<root.omg>]
 omega build [--allow Network] [--allow ProgramLaunch] [--program <logical-path> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <milliseconds>]]... [--compare-tests] <root.omg>
-omega run [--engine native|psi] [--target <name>] <root.omg>
-omega run [--engine native|psi] --trusted-artifact <manifest-id> [--max-psi-input-bytes <bytes>] <program.psi>
+omega run [--target <name>] <root.omg>
+omega run [--target <name>] [--max-psi-input-bytes <bytes>] <program.psi>
 omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
 omega packages audit --kind <local|git> <locator> [--rev <rev>]
@@ -40,7 +40,7 @@ Omitting it leaves the root offline. Each dependency Build requires an explicit
 [delegation at registration](scoped_execution.md#live-networking-in-a-build).
 `--allow ProgramLaunch` permits the root Build to use the [specific program bindings](program_launch.md#grant-and-delegation) supplied by the invoker.
 `omega build --compare-tests` requests [native/Psi comparison of registered
-tests](testing.md#comparing-native-and-psi-tests). This replaces `omega run --both`.
+tests](testing.md#comparing-native-and-psi-tests).
 
 `--emit-psi` writes the compiled Psi artifact subject to the destination's
 capacity. Pass `--max-psi-output-bytes` to set an inclusive output quota.
@@ -126,11 +126,13 @@ live directories to the initial Build's filesystem provider. Each takes one
 `host-directory::/guest-directory` mapping with the same path, confinement,
 on-demand access and read/write semantics as the [runtime directory mappings](#runtime-directory-mappings).
 The caller supplies the backing before the Build runs, within its admitted
-reach. With no extra mappings, the Build has its read-only captured package
-and private, bounded writable scratch.
+reach. By default the initial Build sees its read-only captured package inputs
+and private, bounded writable scratch. It receives a live view of the caller’s
+working directory only if the caller explicitly maps it. This also applies
+when a Build prepares a Product for `omega run`.
 
 ```sh
-omega run --engine psi \
+omega run \
   --build-directories-readonly ./grammar::/grammar \
   --run-directories-readonly ./documents::/input \
   build.omg
@@ -154,13 +156,22 @@ does not redirect artifact publication.
 
 Named decision: `psi-run-directory-mappings`.
 
-A caller can give an interpreted Product access to live host directories.
-Each repeatable option takes one `host-directory::/guest-directory` mapping.
+For both `omega run app.omg` and `omega run app.psi`, the default Product
+filesystem maps the caller’s current working directory read/write at guest
+`/`. The directory containing the input file can be elsewhere. Running
+`omega run /tools/formatter.psi` from `/work/report` lets the formatter read
+and edit files under `/work/report`.
+
+Supplying any explicit run directory mapping replaces that implicit grant.
+For example, supplying only `--run-directories-readonly ./docs::/input`
+gives the Product a read-only view of `./docs` at `/input`. The rest of the
+working directory is outside its view. Each repeatable option takes one
+`host-directory::/guest-directory` mapping.
 The host path can be absolute or relative to the caller's working directory.
 The guest sees the right-hand path.
 
 ```sh
-omega run --engine psi \
+omega run \
   --run-directories-readonly ./documents::/input \
   --run-directories-readwrite ./results::/out \
   parser.omg
@@ -170,10 +181,12 @@ In this example the parser opens `/input/query.txt` by a path written in its
 source. The first mapping lets it read that file and list `/input`. The second also allows creation,
 modification, renaming and deletion within `/out`, subject to host permissions
 and the program's admitted operations. A run may mix mappings with different
-access modes. Program launch requires its own authority.
+access modes. Live networking and program launch are off by default. Each
+requires an explicit Product grant from the caller. A program-launch grant
+names the executable the Product may launch. A Build grant applies only to
+the Build that receives it.
 
-The driver builds the Product up to Psi and retains these grants for its
-execution. A preparing Build, its dependencies and its successors gain no access
+The driver supplies these grants when the Product enters the interpreter. A preparing Build, its dependencies and its successors gain no access
 from a run mapping. Before entering the Product the driver supplies the view to
 the admitted filesystem provider. Reads and writes stay within the granted
 roots, including during link traversal and concurrent path changes. A missing
@@ -185,17 +198,18 @@ directory. Startup requires no preload into RAM. Compilation uses the captured
 source bytes even if a later runtime read sees different contents.
 [Local Build inputs](#local-build-inputs)
 
-These options describe interpreted Product execution. Keep the existing
-[engine selection](embedding.md#standalone-execution-selection), including its
-native default. A mode that cannot enforce a requested mapping must report
-that before running the Product. See the separate
+The driver validates the supplied mappings and refuses an invalid or
+unenforceable mapping before entry. A running Build or Product resolves each
+filesystem operation against its own view when the call executes. Access
+outside that view, including through a symlink, or a write to a read-only
+mount returns the filesystem API’s ordinary failure to the caller. The
+program can handle it. Computed paths need no whole-program precheck. See the separate
 [memory filesystem proposal](../../drafts/designs/run_memory_filesystem.md).
 
 ## Build-first entry selection
 
 `omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in the core package.
-A build requests the product artifact. A run requests execution under the
-[engine and target rules](embedding.md#standalone-execution-selection).
+A build requests the product artifact. A run lowers the selected Product to Psi and [interprets its entry](embedding.md#standalone-interpretation).
 Building a package checks its source, runs its registered tests and publishes
 its declared Build outputs. Only an executable Product requires a program entry.
 
@@ -240,10 +254,8 @@ in internal contracts, crate paths and representation identifiers. It is not
 the public artifact name. Source-language terminal transfers/outcomes are
 unrelated terminology and keep their ordinary meaning.
 
-The interpreted engine spelling is `--engine psi`. The interpreted work limit
-is `--psi-work-budget <positive-u64>` wherever that budget is applicable.
-See [standalone execution selection](embedding.md#standalone-execution-selection)
-for the effect of an explicit target on a single-engine run.
+Use `omega run --psi-work-budget <positive-u64>` to set the interpreter's work
+limit. An explicit `--target` selects the [target environment for interpretation](embedding.md#standalone-interpretation).
 
 ## Source rewriting
 

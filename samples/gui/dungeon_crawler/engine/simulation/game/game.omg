@@ -18,29 +18,29 @@ public data Game {
     clock: |clock|::FrameClock;
 }
 
-public machine Game::reset(game: @mutable Game)
+public machine reset(game: @mutable Game)
 terminates
 {
     game.dungeon = |campaign|::hollow_dungeon();
-    game.actors = |actor_state|::ActorSet { count: 2 };
-    game.controllers = |state_state|::ControllerSet { count: 2 };
-    game.progress = |rooms|::Progress {};
+    game.actors = |actor_state|::ActorSet { count: 2, .. };
+    game.controllers = |state_state|::ControllerSet { count: 2, .. };
+    game.progress = |rooms|::Progress { .. };
     game.clock = |clock|::FrameClock { ticks: 0 };
     game.camera = |frame|::Camera { actor: 0, room: 0 };
-    game.actors.items[0] = |actor_state|::Actor { position: |actor_state|::Position { x: 128, y: 112 }, vitality: |actor_state|::Vitality { current: 6, maximum: 6 }, room: 0, facing: 2, speed: 2, faction: 0, kind: |actor_state|::ActorKind::Adventurer, active: true };
+    game.actors.items[0] = |actor_state|::Actor { position: |actor_state|::Position { x: 128, y: 112 }, vitality: |actor_state|::Vitality { current: 6, maximum: 6 }, room: 0, facing: 2, speed: 2, faction: 0, kind: |actor_state|::ActorKind::Adventurer, active: true, .. };
     game.controllers.bindings[0] = |state_state|::ControllerBinding { actor: 0, source: |state_state|::ControlSource::Input { device: 0 } };
     game.controllers.bindings[1] = |state_state|::ControllerBinding { actor: 1, source: |state_state|::ControlSource::Pursuit { target: 0 } };
-    Game::enter(game);
+    enter(game);
 }
 
-public machine Game::enter(game: @mutable Game)
+public machine enter(game: @mutable Game)
 terminates
 {
     let room: u64 = game.camera.room;
     transition room < |configuration|::ROOM_COUNT { true -> install(game, room), _ -> done() }
     machine install(game: @mutable Game, room: u64) requires room < |configuration|::ROOM_COUNT {
         game.progress.rooms[room].visited = true;
-        game.actors.items[1] = |actor_state|::Actor { position: |actor_state|::Position { x: 192, y: 48 }, vitality: |actor_state|::Vitality { current: 2, maximum: 2 }, room: room, facing: 3, speed: 1, faction: 1, kind: |actor_state|::ActorKind::Bat, traversal: |actor_state|::Traversal::Air, active: true };
+        game.actors.items[1] = |actor_state|::Actor { position: |actor_state|::Position { x: 192, y: 48 }, vitality: |actor_state|::Vitality { current: 2, maximum: 2 }, room: room, facing: 3, speed: 1, faction: 1, kind: |actor_state|::ActorKind::Bat, traversal: |actor_state|::Traversal::Air, active: true, .. };
         transition !game.dungeon.rooms[room].inhabited || game.progress.rooms[room].cleared {
             true -> empty(game),
             _ -> done()
@@ -53,15 +53,15 @@ terminates
     machine done() {}
 }
 
-public machine Game::walk(game: @mutable Game, direction: i32)
+public machine walk(game: @mutable Game, direction: i32)
 terminates
 requires direction >= -1 && direction < 4 {
-    Game::commands(game, |state_state|::Command { direction: direction, attack: false });
-    Game::move(game);
-    Game::settle(game);
+    commands(game, |state_state|::Command { direction: direction, attack: false });
+    move_actors(game);
+    settle(game);
 }
 
-public machine Game::tick(game: @mutable Game, direction: i32, swing: bool)
+public machine tick(game: @mutable Game, direction: i32, swing: bool)
 terminates
 requires direction >= -1 && direction < 4 {
     let selected: u64 = game.camera.actor;
@@ -76,30 +76,30 @@ requires direction >= -1 && direction < 4 {
     machine update(game: @mutable Game, direction: i32, swing: bool)
     requires direction >= -1 && direction < 4 {
         game.clock = |clock|::advance_clock(game.clock);
-        Game::commands(game, |state_state|::Command { direction: direction, attack: swing });
-        Game::autonomy(game);
-        Game::move(game);
-        Game::settle(game);
-        Game::combat(game);
-        Game::rewards(game);
+        commands(game, |state_state|::Command { direction: direction, attack: swing });
+        autonomy(game);
+        move_actors(game);
+        settle(game);
+        combat(game);
+        rewards(game);
     }
     machine idle() {}
 }
 
-machine Game::commands(game: @mutable Game, command: |state_state|::Command) {
+machine commands(game: @mutable Game, command: |state_state|::Command) {
     |routing|::clear_intents::<|configuration|::ACTOR_CAPACITY>(@mutable game.intents);
-    |routing|::route_input::<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY>(@game.controllers, @mutable game.intents, 0, command);
+    |routing|::route_input(@game.controllers, @mutable game.intents, 0, command);
 }
 
-machine Game::autonomy(game: @mutable Game) {
-    |routing|::route_autonomy::<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>(@game.controllers, @game.actors, @mutable game.intents, game.clock);
+machine autonomy(game: @mutable Game) {
+    |routing|::route_autonomy(@game.controllers, @game.actors, @mutable game.intents, game.clock);
 }
 
-machine Game::move(game: @mutable Game) {
-    |systems|::advance_actors::<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>(@mutable game.actors, @game.intents, @game.dungeon, game.progress.key);
+machine move_actors(game: @mutable Game) {
+    |systems|::advance_actors(@mutable game.actors, @game.intents, @game.dungeon, game.progress.key);
 }
 
-machine Game::settle(game: @mutable Game) {
+machine settle(game: @mutable Game) {
     let selected: u64 = game.camera.actor;
     transition selected < |configuration|::ACTOR_CAPACITY { true -> follow(game, selected), _ -> done() }
     machine follow(game: @mutable Game, selected: u64) requires selected < |configuration|::ACTOR_CAPACITY {
@@ -108,21 +108,21 @@ machine Game::settle(game: @mutable Game) {
     }
     machine arrive(game: @mutable Game, room: u64) requires room < |configuration|::ROOM_COUNT {
         game.camera.room = room;
-        Game::enter(game);
+        enter(game);
     }
     machine done() {}
 }
 
-machine Game::combat(game: @mutable Game) {
-    |systems|::resolve_combat::<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>(@mutable game.actors);
+machine combat(game: @mutable Game) {
+    |systems|::resolve_combat(@mutable game.actors);
 }
 
-machine Game::rewards(game: @mutable Game) {
+machine rewards(game: @mutable Game) {
     let selected: u64 = game.camera.actor;
     let room: u64 = game.camera.room;
     transition selected < |configuration|::ACTOR_CAPACITY && room < |configuration|::ROOM_COUNT { true -> cleared(game, selected, room), _ -> done() }
     machine cleared(game: @mutable Game, selected: u64, room: u64) requires selected < |configuration|::ACTOR_CAPACITY && room < |configuration|::ROOM_COUNT {
-        let hostile: bool = |systems|::room_has_hostiles::<|configuration|::ROOM_COUNT>(@game.actors.items[..game.actors.count], room, game.actors.items[selected].faction);
+        let hostile: bool = |systems|::room_has_hostiles(@game.actors, room, game.actors.items[selected].faction);
         transition !hostile { true -> mark(game, selected, room), _ -> done() }
     }
     machine mark(game: @mutable Game, selected: u64, room: u64) requires selected < |configuration|::ACTOR_CAPACITY && room < |configuration|::ROOM_COUNT {
@@ -151,12 +151,12 @@ machine Game::rewards(game: @mutable Game) {
     machine done() {}
 }
 
-public machine Game::capture(game: @Game) -> |frame|::Frame
+public machine capture(game: @Game) -> |frame|::Frame
 terminates
 {
     let selected: u64 = game.camera.actor;
     let room: u64 = game.camera.room;
-    transition selected < |configuration|::ACTOR_CAPACITY && room < |configuration|::ROOM_COUNT { true -> snapshot(game, selected, room), _ -> (|frame|::Frame {}) }
+    transition selected < |configuration|::ACTOR_CAPACITY && room < |configuration|::ROOM_COUNT { true -> snapshot(game, selected, room), _ -> (|frame|::Frame { .. }) }
     machine snapshot(game: @Game, selected: u64, room: u64) -> |frame|::Frame requires selected < |configuration|::ACTOR_CAPACITY && room < |configuration|::ROOM_COUNT {
         let subject: |actor_state|::Actor<|configuration|::ROOM_COUNT> = game.actors.items[selected];
         let enemy: |actor_state|::Actor<|configuration|::ROOM_COUNT> = game.actors.items[1];
@@ -166,13 +166,13 @@ terminates
     }
 }
 
-public machine Game::verify(game: @mutable Game) -> bool
+public machine verify(game: @mutable Game) -> bool
 terminates
 {
-    Game::reset(game);
-    let wall: i32 = |rooms|::tile_at(@game.dungeon.rooms[0], 0, 1, false);
-    let door: i32 = |rooms|::tile_at(@game.dungeon.rooms[0], 15, 4, false);
-    let locked: i32 = |rooms|::tile_at(@game.dungeon.rooms[2], 7, 0, false);
-    let unlocked: i32 = |rooms|::tile_at(@game.dungeon.rooms[2], 7, 0, true);
+    reset(game);
+    let wall: i32 = |rooms|::tile_at::<|configuration|::ROOM_COUNT>(@game.dungeon.rooms[0], 0, 1, false);
+    let door: i32 = |rooms|::tile_at::<|configuration|::ROOM_COUNT>(@game.dungeon.rooms[0], 15, 4, false);
+    let locked: i32 = |rooms|::tile_at::<|configuration|::ROOM_COUNT>(@game.dungeon.rooms[2], 7, 0, false);
+    let unlocked: i32 = |rooms|::tile_at::<|configuration|::ROOM_COUNT>(@game.dungeon.rooms[2], 7, 0, true);
     wall == 1 && door == 3 && locked == 4 && unlocked == 3
 }

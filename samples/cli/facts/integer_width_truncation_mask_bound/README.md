@@ -7,7 +7,7 @@ Specification Reference: [Numeric values](wiki/spec/language/numeric_values.md),
 
 This fact row demonstrates that masking an unsigned 64-bit integer to its low byte (`val & 255u64`) establishes the exact byte-width upper bound (`masked <= 255u64`) across all nine standard places. The compiler statically derives that clearing the upper 56 bits constrains the scalar to the interval `[0, 255]`, discharging exact unsigned subtraction `255u64 - masked` without underflow or overflow across both Terminal Psi and native targets.
 
-Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines (`omega run --both`) agree on exit code 0.
+Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines agree on exit code 0.
 
 ## Pinned fixtures
 
@@ -47,7 +47,7 @@ differ in kind:
 
 ## Execution
 
-Run each positive place with `omega run --both`:
+Run each positive place with `mbx xtask sample-gate --filter samples/cli/facts/integer_width_truncation_mask_bound`:
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/integer_width_truncation_mask_bound
@@ -84,10 +84,10 @@ Full 8-layer specification and lowering evidence:
 - **Identity and lifetime:** The truncated scalar value `masked` maintains standard 64-bit unsigned integer value identity and carrier representation across expression evaluations, local variable assignments, parameter passing, and state transitions without loss of precision.
 - **Composition:** Byte-width mask bound preservation composes through all 9 standard places: local variable assignment (`local`), struct field wrapping (`field`), machine parameter passing (`parameter`), function call return value postcondition (`call_result`), match branch convergence join (`match_join`), named constant mask application (`const_name`), state transition arrival (`other_state`), forwarding machine delegation (`other_machine`), and target-scoped body candidates (`target_body`). Each `<place>/invalid/main.omg` differs solely in widening the mask or bound to `256u64`, causing `255u64 - masked` to fail closed.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `exact arithmetic in machine ... may overflow \`u64\`` because `255u64 - 256u64` violates the unsigned range invariant for exact subtraction. The compiler soundly refuses any program where masked bounds cannot guarantee non-negative outcomes for exact subtraction.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Bitwise AND expressions and exact range certificates lower cleanly into canonical Terminal Psi (`PSITERM\0`). Integer certificates retain the narrow range `[0, 255]` through intermediate optimization passes, and the Terminal Psi interpreter agrees with native execution on exit code 0 (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Bitwise AND expressions and exact range certificates lower cleanly into canonical Terminal Psi (`PSITERM\0`). Integer certificates retain the narrow range `[0, 255]` through intermediate optimization passes, and the Terminal Psi interpreter agrees with native execution on exit code 0.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout planning evaluates `size_of<u64>() == 8` and `size_of<ByteCarrier>() == 8`. In `CallPlan` and `StatePlan`, 64-bit integer values pass in ABI general-purpose registers (`rcx`/`rdi`/`x0`).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects 64-bit bitwise AND (`and reg, 255` on x86_64 / `and reg, reg, #255` on arm64 or `movzx` byte register instructions) and 64-bit exact subtraction (`sub`). Disjoint activation frames allocate standard stack slots, honoring worst-case stack usage (WCSU) and bounded activation claims (`committed <= bound`).
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi (`omega run --both`).
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi.
 
 ## What remains open
 

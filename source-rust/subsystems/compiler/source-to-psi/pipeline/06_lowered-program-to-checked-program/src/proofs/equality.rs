@@ -1790,6 +1790,38 @@ pub(crate) fn prove_licensed(
     search_steps: usize,
     conversion: &mut Budget,
 ) -> Result<TermHandle, SearchError> {
+    // The box of a strict statement is introduced from a proof of that
+    // statement, and a squash is proved strictly (`squashed`).
+    let head = weak_head_normalize(arena, context.signature(), goal, conversion)?;
+    match arena.get(head) {
+        Term::Box { ty } => {
+            let value = prove_licensed(
+                arena,
+                context,
+                definitions,
+                ty,
+                citations,
+                licenses,
+                search_steps,
+                conversion,
+            )?;
+            return Ok(arena.insert(Term::BoxIntro { ty, value }));
+        }
+        Term::Squash { ty } => {
+            return squashed(
+                arena,
+                context,
+                definitions,
+                head,
+                ty,
+                citations,
+                licenses,
+                search_steps,
+                conversion,
+            );
+        }
+        _ => {}
+    }
     if definitions.abbreviates() {
         definitions.2.set(true);
         let as_written = prove_as(
@@ -1820,6 +1852,97 @@ pub(crate) fn prove_licensed(
     )
 }
 
+/*
+    A proof of `Squash G`. A citation of that very type proves it. Otherwise
+    the first citation that is itself strict, a `Squash P` or a `Box S`, is
+    opened: its eliminator targets the strict goal, so the witness inside is
+    a citation only of the proof the goal is stated under, and no relevant
+    value leaves it. Opening one never loses a proof, so the citations are
+    opened in order, each once. With none left to open, a proof of `G` is
+    squashed.
+*/
+#[allow(clippy::too_many_arguments)]
+fn squashed(
+    arena: &mut TermArena,
+    context: &Context,
+    definitions: &Definitions,
+    goal: TermHandle,
+    stated: TermHandle,
+    citations: &[TermHandle],
+    licenses: Licenses<'_>,
+    search_steps: usize,
+    conversion: &mut Budget,
+) -> Result<TermHandle, SearchError> {
+    let mut opened = None;
+    for (position, &citation) in citations.iter().enumerate() {
+        let ty = infer_type(arena, context, citation, conversion)?;
+        let ty = weak_head_normalize(arena, context.signature(), ty, conversion)?;
+        if arena.structurally_equal(ty, goal) {
+            return Ok(citation);
+        }
+        if opened.is_none() && matches!(arena.get(ty), Term::Squash { .. } | Term::Box { .. }) {
+            opened = Some((position, ty));
+        }
+    }
+    let Some((position, ty)) = opened else {
+        let value = prove_licensed(
+            arena,
+            context,
+            definitions,
+            stated,
+            citations,
+            licenses,
+            search_steps,
+            conversion,
+        )?;
+        return Ok(arena.insert(Term::SquashIntro { ty: stated, value }));
+    };
+    let (Term::Squash { ty: inner } | Term::Box { ty: inner }) = arena.get(ty) else {
+        unreachable!("the opened citation is strict");
+    };
+    let scrutinee = citations[position];
+    let mut under: Vec<TermHandle> = citations
+        .iter()
+        .enumerate()
+        .filter(|&(other, _)| other != position)
+        .map(|(_, &citation)| shift(arena, citation, 0, 1))
+        .collect();
+    under.push(arena.insert(Term::Variable(0)));
+    let lifted = shift(arena, goal, 0, 1);
+    let witness = prove_licensed(
+        arena,
+        &context.extend(inner),
+        definitions,
+        lifted,
+        &under,
+        licenses,
+        search_steps,
+        conversion,
+    )?;
+    let function = arena.insert(Term::Lambda {
+        domain: inner,
+        body: witness,
+    });
+    Ok(match arena.get(ty) {
+        Term::Squash { .. } => arena.insert(Term::SquashElim {
+            proposition: goal,
+            function,
+            scrutinee,
+        }),
+        _ => {
+            let motive = arena.insert(Term::Lambda {
+                domain: ty,
+                body: lifted,
+            });
+            arena.insert(Term::BoxElim {
+                motive,
+                body: function,
+                scrutinee,
+            })
+        }
+    })
+}
+
 /// One try of [`prove_licensed`], with abbreviations as `definitions` has
 /// them.
 #[allow(clippy::too_many_arguments)]
@@ -1842,6 +1965,20 @@ fn prove_as(
     if arena.structurally_equal(left, right) {
         return Ok(reflexivity);
     }
+    // A citation for every value (a dependent product of an equality) is
+    // the equality at each value of its domain the goal names.
+    let (stated_left, stated_right) = match arena.get(goal) {
+        Term::Id { left, right, .. } => (left, right),
+        _ => unreachable!("the goal is an Identity"),
+    };
+    let instantiated = instances(
+        arena,
+        context,
+        &[stated_left, stated_right, left, right],
+        citations,
+        conversion,
+    )?;
+    let citations = instantiated.as_deref().unwrap_or(citations);
     let goal = Goal {
         stated: goal,
         ty,
@@ -1919,6 +2056,86 @@ fn prove_as(
         Some(limit) => SearchError::Budget(limit),
         None => SearchError::NoProof,
     })
+}
+
+/// The most values a citation for every value is applied at.
+const INSTANCES: usize = 64;
+
+/// The citations with each citation for every value, `p: (n: D) -> B`,
+/// applied at every value of `D` that `terms` name outside a binder, and the
+/// applications that are themselves for every value applied in turn. `None`
+/// when no citation is for every value. A value is taken as it is written:
+/// the instances an index a premise names needs, `n` or `5n`, are the ones
+/// the goal names.
+fn instances(
+    arena: &mut TermArena,
+    context: &Context,
+    terms: &[TermHandle],
+    citations: &[TermHandle],
+    conversion: &mut Budget,
+) -> Result<Option<Vec<TermHandle>>, SearchError> {
+    let mut domains = Vec::new();
+    for &proof in citations {
+        let ty = infer_type(arena, context, proof, conversion)?;
+        let ty = weak_head_normalize(arena, context.signature(), ty, conversion)?;
+        if let Term::Pi { domain, .. } = arena.get(ty) {
+            domains.push((proof, domain));
+        }
+    }
+    if domains.is_empty() {
+        return Ok(None);
+    }
+    // Every closed subterm of the terms, each with its type, once.
+    let mut values: Vec<(TermHandle, TermHandle)> = Vec::new();
+    let mut pending: Vec<TermHandle> = terms.to_vec();
+    while let Some(term) = pending.pop() {
+        if values.len() >= INSTANCES {
+            break;
+        }
+        pending.extend(
+            arena
+                .get(term)
+                .bound_children()
+                .filter(|&(_, bound)| bound == 0)
+                .map(|(child, _)| child),
+        );
+        if values
+            .iter()
+            .any(|&(known, _)| arena.structurally_equal(known, term))
+        {
+            continue;
+        }
+        let Ok(ty) = infer_type(arena, context, term, conversion) else {
+            continue;
+        };
+        let ty = weak_head_normalize(arena, context.signature(), ty, conversion)?;
+        values.push((term, ty));
+    }
+    let mut out = citations.to_vec();
+    let mut applied = 0;
+    while let Some((proof, domain)) = domains.pop() {
+        for &(value, ty) in &values {
+            if applied >= INSTANCES {
+                break;
+            }
+            if !arena.structurally_equal(ty, domain) {
+                continue;
+            }
+            applied += 1;
+            let instance = arena.insert(Term::Apply {
+                function: proof,
+                argument: value,
+            });
+            let ty = infer_type(arena, context, instance, conversion)?;
+            let ty = weak_head_normalize(arena, context.signature(), ty, conversion)?;
+            if let Term::Pi { domain, .. } = arena.get(ty) {
+                domains.push((instance, domain));
+            } else {
+                out.push(instance);
+            }
+        }
+    }
+    Ok(Some(out))
 }
 
 /// Whether `left` is the larger term: more nodes, or as many and later in
@@ -3348,11 +3565,16 @@ pub(crate) fn discharge(
         // The result of an earlier call of a total comparison is the same
         // application of its operation to the same, unmodified inputs
         // (`contracts.md#equality-bridges-and-comparison-facts`).
-        let (invocation, clause) = match justification {
+        let (invocation, clause, congruence) = match justification {
             Some(Justification::CalleeGuarantee { invocation, clause }) => {
-                (invocation, Some(clause))
+                (invocation, Some(clause), false)
             }
-            Some(Justification::CallCongruence { invocation }) => (invocation, None),
+            // A sibling's own guarantee names no clause of the call's
+            // contract, so it cites no law; it is still owed by that body.
+            Some(Justification::RealizationGuarantee { invocation, .. }) => {
+                (invocation, None, false)
+            }
+            Some(Justification::CallCongruence { invocation }) => (invocation, None, true),
             _ => continue,
         };
         let call = tables
@@ -3387,7 +3609,6 @@ pub(crate) fn discharge(
         // A repeated comparison relates the values the call read, which are
         // the entry values only if nothing in the machine writes them, a
         // structural parameter declared `mutable` included.
-        let congruence = clause.is_none();
         let fresh = actual.values.iter().all(|value| match &value.operand {
             ClauseOperand::Input(subject) => {
                 (!congruence && machine.structural_parameter(subject.root()).is_some())
@@ -3413,6 +3634,21 @@ pub(crate) fn discharge(
         let Proposition::Equal(left, right) = premise else {
             continue;
         };
+        // What a sibling member of the implementation ensures of a call's
+        // Boolean result, such as `ensures result`, is an identity the
+        // repeated comparison's result joins (`RealizedGuarantee`).
+        let realized = left.scalar_type() == semantic_vocabulary::ScalarType::Boolean
+            && matches!(
+                tables.knowledge.get(row).map(|known| &known.justification),
+                Some(Justification::RealizationGuarantee { .. })
+            );
+        if realized {
+            if let Ok(premise) = declarations.scalar_identity(left, right) {
+                premises.push(premise);
+                citations.push(row);
+            }
+            continue;
+        }
         if !declarations
             .contents
             .iter()

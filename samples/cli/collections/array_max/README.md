@@ -8,9 +8,11 @@ exits 42.
 After ordinary package review:
 
 ```sh
-mbx run -p omega -- run --engine native samples/cli/collections/array_max/main.omg
-mbx run -p omega -- run --engine psi samples/cli/collections/array_max/main.omg
+mbx run -p omega -- run samples/cli/collections/array_max/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/collections/array_max` from the repository root.
 
 On macOS ARM64 at `57334c2f117`, the public command reaches pending package
 decisions and exits 200 after 108.82 seconds. No decisions were accepted

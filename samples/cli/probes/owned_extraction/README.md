@@ -2,7 +2,7 @@
 
 Run `omega packages update --project samples/cli/owned_extraction --target <host>`,
 review the package changes, then run
-`omega run --both samples/cli/owned_extraction/main.omg`.
+`mbx xtask sample-gate --filter samples/cli/probes/owned_extraction`.
 Both execution engines must exit 0; a wrong payload or selected case traps.
 
 The sample retains an applied boundary requirement's result through a generic

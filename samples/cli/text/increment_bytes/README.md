@@ -17,9 +17,11 @@ exit, stdout and stderr. The default `input.txt` is empty and exits zero.
 After ordinary package review, run the default case from the repository root:
 
 ```sh
-omega run --engine native samples/cli/text/increment_bytes/main.omg < samples/cli/text/increment_bytes/input.txt
-omega run --engine psi samples/cli/text/increment_bytes/main.omg < samples/cli/text/increment_bytes/input.txt
+omega run samples/cli/text/increment_bytes/main.omg < samples/cli/text/increment_bytes/input.txt
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/text/increment_bytes` from the repository root.
 
 The Build file retains all four hosted entry bindings. The source-migration
 qualification requires native and Terminal execution to agree on every case;

@@ -1659,6 +1659,9 @@ mod propositions {
             Disjunction(usize),
             Implication,
             IsMere,
+            Squash,
+            Boxed,
+            Universal(crate::StructuralTypeId, crate::PlaceId),
         }
 
         fn clone_atomic(proposition: &Proposition) -> Proposition {
@@ -1714,7 +1717,13 @@ mod propositions {
                     source: source.clone(),
                     target: *target,
                 },
-                Conjunction(_) | Disjunction(_) | Implication { .. } | IsMere(_) => {
+                Conjunction(_)
+                | Disjunction(_)
+                | Implication { .. }
+                | IsMere(_)
+                | Squash(_)
+                | Boxed(_)
+                | Universal { .. } => {
                     unreachable!("the logical clone continuation owns these children")
                 }
             }
@@ -1725,7 +1734,13 @@ mod propositions {
                 use Proposition::*;
                 if !matches!(
                     self,
-                    Conjunction(_) | Disjunction(_) | Implication { .. } | IsMere(_)
+                    Conjunction(_)
+                        | Disjunction(_)
+                        | Implication { .. }
+                        | IsMere(_)
+                        | Squash(_)
+                        | Boxed(_)
+                        | Universal { .. }
                 ) {
                     return clone_atomic(self);
                 }
@@ -1758,6 +1773,25 @@ mod propositions {
                                 pending.push(CloneWork::Enter(inner));
                                 continue;
                             }
+                            Squash(inner) => {
+                                pending.push(CloneWork::Squash);
+                                pending.push(CloneWork::Enter(inner));
+                                continue;
+                            }
+                            Boxed(inner) => {
+                                pending.push(CloneWork::Boxed);
+                                pending.push(CloneWork::Enter(inner));
+                                continue;
+                            }
+                            Universal {
+                                carrier,
+                                binder,
+                                body,
+                            } => {
+                                pending.push(CloneWork::Universal(*carrier, *binder));
+                                pending.push(CloneWork::Enter(body));
+                                continue;
+                            }
                             _ => clone_atomic(proposition),
                         },
                         CloneWork::Conjunction(count) => {
@@ -1779,6 +1813,22 @@ mod propositions {
                         CloneWork::IsMere => {
                             let inner = values.pop().expect("one cloned mere proposition");
                             IsMere(Box::new(inner))
+                        }
+                        CloneWork::Squash => {
+                            let inner = values.pop().expect("one cloned squashed proposition");
+                            Squash(Box::new(inner))
+                        }
+                        CloneWork::Boxed => {
+                            let inner = values.pop().expect("one cloned boxed proposition");
+                            Boxed(Box::new(inner))
+                        }
+                        CloneWork::Universal(carrier, binder) => {
+                            let body = values.pop().expect("one cloned quantified body");
+                            Universal {
+                                carrier,
+                                binder,
+                                body: Box::new(body),
+                            }
                         }
                     };
                     values.push(value);
@@ -1874,6 +1924,39 @@ mod propositions {
                             pending.push((a, b));
                             true
                         }
+                        Squash(a) => {
+                            let Squash(b) = right else {
+                                return false;
+                            };
+                            pending.push((a, b));
+                            true
+                        }
+                        Boxed(a) => {
+                            let Boxed(b) = right else {
+                                return false;
+                            };
+                            pending.push((a, b));
+                            true
+                        }
+                        Universal {
+                            carrier,
+                            binder,
+                            body: a,
+                        } => {
+                            let Universal {
+                                carrier: other_carrier,
+                                binder: other_binder,
+                                body: b,
+                            } = right
+                            else {
+                                return false;
+                            };
+                            if carrier != other_carrier || binder != other_binder {
+                                return false;
+                            }
+                            pending.push((a, b));
+                            true
+                        }
                         FloatIntegerConversion(a) => {
                             matches!(right, FloatIntegerConversion(b) if a == b)
                         }
@@ -1914,7 +1997,18 @@ mod propositions {
                         Truth | Falsehood => {}
                         Atom(identity) => identity.hash(state),
                         DeclarationIdentity(clause) => clause.hash(state),
-                        IsMere(inner) => pending.push(inner.as_ref()),
+                        IsMere(inner) | Squash(inner) | Boxed(inner) => {
+                            pending.push(inner.as_ref())
+                        }
+                        Universal {
+                            carrier,
+                            binder,
+                            body,
+                        } => {
+                            carrier.hash(state);
+                            binder.hash(state);
+                            pending.push(body.as_ref());
+                        }
                         FloatIntegerConversion(clause) => clause.hash(state),
                         IeeeFloatIntegerExact { source, target } => {
                             source.hash(state);
@@ -2043,6 +2137,21 @@ mod propositions {
         /// Any two witnesses of the inner proposition are propositionally equal:
         /// `(p: P) -> (q: P) -> |proof|::Identity::<P>(p, q)`.
         IsMere(Box<Proposition>),
+        /// The squash of the inner proposition, `|proof|::Squash<P>`: a strict
+        /// proposition that holds when `P` has a witness, and hides it.
+        Squash(Box<Proposition>),
+        /// The relevant type of the inner strict proposition,
+        /// `|proof|::Box<S>`. A quotient's relation written as the box of a
+        /// squash is a mere proposition with no further proof.
+        Boxed(Box<Proposition>),
+        /// For every value of the mathematical data `carrier`, `body`: a
+        /// dependent product `(n: carrier) -> body`. The body names the
+        /// bound value as the place `binder`, which no formal occupies.
+        Universal {
+            carrier: crate::StructuralTypeId,
+            binder: PlaceId,
+            body: Box<Proposition>,
+        },
     }
 
     impl Proposition {
@@ -2086,7 +2195,10 @@ mod propositions {
                     Self::Truth | Self::Falsehood => {}
                     Self::Atom(_) => {}
                     Self::DeclarationIdentity(clause) => clause.validate()?,
-                    Self::IsMere(inner) => pending.push(inner.as_ref()),
+                    Self::IsMere(inner) | Self::Squash(inner) | Self::Boxed(inner) => {
+                        pending.push(inner.as_ref())
+                    }
+                    Self::Universal { body, .. } => pending.push(body.as_ref()),
                     Self::FloatIntegerConversion(clause) => clause.validate().map_err(|error| {
                         PropositionError::InvalidFloatIntegerConversion(Box::new(error))
                     })?,
@@ -2267,7 +2379,10 @@ mod propositions {
                             }
                         }
                     }
-                    Proposition::IsMere(inner) => pending.push(inner.as_ref()),
+                    Proposition::IsMere(inner)
+                    | Proposition::Squash(inner)
+                    | Proposition::Boxed(inner) => pending.push(inner.as_ref()),
+                    Proposition::Universal { body, .. } => pending.push(body.as_ref()),
                     Proposition::FloatIntegerConversion(clause) => {
                         self.validate_term(&clause.source)?;
                         self.validate_term(&clause.result)?;
@@ -2684,8 +2799,11 @@ mod value_ids {
                                     }
                                 }
                             }
-                            Self::IsMere(inner) => {
+                            Self::IsMere(inner) | Self::Squash(inner) | Self::Boxed(inner) => {
                                 pending.push(Pending::Proposition(inner.as_mut()));
+                            }
+                            Self::Universal { body, .. } => {
+                                pending.push(Pending::Proposition(body.as_mut()));
                             }
                             Self::FloatIntegerConversion(clause) => {
                                 pending.push(Pending::Scalar(&mut clause.result));
@@ -2864,7 +2982,10 @@ mod value_ids {
                             }
                         }
                     }
-                    Proposition::IsMere(inner) => pending.push(Pending::Proposition(inner)),
+                    Proposition::IsMere(inner)
+                    | Proposition::Squash(inner)
+                    | Proposition::Boxed(inner) => pending.push(Pending::Proposition(inner)),
+                    Proposition::Universal { body, .. } => pending.push(Pending::Proposition(body)),
                     Proposition::FloatIntegerConversion(clause) => {
                         pending.push(Pending::Scalar(&clause.result));
                         pending.push(Pending::Scalar(&clause.source));

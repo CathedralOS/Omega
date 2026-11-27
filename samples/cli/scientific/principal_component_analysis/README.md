@@ -50,9 +50,9 @@ numerical output, independently of exit parity.
 From the repository root, use the compiler from a recorded build:
 
 ```sh
-omega packages update --project samples/cli/independent/principal_component_analysis --target linux_x86_64 < /dev/null
-omega --check samples/cli/independent/principal_component_analysis/main.omg < /dev/null
-omega run samples/cli/independent/principal_component_analysis/main.omg < samples/cli/independent/principal_component_analysis/input.txt
+omega packages update --project samples/cli/scientific/principal_component_analysis --target linux_x86_64 < /dev/null
+omega --check samples/cli/scientific/principal_component_analysis/main.omg < /dev/null
+omega run samples/cli/scientific/principal_component_analysis/main.omg < samples/cli/scientific/principal_component_analysis/input.txt
 ```
 
 Review normal package decisions before resuming any pending update. System source

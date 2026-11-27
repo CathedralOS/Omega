@@ -22,6 +22,8 @@ const TEST_PSI_WORK_ALLOWANCE: u64 = 10_000_000;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TestExecution {
+    /// Interpret registered tests before interpreting the application entry.
+    Interpret,
     /// Run every available engine and require at least one passing execution.
     Available,
     /// Require both engines to pass and produce matching observations.
@@ -115,16 +117,22 @@ fn run_test(
     profile: TargetProfile,
     execution: TestExecution,
 ) -> Result<String, String> {
-    let interpreted = engines.psi.run(|| interpret(&report, profile, inputs, expected));
-    let native = engines.native.run(|| {
-        let program = report.retained_native_program().ok_or_else(|| {
-            EngineError::Failed("the scheduled native test lost its retained Psi program".into())
-        })?;
-        let can_exit = program
-            .psi_artifact()
-            .semantic_module()
-            .can_end_the_process();
-        execute_native(report, can_exit, inputs, expected, profile)
+    let interpreted = engines
+        .psi
+        .run(|| interpret(&report, profile, inputs, expected));
+    let native = engines.native.map(|destination| {
+        destination.run(|| {
+            let program = report.retained_native_program().ok_or_else(|| {
+                EngineError::Failed(
+                    "the scheduled native test lost its retained Psi program".into(),
+                )
+            })?;
+            let can_exit = program
+                .psi_artifact()
+                .semantic_module()
+                .can_end_the_process();
+            execute_native(report, can_exit, inputs, expected, profile)
+        })
     });
     assess(interpreted, native, execution, expected)
 }
@@ -132,10 +140,9 @@ fn run_test(
 /// The private descriptor table starts with pipes only, including EOF when the
 /// Build supplies no input bytes. Each invocation starts its own read cursor.
 fn standard_input(inputs: &TestInvocationInputs, target: TargetProfile) -> Option<&[u8]> {
-    inputs
-        .stdin
-        .as_deref()
-        .or_else(|| matches!(target, TargetProfile::LinuxX64 | TargetProfile::LinuxArm64).then_some(&[]))
+    inputs.stdin.as_deref().or_else(|| {
+        matches!(target, TargetProfile::LinuxX64 | TargetProfile::LinuxArm64).then_some(&[])
+    })
 }
 
 fn interpret(
@@ -193,6 +200,7 @@ fn interpret(
                 Box::new(std::io::Cursor::new(bytes)) as Box<dyn std::io::Read + Send>
             }),
             clock: None,
+            containment: None,
         },
         report.retained_native_artifact(),
     );

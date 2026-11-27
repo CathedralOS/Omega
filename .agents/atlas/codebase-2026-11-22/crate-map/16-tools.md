@@ -45,7 +45,7 @@ only the root `Cargo.toml` lists them, lines 212-213).
     `single_form_entry_violations` `boundary.rs:894`).
   - `boundary_contracts.rs`: `pipeline-contracts inventory|check`, manifest `tools/xtask/pipeline-contracts.json`
     (`MANIFEST` `boundary_contracts.rs:13`).
-  - `samples.rs` (1,556): `sample-gate`, builds the CLI and compares native and Psi runs (`verify_sample`
+  - `samples.rs` (1,556): `sample-gate`, built the CLI and compared native and Psi runs (`verify_sample`
     `samples.rs:662`, `discover_samples` `samples.rs:281`).
   - `qualification.rs`, `producer.rs`, `execution.rs`: `qualify`, producer preparation (`prepare`
     `producer.rs:271`, `source_identity` `producer.rs:40`), and shared bounded command evidence.

@@ -452,6 +452,31 @@ impl ItemTable {
             )
     }
 
+    pub fn assembly_target_requirement_mut(
+        &mut self,
+        owner: StatementBody,
+    ) -> &mut language_core::inline_assembly::AsmTargetApplicability {
+        match owner {
+            StatementBody::State(owner) => {
+                &mut self
+                    .state_storage
+                    .states
+                    .get_mut(owner)
+                    .assembly_target_requirement
+            }
+            StatementBody::TraitDefault(owner) => {
+                &mut self
+                    .state_storage
+                    .signatures
+                    .get_mut(owner)
+                    .default_body
+                    .as_mut()
+                    .expect("selected trait default")
+                    .assembly_target_requirement
+            }
+        }
+    }
+
     pub fn set_statement_body(&mut self, owner: StatementBody, body: HandleSpan<StatementHandle>) {
         match owner {
             StatementBody::State(owner) => {

@@ -247,6 +247,24 @@ pub(crate) mod proposition_encoding {
                 bytes.u8(24);
                 encode_proposition(bytes, inner);
             }
+            Proposition::Squash(inner) => {
+                bytes.u8(26);
+                encode_proposition(bytes, inner);
+            }
+            Proposition::Boxed(inner) => {
+                bytes.u8(27);
+                encode_proposition(bytes, inner);
+            }
+            Proposition::Universal {
+                carrier,
+                binder,
+                body,
+            } => {
+                bytes.u8(25);
+                bytes.id(*carrier);
+                bytes.id(*binder);
+                encode_proposition(bytes, body);
+            }
             Proposition::Atom(id) => {
                 bytes.u8(3);
                 bytes.id(*id);

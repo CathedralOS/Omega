@@ -1,11 +1,71 @@
-use main.omg as app;
+use linux.omg;
+use macos.omg;
+use windows.omg;
 use {omega}/build/dependency.omg;
+use {omega}/language/core/external_binding.omg as native;
+use {omega}/language/core/filesystem_authority.omg as fs;
+use {omega}/language/core/native_execution_authority.omg as native_exec;
+use {omega}/language/core/presentation_authority.omg as presentation;
+use {omega}/language/core/process_authority.omg as streams;
+use {omega}/language/core/process_exit.omg as process;
+use {omega}/language/core/time_authority.omg as time;
 
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "dungeon_crawler" };
     builder.identifier = "com.omega.dungeon-crawler";
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));
+    Optimizations::enable(@mutable builder.optimizations, Optimization::SparseConditionalConstantPropagation);
+    let allowed: [BoundaryServiceReference; 17] = [
+        Build::service::<|native_exec|::NativeCodeExecution>(builder),
+        Build::service::<|presentation|::WindowManagement>(builder),
+        Build::service::<|presentation|::SurfacePresentation>(builder),
+        Build::service::<|presentation|::WindowEventObservation>(builder),
+        Build::service::<|presentation|::WindowEventDispatch>(builder),
+        Build::service::<|presentation|::GlobalInputObservation>(builder),
+        Build::service::<|time|::ClockObservation>(builder),
+        Build::service::<|time|::ExecutionDelay>(builder),
+        Build::service::<|fs|::FilesystemContentRead>(builder),
+        Build::service::<|fs|::FilesystemContentWrite>(builder),
+        Build::service::<|fs|::FilesystemMetadataQuery>(builder),
+        Build::service::<|fs|::FilesystemMetadataMutation>(builder),
+        Build::service::<|fs|::DirectoryEnumeration>(builder),
+        Build::service::<|fs|::FilesystemNamespaceMutation>(builder),
+        Build::service::<|streams|::StandardInput>(builder),
+        Build::service::<|streams|::StandardOutput>(builder),
+        Build::service::<|process|::ProcessExit>(builder)
+    ];
+    let system: DependencyDescription = |dependency|::from_source(Source::Bundled { name: "system" });
+    _ = |dependency|::add(builder, system, @allowed[..]);
     let engine_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "engine" }));
-    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |windows|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |macos|::entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |linux|::entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |linux|::entry_start);
+    Build::bind_native::<|windows|::WindowsDisplaySync::flush>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::PeByName { library: "dwmapi.dll", export: "DwmFlush" }
+    });
+    Build::bind_native::<|windows|::WindowsDisplaySync::query_counter>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::PeByName { library: "kernel32.dll", export: "QueryPerformanceCounter" }
+    });
+    Build::bind_native::<|windows|::WindowsDisplaySync::query_frequency>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::PeByName { library: "kernel32.dll", export: "QueryPerformanceFrequency" }
+    });
+    // Linux x86-64 direct syscalls for X11 Unix socket + monotonic clock.
+    Build::bind_native::<|linux|::LinuxX11Syscall::socket>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 41 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::connect>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 42 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::read>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 0 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::write_small>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 1 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::write_strip>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 1 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::ppoll>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 271 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::close>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 3 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::clock_gettime>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 228 });
+    // Linux arm64 direct syscalls (asm-generic table).
+    Build::bind_native::<|linux|::LinuxX11Syscall::socket>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 198 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::connect>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 203 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::read>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 63 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::write_small>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 64 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::write_strip>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 64 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::ppoll>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 73 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::close>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 57 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::clock_gettime>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 113 });
     builder.subsystem = Subsystem::Gui;
 }

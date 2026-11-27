@@ -9,6 +9,8 @@ use diagnostics::Diagnostic;
 pub struct FixedLayoutTargetScope {
     pub target: String,
     pub facts: Option<layout_plans::LayoutTargetFacts>,
+    /// Check geometry consumed by subject declarations for this requested output.
+    pub checks_subject: bool,
     pub entry_declarations: Vec<symbols::SymbolHandle>,
     pub provider_declarations: Vec<provider_choice_inputs::ProviderSelection>,
 }

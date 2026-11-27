@@ -4,8 +4,8 @@
 //! with one name, and a public signature that names a private type.
 //!
 //! Each program under `fixtures/refusals/run` uses the rule correctly and
-//! must run in both engines; it crashes if a value it computes is wrong. Each
-//! negative twin is that program with one edit, made here rather than kept
+//! crashes if it computes a wrong value. We check the interpreter and built program.
+//! Each negative twin is that program with one edit, made here rather than kept
 //! as a second file, so a twin differs from its program in exactly the
 //! construct the rule judges. The twin must be refused with the rule's
 //! diagnostic at the edited place.
@@ -35,7 +35,7 @@ fn fixture(case: &str) -> PathBuf {
 }
 
 fn omega(directory: &Path, arguments: &[&str]) -> (bool, String) {
-    let output = project::omega(directory, arguments);
+    let output = project::observe(directory, arguments);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -81,20 +81,16 @@ fn refuses(case: &str, label: &str, text: &str, line: usize, column: usize, rule
 }
 
 #[test]
-fn each_program_runs_in_both_engines() {
+fn each_program_runs_when_interpreted_and_built() {
     for case in [
         "explicit_dereference",
         "carrier_membership",
         "member_namespace",
         "public_signature",
     ] {
-        for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-            let (success, report) = omega(&fixture(case), &["run", "--engine", engine, "main.omg"]);
+        for command in ["run", "build"] {
+            let (success, report) = omega(&fixture(case), &[command, "main.omg"]);
             assert!(success, "{case}: {report}");
-            assert!(
-                report.lines().any(|line| line == receipt),
-                "{case}: {report}"
-            );
         }
     }
 }

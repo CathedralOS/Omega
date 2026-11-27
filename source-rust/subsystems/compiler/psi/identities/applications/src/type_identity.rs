@@ -163,12 +163,260 @@ mod callable_display {
         let Some((path, _)) = atom_payload(&identity[start..]) else {
             return Cow::Borrowed(identity);
         };
-        let authored = path
-            .strip_prefix("nominal(")
-            .and_then(|qualified| qualified.split_once(",path("))
-            .and_then(|(_, authored)| atom_payload(authored))
-            .map(|(authored, _)| authored.into_owned());
+        let authored = parse_call(&path)
+            .filter(|(tag, _)| *tag == "nominal")
+            .and_then(|(_, body)| {
+                split_top_level(body)
+                    .into_iter()
+                    .find_map(|part| parse_call(part).filter(|(tag, _)| *tag == "path"))
+                    .map(|(_, authored)| unwrap_nested_machine(&unescape_atom(authored)))
+            });
         authored.map_or(path, Cow::Owned)
+    }
+
+    /// Format a canonical type identity (`named(name(u64))`,
+    /// `ref(array(named(name(u8)),literal(16)))`, `parameter(...)`, etc.) as
+    /// readable Omega syntax for diagnostics.
+    pub fn display_type(identity: &str) -> String {
+        let trimmed = identity.trim();
+        let unescaped = unescape_atom(trimmed);
+        let text = unescaped.as_ref();
+        let Some((tag, body)) = parse_call(text) else {
+            return text.to_owned();
+        };
+        match tag {
+            "named" => {
+                if let Some(("name", inner)) = parse_call(body) {
+                    display_type(inner)
+                } else {
+                    display_type(body)
+                }
+            }
+            "name" | "index-expression" => display_type(body),
+            "compiler-type" => {
+                if let Some(("atom", inner)) = parse_call(body) {
+                    unescape_atom(inner).into_owned()
+                } else {
+                    unescape_atom(body).into_owned()
+                }
+            }
+            "atom" | "literal" | "integer" | "const-parameter" | "path" => {
+                unescape_atom(body).into_owned()
+            }
+            "nominal" => {
+                let args = split_top_level(body);
+                for arg in args {
+                    if let Some(("path", authored)) = parse_call(arg) {
+                        return unwrap_nested_machine(&unescape_atom(authored));
+                    }
+                }
+                text.to_owned()
+            }
+            "ref" => {
+                let args = split_top_level(body);
+                match args.as_slice() {
+                    [referent] => format!("@{}", display_type(referent)),
+                    [first, second] if parse_call(first) == Some(("mutable", "yes")) => {
+                        format!("@mutable {}", display_type(second))
+                    }
+                    [_, referent] => format!("@{}", display_type(referent)),
+                    _ => text.to_owned(),
+                }
+            }
+            "mut-ref" => format!("@mutable {}", display_type(body)),
+            "array" => {
+                let args = split_top_level(body);
+                if let [element, length] = args.as_slice() {
+                    format!("[{}; {}]", display_type(element), display_type(length))
+                } else {
+                    text.to_owned()
+                }
+            }
+            "slice" => format!("[{}]", display_type(body)),
+            "parameter" => {
+                let args = split_top_level(body);
+                let mut is_mutable = false;
+                let mut is_const = false;
+                let mut ty = None;
+                for arg in args {
+                    match parse_call(arg) {
+                        Some(("mutable", "yes")) => is_mutable = true,
+                        Some(("mutable", "no")) => {}
+                        Some(("const", "yes")) => is_const = true,
+                        Some(("const", "no")) => {}
+                        _ => ty = Some(display_type(arg)),
+                    }
+                }
+                let Some(ty) = ty else {
+                    return text.to_owned();
+                };
+                match (is_mutable, is_const) {
+                    (true, true) => format!("mutable const {ty}"),
+                    (true, false) => format!("mutable {ty}"),
+                    (false, true) => format!("const {ty}"),
+                    (false, false) => ty,
+                }
+            }
+            _ => text.to_owned(),
+        }
+    }
+
+    /// Format a canonical callable identity (`named-callable(...)` or
+    /// `closed-requirement(...)`) as readable Omega syntax, such as
+    /// `macos_gui.omg::ObjectiveC::send_byte_string<16>(u64, u64, @[u8; 16])`.
+    pub fn callable_display_signature(identity: &str) -> String {
+        let path = callable_display_path(identity);
+        let Some(("named-callable", body)) = parse_call(identity) else {
+            return path.into_owned();
+        };
+        let mut params_body = None;
+        for part in split_top_level(body) {
+            if let Some(("parameters", inner)) = parse_call(part) {
+                params_body = Some(inner);
+                break;
+            }
+        }
+        let Some(params_body) = params_body else {
+            return path.into_owned();
+        };
+        let params_unescaped = unescape_atom(params_body);
+        if let Some(("closed-requirement", closed_body)) = parse_call(&params_unescaped) {
+            let mut local_args = Vec::new();
+            let mut applied_params = Vec::new();
+            for part in split_top_level(closed_body) {
+                match parse_call(part) {
+                    Some(("local-arguments", inner)) if !inner.is_empty() => {
+                        for arg in split_top_level(inner) {
+                            local_args.push(display_type(arg));
+                        }
+                    }
+                    Some(("parameters", inner)) if !inner.is_empty() => {
+                        for param in split_top_level(inner) {
+                            applied_params.push(display_type(param));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let generic = if local_args.is_empty() {
+                String::new()
+            } else {
+                format!("<{}>", local_args.join(", "))
+            };
+            return format!("{path}{generic}({})", applied_params.join(", "));
+        }
+        let formatted_params = if params_body.is_empty() {
+            Vec::new()
+        } else {
+            split_top_level(params_body)
+                .into_iter()
+                .map(display_type)
+                .collect::<Vec<_>>()
+        };
+        format!("{path}({})", formatted_params.join(", "))
+    }
+
+    fn unwrap_nested_machine(path: &str) -> String {
+        let Some(nested_marker) = path.find("::nested-machine(") else {
+            return path.to_owned();
+        };
+        let file = &path[..nested_marker];
+        let nested = &path[nested_marker + 2..];
+        let Some(("nested-machine", body)) = parse_call(nested) else {
+            return path.to_owned();
+        };
+        let mut owner = None;
+        let mut leaf = None;
+        for part in split_top_level(body) {
+            match parse_call(part) {
+                Some(("owner", inner)) => owner = Some(display_type(inner)),
+                Some(("name", inner)) => leaf = Some(unescape_atom(inner).into_owned()),
+                _ => {}
+            }
+        }
+        if let (Some(owner), Some(leaf)) = (owner, leaf) {
+            let owner_name = owner.rsplit("::").next().unwrap_or(&owner);
+            format!("{file}::{owner_name}::{leaf}")
+        } else {
+            path.to_owned()
+        }
+    }
+
+    fn parse_call(text: &str) -> Option<(&str, &str)> {
+        let open = text.find('(')?;
+        if !text.ends_with(')') {
+            return None;
+        }
+        let tag = &text[..open];
+        if tag.is_empty()
+            || !tag
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+        {
+            return None;
+        }
+        // Confirm the opening `(` matches the final `)` at depth 0.
+        let inner = &text[open + 1..text.len() - 1];
+        let mut depth = 0usize;
+        let mut chars = inner.chars();
+        while let Some(ch) = chars.next() {
+            match ch {
+                '\\' => {
+                    chars.next()?;
+                }
+                '(' => depth += 1,
+                ')' => {
+                    if depth == 0 {
+                        return None;
+                    }
+                    depth -= 1;
+                }
+                _ => {}
+            }
+        }
+        (depth == 0).then_some((tag, inner))
+    }
+
+    fn split_top_level(text: &str) -> Vec<&str> {
+        if text.is_empty() {
+            return Vec::new();
+        }
+        let mut parts = Vec::new();
+        let mut depth = 0usize;
+        let mut start = 0usize;
+        let mut chars = text.char_indices();
+        while let Some((index, ch)) = chars.next() {
+            match ch {
+                '\\' => {
+                    let _ = chars.next();
+                }
+                '(' => depth += 1,
+                ')' => depth = depth.saturating_sub(1),
+                ',' if depth == 0 => {
+                    parts.push(&text[start..index]);
+                    start = index + 1;
+                }
+                _ => {}
+            }
+        }
+        parts.push(&text[start..]);
+        parts
+    }
+
+    fn unescape_atom(raw: &str) -> Cow<'_, str> {
+        if !raw.contains('\\') {
+            return Cow::Borrowed(raw);
+        }
+        let mut unescaped = String::with_capacity(raw.len());
+        let mut chars = raw.chars();
+        while let Some(character) = chars.next() {
+            unescaped.push(if character == '\\' {
+                chars.next().unwrap_or(character)
+            } else {
+                character
+            });
+        }
+        Cow::Owned(unescaped)
     }
 
     fn atom_payload(text: &str) -> Option<(Cow<'_, str>, usize)> {
@@ -180,21 +428,7 @@ mod callable_display {
                 }
                 ')' => {
                     let raw = &text[..offset];
-                    let payload = if raw.contains('\\') {
-                        let mut unescaped = String::with_capacity(raw.len());
-                        let mut raw_characters = raw.chars();
-                        while let Some(character) = raw_characters.next() {
-                            unescaped.push(if character == '\\' {
-                                raw_characters.next().unwrap_or(character)
-                            } else {
-                                character
-                            });
-                        }
-                        Cow::Owned(unescaped)
-                    } else {
-                        Cow::Borrowed(raw)
-                    };
-                    return Some((payload, offset + 1));
+                    return Some((unescape_atom(raw), offset + 1));
                 }
                 _ => {}
             }
@@ -204,7 +438,9 @@ mod callable_display {
 
     #[cfg(test)]
     mod tests {
-        use super::callable_display_path as requirement_path;
+        use super::{
+            callable_display_path as requirement_path, callable_display_signature, display_type,
+        };
 
         const OWNER: &str = "package-owner\\(32:31ed5a8cdac79074acce8823cec1b3e85e1a2a4d42afa87343d6efc3220c7a2b\\)";
 
@@ -249,6 +485,50 @@ mod callable_display {
                 requirement_path("named-callable(path(nominal\\(toolchain-owner\\)),parameters())"),
                 "nominal(toolchain-owner)"
             );
+        }
+
+        #[test]
+        fn callable_display_signature_formats_specialized_and_plain_callables() {
+            let specialized = "named-callable(path(nominal\\(package-owner\\(32:1ed464b476bc7018cf39a5fc9627591a0003b11593668e2370b4e6d3e519e2df\\)\\,path\\(macos_gui.omg::ObjectiveC::send_byte_string\\)\\)),parameters(closed-requirement\\(template\\(named-callable\\\\\\(path\\\\\\(nominal\\\\\\\\\\\\\\(package-owner\\\\\\\\\\\\\\(32:1ed464b476bc7018cf39a5fc9627591a0003b11593668e2370b4e6d3e519e2df\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,path\\\\\\\\\\\\\\(macos_gui.omg::ObjectiveC::send_byte_string\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\)\\\\\\,parameters\\\\\\(\\\\\\)\\\\\\)\\)\\,local-arguments\\(index-expression\\(integer\\(16\\)\\)\\)\\,parameters\\(parameter\\\\\\(mutable\\\\\\(no\\\\\\)\\\\\\,const\\\\\\(no\\\\\\)\\\\\\,named\\\\\\(name\\\\\\(u64\\\\\\)\\\\\\)\\\\\\)\\,parameter\\\\\\(mutable\\\\\\(no\\\\\\)\\\\\\,const\\\\\\(no\\\\\\)\\\\\\,named\\\\\\(name\\\\\\(u64\\\\\\)\\\\\\)\\\\\\)\\,parameter\\\\\\(mutable\\\\\\(no\\\\\\)\\\\\\,const\\\\\\(no\\\\\\)\\\\\\,ref\\\\\\(array\\\\\\(named\\\\\\(name\\\\\\(u8\\\\\\)\\\\\\)\\\\\\,literal\\\\\\(16\\\\\\)\\\\\\)\\\\\\)\\\\\\)\\)\\)),result-dispatch())";
+            assert_eq!(
+                callable_display_signature(specialized),
+                "macos_gui.omg::ObjectiveC::send_byte_string<16>(u64, u64, @[u8; 16])"
+            );
+
+            let plain = format!(
+                "named-callable(path(nominal\\({OWNER}\\,path\\(macos_gui.omg::ObjectiveC::get_class\\)\\)),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(array\\(named\\(name\\(u8\\)\\)\\,literal\\(256\\)\\)\\)\\)),result-dispatch())"
+            );
+            assert_eq!(
+                callable_display_signature(&plain),
+                "macos_gui.omg::ObjectiveC::get_class(@[u8; 256])"
+            );
+        }
+
+        #[test]
+        fn display_type_formats_primitives_arrays_and_nominals() {
+            assert_eq!(display_type("named(name(u64))"), "u64");
+            assert_eq!(
+                display_type("ref(array(named(name(u8)),literal(16)))"),
+                "@[u8; 16]"
+            );
+            assert_eq!(
+                display_type("ref(array(named(name(u8)),const-parameter($T0)))"),
+                "@[u8; $T0]"
+            );
+            assert_eq!(
+                display_type(&format!(
+                    "named(name(nominal({OWNER},path(windows_gui_host.omg::WindowsMessage))))"
+                )),
+                "windows_gui_host.omg::WindowsMessage"
+            );
+        }
+
+        #[test]
+        fn requirement_path_unwraps_nested_machines() {
+            let nested = format!(
+                "named-callable(path(nominal\\({OWNER}\\,path\\(windows.omg::nested-machine\\(owner\\(nominal\\({OWNER}\\,path\\(windows.omg::windows_loop\\)\\)\\)\\,name\\(draw\\)\\)\\)\\)),parameters(),result-dispatch())"
+            );
+            assert_eq!(requirement_path(&nested), "windows.omg::windows_loop::draw");
         }
     }
 }
@@ -1565,7 +1845,7 @@ pub mod vocabulary {
         }
     }
 }
-pub use callable_display::callable_display_path;
+pub use callable_display::{callable_display_path, callable_display_signature, display_type};
 pub use lifetime_partition::normalize_requirement_lifetime_partition;
 
 /// Source publication and receiving checks must name a package declaration
@@ -1694,6 +1974,13 @@ fn trait_application(
         }
         Ok(())
     })
+}
+
+/// Check the complete callable framing and its nominal owner without requiring
+/// a concrete application or arguments for an open declaration.
+pub fn callable_belongs_to_declaration(callable: &str, nominal: &str) -> bool {
+    callable_coordinates(callable, &mut DeclarationIdentitySyntax { depth: 0 })
+        .is_ok_and(|(path, _)| path == nominal)
 }
 
 fn callable_coordinates<'a>(

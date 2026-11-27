@@ -1,10 +1,9 @@
-//! Present the selected application engine's execution or retained observation.
+//! Present interpreted execution and write requested observations.
 mod observation;
 
 use crate::arguments::RunArguments;
 use crate::execution::{
-    CaseOutcome, CaseRunRequest, ExecutionOutcome, ExecutionSelection, RunError, RunRequest,
-    TerminalOutcome, run_project, run_project_cases,
+    CaseRunRequest, RunError, RunRequest, TerminalOutcome, run_project, run_project_cases,
 };
 use compiler::CompilerRequestOutcome;
 use std::io::Write;
@@ -37,16 +36,17 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     {
         run_cases(arguments, outputs, artifact);
     }
-    let selection = arguments.selection;
     let outcome = match run_project(
         artifact,
         RunRequest {
             run_directories: arguments.run_directories,
-            build_snapshot: crate::arguments::build_snapshot(arguments.build_inputs, arguments.build_directories),
+            build_snapshot: crate::arguments::build_snapshot(
+                arguments.build_inputs,
+                arguments.build_directories,
+            ),
             private_entry_ram: arguments.private_entry_ram,
             root_path: arguments.main_path,
             target_name: arguments.target_name,
-            selection: arguments.selection,
             psi_work_budget: arguments.psi_work_budget,
             keep_artifacts: arguments.keep,
         },
@@ -54,8 +54,8 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     ) {
         Ok(outcome) => outcome,
         Err(error) => {
-            match (&error, selection) {
-                (RunError::Compilation(diagnostics), ExecutionSelection::Terminal) => {
+            match &error {
+                RunError::Compilation(diagnostics) => {
                     eprintln!(
                         "Psi compile FAILED:{}",
                         std::fmt::from_fn(|f| diagnostics::write_bounded_diagnostics(
@@ -85,28 +85,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             }
         }
     }
-    let status = match outcome.execution {
-        ExecutionOutcome::Terminal(terminal) => present_terminal(terminal),
-        ExecutionOutcome::TargetOnly { target_name } => {
-            eprintln!(
-                "compiled for target `{target_name}` OK ({}). The program did not run.",
-                outcome.build_dir.display()
-            );
-            0
-        }
-        ExecutionOutcome::Host {
-            output,
-            exit,
-            private_entry_ram,
-            ..
-        } => {
-            forward_output_or_exit(&output.stdout, &output.stderr);
-            print_private_entry_ram(&private_entry_ram);
-            let native_code = exit.code().unwrap_or(-1);
-            eprintln!("native {}", exit.describe());
-            native_code
-        }
-    };
+    let status = present_terminal(outcome.execution);
     if arguments.keep {
         eprintln!("build dir kept: {}", outcome.build_dir.display());
     }
@@ -196,11 +175,13 @@ fn run_cases(
         artifact,
         CaseRunRequest {
             run_directories: arguments.run_directories,
-            build_snapshot: crate::arguments::build_snapshot(arguments.build_inputs, arguments.build_directories),
+            build_snapshot: crate::arguments::build_snapshot(
+                arguments.build_inputs,
+                arguments.build_directories,
+            ),
             private_entry_ram: arguments.private_entry_ram,
             root_path: arguments.main_path,
             target_name: arguments.target_name,
-            selection: arguments.selection,
             psi_work_budget: arguments.psi_work_budget,
             inputs: cases,
             output_directory: outputs.clone(),
@@ -216,17 +197,10 @@ fn run_cases(
     };
     let mut status = 0;
     for case in &outcome.cases {
-        match case {
-            CaseOutcome::Native { name, exit } => {
-                eprintln!("case {name}: native {}", exit.describe())
-            }
-            CaseOutcome::Psi { name, termination } => {
-                let (kind, detail) = termination.columns();
-                eprintln!("case {name}: Psi {kind} {detail}");
-                if !termination.complete() {
-                    status = 200;
-                }
-            }
+        let (kind, detail) = case.termination.columns();
+        eprintln!("case {}: Psi {kind} {detail}", case.name);
+        if !case.termination.complete() {
+            status = 200;
         }
     }
     eprintln!(

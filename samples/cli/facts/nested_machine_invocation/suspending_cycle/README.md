@@ -2,7 +2,7 @@
 
 Owner: `NESTED-MACHINE-UNIFICATION` in [TASKS.md](../../../../../TASKS.md).
 Requirement: sibling/ancestor terminal cycles with exact call markers, executed
-source-to-Terminal/native (`omega run --both`) in constant stack, with the
+source-to-Terminal/native in constant stack, with the
 effects/markers part of the complete callee contract.
 
 > A ranked terminal cycle of nested machines whose every edge acknowledges `suspend` adds each parked step's answer and forwards the total to its ordinary caller.
@@ -90,7 +90,7 @@ arm's block.
 
 ## Parking scheduler
 
-The inline scheduler answers at once, so `omega run --both` never parks. The
+The inline scheduler answers at once, so the native/Psi comparison never parks. The
 Terminal-interpreter test
 `readiness_parks_every_step_of_a_fused_suspending_cycle`
 (`omega-rust/omega/compilation/compiler/tests/terminal_effect_readiness.rs`)

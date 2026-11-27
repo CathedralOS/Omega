@@ -1,0 +1,224 @@
+use main.omg as app;
+use {dungeon_core}/configuration/configuration.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/windows_gui_host.omg;
+
+public boundary trait WindowsDisplaySync {
+    machine flush() -> i32 reaches ExecutionDelay crashes none;
+    machine query_counter(value: @mutable u64) -> i32 reaches ClockObservation crashes none;
+    machine query_frequency(value: @mutable u64) -> i32 reaches ClockObservation crashes none;
+}
+
+const CLIENT_WIDTH: i32 = (|configuration|::FRAME_WIDTH as i32) * |configuration|::WINDOW_SCALE;
+const CLIENT_HEIGHT: i32 = (|configuration|::FRAME_HEIGHT as i32) * |configuration|::WINDOW_SCALE;
+
+machine windows_init_pacer() -> |app|::FramePacer reaches ClockObservation {
+    let mutable frequency: u64 = 0;
+    let freq_ok: i32 = WindowsDisplaySync::query_frequency(@mutable frequency);
+    let mutable now: u64 = 0;
+    let counter_ok: i32 = WindowsDisplaySync::query_counter(@mutable now);
+    |app|::init_pacer(freq_ok != 0 && counter_ok != 0, frequency, now)
+}
+
+machine windows_advance_pacer(pacer: @mutable |app|::FramePacer) reaches ClockObservation {
+    let mutable now: u64 = 0;
+    let ok: i32 = WindowsDisplaySync::query_counter(@mutable now);
+    |app|::advance_pacer(pacer, ok != 0, now);
+}
+
+machine pump_one(window: u64, message: @mutable |windows_gui_host|::WindowsMessage, close_requested: @mutable bool) -> bool
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    let available: bool = |windows_gui_host|::WindowsGuiHost::pump_message(message);
+    transition available { true -> inspect(window, message, close_requested), _ -> (false) }
+    machine inspect(window: u64, message: @|windows_gui_host|::WindowsMessage, close_requested: @mutable bool) -> bool {
+        let target: u64 = |windows_gui_host|::windows_message_window(message);
+        let kind: u64 = |windows_gui_host|::windows_message_kind(message);
+        let command: u64 = |windows_gui_host|::windows_message_word_parameter(message) & 0xFFFF;
+        // The dialog class can deliver a close as WM_QUIT, WM_CLOSE, or WM_COMMAND/IDCANCEL.
+        transition kind == 0x0012 || (target == window && (kind == 0x0010 || (kind == 0x0111 && command == 2))) {
+            true -> cancel(close_requested),
+            _ -> (true)
+        }
+    }
+    machine cancel(close_requested: @mutable bool) -> bool {
+        $close_requested = true;
+        true
+    }
+}
+
+machine present_frame(device: u64, pixels: @[i32; |configuration|::FRAME_PIXELS]) -> bool
+reaches
+    SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
+    FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
+    FilesystemNamespaceMutation {
+    let width: i32 = |configuration|::FRAME_WIDTH as i32;
+    let height: i32 = |configuration|::FRAME_HEIGHT as i32;
+    // Negative DIB height puts row 0 at the top of the client area.
+    let info: [i32; 11] = [40, width, -height, 0x00200001, 0, 0, 0, 0, 0, 0, 0];
+    let copied: i32 = |windows_gui_host|::WindowsGuiHost::stretch_dibits(
+        device, 0, 0, CLIENT_WIDTH, CLIENT_HEIGHT,
+        0, 0, width, height, @pixels[0], @info[0], 0, 0x00CC0020
+    );
+    copied == height
+}
+
+machine windows_loop(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64) reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    windows_advance_pacer(pacer);
+    main.pumped = 0;
+    transition { _ -> pump(main, pacer, window, device) }
+
+    machine pump(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64) {
+        let available: bool = pump_one(window, @mutable main.message, @mutable main.close_requested);
+        transition available && !main.close_requested && main.pumped < |configuration|::EVENT_BUDGET {
+            true -> pump_next(main, pacer, window, device),
+            _ -> visible(main, pacer, window, device)
+        }
+    }
+    machine pump_next(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64)
+    requires main.pumped < |configuration|::EVENT_BUDGET {
+        main.pumped = main.pumped + 1;
+        transition { _ -> pump(main, pacer, window, device) }
+    }
+    machine visible(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64) {
+        let alive: bool = |windows_gui_host|::WindowsGuiHost::is_window(window);
+        transition alive && !main.close_requested { true -> focus(main, pacer, window, device), _ -> close(window, device) }
+    }
+    machine focus(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64) {
+        let focused: u64 = |windows_gui_host|::WindowsGuiHost::foreground_window();
+        transition focused == window { true -> escape(main, pacer, window, device), _ -> pause_and_draw(main, pacer, window, device) }
+    }
+    machine pause_and_draw(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64) {
+        pacer.accumulator = 0;
+        |app|::clear_controls(main);
+        transition { _ -> draw(main, pacer, window, device) }
+    }
+    machine escape(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64) {
+        let escape_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(27);
+        transition escape_key > 0 { true -> close(window, device), _ -> restart(main, pacer, window, device) }
+    }
+    machine restart(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64) {
+        let restart_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(82);
+        transition restart_key > 0 { true -> reset(main, pacer, window, device), _ -> poll_input(main, pacer, window, device) }
+    }
+    machine reset(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64) {
+        |app|::reset_game(main);
+        pacer.accumulator = 0;
+        transition { _ -> draw(main, pacer, window, device) }
+    }
+    machine poll_input(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64) {
+        let attack: u64 = |windows_gui_host|::WindowsGuiHost::key_state(32);
+        let up: u64 = |windows_gui_host|::WindowsGuiHost::key_state(38);
+        let north_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(87);
+        let right: u64 = |windows_gui_host|::WindowsGuiHost::key_state(39);
+        let east_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(68);
+        let down: u64 = |windows_gui_host|::WindowsGuiHost::key_state(40);
+        let south_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(83);
+        let left: u64 = |windows_gui_host|::WindowsGuiHost::key_state(37);
+        let west_key: u64 = |windows_gui_host|::WindowsGuiHost::key_state(65);
+        |app|::update_controls(
+            main,
+            up > 0 || north_key > 0,
+            right > 0 || east_key > 0,
+            down > 0 || south_key > 0,
+            left > 0 || west_key > 0,
+            attack > 0
+        );
+        transition { _ -> sim_loop(main, pacer, window, device, 0) }
+    }
+    machine sim_loop(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64, steps: u32)
+    requires steps <= |app|::MAX_STEPS_PER_FRAME {
+        transition pacer.accumulator >= pacer.step_ticks && steps < |app|::MAX_STEPS_PER_FRAME {
+            true -> update(main, pacer, window, device, steps),
+            _ -> draw(main, pacer, window, device)
+        }
+    }
+    machine update(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64, steps: u32)
+    requires pacer.accumulator >= pacer.step_ticks && steps < |app|::MAX_STEPS_PER_FRAME {
+        |app|::tick_game(main);
+        pacer.accumulator = pacer.accumulator - pacer.step_ticks;
+        transition { _ -> sim_loop(main, pacer, window, device, steps + 1) }
+    }
+    machine draw(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64) {
+        transition main.dirty {
+            true -> rasterize(main, pacer, window, device),
+            _ -> present(main, pacer, window, device)
+        }
+    }
+    machine rasterize(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64) {
+        |app|::render_frame(main);
+        transition { _ -> present(main, pacer, window, device) }
+    }
+    machine present(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: u64, device: u64) {
+        let shown: bool = present_frame(device, @main.pixels);
+        let flushed: i32 = WindowsDisplaySync::flush();
+        let synced: bool = flushed == 0 || flushed != 0;
+        transition shown && synced { true -> windows_loop(main, pacer, window, device), _ -> close(window, device) }
+    }
+    machine close(window: u64, device: u64) {
+        let released: i32 = |windows_gui_host|::WindowsGuiHost::release_dc(window, device);
+        transition (released == 1 || released != 1) && |windows_gui_host|::WindowsGuiHost::is_window(window) {
+            true -> destroy(window),
+            _ -> done()
+        }
+        machine destroy(window: u64) {
+            _ = |windows_gui_host|::WindowsGuiHost::window_destroy(window);
+        }
+        machine done() {}
+    }
+}
+
+public machine entry_start() reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    let mutable main: |app|::Main;
+    let ready: bool = |app|::prepare(@mutable main);
+    transition ready { true -> open(@mutable main), _ -> fail() }
+
+    machine fail() {
+        |app|::fail_self_test();
+    }
+
+    machine open(main: @mutable |app|::Main) {
+        let class_name: [u8; 7] = "#32770\0";
+        let title: [u8; 16] = "HOLLOW / OMEGA\0\0";
+        // WS_VISIBLE | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX (0x10CA0000):
+        // fixed-size titled desktop window matching the 4x framebuffer client area.
+        let window: u64 = |windows_gui_host|::WindowsGuiHost::window_create_client(
+            @class_name[..], @title[..], 0x10CA0000, 120, 80, CLIENT_WIDTH, CLIENT_HEIGHT
+        );
+        transition window != 0 { true -> acquire_dc(main, window), _ -> done() }
+    }
+
+    machine acquire_dc(main: @mutable |app|::Main, window: u64) {
+        let device: u64 = |windows_gui_host|::WindowsGuiHost::get_dc(window);
+        transition device != 0 { true -> start_loop(main, window, device), _ -> destroy_only(window) }
+    }
+
+    machine start_loop(main: @mutable |app|::Main, window: u64, device: u64) {
+        let mutable pacer: |app|::FramePacer = windows_init_pacer();
+        windows_loop(main, @mutable pacer, window, device);
+    }
+
+    machine destroy_only(window: u64) {
+        _ = |windows_gui_host|::WindowsGuiHost::window_destroy(window);
+    }
+
+    machine done() {}
+}

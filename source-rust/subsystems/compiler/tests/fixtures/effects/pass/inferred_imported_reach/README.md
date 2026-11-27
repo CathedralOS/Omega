@@ -5,10 +5,11 @@ boundary. Its call to `fetch_mark` reaches `Mark::read` through the private
 From `consumer/`, run the hosted program with:
 
 ```sh
-omega run --engine native --build-input build.omg --build-input main.omg main.omg
-omega run --engine psi --build-input build.omg --build-input main.omg main.omg
+omega run --build-input build.omg --build-input main.omg main.omg
 ```
 
-Both engines must exit 0 after checking that the provider returns seven.
+Compile with `omega --build-input build.omg --build-input main.omg main.omg`
+and launch the reported executable. Both it and the interpreted program
+must exit 0 after checking that the provider returns seven.
 Changing only the consumer's `main` signature to `reaches none crashes Trap`
 must reject the call to `fetch_mark` for contributing `Mark`.

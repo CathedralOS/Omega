@@ -269,6 +269,11 @@ impl TerminalImportAdapter for NetworkAddressImport {
     fn implemented_signature(&self) -> TerminalImportSignature {
         self.signature.clone()
     }
+
+    // Safe Rust over copied values and invocation-private state.
+    fn serves_contained_execution(&self) -> bool {
+        true
+    }
 }
 
 impl TerminalEffectHandler for NetworkAddressImport {

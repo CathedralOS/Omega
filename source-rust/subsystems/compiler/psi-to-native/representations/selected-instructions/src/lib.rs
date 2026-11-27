@@ -46,22 +46,6 @@
 
 pub(crate) mod codec_bytes {
     pub(crate) use ::wire::codec_bytes::push_encoded;
-
-    pub(crate) fn encode_len(bytes: &mut Vec<u8>, length: usize) {
-        push_encoded(bytes, (length as u64).to_le_bytes());
-    }
-
-    #[cfg(test)]
-    pub(crate) fn encode_le_list<T, const N: usize>(
-        bytes: &mut Vec<u8>,
-        values: &[T],
-        to_le: impl Fn(&T) -> [u8; N],
-    ) {
-        encode_len(bytes, values.len());
-        for value in values {
-            push_encoded(bytes, to_le(value));
-        }
-    }
 }
 
 pub(crate) use ::wire::digest_encoder;
@@ -69,6 +53,7 @@ pub(crate) use ::wire::digest_encoder;
 mod atomic;
 mod blocks;
 pub mod calls;
+pub mod compaction;
 pub mod constraints;
 pub mod control_flow;
 pub mod effects;
@@ -141,14 +126,12 @@ pub use live_ranges::{
     ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
     BlockPointDomain, CopyAffinity, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
     EdgeRegisterTransfer, FunctionLiveRanges, LiveRangeEdgeConnector, LiveRangeFragment,
-    LiveRangeIdentity, LiveRangePlan, LiveRangePoint, VirtualFixedConstraint,
-    VirtualFixedConstraintSite, VirtualInterference, VirtualInterferences, VirtualLiveRange,
-    VirtualOccurrence, live_range_function_digest, live_range_identity_from_digests,
+    LiveRangePlan, LiveRangePoint, VirtualFixedConstraint, VirtualFixedConstraintSite,
+    VirtualInterference, VirtualInterferences, VirtualLiveRange, VirtualOccurrence,
 };
 pub use liveness::{
-    BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessIdentity,
-    LivenessPlan, LivenessPosition, OperandPosition, SuccessorLiveness, liveness_function_digest,
-    liveness_identity_from_digests,
+    BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessPlan,
+    LivenessPosition, OperandPosition, SuccessorLiveness,
 };
 pub use program_contracts::SelectedProgramContracts;
 pub use provenance::SelectedInstructionProvenance;
@@ -227,9 +210,8 @@ pub struct StagedOptimizedCustodyCore {
     pub psi: terminal_psi::TerminalPsiIdentity, // Terminal Psi identity of the staged upstream result.
     pub target: target::NativeTarget,           // Native target of the staged upstream result.
     pub entry: semantic_vocabulary::MachineId,  // Entry machine the staged result lowers.
-    pub optimization: optimization_core::OptimizationIdentityBundleIdentity, // Optimization identity bundle of the staged result.
-    pub projection: optimization_core::OptimizedAbstractPlanProjectionIdentity, // Optimized-plan projection identity of the staged result.
-    pub manifest: optimization_core::PrePhysicalOptimizationManifestIdentity, // Pre-physical manifest identity of the staged result.
+    pub selection: optimization_core::OptimizationSelectionIdentity, // Optimization selections the staged result was lowered under.
+    pub budget_per_pass: optimization_core::OptimizationWorkBudget, // Per-pass work budget the staged result was lowered under.
     pub optimization_unit: optimization_core::OptimizationUnitIdentity, // Optimization-unit identity of the staged result.
     pub work_schedule: semantic_vocabulary::WorkScheduleIdentity, // Work-schedule identity of the staged result.
     pub register_environment: register_model::TargetRegisterEnvironmentIdentity, // Validated target-register-environment identity of the staged result.
@@ -250,16 +232,12 @@ macro_rules! staging_custody_core_accessors {
             self.core.entry
         }
 
-        pub const fn optimization(self) -> OptimizationIdentityBundleIdentity {
-            self.core.optimization
+        pub const fn selection(self) -> OptimizationSelectionIdentity {
+            self.core.selection
         }
 
-        pub const fn projection(self) -> OptimizedAbstractPlanProjectionIdentity {
-            self.core.projection
-        }
-
-        pub const fn manifest(self) -> PrePhysicalOptimizationManifestIdentity {
-            self.core.manifest
+        pub const fn budget_per_pass(self) -> OptimizationWorkBudget {
+            self.core.budget_per_pass
         }
 
         pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
