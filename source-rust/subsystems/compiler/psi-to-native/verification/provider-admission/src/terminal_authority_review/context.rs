@@ -188,17 +188,6 @@ impl<'a> ReviewContext<'a> {
             .and_then(|row| row.native_binding)
     }
 
-    pub(super) fn target_profile(&self) -> target::TargetProfile {
-        self.target_profile
-    }
-
-    pub(super) fn foreign_binding(
-        &self,
-        boundary: BoundaryMachineId,
-    ) -> Option<&'a target_operations::NormalizedForeignCallBinding> {
-        self.mechanisms.get(&boundary).and_then(|row| row.foreign)
-    }
-
     pub(super) fn component_authority(
         &self,
         boundary: BoundaryMachineId,

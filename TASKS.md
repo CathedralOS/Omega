@@ -346,6 +346,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Implement the core [network reach identities](wiki/spec/build/platform_services.md#network-reach) and highlight their `Network` parent in package review. Check a fixed-peer send against a caller-addressed UDP send. A helper that only transfers the sender adds no reach.
   - Carry [host network use and off-machine transmission](wiki/spec/build/permissions.md#physical-network-authority) through provider classification, package review, and physical exclusions. Version the affected catalogs and records. Distinguish recording-only, loopback, remote socket, and device-backed providers.
   - Implement and report [native image loading and foreign execution](wiki/spec/language/effects.md#native-images-and-foreign-calls). Audit every existing `NativeCodeExecution` declaration and caller against its actual operations, including load-time initializers. Migrate evidence and affected consumers before retiring the old identity.
+  - Classify ordinary file-handle release across all hosted targets per [bounded release proof](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof) when a real file-using program requires [physical exclusions](wiki/spec/build/behavior_exclusions.md).
 
 ## P5 - Cathedral over general Omega primitives
 
