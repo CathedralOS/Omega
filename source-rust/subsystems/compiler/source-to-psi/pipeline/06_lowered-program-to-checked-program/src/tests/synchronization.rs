@@ -1,6 +1,7 @@
 //! Source-level synchronization judgments and the execution of their accepted twins.
 
 mod borrowed_cells;
+mod indexed_cells;
 mod multiple_cells;
 mod provider_returns;
 mod scalar_arguments;

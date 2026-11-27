@@ -1,6 +1,7 @@
 //! Apply the selected machine's retry condition to this call's borrowed storage.
 
 use super::super::progress::{ProgressFailure, ProgressScope, ScalarFact};
+use super::super::spin::Subject;
 use super::super::spin::{CellUpdate, Observation, Operand, SpinCondition, SpinWait, WaitRule};
 use super::activation::Bindings;
 use super::storage::{Storage, Stored};
@@ -16,20 +17,32 @@ pub(super) fn apply(
     requirements: &[Proposition],
     scope: ProgressScope,
 ) -> Result<(), ProgressFailure> {
-    let locate = |parameter: usize, path: &[StructuralPathSegment]| {
-        let actual = arguments.get(parameter)?;
-        if !matches!(actual.access, terminal_psi::reading_borrow_pair_pattern!()) {
-            return None;
-        }
-        let base = memory.locate(&bindings.places, actual.place, &actual.path)?;
-        memory.project(base, path)
-    };
     let resolve = |operand: Operand| match operand {
         Operand::Literal(value) => Some(ScalarFact::Literal(value)),
         Operand::Parameter {
             position,
             scalar_type,
         } => scalar(position).filter(|fact| fact.ty() == scalar_type),
+    };
+    let locate = |subject: &Subject| {
+        let actual = arguments.get(subject.parameter)?;
+        if !matches!(actual.access, terminal_psi::reading_borrow_pair_pattern!()) {
+            return None;
+        }
+        let mut location = memory.locate(bindings, actual.place, &actual.path)?;
+        if let Some(path) = subject.fixed_path() {
+            return memory.project(location, &path);
+        }
+        let mut indices = subject.indices();
+        for part in &subject.path {
+            location = match part {
+                StructuralPathSegment::FixedRange { start: 0, end } => {
+                    Storage::index(location, resolve(indices.next()?), *end)?
+                }
+                part => memory.project(location, std::slice::from_ref(part))?,
+            };
+        }
+        Some(location)
     };
     let pivot = |mut test: SpinCondition| {
         let mut input = None;
@@ -47,8 +60,7 @@ pub(super) fn apply(
     };
     match &wait.0 {
         WaitRule::Cell(cell) => {
-            let location = locate(cell.subject.parameter, &cell.subject.path)
-                .ok_or(ProgressFailure::Unproved)?;
+            let location = locate(&cell.subject).ok_or(ProgressFailure::Unproved)?;
             let stored = memory.get(&location);
             let (condition, input) = pivot(cell.while_value);
             let update = cell.update.try_map(resolve);
@@ -66,7 +78,7 @@ pub(super) fn apply(
         }
         WaitRule::Observations(predicate) => {
             let retry = predicate.evaluate(|subject, test| {
-                let Some(location) = locate(subject.parameter, &subject.path) else {
+                let Some(location) = locate(subject) else {
                     return (Observation::Unproved, None);
                 };
                 let (test, input) = pivot(test);
@@ -79,6 +91,7 @@ pub(super) fn apply(
                     requirements,
                 );
                 let stable = (!location.includes_shared()
+                    && location.stable()
                     && test.comparison.pivot.literal().is_some())
                 .then_some((location, test));
                 (observation, stable)

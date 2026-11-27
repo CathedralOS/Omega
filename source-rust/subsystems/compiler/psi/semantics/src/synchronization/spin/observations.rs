@@ -34,6 +34,21 @@ struct Analysis<'a> {
 }
 
 impl Analysis<'_> {
+    fn subject(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+        path: &[terminal_psi::StructuralPathSegment],
+    ) -> Option<Subject> {
+        self.resources
+            .subject(self.module, self.machine, place, path, |id| {
+                match self.words.get(&id)? {
+                    Word::Literal(v) => Some(Operand::Literal(*v)),
+                    Word::Argument(operand) => Some(*operand),
+                    _ => None,
+                }
+            })
+    }
+
     fn boolean(&mut self, word: &Word) -> Option<Guard> {
         match word {
             Word::Boolean(value) => Some(*value),
@@ -65,7 +80,7 @@ impl Analysis<'_> {
                     resident_obligation: None,
                 } => {
                     self.first_read.get_or_insert(operation.id);
-                    Word::Cell(self.resources.subject(*place, path)?, None)
+                    Word::Cell(self.subject(*place, path)?, None)
                 }
                 OperationKind::IntegerBitwiseAnd { left, right } => {
                     let left = self.words.get(left)?;
@@ -166,7 +181,7 @@ impl Analysis<'_> {
             if formal.access != StructuralAccess::SharedBorrow || arg.access != formal.access {
                 return None;
             }
-            let subject = self.resources.subject(arg.place, &arg.path)?;
+            let subject = self.subject(arg.place, &arg.path)?;
             bind(&mut self.resources.places, formal.place, subject)?;
         }
         if repeat && target == self.header {
