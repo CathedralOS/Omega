@@ -169,8 +169,13 @@ mathematical identity or resized to fit the carrier. A homogeneous fixed-pack
 application uses `C<I>` directly. Formation requires explicitly selected law
 evidence that every instance of the exact selected relation is a mere proposition,
 as well as equivalence. For a proof-relevant relation, explicitly select its
-boxed-squash relation and establish those laws; formation performs no implicit
-relation replacement. This interpretation grants neither runtime storage for
+boxed-squash relation and establish those laws. With the
+[foundation import](mathematical_bindings.md#importing-the-mathematical-foundation)
+aliased as `proof`, write the selected relation's body as
+`|proof|::Box<|proof|::Squash<R(a, b)>>`. Quotient formation checks the
+relation as written. The kernel's boxed-proposition theorem supplies the
+proof that any two witnesses of this relation are equal. The selected
+conformance must also establish reflexivity, symmetry and transitivity. This interpretation grants neither runtime storage for
 arbitrary index packs nor representative extraction.
 
 Relation laws use explicit named closed conformances, never suffix lookup,

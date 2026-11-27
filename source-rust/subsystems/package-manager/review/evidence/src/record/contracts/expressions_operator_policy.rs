@@ -101,6 +101,14 @@ impl PackageReviewNominalIdentity {
             && application_identity::type_identity::validate_trait_application(expected).is_ok()
     }
 
+    pub(crate) fn matches_callable_declaration(&self, callable: &str) -> bool {
+        let mut nominal = String::new();
+        self.write_qualified_path(&mut nominal).is_ok()
+            && application_identity::type_identity::callable_belongs_to_declaration(
+                callable, &nominal,
+            )
+    }
+
     pub(crate) fn matches_closed_calling_application(
         &self,
         application: &str,

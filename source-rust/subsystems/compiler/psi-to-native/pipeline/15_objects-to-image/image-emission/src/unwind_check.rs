@@ -63,7 +63,7 @@ fn planned_frames(
     frames: &mut Vec<PeFunctionFrame>,
 ) -> Result<(), String> {
     let readback = body.emission_input.readback();
-    let model = readback.physical.model();
+    let model = readback.physical().model();
     for layout in &readback.frame.functions {
         if layout.unwind.released_bytes == 0 && layout.unwind.restores.is_empty() {
             continue;

@@ -25,6 +25,7 @@ pub fn layout_target_scopes(
     chosen_defaults: &[ChosenDefaultLayout],
     claimed: &[&NativeBindingSelection],
     targets: &[SourceTarget],
+    checked_targets: &[&str],
 ) -> Result<Vec<FixedLayoutTargetScope>, Vec<Diagnostic>> {
     let mut profiles = Vec::new();
     for binding in root_bindings {
@@ -54,6 +55,10 @@ pub fn layout_target_scopes(
     }
     if profiles.is_empty() {
         profiles.extend(targets.iter().filter(|profile| profile.layout.is_some()));
+    }
+    for target in checked_targets {
+        let profile = target_named(targets, target).map_err(|error| vec![error])?;
+        include_profile(&mut profiles, profile);
     }
     for machine in typed.machines() {
         for target in [
@@ -107,6 +112,7 @@ pub fn layout_target_scopes(
         scopes.push(FixedLayoutTargetScope {
             target: profile.name.to_owned(),
             facts: profile.layout.clone(),
+            checks_subject: checked_targets.contains(&profile.name),
             entry_declarations: entries,
             provider_declarations: providers,
         });

@@ -2293,6 +2293,7 @@ pub mod expression {
                         self.insert(ExpressionNode::Cast(TableCastExpression {
                             value,
                             target_type: cast.target_type,
+                            recast_storage_type: cast.recast_storage_type,
                             result_type: cast.result_type,
                             target_label,
                             domain: cast.domain,
@@ -4903,6 +4904,8 @@ pub mod expression {
     pub struct TableCastExpression {
         pub value: ExpressionHandle,
         pub target_type: crate::source_state::types::TypeReferenceHandle,
+        /// Root storage whose geometry an explicit recast must establish.
+        pub recast_storage_type: crate::source_state::types::TypeReferenceHandle,
         pub result_type: crate::source_state::types::TypeReferenceHandle,
         pub target_label: HandleSpan<Identifier>,
         /// The written policy, or Exact when none was named. An Entry

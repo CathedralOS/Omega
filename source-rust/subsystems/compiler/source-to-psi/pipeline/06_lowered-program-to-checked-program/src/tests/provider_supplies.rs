@@ -186,20 +186,19 @@ pub(super) fn supplied_trees(
 
 const CONTRACT: &str = "requires value <= 10 ensures result <= 11 reaches none crashes none";
 
-#[test]
-fn multiple_provider_declarations_publish_in_portable_order() {
-    // All three maps in the kept program are checked declarations. Selecting
-    // one must not stop the other exact candidates from being published.
-    let typed = crate::prepare_fixture(typed(include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/providers/run/target_selected_implementation/main.omg"
-    ))));
+/// Check the selected entry and its provider refinements as a portable package.
+pub(super) fn checked_provider_closure(
+    source: &str,
+    entry: &str,
+    supply: Option<(&str, &str)>,
+) -> Box<crate::AcceptedClosure> {
+    let typed = crate::prepare_fixture(typed(source));
     let trees = typed.trees();
-    let supplies = [crate::lowering::Supply {
-        slot: declared(trees, "TargetConstants"),
-        provider: declared(trees, "WindowsConstants"),
-    }];
-    let entries = [super::build_purpose::symbol(trees, "main")];
+    let supplies = supply.map(|(slot, provider)| crate::lowering::Supply {
+        slot: declared(trees, slot),
+        provider: declared(trees, provider),
+    });
+    let entries = [super::build_purpose::symbol(trees, entry)];
     let subjects = [Some(super::build_purpose::package())];
     let prepared = crate::lowering::prepare_compilation(
         &typed,
@@ -212,7 +211,7 @@ fn multiple_provider_declarations_publish_in_portable_order() {
             purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],
-            supplies: &supplies,
+            supplies: supplies.as_slice(),
         },
         terminal_codec::TerminalPublication::Portable,
     )
@@ -229,7 +228,21 @@ fn multiple_provider_declarations_publish_in_portable_order() {
             accepted = Some(closure);
         }
     }
-    let accepted = accepted.expect("the runtime closure");
+    accepted.expect("the runtime closure")
+}
+
+#[test]
+fn multiple_provider_declarations_publish_in_portable_order() {
+    // All three maps in the kept program are checked declarations. Selecting
+    // one must not stop the other exact candidates from being published.
+    let accepted = checked_provider_closure(
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../../tests/fixtures/providers/run/target_selected_implementation/main.omg"
+        )),
+        "main",
+        Some(("TargetConstants", "WindowsConstants")),
+    );
     assert_eq!(accepted.elaboration.module.interfaces.provider_candidates.len(), 6);
     let publication = accepted.publish().expect("all provider rows publish");
     let artifact = publication.artifact;

@@ -54,10 +54,18 @@ is `TerminalInstance::discard`.
 | Step | How it holds | Evidence |
 | --- | --- | --- |
 | Prevent resumption and new guest-originated host calls | A discarded instance refuses every `invoke` with `TerminalInstanceError::Discarded` and refuses new bindings. Adapters are reached only to cancel and settle. | `a_late_completion_after_discard_settles_without_resuming_the_guest`, `a_discarded_paused_instance_never_resumes` |
-| Request cancellation | The waiting call's adapter gets `TerminalEffectHandler::request_effect_cancellation`. A request releases nothing unless the provider confirms it. A pending component invocation discards its provider instance the same way. | `a_confirmed_cancellation_settles_the_discard_at_once` |
+| Request cancellation | The waiting call's adapter gets `TerminalEffectHandler::request_effect_cancellation`. A request releases nothing unless the provider confirms it. A pending component invocation discards its provider instance the same way. | `a_confirmed_cancellation_settles_the_discard_at_once`, `discarding_a_consumer_mid_call_settles_its_component_providers_host_operation` |
 | Reclaim only disposable interpreter storage | The execution is dropped except for the waiting call, which keeps its argument buffers and any provider homes they name. | `an_uncooperative_provider_keeps_its_storage_retained_and_charged` (the rest of the guest's charge is released) |
 | Retain provider-held storage; consume late completions | Each later `discard` calls `settle_abandoned_effect`. Settlement never handles the effect or resumes the guest. Storage the provider reports retained is charged to the invocation account until it settles, and `close` is `Busy` until then. A provider refusal settles nothing. | `a_late_completion_after_discard_settles_without_resuming_the_guest`, `an_uncooperative_provider_keeps_its_storage_retained_and_charged`, `a_faulted_guest_keeps_its_provider_operation_until_it_settles` |
 | Unreaped native provider | Dropping a `NativeProviderProcess` that cannot be reaped moves its process, session and homes to its thread's quarantine instead of releasing them. `native_provider_quarantine` reports the retained bytes, and `settle_native_provider_quarantine` releases an incarnation only after reaping it. The runtime host settles it before starting a new provider. | `an_unreaped_provider_keeps_its_homes_retained_until_it_is_reaped` |
+
+The component control publishes a caller and a separate provider from Omega
+source. The provider parks on its own host import. A host wakeup lets the
+caller return normally. If the caller is discarded first, the host receives
+one cancellation request and its retained storage stays charged until it
+settles. The wait has an external wakeup and supplies no evidence of an
+internal synchronization cycle. See
+[`discarding_a_caller_settles_its_parked_component_without_resuming_either_guest`](../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/operational_effects/guest_discard/component.rs).
 
 The settlement defaults suit a polling adapter: with no contract of its own, an
 adapter has settled when it reports the readiness and completion that
@@ -80,21 +88,15 @@ The runtime host's bindings, reviewed one by one:
 | Numeric, absolute value, affine transform, integer division, integer parsing, network address, descriptor mode | Yes | Safe Rust over copied values and invocation-private state. Nothing outlives the call or reaches the host. |
 | Buffered output | With output limits | Output reaches only the invocation's capped buffers. |
 | Descriptor I/O | Without filesystem delegation, with output limits | Finite replay input and capped private output. Delegated descriptors reach the host kernel. |
-| Clock | Snapshot only | Snapshot time is private and modeled. Live time sleeps in real time with no granted ceiling. |
-| Allocation emulation | No | `calloc` has no allocation ceiling tied to the invocation account. |
+| Clock | Snapshot, or live time under a granted wait ceiling | Snapshot time is private and modeled. `TerminalClockEnvironment::HostWithin` refuses any wait past what remains of its ceiling before it sleeps; unbounded `Host` time does not serve. `a_live_wait_ceiling_refuses_waits_past_what_remains` |
+| Allocation emulation | Yes, charged to the invocation account | Each `calloc` reserves one cell and its bytes on the contained guest's account, and returns null when the account cannot cover it. `free` returns the bytes; the cell stays because addresses never recycle. `a_charged_ledger_bounds_live_allocation_by_its_account` |
 | Linux filesystem, filesystem delegation | No | Kernel calls on the host's namespace. |
 | Native provider | No | Runs foreign native code. |
 
 ## Remaining
 
 1. **A command-line route.** `omega run` names only the trusted route.
-   [Owner question 4](../../../OWNER_QUESTIONS.md#untrusted-psi-run-flag) asks
-   whether to add one.
-2. **Wider bindings.** Allocation emulation needs a ceiling charged to the
-   invocation account, and live time needs a granted wait ceiling, before they
-   can serve contained execution. Filesystem delegation and native providers
-   stay unavailable.
-3. **A waiting component.** Discarding a pending component invocation reuses the
-   instance discard, but no test parks a component provider on a host
-   operation yet. Contained instances take no components, so this concerns
-   trusted execution only.
+   The [untrusted artifact run flag](../../../OWNER_QUESTIONS.md#untrusted-psi-run-flag)
+   is awaiting an owner decision.
+2. **Wider bindings.** Filesystem delegation and native providers stay
+   unavailable to contained execution.

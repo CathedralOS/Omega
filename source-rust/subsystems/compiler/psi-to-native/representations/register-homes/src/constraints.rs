@@ -18,14 +18,13 @@ use register_model::{
     TargetRegisterEnvironmentIdentity,
 };
 use selected_instructions::{
-    LiveRangeEdgeConnector, LiveRangeIdentity, LiveRangePoint, LivenessPosition, SelectedBlockId,
-    SelectedInstructionId, VirtualFixedConstraintSite, VirtualRegisterId,
+    LiveRangeEdgeConnector, LiveRangePoint, LivenessPosition, SelectedBlockId,
+    SelectedInstructionId, SelectedInstructionPlan, VirtualFixedConstraintSite, VirtualRegisterId,
 };
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 
 use crate::digest_encoder::content_identity;
-use crate::encode_fixed_constraint_site_identity;
 
 crate::identity_newtype! { pub struct AllocatorAvailabilityIdentity(pub(crate) [u8; 32]); }
 
@@ -95,11 +94,9 @@ pub(crate) fn encode_terminal_allocator_availability_content(
     bytes
 }
 
-crate::identity_newtype! { pub struct AllocationLegalityIdentity(pub(crate) [u8; 32]); }
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AllocationLegalityPlan {
-    pub ranges: LiveRangeIdentity, // Live-range digest
+    pub selected: Arc<SelectedInstructionPlan>, // Program whose live ranges this legality covers
     pub register_environment: TargetRegisterEnvironmentIdentity, // Register environment digest
     pub allocator_availability: AllocatorAvailabilityIdentity, // Allocator availability digest
     pub functions: Vec<Arc<FunctionAllocationLegality>>, // Per-function legality rows
@@ -155,91 +152,6 @@ pub struct EntryFixedViewTransition {
     pub to_view: RegisterViewId,             // Conflicting fixed view
 }
 
-pub fn allocation_legality_identity_from_digests(
-    plan: &AllocationLegalityPlan,
-    digests: &[[u8; 32]],
-) -> AllocationLegalityIdentity {
-    assert_eq!(
-        digests.len(),
-        plan.functions.len(),
-        "one digest per allocation-legality function"
-    );
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v8\0");
-    bytes.extend_from_slice(&plan.ranges.bytes());
-    bytes.extend_from_slice(&plan.register_environment.bytes());
-    bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    crate::codec_bytes::length(&mut bytes, digests.len(), "allocation-legality identity");
-    for digest in digests {
-        bytes.extend_from_slice(digest);
-    }
-    AllocationLegalityIdentity::from_bytes(content_identity(&bytes))
-}
-
-pub fn allocation_legality_function_digest(function: &FunctionAllocationLegality) -> [u8; 32] {
-    let mut bytes = Vec::with_capacity(256 + function.virtual_registers.len() * 48);
-    bytes.extend_from_slice(b"omega.terminal-allocation-legality-function.v2\0");
-    crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
-    crate::codec_bytes::length(
-        &mut bytes,
-        function.virtual_registers.len(),
-        "allocation-legality identity",
-    );
-    for register in &function.virtual_registers {
-        crate::codec_bytes::push_encoded(&mut bytes, register.virtual_register.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, register.class.0.to_le_bytes());
-        crate::codec_bytes::length(
-            &mut bytes,
-            register.spans.len(),
-            "allocation-legality identity",
-        );
-        for point in &register.spans {
-            crate::codec_bytes::push_encoded(&mut bytes, point.block.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, point.start.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, point.end.0.to_le_bytes());
-            crate::codec_bytes::length(
-                &mut bytes,
-                point.candidates.len(),
-                "allocation-legality identity",
-            );
-            for candidate in &point.candidates {
-                crate::codec_bytes::push_encoded(&mut bytes, candidate.0.to_le_bytes());
-            }
-        }
-        crate::codec_bytes::length(
-            &mut bytes,
-            register.early_clobber_points.len(),
-            "allocation-legality identity",
-        );
-        for point in &register.early_clobber_points {
-            crate::codec_bytes::push_encoded(&mut bytes, point.block.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, point.position.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, point.instruction.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, point.operand.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, point.point.0.to_le_bytes());
-            crate::codec_bytes::length(
-                &mut bytes,
-                point.candidates.len(),
-                "allocation-legality identity",
-            );
-            for candidate in &point.candidates {
-                crate::codec_bytes::push_encoded(&mut bytes, candidate.0.to_le_bytes());
-            }
-        }
-        crate::codec_bytes::length(
-            &mut bytes,
-            register.entry_transitions.len(),
-            "allocation-legality identity",
-        );
-        for transition in &register.entry_transitions {
-            crate::codec_bytes::push_encoded(&mut bytes, transition.from_view.0.to_le_bytes());
-            encode_fixed_constraint_site_identity(&mut bytes, transition.to_site);
-            crate::codec_bytes::push_encoded(&mut bytes, transition.to_view.0.to_le_bytes());
-        }
-    }
-    content_identity(&bytes)
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FixedPrecoloredIntervalPolicy {
     FixedConstraintPointIntervalsV1, // Fixed constraints occupy [point, point + 1)
@@ -247,15 +159,14 @@ pub enum FixedPrecoloredIntervalPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedPrecoloredIntervalPlan {
-    pub ranges: LiveRangeIdentity,            // Live-range digest
-    pub legality: AllocationLegalityIdentity, // Allocation-legality digest
+    pub selected: Arc<SelectedInstructionPlan>, // Program the ranges and legality describe
     pub register_environment: TargetRegisterEnvironmentIdentity, // Register environment digest
     pub allocator_availability: AllocatorAvailabilityIdentity, // Allocator availability digest
     pub optimization_unit: OptimizationUnitIdentity, // Optimization unit digest
-    pub work_schedule: WorkScheduleIdentity,  // Work schedule identity
-    pub policy: FixedPrecoloredIntervalPolicy, // Interval derivation policy
-    pub budget: OptimizationWorkBudget,       // Optimization work budget
-    pub usage: OptimizationWorkUsage,         // Optimization work usage
+    pub work_schedule: WorkScheduleIdentity,    // Work schedule identity
+    pub policy: FixedPrecoloredIntervalPolicy,  // Interval derivation policy
+    pub budget: OptimizationWorkBudget,         // Optimization work budget
+    pub usage: OptimizationWorkUsage,           // Optimization work usage
     pub functions: Vec<FunctionFixedPrecoloredIntervals>, // Per-function intervals
 }
 
@@ -283,16 +194,15 @@ pub enum FixedPrecoloredSplitRequirementPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedPrecoloredSplitRequirementPlan {
-    pub ranges: LiveRangeIdentity,            // Live-range digest
-    pub legality: AllocationLegalityIdentity, // Allocation-legality digest
+    pub selected: Arc<SelectedInstructionPlan>, // Program the ranges and legality describe
     pub register_environment: TargetRegisterEnvironmentIdentity, // Register environment digest
     pub allocator_availability: AllocatorAvailabilityIdentity, // Allocator availability digest
     pub optimization_unit: OptimizationUnitIdentity, // Optimization unit digest
-    pub work_schedule: WorkScheduleIdentity,  // Work schedule identity
-    pub target: NativeTarget,                 // Target architecture and format
+    pub work_schedule: WorkScheduleIdentity,    // Work schedule identity
+    pub target: NativeTarget,                   // Target architecture and format
     pub policy: FixedPrecoloredSplitRequirementPolicy, // Split requirement policy
-    pub budget: OptimizationWorkBudget,       // Optimization work budget
-    pub usage: OptimizationWorkUsage,         // Optimization work usage
+    pub budget: OptimizationWorkBudget,         // Optimization work budget
+    pub usage: OptimizationWorkUsage,           // Optimization work usage
     pub functions: Vec<FunctionFixedPrecoloredSplitRequirements>, // Per-function split requirements
 }
 
@@ -351,10 +261,8 @@ pub mod allocator_availability {
 
 pub mod allocation_legality {
     pub use super::{
-        AllocationLegalityIdentity, AllocationLegalityPlan, EntryFixedViewTransition,
-        FunctionAllocationLegality, VirtualEarlyClobberPointLegality, VirtualLegalitySpan,
-        VirtualRegisterAllocationLegality, allocation_legality_function_digest,
-        allocation_legality_identity_from_digests,
+        AllocationLegalityPlan, EntryFixedViewTransition, FunctionAllocationLegality,
+        VirtualEarlyClobberPointLegality, VirtualLegalitySpan, VirtualRegisterAllocationLegality,
     };
 }
 

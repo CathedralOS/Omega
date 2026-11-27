@@ -33,14 +33,12 @@ pub use instructions::{
 pub use operands::{PhysicalOperandFootprint, QualifiedPhysicalRead};
 
 use optimization_core::PostAllocationOptimizationManifestIdentity;
-use register_homes::{AllocationLegalityIdentity, RegisterHomeIdentity};
+use register_homes::RegisterHomeIdentity;
 use register_model::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
     TargetRegisterEnvironmentIdentity,
 };
-use selected_instructions::{
-    LiveRangeIdentity, MachineEffectCatalogIdentity, SelectedInstructionPlan,
-};
+use selected_instructions::{MachineEffectCatalogIdentity, SelectedInstructionPlan};
 use std::sync::Arc;
 use target::NativeTarget;
 
@@ -49,8 +47,6 @@ pub struct PostAllocationMachinePlan {
     /// The final selected program this plan assigns machine choices to. Its
     /// functions are the same shared rows the physical program keeps.
     pub selected: Arc<SelectedInstructionPlan>,
-    pub ranges: LiveRangeIdentity,
-    pub legality: AllocationLegalityIdentity,
     pub homes: RegisterHomeIdentity,
     pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
     pub target: NativeTarget,

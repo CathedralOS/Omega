@@ -136,7 +136,9 @@ impl Lowering<'_> {
                     pending.push(conclusion);
                     pending.push(premise);
                 }
-                Proposition::IsMere(inner) => pending.push(inner),
+                Proposition::IsMere(inner) | Proposition::Universal { body: inner, .. } => {
+                    pending.push(inner)
+                }
                 Proposition::StructuralCaseMembership { subject, .. }
                     if subject.path().is_empty() && Some(subject.root()) != result =>
                 {

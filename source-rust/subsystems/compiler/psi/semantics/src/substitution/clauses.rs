@@ -545,6 +545,19 @@ pub fn substitute_clause_with_computation_names<Error: From<&'static str>>(
         Proposition::IsMere(inner) => Proposition::IsMere(Box::new(
             substitute_clause_with_computation_names(inner, bindings, computation_names)?,
         )),
+        Proposition::Universal {
+            carrier,
+            binder,
+            body,
+        } => Proposition::Universal {
+            carrier: *carrier,
+            binder: *binder,
+            body: Box::new(substitute_clause_with_computation_names(
+                body,
+                bindings,
+                computation_names,
+            )?),
+        },
         Proposition::FloatIntegerConversion(clause) => {
             clause
                 .validate()

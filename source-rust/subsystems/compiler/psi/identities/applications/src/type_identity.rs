@@ -1696,6 +1696,13 @@ fn trait_application(
     })
 }
 
+/// Check the complete callable framing and its nominal owner without requiring
+/// a concrete application or arguments for an open declaration.
+pub fn callable_belongs_to_declaration(callable: &str, nominal: &str) -> bool {
+    callable_coordinates(callable, &mut DeclarationIdentitySyntax { depth: 0 })
+        .is_ok_and(|(path, _)| path == nominal)
+}
+
 fn callable_coordinates<'a>(
     callable: &'a str,
     syntax: &mut dyn TypeIdentityPackageOwnerVisitor,

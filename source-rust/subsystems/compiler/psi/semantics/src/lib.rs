@@ -18,6 +18,7 @@ pub mod evaluation_crashes;
 pub mod evaluation_scope;
 pub mod external_completions;
 pub mod scalar_conditions;
+pub mod synchronization;
 pub mod synchronous_calls;
 pub use content_transformations::{domain_preservation, quotients};
 pub mod control_graph;
@@ -48,6 +49,7 @@ pub use scalar_target_ranges::{
     target_scalar_ranges_in,
 };
 pub(crate) mod scalars;
+pub use scalars::atomic_update::atomic_read_modify_write;
 pub mod static_reach;
 pub mod storage;
 pub mod structural;

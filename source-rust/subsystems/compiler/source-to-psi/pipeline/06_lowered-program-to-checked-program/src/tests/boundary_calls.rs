@@ -61,6 +61,13 @@ pub(super) fn entry(typed: &crate::source_state::TypedTrees) -> symbols::SymbolH
 }
 
 fn invocation(typed: crate::source_state::TypedTrees) -> Checked<crate::lowering::Elaboration> {
+    lower_boundary(typed, terminal_codec::TerminalPublication::Invocation)
+}
+
+fn lower_boundary(
+    typed: crate::source_state::TypedTrees,
+    publication: terminal_codec::TerminalPublication,
+) -> Checked<crate::lowering::Elaboration> {
     // These are the package's actual declarations in this invocation's
     // activation scope. No provider is installed or executed by the test.
     let entry = entry(&typed);
@@ -79,7 +86,7 @@ fn invocation(typed: crate::source_state::TypedTrees) -> Checked<crate::lowering
             bindings: &[],
             supplies: &[],
         },
-        terminal_codec::TerminalPublication::Invocation,
+        publication,
     )
 }
 
@@ -101,6 +108,112 @@ machine entry() -> u32 crashes none {{ Probe::read({actual}) }}
 fn boundary(reach: &str, actual: u32) -> Checked<crate::lowering::Elaboration> {
     let typed = typed(&boundary_source(reach, actual));
     invocation(typed)
+}
+
+#[test]
+fn a_boundary_call_checks_the_requested_machine_at_its_closed_contract() {
+    let source = r#"
+        boundary trait Runtime {
+            machine register<T, machine Worker>(value: T) -> T
+            requires machine Worker(value: T) -> T reaches none crashes none;
+            ensures true reaches none crashes none;
+        }
+        machine worker(value: u32) -> u32 reaches none crashes none { value }
+        machine entry() -> u32 reaches Runtime invokes Runtime crashes none {
+            Runtime::register::<u32, worker>(3u32)
+        }
+    "#;
+    let publish = |source: &str, selected: &str| {
+        let prepared = crate::preparation::prepare_typed_trees(typed(source), &[], &[])
+            .unwrap()
+            .into_inner();
+        let symbol = prepared
+            .machines()
+            .iter()
+            .find(|m| m.name.as_str() == selected)
+            .unwrap()
+            .symbol;
+        let expected = prepared
+            .normalized_hermetic_symbol_identity(symbol)
+            .unwrap();
+        let verdict = judge(lower_boundary(
+            prepared,
+            terminal_codec::TerminalPublication::Portable,
+        ))
+        .unwrap();
+        let RouteVerdict::Accepted(accepted) = verdict else {
+            panic!("{verdict:?}")
+        };
+        let publication = accepted.publish().unwrap();
+        let artifact =
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(&publication.artifact.to_bytes())
+                .unwrap();
+        let module = artifact.semantic_module();
+        let [boundary] = module.interfaces.boundary_machines.as_slice() else {
+            panic!("expected one applied requirement")
+        };
+        let declaration = boundary.declaration.as_ref().unwrap();
+        let [
+            terminal_psi::ClosedReachArgument::Type(_),
+            terminal_psi::ClosedReachArgument::Machine {
+                identity,
+                contract_commitment,
+            },
+        ] = declaration.method_arguments.as_slice()
+        else {
+            panic!(
+                "lost the selected machine: {:?}",
+                declaration.method_arguments
+            )
+        };
+        assert_eq!(module.identities.text(*identity), Some(expected.as_str()));
+        assert!(
+            module
+                .machines
+                .iter()
+                .filter_map(|machine| machine.declaration.as_ref())
+                .any(|body| body.semantic_declaration == *identity
+                    && body.contract == *contract_commitment)
+        );
+        declaration
+            .source
+            .specialization
+            .as_ref()
+            .unwrap()
+            .commitment
+    };
+    let alternate = source.replace(
+        "machine entry",
+        "machine alternate(value: u32) -> u32 reaches none crashes none { value } machine entry",
+    );
+    assert_ne!(
+        publish(&alternate, "worker"),
+        publish(
+            &alternate.replace("u32, worker>", "u32, alternate>"),
+            "alternate"
+        )
+    );
+
+    for (program, expected) in [
+        (
+            source.replace(
+                "machine worker(value: u32) -> u32",
+                "machine worker(value: bool) -> bool",
+            ),
+            "formal or result shape differs",
+        ),
+        (
+            source.replace(
+                "machine worker(value: u32) -> u32 reaches none",
+                "machine worker(value: u32) -> u32 requires value == 3 reaches none",
+            ),
+            "cannot prove the input precondition of `worker`",
+        ),
+    ] {
+        let prepared = crate::preparation::prepare_typed_trees(typed(&program), &[], &[]).unwrap();
+        let failure = judge(invocation(prepared.into_inner())).unwrap_err();
+        assert!(failure.detail.contains(expected), "{failure:?}");
+    }
 }
 
 #[test]

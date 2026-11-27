@@ -8,10 +8,9 @@
 */
 
 pub(crate) mod atomic_operations {
-    use semantic_vocabulary::{IntegerValue, PlaceId};
+    use semantic_vocabulary::PlaceId;
     use terminal_psi::{
-        AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationResult, StructuralAccess,
-        StructuralPathSegment,
+        AtomicAccessEvent, Operation, OperationResult, StructuralAccess, StructuralPathSegment,
     };
 
     use crate::boundary::errors::{TerminalInterpretError, malformed};
@@ -77,7 +76,11 @@ pub(crate) mod atomic_operations {
                     operand: value,
                     ..
                 } => Some(
-                    read_modify_write(arithmetic, prior.ok_or(malformed())?, operand(value)?)
+                    terminal_semantics::atomic_read_modify_write(
+                        arithmetic,
+                        prior.ok_or(malformed())?,
+                        operand(value)?,
+                    )
                         .ok_or(malformed())?,
                 ),
                 AtomicAccessEvent::CompareExchange {
@@ -165,37 +168,6 @@ pub(crate) mod atomic_operations {
             writes.commit(self)?;
             Ok(())
         }
-    }
-
-    fn read_modify_write(
-        operation: AtomicReadModifyWrite,
-        prior: TerminalScalarValue,
-        operand: TerminalScalarValue,
-    ) -> Option<TerminalScalarValue> {
-        let (
-            TerminalScalarValue::Integer {
-                scalar_type,
-                value: prior,
-            },
-            TerminalScalarValue::Integer {
-                scalar_type: operand_type,
-                value: operand,
-            },
-        ) = (prior, operand)
-        else {
-            return None;
-        };
-        if scalar_type != operand_type || scalar_type.is_address() {
-            return None;
-        }
-        let value: IntegerValue = match operation {
-            AtomicReadModifyWrite::FetchAdd => scalar_type.wrapping_add(prior, operand),
-            AtomicReadModifyWrite::FetchSub => scalar_type.wrapping_sub(prior, operand),
-            AtomicReadModifyWrite::FetchAnd => scalar_type.bitwise_and(prior, operand),
-            AtomicReadModifyWrite::FetchOr => scalar_type.bitwise_or(prior, operand),
-            AtomicReadModifyWrite::FetchXor => scalar_type.bitwise_xor(prior, operand),
-        }?;
-        Some(TerminalScalarValue::Integer { scalar_type, value })
     }
 }
 
@@ -1295,6 +1267,206 @@ pub(crate) mod capabilities {
             assert_eq!(live.upgrade().unwrap().0.retire().unwrap(), [7, 11, 23, 17]);
             drop(first_binding);
             assert!(live.upgrade().is_none());
+        }
+
+        // A consumer paused inside a component invocation, whose provider
+        // instance waits on a host operation, is discarded mid-call. The
+        // discard reaches the provider's adapter, keeps the call in custody
+        // until that adapter settles, and the consumer never resumes.
+        #[test]
+        fn discarding_a_consumer_mid_call_settles_its_component_providers_host_operation() {
+            use crate::{
+                TerminalAbandonedEffect, TerminalComponentBinding, TerminalDiscardStatus,
+                TerminalEffect, TerminalEffectRejection, TerminalExecutionStatus,
+                TerminalImportAdapter, TerminalImportSignature, TerminalInstanceError,
+                TerminalProgram,
+            };
+            use psi_provider_selections::{
+                ProviderInstallationSelection, admit_component_provider,
+            };
+            use std::cell::Cell;
+            use std::rc::Rc;
+
+            #[derive(Default)]
+            struct Log {
+                polls: Cell<u32>,
+                cancellations: Cell<u32>,
+                settlements: Cell<u32>,
+                finished: Cell<bool>,
+            }
+            // A host operation that never completes on its own: it settles
+            // only once the test lets it finish after cancellation.
+            struct Parked {
+                signature: TerminalImportSignature,
+                log: Rc<Log>,
+            }
+            impl crate::TerminalEffectHandler for Parked {
+                fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+                    panic!("a discarded guest's host operation is never handled")
+                }
+                fn poll_host_computation(
+                    &mut self,
+                    _: &TerminalEffect,
+                ) -> Result<bool, TerminalEffectRejection> {
+                    self.log.polls.set(self.log.polls.get() + 1);
+                    Ok(false)
+                }
+                fn request_effect_cancellation(
+                    &mut self,
+                    _: &TerminalEffect,
+                ) -> Result<TerminalAbandonedEffect, TerminalEffectRejection> {
+                    self.log.cancellations.set(self.log.cancellations.get() + 1);
+                    Ok(TerminalAbandonedEffect::Outstanding { retained_bytes: 0 })
+                }
+                fn settle_abandoned_effect(
+                    &mut self,
+                    _: &TerminalEffect,
+                ) -> Result<TerminalAbandonedEffect, TerminalEffectRejection> {
+                    self.log.settlements.set(self.log.settlements.get() + 1);
+                    Ok(if self.log.finished.get() {
+                        TerminalAbandonedEffect::Settled
+                    } else {
+                        TerminalAbandonedEffect::Outstanding { retained_bytes: 0 }
+                    })
+                }
+            }
+            impl TerminalImportAdapter for Parked {
+                fn implemented_signature(&self) -> TerminalImportSignature {
+                    self.signature.clone()
+                }
+            }
+
+            let entry = MachineId::new(1).unwrap();
+            let candidate = MachineId::new(2).unwrap();
+            let slot = BoundaryMachineId::new(1).unwrap();
+            let host = BoundaryMachineId::new(3).unwrap();
+            let call = |boundary| OperationKind::BoundaryCall {
+                boundary,
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                completion_receipts: Vec::new(),
+                requirement_obligations: Vec::new(),
+            };
+            let mut fixture = crate::engine::calls::frames::tests::empty_program();
+            let fixture = std::sync::Arc::get_mut(&mut fixture).unwrap();
+            set_machine(fixture, entry, machine(0, vec![call(slot)]));
+            set_machine(fixture, candidate, machine(0, vec![call(host)]));
+            add_provider(fixture, slot);
+            let module = fixture.fixture_module_mut();
+            let mut declaration = boundary_declaration(module, slot);
+            let name = declaration.identity;
+            let nominal = declaration.owner.clone();
+            declaration.declaration = Some(terminal_psi::CheckedBoundaryCallable {
+                service_declaration: [1; 32],
+                execution: terminal_psi::CheckedBoundaryExecution::Provider,
+                method_arguments: Vec::new(),
+                source: terminal_psi::CheckedMachineDeclaration {
+                    machine: nominal.clone(),
+                    state: nominal,
+                    semantic_declaration: name,
+                    callable: name,
+                    result_type: name,
+                    parameter_types: Vec::new(),
+                    contract: [1; 32],
+                    published_may_suspend: false,
+                    published_may_block: false,
+                    specialization: None,
+                },
+            });
+            module.interfaces.boundary_machines.push(declaration);
+            let host_declaration = terminal_psi::BoundaryMachineDeclaration {
+                id: host,
+                identity: intern_identity(module, "parked host operation"),
+                owner: NominalDeclarationIdentity::new(intern_identity(module, "parked host")),
+                ..crate::boundary::effects::boundary_predicates::tests::idle_boundary()
+            };
+            let signature = TerminalImportSignature::from(&host_declaration);
+            module.interfaces.boundary_machines.push(host_declaration);
+            let code = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+            let identity = code.identity();
+            let record = terminal_codec::PsiOptimizationExecutionRecord::new(
+                Default::default(),
+                identity,
+                identity,
+            )
+            .unwrap();
+            let artifact =
+                terminal_codec::CanonicalTerminalArtifact::from_closed_parts(code, record, None)
+                    .unwrap();
+            let selected = admit_component_provider(
+                artifact.view(),
+                slot,
+                artifact.view(),
+                &ProviderInstallationSelection {
+                    boundary: slot,
+                    candidate,
+                    provider_identity: "graph provider".into(),
+                    provider_declaration: "graph provider".into(),
+                },
+            )
+            .unwrap();
+            let program = TerminalProgram::retain(artifact.retain_code()).unwrap();
+
+            let log = Rc::new(Log::default());
+            let mut provider_supplies = TerminalRuntimeSupplies::from(selected.selection());
+            provider_supplies.entry = Some(terminal_psi::TargetMachineCallable::Machine(candidate));
+            let mut binding =
+                TerminalComponentBinding::new(selected.clone(), program.clone(), provider_supplies, None)
+                    .unwrap();
+            binding
+                .bind_import(
+                    host,
+                    Parked {
+                        signature,
+                        log: Rc::clone(&log),
+                    },
+                )
+                .unwrap();
+            // The candidate lives in the same artifact, so the receiver's own
+            // selection names it as a checked provider; this consumer takes it
+            // as a separately instantiated component instead.
+            let mut consumer_supplies = TerminalRuntimeSupplies::from(selected.selection());
+            consumer_supplies.supplies.remove(&slot);
+            let mut consumer_supplies = consumer_supplies
+                .with_component_provider(&selected)
+                .unwrap();
+            consumer_supplies.entry = Some(terminal_psi::TargetMachineCallable::Machine(entry));
+            let mut consumer = program
+                .instantiate(crate::TerminalInstantiation {
+                    installation: Some(&consumer_supplies),
+                    ..Default::default()
+                })
+                .unwrap();
+            consumer.bind_component(binding).unwrap();
+
+            let mut meter = terminal_work::WorkMeter::with_budget(1_000);
+            assert!(matches!(
+                consumer.invoke(&mut meter),
+                Ok(TerminalExecutionStatus::HostComputationPending(_))
+            ));
+            assert_eq!(consumer.active_component_invocation_count(), 1);
+            assert_eq!(log.polls.get(), 1);
+
+            let TerminalDiscardStatus::Outstanding(custody) = consumer.discard() else {
+                panic!("the provider still holds its host operation")
+            };
+            assert_eq!(custody.provider_operations, 1);
+            assert_eq!(log.cancellations.get(), 1);
+            assert!(matches!(
+                consumer.invoke(&mut meter),
+                Err(TerminalInstanceError::Discarded)
+            ));
+            assert_eq!(log.polls.get(), 1, "a discarded consumer never polls again");
+            assert!(consumer.close().is_err());
+
+            // A late completion settles through the adapter, not through
+            // resumption, and only then does the consumer close.
+            assert!(matches!(consumer.discard(), TerminalDiscardStatus::Outstanding(_)));
+            log.finished.set(true);
+            assert_eq!(consumer.discard(), TerminalDiscardStatus::Settled);
+            assert_eq!(log.cancellations.get(), 1);
+            assert!(log.settlements.get() >= 2);
+            assert_eq!(consumer.close(), Ok(()));
         }
 
         #[test]

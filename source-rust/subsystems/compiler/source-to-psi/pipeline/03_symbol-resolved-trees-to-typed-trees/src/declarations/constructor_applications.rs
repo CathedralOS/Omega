@@ -59,6 +59,25 @@ pub(crate) fn prepare_in_cohort(
             // Keep the occurrence and its lexical lifetime owner just as for
             // an explicit borrow; lowering must not invent its result type.
             let referent = cast.target_type;
+            // A projected view still borrows storage from the enclosing place.
+            // Keep its type so the layout policy can run before the checker
+            // asks for the field offset, alignment and extent.
+            let mut root = cast.value;
+            while program.expression_table.expression_is_valid(root) {
+                root = match program.expression_table.expression(root) {
+                    ExpressionNode::Borrow(borrow) => borrow.target,
+                    ExpressionNode::Member(member) => member.receiver,
+                    ExpressionNode::Indexed(index) => index.collection,
+                    _ => break,
+                };
+            }
+            if let Some(storage) =
+                crate::types::typing_queries::declared_expression_type(program, caller, root)
+                && let ExpressionNode::Cast(row) =
+                    program.expression_table.expression_mut(expression)
+            {
+                row.recast_storage_type = storage;
+            }
             let reference = reference_formation_type(program, referent, access);
             program
                 .type_reference_table

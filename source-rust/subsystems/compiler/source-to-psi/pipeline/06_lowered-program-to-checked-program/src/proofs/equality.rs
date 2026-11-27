@@ -1842,6 +1842,20 @@ fn prove_as(
     if arena.structurally_equal(left, right) {
         return Ok(reflexivity);
     }
+    // A citation for every value (a dependent product of an equality) is
+    // the equality at each value of its domain the goal names.
+    let (stated_left, stated_right) = match arena.get(goal) {
+        Term::Id { left, right, .. } => (left, right),
+        _ => unreachable!("the goal is an Identity"),
+    };
+    let instantiated = instances(
+        arena,
+        context,
+        &[stated_left, stated_right, left, right],
+        citations,
+        conversion,
+    )?;
+    let citations = instantiated.as_deref().unwrap_or(citations);
     let goal = Goal {
         stated: goal,
         ty,
@@ -1919,6 +1933,86 @@ fn prove_as(
         Some(limit) => SearchError::Budget(limit),
         None => SearchError::NoProof,
     })
+}
+
+/// The most values a citation for every value is applied at.
+const INSTANCES: usize = 64;
+
+/// The citations with each citation for every value, `p: (n: D) -> B`,
+/// applied at every value of `D` that `terms` name outside a binder, and the
+/// applications that are themselves for every value applied in turn. `None`
+/// when no citation is for every value. A value is taken as it is written:
+/// the instances an index a premise names needs, `n` or `5n`, are the ones
+/// the goal names.
+fn instances(
+    arena: &mut TermArena,
+    context: &Context,
+    terms: &[TermHandle],
+    citations: &[TermHandle],
+    conversion: &mut Budget,
+) -> Result<Option<Vec<TermHandle>>, SearchError> {
+    let mut domains = Vec::new();
+    for &proof in citations {
+        let ty = infer_type(arena, context, proof, conversion)?;
+        let ty = weak_head_normalize(arena, context.signature(), ty, conversion)?;
+        if let Term::Pi { domain, .. } = arena.get(ty) {
+            domains.push((proof, domain));
+        }
+    }
+    if domains.is_empty() {
+        return Ok(None);
+    }
+    // Every closed subterm of the terms, each with its type, once.
+    let mut values: Vec<(TermHandle, TermHandle)> = Vec::new();
+    let mut pending: Vec<TermHandle> = terms.to_vec();
+    while let Some(term) = pending.pop() {
+        if values.len() >= INSTANCES {
+            break;
+        }
+        pending.extend(
+            arena
+                .get(term)
+                .bound_children()
+                .filter(|&(_, bound)| bound == 0)
+                .map(|(child, _)| child),
+        );
+        if values
+            .iter()
+            .any(|&(known, _)| arena.structurally_equal(known, term))
+        {
+            continue;
+        }
+        let Ok(ty) = infer_type(arena, context, term, conversion) else {
+            continue;
+        };
+        let ty = weak_head_normalize(arena, context.signature(), ty, conversion)?;
+        values.push((term, ty));
+    }
+    let mut out = citations.to_vec();
+    let mut applied = 0;
+    while let Some((proof, domain)) = domains.pop() {
+        for &(value, ty) in &values {
+            if applied >= INSTANCES {
+                break;
+            }
+            if !arena.structurally_equal(ty, domain) {
+                continue;
+            }
+            applied += 1;
+            let instance = arena.insert(Term::Apply {
+                function: proof,
+                argument: value,
+            });
+            let ty = infer_type(arena, context, instance, conversion)?;
+            let ty = weak_head_normalize(arena, context.signature(), ty, conversion)?;
+            if let Term::Pi { domain, .. } = arena.get(ty) {
+                domains.push((instance, domain));
+            } else {
+                out.push(instance);
+            }
+        }
+    }
+    Ok(Some(out))
 }
 
 /// Whether `left` is the larger term: more nodes, or as many and later in

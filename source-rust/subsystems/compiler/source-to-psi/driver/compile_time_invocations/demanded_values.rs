@@ -185,8 +185,6 @@ pub(crate) fn evaluate_demanded_values(
     // layout demand only refreshes refusal rows), so one inventory of them
     // serves every kind and the demand order.
     let dependencies = ComputationDependencyRows::of(program);
-    let mut layouts =
-        super::fixed_layouts::Layouts::demanded(program, demand.layout_scopes, &dependencies)?;
     let demanded = super::demanded_declarations(
         program,
         demand.compilation,
@@ -194,6 +192,12 @@ pub(crate) fn evaluate_demanded_values(
         &dependencies,
     )
     .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let mut layouts = super::fixed_layouts::Layouts::demanded(
+        program,
+        demand.layout_scopes,
+        &demanded,
+        &dependencies,
+    )?;
     let mut plans = super::domain_access_plans::AccessPlans::demanded(program, &demanded);
     let mut arguments = super::constants::Arguments::demanded(program, &demanded);
     let mut initializers = super::constants::Initializers::demanded(

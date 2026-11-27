@@ -1,6 +1,8 @@
 //! Review the native bindings the package's Build evaluated for this target.
 //! Target settlement alone omits bindings no runtime entry reaches.
 
+mod unused;
+
 use super::{
     calling,
     declarations::unavailable,
@@ -11,7 +13,7 @@ use build_providers::plans::{EvaluatedNativeBinding, ServiceSchema};
 use diagnostics::Diagnostic;
 use package_compilation::{NativeBindingProducer, PackageDependencyClosure};
 use review_evidence::record::{
-    PackagePolicyCallable, PackagePolicyEvaluatedBindingProducer, PackagePolicyNativeBinding,
+    PackagePolicyEvaluatedBindingProducer, PackagePolicyNativeBinding,
     PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall,
     PackagePolicyServiceMethod, PackageReviewForeignLocator, PackageReviewNominalIdentity,
     PackageReviewNominalOwner,
@@ -25,7 +27,8 @@ pub(super) struct PreparedNativeBindings {
     package: PackageKeyIdentity,
     target: TargetProfile,
     rows: Vec<NativeDeclaration>,
-    declared: Vec<(PackagePolicyServiceMethod, PackagePolicyCallable)>,
+    unused: Vec<PackagePolicyNativeBinding>,
+    declared: Vec<PackagePolicyServiceMethod>,
 }
 
 struct NativeDeclaration {
@@ -56,6 +59,7 @@ pub(super) fn prepare(
             package,
             target,
             rows,
+            unused: Vec::new(),
             declared: Vec::new(),
         });
     }
@@ -231,7 +235,7 @@ pub(super) fn prepare(
             return Err(unavailable("one native binding method in the exact schema"));
         };
         let method = &schema.declaration.methods[*index];
-        let (method, callable) = input.checked_method(
+        let (method, _) = input.checked_method(
             signature,
             boundary,
             method,
@@ -240,7 +244,7 @@ pub(super) fn prepare(
             input.nominal(service.symbol)?,
             declarations,
         )?;
-        declared.push((rows.len(), method, callable));
+        declared.push((rows.len(), method));
         rows.push(NativeDeclaration {
             policy_index: 0,
             boundary: boundary.id,
@@ -251,6 +255,44 @@ pub(super) fn prepare(
             application,
             producer,
         });
+    }
+    let mut unused = Vec::with_capacity(reviewed.unused_generic_imports.len());
+    for (materialization, import) in &reviewed.unused_generic_imports {
+        let matches = origins
+            .get_mut(&(
+                materialization.supplier_package,
+                materialization.source_occurrence_digest,
+            ))
+            .ok_or_else(|| unavailable("the unused import's authored Build occurrence"))?;
+        let mut matching = matches
+            .iter_mut()
+            .filter(|(supply, _)| supply.materialization() == *materialization);
+        let Some((supply, represented)) = matching.next() else {
+            return Err(unavailable("the unused import's exact Build decision"));
+        };
+        if *represented || matching.next().is_some() || import.locator().target() != target {
+            return Err(unavailable("one unused generic import for its target"));
+        }
+        *represented = true;
+        let slot = supply.selection.subject;
+        let schema_index = schemas
+            .binary_search_by_key(&symbol_key(slot), |(slot, _, _)| symbol_key(*slot))
+            .map_err(|_| unavailable("the unused import's service declaration"))?;
+        let (_, schema, _) = &schemas[schema_index];
+        if schema.declaration.declaration_commitment() != materialization.service_declaration {
+            return Err(unavailable("the unused import's exact service contract"));
+        }
+        if materialization.supplier_package == package {
+            let producer = binding_producer(product, package, &supply.selection.producer)?;
+            unused.push(unused::project(
+                input,
+                schema,
+                supply.selection.requirement,
+                materialization.source_occurrence_digest,
+                import,
+                producer,
+            )?);
+        }
     }
     if let Some((missing, _)) = origins
         .values()
@@ -269,7 +311,7 @@ pub(super) fn prepare(
     }
     // Source coverage searches declarations by requirement identity. The
     // retained rows follow the order of the target's checked bindings.
-    declared.sort_by(|(left, left_method, _), (right, right_method, _)| {
+    declared.sort_by(|(left, left_method), (right, right_method)| {
         let left = &rows[*left];
         let right = &rows[*right];
         (
@@ -286,9 +328,9 @@ pub(super) fn prepare(
     let declared = declared
         .into_iter()
         .enumerate()
-        .map(|(policy_index, (source_index, method, callable))| {
+        .map(|(policy_index, (source_index, method))| {
             rows[source_index].policy_index = policy_index;
-            (method, callable)
+            method
         })
         .collect();
     Ok(PreparedNativeBindings {
@@ -296,6 +338,7 @@ pub(super) fn prepare(
         target,
         rows,
         declared,
+        unused,
     })
 }
 
@@ -320,15 +363,15 @@ fn binding_producer(
 }
 
 impl PreparedNativeBindings {
-    pub(super) fn declared(&self) -> &[(PackagePolicyServiceMethod, PackagePolicyCallable)] {
+    pub(super) fn declared(&self) -> &[PackagePolicyServiceMethod] {
         &self.declared
     }
 
     pub(super) fn finish(
-        &self,
+        self,
         checked: &compiler::SelectedProviderResult,
         target: TargetProfile,
-    ) -> Result<Vec<(PackagePolicyNativeBinding, PackagePolicyCallable)>, Vec<Diagnostic>> {
+    ) -> Result<Vec<PackagePolicyNativeBinding>, Vec<Diagnostic>> {
         if target != self.target || checked.target_profile() != Some(target) {
             return Err(unavailable("the complete selected native supply custody"));
         }
@@ -336,14 +379,19 @@ impl PreparedNativeBindings {
         let selected = realization.evaluated_native_bindings();
         let reviewed = match checked.package_review() {
             Some(review) => review.bindings.as_ref().map_err(Clone::clone)?,
-            None if self.rows.is_empty() && selected.is_empty() => return Ok(Vec::new()),
+            None if self.rows.is_empty() && self.unused.is_empty() && selected.is_empty() => {
+                return Ok(Vec::new());
+            }
             None => return Err(unavailable("the package's target review plan")),
         };
         if reviewed.rows.len() != self.rows.len() {
             return Err(unavailable("the complete selected native supply custody"));
         }
+
         if self.rows.is_empty() && selected.is_empty() {
-            return Ok(Vec::new());
+            let mut policies = self.unused;
+            policies.sort_by(|left, right| left.key().cmp(&right.key()));
+            return Ok(policies);
         }
         let mut receipts = Vec::with_capacity(reviewed.rows.len());
         for (source, row) in self.rows.iter().zip(&reviewed.rows) {
@@ -390,7 +438,8 @@ impl PreparedNativeBindings {
                 "one validated calling application per native binding",
             ));
         }
-        let mut policies = Vec::with_capacity(self.rows.len());
+        let mut policies = self.unused;
+        policies.reserve(self.rows.len());
         for ((source, row), application) in self.rows.iter().zip(&reviewed.rows).zip(applications) {
             let requirement = row
                 .binding
@@ -402,8 +451,7 @@ impl PreparedNativeBindings {
                     "the native binding's exact calling requirement",
                 ));
             }
-            let (method, callable) = &self.declared[source.policy_index];
-            let mut method = method.clone();
+            let mut method = self.declared[source.policy_index].clone();
             method
                 .calling
                 .push(calling::project(application, &method, target)?);
@@ -412,16 +460,15 @@ impl PreparedNativeBindings {
             if source.producer.package != Some(self.package) {
                 continue;
             }
-            policies.push((
-                PackagePolicyNativeBinding {
-                    application: source.application.clone(),
-                    method,
-                    binding: binding_policy(&row.binding, source.producer.clone()),
-                },
-                callable.clone(),
-            ));
+            policies.push(PackagePolicyNativeBinding {
+                application: review_evidence::record::PackagePolicyNativeApplication::Concrete(
+                    source.application.clone(),
+                ),
+                method,
+                binding: binding_policy(&row.binding, source.producer.clone()),
+            });
         }
-        policies.sort_by(|(left, _), (right, _)| left.key().cmp(&right.key()));
+        policies.sort_by(|left, right| left.key().cmp(&right.key()));
         Ok(policies)
     }
 }
@@ -436,9 +483,23 @@ fn binding_policy(
             selector: Box::new(field.selector().clone()),
             producer,
         },
-        EvaluatedNativeBinding::Import(import) => {
-            let locator = import.locator();
-            PackagePolicyProviderBinding::Import {
+        EvaluatedNativeBinding::Import(import) => import_policy(import, producer),
+        EvaluatedNativeBinding::Syscall(syscall) => PackagePolicyProviderBinding::Syscall {
+            number: syscall.number(),
+            evaluated: Some(PackagePolicyProviderEvaluatedSyscall {
+                target: syscall.target().identity().as_str().to_owned(),
+                producer,
+            }),
+        },
+    }
+}
+
+fn import_policy(
+    import: &build_providers::plans::EvaluatedForeignImport,
+    producer: PackagePolicyEvaluatedBindingProducer,
+) -> PackagePolicyProviderBinding {
+    let locator = import.locator();
+    PackagePolicyProviderBinding::Import {
                 target: locator.target().identity().as_str().to_owned(),
                 locator: match locator.locator() {
                     ForeignLocatorCandidate::PeByName { library, export } => {
@@ -470,16 +531,7 @@ fn binding_policy(
                         symbol: symbol.clone(),
                     },
                 },
-                producer,
-            }
-        }
-        EvaluatedNativeBinding::Syscall(syscall) => PackagePolicyProviderBinding::Syscall {
-            number: syscall.number(),
-            evaluated: Some(PackagePolicyProviderEvaluatedSyscall {
-                target: syscall.target().identity().as_str().to_owned(),
-                producer,
-            }),
-        },
+        producer,
     }
 }
 

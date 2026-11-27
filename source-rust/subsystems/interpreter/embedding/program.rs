@@ -818,6 +818,8 @@ pub(crate) mod instance {
         }
     }
     pub(crate) use component_return::ComponentOwnedReturn;
+    mod errors;
+    pub use errors::{TerminalBindingRejection, TerminalInstanceCloseError, TerminalInstanceError};
     pub(crate) mod discard;
     pub use discard::{TerminalDiscardStatus, TerminalOutstandingCustody};
     pub(crate) mod storage_observation;
@@ -983,73 +985,6 @@ pub(crate) mod instance {
 
     struct TerminalImportBinding<'host> {
         adapter: Box<dyn TerminalImportAdapter + 'host>,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum TerminalBindingRejection {
-        ExternalCompletionRequiresDomainAdmission { boundary: BoundaryMachineId },
-        ExternalCompletionDomainMismatch { boundary: BoundaryMachineId },
-        DomainDeathCrossingAdmissionMissing { boundary: BoundaryMachineId },
-        UnknownImport { boundary: BoundaryMachineId },
-        NotRequiredImport { boundary: BoundaryMachineId },
-        ProviderRealized { boundary: BoundaryMachineId },
-        DuplicateBinding { boundary: BoundaryMachineId },
-        SignatureMismatch { boundary: BoundaryMachineId },
-        /// The adapter does not serve a guest admitted without producer trust.
-        UncontainedAdapter { boundary: BoundaryMachineId },
-        InstanceClosed,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum TerminalInstanceError {
-        Closed,
-        /// The guest was discarded and can never resume.
-        Discarded,
-        UnboundImports {
-            missing: Vec<BoundaryMachineId>,
-        },
-        UnboundExternalCompletions {
-            missing: Vec<crate::engine::capabilities::TerminalExternalCompletionDemand>,
-        },
-        Execution(TerminalInterpretError),
-    }
-
-    impl TerminalInstanceError {
-        /// Follow the interpreter's operation context to the resource the host refused.
-        pub fn sponsor_exhaustion(&self) -> Option<&str> {
-            let Self::Execution(error) = self else {
-                return None;
-            };
-            let mut current = error;
-            loop {
-                match current {
-                    TerminalInterpretError::ExecutionSite { cause, .. }
-                    | TerminalInterpretError::StructuralReplacement { cause, .. } => {
-                        current = cause;
-                    }
-                    TerminalInterpretError::EffectRejected { rejection, .. } => {
-                        return rejection.exhaustion_reason();
-                    }
-                    _ => return None,
-                }
-            }
-        }
-    }
-
-    impl std::fmt::Display for TerminalInstanceError {
-        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                Self::Execution(reason) => reason.fmt(formatter),
-                other => write!(formatter, "{other:?}"),
-            }
-        }
-    }
-
-    impl std::error::Error for TerminalInstanceError {}
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum TerminalInstanceCloseError {
-        Busy,
     }
 
     pub struct TerminalInstance<'host, 'artifact> {
@@ -1412,6 +1347,22 @@ pub(crate) mod instance {
                 .execution
                 .as_mut()
                 .ok_or(TerminalInstanceError::Closed)?;
+            if !self.invoked
+                && !self.components.is_empty()
+                && let Some(stuck) = psi_provider_selections::component_wait_deadlock(
+                    self.program
+                        .program
+                        .catalogs
+                        .execution_view()
+                        .map_err(TerminalInstanceError::Execution)?,
+                    self.entry,
+                    self.components
+                        .values()
+                        .map(TerminalComponentBinding::selected),
+                )
+            {
+                return Err(TerminalInstanceError::ComponentSynchronization(stuck));
+            }
             self.invoked = true;
             let status = execution
                 .resume_with_components(
@@ -1965,9 +1916,15 @@ pub(crate) mod program {
         pub(crate) fn closed_module(
             &self,
         ) -> Result<&terminal_codec::ClosedTerminalModule, TerminalInterpretError> {
+            Ok(self.execution_view()?.closed_module())
+        }
+
+        pub(crate) fn execution_view(
+            &self,
+        ) -> Result<terminal_codec::TerminalExecutionView<'_>, TerminalInterpretError> {
             match self {
-                Self::Borrowed(code) => Ok(code.closed_module()),
-                Self::Retained(code) => Ok(code.view().closed_module()),
+                Self::Borrowed(code) => Ok(*code),
+                Self::Retained(code) => Ok(code.view()),
                 #[cfg(test)]
                 Self::Fixture(_) => Err(TerminalInterpretError::UnsupportedSemanticVariant(
                     "mutable engine fixture has no closed publication owner",

@@ -72,7 +72,7 @@ pub(crate) mod callable_entry_transport {
                 entry,
             )
             .map_err(|reason| Error::PhysicalEntry(diagnostics::Diagnostic::error(reason)))?;
-            let model = source.physical.model();
+            let model = source.physical().model();
             let origins = &body.emission_input.emission_facts().physical.cpu;
             let encoded_rows = index_encoded_rows(
                 origins.instruction_roster.iter().copied(),
@@ -578,7 +578,7 @@ pub(crate) mod callable_entry_transport {
 
             #[test]
             fn checked_call_transport_does_not_invent_vector_writes() {
-                let model = &target_x86_64::x86_64_physical_register_model();
+                let model = target_x86_64::x86_64_physical_register_model_ref();
                 let mut footprint = Footprint::default();
                 footprint
                     .view(model, model.view_named("eax").unwrap().id)
@@ -603,7 +603,7 @@ pub(crate) mod callable_entry_transport {
 
             #[test]
             fn vector_flags_and_unknown_units_remain_visible() {
-                let model = &target_x86_64::x86_64_physical_register_model();
+                let model = target_x86_64::x86_64_physical_register_model_ref();
                 let mut footprint = Footprint::default();
                 footprint
                     .view(model, model.view_named("xmm3").unwrap().id)
@@ -628,7 +628,7 @@ pub(crate) mod callable_entry_transport {
 
             #[test]
             fn read_only_vector_use_is_not_reported_as_a_register_write() {
-                let model = &target_x86_64::x86_64_physical_register_model();
+                let model = target_x86_64::x86_64_physical_register_model_ref();
                 let mut footprint = Footprint::default();
                 footprint
                     .read_view(model, model.view_named("xmm5").unwrap().id)
@@ -651,7 +651,7 @@ pub(crate) mod callable_entry_transport {
                     SelectedFormEncodingState, SelectedFormMachineDisposition,
                 };
                 use selected_instructions::MachineAlternativeKey;
-                let model = &target_x86_64::x86_64_physical_register_model();
+                let model = target_x86_64::x86_64_physical_register_model_ref();
                 let mut store = SelectedFormEncodedRowStore::new();
                 let mut make_row = |instruction, view: Option<&str>| {
                     let writes = view

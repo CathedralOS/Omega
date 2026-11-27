@@ -4,12 +4,12 @@
 use std::sync::Arc;
 
 use optimization_core::PostAllocationOptimizationManifestIdentity;
-use register_homes::{AllocationLegalityIdentity, RegisterHomeIdentity};
+use register_homes::RegisterHomeIdentity;
 use register_model::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
     TargetRegisterEnvironmentIdentity,
 };
-use selected_instructions::{LiveRangeIdentity, MachineEffectCatalogIdentity};
+use selected_instructions::MachineEffectCatalogIdentity;
 use target::NativeTarget;
 
 use crate::{MachineAlternativeChoiceRule, PostAllocationMachinePlan};
@@ -17,8 +17,6 @@ use crate::{MachineAlternativeChoiceRule, PostAllocationMachinePlan};
 pub fn placeholder_plan() -> Arc<PostAllocationMachinePlan> {
     Arc::new(PostAllocationMachinePlan {
         selected: selected_instructions::test_support::placeholder_plan(1),
-        ranges: LiveRangeIdentity::from_bytes([3; 32]),
-        legality: AllocationLegalityIdentity::from_bytes([4; 32]),
         homes: RegisterHomeIdentity::from_bytes([5; 32]),
         post_allocation_manifest: PostAllocationOptimizationManifestIdentity::from_bytes([6; 32]),
         target: NativeTarget::linux_x64(),

@@ -40,11 +40,10 @@ fn template_bytes(template: X86AdapterTemplate) -> &'static [u8] {
     }
 }
 pub fn encode_instructions(instructions: &AdapterInstructions) -> Result<(Vec<u8>, usize), Error> {
-    let model = register_model::validate_physical_register_model(match instructions.architecture {
-        Architecture::X86_64 => isa_x86_64::x86_64_physical_register_model(),
-        Architecture::Aarch64 => isa_aarch64::aarch64_physical_register_model(),
-    })
-    .map_err(|_| AdapterEncodingError)?;
+    let model = match instructions.architecture {
+        Architecture::X86_64 => isa_x86_64::validated_x86_64_physical_register_model(),
+        Architecture::Aarch64 => isa_aarch64::validated_aarch64_physical_register_model(),
+    };
     let mut bytes = Vec::new();
     let mut call_field = None;
     for operation in &instructions.operations {
@@ -55,7 +54,7 @@ pub fn encode_instructions(instructions: &AdapterInstructions) -> Result<(Vec<u8
                 return Err(AdapterEncodingError);
             }
         }
-        encode_operation(instructions.architecture, &model, operation, &mut bytes)?;
+        encode_operation(instructions.architecture, model, operation, &mut bytes)?;
     }
     Ok((bytes, call_field.ok_or(AdapterEncodingError)?))
 }

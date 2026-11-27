@@ -195,3 +195,55 @@ fn replaced_host_directory_cannot_bypass_a_capture() {
 fn retargeted_host_link_cannot_bypass_a_capture() {
     changing_host_alias_enters_capture(true);
 }
+
+/// `canonicalize` mounts a Windows capture under its verbatim `\\?\C:\` spelling,
+/// while callers often name the same file as `C:\`. Both spellings must route
+/// into the capture, in both directions; neither may read the live disk or step
+/// out of the mounted root.
+#[cfg(windows)]
+#[test]
+fn either_windows_prefix_spelling_routes_into_the_capture() {
+    let directory = temporary_directory();
+    let verbatim = directory.0.join("project");
+    std::fs::create_dir(&verbatim).unwrap();
+    std::fs::write(verbatim.join("main.omg"), "on disk").unwrap();
+    std::fs::write(verbatim.join("missing.omg"), "disk only").unwrap();
+    std::fs::write(directory.0.join("outside.omg"), "outside").unwrap();
+    let ordinary = PathBuf::from(
+        verbatim
+            .to_str()
+            .unwrap()
+            .strip_prefix(r"\\?\")
+            .expect("canonical Windows paths are verbatim"),
+    );
+    let tree = Arc::new(
+        CapturedSourceTree::new([(PathBuf::from("main.omg"), captured_file("captured"))]).unwrap(),
+    );
+    for (mounted, requested) in [(&verbatim, &ordinary), (&ordinary, &verbatim)] {
+        let mut view = SourceFileSystem::new();
+        view.add_capture(mounted.clone(), Arc::clone(&tree))
+            .unwrap();
+        assert_eq!(
+            view.read_to_string(&requested.join("main.omg"))
+                .unwrap()
+                .as_ref(),
+            "captured"
+        );
+        assert_eq!(
+            view.canonicalize(&requested.join("main.omg")).unwrap(),
+            mounted.join("main.omg")
+        );
+        assert_eq!(
+            view.read_to_string(&requested.join("missing.omg"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+        assert_eq!(
+            view.read_to_string(&ordinary.join(r"..\outside.omg"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::PermissionDenied
+        );
+    }
+}

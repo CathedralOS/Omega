@@ -1,19 +1,21 @@
 /*
-  Bottom-up acyclic internal-call inlining and single-predecessor fallthrough
-  block contraction over `SelectedFunction`s in Stage 05.
+  The `SelectedAcyclicCallInliningV1` rewrite: bottom-up acyclic internal-call
+  inlining and single-predecessor fallthrough block contraction over the
+  selected functions. It runs only when the build selects it
+  (`structural_rewrites.rs`); a program lowers without it.
 
-  Inlining runs strictly after instruction selection and strictly before sorting
-  functions by `MachineId`, keeping Stage 15 publication provenance intact by
-  attributing all cloned callee blocks, edges, and instructions to the
-  caller's own `CallSiteOwner::Operation(call_op)` and mapping cloned callee
-  stack slots to `LocalStorageSlotId::Inlined { call_site, slot_index }`.
+  It attributes all cloned callee blocks, edges, and instructions to the
+  caller's own `CallSiteOwner::Operation(call_op)`, keeping Stage 15
+  publication provenance intact, and maps cloned callee stack slots to
+  `LocalStorageSlotId::Inlined { call_site, slot_index }`.
 */
 
-use crate::instruction_selection::{SelectedInstructionError, selection::constraints};
+use crate::selected_rewrites::structural_rewrites::{StructuralRewriteError, instruction_from_row};
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{
     RegisterClassId, RegisterInstructionConstraint, RegisterOperandAccess, RegisterViewId,
 };
+use selected_instructions::compaction::renumber_function;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
     SelectedBlocks, SelectedCallTarget, SelectedFunction, SelectedInstruction,
@@ -25,7 +27,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 use std::collections::{BTreeSet, HashMap};
-use target_vocabulary::CallSiteOwner;
+use target_vocabulary::{CallSiteOwner, NativeCallOrigin};
 
 const MAX_INLINED_CALLEE_INSTRUCTIONS: usize = 16384;
 const MAX_INLINED_CALLEE_BLOCKS: usize = 1024;
@@ -34,17 +36,17 @@ const MAX_CALLER_INSTRUCTIONS_AFTER_INLINE: usize = 65536;
 pub(crate) fn inline_and_simplify(
     functions: &mut [SelectedFunction],
     environment: &ValidatedTargetRegisterEnvironment,
-) -> Result<(), SelectedInstructionError> {
+) -> Result<(), StructuralRewriteError> {
     if functions.is_empty() {
         return Ok(());
     }
     let keys = environment.selected_keys();
     let copy_row = environment
         .constraint(keys.copy_i64)
-        .ok_or(SelectedInstructionError::MissingConstraint(keys.copy_i64))?;
+        .ok_or(StructuralRewriteError::MissingConstraint(keys.copy_i64))?;
     let jump_row = environment
         .constraint(keys.jump)
-        .ok_or(SelectedInstructionError::MissingConstraint(keys.jump))?;
+        .ok_or(StructuralRewriteError::MissingConstraint(keys.jump))?;
     let copy_class = validate_copy_row(copy_row, keys.copy_i64)?;
     validate_jump_row(jump_row, keys.jump)?;
 
@@ -100,13 +102,13 @@ pub(crate) fn inline_and_simplify(
 fn validate_copy_row(
     row: &RegisterInstructionConstraint,
     key: register_model::RegisterConstraintKey,
-) -> Result<RegisterClassId, SelectedInstructionError> {
+) -> Result<RegisterClassId, StructuralRewriteError> {
     if row.operands.len() != 2
         || row.operands[0].access != RegisterOperandAccess::Use
         || row.operands[1].access != RegisterOperandAccess::Def
         || row.operands[0].class != row.operands[1].class
     {
-        return Err(SelectedInstructionError::MissingConstraint(key));
+        return Err(StructuralRewriteError::MissingConstraint(key));
     }
     Ok(row.operands[0].class)
 }
@@ -114,9 +116,9 @@ fn validate_copy_row(
 fn validate_jump_row(
     row: &RegisterInstructionConstraint,
     key: register_model::RegisterConstraintKey,
-) -> Result<(), SelectedInstructionError> {
+) -> Result<(), StructuralRewriteError> {
     if !row.operands.is_empty() {
-        return Err(SelectedInstructionError::MissingConstraint(key));
+        return Err(StructuralRewriteError::MissingConstraint(key));
     }
     Ok(())
 }
@@ -322,7 +324,7 @@ fn try_inline_call_site(
     copy_row: &RegisterInstructionConstraint,
     jump_row: &RegisterInstructionConstraint,
     copy_class: RegisterClassId,
-) -> Result<bool, SelectedInstructionError> {
+) -> Result<bool, StructuralRewriteError> {
     let Some(plan) = check_inline_eligibility(
         caller,
         callee,
@@ -393,6 +395,13 @@ fn check_inline_eligibility(
         .calls
         .iter()
         .find(|contract| contract.instruction == call_inst.id)?;
+    // A call to a selected provider or the program entry realizes a Terminal
+    // boundary call. Physical evidence rejoins that boundary occurrence to this
+    // exact call, its stack custody and its callee, so the call stays a call,
+    // as boundary settlements and normalized foreign calls do above.
+    if !matches!(contract.call.source, NativeCallOrigin::Authored) {
+        return None;
+    }
     let CallSiteOwner::Operation(call_op) = contract.owner else {
         return None;
     };
@@ -634,7 +643,7 @@ fn apply_inline(
     mut plan: InlinedPlan,
     copy_row: &RegisterInstructionConstraint,
     jump_row: &RegisterInstructionConstraint,
-) -> Result<(), SelectedInstructionError> {
+) -> Result<(), StructuralRewriteError> {
     let call_op = plan.call_op;
     let caller_src_block = plan.caller_src_block;
     let caller_block_id = caller.blocks[caller_block_idx].id;
@@ -735,7 +744,7 @@ fn apply_inline(
         let dst = plan.reg_map[&arg.callee_param];
         let copy_id = alloc_inst_id();
         let prov = work_provenance.take().unwrap_or_else(op_provenance);
-        let copy_inst = constraints::instruction_from_row(
+        let copy_inst = instruction_from_row(
             copy_id,
             SelectedInstructionKind::CopyI64,
             &[arg.caller_arg, dst],
@@ -762,7 +771,7 @@ fn apply_inline(
 
     // Never attach `work` to an OperationContinuation Jump; `liveness.rs:1770`
     // requires empty `work` on OperationContinuation terminators.
-    let entry_jump_inst = constraints::instruction_from_row(
+    let entry_jump_inst = instruction_from_row(
         alloc_inst_id(),
         SelectedInstructionKind::Jump,
         &[],
@@ -812,7 +821,7 @@ fn apply_inline(
                     for (callee_ret_src, caller_def_dst) in copies {
                         let mapped_src = plan.reg_map[&callee_ret_src];
                         let copy_id = alloc_inst_id();
-                        let copy_inst = constraints::instruction_from_row(
+                        let copy_inst = instruction_from_row(
                             copy_id,
                             SelectedInstructionKind::CopyI64,
                             &[mapped_src, caller_def_dst],
@@ -833,7 +842,7 @@ fn apply_inline(
                 }
                 let ret_jump_id = alloc_inst_id();
                 inst_map.insert(old_term_id, ret_jump_id);
-                let ret_jump_inst = constraints::instruction_from_row(
+                let ret_jump_inst = instruction_from_row(
                     ret_jump_id,
                     SelectedInstructionKind::Jump,
                     &[],
@@ -971,7 +980,7 @@ fn apply_inline(
             },
             VirtualRegisterOrigin::EntryParameter { .. }
             | VirtualRegisterOrigin::StructuralParameter { .. } => {
-                return Err(SelectedInstructionError::custody_because(
+                return Err(StructuralRewriteError::custody_because(
                     "unmatched callee entry parameter escaped eligibility check",
                 ));
             }
@@ -1064,7 +1073,7 @@ fn remap_callee_instruction(
 fn fold_edge_transfer_chains(
     function: &mut SelectedFunction,
     copy_row: &RegisterInstructionConstraint,
-) -> Result<(), SelectedInstructionError> {
+) -> Result<(), StructuralRewriteError> {
     loop {
         let index_by_id: HashMap<SelectedBlockId, usize> = function
             .blocks
@@ -1241,7 +1250,7 @@ fn fold_edge_transfer_chains(
             provenance.edges.extend(e_edge);
             provenance.edges.sort();
             provenance.edges.dedup();
-            copies.push(constraints::instruction_from_row(
+            copies.push(instruction_from_row(
                 id,
                 SelectedInstructionKind::CopyI64,
                 &[argument, parameter],
@@ -1421,101 +1430,8 @@ fn merge_single_predecessor_blocks(function: &mut SelectedFunction) {
     }
 }
 
-pub(crate) fn renumber_function(function: &mut SelectedFunction) {
-    let mut block_numbers = DenseRenumbering::sized(function.blocks.iter().map(|block| block.id.0));
-    for (idx, block) in function.blocks.iter().enumerate() {
-        block_numbers.assign(block.id.0, idx as u32);
-    }
-    let block_map = |old: &SelectedBlockId| SelectedBlockId(block_numbers.get(old.0));
-
-    function.entry_block = block_map(&function.entry_block);
-
-    let mut instruction_numbers = DenseRenumbering::sized(
-        function
-            .instructions_and_terminators()
-            .map(|instruction| instruction.id.0),
-    );
-    let mut next_inst_id = 0u32;
-
-    for (idx, block) in function.blocks.iter_mut().enumerate() {
-        block.id = SelectedBlockId(idx as u32);
-        for inst in &mut block.instructions {
-            instruction_numbers.assign(inst.id.0, next_inst_id);
-            inst.id = SelectedInstructionId(next_inst_id);
-            next_inst_id += 1;
-        }
-        let term_inst = terminator_instruction_mut(&mut block.terminator);
-        instruction_numbers.assign(term_inst.id.0, next_inst_id);
-        term_inst.id = SelectedInstructionId(next_inst_id);
-        next_inst_id += 1;
-
-        for succ in terminator_successors_mut(&mut block.terminator) {
-            succ.block = block_map(&succ.block);
-        }
-    }
-    let inst_map =
-        |old: &SelectedInstructionId| SelectedInstructionId(instruction_numbers.get(old.0));
-
-    for reg in &mut function.virtual_registers {
-        match &mut reg.origin {
-            VirtualRegisterOrigin::InstructionScratch { instruction, .. }
-            | VirtualRegisterOrigin::StructuralObservation { instruction, .. }
-            | VirtualRegisterOrigin::ScalarAbiAddress { instruction, .. }
-            | VirtualRegisterOrigin::SpillAddress { instruction, .. }
-            | VirtualRegisterOrigin::AbiTransport { instruction, .. }
-            | VirtualRegisterOrigin::InstructionResult { instruction, .. } => {
-                *instruction = inst_map(instruction);
-            }
-            VirtualRegisterOrigin::BlockParameter { block, .. } => {
-                *block = block_map(block);
-            }
-            VirtualRegisterOrigin::EntryParameter { .. }
-            | VirtualRegisterOrigin::StructuralParameter { .. } => {}
-        }
-    }
-
-    for call in &mut function.calls {
-        call.instruction = inst_map(&call.instruction);
-    }
-    for foreign in &mut function.normalized_foreign_calls {
-        foreign.instruction = inst_map(&foreign.instruction);
-    }
-    for access in &mut function.memory_accesses {
-        access.instruction = inst_map(&access.instruction);
-    }
-    for settlement in &mut function.boundary_settlements {
-        settlement.block = block_map(&settlement.block);
-    }
-
-    debug_assert!(function.ids_are_positions());
-}
-
-/// New numbers for old block or instruction ids, indexed by the old id. A
-/// reference to an id the function no longer defines is a broken function, so
-/// `get` panics on it as the map lookup it replaces did.
-struct DenseRenumbering(Vec<Option<u32>>);
-
-impl DenseRenumbering {
-    fn sized(old_ids: impl Iterator<Item = u32>) -> Self {
-        let length = old_ids.max().map_or(0, |largest| largest as usize + 1);
-        Self(vec![None; length])
-    }
-
-    fn assign(&mut self, old: u32, new: u32) {
-        self.0[old as usize] = Some(new);
-    }
-
-    fn get(&self, old: u32) -> u32 {
-        self.0
-            .get(old as usize)
-            .copied()
-            .flatten()
-            .expect("renumbering reaches an id the function defines")
-    }
-}
-
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::inline_and_simplify;
     use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
     use operation_evidence::provenance::{EffectLink, PsiProvenance, WorkSettlement};
@@ -1543,11 +1459,19 @@ mod tests {
         )
     }
 
-    #[test]
-    fn inlines_acyclic_callee_and_contracts_single_predecessor_fallthrough_blocks() {
-        let environment =
-            register_environment::baseline_target_register_environment(NativeTarget::windows_x64())
-                .unwrap();
+    /// A caller that passes one scalar to an acyclic callee, which takes the
+    /// address of one stack slot and returns its argument.
+    pub(crate) struct CallerAndCallee {
+        pub(crate) caller: SelectedFunction,
+        pub(crate) callee: SelectedFunction,
+        pub(crate) caller_op: OperationId,
+        pub(crate) caller_b0: BlockId,
+        pub(crate) caller_b1: BlockId,
+    }
+
+    pub(crate) fn caller_and_callee(
+        environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    ) -> CallerAndCallee {
         let keys = environment.selected_keys();
         let gp_class = environment.constraint(keys.copy_i64).unwrap().operands[0].class;
         let caller_machine = MachineId::new(1).unwrap();
@@ -1895,6 +1819,27 @@ mod tests {
             .into(),
         };
 
+        CallerAndCallee {
+            caller,
+            callee,
+            caller_op,
+            caller_b0,
+            caller_b1,
+        }
+    }
+
+    #[test]
+    fn inlines_acyclic_callee_and_contracts_single_predecessor_fallthrough_blocks() {
+        let environment =
+            register_environment::baseline_target_register_environment(NativeTarget::windows_x64())
+                .unwrap();
+        let CallerAndCallee {
+            caller,
+            callee,
+            caller_op,
+            caller_b0,
+            caller_b1,
+        } = caller_and_callee(&environment);
         let mut with_binding = [caller.clone(), callee.clone()];
         let SelectedTerminator::Jump { successor, .. } = &mut with_binding[1].blocks[0].terminator
         else {

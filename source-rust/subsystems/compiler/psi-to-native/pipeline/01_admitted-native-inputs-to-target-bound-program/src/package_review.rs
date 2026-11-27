@@ -27,9 +27,9 @@ pub(super) fn prepare(
     let module = program.artifact.semantic_module();
     let bindings = requirements.bindings.and_then(|bindings| {
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-        let mut rows = Vec::with_capacity(bindings.len());
-        let mut normalized = Vec::with_capacity(bindings.len());
-        for (boundary, materialization) in bindings {
+        let mut rows = Vec::with_capacity(bindings.applications.len());
+        let mut normalized = Vec::with_capacity(bindings.applications.len());
+        for (boundary, materialization) in bindings.applications {
             let declaration = module
                 .boundary_machine(boundary)
                 .and_then(|boundary| boundary.declaration.as_ref())
@@ -55,10 +55,30 @@ pub(super) fn prepare(
                 materialization,
             });
         }
+        let unused_generic_imports = bindings
+            .unused_generic_imports
+            .into_iter()
+            .map(|materialization| {
+                let binding = crate::native_bindings::normalize_native_binding(
+                    &materialization,
+                    &materialization.requirement_identity,
+                    &materialization.service_declaration,
+                    &mut identities,
+                )
+                .map_err(|reason| unavailable(&reason))?;
+                let build_providers::plans::EvaluatedNativeBinding::Import(import) = binding else {
+                    return Err(unavailable(
+                        "the unused generic import's normalized locator",
+                    ));
+                };
+                Ok((materialization, import))
+            })
+            .collect::<Result<_, _>>()?;
         let calling = plan_calling(&normalized);
         Ok(ReviewedNativeBindings {
             identities: identities.build(),
             rows,
+            unused_generic_imports,
             calling,
         })
     });
@@ -223,6 +243,10 @@ pub struct ReviewedNativeBindings {
     pub identities: terminal_psi::TerminalIdentityTable,
     /// In the same order as the Build supplied the bindings for this target.
     pub rows: Vec<ReviewedNativeBinding>,
+    pub unused_generic_imports: Vec<(
+        NativeBindingMaterialization,
+        build_providers::plans::EvaluatedForeignImport,
+    )>,
     pub calling: Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>>,
 }
 
