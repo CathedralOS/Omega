@@ -18,6 +18,7 @@ pub mod evaluation_crashes;
 pub mod evaluation_scope;
 pub mod external_completions;
 pub mod scalar_conditions;
+pub mod synchronization;
 pub mod synchronous_calls;
 pub use content_transformations::{domain_preservation, quotients};
 pub mod control_graph;

@@ -245,6 +245,26 @@ pub(super) fn judge_build(
     judge_build_with_core(build, &[])
 }
 
+pub(super) fn execute_unit(source: &str) {
+    let verdict = judge_build(source).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+        .unwrap();
+    assert_eq!(
+        status,
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+}
+
 pub(super) fn judge_build_with_core(
     build: &str,
     core: &[(&str, &str, &str)],
