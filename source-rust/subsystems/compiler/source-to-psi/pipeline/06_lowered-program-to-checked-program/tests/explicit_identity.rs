@@ -458,3 +458,70 @@ fn only_equality_evidence_names_an_abstract_comparison() {
         "clause application needs an unconditional pure and total operation",
     );
 }
+
+/// A comparison that holds of every two `Flag`s, written so that its own
+/// contract says so, and its identity-implies-comparison law.
+fn always(contract: &str, body: &str, law: &str) -> String {
+    format!(
+        "use {{omega}}/language/core/foundation.omg as proof;
+data Flag {{ set: bool; }}
+FlagAlways satisfies {law}<Flag> {{
+    machine equals(left: @Flag, right: @Flag) -> bool reaches none crashes none terminates
+    {contract} {{ {body} }}
+{}
+}}
+",
+        if law == "IdentityImpliesEqual" {
+            "    machine equal_of_identity(left: Flag, right: Flag)
+    requires |proof|::Identity::<Flag>(left, right)
+    ensures equals(@left, @right) {
+        let same: bool = equals(@left, @right);
+    }"
+        } else {
+            "    machine identity_of_equal(left: Flag, right: Flag)
+    requires equals(@left, @right)
+    ensures |proof|::Identity::<Flag>(left, right) {
+        let same: bool = equals(@left, @right);
+    }"
+        }
+    )
+}
+
+#[test]
+fn a_law_uses_what_its_comparison_ensures_of_itself() {
+    accepted(&always("ensures result", "true", "IdentityImpliesEqual"));
+}
+
+#[test]
+fn a_law_cannot_read_its_comparison_body() {
+    let owed = unproved(&always("", "true", "IdentityImpliesEqual"));
+    assert!(!owed.is_empty(), "{owed:?}");
+}
+
+#[test]
+fn the_comparison_still_owes_what_it_ensures_of_itself() {
+    let owed = unproved(&always(
+        "ensures result",
+        "left.set == right.set",
+        "IdentityImpliesEqual",
+    ));
+    assert!(!owed.is_empty(), "{owed:?}");
+}
+
+#[test]
+fn a_comparison_that_always_holds_justifies_no_substitution() {
+    let owed = unproved(&always("ensures result", "true", "EqualImpliesIdentity"));
+    assert!(!owed.is_empty(), "{owed:?}");
+}
+
+#[test]
+fn only_its_implementation_sees_what_a_member_ensures_of_itself() {
+    let law = always("ensures result", "true", "IdentityImpliesEqual");
+    let owed = unproved(&format!(
+        "{law}machine both(a: Flag, b: Flag) -> bool ensures result {{
+    FlagAlways::equals(@a, @b)
+}}
+"
+    ));
+    assert!(!owed.is_empty(), "{owed:?}");
+}

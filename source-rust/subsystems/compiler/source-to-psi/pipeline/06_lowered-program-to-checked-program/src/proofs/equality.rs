@@ -3565,11 +3565,16 @@ pub(crate) fn discharge(
         // The result of an earlier call of a total comparison is the same
         // application of its operation to the same, unmodified inputs
         // (`contracts.md#equality-bridges-and-comparison-facts`).
-        let (invocation, clause) = match justification {
+        let (invocation, clause, congruence) = match justification {
             Some(Justification::CalleeGuarantee { invocation, clause }) => {
-                (invocation, Some(clause))
+                (invocation, Some(clause), false)
             }
-            Some(Justification::CallCongruence { invocation }) => (invocation, None),
+            // A sibling's own guarantee names no clause of the call's
+            // contract, so it cites no law; it is still owed by that body.
+            Some(Justification::RealizationGuarantee { invocation, .. }) => {
+                (invocation, None, false)
+            }
+            Some(Justification::CallCongruence { invocation }) => (invocation, None, true),
             _ => continue,
         };
         let call = tables
@@ -3604,7 +3609,6 @@ pub(crate) fn discharge(
         // A repeated comparison relates the values the call read, which are
         // the entry values only if nothing in the machine writes them, a
         // structural parameter declared `mutable` included.
-        let congruence = clause.is_none();
         let fresh = actual.values.iter().all(|value| match &value.operand {
             ClauseOperand::Input(subject) => {
                 (!congruence && machine.structural_parameter(subject.root()).is_some())
@@ -3630,6 +3634,21 @@ pub(crate) fn discharge(
         let Proposition::Equal(left, right) = premise else {
             continue;
         };
+        // What a sibling member of the implementation ensures of a call's
+        // Boolean result, such as `ensures result`, is an identity the
+        // repeated comparison's result joins (`RealizedGuarantee`).
+        let realized = left.scalar_type() == semantic_vocabulary::ScalarType::Boolean
+            && matches!(
+                tables.knowledge.get(row).map(|known| &known.justification),
+                Some(Justification::RealizationGuarantee { .. })
+            );
+        if realized {
+            if let Ok(premise) = declarations.scalar_identity(left, right) {
+                premises.push(premise);
+                citations.push(row);
+            }
+            continue;
+        }
         if !declarations
             .contents
             .iter()

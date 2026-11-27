@@ -2511,6 +2511,17 @@ impl<'t> Program<'t> {
             // Calls expose the requirement's contracts. The independent
             // witness checks the member under its own contract; abstract
             // reach additionally needs the selected installation below.
+            // The member's own guarantees still reach the other members of
+            // its implementation (`RealizedGuarantee`).
+            if !signature.ensures.is_empty()
+                && !self
+                    .realized_ensures
+                    .iter()
+                    .any(|(member, _)| *member == machine.symbol)
+            {
+                self.realized_ensures
+                    .push((machine.symbol, signature.ensures.clone()));
+            }
             signature.requires = routed.requires;
             signature.ensures = routed.ensures;
             signature.membership_ensures = routed.membership_ensures;

@@ -404,7 +404,12 @@ clauses at the implementation's arguments (`witness_conformance`, set while
 the member's routed contract, its witness, the applied implementation and a
 selected call read them), where `Identity::<T>` is the type the
 implementation supplies for `T`. So the row's own envelope is checked for
-every conformance, and a law about one comparison names no other. What an
+every conformance, and a law about one comparison names no other. A member's
+own `ensures` beyond its requirement's is kept before its caller-facing
+contract becomes the requirement's (`realized_ensures`), and lowering hands
+it to the other members of the same implementation as
+`MachineTables::realized_guarantees`, so a law's body can use what its
+comparison ensures of itself. What an
 operation ensures does not stop a clause naming it; a precondition does.
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
