@@ -520,6 +520,7 @@ impl TerminalExecution<'_> {
                     };
                     claim_operands.push((argument, claim_path.clone()));
                     let child = ConstructorValue::resolve(self, argument)?;
+                    child.append_memberships(&claim_path, &mut value.projected_qualifications);
                     if let Some(bytes) = self.prepare_constructor_byte_field(
                         declaration,
                         argument,
@@ -544,7 +545,6 @@ impl TerminalExecution<'_> {
                     {
                         return Err(malformed());
                     }
-                    child.append_memberships(&claim_path, &mut value.projected_qualifications);
                     storage.stage(self, argument, &child, &member, transfers_custody)?;
                 }
             }
@@ -618,7 +618,7 @@ impl TerminalExecution<'_> {
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => EstablishByteSequenceLiteral {
-            destination, ref bytes, ..
+            destination, ref bytes, ref qualifications
         });
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(malformed());
@@ -634,13 +634,21 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
+        if !terminal_semantics::byte_literal_qualifications_hold_in(
+            self.program.catalogs.types.structural_domains.iter(),
+            *structural_type,
+            qualifications,
+            bytes,
+        ) {
+            return Err(malformed());
+        }
         if let Some(previous) = self.structural_values.get(&destination) {
             if !self
                 .local_structural_identities
                 .owns_allocated(previous.opaque_identity)
                 || previous.structural_type != *structural_type
                 || !previous.path.is_empty()
-                || !previous.qualifications.is_empty()
+                || previous.qualifications != *qualifications
                 || self.byte_sequence_values.get(&destination).is_none_or(
                     |binding| !matches!(binding.immutable(), Ok(view) if view.bytes() == bytes),
                 )
@@ -665,7 +673,7 @@ impl TerminalExecution<'_> {
                 TerminalStructuralValue::minted(
                     self.local_structural_identities.allocate()?,
                     *structural_type,
-                    Vec::new(),
+                    qualifications.clone(),
                 ),
             )?;
         }

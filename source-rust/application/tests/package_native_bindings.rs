@@ -330,19 +330,24 @@ public machine encode_two(source: @[u16; 2], output: @mutable [u8; 8]) -> i32 {
         library.join("calling.omg"),
     )
     .unwrap();
-    let custom = original.replace(
+    let boundary = original.replace(
         "boundary trait WindowsFilesystemUtf8Io {",
         "boundary trait WindowsFilesystemUtf8Io: |abi|::Calling<CheckedPolicy> {",
     );
-    let custom = format!(
-        r#"use calling.omg as abi;
+    let with_policy = |body: &str| {
+        format!(
+            r#"use calling.omg as abi;
 public CheckedPolicy satisfies |abi|::CallingPolicy {{
     machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {{
-        let mutable empty: |abi|::BoundaryEntryPlan;
-        transition {{ _ -> |abi|::BoundaryPlanResult::Accepted {{ plan: empty }} }}
+        {body}
     }}
 }}
-{custom}"#
+{boundary}"#
+        )
+    };
+    let custom = with_policy(
+        "let mutable empty: |abi|::BoundaryEntryPlan;
+        transition { _ -> |abi|::BoundaryPlanResult::Accepted { plan: empty } }",
     );
     fs::write(&main, &custom).unwrap();
     let unused = audit(3);
@@ -361,11 +366,25 @@ public CheckedPolicy satisfies |abi|::CallingPolicy {{
     fs::write(&main, predicate_binders).unwrap();
     assert!(audit(3).contains("<Units, Bytes>"));
 
-    fs::write(main, format!("{custom}{client}")).unwrap();
+    fs::write(&main, format!("{custom}{client}")).unwrap();
     let rejected = audit(1);
     assert!(
         rejected
             .contains("plan places 0 parameters for a boundary signature with 8 native parameters"),
+        "{rejected}"
+    );
+
+    let refusal = with_policy(
+        r#"transition { _ -> |abi|::BoundaryPlanResult::Rejected {
+            reason: |abi|::CallingPolicyRejection { reason: "taille de tampon refusée" as + |abi|::Utf8 }
+        } }"#,
+    );
+    fs::write(&main, format!("{refusal}{client}")).unwrap();
+    let rejected = audit(1);
+    // The audit quotes the diagnostic, whose bounded renderer escapes non-ASCII octets.
+    assert!(
+        rejected
+            .contains(r"calling policy rejected the boundary: taille de tampon refus\\xc3\\xa9e"),
         "{rejected}"
     );
 }

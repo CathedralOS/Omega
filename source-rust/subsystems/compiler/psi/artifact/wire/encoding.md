@@ -1038,7 +1038,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 37 | EstablishTrivialAffineLocal | place id |
 | 38 | BooleanStructuralField | source place id + scalar field carrier path + field id |
 | 39 | CallStructuralScalar | callee machine id + counted value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
-| 40 | EstablishByteSequenceLiteral | destination place id + counted bytes |
+| 40 | EstablishByteSequenceLiteral | destination place id + counted bytes + counted qualification domain ids |
 | 41 | CallStructural | callee machine id + counted structural arguments + counted claim transfers + obligation id list + crash routes + counted selected evidence bindings |
 | 42 | EstablishScalarCase | case id + counted fields (field id + value id + optional obligation id) |
 | 43 | WriteOnlyPrimitiveStore | destination place id + value id; root-only form |

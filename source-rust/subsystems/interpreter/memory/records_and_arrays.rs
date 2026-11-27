@@ -2548,12 +2548,10 @@ pub(crate) mod record {
                             vec![StructuralPathSegment::Field(declaration.identity)],
                         ));
                         let child = ConstructorValue::resolve(self, argument)?;
-                        if matches!(declaration.field_type, StructuralFieldType::Structural(_)) {
-                            child.append_memberships(
-                                &[StructuralPathSegment::Field(declaration.identity)],
-                                &mut value.projected_qualifications,
-                            );
-                        }
+                        child.append_memberships(
+                            &[StructuralPathSegment::Field(declaration.identity)],
+                            &mut value.projected_qualifications,
+                        );
                         if let Some(bytes) = self.prepare_constructor_byte_field(
                             declaration,
                             argument,
