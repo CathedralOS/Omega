@@ -47,13 +47,6 @@ pub struct DeclaredContractParameter {
     pub type_identity: NormalizedTypeIdentity,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DeclaredCallableContract<Cause = semantic_vocabulary::CrashCause> {
-    pub parameters: Vec<DeclaredContractParameter>,
-    pub result: NormalizedTypeIdentity,
-    pub clauses: Vec<DeclaredContractClause<Cause>>,
-}
-
 /// The supplying operation owns the context captured by these callbacks.
 pub struct ContractIdentityContext<Type, Fact, Symbol, Cause> {
     pub type_identity: Type,
