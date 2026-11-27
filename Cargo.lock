@@ -1740,13 +1740,13 @@ dependencies = [
  "source-acquisition",
  "target",
  "terminal-codec",
- "terminal-psi",
  "terminal-interpreter",
+ "terminal-psi",
  "terminal-runtime",
  "terminal-semantics",
+ "terminal-work",
  "windows-sys 0.61.2",
  "worker-budget",
- "terminal-work",
 ]
 
 [[package]]

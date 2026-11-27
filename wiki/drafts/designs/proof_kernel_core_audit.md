@@ -1777,6 +1777,20 @@ same_sign> as SameSign;` is read into the mathematical signature when
   `QUOTIENT_BOX_PROP` at the boxed type's strict level, so the relation of a
   mathematical quotient need not be a set's Identity. Test:
   `a_quotient_by_a_boxed_squash_relates_its_classes`.
+- **Pointwise equivalence rows (2026-11-27).** A row of the
+  `MereEquivalence` a quotient selects may take the binders of its
+  relation's arrow after the values it relates
+  ([pointwise theorem citations](../../spec/proofs/mathematical_bindings.md#pointwise-theorem-citations)).
+  Its own law is proved as written, and the statement the quotient needs
+  becomes a law of its own (`LawProof::Pointwise`), proved by introducing
+  the needed conclusion's boxes and squashes (opening each strict premise
+  toward the squash) and arrow binders, then applying the row there with
+  each of its premises met by a hypothesis or proved from them. The kernel
+  checks it, so a row that proves another statement, or only some indices,
+  is refused. Tests: `equivalence_rows_may_prove_the_relation_at_every_index`,
+  `a_row_proved_for_some_indices_only_leaves_the_rest_uncovered`,
+  `a_row_at_every_index_must_prove_the_relation_there`. Congruences for
+  `Quotient::lift` do not take trailing binders yet.
 - **Not done:**
   - A lifted operation is a definition only where the kernel's `lift`
     gives one (2026-11-27): one or two classes in, a class or plain data out (the
