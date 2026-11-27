@@ -177,9 +177,8 @@ ensures |proof|::Identity::<N>(double(m), N::S {{ p: m }})
 
 #[test]
 fn a_conclusion_for_every_value_is_not_proved_yet() {
-    // Its index has no binder in the body. How source proves one is an
-    // owner question (`OWNER_QUESTIONS.md`, "How does a theorem prove a
-    // for-every conclusion?").
+    // An empty body supplies no evidence for an arbitrary index. See
+    // wiki/spec/proofs/mathematical_bindings.md#pointwise-theorem-citations.
     let verdicts = judged(&format!(
         "{NUMBERS}
 machine concludes_every(m: N)
