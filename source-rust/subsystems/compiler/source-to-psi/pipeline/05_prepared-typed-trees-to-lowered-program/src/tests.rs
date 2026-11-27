@@ -4769,11 +4769,11 @@ fn machines_planned_on_workers_apply_what_planning_in_order_yields() {
         let result = budget.run(|| {
             crate::lower::machine_order::plan_then_apply(
                 &mut module,
-                |module, _, machine| {
+                |walks, machine| {
                     let copied = COPIES[machine.id.get() as usize - 1];
                     Copied {
                         read: vec![id(copied)],
-                        value: module.machines[copied as usize - 1].attachment,
+                        value: walks.module().machines[copied as usize - 1].attachment,
                     }
                 },
                 |plan| (plan.read != [id::<MachineId>(2)]).then_some(plan.read.as_slice()),

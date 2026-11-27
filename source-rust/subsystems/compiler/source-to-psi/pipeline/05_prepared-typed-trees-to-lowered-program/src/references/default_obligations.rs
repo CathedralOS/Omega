@@ -9,7 +9,8 @@ use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
 use terminal_check_tables::program::MachineSources;
 use terminal_check_tables::{CheckTables, Checked, Construct, ProgramPoint};
 use terminal_psi::TerminalModule;
-use terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_from;
+use terminal_semantics::ModuleAnalyses;
+use terminal_semantics::descriptor_results::DescriptorSlotKind;
 use terminal_semantics::structural_qualifications::DefaultRequirements;
 
 fn build_defaults<'a>(
@@ -57,7 +58,7 @@ pub(crate) fn install(
         .zip(&defaults)
         .filter(|(_, required)| required.needs_borrowed_storage())
         .map(|(machine, _)| machine.id);
-    let graph = terminal_borrowed_storage_graph_from(module, roots, &[]).map_err(|error| {
+    let no_graph = |error: terminal_semantics::descriptor_results::DescriptorGraphError| {
         let mut refused = refuse(
             error.machine(),
             Construct::Machine,
@@ -65,10 +66,14 @@ pub(crate) fn install(
         );
         refused.detail = format!("{}: {}", refused.detail, error.in_module(module));
         refused
-    })?;
-    // Each machine replays from its own analysis, and every analysis takes
-    // the callee summaries another one already completed.
-    let summaries = crate::references::results::module_summaries(module);
+    };
+    // This pass edits no machine, so one bundle serves every analysis. Each
+    // machine replays from its own analysis over the bundle's rows, and every
+    // analysis takes the callee summaries another one already completed.
+    let analyses = ModuleAnalyses::new(module).map_err(no_graph)?;
+    let graph = analyses
+        .descriptor_closure(DescriptorSlotKind::BorrowedStorage, roots)
+        .map_err(no_graph)?;
     let install_machine =
         |machine: &terminal_psi::TerminalMachine,
          required: DefaultRequirements,
@@ -145,8 +150,7 @@ pub(crate) fn install(
             .into_par_iter()
             .with_max_len(1)
             .map(|((machine, required), (machine_tables, source))| {
-                let mut references =
-                    crate::references::results::shared_analysis(module, &graph, &summaries);
+                let mut references = analyses.analysis(DescriptorSlotKind::BorrowedStorage, &graph);
                 install_machine(machine, required, machine_tables, source, &mut references)
             })
             .collect();
@@ -154,8 +158,7 @@ pub(crate) fn install(
             result?;
         }
     } else {
-        let mut references =
-            crate::references::results::shared_analysis(module, &graph, &summaries);
+        let mut references = analyses.analysis(DescriptorSlotKind::BorrowedStorage, &graph);
         for (machine, required) in module.machines.iter().zip(defaults) {
             let unavailable =
                 |detail| refuse(machine.id, Construct::Machine, Unserved::Machine(detail));

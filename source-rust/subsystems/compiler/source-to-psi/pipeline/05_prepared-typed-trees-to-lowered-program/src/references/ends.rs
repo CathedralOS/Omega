@@ -2,7 +2,7 @@
 //! Releases precede the operation, or the dispatch, after the last use;
 //! handles the complement. Both are planned by the same owned-region walk.
 
-use crate::lower::machine_order::WalkRefusal;
+use crate::lower::machine_order::{ModuleWalks, WalkRefusal};
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 use arena::IdTable;
 use semantic_vocabulary::{CanonicalStructuralPathSegment, MachineId};
@@ -12,7 +12,7 @@ use terminal_check_tables::{
     CheckTables, Checked, Construct, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{Operation, OperationKind, OperationResult, TerminalModule};
-use terminal_semantics::plain_affine::{AffineSummaries, Error, MachineAffine};
+use terminal_semantics::plain_affine::Error;
 
 fn planning_refusal(machine: MachineId, error: Error, sources: Option<&MachineSources>) -> Refusal {
     let refusal = WalkRefusal::new(&error);
@@ -50,10 +50,9 @@ fn candidates_refusal(
     }
 }
 
-/// Plan the reference ends of one machine against `module` and `summaries`.
+/// Plan the reference ends of one machine against the module of `walks`.
 fn plan_machine_reference_ends(
-    module: &TerminalModule,
-    summaries: &AffineSummaries<'_>,
+    walks: &ModuleWalks<'_>,
     machine: &terminal_psi::TerminalMachine,
     candidates: &IdTable<MachineId, terminal_semantics::reference_ends::Candidates>,
     sources: &IdTable<MachineId, MachineSources>,
@@ -69,7 +68,8 @@ fn plan_machine_reference_ends(
     if candidates.is_empty() {
         return Ok(None);
     }
-    let plan = MachineAffine::new(module, owner, Some(summaries))
+    let plan = walks
+        .affine(owner)
         .and_then(|walks| walks.plan_reference_ends(candidates))
         .map_err(|error| planning_refusal(owner, error, sources.get(owner)))?;
     Ok(Some(plan))
@@ -88,8 +88,9 @@ pub(crate) fn install(
     let mut unsupported: Vec<terminal_check_tables::Refusal> = Vec::new();
     let (candidates, advance) = {
         let module = &*module;
-        let summaries = AffineSummaries::new(module);
-        let candidates = terminal_semantics::reference_ends::candidates_sharing(module, &summaries)
+        let walks = ModuleWalks::new(module);
+        let candidates = walks
+            .reference_end_candidates()
             .map_err(|error| candidates_refusal(error, sources))?;
         let active_count = module
             .machines
@@ -109,8 +110,7 @@ pub(crate) fn install(
                     .with_max_len(1)
                     .map(|machine| {
                         Some(plan_machine_reference_ends(
-                            module,
-                            &summaries,
+                            &walks,
                             machine,
                             &candidates,
                             sources,
@@ -123,8 +123,7 @@ pub(crate) fn install(
                     .iter()
                     .map(|machine| {
                         Some(plan_machine_reference_ends(
-                            module,
-                            &summaries,
+                            &walks,
                             machine,
                             &candidates,
                             sources,
@@ -143,9 +142,7 @@ pub(crate) fn install(
     crate::lower::machine_order::plan_then_apply_from_advance(
         module,
         advance,
-        |module, summaries, machine| {
-            plan_machine_reference_ends(module, summaries, machine, &candidates, sources_ref)
-        },
+        |walks, machine| plan_machine_reference_ends(walks, machine, &candidates, sources_ref),
         |planned| match planned {
             Ok(Some(plan)) => Some(plan.graphed_machines.as_slice()),
             Ok(None) => Some(&[]),

@@ -10,14 +10,84 @@
 //!
 //! Both plans are affine ownership walks, and each walk replays the summaries
 //! of the callees its machine reaches. Walks over one unchanged module share
-//! those replays through one `AffineSummaries` table; the first application
-//! that changes a machine ends that table, and later walks start another.
+//! one `ModuleWalks` round: the module's `ModuleAnalyses` bundle, whose
+//! borrowed-storage rows, call fences and type permissions every walk reads,
+//! and one `AffineSummaries` table of callee summaries. The first application
+//! that changes a machine ends that round, and later walks start another.
 
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::program::{MachineSources, SourceOrigin};
 use terminal_check_tables::{Construct, RefusalReason};
 use terminal_psi::{TerminalMachine, TerminalModule};
-use terminal_semantics::plain_affine::{self, AffineSummaries, Site};
+use terminal_semantics::ModuleAnalyses;
+use terminal_semantics::plain_affine::{self, AffineSummaries, MachineAffine, Site};
+
+/// What every affine walk over one unchanged module shares. A round borrows
+/// the module, so nothing can edit the module while the round exists. A pass
+/// that edits the module drops its round first and builds a new one for the
+/// module it leaves.
+pub(crate) struct ModuleWalks<'m> {
+    module: &'m TerminalModule,
+    /// `None` when the module repeats a machine identity, which the bundle
+    /// refuses. Each walk then builds its own closure, which refuses that
+    /// module with the same error whenever the walk needs the closure.
+    analyses: Option<ModuleAnalyses<'m>>,
+    summaries: AffineSummaries<'m>,
+}
+
+impl<'m> ModuleWalks<'m> {
+    pub(crate) fn new(module: &'m TerminalModule) -> Self {
+        Self {
+            module,
+            analyses: ModuleAnalyses::new(module).ok(),
+            summaries: AffineSummaries::new(module),
+        }
+    }
+
+    pub(crate) fn module(&self) -> &'m TerminalModule {
+        self.module
+    }
+
+    #[cfg(test)]
+    pub(crate) fn summaries(&self) -> &AffineSummaries<'m> {
+        &self.summaries
+    }
+
+    #[cfg(test)]
+    pub(crate) fn analyses(&self) -> Option<&ModuleAnalyses<'m>> {
+        self.analyses.as_ref()
+    }
+
+    /// The affine walks of `machine`. They read the machine's
+    /// borrowed-storage closure from the round's bundle and share the round's
+    /// callee summaries.
+    pub(crate) fn affine(
+        &self,
+        machine: MachineId,
+    ) -> Result<MachineAffine<'_>, plain_affine::Error> {
+        match &self.analyses {
+            Some(analyses) => {
+                MachineAffine::from_analyses(analyses, machine, Some(&self.summaries))
+            }
+            None => MachineAffine::new(self.module, machine, Some(&self.summaries)),
+        }
+    }
+
+    /// The reference-end candidates of every machine. Finding them replays
+    /// callees into the round's summaries, which the walks then reuse.
+    pub(crate) fn reference_end_candidates(
+        &self,
+    ) -> Result<
+        arena::IdTable<MachineId, terminal_semantics::reference_ends::Candidates>,
+        terminal_semantics::reference_ends::Error,
+    > {
+        use terminal_semantics::reference_ends::{candidates_sharing, candidates_sharing_in};
+        match &self.analyses {
+            Some(analyses) => candidates_sharing_in(analyses, &self.summaries),
+            None => candidates_sharing(self.module, &self.summaries),
+        }
+    }
+}
 
 /// Plan every machine of `module` and apply each plan to its machine in
 /// machine order, with the result of the loop that plans machine `k` only
@@ -31,12 +101,12 @@ use terminal_semantics::plain_affine::{self, AffineSummaries, Site};
 /// module as it is then. `apply` may change only the machine it is given. The
 /// first error `apply` returns ends the loop, as it would in order.
 ///
-/// `plan` receives the callee-summary table of the module it is given, which
-/// every plan against that same unchanged module shares.
+/// `plan` receives the `ModuleWalks` round of the module it plans against,
+/// which every plan against that same unchanged module shares.
 #[cfg(test)]
 pub(crate) fn plan_then_apply<Plan: Send, Error>(
     module: &mut TerminalModule,
-    plan: impl Fn(&TerminalModule, &AffineSummaries<'_>, &TerminalMachine) -> Plan + Sync,
+    plan: impl Fn(&ModuleWalks<'_>, &TerminalMachine) -> Plan + Sync,
     reads: impl Fn(&Plan) -> Option<&[MachineId]>,
     apply: impl FnMut(&mut TerminalMachine, Plan) -> Result<bool, Error>,
 ) -> Result<(), Error> {
@@ -52,7 +122,7 @@ pub(crate) fn plan_then_apply<Plan: Send, Error>(
 pub(crate) fn plan_then_apply_with<Plan: Send, Error>(
     module: &mut TerminalModule,
     parallel: bool,
-    plan: impl Fn(&TerminalModule, &AffineSummaries<'_>, &TerminalMachine) -> Plan + Sync,
+    plan: impl Fn(&ModuleWalks<'_>, &TerminalMachine) -> Plan + Sync,
     reads: impl Fn(&Plan) -> Option<&[MachineId]>,
     mut apply: impl FnMut(&mut TerminalMachine, Plan) -> Result<bool, Error>,
 ) -> Result<(), Error> {
@@ -60,12 +130,12 @@ pub(crate) fn plan_then_apply_with<Plan: Send, Error>(
     let advance: Vec<Option<Plan>> = if parallel && count >= 2 {
         use rayon::prelude::*;
         let module = &*module;
-        let summaries = AffineSummaries::new(module);
+        let walks = ModuleWalks::new(module);
         module
             .machines
             .par_iter()
             .with_max_len(1)
-            .map(|machine| Some(plan(module, &summaries, machine)))
+            .map(|machine| Some(plan(&walks, machine)))
             .collect()
     } else {
         (0..count).map(|_| None).collect()
@@ -78,7 +148,7 @@ pub(crate) fn plan_then_apply_with<Plan: Send, Error>(
 pub(crate) fn plan_then_apply_from_advance<Plan: Send, Error>(
     module: &mut TerminalModule,
     mut advance: Vec<Option<Plan>>,
-    plan: impl Fn(&TerminalModule, &AffineSummaries<'_>, &TerminalMachine) -> Plan + Sync,
+    plan: impl Fn(&ModuleWalks<'_>, &TerminalMachine) -> Plan + Sync,
     reads: impl Fn(&Plan) -> Option<&[MachineId]>,
     mut apply: impl FnMut(
         &mut TerminalMachine,
@@ -91,7 +161,7 @@ pub(crate) fn plan_then_apply_from_advance<Plan: Send, Error>(
     let mut changed: Vec<MachineId> = Vec::new();
     let mut ordinal = 0;
     while ordinal < count {
-        // While no re-plan has needed an `AffineSummaries` table in this
+        // While no re-plan has needed a `ModuleWalks` round in this
         // epoch, `module` stays unborrowed so pre-planned `advance` hits apply
         // directly in place without cloning `TerminalMachine`.
         while ordinal < count {
@@ -123,10 +193,10 @@ pub(crate) fn plan_then_apply_from_advance<Plan: Send, Error>(
             break;
         }
         // Until an application changes a machine, the module stays as it is
-        // here, so the walks planned again share one `AffineSummaries` table.
+        // here, so the walks planned again share one `ModuleWalks` round.
         let edit = {
             let module = &*module;
-            let summaries = AffineSummaries::new(module);
+            let walks = ModuleWalks::new(module);
             loop {
                 let Some(machine) = module.machines.get(ordinal) else {
                     break None;
@@ -143,7 +213,7 @@ pub(crate) fn plan_then_apply_from_advance<Plan: Send, Error>(
                     {
                         advance
                     }
-                    _ => plan(module, &summaries, machine),
+                    _ => plan(&walks, machine),
                 };
                 let mut applied = machine.clone();
                 let mutated = apply(&mut applied, &module.types.structural_types, next)?;

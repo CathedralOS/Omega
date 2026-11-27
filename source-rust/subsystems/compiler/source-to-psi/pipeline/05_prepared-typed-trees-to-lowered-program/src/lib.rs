@@ -2396,7 +2396,7 @@ fn finish_storage(
     lower::machine_order::plan_then_apply_with(
         module,
         parallel,
-        |module, summaries, machine| storage_plan(module, summaries, machine, names, sources),
+        |walks, machine| storage_plan(walks, machine, names, sources),
         |plan| match plan {
             Ok(Ok(plan)) => Some(plan.graphed_machines.as_slice()),
             _ => None,
@@ -2433,14 +2433,13 @@ fn finish_storage(
 /// refuses, which `finish_storage` may report beside other refusals, and
 /// `Err(_)` when the stores it plans cannot be validated, which ends storage.
 fn storage_plan(
-    module: &terminal_psi::TerminalModule,
-    summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
+    walks: &lower::machine_order::ModuleWalks<'_>,
     machine: &terminal_psi::TerminalMachine,
     names: &IdTable<MachineId, MachineNames>,
     sources: &IdTable<MachineId, MachineSources>,
 ) -> Checked<Checked<terminal_semantics::plain_affine::Plan>> {
-    let walks =
-        terminal_semantics::plain_affine::MachineAffine::new(module, machine.id, Some(summaries));
+    let module = walks.module();
+    let walks = walks.affine(machine.id);
     let plan = walks.and_then(|walks| walks.plan()).map_err(|error| {
         let refusal = lower::machine_order::WalkRefusal::new(&error);
         let origin = refusal.origin(sources.get(machine.id));

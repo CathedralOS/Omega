@@ -7,27 +7,29 @@ use crate::{Unserved, refuse};
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct, Refusal};
 use terminal_psi::TerminalModule;
+use terminal_semantics::ModuleAnalyses;
 use terminal_semantics::descriptor_results::{
-    DescriptorAnalysis, DescriptorGraphError, ModuleSummaries, terminal_borrowed_storage_graph_from,
+    DescriptorAnalysis, DescriptorGraphError, DescriptorSlotKind, ModuleSummaries,
 };
 
-/// The nominal calls of every graph this stage builds with
-/// `terminal_borrowed_storage_graph_from`: none. `ModuleSummaries` checks a
-/// graph's nominal calls by address, so a table and the analyses sharing it
-/// name this one slice.
+/// The nominal calls of the reference-parent graph: none. `ModuleSummaries`
+/// checks a graph's nominal calls by address, so the table and the analyses
+/// sharing it name this one slice.
 static NO_NOMINAL_CALLS: [terminal_psi::generic_calls::NominalCallType; 0] = [];
 
-/// One module's callee summaries for the per-machine analyses of graphs this
-/// stage builds without nominal calls. Each analysis takes a summary only
-/// where its own replay would have produced the same one, so each callee is
-/// replayed once per module rather than once per analysis.
-pub(crate) fn module_summaries(module: &TerminalModule) -> ModuleSummaries<'_> {
+/// The callee summaries of the reference-parent analyses, which all read one
+/// graph built with the module's scoped requirement addresses. That graph's
+/// rows are not the rows a `ModuleAnalyses` bundle shares, so these analyses
+/// keep their own table. Each analysis takes a summary only where its own
+/// replay would have produced the same one, so each callee is replayed once
+/// per graph rather than once per analysis.
+fn module_summaries(module: &TerminalModule) -> ModuleSummaries<'_> {
     ModuleSummaries::borrowed_storage(module, &NO_NOMINAL_CALLS)
 }
 
 /// A fresh analysis over `graph`, a closure built from `module` without
 /// nominal calls, sharing `summaries` (`module_summaries` of that module).
-pub(crate) fn shared_analysis<'a>(
+fn shared_analysis<'a>(
     module: &'a TerminalModule,
     graph: &'a [terminal_semantics::descriptor_results::DescriptorMachine],
     summaries: &'a ModuleSummaries<'a>,
@@ -64,12 +66,10 @@ pub(crate) fn publish(
             &elaboration.static_schemas,
         )?;
         let module = &elaboration.module;
-        let summaries = module_summaries(module);
         publish_retained_call_loans(
             module,
             &mut elaboration.tables,
             &mut elaboration.sources,
-            &summaries,
             parallel,
         )?;
         let successor_loans =
@@ -79,7 +79,6 @@ pub(crate) fn publish(
             &mut elaboration.tables,
             &elaboration.sources,
             &elaboration.names,
-            &summaries,
             &successor_loans,
             &elaboration.static_schemas,
             parallel,
@@ -167,7 +166,6 @@ fn publish_retained_call_loans(
     module: &TerminalModule,
     tables: &mut terminal_check_tables::CheckTables,
     sources: &mut arena::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
-    summaries: &ModuleSummaries<'_>,
     parallel: bool,
 ) -> Checked<()> {
     use terminal_check_tables::ProgramPoint;
@@ -214,7 +212,14 @@ fn publish_retained_call_loans(
                     .structural()
                     .is_some_and(|result| contains_borrowed(result.structural_type)))
     });
-    let graph = terminal_borrowed_storage_graph_from(module, bodies.map(|machine| machine.id), &[])
+    // Every caller's analysis reads the bundle's rows of this closure and
+    // takes the callee summaries another caller's analysis completed.
+    let analyses = ModuleAnalyses::new(module).map_err(|error| graph_unavailable(module, error))?;
+    let graph = analyses
+        .descriptor_closure(
+            DescriptorSlotKind::BorrowedStorage,
+            bodies.map(|machine| machine.id),
+        )
         .map_err(|error| graph_unavailable(module, error))?;
     struct RetainedLoanInsert {
         captured_arg: terminal_psi::StructuralArgument,
@@ -229,7 +234,7 @@ fn publish_retained_call_loans(
         |machine: &terminal_psi::TerminalMachine| -> Checked<(MachineId, Vec<RetainedLoanInsert>)> {
             let unavailable =
                 |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
-            let mut analysis = shared_analysis(module, &graph, summaries);
+            let mut analysis = analyses.analysis(DescriptorSlotKind::BorrowedStorage, &graph);
             let flow = analysis
                 .flow_arc(machine.id)
                 .map_err(|error| graph_unavailable(module, error))?;
@@ -739,7 +744,6 @@ fn publish_parents(
     check_tables: &mut terminal_check_tables::CheckTables,
     sources_ref: &arena::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
     names_ref: &arena::IdTable<MachineId, crate::MachineNames>,
-    summaries: &ModuleSummaries<'_>,
     successor_loans: &[SuccessorLoan],
     schemas: &[terminal_check_tables::contracts::StaticSchemaQuestion],
     parallel: bool,
@@ -956,6 +960,7 @@ fn publish_parents(
         &terminal_check_tables::contracts::scoped_requirement_addresses(&module.machines, schemas),
     )
         .map_err(|error| graph_unavailable(module, error))?;
+    let summaries = &module_summaries(module);
     let solve_machine = |query: (
         &terminal_psi::TerminalMachine,
         MachineLoanIndex,
