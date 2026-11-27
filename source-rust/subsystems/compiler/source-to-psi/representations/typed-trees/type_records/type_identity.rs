@@ -139,9 +139,8 @@ pub(crate) mod callable_identity {
         fn read<Context>(
             input: &mut record_storage::RecordReader<'_, Context>,
         ) -> Result<Self, record_storage::RecordError> {
-            let owner =
-                record_storage::shared_allocation_bytes(std::alloc::Layout::new::<T>())
-                    .ok_or_else(|| input.error("callable identity owner allocation overflow"))?;
+            let owner = record_storage::shared_allocation_bytes(std::alloc::Layout::new::<T>())
+                .ok_or_else(|| input.error("callable identity owner allocation overflow"))?;
             input.allocate(owner)?;
             Ok(T::read(input)?.into())
         }
@@ -837,18 +836,6 @@ pub(crate) mod callable_identity {
             })
         }
 
-        pub fn callable_result_dispatch_is_empty(
-            &self,
-            dispatch: CallableResultDispatchId,
-        ) -> bool {
-            self.read_callable_identities(|table| {
-                dispatch
-                    .slot()
-                    .and_then(|slot| table.result_dispatches.get(slot))
-                    .is_none_or(NormalizedResultDispatchSet::is_empty)
-            })
-        }
-
         fn read_callable_identities<R>(&self, read: impl FnOnce(&CallableIdentityTable) -> R) -> R {
             self.callable_identities.with(read)
         }
@@ -1101,9 +1088,12 @@ pub(crate) mod constraint_identity {
             if parameters.len() != arguments.len() {
                 return substitution::rejected(context);
             }
-            let indices = parameters.iter().zip(arguments).map(|(parameter, argument)| {
-                super::normalized_domain_index(program, parameter, *argument, context)
-            });
+            let indices = parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| {
+                    super::normalized_domain_index(program, parameter, *argument, context)
+                });
             return compound(
                 ConstraintForm::DeclaredDomain,
                 std::iter::once(atom(
@@ -3784,7 +3774,8 @@ pub(crate) mod lifetime_parameters {
     ) -> Option<String> {
         lifetime_parameter_name(program, region)?;
         let owner = region.declaration;
-        let (kind, declaration) = if let Some(machine) = program.machine_declaration_for_lexical_scope(owner)
+        let (kind, declaration) = if let Some(machine) =
+            program.machine_declaration_for_lexical_scope(owner)
         {
             ("machine", program.machine_callable_identity_text(machine)?)
         } else if let Some((declaration, requirement)) = program.trait_machine_signature(owner) {
@@ -4461,8 +4452,8 @@ pub(crate) mod normalized_identities {
                 }
                 lower
             }
-            let bytes = record_storage::encode(&TypeIdentityTable::default(), Default::default())
-                .unwrap();
+            let bytes =
+                record_storage::encode(&TypeIdentityTable::default(), Default::default()).unwrap();
             let text_allocation = minimum_allocation::<arena::OwnedTextInterner>(&bytes);
             let cache_allocation =
                 record_storage::shared_allocation_bytes(std::alloc::Layout::new::<
@@ -9038,27 +9029,6 @@ pub fn applied_carrier_identity_in_region_scope(
     (!invalid.get()).then_some(identity)
 }
 
-pub fn applied_declared_carrier_identity(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-    scopes: &[AppliedTypeIdentityScope<'_>],
-) -> Option<NormalizedTypeIdentity> {
-    let invalid = Cell::new(false);
-    let identity = normalize_type_identity(
-        program,
-        reference,
-        &TypeIdentityContext {
-            declared_carrier: true,
-            application_scopes: scopes,
-            invalid_application: Some(&invalid),
-            encountered_elided_regions: Some(&invalid),
-            invalid_index_argument: Some(&invalid),
-            ..TypeIdentityContext::default()
-        },
-    );
-    (!invalid.get()).then_some(identity)
-}
-
 pub fn applied_index_identity(
     program: &TypedTrees,
     argument: IndexIdentityArgument<'_>,
@@ -9725,61 +9695,6 @@ impl TypedTrees {
         None
     }
 
-    pub fn closed_data_member_field(
-        &self,
-        reference: TypeReferenceHandle,
-        retained: SymbolHandle,
-        member_name: &str,
-    ) -> Option<&data::DataField> {
-        let instance = self.closed_data_field_definition(reference)?;
-        let mut fields =
-            self.data_members(instance)
-                .iter()
-                .enumerate()
-                .filter_map(|(ordinal, member)| {
-                    let data::DataMember::Field(field) = member else {
-                        return None;
-                    };
-                    (field.name.as_str() == member_name).then_some((ordinal, field))
-                });
-        let (ordinal, field) = fields.next()?;
-        if fields.next().is_some() {
-            return None;
-        }
-        if !field.symbol.is_valid()
-            || !self.contains_type_reference(field.type_reference)
-            || self.symbols.get(field.symbol).parent != instance.symbol
-        {
-            return None;
-        }
-        if retained == field.symbol {
-            return Some(field);
-        }
-        let origin = instance.generic_instance?;
-        if !self.type_reference_table.contains_type_reference(origin) {
-            return None;
-        }
-        let crate::source_state::types::TypeReferenceNode::Generic { base_symbol, .. } =
-            self.type_reference_table.type_reference(origin)
-        else {
-            return None;
-        };
-        if self.closed_data_definition(origin)?.symbol != instance.symbol {
-            return None;
-        }
-        let template = self.unique_data_definition_by_symbol(*base_symbol)?;
-        let data::DataMember::Field(original) = self.data_members(template).get(ordinal)? else {
-            return None;
-        };
-        (field.name == original.name
-            && field.identity == original.identity
-            && field.relevance == original.relevance
-            && original.symbol.is_valid()
-            && self.symbols.get(original.symbol).parent == template.symbol
-            && (!retained.is_valid() || retained == field.symbol || retained == original.symbol))
-            .then_some(field)
-    }
-
     fn data_field_declaration_symbol(
         &self,
         mut symbol: SymbolHandle,
@@ -9977,7 +9892,9 @@ impl TypedTrees {
         }
         match self.symbols.symbol_source_origin(symbol) {
             Some(source_admission::SourceOrigin::Toolchain) => Ok(format!("toolchain::{path}")),
-            Some(source_admission::SourceOrigin::ToolchainLibrary) => Ok(format!("toolchain-library::{path}")),
+            Some(source_admission::SourceOrigin::ToolchainLibrary) => {
+                Ok(format!("toolchain-library::{path}"))
+            }
             Some(source_admission::SourceOrigin::ToolchainContract) => {
                 Ok(format!("toolchain-contract::{path}"))
             }

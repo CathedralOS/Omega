@@ -125,18 +125,27 @@ impl NamespaceDeclarations {
     pub(crate) fn register(&self, symbols: &mut SymbolTable) -> Result<(), Vec<Diagnostic>> {
         if let Some(sources) = symbols.source_map() {
             for file in sources.selected_files() {
-                let path = file.directory_namespace().map_err(|reason| vec![Diagnostic::error(reason)])?;
+                let path = file
+                    .directory_namespace()
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 if path.is_empty() || symbols.source_module(file.source_id).is_valid() {
                     continue;
                 }
                 let anchor = file.source_span(source_text::Span::default());
-                symbols.register_source_module(file.source_id, path.into_iter().map(|name| (name, anchor)))
+                symbols
+                    .register_source_module(
+                        file.source_id,
+                        path.into_iter().map(|name| (name, anchor)),
+                    )
                     .map_err(|message| vec![Diagnostic::error(message)])?;
             }
         }
         for import in &self.file_imports {
-            if !import.has_code && symbols.source_file(import.span)
-                .is_some_and(|file| file.dependency_scope == source_provenance::DependencyScope::Build) {
+            if !import.has_code
+                && symbols.source_file(import.span).is_some_and(|file| {
+                    file.dependency_scope == source_provenance::DependencyScope::Build
+                })
+            {
                 // Only an explicitly supplied host file can be used for ordinary reflection.
                 // A similarly named Product file already in the forest is not a host binding.
                 continue;
@@ -546,46 +555,6 @@ pub(crate) fn assign_body_symbols(
     private_nested_calls::reject_private_nested_calls(&lowerer.symbol_resolved_trees)?;
     lowerer.symbol_resolved_trees.generic_binding_overlaps =
         repeated_locals::check_bindings(&lowerer.symbol_resolved_trees)?;
-    Ok(())
-}
-
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn assign_lexical_inputs(
-    lowerer: &mut Lowerer,
-    syntax: &syntax_trees::SyntaxTrees,
-) -> Result<(), Vec<Diagnostic>> {
-    let mut inputs =
-        crate::resolution::lowering::machine::lower_pending_lexical_inputs(lowerer, syntax)
-            .map_err(|diagnostic| vec![diagnostic])?;
-    for input in &mut inputs {
-        let state = lowerer
-            .symbol_resolved_trees
-            .machine_state(input.state)
-            .symbol;
-        symbol_table::append_local_symbols(
-            &mut lowerer.symbol_resolved_trees.symbols,
-            state,
-            &mut input.locals,
-        );
-    }
-    let runtime_callable_contracts =
-        symbol_table::append_runtime_callable_symbols(&mut lowerer.symbol_resolved_trees);
-    lowerer
-        .runtime_callable_scopes
-        .bind_program(&mut lowerer.symbol_resolved_trees)
-        .map_err(|error| vec![error])?;
-    let symbols = lowerer.symbol_resolved_trees.symbols.clone();
-    runtime_callable_types::assign_signatures(
-        &mut lowerer.symbol_resolved_trees,
-        &symbols,
-        &runtime_callable_contracts,
-    )?;
-    statements::assign_lexical_input_reference_symbols(
-        &mut lowerer.symbol_resolved_trees,
-        &symbols,
-        &mut inputs,
-    )?;
-    lowerer.resolved_lexical_inputs.extend(inputs);
     Ok(())
 }
 

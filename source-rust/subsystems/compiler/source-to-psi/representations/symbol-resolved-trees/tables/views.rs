@@ -24,21 +24,6 @@ impl SymbolResolvedTrees {
         &self.tables.bodies.expressions
     }
 
-    /// Type operands retain their source coordinates at resolution. Constructors
-    /// carry their nominal lookup in the authored selection for the type name.
-    pub fn missing_type_names(&self) -> impl Iterator<Item = SourceSpan> + '_ {
-        use crate::declaration_selection::{
-            AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralType,
-            AuthoredDeclarationSelectionTarget::LateBound,
-        };
-        let selections = self
-            .authored_declaration_selections()
-            .iter()
-            .filter(|selection| selection.target() == LateBound(CheckedStructLiteralType))
-            .map(|selection| selection.source_span());
-        self.tables.types.references.missing_names().iter().copied().chain(selections)
-    }
-
     pub(crate) fn expression_table_mut(&mut self) -> &mut expression::ExpressionTable {
         &mut self.tables.bodies.expressions
     }

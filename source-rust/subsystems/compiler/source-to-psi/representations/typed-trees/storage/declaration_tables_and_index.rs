@@ -1579,19 +1579,6 @@ pub mod declaration_index {
             self.with_state_positions_for_symbol(symbol, |positions| positions.to_vec())
         }
 
-        /// Every machine declared as `symbol`, in table order. A symbol can
-        /// name several rows (a template and its requirement, say), so callers
-        /// that also test supply mode or parameters filter this instead of
-        /// scanning the whole table.
-        pub fn machines_with_symbol(
-            &self,
-            symbol: SymbolHandle,
-        ) -> impl Iterator<Item = &machine::Machine> + '_ {
-            self.machine_positions_for_symbol(symbol)
-                .into_iter()
-                .map(|position| self.machines().at(position as usize))
-        }
-
         pub fn machine_by_own_or_state_symbol(
             &self,
             symbol: SymbolHandle,
@@ -2403,7 +2390,8 @@ pub(crate) mod declaration_tables {
             &self,
             path: &crate::source_state::expression::TableNamePath,
         ) -> Option<&crate::source_state::constant::ConstDeclaration> {
-            if path.static_application.is_valid() || path.reserved_result_of.is_valid()
+            if path.static_application.is_valid()
+                || path.reserved_result_of.is_valid()
                 || !self.symbols.symbols().nodes().is_valid(path.symbol)
                 || self.symbols.get(path.symbol).kind != symbols::SymbolKind::Const
             {
@@ -5397,7 +5385,8 @@ pub(crate) mod type_reference_queries {
                     .is_some_and(|(expected, actual)| expected == actual)
                 }
                 (
-                    TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference },
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference },
                     StaticMachineBindingValue::Const(actual),
                 ) => {
                     // Inference may carry the same scalar as a typed operand, while
@@ -5415,8 +5404,9 @@ pub(crate) mod type_reference_queries {
                         let bound = self.callable_scalar_value(primitive, &bound_operand);
                         match (supplied, bound) {
                             (Ok(supplied), Ok(bound)) => return supplied == bound,
-                            (Err(_), Err(_)) if static_const_argument_value(self, &bound_operand).is_none()
-                                && static_const_argument_value(self, argument).is_none() => {}
+                            (Err(_), Err(_))
+                                if static_const_argument_value(self, &bound_operand).is_none()
+                                    && static_const_argument_value(self, argument).is_none() => {}
                             _ => return false,
                         }
                     }

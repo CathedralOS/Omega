@@ -722,15 +722,6 @@ pub(super) fn assign_machine_signature_reference_symbols(
     assign_machine_references(program, symbols, None, &mut [])
 }
 
-#[cfg(any(test, feature = "test-support"))]
-pub(super) fn assign_lexical_input_reference_symbols(
-    program: &mut SymbolResolvedTrees,
-    symbols: &SymbolTable,
-    inputs: &mut [crate::resolution::lowering::state::StateLexicalInputs],
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    assign_machine_references(program, symbols, None, inputs)
-}
-
 fn assign_machine_references(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
@@ -818,8 +809,7 @@ fn assign_machine_references(
             binder_roles: &binder_roles,
             resolution_indexes: &program.resolution_indexes,
             symbol: machine_symbol,
-            lexical_requirements: trait_scopes
-                .machine_requirements(machine.symbol),
+            lexical_requirements: trait_scopes.machine_requirements(machine.symbol),
             type_parameters: &lexical_type_parameters,
             attached_data_symbol: machine.attached_data_symbol,
             inherited_data_members,
