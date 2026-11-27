@@ -1369,11 +1369,11 @@ const ONE_IS_POSITIVE: &str = "data Choice {
 
 data OneIsPositive = machine(c: Choice)
     requires c in Choice::One && c.x != 0u8
-    ensures c.x != 0u8;
+    ensures c.x > 0u8;
 
 machine one_is_positive(c: Choice)
 requires c in Choice::One && c.x != 0u8
-ensures c.x != 0u8
+ensures c.x > 0u8
 {
 }
 
@@ -1414,13 +1414,30 @@ fn a_theorem_needing_another_case_cannot_supply_the_alias() {
 #[test]
 fn a_theorem_needing_more_of_the_payload_cannot_supply_the_alias() {
     let source = ONE_IS_POSITIVE.replace(
-        "data OneIsPositive = machine(c: Choice)\n    requires c in Choice::One && c.x != 0u8\n    ensures c.x != 0u8;",
+        "data OneIsPositive = machine(c: Choice)\n    requires c in Choice::One && c.x != 0u8\n    ensures c.x > 0u8;",
         "data OneIsPositive = machine(c: Choice)\n    requires c in Choice::One && c.x != 1u8\n    ensures c.x != 1u8;",
     );
     assert!(
         source.contains("requires c in Choice::One && c.x != 1u8"),
         "{source}"
     );
+    let verdict = stored(&source);
+    let shown = format!("{verdict:?}");
+    assert!(
+        shown.contains("explicit proof argument does not establish the complete aliased contract"),
+        "{shown}"
+    );
+}
+
+/// The cited machine's conclusion `c.x > 0u8` does not reach the alias's
+/// stronger `c.x > 1u8`.
+#[test]
+fn a_theorem_concluding_less_about_the_payload_cannot_supply_the_alias() {
+    let source = ONE_IS_POSITIVE.replace(
+        "    requires c in Choice::One && c.x != 0u8\n    ensures c.x > 0u8;",
+        "    requires c in Choice::One && c.x != 0u8\n    ensures c.x > 1u8;",
+    );
+    assert!(source.contains("ensures c.x > 1u8;"), "{source}");
     let verdict = stored(&source);
     let shown = format!("{verdict:?}");
     assert!(
