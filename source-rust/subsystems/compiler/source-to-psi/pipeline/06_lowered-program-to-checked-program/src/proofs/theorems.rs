@@ -198,9 +198,12 @@ pub(crate) fn finalize_citations(
             let supplied = module
                 .machine(source)
                 .ok_or_else(|| invalid("cited theorem has no source machine"))?;
+            let formals = terminal_semantics::theorems::proof_formal_contracts(module, source)
+                .map_err(invalid)?;
             let goals = terminal_semantics::theorems::citation_goals(
                 &context.parameter.contract,
                 &supplied.contract,
+                &formals,
                 citation.instantiation.len(),
             )
             .map_err(invalid)?;
@@ -223,19 +226,11 @@ pub(crate) fn finalize_citations(
                 let position = crate::position(position, row.machine)?;
                 let expected = terminal_semantics::theorems::parameter(module, source, position)
                     .map_err(invalid)?;
-                let inner = module
-                    .machine(inner)
-                    .ok_or_else(|| invalid("instantiating theorem has no source machine"))?;
-                let goals = terminal_semantics::theorems::citation_goals(
-                    &expected.contract,
-                    &inner.contract,
-                    0,
-                )
-                .map_err(invalid)?;
-                supply.derivations = derive_citation(
+                supply.derivations = derive_supply(
+                    module,
                     row.machine,
                     &expected.contract,
-                    &goals,
+                    inner,
                     "proof given to the cited theorem does not establish its own aliased contract",
                     activity,
                 )?;
@@ -348,8 +343,87 @@ pub(crate) fn finalize_citations(
     for (index, citation, _) in prepared {
         module.proofs.theorem_citations[index] = citation;
     }
+    finalize_application_supplies(module, activity)?;
     terminal_codec::validate_theorem_supply_sites(module)
         .map_err(|reason| module_refusal(module, reason))
+}
+
+/// Each proof an application gives its contract's own proof parameters, as
+/// `inner` in `Step::<inner>(n)`, answers that parameter's contract exactly
+/// as a proof argument at an invocation would.
+fn finalize_application_supplies(
+    module: &mut TerminalModule,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<()> {
+    use terminal_psi::TheoremSource;
+    for index in 0..module.proofs.theorem_applications.len() {
+        let row = &module.proofs.theorem_applications[index];
+        if row.instantiation.is_empty() {
+            continue;
+        }
+        let owner = row.machine;
+        let invalid = |reason| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                owner,
+                Construct::Edge(row.edge),
+                reason,
+            )
+        };
+        let applied =
+            terminal_semantics::theorems::applied(module, owner, row.source).map_err(invalid)?;
+        if applied.proof_parameters.len() != row.instantiation.len() {
+            return Err(invalid(
+                "logical use needs one proof for each of its contract's own proof parameters",
+            ));
+        }
+        let mut supplies = row.instantiation.clone();
+        for (expected, supply) in applied.proof_parameters.iter().zip(&mut supplies) {
+            let TheoremSource::Named(inner) = supply.source else {
+                continue;
+            };
+            if supply.derivations.is_empty() {
+                supply.derivations = derive_supply(
+                    module,
+                    owner,
+                    expected,
+                    inner,
+                    "proof given to the applied theorem does not establish its own aliased contract",
+                    activity,
+                )?;
+            }
+        }
+        module.proofs.theorem_applications[index].instantiation = supplies;
+    }
+    Ok(())
+}
+
+/// The three derivations by which the named machine `inner` supplies `expected`.
+fn derive_supply(
+    module: &TerminalModule,
+    owner: MachineId,
+    expected: &terminal_psi::TheoremContract,
+    inner: MachineId,
+    failure: &str,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<Vec<terminal_psi::CertificateEnvelope>> {
+    let invalid = |reason| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            owner,
+            Construct::Machine,
+            reason,
+        )
+    };
+    let machine = module
+        .machine(inner)
+        .ok_or_else(|| invalid("instantiating theorem has no source machine"))?;
+    let formals =
+        terminal_semantics::theorems::proof_formal_contracts(module, inner).map_err(invalid)?;
+    let goals =
+        terminal_semantics::theorems::citation_goals(expected, &machine.contract, &formals, 0)
+            .map_err(invalid)?;
+    derive_citation(owner, expected, &goals, failure, activity)
 }
 
 /// Prove a citation's three goals over the alias's subjects.

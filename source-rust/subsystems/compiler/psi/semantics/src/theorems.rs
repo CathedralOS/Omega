@@ -18,8 +18,10 @@ pub fn contract_type(
     budget: &mut proof_admission::Budget,
 ) -> Result<proof_admission::BoundedImplicationType, &'static str> {
     let subjects = contract_subjects(contract)?;
+    let hypotheses = hypothesis_types(contract, budget)?;
     proof_admission::denote_bounded_implication_type(
         &subjects,
+        &hypotheses,
         &contract.requires,
         &conjunction(contract.ensures.clone()),
         budget,
@@ -27,7 +29,20 @@ pub fn contract_type(
     .map_err(|_| "logical contract has no well-formed mathematical implication")
 }
 
+/// The closed implication of each of the contract's own proof parameters.
+fn hypothesis_types(
+    contract: &TheoremContract,
+    budget: &mut proof_admission::Budget,
+) -> Result<Vec<proof_admission::BoundedImplicationType>, &'static str> {
+    contract
+        .proof_parameters
+        .iter()
+        .map(|nested| contract_type(nested, budget))
+        .collect()
+}
+
 /// Check the stored contract's subject and clause vocabulary without proving a judgment.
+/// Its own proof parameters are checked the same way, and take none of their own.
 pub fn contract_subjects(
     contract: &TheoremContract,
 ) -> Result<Vec<(ValueId, ScalarType)>, &'static str> {
@@ -76,7 +91,30 @@ pub fn contract_subjects(
             _ => return Err("logical clause has no complete fixed mathematical denotation"),
         }
     }
+    for nested in &contract.proof_parameters {
+        if !nested.proof_parameters.is_empty() {
+            return Err("a logical contract's proof parameter takes proof parameters of its own");
+        }
+        contract_subjects(nested)?;
+    }
     Ok(subjects)
+}
+
+/// The contracts of a machine's own logical proof formals, in header order.
+pub fn proof_formal_contracts(
+    module: &TerminalModule,
+    machine: MachineId,
+) -> Result<Vec<&TheoremContract>, &'static str> {
+    let owner = module
+        .machine(machine)
+        .ok_or("logical parameter has no owning machine")?;
+    (0..owner.contract.erased_proof_formals.len())
+        .map(|position| {
+            let position =
+                u32::try_from(position).map_err(|_| "logical parameter position overflow")?;
+            Ok(&parameter(module, machine, position)?.contract)
+        })
+        .collect()
 }
 
 pub fn parameter(
@@ -177,6 +215,7 @@ pub fn named_contract(
             .iter()
             .map(|clause| clause.proposition.clone())
             .collect(),
+        proof_parameters: Vec::new(),
     };
     contract_subjects(&named)?;
     Ok(named)
@@ -212,6 +251,9 @@ pub fn application<'a>(
         || application.requirements.len() != formal.requires.len()
     {
         return Err("logical use lost a subject or premise");
+    }
+    if application.instantiation.len() != formal.proof_parameters.len() {
+        return Err("logical use needs one proof for each of its contract's own proof parameters");
     }
     for (argument, formal) in application.arguments.iter().zip(&formal.parameters) {
         argument
@@ -311,16 +353,21 @@ pub fn substitute(
 /// citation must prove the implication over its admitted inputs, then check
 /// that its premises and guarantee satisfy the alias's complete contract.
 ///
-/// `instantiated` counts the supplies a citation gives the cited machine's
-/// own proof parameters. Each must be a declared logical formal; they are
-/// checked separately against that machine's aliases. The three goals here
-/// do not use them: the cited implication is proved from its contract alone.
+/// The cited machine's own proof formals, `formals`, are each given a proof
+/// in one of two ways. A citation may instantiate them, as `lifted::<inner>`
+/// does: `instantiated` counts those supplies, which are checked separately
+/// against the machine's aliases. Or, when the expected contract declares
+/// proof parameters of its own, the machine's formals are exactly those, in
+/// order, and receive whatever proofs the contract's user later gives it.
+/// The three goals here use neither: the cited implication is proved from
+/// its contract alone.
 pub fn citation_goals(
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
+    formals: &[&TheoremContract],
     instantiated: usize,
 ) -> Result<[Proposition; 3], &'static str> {
-    citation_goals_with(expected, supplied, instantiated, |contract| {
+    citation_goals_with(expected, supplied, formals, instantiated, |contract| {
         contract_type(contract, &mut proof_admission::Budget::default()).map(drop)
     })
 }
@@ -330,9 +377,10 @@ pub fn citation_goals(
 pub fn recorded_citation_goals(
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
+    formals: &[&TheoremContract],
     instantiated: usize,
 ) -> Result<[Proposition; 3], &'static str> {
-    citation_goals_with(expected, supplied, instantiated, |contract| {
+    citation_goals_with(expected, supplied, formals, instantiated, |contract| {
         contract_subjects(contract).map(drop)
     })
 }
@@ -340,16 +388,26 @@ pub fn recorded_citation_goals(
 fn citation_goals_with(
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
+    formals: &[&TheoremContract],
     instantiated: usize,
     check: impl Fn(&TheoremContract) -> Result<(), &'static str>,
 ) -> Result<[Proposition; 3], &'static str> {
-    if supplied.erased_proof_formals.len() != instantiated
+    if supplied.erased_proof_formals.len() != formals.len()
         || supplied
             .erased_proof_formals
             .iter()
             .any(|formal| !matches!(formal.source, ProofFormalSource::GenericParameter(_)))
     {
-        return Err("cited theorem needs one logical supply for each of its own proof formals");
+        return Err("cited theorem has another roster of logical proof formals");
+    }
+    if expected.proof_parameters.is_empty() {
+        if formals.len() != instantiated {
+            return Err("cited theorem needs one logical supply for each of its own proof formals");
+        }
+    } else if instantiated != 0 || !formals.iter().copied().eq(expected.proof_parameters.iter()) {
+        return Err(
+            "cited theorem's own proof formals are not exactly the proof parameters of the aliased contract",
+        );
     }
     if supplied.parameters != expected.parameters
         || supplied
@@ -384,6 +442,7 @@ fn citation_goals_with(
             .iter()
             .map(|clause| clause.proposition.clone())
             .collect(),
+        proof_parameters: Vec::new(),
     };
     check(expected)?;
     check(&actual)?;
@@ -572,12 +631,13 @@ fn weaken_closed_proof(
 pub fn denote_citation(
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
+    formals: &[&TheoremContract],
     instantiated: usize,
     derivations: &[terminal_psi::CertificateEnvelope],
     budget: &mut proof_admission::Budget,
 ) -> Result<proof_admission::BoundedTheorem, &'static str> {
     use terminal_psi::{ProofNode, ProofRule};
-    let goals = citation_goals(expected, supplied, instantiated)?;
+    let goals = citation_goals(expected, supplied, formals, instantiated)?;
     let subjects: Vec<_> = expected
         .parameters
         .iter()
@@ -627,8 +687,10 @@ pub fn denote_citation(
     let ensures = apply(actual, requires)?;
     let refinement = apply(refinement, aliases)?;
     let proof = apply(refinement, ensures)?;
+    let hypotheses = hypothesis_types(expected, budget)?;
     proof_admission::verify_bounded_theorem(
         &subjects,
+        &hypotheses,
         &conjunction(expected.ensures.clone()),
         &expected.requires,
         &[],

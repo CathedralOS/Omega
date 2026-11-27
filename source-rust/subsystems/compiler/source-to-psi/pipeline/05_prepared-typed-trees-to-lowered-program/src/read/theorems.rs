@@ -116,7 +116,7 @@ impl Program<'_> {
         })
     }
 
-    fn theorem_source(
+    pub(super) fn theorem_source(
         &mut self,
         id: MachineId,
         argument: &crate::source_state::expression::StaticMachineArgument,
@@ -211,7 +211,18 @@ impl Program<'_> {
         let machine = typed
             .machine_by_symbol(target)
             .ok_or_else(|| unavailable("named theorem has no complete source declaration"))?;
-        if !typed.machine_type_parameters(machine).is_empty()
+        // A theorem with proof parameters of its own may be cited without
+        // them when the expected contract declares the same ones in its own
+        // header; stage 06 checks that correspondence and refuses any other.
+        if typed
+            .machine_type_parameters(machine)
+            .iter()
+            .any(|parameter| {
+                !matches!(
+                    parameter.kind,
+                    crate::source_state::data::TypeParameterKind::Proof { .. }
+                )
+            })
             || !machine.conformance_bounds.is_empty()
         {
             return Err(unavailable(
@@ -365,8 +376,48 @@ impl Program<'_> {
         source: &StateSignature,
     ) -> Checked<(TheoremContract, Vec<u8>)> {
         let unavailable = |reason| refuse_at(id, Unserved::Declaration(reason));
+        let typed = self.typed;
+        // The contract's own proof parameters belong to its header:
+        // mathematical_bindings.md, "If the contract itself takes a proof
+        // parameter, that parameter belongs to the contract's own header."
+        // Each states a complete contract with none of its own.
+        let own = typed
+            .data_type_parameters
+            .span_or_empty(source.type_parameters);
+        if own.is_empty() != source.type_parameters.is_empty() {
+            return Err(unavailable(
+                "logical theorem contract has a stale header span",
+            ));
+        }
+        let mut proof_parameters = Vec::with_capacity(own.len());
+        for parameter in own {
+            let crate::source_state::data::TypeParameterKind::Proof { contract } = &parameter.kind
+            else {
+                return Err(unavailable(
+                    "logical theorem contract declares a static parameter that is not a proof",
+                ));
+            };
+            let (nested, _) = self.theorem_contract(id, contract)?;
+            if !nested.proof_parameters.is_empty() {
+                return Err(unavailable(
+                    "a logical contract's proof parameter takes proof parameters of its own",
+                ));
+            }
+            proof_parameters.push(nested);
+        }
+        // Its scalar telescope and clauses are read without those binders,
+        // which no clause can name.
+        let unbound;
+        let source = if source.type_parameters.is_empty() {
+            source
+        } else {
+            unbound = StateSignature {
+                type_parameters: arena::HandleSpan::empty(),
+                ..source.clone()
+            };
+            &unbound
+        };
         if !source.lifetime_parameters.is_empty()
-            || !source.type_parameters.is_empty()
             || !source.conformance_bounds.is_empty()
             || source.is_default
             || !source.native_callback_parameters.is_empty()
@@ -383,7 +434,6 @@ impl Program<'_> {
                 "logical theorem contract needs its complete non-scalar correspondence",
             ));
         }
-        let typed = self.typed;
         let parameters = typed.state_signature_parameters(source);
         if parameters.iter().any(|parameter| {
             parameter.is_const || parameter.is_mutable || parameter.relevance.is_erased()
@@ -457,6 +507,7 @@ impl Program<'_> {
             parameters: formals,
             requires: signature.requires,
             ensures: signature.ensures,
+            proof_parameters,
         };
         let expected = terminal_semantics::theorems::contract_type(
             &contract,

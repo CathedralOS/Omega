@@ -146,7 +146,11 @@ fn forwarded_projection(
     if machine.operations().any(|op| {
         // An owned direct call can affect the observed content only through a
         // returned claim. Its exact published projection is checked at that use.
-        let owned_call = op.kind.direct_callee().is_some()
+        // A boundary call is the same kind of step: its result claim relates
+        // to a consumed input only through the boundary's declared unchanged
+        // projection (`ancestry::boundary_input_origins`).
+        let owned_call = (op.kind.direct_callee().is_some()
+            || matches!(op.kind, OperationKind::BoundaryCall { .. }))
             && op.result.as_structural().is_some()
             && op
                 .kind

@@ -1384,7 +1384,7 @@ starts with records.
   - `extent.omg`'s contract over `IntervalSet<Nat>` (the plan's
     `extent.omg:219`) is a clause of a runtime boundary trait over generic
     data. It is read by the carrier clause reader when a program reaches
-    it, not into this signature. Step 5 did not move it (below).
+    it, not into this signature; Step 5 serves it there (below).
   - A refused law whose goal names a field inside one case of an induction
     prints `?` for that field.
 
@@ -1432,8 +1432,22 @@ type), and the clause's `ClauseScope` says what each name denotes there.
   result exists there.
 - **Kept, not yet known to be a rule.** These still name a position. Each
   may state a real rule, so none was removed:
-  - "call in a clause of a state other than the entry" (`unfold_definition`):
-    whether a clause may unfold a call of a machine's non-entry state.
+  - "call in a clause of a state other than the entry" (`unfold_definition`)
+    states a rule, and is now refused as that rule (2026-11-27). A call
+    "invokes its entry, not a saved activation or a private point inside its
+    body", and the source `state` declaration is retired
+    ([nested machines](../../spec/language/machines.md#nested-machines-and-identity)).
+    A clause's call is a call, so the same rule decides it. Resolution gives
+    a call only a machine or its entry state (`one::entry()` and
+    `one::helper()` resolve to nothing a call may name), so no source
+    program reaches the check. The three copies (`unfold`,
+    `unfold_definition` and `call_target_symbol` in `read/calls.rs`, which
+    raised "state other than the entry") are one: `clause_call_machine`
+    resolves the target through `call_target_symbol`, which refuses a
+    non-entry state with the `Violation`
+    `rejections::call_inside_a_machine_body` instead of "not supported yet"
+    (`a_call_runs_a_machine_from_its_entry_never_a_point_inside_it` in
+    `calls_visibility_tests.rs`).
   - "borrowed formal outside an admitted storage clause", "clause that
     projects a formal or result" and "extent without a structural subject"
     are no longer raised for a crash guard (2026-11-25). A published crash
@@ -1585,10 +1599,21 @@ type), and the clause's `ClauseScope` says what each name denotes there.
   `clause_term` now reads a comparison as the Boolean value it computes
   wherever a clause writes one. Propositions are still read by `read_clause`,
   a separate function.
-- **Not done:**
-  - `extent.omg`'s `core\Identity::<IntervalSet<Nat>>` contract
-    (`extent.omg:219`) needs Identity over a domain's content projection of
-    `old(@storage)`. Step 5 did not change how it is read.
+- **`extent.omg`'s interval law at a forwarder (2026-11-27).** The
+  contract `|proof|::Identity::<IntervalSet<Nat>>(Granted::content(old(@storage)), Granted::content(@result))`
+  on `VacantContentTransfer::transfer` and `ResidentContentTransfer::transfer`
+  was already read as a `ContentConservation` guarantee and instantiated at
+  each call (`boundary_calls::compositions`). A machine that forwards the
+  call and promises the same equation over its own input and result was
+  still refused: "content equation needs a proof for operations outside
+  unchanged structural forwarding". Forwarding (`forwarding.rs`) now treats
+  a boundary call like an owned direct call, and content ancestry
+  (`ancestry::boundary_input_origins`) relates the call's result claim to
+  the claim it consumed exactly where the boundary declares that projection
+  unchanged. A boundary that keeps `Granted` but declares no content law
+  relates nothing, so the same forwarder is refused
+  (`a_forwarder_restates_the_interval_law_its_boundary_call_declares` in
+  `content_projection_domains.rs`).
 
 **Step 7 as built (2026-11-24): a quotient of mathematical data, equal
 classes for related representatives, and operations on a quotient.** `data Sign = Representative %
