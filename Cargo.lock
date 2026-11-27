@@ -1477,6 +1477,7 @@ dependencies = [
  "build-providers",
  "calling-conventions",
  "layout",
+ "runtime-abi",
  "semantic-vocabulary",
  "service-surface",
  "target",

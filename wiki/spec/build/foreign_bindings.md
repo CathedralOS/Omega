@@ -156,7 +156,9 @@ without importing or executing product code in the Build activation. The formal
 must belong to the bound requirement application. It may occur anywhere in the
 signature; its position is never inferred from its type or from a first-parameter
 convention. The field must be a live, non-atomic `address` field of the exact table
-application borrowed by that formal. Layout validation derives its offset.
+application borrowed by that formal. For a `LayoutStorage<T, Policy>` table, the
+selector names a semantic field of `T`. The selected target and representation
+determine its physical offset under [representation applications](../layouts/plans.md#representation-applications).
 Wrong owners, applications, revisions, field kinds and inaccessible selectors
 reject, including in declared bindings that are not reached by an entry.
 
