@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-<a id="packed-simd-spill-has-no-home"></a>
-### Native register allocation fails on a large machine full of packed results
-- Category: 10. Verifying costs more than writing
-- Where: [runtime spill](source-rust/subsystems/compiler/psi-to-native/pipeline/07_selected-instructions-to-register-homes/src/allocation/runtime_spill_and_split.rs) after [`home_assignment`](source-rust/subsystems/compiler/psi-to-native/pipeline/07_selected-instructions-to-register-homes/src/allocation/home_assignment.rs) reports `NoCompatibleHome`
-- Saw: one `main` that computes 21 SIMD results and then checks all 136 of their lanes before one `transition` fails native compilation with `RegisterAllocation(RuntimeSpill(Homes(NoCompatibleHome { .. })))`; Psi runs it. Any third of the checks compiles, and a scalar program with as many checks compiles. Reproduce it by putting every group of `every_lane_of_the_simd_library_matches_a_scalar_reference_on_psi_and_native` in [`packed_integer.rs`](source-rust/application/tests/packed_integer.rs) into one program.
-- Cost: a long SIMD kernel can stop compiling natively once register pressure forces a spill the allocator cannot place, with an error that names no source.
-- Reported: 2026-11-26, Claude Code, while checking every SIMD library lane against a scalar reference.
-
 <a id="flattened-asm-regions-drop-their-target"></a>
 ### Straight-line asm regions of place instructions lose their x86-64 requirement
 - Category: 6. A verdict with nothing behind it
