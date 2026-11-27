@@ -1,4 +1,6 @@
 //! Check the source register containing each scalar assembly result against its calling plan.
+mod versions;
+
 use calling_conventions::{
     CallSignature, CallingPolicy, EntryControl, ValueLocation, ValueShape, evaluate_call_plan,
 };
@@ -101,6 +103,7 @@ pub(super) fn bind(
     Ok(Some(target_bound_program::AssemblyCallingPlan {
         machine: machine.id,
         result: view,
+        assembly_register_versions: versions::derive(machine, view)?,
         call: plan,
     }))
 }

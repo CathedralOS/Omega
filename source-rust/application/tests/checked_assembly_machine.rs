@@ -77,7 +77,14 @@ fn the_artifact_retains_the_local_edge_and_its_discharged_precondition() {
     let [start, finish] = answer.blocks.as_slice() else {
         panic!("two local blocks");
     };
-    assert_eq!(start.assembly_exit, Some(Adjacent(finish.id)));
+    let Some(Adjacent { target, registers }) = &start.assembly_exit else {
+        panic!("adjacent local transfer");
+    };
+    assert_eq!(*target, finish.id);
+    assert_eq!(
+        registers.iter().map(|view| view.name()).collect::<Vec<_>>(),
+        ["eax"]
+    );
     let Some(ScalarReturn(view)) = finish.assembly_exit else {
         panic!("checked scalar return");
     };
@@ -95,7 +102,11 @@ fn the_artifact_retains_the_local_edge_and_its_discharged_precondition() {
 
 #[test]
 fn an_adjacent_edge_emits_no_jump_or_register_setup() {
-    let scratch = project::stage("checked-assembly-layout", &[("main.omg", ANSWER)]);
+    assert_immediate_return_image(ANSWER, &[42]);
+}
+
+fn assert_immediate_return_image(source: &str, expected: &[u32]) {
+    let scratch = project::stage("checked-assembly-layout", &[("main.omg", source)]);
     let output = project::omega(
         scratch.path(),
         &[
@@ -128,18 +139,53 @@ fn an_adjacent_edge_emits_no_jump_or_register_setup() {
         let start = (offset + 5).checked_add_signed(displacement as isize)?;
         image.get(start..)
     });
-    let immediate_writes: &[&[u8]] = &[
-        &[0xb8, 42, 0, 0, 0],
-        &[0xc7, 0xc0, 42, 0, 0, 0],
-        &[0x48, 0xc7, 0xc0, 42, 0, 0, 0],
-        &[0x48, 0xb8, 42, 0, 0, 0, 0, 0, 0, 0],
-    ];
     assert!(
-        called_bodies
-            .into_iter()
-            .any(|callee| immediate_writes.iter().any(|opcode| callee
-                .strip_prefix(*opcode)
-                .is_some_and(|tail| tail.first() == Some(&0xc3)))),
-        "no call reaches the adjacent immediate-write and return instructions"
+        called_bodies.into_iter().any(|callee| {
+            expected
+                .iter()
+                .try_fold(callee, |remaining, &value| {
+                    after_write_to_eax(remaining, value)
+                })
+                .is_some_and(|tail| tail.first() == Some(&0xc3))
+        }),
+        "no direct call reaches the required consecutive register writes and RET"
+    );
+}
+
+// The emitter can use either the register-immediate or r/m-immediate MOV,
+// including a full-width move with the same zero-extended result.
+fn after_write_to_eax(bytes: &[u8], value: u32) -> Option<&[u8]> {
+    for prefix in [&[0xb8][..], &[0xc7, 0xc0], &[0x48, 0xc7, 0xc0]] {
+        if let Some(rest) = bytes
+            .strip_prefix(prefix)
+            .and_then(|rest| rest.strip_prefix(&value.to_le_bytes()[..]))
+        {
+            return Some(rest);
+        }
+    }
+    bytes
+        .strip_prefix(&[0x48, 0xb8][..])?
+        .strip_prefix(&u64::from(value).to_le_bytes()[..])
+}
+
+#[cfg(target_arch = "x86_64")]
+#[test]
+fn a_register_overwritten_after_a_local_edge_retains_both_versions() {
+    let source = ANSWER.replace("mov eax, 42;", "mov eax, 1;").replace(
+        "requires eax == 42u32 { ret; }",
+        "requires eax == 1u32 { mov eax, 42; ret; }",
+    );
+    assert_immediate_return_image(&source, &[1, 42]);
+    program::assert_silent_return(&source);
+    let missing_intermediate = source.replace("mov eax, 1;", "mov eax, 2;");
+    let (output, report) = program::invoke(
+        &missing_intermediate,
+        &["--check", "--target", "linux_x86_64"],
+    );
+    assert!(
+        !output.status.success()
+            && report.contains("entry requirement of assembly block")
+            && report.contains("finish"),
+        "{report}"
     );
 }

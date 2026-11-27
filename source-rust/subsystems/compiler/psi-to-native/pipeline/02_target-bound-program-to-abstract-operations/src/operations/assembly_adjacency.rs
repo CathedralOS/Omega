@@ -2,9 +2,8 @@
 //! parallel copy. For a linear assembly body its scalar block parameters are
 //! names for the same SSA definitions on both sides of the local label.
 use super::LoweringError;
-use abstract_operations::{AbstractBlock, AbstractOperation};
+use abstract_operations::{AbstractBlock, AbstractOperation, ValueBinding};
 use semantic_vocabulary::{BlockId, ValueId};
-use std::collections::BTreeMap;
 use terminal_psi::{AssemblyExitConstraint, TerminalMachine};
 
 pub(super) fn physical_blocks(
@@ -14,7 +13,7 @@ pub(super) fn physical_blocks(
     if !machine.blocks.iter().any(|block| {
         matches!(
             block.assembly_exit,
-            Some(AssemblyExitConstraint::Adjacent(_))
+            Some(AssemblyExitConstraint::Adjacent { .. })
         )
     }) {
         return Ok(blocks);
@@ -38,7 +37,7 @@ pub(super) fn physical_blocks(
     let mut input = blocks.into_iter();
     let mut physical = input.next().expect("an adjacent edge has a source block");
     let mut operations = std::mem::take(&mut physical.operations);
-    let mut aliases = BTreeMap::<ValueId, ValueId>::new();
+    let mut incoming = Vec::new();
     for (index, source) in machine.blocks.iter().enumerate() {
         let mut terminal = operations
             .pop()
@@ -53,9 +52,9 @@ pub(super) fn physical_blocks(
             ));
         }
         physical.operations.append(&mut operations);
-        match (source.assembly_exit, &mut terminal) {
+        match (source.assembly_exit.as_ref(), &mut terminal) {
             (
-                Some(AssemblyExitConstraint::Adjacent(next)),
+                Some(AssemblyExitConstraint::Adjacent { target: next, .. }),
                 AbstractOperation::Jump {
                     target,
                     bindings,
@@ -63,28 +62,20 @@ pub(super) fn physical_blocks(
                     cleanup_actions,
                     ..
                 },
-            ) if next == *target
+            ) if *next == *target
                 && machine
                     .blocks
                     .get(index + 1)
-                    .is_some_and(|block| block.id == next)
+                    .is_some_and(|block| block.id == *next)
                 && structural_bindings.is_empty()
                 && cleanup_actions.is_empty() =>
             {
                 // Resolve incoming names simultaneously. No move will be
                 // selected for an assembly label or any of these bindings.
-                aliases = bindings
-                    .iter()
-                    .map(|binding| {
-                        (
-                            binding.parameter,
-                            aliases
-                                .get(&binding.argument)
-                                .copied()
-                                .unwrap_or(binding.argument),
-                        )
-                    })
-                    .collect();
+                for binding in bindings.iter_mut() {
+                    binding.argument = incoming_value(&incoming, binding.argument);
+                }
+                incoming = std::mem::take(bindings);
                 operations = input
                     .next()
                     .expect("one lowered block for each source block")
@@ -104,7 +95,7 @@ pub(super) fn physical_blocks(
                         "assembly completion requires runtime cleanup",
                     ));
                 }
-                *value = aliases.get(value).copied().unwrap_or(*value);
+                *value = incoming_value(&incoming, *value);
                 physical.operations.push(terminal);
             }
             _ => {
@@ -116,4 +107,11 @@ pub(super) fn physical_blocks(
         }
     }
     Ok(vec![physical])
+}
+
+fn incoming_value(bindings: &[ValueBinding], value: ValueId) -> ValueId {
+    bindings
+        .iter()
+        .find(|binding| binding.parameter == value)
+        .map_or(value, |binding| binding.argument)
 }

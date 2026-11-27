@@ -4,6 +4,9 @@ Canonical wire encoding and decoding for `TerminalMachine` control-flow blocks (
 terminator edges.
 */
 
+pub(crate) mod assembly_exit;
+use assembly_exit::AssemblyExit;
+
 pub(crate) mod atomic_operations {
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer};
@@ -922,41 +925,6 @@ delegated_fields! {
         => encode_proof_formals, decode_proof_formals;
     TerminatorField: terminal_psi::Terminator
         => terminator_wire::encode_terminator, terminator_wire::decode_terminator;
-}
-
-struct AssemblyExit;
-impl Field<terminal_psi::AssemblyExitConstraint> for AssemblyExit {
-    fn write(
-        writer: &mut Writer,
-        value: &terminal_psi::AssemblyExitConstraint,
-    ) -> Result<(), CodecError> {
-        match value {
-            terminal_psi::AssemblyExitConstraint::Adjacent(target) => {
-                writer.u8(1);
-                Id::write(writer, target)?;
-            }
-            terminal_psi::AssemblyExitConstraint::ScalarReturn(view) => {
-                writer.u8(2);
-                writer.u8(view.slot());
-            }
-        }
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<terminal_psi::AssemblyExitConstraint, CodecError> {
-        match reader.u8()? {
-            1 => Ok(terminal_psi::AssemblyExitConstraint::Adjacent(Id::read(
-                reader,
-            )?)),
-            2 => terminal_psi::AsmRegisterView::from_scratch_slot(usize::from(reader.u8()?))
-                .map(terminal_psi::AssemblyExitConstraint::ScalarReturn)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "unknown assembly return register view",
-                )),
-            _ => Err(CodecError::MalformedStructuralFoundation(
-                "unknown assembly exit constraint",
-            )),
-        }
-    }
 }
 
 struct OperationKindField;

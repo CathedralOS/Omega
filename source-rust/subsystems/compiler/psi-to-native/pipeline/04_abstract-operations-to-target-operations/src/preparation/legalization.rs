@@ -374,6 +374,7 @@ fn function_abis(
         .map(|function| {
             let mut abi = legalized_operations::LegalizedFunctionAbi {
                 assembly_return: function.assembly_return,
+                assembly_register_versions: function.assembly_register_versions.clone(),
                 machine: function.machine,
                 call_plan: function.graph.call_plan.clone(),
                 entry_scalar_codecs: entry_scalar_codecs(function, types)?,

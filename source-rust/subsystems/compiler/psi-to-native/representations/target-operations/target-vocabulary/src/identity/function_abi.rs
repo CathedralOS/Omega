@@ -11,6 +11,26 @@ pub fn encode_function_abi(bytes: &mut Vec<u8>, abi: &LegalizedFunctionAbi) {
     encode_option(bytes, abi.assembly_return, |bytes, view| {
         bytes.push(view.slot())
     });
+    encode_len(bytes, abi.assembly_register_versions.len());
+    for version in &abi.assembly_register_versions {
+        bytes.extend_from_slice(&version.edge.get().to_le_bytes());
+        bytes.push(version.view.slot());
+        bytes.extend_from_slice(&version.operation.get().to_le_bytes());
+        bytes.extend_from_slice(&version.value.get().to_le_bytes());
+        let operation_operands::values::AssemblyRegisterMaterialization::IntegerImmediate(literal) =
+            version.materialization;
+        bytes.push(0); // register-immediate materialization
+        match literal {
+            semantic_vocabulary::IntegerValue::Signed(value) => {
+                bytes.push(0);
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+            semantic_vocabulary::IntegerValue::Unsigned(value) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+    }
     encode_call_plan(bytes, &abi.call_plan);
     encode_len(bytes, abi.entry_scalar_codecs.len());
     for codec in &abi.entry_scalar_codecs {

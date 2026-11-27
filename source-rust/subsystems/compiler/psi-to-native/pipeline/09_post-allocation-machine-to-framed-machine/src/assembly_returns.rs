@@ -1,5 +1,10 @@
 //! Check the final instruction alternatives and physical homes against the assembly body.
-use selected_instructions::{MachineEncodedControlEffect, MachineEncodedEffects};
+use operation_operands::values::{AssemblyRegisterMaterialization, AssemblyRegisterVersion};
+use selected_instructions::{
+    MachineEncodedControlEffect, MachineEncodedEffects, SelectedInstruction,
+    SelectedInstructionKind,
+};
+use semantic_vocabulary::IntegerValue;
 
 pub(super) fn validate(frame: &crate::PhysicalFrameProgram) -> Result<(), &'static str> {
     let program = &frame.instructions;
@@ -47,23 +52,82 @@ pub(super) fn validate(frame: &crate::PhysicalFrameProgram) -> Result<(), &'stat
         {
             return Err("physical return does not consume the checked assembly result register");
         }
-        if writes.is_empty() {
-            return Err("checked assembly return does not initialize its physical result register");
+        let selected = program
+            .function(obligation.machine)
+            .and_then(|function| function.block(block.block))
+            .ok_or("missing selected definitions for checked assembly body")?;
+        let final_version = obligation
+            .assembly_register_versions
+            .last()
+            .ok_or("checked assembly return has no reaching definition")?;
+        if obligation
+            .assembly_register_versions
+            .iter()
+            .any(|version| version.view != view)
+        {
+            return Err("checked assembly physical body requires a single register view");
         }
+        let mut selected = selected.instructions.iter();
+        // Several labels can observe the same uninterrupted SSA version.
+        let mut expected = obligation
+            .assembly_register_versions
+            .chunk_by(|left, right| {
+                left.operation == right.operation
+                    && left.value == right.value
+                    && left.materialization == right.materialization
+            })
+            .map(|edges| &edges[0])
+            .peekable();
+        let mut holds_result = false;
+        let plain_write = MachineEncodedEffects::fallthrough_v1(Vec::new(), vec![0]);
         for instruction in writes {
-            // This source body only establishes its result through register-immediate writes.
-            // Check the chosen alternative as well: a zeroing XOR would alter flags.
-            let plain_write = MachineEncodedEffects::fallthrough_v1(Vec::new(), vec![0]);
+            // The chosen alternative must preserve flags. A materialization of zero
+            // implemented by XOR is a different footprint from an immediate move.
             if instruction.alternative.encoded != plain_write
                 || instruction.unit_defs != permit.write_units
                 || !instruction.unit_clobbers.is_empty()
                 || !instruction.unit_uses.is_empty()
             {
                 return Err(
-                    "physical instruction changes the checked assembly register, flag, or control footprint",
+                    "physical assembly write changes its required register or flag footprint",
                 );
             }
+            let definition = selected
+                .find(|source| source.id == instruction.instruction)
+                .ok_or("physical assembly write has no ordered selected definition")?;
+            let SelectedInstructionKind::MaterializeI64 { value } = definition.kind else {
+                return Err("physical assembly write is not an immediate register definition");
+            };
+            // Both eax and w0 clear the upper half. A scalar signed -1 materialized
+            // into the full return register would produce different upper bits.
+            let zero_extended = match value {
+                IntegerValue::Signed(number) => u32::try_from(number).is_ok(),
+                IntegerValue::Unsigned(number) => u32::try_from(number).is_ok(),
+            };
+            if !zero_extended {
+                return Err("physical assembly write does not zero-extend the 32-bit register");
+            }
+            holds_result = establishes(definition, value, final_version);
+            let _ = expected.next_if(|row| establishes(definition, value, row));
+        }
+        if expected.next().is_some() || !holds_result {
+            return Err(
+                "allocated assembly instructions do not establish each register version in edge order through ret",
+            );
         }
     }
     Ok(())
+}
+
+fn establishes(
+    instruction: &SelectedInstruction,
+    literal: IntegerValue,
+    version: &AssemblyRegisterVersion,
+) -> bool {
+    version.materialization == AssemblyRegisterMaterialization::IntegerImmediate(literal)
+        && instruction
+            .provenance
+            .operations
+            .contains(&version.operation)
+        && instruction.provenance.values.contains(&version.value)
 }

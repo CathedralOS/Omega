@@ -34,7 +34,7 @@ const MAX_CALLER_INSTRUCTIONS_AFTER_INLINE: usize = 65536;
 pub(crate) fn inline_and_simplify(
     functions: &mut [SelectedFunction],
     environment: &ValidatedTargetRegisterEnvironment,
-    assembly_callees: &BTreeSet<MachineId>,
+    has_assembly_return: impl Fn(MachineId) -> bool,
 ) -> Result<(), SelectedInstructionError> {
     if functions.is_empty() {
         return Ok(());
@@ -72,7 +72,7 @@ pub(crate) fn inline_and_simplify(
                 // An authored return observes the real exit plan. Inlining replaces it with an edge.
                 if callee_idx == caller_idx
                     || in_cycle[callee_idx]
-                    || assembly_callees.contains(&callee_machine)
+                    || has_assembly_return(callee_machine)
                 {
                     continue;
                 }
@@ -1914,7 +1914,7 @@ mod tests {
             transport: selected_instructions::SelectedValueTransport::Unused,
         };
         successor.bindings.push(binding.clone());
-        inline_and_simplify(&mut with_binding, &environment, &BTreeSet::new()).unwrap();
+        inline_and_simplify(&mut with_binding, &environment, |_| false).unwrap();
         assert_eq!(with_binding[0].calls.as_slice(), caller.calls.as_slice());
         let SelectedTerminator::Jump { successor, .. } = &with_binding[1].blocks[0].terminator
         else {
@@ -1939,21 +1939,19 @@ mod tests {
                 abi_stack_byte_offset: 32,
             },
         );
-        inline_and_simplify(&mut stack_passed, &environment, &BTreeSet::new()).unwrap();
+        inline_and_simplify(&mut stack_passed, &environment, |_| false).unwrap();
         assert_eq!(stack_passed[0].calls.as_slice(), caller.calls.as_slice());
         assert_eq!(stack_passed[0].outgoing_arguments.len(), 1);
 
         let mut hardware_return = [caller.clone(), callee.clone()];
-        inline_and_simplify(
-            &mut hardware_return,
-            &environment,
-            &BTreeSet::from([callee_machine]),
-        )
+        inline_and_simplify(&mut hardware_return, &environment, |machine| {
+            machine == callee_machine
+        })
         .unwrap();
         assert_eq!(hardware_return[0].calls.as_slice(), caller.calls.as_slice());
 
         let mut functions = vec![caller, callee];
-        inline_and_simplify(&mut functions, &environment, &BTreeSet::new()).unwrap();
+        inline_and_simplify(&mut functions, &environment, |_| false).unwrap();
 
         let inlined_caller = &functions[0];
         assert!(inlined_caller.ids_are_positions());

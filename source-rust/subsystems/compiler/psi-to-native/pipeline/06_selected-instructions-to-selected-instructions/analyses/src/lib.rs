@@ -978,10 +978,13 @@ impl UnsealedRecoveryFacts {
             legality_functions: Vec::with_capacity(count),
         };
         for (index, function) in next_plan.functions.iter().enumerate() {
-            let function_unchanged = prev_plan
+            let abi = next_plan.contracts.function_abi(function.machine);
+            let function_unchanged = (prev_plan
                 .functions
                 .shares_function_storage(&next_plan.functions, index)
-                || prev_plan.functions.get(index) == Some(function);
+                || prev_plan.functions.get(index) == Some(function))
+                && (Arc::ptr_eq(&prev_plan.contracts, &next_plan.contracts)
+                    || prev_plan.contracts.function_abi(function.machine) == abi);
             let (liveness, materialized, ranges) = if function_unchanged {
                 (
                     Arc::clone(&self.liveness_functions[index]),
@@ -998,8 +1001,9 @@ impl UnsealedRecoveryFacts {
                     }
                 }
                 .map_err(RecoveryReanalysisError::Liveness)?;
-                let ranges = live_ranges::compute::compute_function(index, function, &liveness)
-                    .map_err(RecoveryReanalysisError::Ranges)?;
+                let ranges =
+                    live_ranges::compute::compute_function(index, function, &liveness, abi)
+                        .map_err(RecoveryReanalysisError::Ranges)?;
                 (
                     Arc::new(liveness),
                     detail == LivenessDetail::Complete,

@@ -17,6 +17,7 @@ use terminal_psi::TerminalAffineCleanupAction;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetFunction {
     pub assembly_return: Option<terminal_psi::AsmRegisterView>,
+    pub assembly_register_versions: Vec<operation_operands::values::AssemblyRegisterVersion>,
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>, // Terminal attachment retained for artifact-side nominal cleanup validation.
     pub scalar_abi: Option<ScalarFunctionAbi>,

@@ -680,7 +680,10 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
                         );
                     }
                 })?;
-                lowered.assembly_return = verified_input.and_then(|facts| facts.assembly_call_plan(function.machine)).map(|plan| plan.result);
+                if let Some(plan) = verified_input.and_then(|facts| facts.assembly_call_plan(function.machine)) {
+                    lowered.assembly_return = Some(plan.result);
+                    lowered.assembly_register_versions.clone_from(&plan.assembly_register_versions);
+                }
                 lowered.scalar_abi = scalar_abis.get(&function.machine).cloned();
                 lowered.mixed_structural_scalar_abi =
                     mixed_structural_scalar_abis.get(&function.machine).cloned();

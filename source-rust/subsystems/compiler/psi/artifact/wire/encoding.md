@@ -56,11 +56,17 @@ truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
 Marker 303 appends an optional assembly exit constraint immediately after each
-block terminator. A present constraint uses tag 1 plus a block ID for a required
-adjacent successor, or tag 2 plus a register-view byte for a scalar return.
-The register byte selects a 32-bit catalog view: 0–13 select `eax`, `ebx`,
-`ecx`, `edx`, `esi`, `edi`, then `r8d` through `r15d`; 22–50 select
-`w0` through `w28`. Other values reject. Readers reject earlier format markers.
+block terminator. Tag 1 carries a successor block ID followed by a counted list
+of register-view bytes. The successor is the jump target or the conditional's
+not-taken target. Each register holds the ordinary scalar edge argument at the
+same position and supplies the corresponding successor parameter. Tag 2 carries
+one register-view byte for the ordinary scalar return value.
+
+Register bytes 0–13 select `eax`, `ebx`, `ecx`, `edx`, `esi`, `edi`, then
+`r8d` through `r15d`. Bytes 22–50 select `w0` through `w28`. Other bytes
+reject. These views hold live 32-bit integers and require their architecture
+on the machine. Each view can occur once on an edge. Readers reject earlier
+format markers before reading the payload.
 
 Marker 302 adds each theorem application's counted sum arguments after its
 fixed scalar subjects: for each of the applied contract's sum subjects, in

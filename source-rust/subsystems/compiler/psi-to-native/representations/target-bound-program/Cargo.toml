@@ -8,6 +8,7 @@ version.workspace = true
 path = "bound_reach.rs"
 
 [dependencies]
+operation-operands = { path = "../operation-operands" }
 build-providers = { path = "../../../build/providers" }
 psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 target-provider-admission = { path = "../../verification/target-providers" }

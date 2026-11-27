@@ -334,7 +334,7 @@ impl Lowering<'_> {
                 let next = self.block(*source);
                 let mut arguments = Vec::with_capacity(slots.len());
                 let mut parameters = Vec::with_capacity(slots.len());
-                for &slot in slots {
+                for &(slot, _) in slots {
                     let Some(Bound::Scalar(argument)) = *self.slot_mut(slot)? else {
                         return Err(crate::reject(
                             self.id,
@@ -386,7 +386,10 @@ impl Lowering<'_> {
                     ));
                 }
                 self.draft()?.assembly_exit =
-                    Some(terminal_psi::AssemblyExitConstraint::Adjacent(next));
+                    Some(terminal_psi::AssemblyExitConstraint::Adjacent {
+                        target: next,
+                        registers: slots.iter().map(|(_, view)| *view).collect(),
+                    });
                 self.jump(next, arguments, *source)?;
                 self.enter(next);
                 Ok(Reached::Value(()))

@@ -592,6 +592,7 @@ mod tests {
         let (selected, original) = fixture();
         let abi = target_vocabulary::function_abi::LegalizedFunctionAbi {
             assembly_return: None,
+            assembly_register_versions: Vec::new(),
             machine: original.entry,
             call_plan: calling_conventions::evaluate_call_plan(
                 calling_conventions::CallingPolicy::MicrosoftX64,

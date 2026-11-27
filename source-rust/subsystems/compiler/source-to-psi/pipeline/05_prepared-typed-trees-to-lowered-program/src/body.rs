@@ -1022,7 +1022,7 @@ pub enum Statement {
     /// Transfer to the next assembly block. Its predicates refer to the
     /// incoming slots in order; lowering binds them to the actual edge.
     AssemblyAdjacent {
-        slots: Vec<usize>,
+        slots: Vec<(usize, language_core::inline_assembly::AsmRegisterView)>,
         requires: Vec<Proposition>,
         label: String,
         source: SourceOrigin,

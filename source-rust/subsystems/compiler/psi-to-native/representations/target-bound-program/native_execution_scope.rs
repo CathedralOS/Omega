@@ -138,6 +138,7 @@ impl NativeScopeSource {
 pub struct AssemblyCallingPlan {
     pub machine: MachineId,
     pub result: terminal_psi::AsmRegisterView,
+    pub assembly_register_versions: Vec<operation_operands::values::AssemblyRegisterVersion>,
     pub call: calling_conventions::CallPlan,
 }
 

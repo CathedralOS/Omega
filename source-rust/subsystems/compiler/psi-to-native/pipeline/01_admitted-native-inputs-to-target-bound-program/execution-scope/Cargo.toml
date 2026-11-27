@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+operation-operands = { path = "../../../representations/operation-operands" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 register-environment = { path = "../../../targets/register-environment" }
 target = { path = "../../../targets/target" }

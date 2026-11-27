@@ -116,7 +116,17 @@ impl Program<'_> {
                     requires.push(predicate);
                 }
                 body.push(Statement::AssemblyAdjacent {
-                    slots: initialized.clone(),
+                    slots: initialized
+                        .iter()
+                        .map(|slot| {
+                            let view = registers
+                                .iter()
+                                .find(|(position, _)| position == slot)
+                                .expect("every initialized slot has a register view")
+                                .1;
+                            (*slot, view)
+                        })
+                        .collect(),
                     requires,
                     label: block.label.as_str().to_owned(),
                     source,

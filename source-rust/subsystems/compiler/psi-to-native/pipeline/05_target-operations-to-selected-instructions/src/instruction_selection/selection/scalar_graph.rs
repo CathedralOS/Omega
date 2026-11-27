@@ -7297,6 +7297,13 @@ pub(crate) fn select_function(
         transport: structural::Transport::default(),
     };
     structural::indirect_results::entry(source, environment, &mut builder)?;
+    if let Some(abi) = input.plan().function_abi(source.machine) {
+        builder.required_values.extend(
+            abi.assembly_register_versions
+                .iter()
+                .map(|version| version.value),
+        );
+    }
     structural::entry(function, source, environment, &mut builder)?;
     for (index, parameter) in source.parameters.iter().enumerate() {
         if scalar_stack_placement(&parameter.placement).is_some() {

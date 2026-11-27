@@ -1018,6 +1018,7 @@ pub mod compute {
             function_index: usize,
             selected: &selected_instructions::SelectedFunction,
             liveness: &selected_instructions::FunctionLiveness,
+            abi: Option<&target_vocabulary::LegalizedFunctionAbi>,
         ) -> Result<FunctionLiveRanges, LiveRangeError> {
             reject_unsupported(function_index, liveness)?;
             let block_domains = liveness
@@ -1029,6 +1030,36 @@ pub mod compute {
             let edge_transfers = super::edge_transfers::derive(function_index, selected, liveness)?;
             let copy_affinities = super::copy_affinities::derive(function_index, selected)?;
             let early_clobbers = derive_early_clobbers(function_index, liveness)?;
+
+            // Each observed register definition is a fixed operand just like the
+            // returned use. They refer to the same full ABI register view.
+            let mut observed_values = Vec::new();
+            let assembly_view = if let Some(abi) = abi.filter(|abi| abi.assembly_return.is_some()) {
+                observed_values.extend(abi.assembly_register_versions.iter().map(|row| row.value));
+                observed_values.sort_unstable();
+                observed_values.dedup();
+                let view = selected
+                    .blocks
+                    .iter()
+                    .find_map(|block| {
+                        let selected_instructions::SelectedTerminator::Return {
+                            instruction, ..
+                        } = &block.terminator
+                        else {
+                            return None;
+                        };
+                        let [result] = instruction.operands.as_slice() else {
+                            return None;
+                        };
+                        result.fixed_view
+                    })
+                    .ok_or(LiveRangeError::FunctionMismatch {
+                        function: function_index,
+                    })?;
+                Some(view)
+            } else {
+                None
+            };
 
             let register_count = selected.virtual_registers.len();
             let max_reg_id = selected
@@ -1122,6 +1153,17 @@ pub mod compute {
                         view,
                     });
                 }
+                let observed_definition = match register.origin {
+                    selected_instructions::VirtualRegisterOrigin::InstructionResult {
+                        instruction,
+                        source_value,
+                    } if assembly_view.is_some()
+                        && observed_values.binary_search(&source_value).is_ok() =>
+                    {
+                        Some(instruction)
+                    }
+                    _ => None,
+                };
                 for &row_idx in row_indices {
                     let row = &operand_slice[row_idx as usize];
                     let point = operand_point(function_index, row.position, row.access)?;
@@ -1132,7 +1174,24 @@ pub mod compute {
                         operand: row.operand,
                         access: row.access,
                     });
-                    if let Some(view) = row.fixed_view {
+                    let authored = if row.access == RegisterOperandAccess::Def
+                        && observed_definition == Some(row.instruction)
+                    {
+                        assembly_view
+                    } else {
+                        None
+                    };
+                    if row
+                        .fixed_view
+                        .zip(authored)
+                        .is_some_and(|(catalog, authored)| catalog != authored)
+                    {
+                        return Err(LiveRangeError::VirtualRegisterMismatch {
+                            function: function_index,
+                            register: register.id.0,
+                        });
+                    }
+                    if let Some(view) = authored.or(row.fixed_view) {
                         fixed_constraints.push(VirtualFixedConstraint {
                             site: VirtualFixedConstraintSite::Operand {
                                 position: row.position,
@@ -1458,7 +1517,13 @@ pub mod compute {
             .iter()
             .zip(&liveness.plan().functions)
             .enumerate()
-            .map(|(index, (selected, live))| compute_function(index, selected, live).map(Arc::new))
+            .map(|(index, (function, live))| {
+                let abi = selected
+                    .selected_plan()
+                    .contracts
+                    .function_abi(function.machine);
+                compute_function(index, function, live, abi).map(Arc::new)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(LiveRangePlan {
             selected: selected.shared_selected_plan(),
