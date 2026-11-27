@@ -391,6 +391,25 @@ pub struct AppliedOperation {
     pub statement: semantic_vocabulary::Proposition,
 }
 
+/// One `ensures` clause a member of an implementation writes for itself,
+/// beyond its requirement's, over its formals and result. A call this
+/// machine makes of `callee` establishes it on normal return when the two
+/// are members of the same implementation: a law of the implementation is
+/// about "the final selected implementation of that member", whose
+/// consequences are exposed "through checked contracts"
+/// (wiki/spec/proofs/contracts.md, "Equality bridges and comparison
+/// facts"). The member's own body owes the clause through the
+/// implementation's conformance witness. Calls from anywhere else keep the
+/// requirement's contract: "Private strengthening does not become a public
+/// guarantee".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RealizedGuarantee {
+    pub callee: semantic_vocabulary::MachineId,
+    /// The clause's position among the member's own `ensures`.
+    pub clause: u32,
+    pub statement: semantic_vocabulary::Proposition,
+}
+
 /// Everything the checker holds for one machine. Value, place, claim and
 /// edge identities are machine-local in the lowered form (ownership.md:
 /// "Claim identities stay machine-local"), so these tables are too.
@@ -416,6 +435,9 @@ pub struct MachineTables {
     /// The machines whose calls this machine's clauses name by their
     /// selected operation, with what each call returns.
     pub applied_operations: Vec<AppliedOperation>,
+    /// The other members of this machine's implementation, with what each
+    /// one's own written contract ensures (`RealizedGuarantee`).
+    pub realized_guarantees: Vec<RealizedGuarantee>,
 }
 
 /// The module: one `MachineTables` per machine.

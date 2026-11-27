@@ -351,9 +351,9 @@ after the samples finish.
 Each run is recorded under the invoking checkout's `build/sample-gate-runs/`,
 with producer evidence under `producer/` and per-sample command receipts and
 times under the sample's relative path. Worktrees keep separate run directories.
-For a runnable application the gate starts `omega run --engine native` and
-`omega run --engine psi` in separate empty working directories under its
-per-sample evidence directory. Each receives the same captured stdin bytes.
+For a runnable application the gate launches the compiled executable and runs
+the source through the interpreter in separate empty working directories under
+its per-sample evidence directory. Each receives the same captured stdin bytes.
 The gate compares their termination, stdout and stderr, and checks each
 against the sample's expected result. `native-outputs/` and `psi-outputs/`
 retain raw guest stdout and stderr separately from the CLI diagnostics.

@@ -1818,8 +1818,19 @@ fn fill_knowledge<'a>(
                 .collect::<Vec<_>>(),
             _ => Vec::new(),
         };
+        // What a sibling member of this machine's implementation ensures of
+        // itself (`RealizedGuarantee`).
+        let realized = match row.callee {
+            Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) => tables
+                .realized_guarantees
+                .iter()
+                .filter(|realized| realized.callee == callee)
+                .map(|realized| (realized.clause, realized.statement.clone()))
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        };
         let mut ensures = contract.ensures.scalar_clauses().peekable();
-        if ensures.peek().is_none() && applied.is_empty() {
+        if ensures.peek().is_none() && applied.is_empty() && realized.is_empty() {
             continue;
         }
         let mut returned = storage.after_call(
@@ -1859,6 +1870,21 @@ fn fill_knowledge<'a>(
                 .ok()
             })
             .collect::<Vec<_>>();
+        // A clause the call's actuals cannot name leaves it unused.
+        let realized = realized
+            .iter()
+            .filter_map(|(clause, statement)| {
+                substitute(
+                    statement,
+                    &mut ErasedTerms {
+                        terms: &erased,
+                        runtime: &mut returned,
+                    },
+                )
+                .ok()
+                .map(|proposition| (*clause, proposition))
+            })
+            .collect::<Vec<_>>();
         for (clause, proposition) in propositions {
             push_knowledge(
                 tables,
@@ -1876,6 +1902,14 @@ fn fill_knowledge<'a>(
                 proposition,
                 ProgramPoint::AfterOperation(operation),
                 Justification::CallCongruence { invocation },
+            );
+        }
+        for (clause, proposition) in realized {
+            push_knowledge(
+                tables,
+                proposition,
+                ProgramPoint::AfterOperation(operation),
+                Justification::RealizationGuarantee { invocation, clause },
             );
         }
     }
@@ -3991,6 +4025,7 @@ pub(crate) fn hypotheses(
             | Justification::TheoremGuarantee { .. }
             | Justification::CalleeGuarantee { .. }
             | Justification::CallCongruence { .. }
+            | Justification::RealizationGuarantee { .. }
             | Justification::BranchCondition { .. }
             | Justification::ExcludedDispatchCase { .. }
             | Justification::DispatchBinding { .. }

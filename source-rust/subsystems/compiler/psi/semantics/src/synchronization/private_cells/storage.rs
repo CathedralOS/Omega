@@ -5,6 +5,7 @@ mod contents;
 mod join;
 mod location;
 pub(super) use join::Arrivals;
+use location::Allocation;
 pub(super) use location::Location;
 
 use super::super::facts::Facts;
@@ -17,7 +18,7 @@ use terminal_psi::StructuralPathSegment as Segment;
 #[derive(Clone, Default)]
 pub(super) struct Storage {
     next_allocation: Rc<Cell<usize>>,
-    contents: Rc<Facts<usize, Stored>>,
+    contents: Rc<Facts<Allocation, Stored>>,
     /// A write through a selected reference establishes its value even
     /// when the individual candidate allocations only receive weak updates.
     selected: Rc<Vec<(Location, Stored)>>,
@@ -51,19 +52,71 @@ impl Storage {
     }
 
     pub(super) fn allocate(&mut self, contents: Stored) -> Location {
-        let allocation = self.next_allocation.get();
-        self.next_allocation.set(allocation + 1);
+        self.allocate_with(contents, Allocation::Private)
+    }
+
+    pub(super) fn input(&mut self) -> Location {
+        self.allocate_with(Stored::INCOMING, Allocation::ExclusiveInput)
+    }
+
+    fn allocate_with(&mut self, contents: Stored, home: fn(usize) -> Allocation) -> Location {
+        let id = self.next_allocation.get();
+        let allocation = home(id);
+        self.next_allocation.set(id + 1);
         Rc::make_mut(&mut self.contents).insert(allocation, contents);
         Location::allocation(allocation)
     }
 
     pub(super) fn locate(
         &self,
-        places: &Facts<PlaceId, Location>,
+        bindings: &super::activation::Bindings,
         root: PlaceId,
         path: &[Segment],
     ) -> Option<Location> {
-        self.project(places.get(&root)?.clone(), path)
+        let mut location = bindings.places.get(&root)?.clone();
+        for (i, segment) in path.iter().enumerate() {
+            if let Segment::RuntimeIndex { index, .. } = segment {
+                let root_type = bindings.machine.structural_place_type(root)?;
+                let extent =
+                    super::super::spin::fixed_extent(bindings.module, root_type, &path[..i])?;
+                location = Self::index(location, bindings.values.get(index).copied(), extent)?;
+            } else {
+                location = self.project(location, std::slice::from_ref(segment))?;
+            }
+        }
+        Some(location)
+    }
+
+    /// The runtime bounds judgment admits exactly one element. An unresolved
+    /// selector can choose any in-bounds element, even in a very large array.
+    pub(super) fn index(
+        mut location: Location,
+        operand: Option<super::super::progress::ScalarFact>,
+        extent: u64,
+    ) -> Option<Location> {
+        if extent == 0 {
+            return None;
+        }
+        let segment = match operand.and_then(|value| value.literal()) {
+            Some(value) => {
+                let index = super::super::progress::ScalarFact::Literal(value).index()?;
+                if index >= extent {
+                    return None;
+                }
+                Segment::FixedIndex(index)
+            }
+            None if extent == 1 => Segment::FixedIndex(0),
+            None => {
+                let id = operand.and_then(|value| match value {
+                    super::super::progress::ScalarFact::EntryInput(input) => Some(input.id),
+                    _ => None,
+                });
+                location.select(extent, id);
+                return Some(location);
+            }
+        };
+        location.path.push(segment);
+        Some(location)
     }
 
     pub(super) fn project(&self, mut location: Location, path: &[Segment]) -> Option<Location> {
@@ -71,6 +124,9 @@ impl Storage {
             match segment {
                 Segment::Field(_) | Segment::FixedIndex(_) => location.path.push(segment.clone()),
                 Segment::Case(tag) if self.get(&location).tag() == Some(*tag) => {
+                    location.path.push(segment.clone());
+                }
+                Segment::Referent if !location.is_choice() && location.includes_shared() => {
                     location.path.push(segment.clone());
                 }
                 Segment::Referent => {
@@ -87,7 +143,7 @@ impl Storage {
 
     pub(super) fn get(&self, location: &Location) -> Stored {
         let mut result = None;
-        if location.is_choice() {
+        if location.tracks_selection() {
             for (home, stored) in self.selected.iter() {
                 if let Some(path) = home.suffix(location) {
                     return stored.project(path).clone();
@@ -99,14 +155,14 @@ impl Storage {
                 .contents
                 .get(&allocation)
                 .unwrap_or(&Stored::Unknown)
-                .project(path);
+                .read(path);
             match &mut result {
-                Some(prior) => Stored::join(prior, value),
-                None => result = Some(value.clone()),
+                Some(prior) => Stored::join(prior, &value),
+                None => result = Some(value),
             }
         });
         let mut value = result.unwrap_or_default();
-        if location.is_choice() {
+        if location.tracks_selection() {
             for (home, stored) in self.selected.iter() {
                 if let Some(path) = location.suffix(home) {
                     *value.project_mut(path) = stored.clone();
@@ -116,11 +172,37 @@ impl Storage {
         value
     }
 
+    /// A caller can account for an unknown incoming value. It cannot
+    /// establish progress for a private candidate that this activation left held.
+    pub(super) fn only_caller_can_block(
+        &self,
+        location: &Location,
+        mut can_block: impl FnMut(&Stored) -> bool,
+    ) -> bool {
+        let mut caller = false;
+        let mut local = false;
+        location.each_home(|home, path| {
+            let value = self
+                .contents
+                .get(&home)
+                .unwrap_or(&Stored::Unknown)
+                .read(path);
+            match home {
+                Allocation::SharedInput(_) => caller = true,
+                Allocation::ExclusiveInput(_) if value.is_incoming() => caller = true,
+                _ => local |= can_block(&value),
+            }
+        });
+        caller && !local
+    }
+
     pub(super) fn set(&mut self, location: &Location, new: Stored) {
         let choices = Rc::make_mut(&mut self.selected);
+        let shared = location.includes_shared();
+
         let mut contained = false;
         choices.retain_mut(|(home, stored)| {
-            if let Some(path) = home.suffix(location) {
+            if !shared && let Some(path) = home.suffix(location) {
                 *stored.project_mut(path) = new.clone();
                 contained = true;
                 return true;
@@ -128,19 +210,16 @@ impl Storage {
             !home.may_be_written_by(location)
         });
         let weak = location.is_choice();
-        if weak && !contained {
+        if location.tracks_selection() && !contained && !shared {
             choices.push((location.clone(), new.clone()));
         }
         let contents = Rc::make_mut(&mut self.contents);
         location.each_home(|allocation, path| {
-            let value = contents
-                .get_or_insert_with(allocation, Stored::default)
-                .project_mut(path);
-            if weak {
-                value.join(&new);
-            } else {
-                *value = new.clone();
+            if matches!(allocation, Allocation::SharedInput(_)) {
+                return;
             }
+            let value = contents.get_or_insert_with(allocation, Stored::default);
+            value.write(path, &new, weak);
         });
     }
 }

@@ -5,9 +5,11 @@ the resulting brightness, and reports it as the process exit. Its authored
 SetLevel command produces 65 and the two console lines in `main.omg`.
 
 ```sh
-omega run --engine native samples/cli/basics/brightness_control/main.omg
-omega run --engine psi samples/cli/basics/brightness_control/main.omg
+omega run samples/cli/basics/brightness_control/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/basics/brightness_control` from the repository root.
 
 The public command uses ordinary package and entry review. No acceptance
 policy is committed. Matching-host qualification here is macOS ARM64;

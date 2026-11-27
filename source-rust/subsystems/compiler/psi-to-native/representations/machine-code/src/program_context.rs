@@ -51,7 +51,9 @@ impl BoundEncodingSubject {
         if roots.psi != encoded.psi
             || roots.entry != encoded.entry
             || roots.work_schedule != encoded.work_schedule
-            || roots.pre_physical != encoded.publication.record().pre_physical
+            || roots.optimization_unit != encoded.publication.record().optimization_unit
+            || roots.selection != encoded.publication.record().selection
+            || roots.budget_per_pass != encoded.publication.record().budget_per_pass
         {
             return Err("bound body contracts differ from the encoded program or its frame");
         }

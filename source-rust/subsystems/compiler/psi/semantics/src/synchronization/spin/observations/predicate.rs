@@ -110,16 +110,18 @@ impl Predicate {
         }
     }
 
-    pub(in super::super) fn inputs(&mut self) -> impl Iterator<Item = &mut Subject> {
+    pub(in super::super) fn inputs(
+        &mut self,
+    ) -> impl Iterator<Item = (&mut Subject, &mut SpinCondition)> {
         self.nodes.iter_mut().filter_map(|node| match node {
-            Node::Observation(subject, _) => Some(subject),
+            Node::Observation(subject, test) => Some((subject, test)),
             Node::Both(..) | Node::Select(..) => None,
         })
     }
 
     pub(in super::super::super) fn evaluate<K: Eq + std::hash::Hash>(
         &self,
-        mut observe: impl FnMut(&Subject, SpinCondition) -> (Observation, Option<K>),
+        mut observe: impl FnMut(&Subject, SpinCondition) -> (Observation, Option<(K, SpinCondition)>),
     ) -> Observation {
         let mut answers = vec![Observation::Known(false); self.nodes.len() + 1];
         let mut words = StableWords::default();
@@ -127,10 +129,10 @@ impl Predicate {
             if let Node::Observation(subject, test) = node {
                 let (answer, stable_word) = observe(subject, *test);
                 answers[index + 1] = answer;
-                if let Some(word) = stable_word
+                if let Some((word, known_test)) = stable_word
                     && answer == Observation::Unproved
                 {
-                    words.record(word, index + 1, *test);
+                    words.record(word, index + 1, known_test);
                 }
             }
         }
@@ -160,12 +162,11 @@ impl Predicate {
                         Observation::Known(true) => yes,
                         Observation::Known(false) => no,
                         _ if yes == no => yes,
-                        Observation::Untracked
-                            if yes != Observation::Unproved && no != Observation::Unproved =>
-                        {
-                            Observation::Untracked
-                        }
-                        _ => Observation::Unproved,
+                        unknown => [unknown, yes, no]
+                            .into_iter()
+                            .filter(|choice| !matches!(choice, Observation::Known(_)))
+                            .reduce(Observation::and)
+                            .unwrap_or(Observation::Unproved),
                     }
                 }
             };
@@ -175,12 +176,13 @@ impl Predicate {
     }
 }
 
-/// Missing storage cannot hide a decisive comparison on another cell.
+/// Keep caller-supplied progress separate from a locally unresolved word.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in super::super::super) enum Observation {
     Known(bool),
     Unproved,
-    Untracked,
+    Supplied,
+    PendingProvider,
 }
 
 impl Observation {
@@ -189,7 +191,8 @@ impl Observation {
             (Self::Known(false), _) | (_, Self::Known(false)) => Self::Known(false),
             (Self::Known(true), value) | (value, Self::Known(true)) => value,
             (Self::Unproved, _) | (_, Self::Unproved) => Self::Unproved,
-            (Self::Untracked, Self::Untracked) => Self::Untracked,
+            (Self::Supplied, _) | (_, Self::Supplied) => Self::Supplied,
+            (Self::PendingProvider, Self::PendingProvider) => Self::PendingProvider,
         }
     }
 }

@@ -278,6 +278,30 @@ impl Program<'_> {
         Ok(())
     }
 
+    /// An authentic task start needs activation admission for both a closed
+    /// call and an open forwarding wrapper.
+    pub(super) fn require_ordinary_boundary_call(
+        &self,
+        caller: MachineId,
+        requirement: SymbolHandle,
+    ) -> Checked<()> {
+        if matches!(
+            self.typed.symbols.sealed_intrinsic(requirement),
+            Some(
+                language_core::sealed_intrinsics::SealedIntrinsic::TaskRuntimeStart
+                    | language_core::sealed_intrinsics::SealedIntrinsic::TaskRuntimeTryStart
+            )
+        ) {
+            return Err(refuse_at(
+                caller,
+                Unserved::Call(
+                    "task start has no checked runtime authority, storage plan and transfer of execution custody",
+                ),
+            ));
+        }
+        Ok(())
+    }
+
     /// The selected requirement owns the substituted callback headers. Every
     /// invocation supplies its own callback selection, even when another call
     /// interned the same closed requirement first.
@@ -293,20 +317,7 @@ impl Program<'_> {
         let Some(closed) = self.typed.closed_requirement_application(target) else {
             return Ok(());
         };
-        if matches!(
-            self.typed.symbols.sealed_intrinsic(closed.template),
-            Some(
-                language_core::sealed_intrinsics::SealedIntrinsic::TaskRuntimeStart
-                    | language_core::sealed_intrinsics::SealedIntrinsic::TaskRuntimeTryStart
-            )
-        ) {
-            return Err(refuse_at(
-                caller,
-                Unserved::Call(
-                    "task start has no checked runtime authority, storage plan and transfer of execution custody",
-                ),
-            ));
-        }
+        self.require_ordinary_boundary_call(caller, closed.template)?;
         if !closed
             .invocation_contract_parameters
             .iter()

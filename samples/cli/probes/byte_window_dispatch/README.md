@@ -2,7 +2,7 @@
 
 Expected exit: 0.
 
-Run `omega run --both samples/cli/probes/byte_window_dispatch/main.omg`.
+Run `mbx xtask sample-gate --filter samples/cli/probes/byte_window_dispatch`.
 A runtime machine value chooses the header or trailer decoder for the same
 packet. Each decoder returns a borrowed byte window; the caller checks its
 length and reads the selected byte. Rebinding the decoder local changes which

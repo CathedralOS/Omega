@@ -40,14 +40,13 @@ interaction decomposition, signed components or stdin study workflow.
 From the repository root, using a compiler built from the recorded base:
 
 ```sh
-omega packages update --project samples/cli/independent/crossed_gauge_study
+omega packages update --project samples/cli/scientific/crossed_gauge_study
 # Read the generated review; accept only requested system/entry decisions and resume.
-omega packages update --resume --project samples/cli/independent/crossed_gauge_study
-omega --check samples/cli/independent/crossed_gauge_study/main.omg
-omega samples/cli/independent/crossed_gauge_study/main.omg
-omega run --engine native samples/cli/scientific/crossed_gauge_study/main.omg < samples/cli/scientific/crossed_gauge_study/data/interaction.stdin
-omega run --engine psi samples/cli/scientific/crossed_gauge_study/main.omg < samples/cli/scientific/crossed_gauge_study/data/interaction.stdin
-omega --check samples/cli/independent/crossed_gauge_study/controls/out_of_bounds/main.omg
+omega packages update --resume --project samples/cli/scientific/crossed_gauge_study
+omega --check samples/cli/scientific/crossed_gauge_study/main.omg
+omega samples/cli/scientific/crossed_gauge_study/main.omg
+omega run samples/cli/scientific/crossed_gauge_study/main.omg < samples/cli/scientific/crossed_gauge_study/data/interaction.stdin
+omega --check samples/cli/scientific/crossed_gauge_study/controls/out_of_bounds/main.omg
 ```
 
 The final command must reject specifically because index 8 is outside `[i32;8]`;
@@ -56,7 +55,7 @@ separate complete project and never imported by the application. `build/` holds
 compiler and execution artifacts and is ignored. Validation passed on the
 recorded Linux x86-64 compiler: source check and native compilation, all 19
 exact-output native fixtures, all eight native/Terminal exit comparisons, and
-the separate bounds rejection control. The CLI compares termination and the exact stdout and
+the separate bounds rejection control. The recorded comparison checked termination and the exact stdout and
 stderr bytes from native and Psi
 execution. The documented repository corpus runner additionally
 passed all 19 native and admitted Terminal stdout, stderr and exit oracles,

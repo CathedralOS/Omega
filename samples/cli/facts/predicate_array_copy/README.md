@@ -37,7 +37,7 @@ exit 0 from both native and Terminal execution.
 
 Every positive place binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares
-`Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and
+`Expected exit: 0`. The native/Psi comparison reports Terminal Psi interpreter and
 native execution agreement (`native exit 0` and `interp exit: 0`):
 
 ```sh
@@ -52,7 +52,7 @@ mbx xtask sample-gate --filter samples/cli/facts/predicate_array_copy/other_mach
 mbx xtask sample-gate --filter samples/cli/facts/predicate_array_copy/target_body
 ```
 
-Run a place with `omega run --both --keep <place>/main.omg`, then independently
+Run a place with `omega run --keep <place>/main.omg`, then independently
 consume its saved `program.oterm` using `omega psi inspect --artifact
 <saved>/program.oterm`. The second command matters: execution alone did not
 detect the canonical reader's stricter copy-membership rule.

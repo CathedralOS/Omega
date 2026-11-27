@@ -39,10 +39,9 @@ are rejected. Every arithmetic conversion follows these bounded inputs.
 Run from the repository root with a compiler built from the recorded source:
 
 ```sh
-APP=samples/cli/independent/stiff_reaction_kinetics
+APP=samples/cli/scientific/stiff_reaction_kinetics
 omega packages update --project "$APP" --target linux_x86_64
-omega run --engine native "$APP/main.omg" < "$APP/data/robertson_4_1_r100000.stdin"
-omega run --engine psi "$APP/main.omg" < "$APP/data/robertson_4_1_r100000.stdin"
+omega run "$APP/main.omg" < "$APP/data/robertson_4_1_r100000.stdin"
 ```
 
 Package review follows the normal editable review/resume workflow. Review
@@ -81,7 +80,7 @@ compiler build and executes its retained Terminal artifact with original runtime
 provisions and fresh input for every fixture. The driver publishes that same retained native product through the canonical
 product publisher; it does not repeat compilation for native qualification.
 Its 100000000 work sponsor budget
-is explicit. `omega run --both` compares termination and the exact stdout and stderr bytes from
+is explicit. The comparison checks termination and the exact stdout and stderr bytes from
 both engines. Use both validation routes:
 
 ```sh

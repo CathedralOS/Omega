@@ -55,14 +55,13 @@ cores. A repository search found no existing allele/pedigree workflow.
 From repository root, with a compiler built from the recorded base:
 
 ```sh
-omega --check --target linux_x86_64 samples/cli/independent/pedigree_allele_constraints/main.omg
-omega packages update --project samples/cli/independent/pedigree_allele_constraints --target linux_x86_64
+omega --check --target linux_x86_64 samples/cli/scientific/pedigree_allele_constraints/main.omg
+omega packages update --project samples/cli/scientific/pedigree_allele_constraints --target linux_x86_64
 # Read the produced review, decide its individual requests, then resume if authorized.
-omega packages update --resume --project samples/cli/independent/pedigree_allele_constraints
-omega samples/cli/independent/pedigree_allele_constraints/main.omg
-omega run --engine native samples/cli/scientific/pedigree_allele_constraints/main.omg < samples/cli/scientific/pedigree_allele_constraints/fixtures/shared_ancestry.stdin
-omega run --engine psi samples/cli/scientific/pedigree_allele_constraints/main.omg < samples/cli/scientific/pedigree_allele_constraints/fixtures/shared_ancestry.stdin
-omega --check --target linux_x86_64 samples/cli/independent/pedigree_allele_constraints/controls/bounds/main.omg
+omega packages update --resume --project samples/cli/scientific/pedigree_allele_constraints
+omega samples/cli/scientific/pedigree_allele_constraints/main.omg
+omega run samples/cli/scientific/pedigree_allele_constraints/main.omg < samples/cli/scientific/pedigree_allele_constraints/fixtures/shared_ancestry.stdin
+omega --check --target linux_x86_64 samples/cli/scientific/pedigree_allele_constraints/controls/bounds/main.omg
 ```
 
 The last command must reject specifically for an unproved parent array index (`cannot prove
@@ -83,7 +82,7 @@ with the accompanying terminal-call prefix repair. The complete application
 passes `--check` and native compilation. All **422 frozen native cases** agree
 on full stdout bytes, exact exit status and empty stderr, including all 399
 exhaustive tiny cases and 23 named valid, impossible and invalid-input cases.
-The four public `run --both` comparisons cover ambiguous observations, shared
+The four the native/Psi comparisons cover ambiguous observations, shared
 ancestry, impossible inheritance and invalid self-parent input; their native
 outputs match the frozen oracles and Terminal termination agrees in every case,
 without declines. The CLI at that revision compared termination only.

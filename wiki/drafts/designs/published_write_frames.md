@@ -75,7 +75,7 @@ its body's.
 ## Acceptance
 
 - A caller in another package keeps a fact about `e.owner` across
-  `set_time(@mutable e, 5)` under `--both`, using the imported published frame
+  `set_time(@mutable e, 5)` in native and interpreted tests, using the imported published frame
   and not the callee's body.
 - Editing `set_time` to write `entry.owner` changes its interface identity
   with the header unchanged, and the dependent that relied on `e.owner`

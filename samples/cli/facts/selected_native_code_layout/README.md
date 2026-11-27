@@ -80,7 +80,7 @@ and its frame instructions after final layout and branch reflow. The image
 producer resolves their relocations and validates their attribution; neighboring
 symbols, padding, data pools and callees do not supply guessed regions.
 
-For direct-image `run --both`, the runtime passes the explicitly retained,
+For direct-image the native/Psi comparison, the runtime passes the explicitly retained,
 completed native artifact to Terminal execution. It checks the artifact and
 target, reads its validated layout, and supplies immutable typed region records.
 These are the completed image's linked coordinates, not an observation of a

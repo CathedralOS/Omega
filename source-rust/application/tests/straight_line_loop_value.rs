@@ -10,7 +10,7 @@ mod program;
 mod support;
 
 #[test]
-fn a_chained_expression_loop_returns_the_same_value_on_both_engines() {
+fn a_chained_expression_loop_returns_the_same_value_when_interpreted_and_built() {
     program::assert_fixture_silent_return(
         &support::repository_root().join(
             "source-rust/application/tests/fixtures/transitions/run/straight_line_loop_value",

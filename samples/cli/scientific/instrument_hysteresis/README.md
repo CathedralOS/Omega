@@ -49,17 +49,17 @@ From the repository root, with a matching current-main compiler and library:
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=/absolute/path/to/omega
-SAMPLE=samples/cli/independent/instrument_hysteresis
+SAMPLE=samples/cli/scientific/instrument_hysteresis
 "$OMEGA" update --project "$SAMPLE" --target linux_x86_64
 # Inspect and accept the generated review decisions, then:
 "$OMEGA" update --resume --project "$SAMPLE"
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/main.omg"
-"$OMEGA" run --both "$SAMPLE/main.omg" < "$SAMPLE/data/loop.stdin"
+"$OMEGA" run "$SAMPLE/main.omg" < "$SAMPLE/data/loop.stdin"
 # Build the stable corpus runner once, then use its reported executable path:
 ```
 
 Results, commands, elapsed times, stderr and native stdout are retained under
-`build/`. The CLI compares termination, stdout and stderr between engines. The validator checks
+`build/`. The recorded comparison checked termination, stdout and stderr between engines. The validator checks
 the forwarded native stdout against the frozen oracle. The invalid control must fail for the
 authored value-101 invariant
 violation, not merely for missing package review or another infrastructure

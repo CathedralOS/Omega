@@ -1,5 +1,27 @@
+use {omega}/language/core/foundation.omg as proof;
+
 // Only this bundled declaration permits structural equality synthesis.
 // Named implementations still supply ordinary checked comparison machines.
 public trait Equatable<T> {
     machine equals(left: @T, right: @T) -> bool;
+}
+
+// Evidence that the selected comparison relates only identical values. Its
+// `equals` is the inherited `Equatable` row, so the law is about exactly the
+// comparison `==` selects. A satisfier's `equals` must be written
+// `reaches none crashes none terminates`, which makes it admissible in this
+// and any other proof clause.
+public trait EqualImpliesIdentity<T>: Equatable<T> {
+    machine identity_of_equal(left: T, right: T)
+    requires equals(@left, @right)
+    ensures |proof|::Identity::<T>(left, right);
+}
+
+// Evidence that the selected comparison holds of identical values. A
+// comparison may satisfy this without `EqualImpliesIdentity`, as one that
+// ignores letter case does.
+public trait IdentityImpliesEqual<T>: Equatable<T> {
+    machine equal_of_identity(left: T, right: T)
+    requires |proof|::Identity::<T>(left, right)
+    ensures equals(@left, @right);
 }

@@ -31,9 +31,8 @@ use abstract_operations::{
     ValueBinding,
 };
 use optimization_core::{
-    AcceptedObligationFactIdentity, OptimizationIdentityBundleIdentity, OptimizationSelections,
-    OptimizationUnitIdentity, OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
-    PrePhysicalOptimizationManifestIdentity,
+    AcceptedObligationFactIdentity, OptimizationSelections, OptimizationUnitIdentity,
+    OptimizationWorkBudget,
 };
 use semantic_vocabulary::{
     BlockId, ClaimId, EdgeId, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
@@ -238,19 +237,15 @@ impl PsiOptimizationUnit {
     }
 }
 
-/// The unchanged plan, the unit target lowering reads, and the identities later
-/// stages compare: `optimization` names the selections the plan was lowered
-/// under, `projection` binds the Terminal program to the unit, and
-/// `pre_physical_manifest` binds the projection to the selections and budget.
+/// The unchanged plan, the unit target lowering reads, and the selections and
+/// per-pass budget it was lowered under. Later stages compare the unit
+/// identity, the selection identity and the budget directly.
 #[derive(Debug)]
 pub struct OptimizedAbstractProgram {
     pub plan: Arc<AbstractOperationPlan>,
     pub unit: PsiOptimizationUnit,
     pub selections: OptimizationSelections,
     pub budget_per_pass: OptimizationWorkBudget,
-    pub optimization: OptimizationIdentityBundleIdentity,
-    pub projection: OptimizedAbstractPlanProjectionIdentity,
-    pub pre_physical_manifest: PrePhysicalOptimizationManifestIdentity,
 }
 
 impl OptimizedAbstractProgram {
@@ -272,18 +267,6 @@ impl OptimizedAbstractProgram {
 
     pub const fn budget_per_pass(&self) -> OptimizationWorkBudget {
         self.budget_per_pass
-    }
-
-    pub const fn optimization(&self) -> OptimizationIdentityBundleIdentity {
-        self.optimization
-    }
-
-    pub const fn projection(&self) -> OptimizedAbstractPlanProjectionIdentity {
-        self.projection
-    }
-
-    pub const fn pre_physical_manifest(&self) -> PrePhysicalOptimizationManifestIdentity {
-        self.pre_physical_manifest
     }
 }
 

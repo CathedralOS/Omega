@@ -21,6 +21,14 @@ and migrates its consumers together, retaining each consumer's frozen oracles,
 invalid controls and host evidence. Extraction is a separately bounded outcome,
 not permission for a broad library rewrite.
 
+## Running a sample
+
+From the repository root, `omega run samples/cli/basics/cli_mvp/main.omg`
+lowers the source to Psi and interprets it. `--target` selects the target environment.
+For a native/Psi comparison, use
+`mbx xtask sample-gate --filter samples/cli/basics/cli_mvp`. The gate builds
+and launches the native program separately and compares it with interpretation.
+
 ## Nested-machine migration
 
 The [ratified machine model](../wiki/spec/language/machines.md#nested-machines-and-identity)
@@ -141,7 +149,7 @@ requested package review first and then invoke the ordinary compiler commands vi
 
 ```text
 mbx run -p omega -- packages update --project samples/cli/basics/cli_mvp
-mbx run -p omega -- run --engine native samples/cli/basics/cli_mvp/build.omg
+mbx run -p omega -- run samples/cli/basics/cli_mvp/build.omg
 ```
 
 `mbx` is required for repository Rust builds and runs (never use raw `cargo` fallbacks).

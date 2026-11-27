@@ -96,7 +96,45 @@ pub fn prepare_program(
 ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
     let binding = proposal.scope_source().program(authorization)?;
     let scope = derive_native_scope(binding)?;
-    provider_bindings::bind(proposal, authorization, scope)
+    let program = provider_bindings::bind(proposal, authorization, scope)?;
+    let root = proposal.scope_source().root();
+    let progress_scope = match root {
+        target_bound_program::NativeRoot::Program(_) => {
+            psi_provider_selections::ProgressScope::Executable
+        }
+        target_bound_program::NativeRoot::Component { .. } => {
+            psi_provider_selections::ProgressScope::OpenInterface
+        }
+    };
+    let artifact = authorization.artifact();
+    let mut candidates = artifact
+        .semantic_module()
+        .interfaces
+        .provider_candidates
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| program.scope().reach().contains_candidate_position(*index))
+        .map(|(_, row)| (row.boundary, row.candidate))
+        .collect::<Vec<_>>();
+    candidates.sort_unstable_by_key(|(slot, _)| *slot);
+    if let Some(failure) = psi_provider_selections::invocation_progress_failure(
+        artifact.view(),
+        root.semantic_entry(),
+        progress_scope,
+        proposal
+            .component_imports()
+            .iter()
+            .flat_map(|import| import.calls()),
+        |slot| {
+            candidates
+                .binary_search_by_key(&slot, |(slot, _)| *slot)
+                .ok()
+                .map(|index| candidates[index].1)
+        },
+    ) {
+        return Err(vec![Diagnostic::error(failure.to_string())]);
+    }
+    Ok(program)
 }
 
 /// An independently lowered callable inherits the selected providers of its owning execution.

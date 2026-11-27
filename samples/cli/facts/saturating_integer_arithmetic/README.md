@@ -19,12 +19,11 @@ Every place performs the same operation: establish or pass an unsigned scalar va
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | forwarding machine transports the bounded value |
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | each of four target bodies evaluates the clamped arithmetic |
 
-Each positive place and the root `main.omg` binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`, carries `expected_native_exit.txt` = 0, and passes `omega run --both` — Terminal Psi and native execution agreeing:
+Each positive place and the root `main.omg` binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`, carries `expected_native_exit.txt` = 0, and passes the native/Psi comparison — Terminal Psi and native execution agreeing:
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/saturating_integer_arithmetic
-omega run --engine native samples/cli/facts/saturating_integer_arithmetic/<place>/main.omg
-omega run --engine psi samples/cli/facts/saturating_integer_arithmetic/<place>/main.omg
+omega run samples/cli/facts/saturating_integer_arithmetic/<place>/main.omg
 ```
 
 ## Reject twins
@@ -57,10 +56,10 @@ Check a twin with `omega --check samples/cli/facts/saturating_integer_arithmetic
 - **Identity and lifetime:** The clamped scalar value and its bounded interval `[10u64..100u64]` track the exact scalar version across value copies, struct fields, machine parameters, call return results, match join bindings, named constants, state transitions, machine forwarding, and target-scoped bodies without loss or invalidation.
 - **Composition:** The bounded clamped value composes through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into both consuming exact subtractions (`100u64 - clamped` and `clamped - 10u64`) and their sum (`headroom + above_floor == 90u64`). Each positive place `<place>/main.omg` vs. its reject twin `<place>/invalid/main.omg` differs only in the ceiling bound (`clamped <= 100u64` vs `clamped <= 101u64`).
 - **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed with compile-time verification diagnostics (`error: exact arithmetic in machine ... may overflow `u64``) when the ceiling bound is widened to `101u64`, refusing compilation rather than admitting potential underflow in `100u64 - clamped`.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Proved interval bounds and non-overflowing exact subtractions lower without semantic loss into canonical target-neutral Terminal Psi (`PSITERM\0`) exact integer arithmetic, erasing proof obligations while retaining integer certificates, state transitions, and target-scoped bodies, and executing with full agreement in the Terminal Psi interpreter (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Proved interval bounds and non-overflowing exact subtractions lower without semantic loss into canonical target-neutral Terminal Psi (`PSITERM\0`) exact integer arithmetic, erasing proof obligations while retaining integer certificates, state transitions, and target-scoped bodies, and executing with full agreement in the Terminal Psi interpreter.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). `IntegerAt` 64-bit scalar layout geometry and record layout (`data Payload requires val >= 10u64 && val <= 100u64 { val: u64; }`) validate, and `CallPlan`/`StatePlan` lower 64-bit scalar and aggregate carriers across registers and stack slots according to target ABIs.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target subtraction and addition instructions (`sub`, `add`), assigns register homes and disjoint stack-frame storage with live-across-call spill slots, and inserts entry prologues and multi-return epilogues.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Subtraction and comparison instruction forms and symbolic stack-frame displacements encode, basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Subtraction and comparison instruction forms and symbolic stack-frame displacements encode, basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.
 
 ### Verification Evidence
 

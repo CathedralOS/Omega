@@ -1,6 +1,8 @@
 //! Values a private cell can hold at a control-flow join. Two branches can
 //! store different words that both enable the same wait.
 
+mod indices;
+
 use super::Location;
 use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::progress::ScalarFact;
@@ -11,9 +13,10 @@ use terminal_psi::StructuralPathSegment as Segment;
 
 #[derive(Clone, Default)]
 pub(in super::super) enum Stored {
-    Zero,
+    Uniform(FieldDefault),
     Scalar(ScalarFact),
     Alternatives {
+        pending_provider: bool,
         includes_zero: bool,
         values: Vec<ScalarFact>,
     },
@@ -26,15 +29,80 @@ pub(in super::super) enum Stored {
 #[derive(Clone)]
 pub(in super::super) struct Aggregate {
     tags: Vec<StructuralCaseId>,
-    zeroed: bool,
+    fill: FieldDefault,
     fields: Vec<(Segment, Stored)>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(in super::super) enum FieldDefault {
+    Zero,
+    Incoming,
+    PendingProvider,
+    PendingOrZero,
+    Unknown,
+}
+
+impl FieldDefault {
+    fn join(self, other: Self) -> Self {
+        if self == other {
+            return self;
+        }
+        if matches!(
+            self,
+            Self::Zero | Self::PendingProvider | Self::PendingOrZero
+        ) && matches!(
+            other,
+            Self::Zero | Self::PendingProvider | Self::PendingOrZero
+        ) {
+            return Self::PendingOrZero;
+        }
+        Self::Unknown
+    }
+
+    fn contents(self) -> &'static Stored {
+        match self {
+            Self::Zero => &Stored::ZERO,
+            Self::Incoming => &Stored::INCOMING,
+            Self::PendingProvider => &Stored::PENDING_PROVIDER,
+            Self::PendingOrZero => &Stored::Uniform(Self::PendingOrZero),
+            Self::Unknown => &Stored::Unknown,
+        }
+    }
+}
+
 impl Stored {
+    pub(in super::super) const ZERO: Self = Self::Uniform(FieldDefault::Zero);
+    /// Bytes supplied by an exclusive caller, untouched on every arrival.
+    pub(in super::super) const INCOMING: Self = Self::Uniform(FieldDefault::Incoming);
+    /// Bytes lent to a provider that will be selected for the target.
+    pub(in super::super) const PENDING_PROVIDER: Self =
+        Self::Uniform(FieldDefault::PendingProvider);
+
+    pub(in super::super) fn is_zero(&self) -> bool {
+        matches!(self, Self::Uniform(FieldDefault::Zero))
+    }
+
+    pub(in super::super) fn is_incoming(&self) -> bool {
+        matches!(self, Self::Uniform(FieldDefault::Incoming))
+    }
+
+    fn fill(&self) -> FieldDefault {
+        match self {
+            Self::Uniform(fill) => *fill,
+            Self::Alternatives {
+                includes_zero: true,
+                pending_provider: true,
+                values,
+            } if values.is_empty() => FieldDefault::PendingOrZero,
+            Self::Aggregate(record) => record.fill,
+            _ => FieldDefault::Unknown,
+        }
+    }
+
     pub(in super::super) fn variant(case: StructuralCaseId) -> Self {
         Self::Aggregate(Arc::new(Aggregate {
             tags: vec![case],
-            zeroed: false,
+            fill: FieldDefault::Unknown,
             fields: Vec::new(),
         }))
     }
@@ -58,7 +126,7 @@ impl Stored {
             Self::Aggregate(aggregate) => aggregate.clone(),
             _ => Arc::new(Aggregate {
                 tags: Vec::new(),
-                zeroed: matches!(self, Self::Zero),
+                fill: self.fill(),
                 fields: Vec::new(),
             }),
         };
@@ -79,28 +147,35 @@ impl Stored {
 
     pub(super) fn field(&self, key: &Segment) -> &Self {
         match self {
-            Self::Zero => &Self::Zero,
-            Self::Aggregate(record) => record
-                .fields
-                .iter()
-                .find(|(field, _)| field == key)
-                .map(|(_, value)| value)
-                .unwrap_or(if record.zeroed {
-                    &Self::Zero
-                } else {
-                    &Self::Unknown
-                }),
-            _ => &Self::Unknown,
+            Self::Uniform(_) => self,
+            Self::Aggregate(record) => {
+                let exact = |key: &Segment| {
+                    record
+                        .fields
+                        .iter()
+                        .find(|(field, _)| field == key)
+                        .map(|(_, value)| value)
+                };
+                exact(key)
+                    .or_else(|| {
+                        if matches!(key, Segment::FixedIndex(_)) {
+                            exact(&Segment::AllElements)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(record.fill.contents())
+            }
+            _ => self.fill().contents(),
         }
     }
-
     /// Shared copies retain one description until the corresponding field
     /// is written. Nesting a record never expands all possible element paths.
     pub(super) fn field_mut(&mut self, key: &Segment) -> &mut Self {
         if !matches!(self, Self::Aggregate(_)) {
             *self = Self::Aggregate(Arc::new(Aggregate {
                 tags: Vec::new(),
-                zeroed: matches!(self, Self::Zero),
+                fill: self.fill(),
                 fields: Vec::new(),
             }));
         }
@@ -112,14 +187,17 @@ impl Stored {
             Some(index) => index,
             None => {
                 let index = record.fields.len();
-                record.fields.push((
-                    key.clone(),
-                    if record.zeroed {
-                        Self::Zero
-                    } else {
-                        Self::Unknown
-                    },
-                ));
+                let initial = if matches!(key, Segment::FixedIndex(_)) {
+                    record
+                        .fields
+                        .iter()
+                        .find(|(id, _)| *id == Segment::AllElements)
+                        .map(|(_, value)| value)
+                } else {
+                    None
+                };
+                let value = initial.unwrap_or(record.fill.contents()).clone();
+                record.fields.push((key.clone(), value));
                 index
             }
         };
@@ -138,7 +216,10 @@ impl Stored {
         borrow: &mut impl FnMut(&mut Location, &Location),
     ) {
         match (&*self, other) {
-            (Self::Unknown, _) | (Self::Zero, Self::Zero) => return,
+            (Self::Unknown, _) => return,
+            (Self::Uniform(left), Self::Uniform(right)) => {
+                *self = left.join(*right).contents().clone();
+            }
             (Self::Scalar(a), Self::Scalar(b)) if a == b => return,
             (Self::Reference(a), Self::Reference(b)) => {
                 let mut home = a.clone();
@@ -146,7 +227,8 @@ impl Stored {
                 *self = Self::Reference(home);
             }
             (Self::Aggregate(a), Self::Aggregate(b)) if Arc::ptr_eq(a, b) => return,
-            (Self::Aggregate(_) | Self::Zero, Self::Aggregate(_) | Self::Zero) => {
+            (Self::Aggregate(_), Self::Aggregate(_) | Self::Uniform(_))
+            | (Self::Uniform(_), Self::Aggregate(_)) => {
                 let fields = |value: &Self| match value {
                     Self::Aggregate(a) => a
                         .fields
@@ -154,9 +236,6 @@ impl Stored {
                         .map(|(key, _)| key.clone())
                         .collect::<Vec<_>>(),
                     _ => Vec::new(),
-                };
-                let zeroed = |value: &Self| {
-                    matches!(value, Self::Zero) || matches!(value, Self::Aggregate(a) if a.zeroed)
                 };
                 let mut tags = Vec::new();
                 if !self.tags().is_empty() && !other.tags().is_empty() {
@@ -167,7 +246,7 @@ impl Stored {
                 }
                 let mut result = Self::Aggregate(Arc::new(Aggregate {
                     tags,
-                    zeroed: zeroed(self) && zeroed(other),
+                    fill: self.fill().join(other.fill()),
                     fields: Vec::new(),
                 }));
                 let mut keys = fields(self);
@@ -199,20 +278,40 @@ impl Stored {
                 *self = result;
             }
             (
-                Self::Zero | Self::Scalar(_) | Self::Alternatives { .. },
-                Self::Zero | Self::Scalar(_) | Self::Alternatives { .. },
+                Self::Uniform(
+                    FieldDefault::Zero
+                    | FieldDefault::PendingProvider
+                    | FieldDefault::PendingOrZero,
+                )
+                | Self::Scalar(_)
+                | Self::Alternatives { .. },
+                Self::Uniform(
+                    FieldDefault::Zero
+                    | FieldDefault::PendingProvider
+                    | FieldDefault::PendingOrZero,
+                )
+                | Self::Scalar(_)
+                | Self::Alternatives { .. },
             ) => {
+                let mut pending_provider = false;
                 let mut includes_zero = false;
                 let mut values = Vec::new();
                 for item in [&*self, other] {
                     match item {
-                        Self::Zero => includes_zero = true,
+                        Self::Uniform(FieldDefault::Zero) => includes_zero = true,
+                        Self::Uniform(FieldDefault::PendingProvider) => pending_provider = true,
+                        Self::Uniform(FieldDefault::PendingOrZero) => {
+                            pending_provider = true;
+                            includes_zero = true;
+                        }
                         Self::Scalar(value) => values.push(*value),
                         Self::Alternatives {
                             includes_zero: zero,
                             values: alternatives,
+                            pending_provider: pending,
                         } => {
                             includes_zero |= zero;
+                            pending_provider |= pending;
                             values.extend(alternatives);
                         }
                         _ => unreachable!(),
@@ -225,6 +324,7 @@ impl Stored {
                     }
                 }
                 *self = Self::Alternatives {
+                    pending_provider,
                     includes_zero,
                     values: unique,
                 };
@@ -235,10 +335,10 @@ impl Stored {
 
     /// Apply the instruction's transfer independently to every admitted
     /// resident. A mismatch preserves the actual observed word.
-    pub(in super::super::super) fn after_update(&self, update: CellUpdate) -> Self {
+    pub(in super::super::super) fn after_update(&self, update: CellUpdate<ScalarFact>) -> Self {
         let expected = match update {
             CellUpdate::Observe => return self.clone(),
-            CellUpdate::Replace(value) => return Self::Scalar(ScalarFact::Literal(value)),
+            CellUpdate::Replace(value) => return Self::Scalar(value),
             CellUpdate::CompareExchange {
                 expected,
                 replacement,
@@ -249,10 +349,7 @@ impl Stored {
             | CellUpdate::BitwiseAnd(expected)
             | CellUpdate::BitwiseOr(expected) => expected,
         };
-        self.map_scalars(expected.scalar_type(), |prior| match prior {
-            ScalarFact::Literal(bits) => update.apply(bits).map(ScalarFact::Literal),
-            ScalarFact::EntryInput(_) => None,
-        })
+        self.map_scalars(expected.ty(), |prior| update.next(prior))
     }
 
     pub(in super::super) fn map_scalars(
@@ -260,7 +357,12 @@ impl Stored {
         ty: ScalarType,
         mut apply: impl FnMut(ScalarFact) -> Option<ScalarFact>,
     ) -> Self {
-        let mut result: Option<Self> = None;
+        if matches!(self, Self::Uniform(FieldDefault::PendingProvider)) {
+            return Self::Uniform(FieldDefault::PendingProvider);
+        }
+        let mut result = self
+            .includes_pending_provider()
+            .then_some(Self::Uniform(FieldDefault::PendingProvider));
         let mapped = self.visit_scalars(ty, |prior| {
             let value = Self::from(apply(prior));
             if let Some(existing) = &mut result {
@@ -272,14 +374,33 @@ impl Stored {
         mapped.and(result).unwrap_or_default()
     }
 
+    pub(in super::super) fn includes_pending_provider(&self) -> bool {
+        matches!(
+            self,
+            Self::Uniform(FieldDefault::PendingProvider)
+                | Self::Uniform(FieldDefault::PendingOrZero)
+                | Self::Alternatives {
+                    pending_provider: true,
+                    ..
+                }
+        )
+    }
+
+    /// Visit the locally established alternatives, with the unresolved provider alternative
+    /// counted separately by the caller.
     pub(in super::super) fn visit_scalars(
         &self,
         ty: ScalarType,
         mut visit: impl FnMut(ScalarFact),
     ) -> Option<()> {
+        if matches!(self, Self::Uniform(FieldDefault::PendingOrZero)) {
+            visit(ScalarFact::Literal(Scalar::zero(ty)?));
+            return Some(());
+        }
         if let Self::Alternatives {
             includes_zero,
             values,
+            ..
         } = self
         {
             if *includes_zero {
@@ -299,11 +420,12 @@ impl Stored {
 
     pub(in super::super) fn scalar(&self, ty: ScalarType) -> Option<ScalarFact> {
         match self {
-            Self::Zero => Scalar::zero(ty).map(ScalarFact::Literal),
+            Self::Uniform(FieldDefault::Zero) => Scalar::zero(ty).map(ScalarFact::Literal),
             Self::Scalar(value) if value.ty() == ty => Some(*value),
             Self::Alternatives {
                 includes_zero,
                 values,
+                pending_provider: false,
             } => {
                 let value = if *includes_zero {
                     ScalarFact::Literal(Scalar::zero(ty)?)

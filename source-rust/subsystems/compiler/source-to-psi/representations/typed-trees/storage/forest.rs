@@ -122,9 +122,7 @@ impl TypedTrees {
         &self,
         owner: symbols::SymbolHandle,
     ) -> impl Iterator<Item = &signature::AuthoredServiceReachRow> {
-        self.authored_service_reach_rows
-            .iter()
-            .filter(move |row| row.owner == owner)
+        self.authored_service_reach_rows.owned_by(owner)
     }
 
     pub fn with_roots(
@@ -179,9 +177,7 @@ impl TypedTrees {
         &self,
         machine: symbols::SymbolHandle,
     ) -> Option<&crate::source_state::ranking::RankingExpressionCustody> {
-        self.ranking_expression_custody
-            .iter()
-            .find(|custody| custody.machine == machine)
+        self.ranking_expression_custody.owned_by(machine).next()
     }
 }
 

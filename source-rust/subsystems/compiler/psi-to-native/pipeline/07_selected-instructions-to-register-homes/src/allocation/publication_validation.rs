@@ -101,8 +101,9 @@ fn validate_recovery_selection(
 mod tests {
     use super::*;
     use optimization_core::{
-        OptimizationExecutionPhase, PostAllocationOptimizationManifestIdentity,
-        PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
+        OptimizationExecutionPhase, OptimizationSelectionIdentity, OptimizationUnitIdentity,
+        OptimizationWorkBudget, PostAllocationOptimizationManifestIdentity,
+        PreAllocationOptimizationCompletionIdentity,
         SelectedLoweringOptimizationCompletionIdentity,
     };
     use register_homes::{
@@ -118,7 +119,9 @@ mod tests {
         let mut post = PostAllocationOptimizationManifest {
             identity: PostAllocationOptimizationManifestIdentity::from_canonical_bytes(b"pending"),
             stage: PostAllocationManifestStage::RegisterHomes,
-            pre_physical: PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"pre"),
+            optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"unit"),
+            selection: OptimizationSelectionIdentity::from_bytes([3; 32]),
+            budget_per_pass: OptimizationWorkBudget::new(1, 1, 1, 1, 1).unwrap(),
             target: target::NativeTarget::linux_x64(),
             selected: selected_instructions::test_support::placeholder_plan(1),
             selected_lowering_completion: None,

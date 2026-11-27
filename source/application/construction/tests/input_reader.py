@@ -14,6 +14,9 @@ ROOT = APPLICATION.parents[2]
 sys.path.insert(0, str(APPLICATION))
 import construct
 
+sys.path.insert(0, str(ROOT / "source/subsystems/compiler/source_to_psi/tests"))
+from execution import compile_fixture
+
 
 def requests():
     packet, packages, edges, units = construct.encode(
@@ -31,27 +34,24 @@ def requests():
     yield "wrong-owner", wrong, 253
 
 
-def check_engine(cli, engine, project, inputs, outputs, expected):
+def check_interpreter(cli, project, inputs, outputs, expected):
     subprocess.run(
-        [cli, "run", "--engine", engine, "--inputs", inputs, "--outputs", outputs, "build.omg"],
+        [cli, "run", "--inputs", inputs, "--outputs", outputs, "build.omg"],
         cwd=project, stdin=subprocess.DEVNULL, check=True,
     )
     with (outputs / "results.tsv").open(newline="") as report:
         rows = list(csv.DictReader(report, delimiter="\t"))
     if [row["case"] for row in rows] != sorted(expected):
-        raise SystemExit(f"{engine} returned an unexpected case roster: {rows}")
+        raise SystemExit(f"interpreter returned an unexpected case roster: {rows}")
 
     errors = {}
     for row in rows:
         name = row["case"]
         status = str(expected[name])
-        if engine == "psi":
-            if (row["termination"], row["detail"]) != ("exit", status):
-                raise SystemExit(f"expected Psi to exit {status} for {name}, observed {row}")
-        elif row["native"] != status:
-            raise SystemExit(f"expected native status {status} for {name}, observed {row}")
+        if (row["termination"], row["detail"]) != ("exit", status):
+            raise SystemExit(f"expected Psi to exit {status} for {name}, observed {row}")
         if (outputs / f"{name}.stdout").read_bytes():
-            raise SystemExit(f"{engine} wrote tape bytes for {name}")
+            raise SystemExit(f"interpreter wrote tape bytes for {name}")
         errors[name] = (outputs / f"{name}.stderr").read_bytes()
     return errors
 
@@ -76,10 +76,16 @@ def main():
             for name, packet, exit_code in requests():
                 (inputs / f"{name}.stdin").write_bytes(packet)
                 expected[name] = exit_code
-            native = check_engine(cli, "native", root, inputs, inputs.parent / "native", expected)
-            psi = check_engine(cli, "psi", root, inputs, inputs.parent / "psi", expected)
-            for name in expected:
-                if native[name] != psi[name]:
+            executable, _ = compile_fixture(cli, root, "build.omg", inputs.parent)
+            psi = check_interpreter(cli, root, inputs, inputs.parent / "psi", expected)
+            for name, status in expected.items():
+                native = subprocess.run(
+                    [executable], cwd=root, input=(inputs / f"{name}.stdin").read_bytes(),
+                    capture_output=True,
+                )
+                if native.returncode != status or native.stdout:
+                    raise SystemExit(f"unexpected compiled program result for {name}: {native!r}")
+                if native.stderr != psi[name]:
                     raise SystemExit(f"native and Psi emitted different diagnostics for {name}")
 
 

@@ -71,7 +71,7 @@ $OMEGA --check --target linux_x86_64 --build-dir samples/cli/independent/crossov
 The last command must reject the unchecked array-index obligation; package or
 provider rejection does not count. `../invalid_crossover_experiment_design/` is a separate complete intended-
 ../invalid_crossover_experiment_design project and is deliberately excluded from positive sample acceptance.
-The CLI compares termination, stdout and stderr. The validator also checks the
+The recorded comparison checked termination, stdout and stderr. The validator also checks the
 forwarded native stdout against the expected output and requires a completed
 comparison.
 Retained output/logs belong in ignored `build/`; source/data never depend on them.

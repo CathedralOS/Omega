@@ -19,7 +19,7 @@ Every place performs the same operation: logically shift a bounded `u64` value (
 | another machine | [source](other_machine/main.omg) | [source](invalid_other_machine/main.omg) | A forwarding machine transports operands to the shift machine. |  |  |
 | another target body | [source](target_body/main.omg) | [source](invalid_target_body/main.omg) | Each hosted target body executes the bounded shift and exact subtraction. |  |  |
 
-Each positive place and root `main.omg` binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`, and passes `omega run --both`.
+Each positive place and root `main.omg` binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`, and passes the native/Psi comparison.
 
 ## Execution
 
@@ -66,10 +66,10 @@ Parent task: **ONE-INTEGER-BOUNDS-ENGINE** ([TASKS.md](../../../../TASKS.md)) �
 - **Identity and lifetime:** The bounded unsigned scalar values retain their exact interval facts across local bindings, struct fields, machine parameters, return values, and match arms throughout their lifetimes.
 - **Composition:** Unsigned shift right interval facts compose through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming exact subtraction operation (`shifted - 100u64`); `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in weakening the value bound to `399..399`, leaving exact subtraction unproved without any caller guard difference.
 - **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed at compile time (`exact arithmetic in machine ... may overflow \`u64\``), strictly preventing underflow in exact subtraction when the shifted interval falls below the subtrahend. Both engines agree on the perturbed oracle (`native signal 5` / `interp crash: Trap`).
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Exact unsigned logical right shift operations (`ExactIntegerShiftRight`) and arithmetic operations lower into canonical target-neutral `PSITERM\0` with erased proof-only obligations, executing with identical semantics in the Terminal Psi interpreter (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Exact unsigned logical right shift operations (`ExactIntegerShiftRight`) and arithmetic operations lower into canonical target-neutral `PSITERM\0` with erased proof-only obligations, executing with identical semantics in the Terminal Psi interpreter.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build bindings (`ProgramEntry`) settle across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), 64-bit integer carriers and struct layouts evaluate and validate, and `CallPlan`/`StatePlan` lower `u64` values across target registers and stack slots.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target logical shift right instructions (`shr` on x86_64, `lsr` on arm64) and exact integer subtraction, assigns register homes and disjoint activation frame storage, and inserts entry prologues and multi-return epilogues honoring the `StatePlan`.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Shift and subtraction instructions encode into target machine code, basic blocks and branch offsets relax with offset reflow, machine-state footprints validate, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Shift and subtraction instructions encode into target machine code, basic blocks and branch offsets relax with offset reflow, machine-state footprints validate, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.
 
 ## Build-owned target-body migration
 

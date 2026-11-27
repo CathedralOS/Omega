@@ -79,14 +79,14 @@ From repository root, with `OMEGA` set to that executable:
 
 ```sh
 export PYTHONDONTWRITEBYTECODE=1
-"$OMEGA" update --project samples/cli/independent/transmission_line_reflections --target linux_x86_64
+"$OMEGA" update --project samples/cli/scientific/transmission_line_reflections --target linux_x86_64
 # If update opens a pending review, inspect it and use ordinary review decisions.
 # Resume only that pending review:
-# "$OMEGA" update --resume --project samples/cli/independent/transmission_line_reflections
-"$OMEGA" --check --target linux_x86_64 samples/cli/independent/transmission_line_reflections/main.omg
-"$OMEGA" run samples/cli/independent/transmission_line_reflections/main.omg < samples/cli/independent/transmission_line_reflections/data/case_2.stdin
-"$OMEGA" run --both samples/cli/independent/transmission_line_reflections/main.omg < samples/cli/independent/transmission_line_reflections/data/case_2.stdin
-"$OMEGA" --check samples/cli/independent/transmission_line_reflections/controls/invalid_bounds/main.omg
+# "$OMEGA" update --resume --project samples/cli/scientific/transmission_line_reflections
+"$OMEGA" --check --target linux_x86_64 samples/cli/scientific/transmission_line_reflections/main.omg
+"$OMEGA" run samples/cli/scientific/transmission_line_reflections/main.omg < samples/cli/scientific/transmission_line_reflections/data/case_2.stdin
+"$OMEGA" run samples/cli/scientific/transmission_line_reflections/main.omg < samples/cli/scientific/transmission_line_reflections/data/case_2.stdin
+"$OMEGA" --check samples/cli/scientific/transmission_line_reflections/controls/invalid_bounds/main.omg
 ```
 
 The last compiler command must reject selector 64 into a 64-element calendar

@@ -1400,6 +1400,7 @@ dependencies = [
 name = "native-binding-admission"
 version = "0.1.0"
 dependencies = [
+ "application-identity",
  "build-providers",
  "calling-conventions",
  "layout",
@@ -1713,14 +1714,12 @@ name = "omega"
 version = "0.1.0"
 dependencies = [
  "artifacts",
- "bounded-process",
  "build-declarations",
  "build-execution",
  "build-program-launch",
  "compiler",
  "diagnostics",
  "installation-conditions",
- "libc",
  "mimalloc",
  "native-provider-sponsor",
  "omega-source",
@@ -1732,6 +1731,7 @@ dependencies = [
  "project-build",
  "psi-authorization",
  "psi-entry-memory",
+ "psi-provider-selections",
  "retained-image-runtime",
  "runtime-abi",
  "semantic-vocabulary",
@@ -1739,10 +1739,11 @@ dependencies = [
  "source-acquisition",
  "target",
  "terminal-codec",
+ "terminal-interpreter",
  "terminal-psi",
  "terminal-runtime",
  "terminal-semantics",
- "windows-sys 0.61.2",
+ "terminal-work",
  "worker-budget",
 ]
 

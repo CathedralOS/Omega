@@ -76,7 +76,7 @@ so a read of the vacant leaf is still unknown.
 | Omega 00–09 | macOS AArch64 native images run the drop hooks on the residual tokens only. |
 
 Evidence, 2026-11-01, host macOS AArch64: candidate compiler built from base
-`5445b5af611` plus the change above. `omega run --both` exits 0 with native and
+`5445b5af611` plus the change above. The native/Psi comparison exits 0 with native and
 interpreter agreeing for all nine positives; `omega --check` rejects all nine
 twins with the fragment above. Evidence, 2026-11-03, host Linux x86-64: base
 `3e22616789c` plus the replay repair. Windows native execution is not observed.

@@ -1,9 +1,11 @@
 # Dot product
 
 ```sh
-omega run --engine native samples/cli/arithmetic/dot_product/main.omg
-omega run --engine psi samples/cli/arithmetic/dot_product/main.omg
+omega run samples/cli/arithmetic/dot_product/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/arithmetic/dot_product` from the repository root.
 
 The complete program computes `[1,2,3] · [4,5,6] = 32`, prints its three
 messages and exits 32 after Enter or EOF. Both arrays remain local caller-owned

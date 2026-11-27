@@ -1,6 +1,6 @@
 # Bounded resource issuance
 
-`omega run --both main.omg` must report native and Terminal exit 0.
+the native/Psi comparison must report native and Terminal exit 0.
 
 The private raw issuer encodes a nonnegative signed input as a nonzero unsigned
 identity. A second private issuer transfers that established predicate to the

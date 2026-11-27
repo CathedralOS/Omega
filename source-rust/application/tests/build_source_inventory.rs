@@ -118,8 +118,6 @@ machine build(builder: @mutable BuildPlan) crashes Trap {
             root,
             &[
                 "run",
-                "--engine",
-                "psi",
                 "--outputs",
                 "observation",
                 "--target",

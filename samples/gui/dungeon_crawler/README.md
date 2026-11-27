@@ -1,12 +1,13 @@
 # Hollow
 
-Hollow is a dungeon game written in Omega for macOS ARM64 and Windows x86-64.
-Omega draws the 256×192 framebuffer and handles gameplay and collision. Cocoa
-and Win32 present the pixels at 4× scale and deliver input.
+Hollow is a dungeon game written in Omega. Omega draws the 256×192 framebuffer
+and handles gameplay and collision. X11 on Linux x86-64 and ARM64, Cocoa on
+macOS ARM64, and Win32 on Windows x86-64 present the pixels at 4× scale and
+deliver input.
 
 ## Play
 
-Run the native application from the repository root with the command below.
+Build the native application from the repository root and launch the published executable.
 
 - Arrow keys or WASD: move and face.
 - Space: swing the sword. Holding it repeats attacks.
@@ -49,31 +50,37 @@ remain authored campaign content.
 
 From the repository root, build Omega and review the game's dependencies for
 the host target. After accepting the decisions in the generated proposal,
-resume the update and run the game.
+resume the update and compile the game.
 
 ```sh
 mbx build -p omega
 target/debug/omega packages update --project samples/gui/dungeon_crawler
 target/debug/omega packages update --resume --project samples/gui/dungeon_crawler
-target/debug/omega run --engine native samples/gui/dungeon_crawler/build.omg
+target/debug/omega --build-dir build/hollow samples/gui/dungeon_crawler/build.omg
 ```
+
+Launch the path printed by the compiler. The Linux window uses an X11 display
+on a local Unix socket.
 
 ## Acceptance
 
 The campaign and component checks are sibling applications that import the
 same engine as the windowed game. Review dependencies in each application's
-directory before its first run.
+directory before its first run. For each example below, the first command runs
+the program in Psi. The second compiles the host executable and prints its path.
 
 The campaign covers collision, doorway travel and backtracking, directional
 combat, persistent defeat, the key and locked passage, victory, and selected
 framebuffer pixels. Both engines print
 `PASS: dungeon campaign, collision, combat, pixels` and exit 0 on Windows
 x86-64. The Windows desktop check also opened the 1024×768 window,
-sampled its pixels, and closed it. [Windows verification](https://github.com/CathedralOS/Omega/pull/6499)
+sampled its pixels, and closed it. On Linux x86-64 the native window was also
+verified under Xvfb, and the campaign passed natively on Linux x86-64 and macOS
+ARM64. [Windows verification](https://github.com/CathedralOS/Omega/pull/6499) · [Linux and macOS verification](https://github.com/CathedralOS/Omega/pull/6545)
 
 ```sh
-target/debug/omega run --engine native samples/gui/dungeon_crawler_smoke/build.omg
-target/debug/omega run --engine psi samples/gui/dungeon_crawler_smoke/build.omg
+target/debug/omega run samples/gui/dungeon_crawler_smoke/build.omg
+target/debug/omega --build-dir build/hollow-smoke samples/gui/dungeon_crawler_smoke/build.omg
 ```
 
 The component model uses four rooms, two actors and three controller bindings.
@@ -82,8 +89,8 @@ third binding receives input only after the model increases the live count.
 The expected line is `PASS: bounded components and terminating controller fan-out`.
 
 ```sh
-target/debug/omega run --engine native samples/gui/dungeon_crawler_models/build.omg
-target/debug/omega run --engine psi samples/gui/dungeon_crawler_models/build.omg
+target/debug/omega run samples/gui/dungeon_crawler_models/build.omg
+target/debug/omega --build-dir build/hollow-models samples/gui/dungeon_crawler_models/build.omg
 ```
 
 The standard-library changes add a dimension-checked borrowed framebuffer

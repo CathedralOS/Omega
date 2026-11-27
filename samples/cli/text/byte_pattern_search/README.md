@@ -9,9 +9,11 @@ the unused output suffix untouched. Success is exit 0.
 After ordinary package review:
 
 ```sh
-mbx run -p omega -- run --engine native samples/cli/text/byte_pattern_search/main.omg
-mbx run -p omega -- run --engine psi samples/cli/text/byte_pattern_search/main.omg
+mbx run -p omega -- run samples/cli/text/byte_pattern_search/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/text/byte_pattern_search` from the repository root.
 
 At `81a0434130f`, first-match search ran, but the collector's nonempty-pattern
 contract rejected the literal `"aa"`: the shared extent evaluator omitted

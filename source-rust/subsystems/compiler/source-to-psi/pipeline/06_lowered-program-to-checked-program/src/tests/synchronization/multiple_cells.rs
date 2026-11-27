@@ -55,15 +55,40 @@ fn both_arguments_may_borrow_the_same_actual_cell() {
     execute_with_input(&source, 0);
 }
 
-#[test]
-fn a_supplied_word_cannot_hide_a_permanently_blocking_private_word() {
-    let source = wait("a == 1 || b == 1", "1", "0")
-        .replace("build_entry(input: u32)", "build_entry(external: @Flag)")
+fn supplied(condition: &str, local: &str) -> String {
+    wait(condition, local, "0")
+        .replace(
+            "build_entry(input: u32)",
+            "build_entry(external: @Flag, input: u32)",
+        )
         .replace(
             "await_change(@left, @right)",
             "await_change(@left, external)",
-        );
-    reject_deadlock(&source);
+        )
+}
+
+#[test]
+fn a_supplied_word_cannot_hide_a_permanently_blocking_private_word() {
+    reject_deadlock(&supplied("a == 1 || b == 1", "1"));
+}
+
+#[test]
+fn only_an_external_enabler_can_release_the_remaining_word() {
+    for (condition, local) in [("a == 1 || b == 1", "0"), ("a == 1 && b == 1", "1")] {
+        super::requires_an_external_enabler(&supplied(condition, local), "await_change");
+    }
+}
+
+#[test]
+fn an_unresolved_private_word_cannot_be_discharged_as_a_caller_premise() {
+    expect_unproved_progress(&supplied("a == 1 || b == 1", "input"));
+}
+
+#[test]
+fn selecting_the_compound_wait_as_an_entry_checks_its_own_observation() {
+    let sample = wait("a == 1 || b == 1", "0", "0");
+    let (entry, _) = sample.split_once("machine await_change").unwrap();
+    super::requires_an_external_enabler(&entry.replace("await_ready", "build_entry"), "load");
 }
 
 #[test]
@@ -132,4 +157,13 @@ fn separate_bits_of_one_runtime_word_can_enable_different_branches() {
         execute_with_input(&disjoint, input);
     }
     reject_deadlock(&same_word("(a & 2) == 0 || (b & 2) != 0"));
+}
+
+#[test]
+fn separate_loads_of_a_supplied_shared_word_can_observe_different_values() {
+    let source = supplied("a < 5 && b > 8", "0").replace(
+        "await_change(@left, external)",
+        "await_change(external, external)",
+    );
+    super::requires_an_external_enabler(&source, "await_change");
 }

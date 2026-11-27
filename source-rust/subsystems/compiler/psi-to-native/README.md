@@ -126,9 +126,10 @@ artifact or a foreign-package boundary reads it.
 | `FixedPrecolored*PlanIdentity`, register-homes receipts (06–07) | sibling receipts only | deleted |
 | `SelectedInstructionPlanIdentity`, `RetainedPlanPrefix`, effects identities (05–06) | receipts; validators compare retained program | deleted; rewrite receipts, liveness, live-range, effects and recovery plans, the post-allocation manifest and machine plan share `Arc<SelectedInstructionPlan>` and checks compare it; records that already share the machine plan drop their own copy; runtime spill, split, rematerialization and fixed-occurrence ledger rows record only their kind |
 | `LivenessIdentity`, `LiveRangeIdentity`, `AllocationLegalityIdentity` and the receipt and manifest digests built on them (06–08) | receipts; the post-allocation manifest digest | deleted, with their per-function digests and the carried-digest cache; legality, spill-choice, fixed-precolored and register-home plans name their program through the shared `selected` plan, and checks compare that plan; custody, completion and recovery receipts and the post-allocation manifest no longer record them, and the post-allocation machine plan drops its copies |
-| `OptimizationUnitIdentity` (04) | the unoptimized program record and its pre-physical manifest, fact keys | keep as the one unit hash |
+| `OptimizationIdentityBundleIdentity`, `OptimizedAbstractPlanProjectionIdentity`, `PrePhysicalOptimizationManifestIdentity` (04–15) | stage 05–07 custody, the post-allocation manifest, execution facts and the stage 15 physical scope, which only rehashed the unit, selections and budget | deleted; those records carry and compare the unit identity, selection identity and budget directly |
+| `OptimizationUnitIdentity` (04) | the unoptimized program record, custody, the post-allocation manifest, execution facts, fact keys | keep as the one unit hash; it already digests the Terminal program and work schedule |
 | `MachineFunctionIdentity` | sort key in validator replay; program fingerprint plus placement, not a plan hash | keep |
-| `NativeArtifactIdentity` | `native.identity.txt` (`omega run --keep`) | keep; binds emitted bytes, no longer plan hashes |
+| `NativeArtifactIdentity` | physical publication tests | keep; binds emitted bytes, no longer plan hashes |
 
 `NativeArtifactIdentity` already hashes the object, image and text bytes. The
 plan hashes it also chained in changed nothing those bytes did not, and

@@ -49,9 +49,9 @@ Measured on macOS arm64: perturbing the root's single comparison (`transition co
 
 Each place has an `invalid/` reject twin that widens the multiplier precondition bound from `rhs <= 12u8` to `rhs <= 13u8`.
 When `rhs == 13u8`, `prod` can reach `15 * 13 = 195u8 > 180u8`, which would make `180u8 - prod` underflow `u8` (potential underflow wrap to `256 - 15 = 241`).
-The compiler strictly fails closed at compile time; `omega run --both` on each twin exits 200 after the check leg refuses it, and the corpus check leg records the same rejection:
+The compiler strictly fails closed at compile time; the native/Psi comparison on each twin exits 200 after the check leg refuses it, and the corpus check leg records the same rejection:
 
-| Place | Positive `omega run --both` | Reject twin diagnostic (authored fragment) |
+| Place | Positive the native/Psi comparison | Reject twin diagnostic (authored fragment) |
 | --- | --- | --- |
 | `local` | native 0 / interp 0 | ``may overflow `u8` `` |
 | `field` | native 0 / interp 0 | ``may overflow `u8` `` |
@@ -70,8 +70,8 @@ The `local`, `field`, `const_name` and `target_body` twins emit the exact-arithm
 Positive versus twin `git diff` moves only the fact's own bound (`rhs <= 12u8` to `rhs <=
 13u8`), so a red place or twin names this fact's establishment, not a shape recognizer.
 
-- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
-- `omega run --both` over the nine twins: 9/9 exit 200 at checking with their authored fragments
+- the native/Psi comparison over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
+- the native/Psi comparison over the nine twins: 9/9 exit 200 at checking with their authored fragments
   (four ``may overflow `u8` ``, five forwarded-interval refusals); none reaches native execution.
 - Perturbing the root oracle (one token: `transition combined == 100u8` -> `== 101u8`) exits 255 with
   `native signal 5` and `interp crash: Trap (host presentation agrees)`.
@@ -84,7 +84,7 @@ Positive versus twin `git diff` moves only the fact's own bound (`rhs <= 12u8` t
 - **Identity and lifetime**: The computed interval fact `prod in [80, 180]` is preserved across local bindings, carrier record fields, machine parameters, helper call returns, match join arms, named constants, state transitions, helper forwarding machines, and target-scoped bodies without semantic loss.
 - **Composition**: In each place, the synthesized interval `prod in [80, 180]` composes directly with 8-bit unsigned exact subtractions `headroom = 180u8 - prod` and `margin = prod - 80u8` to statically discharge underflow safety, proving `headroom in [0, 100]` and `margin in [0, 100]` without any preceding post-hoc caller equality guard.
 - **Soundness boundaries**: In every reject twin, widening the multiplier bound to `rhs <= 13u8` permits `prod` to reach `195u8`, causing `180u8 - prod` to potentially underflow below zero and triggering compile-time rejection under decision 17 (or contract violation on boundary transmission), verifying that underflow-unsafe paths cannot pass unchecked.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: Unsigned 8-bit exact multiplication and subtraction operations lower into canonical target-neutral Terminal Psi (`PSITERM\0`) integer arithmetic representations (`IntegerMode::Exact`) accompanied by integer multiplication certificates (`prod <= 255`), while proof annotations are erased. Both Terminal Psi interpreter and native execution agree with exit 0 (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: Unsigned 8-bit exact multiplication and subtraction operations lower into canonical target-neutral Terminal Psi (`PSITERM\0`) integer arithmetic representations (`IntegerMode::Exact`) accompanied by integer multiplication certificates (`prod <= 255`), while proof annotations are erased. Both Terminal Psi interpreter and native execution agree with exit 0.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent 8-bit unsigned integers in 1-byte stored width (`IntegerAt 1-byte`, align 1) across all four hosted ABI calling conventions (CL/DL on `windows_x86_64`, DIL/SIL on `linux_x86_64`, W0/W1 on `macos_arm64` and `linux_arm64`), returning 8-bit unsigned results zero-extended in AL / W0.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects 8-bit unsigned multiplication instructions: `mul reg8` / `imul eax, ...` on `x86_64` and zero-extended `mul w0, w0, w1` masked to 8 bits on `arm64`, followed by 8-bit subtraction `sub al, ...`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.

@@ -1,0 +1,658 @@
+use main.omg as app;
+use {dungeon_core}/configuration/configuration.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+
+// Pure X11 wire-protocol Linux host over Unix domain sockets (/tmp/.X11-unix/X*).
+// Uses direct Linux syscalls so the same checked host works on both linux_x86_64
+// and linux_arm64 with zero external shared-library dependencies.
+
+public data LinuxTimespec {
+    seconds: i64;
+    nanoseconds: i64;
+}
+
+public data LinuxPollFd {
+    fd: i32;
+    events: i16;
+    revents: i16;
+}
+
+public boundary trait LinuxX11Syscall {
+    machine socket(domain: i32, kind: i32, protocol: i32) -> i64 reaches WindowManagement crashes none;
+    machine connect(fd: i32, addr: @[u8; 110], addrlen: u64) -> i64 reaches WindowManagement crashes none;
+    machine read(fd: i32, buf: @mutable [u8; 4096], count: u64) -> i64 reaches WindowEventObservation crashes none;
+    machine write_small(fd: i32, buf: @[u8; 256], count: u64) -> i64 reaches SurfacePresentation crashes none;
+    machine write_strip(fd: i32, buf: @[u8; 65560], count: u64) -> i64 reaches SurfacePresentation crashes none;
+    machine ppoll(fds: @mutable LinuxPollFd, nfds: u64, timeout: @LinuxTimespec, sigmask: u64, sigsetsize: u64) -> i64
+    reaches ExecutionDelay
+    crashes none;
+    machine close(fd: i32) -> i64 reaches WindowManagement crashes none;
+    machine clock_gettime(clock_id: u32, tp: @mutable LinuxTimespec) -> i64 reaches ClockObservation crashes none;
+}
+
+const CLIENT_WIDTH: u32 = |configuration|::FRAME_WIDTH * (|configuration|::WINDOW_SCALE as u32);
+const CLIENT_HEIGHT: u32 = |configuration|::FRAME_HEIGHT * (|configuration|::WINDOW_SCALE as u32);
+const STRIP_SRC_ROWS: u64 = 4;
+const STRIP_DST_ROWS: u32 = 16;
+const STRIP_COUNT: u64 = 48;
+const STRIP_BYTES: u64 = 65560;
+
+data X11State {
+    fd: i32;
+    window: u32;
+    gc: u32;
+    depth: u8;
+    focused: bool;
+    escape_down: bool;
+    restart_down: bool;
+    swing_down: bool;
+    up_down: bool;
+    w_down: bool;
+    right_down: bool;
+    d_down: bool;
+    down_down: bool;
+    s_down: bool;
+    left_down: bool;
+    a_down: bool;
+    small_buf: [u8; 256];
+    read_buf: [u8; 4096];
+    strip_buf: [u8; 65560];
+}
+
+machine put_u16_le(buf: @mutable [u8; 256], offset: u64, value: u32)
+requires offset <= 254 {
+    buf[offset] = (value & 255) as u8;
+    buf[offset + 1] = ((value >> 8) & 255) as u8;
+}
+
+machine put_u32_le(buf: @mutable [u8; 256], offset: u64, value: u32)
+requires offset <= 252 {
+    buf[offset] = (value & 255) as u8;
+    buf[offset + 1] = ((value >> 8) & 255) as u8;
+    buf[offset + 2] = ((value >> 16) & 255) as u8;
+    buf[offset + 3] = ((value >> 24) & 255) as u8;
+}
+
+machine strip_put_u16_le(buf: @mutable [u8; 65560], offset: u64, value: u32)
+requires offset <= 65558 {
+    buf[offset] = (value & 255) as u8;
+    buf[offset + 1] = ((value >> 8) & 255) as u8;
+}
+
+machine strip_put_u32_le(buf: @mutable [u8; 65560], offset: u64, value: u32)
+requires offset <= 65556 {
+    buf[offset] = (value & 255) as u8;
+    buf[offset + 1] = ((value >> 8) & 255) as u8;
+    buf[offset + 2] = ((value >> 16) & 255) as u8;
+    buf[offset + 3] = ((value >> 24) & 255) as u8;
+}
+
+machine read_u16_le(buf: @[u8; 4096], offset: u64) -> u32
+requires offset <= 4094 {
+    (buf[offset] as u32) | ((buf[offset + 1] as u32) << 8)
+}
+
+machine read_u32_le(buf: @[u8; 4096], offset: u64) -> u32
+requires offset <= 4092 {
+    (buf[offset] as u32)
+        | ((buf[offset + 1] as u32) << 8)
+        | ((buf[offset + 2] as u32) << 16)
+        | ((buf[offset + 3] as u32) << 24)
+}
+
+machine linux_now_ns() -> u64 reaches ClockObservation {
+    let mutable tp: LinuxTimespec = LinuxTimespec { seconds: 0, nanoseconds: 0 };
+    let rc: i64 = LinuxX11Syscall::clock_gettime(1, @mutable tp);
+    transition rc == 0 && tp.seconds >= 0 && tp.seconds <= 18_000_000_000 && tp.nanoseconds >= 0 && tp.nanoseconds < 1_000_000_000 {
+        true -> convert(tp.seconds, tp.nanoseconds),
+        _ -> (0)
+    }
+    machine convert(sec: i64, nsec: i64) -> u64
+    requires sec >= 0 && sec <= 18_000_000_000 && nsec >= 0 && nsec < 1_000_000_000 {
+        (sec as u64) * 1_000_000_000 + (nsec as u64)
+    }
+}
+
+machine try_connect_display(digit1: u8, digit2: u8, has_second: bool) -> i32 reaches WindowManagement {
+    let raw_fd: i64 = LinuxX11Syscall::socket(1, 1, 0);
+    transition raw_fd >= 0 && raw_fd <= 2_147_483_647 {
+        true -> do_connect(raw_fd as i32, digit1, digit2, has_second),
+        _ -> (-1)
+    }
+    machine do_connect(fd: i32, digit1: u8, digit2: u8, has_second: bool) -> i32 {
+        let mutable addr: [u8; 110];
+        addr[0] = 1;
+        addr[1] = 0;
+        // "/tmp/.X11-unix/X"
+        addr[2] = 47;
+        addr[3] = 116;
+        addr[4] = 109;
+        addr[5] = 112;
+        addr[6] = 47;
+        addr[7] = 46;
+        addr[8] = 88;
+        addr[9] = 49;
+        addr[10] = 49;
+        addr[11] = 45;
+        addr[12] = 117;
+        addr[13] = 110;
+        addr[14] = 105;
+        addr[15] = 120;
+        addr[16] = 47;
+        addr[17] = 88;
+        addr[18] = digit1;
+        transition has_second {
+            true -> two_digits(fd, @mutable addr, digit2),
+            _ -> one_digit(fd, @mutable addr)
+        }
+    }
+    machine one_digit(fd: i32, addr: @mutable [u8; 110]) -> i32 {
+        addr[19] = 0;
+        let rc: i64 = LinuxX11Syscall::connect(fd, @addr, 20);
+        transition rc == 0 { true -> (fd), _ -> fail_close(fd) }
+    }
+    machine two_digits(fd: i32, addr: @mutable [u8; 110], digit2: u8) -> i32 {
+        addr[19] = digit2;
+        addr[20] = 0;
+        let rc: i64 = LinuxX11Syscall::connect(fd, @addr, 21);
+        transition rc == 0 { true -> (fd), _ -> fail_close(fd) }
+    }
+    machine fail_close(fd: i32) -> i32 {
+        let closed: i64 = LinuxX11Syscall::close(fd);
+        transition closed == 0 || closed != 0 { true -> (-1), _ -> (-1) }
+    }
+}
+
+machine open_x11_socket() -> i32 reaches WindowManagement {
+    // Try :0, :1, then :99 (Xvfb).
+    let fd0: i32 = try_connect_display(48, 0, false);
+    transition fd0 >= 0 { true -> (fd0), _ -> try1() }
+    machine try1() -> i32 {
+        let fd1: i32 = try_connect_display(49, 0, false);
+        transition fd1 >= 0 { true -> (fd1), _ -> try99() }
+    }
+    machine try99() -> i32 {
+        try_connect_display(57, 57, true)
+    }
+}
+
+machine x11_handshake(x11: @mutable X11State) -> bool
+reaches WindowManagement + WindowEventObservation + SurfacePresentation {
+    // Little-endian X11R11 setup request without auth.
+    x11.small_buf[0] = 108;
+    x11.small_buf[1] = 0;
+    put_u16_le(@mutable x11.small_buf, 2, 11);
+    put_u16_le(@mutable x11.small_buf, 4, 0);
+    put_u16_le(@mutable x11.small_buf, 6, 0);
+    put_u16_le(@mutable x11.small_buf, 8, 0);
+    put_u16_le(@mutable x11.small_buf, 10, 0);
+    let sent: i64 = LinuxX11Syscall::write_small(x11.fd, @x11.small_buf, 12);
+    transition sent == 12 { true -> read_reply(x11), _ -> (false) }
+
+    machine read_reply(x11: @mutable X11State) -> bool {
+        let got: i64 = LinuxX11Syscall::read(x11.fd, @mutable x11.read_buf, 4096);
+        transition got >= 80 && got <= 4096 && x11.read_buf[0] == 1 {
+            true -> parse_setup(x11, got as u64),
+            _ -> (false)
+        }
+    }
+
+    machine parse_setup(x11: @mutable X11State, got: u64) -> bool
+    requires got >= 80 && got <= 4096 {
+        let resource_base: u32 = read_u32_le(@x11.read_buf, 12);
+        let vendor_len: u64 = read_u16_le(@x11.read_buf, 24) as u64;
+        let num_formats: u64 = x11.read_buf[29] as u64;
+        let vendor_pad: u64 = ((vendor_len + 3) / 4) * 4;
+        let screen_off: u64 = 40 + vendor_pad + num_formats * 8;
+        transition screen_off <= 4056 && screen_off + 40 <= got {
+            true -> create_resources(x11, resource_base, screen_off),
+            _ -> (false)
+        }
+    }
+
+    machine create_resources(x11: @mutable X11State, resource_base: u32, screen_off: u64) -> bool
+    requires screen_off <= 4056 {
+        let root_window: u32 = read_u32_le(@x11.read_buf, screen_off);
+        let root_visual: u32 = read_u32_le(@x11.read_buf, screen_off + 32);
+        let root_depth: u8 = x11.read_buf[screen_off + 38];
+        let win_id: u32 = resource_base | 1;
+        let gc_id: u32 = resource_base | 2;
+        x11.window = win_id;
+        x11.gc = gc_id;
+        x11.depth = root_depth;
+
+        // 1. CreateWindow (opcode 1, 36 bytes = 9 words)
+        x11.small_buf[0] = 1;
+        x11.small_buf[1] = root_depth;
+        put_u16_le(@mutable x11.small_buf, 2, 9);
+        put_u32_le(@mutable x11.small_buf, 4, win_id);
+        put_u32_le(@mutable x11.small_buf, 8, root_window);
+        put_u16_le(@mutable x11.small_buf, 12, 120);
+        put_u16_le(@mutable x11.small_buf, 14, 80);
+        put_u16_le(@mutable x11.small_buf, 16, CLIENT_WIDTH);
+        put_u16_le(@mutable x11.small_buf, 18, CLIENT_HEIGHT);
+        put_u16_le(@mutable x11.small_buf, 20, 0);
+        put_u16_le(@mutable x11.small_buf, 22, 1);
+        put_u32_le(@mutable x11.small_buf, 24, root_visual);
+        // CWEventMask = 0x800
+        put_u32_le(@mutable x11.small_buf, 28, 2048);
+        // KeyPress(1) | KeyRelease(2) | Exposure(0x8000) | StructureNotify(0x20000) | FocusChange(0x200000)
+        put_u32_le(@mutable x11.small_buf, 32, 2260995);
+
+        // 2. ChangeProperty WM_NAME = "HOLLOW / OMEGA" (opcode 18, 40 bytes = 10 words, offset 36..76)
+        x11.small_buf[36] = 18;
+        x11.small_buf[37] = 0;
+        put_u16_le(@mutable x11.small_buf, 38, 10);
+        put_u32_le(@mutable x11.small_buf, 40, win_id);
+        put_u32_le(@mutable x11.small_buf, 44, 39);
+        put_u32_le(@mutable x11.small_buf, 48, 31);
+        x11.small_buf[52] = 8;
+        x11.small_buf[53] = 0;
+        x11.small_buf[54] = 0;
+        x11.small_buf[55] = 0;
+        put_u32_le(@mutable x11.small_buf, 56, 14);
+        x11.small_buf[60] = 72;
+        x11.small_buf[61] = 79;
+        x11.small_buf[62] = 76;
+        x11.small_buf[63] = 76;
+        x11.small_buf[64] = 79;
+        x11.small_buf[65] = 87;
+        x11.small_buf[66] = 32;
+        x11.small_buf[67] = 47;
+        x11.small_buf[68] = 32;
+        x11.small_buf[69] = 79;
+        x11.small_buf[70] = 77;
+        x11.small_buf[71] = 69;
+        x11.small_buf[72] = 71;
+        x11.small_buf[73] = 65;
+        x11.small_buf[74] = 0;
+        x11.small_buf[75] = 0;
+
+        // 3. CreateGC (opcode 55, 16 bytes = 4 words, offset 76..92)
+        x11.small_buf[76] = 55;
+        x11.small_buf[77] = 0;
+        put_u16_le(@mutable x11.small_buf, 78, 4);
+        put_u32_le(@mutable x11.small_buf, 80, gc_id);
+        put_u32_le(@mutable x11.small_buf, 84, win_id);
+        put_u32_le(@mutable x11.small_buf, 88, 0);
+
+        // 4. MapWindow (opcode 8, 8 bytes = 2 words, offset 92..100)
+        x11.small_buf[92] = 8;
+        x11.small_buf[93] = 0;
+        put_u16_le(@mutable x11.small_buf, 94, 2);
+        put_u32_le(@mutable x11.small_buf, 96, win_id);
+
+        let sent: i64 = LinuxX11Syscall::write_small(x11.fd, @x11.small_buf, 100);
+        sent == 100
+    }
+}
+
+machine apply_key(x11: @mutable X11State, keycode: u8, down: bool) {
+    transition keycode {
+        9 -> set_esc(x11, down),
+        27 -> set_restart(x11, down),
+        65 -> set_swing(x11, down),
+        111 -> set_up(x11, down),
+        25 -> set_w(x11, down),
+        114 -> set_right(x11, down),
+        40 -> set_d(x11, down),
+        116 -> set_down(x11, down),
+        39 -> set_s(x11, down),
+        113 -> set_left(x11, down),
+        38 -> set_a(x11, down),
+        _ -> done()
+    }
+    machine set_esc(x11: @mutable X11State, down: bool) { x11.escape_down = down; }
+    machine set_restart(x11: @mutable X11State, down: bool) { x11.restart_down = down; }
+    machine set_swing(x11: @mutable X11State, down: bool) { x11.swing_down = down; }
+    machine set_up(x11: @mutable X11State, down: bool) { x11.up_down = down; }
+    machine set_w(x11: @mutable X11State, down: bool) { x11.w_down = down; }
+    machine set_right(x11: @mutable X11State, down: bool) { x11.right_down = down; }
+    machine set_d(x11: @mutable X11State, down: bool) { x11.d_down = down; }
+    machine set_down(x11: @mutable X11State, down: bool) { x11.down_down = down; }
+    machine set_s(x11: @mutable X11State, down: bool) { x11.s_down = down; }
+    machine set_left(x11: @mutable X11State, down: bool) { x11.left_down = down; }
+    machine set_a(x11: @mutable X11State, down: bool) { x11.a_down = down; }
+    machine done() {}
+}
+
+machine pump_events(x11: @mutable X11State, close_requested: @mutable bool)
+reaches WindowEventObservation + ExecutionDelay {
+    let mutable pfd: LinuxPollFd = LinuxPollFd { fd: x11.fd, events: 1, revents: 0 };
+    let zero_timeout: LinuxTimespec = LinuxTimespec { seconds: 0, nanoseconds: 0 };
+    let ready: i64 = LinuxX11Syscall::ppoll(@mutable pfd, 1, @zero_timeout, 0, 8);
+    transition ready > 0 && (pfd.revents & 1) != 0 {
+        true -> read_batch(x11, close_requested),
+        _ -> check_hup(pfd.revents, close_requested)
+    }
+
+    machine check_hup(revents: i16, close_requested: @mutable bool) {
+        transition (revents & 24) != 0 { true -> set_closed(close_requested), _ -> done() }
+    }
+
+    machine read_batch(x11: @mutable X11State, close_requested: @mutable bool) {
+        let got: i64 = LinuxX11Syscall::read(x11.fd, @mutable x11.read_buf, 4096);
+        transition got <= 0 {
+            true -> set_closed(close_requested),
+            _ -> check_size(x11, close_requested, got)
+        }
+    }
+
+    machine check_size(x11: @mutable X11State, close_requested: @mutable bool, got: i64)
+    requires got > 0 {
+        transition got <= 4096 {
+            true -> walk(x11, close_requested, 0, got as u64),
+            _ -> done()
+        }
+    }
+
+    machine walk(x11: @mutable X11State, close_requested: @mutable bool, off: u64, limit: u64)
+    requires off <= limit && limit <= 4096 {
+        transition off <= 4064 && off + 32 <= limit {
+            true -> handle(x11, close_requested, off, limit),
+            _ -> done()
+        }
+    }
+
+    machine handle(x11: @mutable X11State, close_requested: @mutable bool, off: u64, limit: u64)
+    requires off <= 4064 && limit <= 4096 && off + 32 <= limit {
+        let kind: u8 = x11.read_buf[off] & 127;
+        let detail: u8 = x11.read_buf[off + 1];
+        transition kind {
+            2 -> on_press(x11, close_requested, off, limit, detail),
+            3 -> on_release(x11, close_requested, off, limit, detail),
+            9 -> on_focus_in(x11, close_requested, off, limit),
+            10 -> on_focus_out(x11, close_requested, off, limit),
+            17 -> on_close(close_requested),
+            _ -> walk(x11, close_requested, off + 32, limit)
+        }
+    }
+
+    machine on_press(x11: @mutable X11State, close_requested: @mutable bool, off: u64, limit: u64, keycode: u8)
+    requires off <= 4064 && limit <= 4096 && off + 32 <= limit {
+        apply_key(x11, keycode, true);
+        transition { _ -> walk(x11, close_requested, off + 32, limit) }
+    }
+
+    machine on_release(x11: @mutable X11State, close_requested: @mutable bool, off: u64, limit: u64, keycode: u8)
+    requires off <= 4064 && limit <= 4096 && off + 32 <= limit {
+        apply_key(x11, keycode, false);
+        transition { _ -> walk(x11, close_requested, off + 32, limit) }
+    }
+
+    machine on_focus_in(x11: @mutable X11State, close_requested: @mutable bool, off: u64, limit: u64)
+    requires off <= 4064 && limit <= 4096 && off + 32 <= limit {
+        x11.focused = true;
+        transition { _ -> walk(x11, close_requested, off + 32, limit) }
+    }
+
+    machine on_focus_out(x11: @mutable X11State, close_requested: @mutable bool, off: u64, limit: u64)
+    requires off <= 4064 && limit <= 4096 && off + 32 <= limit {
+        x11.focused = false;
+        transition { _ -> walk(x11, close_requested, off + 32, limit) }
+    }
+
+    machine on_close(close_requested: @mutable bool) {
+        close_requested = true;
+    }
+
+    machine set_closed(close_requested: @mutable bool) {
+        close_requested = true;
+    }
+
+    machine done() {}
+}
+
+machine write_pixel_4x(buf: @mutable [u8; 65560], row_off: u64, col: u64, pixel: i32)
+requires row_off <= 61464 && col < 256 {
+    let b: u8 = (pixel & 255) as u8;
+    let g: u8 = ((pixel >> 8) & 255) as u8;
+    let r: u8 = ((pixel >> 16) & 255) as u8;
+    let base: u64 = row_off + col * 16;
+    buf[base] = b;
+    buf[base + 1] = g;
+    buf[base + 2] = r;
+    buf[base + 3] = 0;
+    buf[base + 4] = b;
+    buf[base + 5] = g;
+    buf[base + 6] = r;
+    buf[base + 7] = 0;
+    buf[base + 8] = b;
+    buf[base + 9] = g;
+    buf[base + 10] = r;
+    buf[base + 11] = 0;
+    buf[base + 12] = b;
+    buf[base + 13] = g;
+    buf[base + 14] = r;
+    buf[base + 15] = 0;
+}
+
+machine fill_scaled_row(buf: @mutable [u8; 65560], pixels: @[i32; |configuration|::FRAME_PIXELS], src_row: u64, dst_row_in_strip: u64)
+requires src_row < 192 && dst_row_in_strip < 16 {
+    let row_off: u64 = 24 + dst_row_in_strip * 4096;
+    transition { _ -> col_loop(buf, pixels, src_row, row_off, 0) }
+    machine col_loop(buf: @mutable [u8; 65560], pixels: @[i32; |configuration|::FRAME_PIXELS], src_row: u64, row_off: u64, col: u64)
+    requires src_row < 192 && row_off <= 61464 && col <= 256 {
+        transition col < 256 {
+            true -> put_col(buf, pixels, src_row, row_off, col),
+            _ -> done()
+        }
+    }
+    machine put_col(buf: @mutable [u8; 65560], pixels: @[i32; |configuration|::FRAME_PIXELS], src_row: u64, row_off: u64, col: u64)
+    requires src_row < 192 && row_off <= 61464 && col < 256 {
+        let px: i32 = pixels[src_row * 256 + col];
+        write_pixel_4x(buf, row_off, col, px);
+        transition { _ -> col_loop(buf, pixels, src_row, row_off, col + 1) }
+    }
+    machine done() {}
+}
+
+machine present_frame(x11: @mutable X11State, pixels: @[i32; |configuration|::FRAME_PIXELS]) -> bool
+reaches SurfacePresentation {
+    transition { _ -> strip_loop(x11, pixels, 0) }
+    machine strip_loop(x11: @mutable X11State, pixels: @[i32; |configuration|::FRAME_PIXELS], strip: u64) -> bool
+    requires strip <= STRIP_COUNT {
+        transition strip < STRIP_COUNT {
+            true -> send_strip(x11, pixels, strip),
+            _ -> (true)
+        }
+    }
+    machine send_strip(x11: @mutable X11State, pixels: @[i32; |configuration|::FRAME_PIXELS], strip: u64) -> bool
+    requires strip < STRIP_COUNT {
+        // PutImage header (24 bytes): opcode=72, format=2 (ZPixmap), len=16390 words
+        x11.strip_buf[0] = 72;
+        x11.strip_buf[1] = 2;
+        strip_put_u16_le(@mutable x11.strip_buf, 2, 16390);
+        strip_put_u32_le(@mutable x11.strip_buf, 4, x11.window);
+        strip_put_u32_le(@mutable x11.strip_buf, 8, x11.gc);
+        strip_put_u16_le(@mutable x11.strip_buf, 12, CLIENT_WIDTH);
+        strip_put_u16_le(@mutable x11.strip_buf, 14, STRIP_DST_ROWS);
+        strip_put_u16_le(@mutable x11.strip_buf, 16, 0);
+        strip_put_u16_le(@mutable x11.strip_buf, 18, (strip as u32) * STRIP_DST_ROWS);
+        x11.strip_buf[20] = 0;
+        x11.strip_buf[21] = x11.depth;
+        x11.strip_buf[22] = 0;
+        x11.strip_buf[23] = 0;
+        transition { _ -> row_loop(x11, pixels, strip, 0) }
+    }
+    machine row_loop(x11: @mutable X11State, pixels: @[i32; |configuration|::FRAME_PIXELS], strip: u64, sub: u64) -> bool
+    requires strip < STRIP_COUNT && sub <= STRIP_SRC_ROWS {
+        transition sub < STRIP_SRC_ROWS {
+            true -> expand_row(x11, pixels, strip, sub),
+            _ -> flush_strip(x11, pixels, strip)
+        }
+    }
+    machine expand_row(x11: @mutable X11State, pixels: @[i32; |configuration|::FRAME_PIXELS], strip: u64, sub: u64) -> bool
+    requires strip < STRIP_COUNT && sub < STRIP_SRC_ROWS {
+        let src_row: u64 = strip * STRIP_SRC_ROWS + sub;
+        let dst_base: u64 = sub * 4;
+        fill_scaled_row(@mutable x11.strip_buf, pixels, src_row, dst_base);
+        fill_scaled_row(@mutable x11.strip_buf, pixels, src_row, dst_base + 1);
+        fill_scaled_row(@mutable x11.strip_buf, pixels, src_row, dst_base + 2);
+        fill_scaled_row(@mutable x11.strip_buf, pixels, src_row, dst_base + 3);
+        transition { _ -> row_loop(x11, pixels, strip, sub + 1) }
+    }
+    machine flush_strip(x11: @mutable X11State, pixels: @[i32; |configuration|::FRAME_PIXELS], strip: u64) -> bool
+    requires strip < STRIP_COUNT {
+        let sent: i64 = LinuxX11Syscall::write_strip(x11.fd, @x11.strip_buf, STRIP_BYTES);
+        transition sent == (STRIP_BYTES as i64) {
+            true -> strip_loop(x11, pixels, strip + 1),
+            _ -> (false)
+        }
+    }
+}
+
+machine linux_loop(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, x11: @mutable X11State)
+reaches
+    WindowManagement + SurfacePresentation + WindowEventObservation +
+    ClockObservation + ExecutionDelay {
+    |app|::advance_pacer(pacer, true, linux_now_ns());
+    pump_events(x11, @mutable main.close_requested);
+    transition main.close_requested || x11.escape_down {
+        true -> close_x11(x11),
+        _ -> check_focus(main, pacer, x11)
+    }
+
+    machine check_focus(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, x11: @mutable X11State) {
+        transition x11.focused {
+            true -> check_restart(main, pacer, x11),
+            _ -> pause_and_draw(main, pacer, x11)
+        }
+    }
+
+    machine pause_and_draw(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, x11: @mutable X11State) {
+        pacer.accumulator = 0;
+        |app|::clear_controls(main);
+        transition { _ -> draw(main, pacer, x11) }
+    }
+
+    machine check_restart(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, x11: @mutable X11State) {
+        transition x11.restart_down {
+            true -> reset(main, pacer, x11),
+            _ -> poll_input(main, pacer, x11)
+        }
+    }
+
+    machine reset(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, x11: @mutable X11State) {
+        |app|::reset_game(main);
+        pacer.accumulator = 0;
+        transition { _ -> draw(main, pacer, x11) }
+    }
+
+    machine poll_input(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, x11: @mutable X11State) {
+        |app|::update_controls(
+            main,
+            x11.up_down || x11.w_down,
+            x11.right_down || x11.d_down,
+            x11.down_down || x11.s_down,
+            x11.left_down || x11.a_down,
+            x11.swing_down
+        );
+        transition { _ -> sim_loop(main, pacer, x11, 0) }
+    }
+
+    machine sim_loop(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, x11: @mutable X11State, steps: u32)
+    requires steps <= |app|::MAX_STEPS_PER_FRAME {
+        transition pacer.accumulator >= pacer.step_ticks && steps < |app|::MAX_STEPS_PER_FRAME {
+            true -> update(main, pacer, x11, steps),
+            _ -> draw(main, pacer, x11)
+        }
+    }
+
+    machine update(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, x11: @mutable X11State, steps: u32)
+    requires pacer.accumulator >= pacer.step_ticks && steps < |app|::MAX_STEPS_PER_FRAME {
+        |app|::tick_game(main);
+        pacer.accumulator = pacer.accumulator - pacer.step_ticks;
+        transition { _ -> sim_loop(main, pacer, x11, steps + 1) }
+    }
+
+    machine draw(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, x11: @mutable X11State) {
+        transition main.dirty {
+            true -> rasterize(main, pacer, x11),
+            _ -> wait_next(main, pacer, x11)
+        }
+    }
+
+    machine rasterize(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, x11: @mutable X11State) {
+        |app|::render_frame(main);
+        let shown: bool = present_frame(x11, @main.pixels);
+        transition shown {
+            true -> wait_next(main, pacer, x11),
+            _ -> close_x11(x11)
+        }
+    }
+
+    machine wait_next(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, x11: @mutable X11State) {
+        // Sleep up to 4 ms (240 Hz input/present cadence) or wake immediately on X11 event.
+        let mutable pfd: LinuxPollFd = LinuxPollFd { fd: x11.fd, events: 1, revents: 0 };
+        let wait_ts: LinuxTimespec = LinuxTimespec { seconds: 0, nanoseconds: 4_000_000 };
+        let polled: i64 = LinuxX11Syscall::ppoll(@mutable pfd, 1, @wait_ts, 0, 8);
+        transition polled >= 0 || polled < 0 {
+            true -> linux_loop(main, pacer, x11),
+            _ -> close_x11(x11)
+        }
+    }
+
+    machine close_x11(x11: @mutable X11State) {
+        let closed: i64 = LinuxX11Syscall::close(x11.fd);
+        transition closed == 0 || closed != 0 { true -> done(), _ -> done() }
+    }
+
+    machine done() {}
+}
+
+public machine entry_start() reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    let mutable main: |app|::Main;
+    let ready: bool = |app|::prepare(@mutable main);
+    transition ready { true -> open(@mutable main), _ -> fail() }
+
+    machine fail() {
+        |app|::fail_self_test();
+    }
+
+    machine open(main: @mutable |app|::Main) {
+        let fd: i32 = open_x11_socket();
+        transition fd >= 0 { true -> setup(main, fd), _ -> done() }
+    }
+
+    machine setup(main: @mutable |app|::Main, fd: i32) {
+        let mutable x11: X11State;
+        x11.fd = fd;
+        x11.window = 0;
+        x11.gc = 0;
+        x11.depth = 24;
+        x11.focused = true;
+        x11.escape_down = false;
+        x11.restart_down = false;
+        x11.swing_down = false;
+        x11.up_down = false;
+        x11.w_down = false;
+        x11.right_down = false;
+        x11.d_down = false;
+        x11.down_down = false;
+        x11.s_down = false;
+        x11.left_down = false;
+        x11.a_down = false;
+        let ok: bool = x11_handshake(@mutable x11);
+        transition ok { true -> start_loop(main, @mutable x11), _ -> fail_close(fd) }
+    }
+
+    machine start_loop(main: @mutable |app|::Main, x11: @mutable X11State) {
+        let mutable pacer: |app|::FramePacer = |app|::init_pacer(true, 1_000_000_000, linux_now_ns());
+        linux_loop(main, @mutable pacer, x11);
+    }
+
+    machine fail_close(fd: i32) {
+        let closed: i64 = LinuxX11Syscall::close(fd);
+        transition closed == 0 || closed != 0 { true -> done(), _ -> done() }
+    }
+
+    machine done() {}
+}

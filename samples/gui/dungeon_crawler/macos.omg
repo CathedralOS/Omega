@@ -4,7 +4,7 @@ use {omega}/language/core/process_authority.omg;
 use {omega}/language/core/process_exit.omg;
 use {system}/macos_gui.omg;
 
-machine macos_loop(main: @mutable |app|::Main, window: |macos_gui|::Window) reaches
+machine macos_loop(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window) reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
@@ -12,46 +12,49 @@ machine macos_loop(main: @mutable |app|::Main, window: |macos_gui|::Window) reac
     DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
     |process_authority|::StandardOutput + |process_exit|::ProcessExit {
     main.pumped = 0;
-    transition { _ -> pump(main, window) }
+    |app|::advance_pacer(pacer, true, |macos_gui|::macos_perf_counter());
+    transition { _ -> pump(main, pacer, window) }
 
-    machine pump(main: @mutable |app|::Main, mutable window: |macos_gui|::Window) {
+    machine pump(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, mutable window: |macos_gui|::Window) {
         let available: u32 = |macos_gui|::macos_window_msg_peek(@mutable window, [0, 0, 0, 0, 0, 0]);
         transition available > 0 && main.pumped < |configuration|::EVENT_BUDGET {
-            true -> dispatch(main, window),
-            _ -> visible(main, window)
+            true -> dispatch(main, pacer, window),
+            _ -> visible(main, pacer, window)
         }
     }
-    machine dispatch(main: @mutable |app|::Main, window: |macos_gui|::Window)
+    machine dispatch(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window)
     requires main.pumped < |configuration|::EVENT_BUDGET {
         _ = |macos_gui|::macos_window_msg_dispatch(@window, [0, 0, 0, 0, 0, 0]);
         main.pumped = main.pumped + 1;
-        transition { _ -> pump(main, window) }
+        transition { _ -> pump(main, pacer, window) }
     }
-    machine visible(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+    machine visible(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window) {
         let alive: u32 = |macos_gui|::macos_window_is_window(@window, window.window);
-        transition alive > 0 { true -> focus(main, window), _ -> close(window) }
+        transition alive > 0 { true -> focus(main, pacer, window), _ -> close(window) }
     }
-    machine focus(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+    machine focus(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window) {
         let focused: u64 = |macos_gui|::macos_window_foreground_window(@window);
-        transition focused == window.window { true -> escape(main, window), _ -> unfocused(main, window) }
+        transition focused == window.window { true -> escape(main, pacer, window), _ -> unfocused(main, pacer, window) }
     }
-    machine unfocused(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+    machine unfocused(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window) {
+        pacer.accumulator = 0;
         |app|::clear_controls(main);
-        transition { _ -> draw(main, window) }
+        transition { _ -> draw(main, pacer, window) }
     }
-    machine escape(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+    machine escape(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window) {
         let escape_key: u64 = |macos_gui|::macos_key_state(27);
-        transition escape_key > 0 { true -> close(window), _ -> restart(main, window) }
+        transition escape_key > 0 { true -> close(window), _ -> restart(main, pacer, window) }
     }
-    machine restart(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+    machine restart(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window) {
         let restart_key: u64 = |macos_gui|::macos_key_state(82);
-        transition restart_key > 0 { true -> reset(main, window), _ -> input(main, window) }
+        transition restart_key > 0 { true -> reset(main, pacer, window), _ -> input(main, pacer, window) }
     }
-    machine reset(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+    machine reset(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window) {
         |app|::reset_game(main);
-        transition { _ -> input(main, window) }
+        pacer.accumulator = 0;
+        transition { _ -> draw(main, pacer, window) }
     }
-    machine input(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+    machine input(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window) {
         let attack: u64 = |macos_gui|::macos_key_state(32);
         let up: u64 = |macos_gui|::macos_key_state(38);
         let north_key: u64 = |macos_gui|::macos_key_state(87);
@@ -69,17 +72,35 @@ machine macos_loop(main: @mutable |app|::Main, window: |macos_gui|::Window) reac
             left > 0 || west_key > 0,
             attack > 0
         );
-        transition { _ -> update(main, window) }
+        transition { _ -> sim_loop(main, pacer, window, 0) }
     }
-    machine update(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+    machine sim_loop(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window, steps: u32)
+    requires steps <= |app|::MAX_STEPS_PER_FRAME {
+        transition pacer.accumulator >= pacer.step_ticks && steps < |app|::MAX_STEPS_PER_FRAME {
+            true -> update(main, pacer, window, steps),
+            _ -> draw(main, pacer, window)
+        }
+    }
+    machine update(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window, steps: u32)
+    requires pacer.accumulator >= pacer.step_ticks && steps < |app|::MAX_STEPS_PER_FRAME {
         |app|::tick_game(main);
-        transition { _ -> draw(main, window) }
+        pacer.accumulator = pacer.accumulator - pacer.step_ticks;
+        transition { _ -> sim_loop(main, pacer, window, steps + 1) }
     }
-    machine draw(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+    machine draw(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window) {
+        transition main.dirty {
+            true -> rasterize(main, pacer, window),
+            _ -> present(main, pacer, window)
+        }
+    }
+    machine rasterize(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window) {
         |app|::render_frame(main);
+        transition { _ -> present(main, pacer, window) }
+    }
+    machine present(main: @mutable |app|::Main, pacer: @mutable |app|::FramePacer, window: |macos_gui|::Window) {
         let copied: u32 = |macos_gui|::macos_window_present(@window, |configuration|::FRAME_WIDTH, |configuration|::FRAME_HEIGHT, @main.pixels[..|configuration|::FRAME_PIXELS]);
-        |macos_gui|::macos_sleep(|configuration|::FRAME_DELAY_MILLISECONDS);
-        transition copied == |configuration|::FRAME_HEIGHT { true -> macos_loop(main, window), _ -> close(window) }
+        |macos_gui|::macos_sleep(4);
+        transition copied == |configuration|::FRAME_HEIGHT { true -> macos_loop(main, pacer, window), _ -> close(window) }
     }
     machine close(window: |macos_gui|::Window) {
         |macos_gui|::macos_window_destroy(window);
@@ -107,7 +128,12 @@ public machine entry_start() reaches
         let window: |macos_gui|::Window = |macos_gui|::macos_window_create::<16>(
             class_name, @title, 0, 0, 0, |configuration|::WINDOW_WIDTH, |configuration|::WINDOW_HEIGHT
         );
-        transition window.window != 0 { true -> macos_loop(main, window), _ -> close(window) }
+        transition window.window != 0 { true -> start_loop(main, window), _ -> close(window) }
+    }
+
+    machine start_loop(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        let mutable pacer: |app|::FramePacer = |app|::init_pacer(true, |macos_gui|::macos_perf_frequency(), |macos_gui|::macos_perf_counter());
+        macos_loop(main, @mutable pacer, window);
     }
 
     machine close(window: |macos_gui|::Window) {

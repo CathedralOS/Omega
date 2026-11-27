@@ -22,5 +22,5 @@ because every `.omg` file under a package root belongs to that package.
 After ordinary package review on macOS arm64:
 
 ```sh
-build/dev-target/debug/omega run --both samples/cli/collections/disjoint_union_find/main.omg < /dev/null
+build/dev-target/debug/omega run samples/cli/collections/disjoint_union_find/main.omg < /dev/null
 ```

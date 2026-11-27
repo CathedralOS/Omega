@@ -4,7 +4,7 @@ A callee's `requires` discharges on a bound the caller learned from another call
 
 That one sentence is the fact. Only the transport of the closed result changes across the nine places; the bound (`scale <= 5`), the operation (`echo`), and the observed value (4) stay fixed. A place that changed any of them would be a different fact and would not count.
 
-This fact is one row of nine places. Every positive place (and root `main.omg`) binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in its `build.omg`, carries `expected_native_exit.txt` = 0 and the header `// Expected exit: 0`, traps on a wrong result (`crash Trap;` in `state fail`), and agrees across native and Terminal execution (`omega run --both`). Each place has one reject twin fed a closed result of 9 instead of 4, which rejects at the same `scale <= 5` obligation.
+This fact is one row of nine places. Every positive place (and root `main.omg`) binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in its `build.omg`, carries `expected_native_exit.txt` = 0 and the header `// Expected exit: 0`, traps on a wrong result (`crash Trap;` in `state fail`), and agrees across native and Terminal execution. Each place has one reject twin fed a closed result of 9 instead of 4, which rejects at the same `scale <= 5` obligation.
 
 ## Places
 
@@ -28,7 +28,7 @@ omega --check samples/cli/facts/call_result_bound_discharge/main.omg
 mbx xtask sample-gate --filter samples/cli/facts/call_result_bound_discharge
 ```
 
-`omega run --both` reports the native exit and the Terminal Psi exit; agreement at zero is the place's runtime oracle.
+The native/Psi comparison reports the native exit and the Terminal Psi exit; agreement at zero is the place's runtime oracle.
 
 ## Reject twins
 
@@ -60,10 +60,10 @@ Check a twin with `omega --check samples/cli/facts/call_result_bound_discharge/<
 - **Identity and lifetime:** Every place tracks one exact scalar value: the result of one call to `opaque()`. The static scalar integer bound `4u64 <= 5u64` persists across value copies, struct fields, parameters, join points, const bindings, and state hops without invalidation.
 - **Composition:** The call-result bound fact composes through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming `echo(scale)` call. `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in the construct's input value (4 vs 9), or contract (`other_machine`).
 - **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed with structural or requires contract diagnostics (`the instantiated fact is structurally false (`9 <= 5`)` or `cannot prove requires contract for call ...`) when fed 9 instead of 4, refusing compilation rather than admitting invalid contracts downstream.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower without semantic loss into canonical target-neutral Terminal Psi (`PSITERM\0`), erasing proof-formal tag lanes while retaining integer certificates, state transitions, and target-scoped body candidates, executing in the Terminal Psi interpreter with full agreement (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower without semantic loss into canonical target-neutral Terminal Psi (`PSITERM\0`), erasing proof-formal tag lanes while retaining integer certificates, state transitions, and target-scoped body candidates, executing in the Terminal Psi interpreter with full agreement.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), layout geometry for scalar `u64` and records (`data Main { hits: i32 in Wrapping; }`, `data Reading { scale: u64; }`) evaluates and validates, and `CallPlan`/`StatePlan` place scalar arguments and returns across registers and stack frames according to target ABIs.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`mov`, `call`, `ret`), assigns register homes and disjoint stack-frame storage with live-across-call spill slots, and inserts entry prologues and multi-return epilogues.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve, basic blocks and branch offsets relax, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across all hosted targets including `windows_x86_64` and `macos_arm64`.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve, basic blocks and branch offsets relax, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (exit 0) across all hosted targets including `windows_x86_64` and `macos_arm64`.
 
 ### Verification Evidence
 

@@ -122,7 +122,7 @@ All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
   Unsupported/effectful bodies and exhausted proof work supply no evidence.
 - **Psi 06–08:** admitted loans and stores use the existing Terminal Psi route;
   pure proof reasoning introduces no runtime authority or proof replay. Public
-  `run --both` observes interpreted execution as well as native execution.
+  The native/Psi comparison observes interpreted execution as well as native execution.
 - **Omega 00–02:** ordinary array geometry and call plans retain original caller
   backing and select the two exact cells. This row qualifies no additional ABI lane.
 - **Omega 03–06:** native addressing, stores and activation homes must preserve

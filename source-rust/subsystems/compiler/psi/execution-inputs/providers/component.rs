@@ -3,10 +3,13 @@
 
 mod memberships;
 
-use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_codec::{TerminalArtifactView, TerminalExecutionIdentity, TerminalExecutionView};
 use terminal_psi::TerminalPsiIdentity;
-use terminal_semantics::synchronization::{SpinWait, component_spin_wait, stuck_private_wait};
+use terminal_semantics::synchronization::{
+    PrivateWaitFailure, ProgressScope, SelectedCall, SpinWait, component_spin_wait,
+    private_wait_failure,
+};
 
 use crate::{
     AdmittedProviderSelections, ProviderInstallationSelection, admit_provider_installation,
@@ -20,9 +23,16 @@ pub struct AdmittedComponentProvider {
     provider_boundary: BoundaryMachineId,
     candidate: MachineId,
     selection: AdmittedProviderSelections,
-    wait: Option<SpinWait>,
+    progress: ImportProgress,
     input_memberships: memberships::InputMemberships,
     result_memberships: memberships::Memberships,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ImportProgress {
+    Closed,
+    Waiting(SpinWait),
+    Unresolved,
 }
 
 impl AdmittedComponentProvider {
@@ -43,6 +53,15 @@ impl AdmittedComponentProvider {
     }
     pub const fn selection(&self) -> &AdmittedProviderSelections {
         &self.selection
+    }
+
+    /// A nested invocation may rely on its caller only when the receiving
+    /// judgment checked the exact projected input obligation.
+    pub fn invocation_scope(&self) -> ProgressScope {
+        match self.progress {
+            ImportProgress::Waiting(_) => ProgressScope::OpenInterface,
+            _ => ProgressScope::Executable,
+        }
     }
 
     pub fn input_membership(
@@ -147,63 +166,65 @@ pub fn admit_component_provider<'receiver>(
         provider_boundary: selected.boundary,
         candidate: selected.candidate,
         selection,
-        wait: component_spin_wait(
+        progress: if let Some(wait) = component_spin_wait(
             receiver.module(),
             receiving,
             provider.module(),
             selected.candidate,
-        ),
+        ) {
+            ImportProgress::Waiting(wait)
+        } else if private_wait_failure(
+            provider.module(),
+            selected.candidate,
+            ProgressScope::Executable,
+            |_| None,
+        )
+        .is_some()
+        {
+            ImportProgress::Unresolved
+        } else {
+            ImportProgress::Closed
+        },
         input_memberships,
         result_memberships,
     })
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ComponentDeadlock {
-    pub caller: MachineId,
-    pub operation: OperationId,
-}
-
-impl std::fmt::Display for ComponentDeadlock {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "synchronization deadlock in machine {} at operation {}: the call retries on an unchanged private atomic cell",
-            self.caller.get(),
-            self.operation.get(),
-        )
-    }
-}
-
-/// Find an entry's private wait that its selected imports make permanent.
+/// Check the entry with its receiving scope and the actual installed provider bodies.
 /// Only a selection admitted for this receiver can describe one of its calls.
 /// Missing, opaque and unrecognized suppliers leave that call unknown.
-pub fn component_wait_deadlock<'a, 'receiver>(
+pub fn invocation_progress_failure<'a, 'receiver>(
     receiver: impl Into<TerminalExecutionView<'receiver>>,
     entry: MachineId,
+    scope: ProgressScope,
     installed: impl IntoIterator<Item = &'a AdmittedComponentProvider>,
-) -> Option<ComponentDeadlock> {
+    local: impl Fn(BoundaryMachineId) -> Option<MachineId>,
+) -> Option<PrivateWaitFailure> {
     let receiver = receiver.into();
     let identity = receiver.custody_identity();
     let mut imports: Vec<_> = installed
         .into_iter()
         .filter(|supplier| supplier.receiver() == &identity)
         .collect();
-    if imports.iter().all(|supplier| supplier.wait.is_none()) {
-        return None;
-    }
     imports.sort_unstable_by_key(|supplier| supplier.receiving_boundary);
-    let (caller, operation) = stuck_private_wait(receiver.module(), entry, |slot| {
+    private_wait_failure(receiver.module(), entry, scope, |slot| {
         let first = imports.partition_point(|supplier| supplier.receiving_boundary < slot);
-        let supplier = imports.get(first)?;
-        if supplier.receiving_boundary != slot
-            || imports
-                .get(first + 1)
-                .is_some_and(|other| other.receiving_boundary == slot)
+        let Some(supplier) = imports
+            .get(first)
+            .filter(|supplier| supplier.receiving_boundary == slot)
+        else {
+            return local(slot).map(SelectedCall::Local);
+        };
+        if imports
+            .get(first + 1)
+            .is_some_and(|other| other.receiving_boundary == slot)
         {
             return None;
         }
-        supplier.wait.clone()
-    })?;
-    Some(ComponentDeadlock { caller, operation })
+        match &supplier.progress {
+            ImportProgress::Closed => None,
+            ImportProgress::Waiting(wait) => Some(SelectedCall::ImportedWait(wait.clone())),
+            ImportProgress::Unresolved => Some(SelectedCall::UnresolvedImport),
+        }
+    })
 }

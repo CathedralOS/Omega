@@ -13,6 +13,5 @@ its duplicate declarations part of the positive package too.
 Run a positive directly with the same caller selection:
 
 ```sh
-omega run --engine native --build-input main.omg --build-input build.omg samples/cli/facts/reflection_capacity/local/main.omg
-omega run --engine psi --build-input main.omg --build-input build.omg samples/cli/facts/reflection_capacity/local/main.omg
+omega run --build-input main.omg --build-input build.omg samples/cli/facts/reflection_capacity/local/main.omg
 ```
