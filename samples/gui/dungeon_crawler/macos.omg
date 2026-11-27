@@ -1,0 +1,131 @@
+use main.omg as app;
+use {dungeon_core}/configuration/configuration.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/macos_gui.omg;
+
+machine macos_loop(main: @mutable |app|::Main, window: |macos_gui|::Window) reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    main.pumped = 0;
+    transition { _ -> pump(main, window) }
+
+    machine pump(main: @mutable |app|::Main, mutable window: |macos_gui|::Window) {
+        let available: u32 = |macos_gui|::macos_window_msg_peek(@mutable window, [0, 0, 0, 0, 0, 0]);
+        transition available > 0 && main.pumped < |configuration|::EVENT_BUDGET {
+            true -> dispatch(main, window),
+            _ -> visible(main, window)
+        }
+    }
+    machine dispatch(main: @mutable |app|::Main, window: |macos_gui|::Window)
+    requires main.pumped < |configuration|::EVENT_BUDGET {
+        _ = |macos_gui|::macos_window_msg_dispatch(@window, [0, 0, 0, 0, 0, 0]);
+        main.pumped = main.pumped + 1;
+        transition { _ -> pump(main, window) }
+    }
+    machine visible(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        let alive: u32 = |macos_gui|::macos_window_is_window(@window, window.window);
+        transition alive > 0 { true -> focus(main, window), _ -> close(window) }
+    }
+    machine focus(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        let focused: u64 = |macos_gui|::macos_window_foreground_window(@window);
+        transition focused == window.window { true -> escape(main, window), _ -> draw(main, window) }
+    }
+    machine escape(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        let escape_key: u64 = |macos_gui|::macos_key_state(27);
+        transition escape_key > 0 { true -> close(window), _ -> restart(main, window) }
+    }
+    machine restart(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        let restart_key: u64 = |macos_gui|::macos_key_state(82);
+        transition restart_key > 0 { true -> reset(main, window), _ -> input(main, window) }
+    }
+    machine reset(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        |app|::reset_game(main);
+        transition { _ -> input(main, window) }
+    }
+    machine input(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        main.direction = -1;
+        let attack: u64 = |macos_gui|::macos_key_state(32);
+        main.swing = attack > 0;
+        let up: u64 = |macos_gui|::macos_key_state(38);
+        let north_key: u64 = |macos_gui|::macos_key_state(87);
+        transition up > 0 || north_key > 0 { true -> north(main, window), _ -> east_input(main, window) }
+    }
+    machine north(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        main.direction = 0;
+        transition { _ -> update(main, window) }
+    }
+    machine east_input(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        let right: u64 = |macos_gui|::macos_key_state(39);
+        let east_key: u64 = |macos_gui|::macos_key_state(68);
+        transition right > 0 || east_key > 0 { true -> east(main, window), _ -> south_input(main, window) }
+    }
+    machine east(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        main.direction = 1;
+        transition { _ -> update(main, window) }
+    }
+    machine south_input(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        let down: u64 = |macos_gui|::macos_key_state(40);
+        let south_key: u64 = |macos_gui|::macos_key_state(83);
+        transition down > 0 || south_key > 0 { true -> south(main, window), _ -> west_input(main, window) }
+    }
+    machine south(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        main.direction = 2;
+        transition { _ -> update(main, window) }
+    }
+    machine west_input(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        let left: u64 = |macos_gui|::macos_key_state(37);
+        let west_key: u64 = |macos_gui|::macos_key_state(65);
+        transition left > 0 || west_key > 0 { true -> west(main, window), _ -> update(main, window) }
+    }
+    machine west(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        main.direction = 3;
+        transition { _ -> update(main, window) }
+    }
+    machine update(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        |app|::tick_game(main);
+        transition { _ -> draw(main, window) }
+    }
+    machine draw(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        |app|::render_frame(main);
+        let copied: u32 = |macos_gui|::macos_window_present(@window, |configuration|::FRAME_WIDTH, |configuration|::FRAME_HEIGHT, @main.pixels[..|configuration|::FRAME_PIXELS]);
+        |macos_gui|::macos_sleep(|configuration|::FRAME_DELAY_MILLISECONDS);
+        transition copied == |configuration|::FRAME_HEIGHT { true -> macos_loop(main, window), _ -> close(window) }
+    }
+    machine close(window: |macos_gui|::Window) {
+        |macos_gui|::macos_window_destroy(window);
+    }
+}
+
+public machine entry_start() reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    let mutable main: |app|::Main;
+    let ready: bool = |app|::prepare(@mutable main);
+    transition ready { true -> open(@mutable main), _ -> fail() }
+
+    machine fail() {
+        |app|::fail_self_test();
+    }
+
+    machine open(main: @mutable |app|::Main) {
+        let class_name: [u8; 7] = "#32770\0";
+        let title: [u8; 16] = "HOLLOW / OMEGA\0\0";
+        let window: |macos_gui|::Window = |macos_gui|::macos_window_create::<16>(
+            class_name, @title, 0, 0, 0, |configuration|::WINDOW_WIDTH, |configuration|::WINDOW_HEIGHT
+        );
+        transition window.window != 0 { true -> macos_loop(main, window), _ -> close(window) }
+    }
+
+    machine close(window: |macos_gui|::Window) {
+        |macos_gui|::macos_window_destroy(window);
+    }
+}

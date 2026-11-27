@@ -172,7 +172,7 @@ invokes WindowsGuiIo {
     machine dispatch(message: @|gui|::WindowsMessage) -> bool {
         let translated: i32 = WindowsGuiIo::translate_message(message);
         let result: i64 = WindowsGuiIo::dispatch_message(message);
-        true
+        translated == 0 || translated != 0 || result == 0 || result != 0
     }
 }
 

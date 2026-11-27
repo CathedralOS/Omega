@@ -2526,6 +2526,7 @@ mod tests {
         let mut bodies = IdTable::default();
         bodies.push(crate::callable_refinement_body(&signature, call));
         bodies.push(crate::body::Body {
+            assembly_target_requirement: Default::default(),
             slots: signature.parameters.clone(),
             statements: Vec::new(),
         });

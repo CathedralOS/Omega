@@ -1,11 +1,43 @@
-use main.omg as app;
+use macos.omg;
+use windows.omg;
 use {omega}/build/dependency.omg;
+use {omega}/language/core/external_binding.omg as native;
+use {omega}/language/core/filesystem_authority.omg as fs;
+use {omega}/language/core/native_execution_authority.omg as native_exec;
+use {omega}/language/core/presentation_authority.omg as presentation;
+use {omega}/language/core/process_authority.omg as streams;
+use {omega}/language/core/process_exit.omg as process;
+use {omega}/language/core/time_authority.omg as time;
 
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "dungeon_crawler" };
     builder.identifier = "com.omega.dungeon-crawler";
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));
+    let allowed: [BoundaryServiceReference; 17] = [
+        Build::service::<|native_exec|::NativeCodeExecution>(builder),
+        Build::service::<|presentation|::WindowManagement>(builder),
+        Build::service::<|presentation|::SurfacePresentation>(builder),
+        Build::service::<|presentation|::WindowEventObservation>(builder),
+        Build::service::<|presentation|::WindowEventDispatch>(builder),
+        Build::service::<|presentation|::GlobalInputObservation>(builder),
+        Build::service::<|time|::ClockObservation>(builder),
+        Build::service::<|time|::ExecutionDelay>(builder),
+        Build::service::<|fs|::FilesystemContentRead>(builder),
+        Build::service::<|fs|::FilesystemContentWrite>(builder),
+        Build::service::<|fs|::FilesystemMetadataQuery>(builder),
+        Build::service::<|fs|::FilesystemMetadataMutation>(builder),
+        Build::service::<|fs|::DirectoryEnumeration>(builder),
+        Build::service::<|fs|::FilesystemNamespaceMutation>(builder),
+        Build::service::<|streams|::StandardInput>(builder),
+        Build::service::<|streams|::StandardOutput>(builder),
+        Build::service::<|process|::ProcessExit>(builder)
+    ];
+    let system: DependencyDescription = |dependency|::from_source(Source::Bundled { name: "system" });
+    _ = |dependency|::add(builder, system, @allowed[..]);
     let engine_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "engine" }));
-    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |windows|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |macos|::entry_start);
+    Build::bind_native::<|windows|::WindowsSleep::sleep>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::PeByName { library: "kernel32.dll", export: "Sleep" }
+    });
     builder.subsystem = Subsystem::Gui;
 }

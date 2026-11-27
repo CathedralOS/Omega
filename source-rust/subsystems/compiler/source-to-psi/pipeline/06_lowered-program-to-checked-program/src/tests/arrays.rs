@@ -329,6 +329,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
     let invalid = program(foreign_capture);
     let mut bodies = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: invalid.parameters.clone(),
         statements: invalid.statements,
     });

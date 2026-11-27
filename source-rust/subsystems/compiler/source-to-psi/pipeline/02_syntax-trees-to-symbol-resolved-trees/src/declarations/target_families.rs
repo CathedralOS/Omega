@@ -144,6 +144,7 @@ pub(crate) fn normalize(
         };
         let signature = syntax.items.state(entry);
         let entry = syntax_trees::item::State {
+            assembly_target_requirement: Default::default(),
             name: signature.name.clone(),
             parameters: signature.parameters,
             return_type: signature.return_type,

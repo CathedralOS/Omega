@@ -368,6 +368,12 @@ impl Program<'_> {
     pub(crate) fn publish_nominal_calls(
         &self,
         calls: &[crate::source_state::SourceCallCorrespondence],
+        folded_calls: &[(
+            MachineId,
+            semantic_vocabulary::EdgeId,
+            SymbolHandle,
+            crate::source_state::SourceNode,
+        )],
         module: &mut terminal_psi::TerminalModule,
     ) -> Checked<Vec<terminal_psi::generic_calls::NominalCallType>> {
         use terminal_psi::generic_calls::{NominalCallType, NominalConstArgument};
@@ -508,6 +514,18 @@ impl Program<'_> {
                             const_arguments,
                         });
                     }
+                }
+            }
+            for (position, source) in self.nominal_calls.iter().enumerate() {
+                if !consumed[position]
+                    && let Some((owner, node)) = source.source.node()
+                    && folded_calls
+                        .iter()
+                        .any(|&(_, _, folded_owner, folded_node)| {
+                            folded_owner == owner && folded_node == node
+                        })
+                {
+                    consumed[position] = true;
                 }
             }
             if let Some(position) = consumed.iter().position(|consumed| !consumed) {

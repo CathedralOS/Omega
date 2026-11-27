@@ -812,7 +812,7 @@ impl Program<'_> {
                 // guards the conjuncts that project its payload wherever it
                 // stands: substitution decides a connective by any one part
                 // (`substitute_clause`).
-                return canonical::clauses(conjuncts, Repeated::Refuse, id)
+                return canonical::clauses(conjuncts, Repeated::Merge, id)
                     .map(Proposition::Conjunction);
             }
             BinaryOperator::Or => {

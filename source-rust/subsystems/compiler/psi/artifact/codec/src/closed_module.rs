@@ -8,7 +8,8 @@
 //! their identity came from outside this process, so the interpreter refuses
 //! to execute such a module unless the receiving host authorizes its exact
 //! artifact and producer. A module closed from an in-memory `TerminalModule`
-//! was produced by its caller, who is then its producer.
+//! was produced by its caller, who is then its producer. A received module
+//! admitted for contained interpretation stays out of every trusted route.
 
 use std::sync::Arc;
 
@@ -25,6 +26,9 @@ pub struct ClosedTerminalModule {
     /// The load account of a module decoded from bytes; `None` for a module
     /// this process produced.
     received: Option<terminal_wire::LoadAccount>,
+    /// A received module the host admitted only for contained interpretation,
+    /// without trusting its producer.
+    contained: bool,
 }
 
 /// Equality compares the program. Where its bytes came from does not change
@@ -92,6 +96,7 @@ impl ClosedTerminalModule {
             bytes: bytes.into(),
             identity,
             received,
+            contained: false,
         }
     }
 
@@ -100,7 +105,14 @@ impl ClosedTerminalModule {
     /// the host's authorization of its exact artifact and producer; inspection
     /// does not.
     pub const fn requires_host_trust(&self) -> bool {
-        self.received.is_some()
+        self.received.is_some() || self.contained
+    }
+
+    /// Whether the host admitted this received module for contained
+    /// interpretation only. It still requires producer trust for every other
+    /// use, native lowering and optimization included.
+    pub const fn admitted_for_contained_interpretation(&self) -> bool {
+        self.contained
     }
 
     /// The same program after the receiving host accepted it. Only the
@@ -112,11 +124,23 @@ impl ClosedTerminalModule {
     /// run once here, so inspection stays cheap and execution never sees a
     /// received module that skipped them.
     pub(crate) fn host_admitted(&self) -> Result<Self, CodecError> {
+        self.prepared(false)
+    }
+
+    /// The same program admitted for contained interpretation without
+    /// producer trust. It passes the same execution-only checks; only the
+    /// authorization crate may reach this.
+    pub(crate) fn contained_admitted(&self) -> Result<Self, CodecError> {
+        self.prepared(true)
+    }
+
+    fn prepared(&self, contained: bool) -> Result<Self, CodecError> {
         if let Some(mut account) = self.received {
             terminal_wire::sealing::prepare_received_execution_within(&self.module, &mut account)?;
         }
         Ok(Self {
             received: None,
+            contained,
             ..self.clone()
         })
     }

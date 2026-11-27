@@ -273,7 +273,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 <a id="checked-assembly-control-flow"></a>
 
 - **CHECKED-ASM-LABEL-CONTRACTS.** Implement `asm machine`, block declarations, `align_of(value)`, port settlements (`provider_custody.rs`), and [interpreted assembly](wiki/spec/language/assembly.md#interpreted-execution).
-  - Carry the catalog target of flattened place-only regions, such as the SIMD library's packed instructions, past stage 02 so `--check` refuses them off-target and the native packed-operation rule can go.
   - Migrate [flag restoration](samples/cli/facts/checked_asm_flag_restore) and customers of colon labels or implicit fall-through to [explicit assembly control flow](wiki/spec/language/assembly.md#explicit-control-flow). Preserve the original output and the authored rejection on invalid edges. Run target-specific code on its target or a supplied Psi model.
 
 - **SAMPLE-CORPUS.** (covers **CANARY-CORPUS**, **SQUALR-HEADLESS**, **MACOS-APPLICATION-PUBLICATION**, **FACT-SAMPLE-DEPENDENCIES**) Run the release programs, [Squalr](samples/apps/README.md) and [macOS application bundles](wiki/spec/build/macos_application.md) under the [release matrix](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
@@ -330,7 +329,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Embedding and interpreted components
 
-- **PSI-UNTRUSTED-INTERPRETATION.** Untrusted Psi interpretation has no route yet: add an admission without producer trust that still refuses native lowering, review each host binding it would offer, and test discarding a component provider parked on a host operation. [Containment audit](wiki/drafts/designs/psi_containment_audit.md#before-an-untrusted-route)
+- **PSI-UNTRUSTED-INTERPRETATION.** Contained interpretation runs through the embedding. Give allocation emulation an account-charged ceiling and live time a granted wait ceiling so they can serve it, add the CLI route if [owner question 4](OWNER_QUESTIONS.md#untrusted-psi-run-flag) accepts it, and test discarding a component provider parked on a host operation. [Containment audit](wiki/drafts/designs/psi_containment_audit.md#remaining)
 
 - **EMBEDDING-SOURCE-TO-HOST.** (covers **INTERPRETED-CATHEDRAL**) Finish [embedding](wiki/spec/build/embedding.md), evidence-bearing qualified host inputs, and interpreted Cathedral.
   - Exercise an [explicitly installed or embedded entry](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge) that lends a protected record. Check handback against the [original backing bytes](samples/cli/probes/placed_entry_ram/README.md). Reject missing arguments, forged backing and a mutable byte view of a protected field. Exercise the [Linux argument view](wiki/drafts/designs/structured_program_entry.md#how-linux-supplies-the-editors-pathname) through a static ELF entry. Check the indexed pathname, an empty argument, and refusal of a fabricated view or an out-of-range projection.

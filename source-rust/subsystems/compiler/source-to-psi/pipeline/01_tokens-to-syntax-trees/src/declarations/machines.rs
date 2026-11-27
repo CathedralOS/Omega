@@ -101,6 +101,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         parameters: machine_parameters,
         return_type: machine_return_type,
         contracts: HandleSpan::empty(),
+        assembly_target_requirement: body.assembly_target_requirement,
         statements: body.statements,
     };
     let state = syntax_trees.items.insert_state(&entry);

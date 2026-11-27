@@ -771,6 +771,7 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
         output_limits: None,
         standard_input: None,
         clock: None,
+        containment: None,
     })
     .unwrap();
     use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
