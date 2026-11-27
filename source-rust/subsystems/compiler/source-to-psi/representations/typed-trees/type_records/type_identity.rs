@@ -9469,8 +9469,9 @@ impl TypedTrees {
             if !self.type_reference_table.contains_type_reference(reference) {
                 return None;
             }
-            if let crate::source_state::types::TypeReferenceNode::Constrained { base_type, .. } =
-                self.type_reference_table.type_reference(reference)
+            if let crate::source_state::types::TypeReferenceNode::Constrained {
+                base_type, ..
+            } = self.type_reference_table.type_reference(reference)
             {
                 reference = *base_type;
                 continue;
