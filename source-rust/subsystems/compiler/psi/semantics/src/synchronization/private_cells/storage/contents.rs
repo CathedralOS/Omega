@@ -8,7 +8,7 @@ use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::progress::ScalarFact;
 use crate::synchronization::spin::CellUpdate;
 use semantic_vocabulary::{ScalarType, StructuralCaseId};
-use std::sync::Arc;
+use std::rc::Rc;
 use terminal_psi::StructuralPathSegment as Segment;
 
 #[derive(Clone, Default)]
@@ -24,7 +24,7 @@ pub(in super::super) enum Stored {
     /// A result returned by a checked lock constructor. Within an order
     /// summary its selected cleanup consumes this exact acquisition.
     Guard(usize),
-    Aggregate(Arc<Aggregate>),
+    Aggregate(Rc<Aggregate>),
     #[default]
     Unknown,
 }
@@ -136,7 +136,7 @@ impl Stored {
     }
 
     pub(in super::super) fn variant(case: StructuralCaseId) -> Self {
-        Self::Aggregate(Arc::new(Aggregate {
+        Self::Aggregate(Rc::new(Aggregate {
             tags: vec![case],
             fill: FieldDefault::Unknown,
             fields: Vec::new(),
@@ -160,13 +160,13 @@ impl Stored {
     pub(in super::super) fn select_case(&self, case: StructuralCaseId) -> Self {
         let mut result = match self {
             Self::Aggregate(aggregate) => aggregate.clone(),
-            _ => Arc::new(Aggregate {
+            _ => Rc::new(Aggregate {
                 tags: Vec::new(),
                 fill: self.fill(),
                 fields: Vec::new(),
             }),
         };
-        let value = Arc::make_mut(&mut result);
+        let value = Rc::make_mut(&mut result);
         value.tags.clear();
         value.tags.push(case);
         Self::Aggregate(result)
@@ -209,7 +209,7 @@ impl Stored {
     /// is written. Nesting a record never expands all possible element paths.
     pub(super) fn field_mut(&mut self, key: &Segment) -> &mut Self {
         if !matches!(self, Self::Aggregate(_)) {
-            *self = Self::Aggregate(Arc::new(Aggregate {
+            *self = Self::Aggregate(Rc::new(Aggregate {
                 tags: Vec::new(),
                 fill: self.fill(),
                 fields: Vec::new(),
@@ -218,7 +218,7 @@ impl Stored {
         let Self::Aggregate(record) = self else {
             unreachable!()
         };
-        let record = Arc::make_mut(record);
+        let record = Rc::make_mut(record);
         let index = match record.fields.iter().position(|(field, _)| field == key) {
             Some(index) => index,
             None => {
@@ -254,18 +254,18 @@ impl Stored {
         right_facts: &[Assumption],
     ) {
         match (&*self, other) {
-            (Self::Unknown, _) => return,
+            (Self::Unknown, _) => {}
             (Self::Uniform(left), Self::Uniform(right)) => {
                 *self = left.join(*right).contents().clone();
             }
-            (Self::Scalar(a), Self::Scalar(b)) if a == b => return,
-            (Self::Guard(a), Self::Guard(b)) if a == b => return,
+            (Self::Scalar(a), Self::Scalar(b)) if a == b => {}
+            (Self::Guard(a), Self::Guard(b)) if a == b => {}
             (Self::Reference(a), Self::Reference(b)) => {
                 let mut home = a.clone();
                 borrow(&mut home, b);
                 *self = Self::Reference(home);
             }
-            (Self::Aggregate(a), Self::Aggregate(b)) if Arc::ptr_eq(a, b) => return,
+            (Self::Aggregate(a), Self::Aggregate(b)) if Rc::ptr_eq(a, b) => {}
             (Self::Aggregate(_), Self::Aggregate(_) | Self::Uniform(_))
             | (Self::Uniform(_), Self::Aggregate(_)) => {
                 let fields = |value: &Self| match value {
@@ -283,7 +283,7 @@ impl Stored {
                     tags.sort_unstable();
                     tags.dedup();
                 }
-                let mut result = Self::Aggregate(Arc::new(Aggregate {
+                let mut result = Self::Aggregate(Rc::new(Aggregate {
                     tags,
                     fill: self.fill().join(other.fill()),
                     fields: Vec::new(),
