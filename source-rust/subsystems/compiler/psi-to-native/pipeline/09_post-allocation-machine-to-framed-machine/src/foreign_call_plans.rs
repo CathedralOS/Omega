@@ -102,26 +102,6 @@ mod descriptor_input {
     }
 }
 
-pub fn unique_block_instruction(
-    function: &selected_instructions::SelectedFunction,
-    instruction: selected_instructions::SelectedInstructionId,
-) -> Option<(
-    &selected_instructions::SelectedBlock,
-    &selected_instructions::SelectedInstruction,
-)> {
-    let mut instructions = function.blocks.iter().flat_map(|block| {
-        block
-            .instructions
-            .iter()
-            .filter(move |candidate| candidate.id == instruction)
-            .map(move |candidate| (block, candidate))
-    });
-    let (Some(pair), None) = (instructions.next(), instructions.next()) else {
-        return None;
-    };
-    Some(pair)
-}
-
 pub fn durable_home_offsets(
     function: &selected_instructions::SelectedFunction,
 ) -> Vec<(semantic_vocabulary::OperationId, u32)> {
@@ -1433,6 +1413,8 @@ pub fn capture(
                 reason: "foreign result declarations have invalid identities",
             })?;
         let home_offsets = durable_home_offsets(function);
+        let roster =
+            crate::instruction_roster::SelectedInstructionRoster::new(function.blocks.iter());
         let publication = selected.contracts.publication().function(function.machine);
         let mut frames = layout
             .functions
@@ -1456,7 +1438,8 @@ pub fn capture(
                     "binding target or native entry mechanism does not match",
                 ));
             }
-            let (block, instruction) = unique_block_instruction(function, record.instruction)
+            let (block, instruction) = roster
+                .unique_body_instruction(record.instruction)
                 .ok_or_else(|| invalid("selected call instruction is missing or repeated"))?;
             descriptor_input::validate(function, block, record).ok_or_else(|| {
                 invalid("descriptor input guard does not match the selected call")

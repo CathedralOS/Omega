@@ -226,10 +226,9 @@ pub use selected_form_encoding::hosted_exit_process::{
     validate_aarch64_selected_hosted_exit_process_form,
 };
 
-pub use hosted_sequences::{
-    encode_hosted_exit_process_i32, encode_hosted_write_byte_i32_from_w9,
-    encode_linux_read_byte_to_stack, encode_linux_write_line_literal,
-    encode_macos_read_byte_to_stack,
+pub use hosted_sequences::encode_linux_write_line_literal;
+pub(crate) use hosted_sequences::{
+    encode_linux_read_byte_to_stack, encode_macos_read_byte_to_stack,
 };
 pub use register_model::aarch64_indirect_aggregate_call_keys;
 pub use register_model::{aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys};

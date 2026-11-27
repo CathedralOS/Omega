@@ -1,33 +1,14 @@
 /*
 We encode and decode import-free hosted x86-64 `syscall` leaves for Linux and
-Intel macOS (`encode_hosted_exit_process_i32_for_target`,
-`encode_darwin_read_byte_to_stack`, `encode_hosted_exit_process_i32`,
-`encode_hosted_write_byte_i32_from_r11`, `encode_linux_read_byte_to_stack`, and
-`encode_linux_write_line_literal`), handling Darwin's `0x0200_0000` Unix syscall
-class and carry-flag error reporting alongside Linux's negative-errno contract.
+Intel macOS (`encode_darwin_read_byte_to_stack`, `encode_linux_read_byte_to_stack`,
+and `encode_linux_write_line_literal`), handling Darwin's `0x0200_0000` Unix
+syscall class and carry-flag error reporting alongside Linux's negative-errno
+contract.
 */
 
 use diagnostics::Diagnostic;
-use target::NativeTarget;
 
 pub(crate) use target_x86_64::hosted_kernel::*;
-
-pub fn encode_hosted_exit_process_i32_for_target(
-    target: NativeTarget,
-    value: i32,
-) -> Result<Vec<u8>, Diagnostic> {
-    let kernel = hosted_kernel(target).ok_or_else(|| {
-        Diagnostic::error("x86-64 hosted exit has no syscall kernel for this target")
-    })?;
-    let mut bytes = Vec::with_capacity(14);
-    bytes.push(0xbf);
-    crate::codec_bytes::push_encoded(&mut bytes, value.to_le_bytes());
-    bytes.push(0xb8);
-    crate::codec_bytes::push_encoded(&mut bytes, kernel.exit.to_le_bytes());
-    bytes.extend_from_slice(&[0x0f, 0x05]);
-    bytes.extend_from_slice(&[0x0f, 0x0b]);
-    Ok(bytes)
-}
 
 pub fn encode_darwin_read_byte_to_stack(
     home_byte_offset: u32,
@@ -78,7 +59,7 @@ pub fn encode_darwin_read_byte_to_stack(
 #[cfg(test)]
 fn decode_darwin_read_byte(bytes: &[u8]) -> Option<u32> {
     target_x86_64::inspection::decode_x86_64_selected_hosted_read_byte(
-        NativeTarget::macos_x64(),
+        target::NativeTarget::macos_x64(),
         bytes,
     )
 }
@@ -87,7 +68,7 @@ fn decode_darwin_read_byte(bytes: &[u8]) -> Option<u32> {
 mod tests {
     use super::{
         DARWIN_READ_BYTE_LEAF_BYTES, decode_darwin_read_byte, encode_darwin_read_byte_to_stack,
-        encode_hosted_exit_process_i32_for_target, hosted_exit_syscall_number, hosted_kernel,
+        hosted_exit_syscall_number, hosted_kernel,
     };
     use target::NativeTarget;
 
@@ -126,22 +107,6 @@ mod tests {
     }
 
     #[test]
-    fn immediate_exit_keeps_linux_bytes_and_enters_darwin_unix_class() {
-        assert_eq!(
-            encode_hosted_exit_process_i32_for_target(NativeTarget::linux_x64(), 0x1234_5678)
-                .unwrap(),
-            crate::encode_hosted_exit_process_i32(0x1234_5678)
-        );
-        assert_eq!(
-            encode_hosted_exit_process_i32_for_target(NativeTarget::macos_x64(), 7).unwrap(),
-            [
-                0xbf, 7, 0, 0, 0, 0xb8, 0x01, 0x00, 0x00, 0x02, 0x0f, 0x05, 0x0f, 0x0b
-            ]
-        );
-        assert!(encode_hosted_exit_process_i32_for_target(NativeTarget::windows_x64(), 0).is_err());
-    }
-
-    #[test]
     fn darwin_read_traps_on_carry_before_comparing_the_count() {
         for home in [0_u32, 32, 2147483640] {
             let bytes = encode_darwin_read_byte_to_stack(home, home + 4).unwrap();
@@ -158,32 +123,6 @@ mod tests {
             assert_eq!(decode_darwin_read_byte(&linux), None);
         }
     }
-}
-
-pub fn encode_hosted_exit_process_i32(value: i32) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(14);
-    bytes.push(0xbf);
-    crate::codec_bytes::push_encoded(&mut bytes, value.to_le_bytes());
-    bytes.push(0xb8);
-    crate::codec_bytes::push_encoded(&mut bytes, 231_u32.to_le_bytes());
-    bytes.extend_from_slice(&[0x0f, 0x05]);
-    bytes.extend_from_slice(&[0x0f, 0x0b]);
-    bytes
-}
-
-pub fn encode_hosted_write_byte_i32_from_r11() -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(44);
-    bytes.extend_from_slice(&[0x48, 0x83, 0xec, 0x10]);
-    bytes.extend_from_slice(&[0x44, 0x88, 0x1c, 0x24]);
-    bytes.extend_from_slice(&[0xbf, 1, 0, 0, 0]);
-    bytes.extend_from_slice(&[0x48, 0x89, 0xe6]);
-    bytes.extend_from_slice(&[0xba, 1, 0, 0, 0]);
-    bytes.extend_from_slice(&[0xb8, 1, 0, 0, 0]);
-    bytes.extend_from_slice(&[0x0f, 0x05, 0x48, 0x85, 0xc0]);
-    bytes.extend_from_slice(&[0x7e, 0x06]);
-    bytes.extend_from_slice(&[0x48, 0x83, 0xc4, 0x10]);
-    bytes.extend_from_slice(&[0xeb, 0x02, 0x0f, 0x0b]);
-    bytes
 }
 
 pub fn encode_linux_read_byte_to_stack(
@@ -278,19 +217,10 @@ pub fn encode_linux_write_line_literal(
 
 #[cfg(test)]
 mod linux_tests {
-    use super::{
-        encode_hosted_exit_process_i32, encode_hosted_write_byte_i32_from_r11,
-        encode_linux_read_byte_to_stack, encode_linux_write_line_literal,
-    };
+    use super::{encode_linux_read_byte_to_stack, encode_linux_write_line_literal};
 
     #[test]
-    fn linux_exit_and_write_literal_keep_exact_bytes() {
-        assert_eq!(
-            encode_hosted_exit_process_i32(0x1234_5678),
-            [
-                0xbf, 0x78, 0x56, 0x34, 0x12, 0xb8, 0xe7, 0x00, 0x00, 0x00, 0x0f, 0x05, 0x0f, 0x0b,
-            ]
-        );
+    fn linux_write_literal_and_read_byte_keep_exact_bytes() {
         let (bytes, data) = encode_linux_write_line_literal(&[0, 0x80, 0xff]).unwrap();
         assert_eq!(&bytes[data.clone()], &[0, 0x80, 0xff, b'\n']);
         assert_eq!(&bytes[data.start - 2..data.start], &[0x0f, 0x0b]);
@@ -305,15 +235,6 @@ mod linux_tests {
             .position(|window| window == [0xb8, 1, 0, 0, 0, 0x0f, 0x05])
             .unwrap();
         assert_eq!(retry_target, i64::try_from(loop_start).unwrap());
-
-        let byte_write = encode_hosted_write_byte_i32_from_r11();
-        assert_eq!(&byte_write[..4], &[0x48, 0x83, 0xec, 0x10]);
-        assert_eq!(&byte_write[33..37], &[0x48, 0x83, 0xc4, 0x10]);
-        assert_eq!(&byte_write[39..], &[0x0f, 0x0b]);
-        let trap_target = 33_i64 + i64::from(byte_write[32] as i8);
-        assert_eq!(trap_target, 39);
-        let success_target = 39_i64 + i64::from(byte_write[38] as i8);
-        assert_eq!(success_target, i64::try_from(byte_write.len()).unwrap());
 
         let byte_read = encode_linux_read_byte_to_stack(16, 20).unwrap();
         assert_eq!(&byte_read[..2], &[0x31, 0xc0]);
