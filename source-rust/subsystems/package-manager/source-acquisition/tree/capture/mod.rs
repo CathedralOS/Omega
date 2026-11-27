@@ -193,4 +193,61 @@ mod tests {
         ));
         std::fs::remove_dir_all(root).expect("remove fixture");
     }
+
+    #[test]
+    fn parallel_capture_is_deterministic_and_closing_sweep_detects_nested_drift() {
+        let root = crate::test_support::temp_root("parallel-capture-determinism");
+        for dir_index in 0..8 {
+            let dir = root.join(format!("pkg_{dir_index}/sub_{}", dir_index % 3));
+            std::fs::create_dir_all(&dir).expect("create nested dirs");
+            for file_index in 0..8 {
+                std::fs::write(
+                    dir.join(format!("unit_{file_index}.omg")),
+                    format!(
+                        "const V_{dir_index}_{file_index}: u64 = {};\n",
+                        dir_index * 10 + file_index
+                    ),
+                )
+                .expect("write nested source");
+            }
+        }
+        let limits = LocalSourceLimits::default();
+        let first = capture_local_source(&root, limits, SourceTreePolicy::LocalPackage)
+            .expect("first parallel capture");
+        let second = capture_local_source(&root, limits, SourceTreePolicy::LocalPackage)
+            .expect("second parallel capture");
+        assert_eq!(first.normalized, second.normalized);
+        assert_eq!(first.entries.len(), second.entries.len());
+        assert_eq!(first.normalized.file_count, 64);
+
+        // Verify the parallel closing sweep catches a single nested member change.
+        let canonical = root.canonicalize().expect("canonicalize root");
+        let root_dir = open_canonical_source_root(&canonical).expect("open root");
+        let mut entries = Vec::new();
+        let mut observations = CapturedTreeObservations::default();
+        selection::capture_members(
+            &root_dir,
+            &canonical,
+            limits,
+            SourceTreePolicy::LocalPackage,
+            &SourceCaptureRequest::entire_tree(),
+            &mut entries,
+            &mut observations,
+        )
+        .expect("capture members");
+        verify_captured_tree(&root_dir, &canonical, &observations)
+            .expect("clean parallel closing sweep");
+
+        std::fs::write(
+            root.join("pkg_5/sub_2/unit_4.omg"),
+            "const DRIFT: u64 = 999;\n",
+        )
+        .expect("mutate nested file");
+        assert!(matches!(
+            verify_captured_tree(&root_dir, &canonical, &observations),
+            Err(SourceResolveError::LocalSourceChanged { .. })
+        ));
+        drop(root_dir);
+        std::fs::remove_dir_all(root).expect("remove fixture");
+    }
 }

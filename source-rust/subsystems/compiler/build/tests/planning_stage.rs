@@ -108,7 +108,7 @@ fn successor_runs_the_entry_and_helper_in_the_view_supplied_by_its_invoker() {
     std::fs::create_dir(root.join("generated")).unwrap();
     std::fs::write(
         &entry,
-        r#"machine build(builder: @mutable Build) {
+        r#"machine build(builder: @mutable BuildPlan) {
         Build::build_entry(builder, "generated/configure.omg");
     }"#,
     )
@@ -117,13 +117,13 @@ fn successor_runs_the_entry_and_helper_in_the_view_supplied_by_its_invoker() {
     std::fs::write(
         root.join("generated/configure.omg"),
         r#"use generated/policy.omg;
-        machine build(builder: @mutable Build) { |policy|::configure(builder); }"#,
+        machine build(builder: @mutable BuildPlan) { |policy|::configure(builder); }"#,
     )
     .unwrap();
     std::fs::write(
         root.join("generated/policy.omg"),
-        r#"public machine configure(builder: @mutable Build) {
-        Build::package(builder, "from_generated_files");
+        r#"public machine configure(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "from_generated_files" };
     }"#,
     )
     .unwrap();
@@ -264,7 +264,7 @@ fn authored_build_returns_its_application_and_target_bindings() {
         build_execution::BuildSubjectValidation::Checked
     );
     let checked = checked_build.view();
-    assert!(checked.closed_module().is_some());
+    assert_eq!(checked.closed_module().identity(), checked.identity());
     let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = checked.module().entry else {
         panic!("the authored Build selects a checked source machine");
     };
@@ -401,8 +401,8 @@ fn an_unbound_conditional_import_refuses_before_the_build_can_write() {
     std::fs::write(&entry, r#"use main.omg as app;
 use {scores}/value.omg as scores;
 use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) suspends {
-    Build::application(builder, "fixed_wait");
+machine build(builder: @mutable BuildPlan) suspends {
+    builder.product = BuildProduct::Application { name: "fixed_wait" };
     let path: BuildPath = BuildOutput::resolve(@builder.output, "ran.txt");
     let writer: i32 = BuildOutput::create(@mutable builder.output, path, 0);
     _ = BuildOutput::write(@mutable builder.output, writer, "ran");
@@ -412,12 +412,12 @@ machine build(builder: @mutable Build) suspends {
         true -> suspend later(builder),
         _ -> done(builder)
     }
-    machine later(builder: @mutable Build) suspends {
+    machine later(builder: @mutable BuildPlan) suspends {
         let request: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "lib" }));
         suspend Build::prepare_dependency(builder, request);
         let value: i32 = |scores|::value();
     }
-    machine done(builder: @mutable Build) {
+    machine done(builder: @mutable BuildPlan) {
         Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     }
 }
@@ -475,8 +475,8 @@ fn an_artifact_only_build_requests_its_scoped_filesystem_once() {
     std::fs::write(root.join("main.omg"), "machine main() {}\n").unwrap();
     std::fs::write(
         &entry,
-        r#"machine build(builder: @mutable Build) {
-        Build::application(builder, "artifacts");
+        r#"machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Application { name: "artifacts" };
         Build::artifact_only(builder);
         _ = BuildSource::resolve(@builder.source, "main.omg");
     }"#,
@@ -537,7 +537,7 @@ fn the_invoker_supplies_a_library_before_the_build_runs() {
     std::fs::create_dir(&helper).unwrap();
     std::fs::write(
         helper.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "library"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "library" }; }"#,
     )
     .unwrap();
     std::fs::write(
@@ -550,14 +550,14 @@ fn the_invoker_supplies_a_library_before_the_build_runs() {
     let source = r#"use {authored}/helper.omg as kit;
 use main.omg as app;
 
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     let valid: bool = |kit|::visible();
     transition valid { true -> named(builder), false -> wrong(builder), }
-    machine named(builder: @mutable Build) {
-        Build::application(builder, "consumer");
+    machine named(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Application { name: "consumer" };
         Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     }
-    machine wrong(builder: @mutable Build) { Build::application(builder, "wrong"); }
+    machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: "wrong" }; }
 }
 "#;
     std::fs::write(&entry, source).unwrap();
@@ -792,8 +792,8 @@ fn sandbox_standard_output_requires_a_bounded_sink_and_preserves_exact_bytes() {
         &entry,
         r#"use main.omg as product;
 use {omega}/language/core/sandbox/streams.omg as sandbox;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "with_output");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "with_output" };
     Build::bind(builder, linux_x86_64::ProgramEntry, |product|::main);
     |sandbox|::SandboxOutput::write("x");
     let tail: [u8; 1] = [255u8];

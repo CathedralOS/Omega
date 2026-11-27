@@ -16,8 +16,9 @@ use checked_program_to_psi::{
 use declaration_scope::PackageDeclarationScope;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+pub(super) mod imports;
 mod target_helpers;
-use source_text::{SourceId, SourceSpan, Span};
+use source_text::{SourceId, Span};
 use std::collections::HashSet;
 use std::sync::Arc;
 use symbols::SymbolHandle;
@@ -28,6 +29,7 @@ pub struct PendingBuildImport {
     pub source: SourceId,
     pub span: Span,
     pub target: crate::SourceImportTarget,
+    pub declarations: Vec<Span>,
 }
 
 /// The parsed files selected by the package capture, including an explicit Build entry.
@@ -36,6 +38,15 @@ pub struct BuildStageSource {
     pub build_sources: HashSet<SourceId>,
     pub pending_imports: Vec<PendingBuildImport>,
     pub entry: source_text::SourceSpan,
+}
+
+/// Body and provider roots fixed for one Build activation or its recheck.
+#[derive(Clone, Copy)]
+pub struct BuildSourceCheck<'a> {
+    pub providers: &'a crate::InterpretedProviderSelections,
+    /// A directly checked Build owns every declaration in its entry file.
+    /// A dependency activation checks only the entry and what it reaches.
+    pub check_entry_file: bool,
 }
 
 /// The complete typed source of one Build invocation.
@@ -65,7 +76,7 @@ impl ProductDeclarationSource {
             preparation,
             host,
             authority,
-            false,
+            None,
             &mut CompileTimings::default(),
         )?;
         Ok(crate::compile_product::ProductDeclarations { typed })
@@ -78,44 +89,13 @@ impl BuildStageSource {
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
+        check: BuildSourceCheck<'_>,
     ) -> Result<TypedBuildInterval, Vec<Diagnostic>> {
-        self.prepare_scoped(preparation, host, authority, false)
-    }
-
-    pub fn prepare_entry_only(
-        self,
-        preparation: &SourcePreparation,
-        host: &'static str,
-        authority: Option<Arc<PackageDeclarationScope>>,
-    ) -> Result<TypedBuildInterval, Vec<Diagnostic>> {
-        self.prepare_scoped(preparation, host, authority, true)
-    }
-
-    fn prepare_scoped(
-        self,
-        preparation: &SourcePreparation,
-        host: &'static str,
-        authority: Option<Arc<PackageDeclarationScope>>,
-        entry_only: bool,
-    ) -> Result<TypedBuildInterval, Vec<Diagnostic>> {
-        if !self.pending_imports.is_empty() {
-            return Err(self
-                .pending_imports
-                .into_iter()
-                .map(|import| {
-                    Diagnostic::error(format!(
-                        "Build import `{}` has no supplied source",
-                        import.target
-                    ))
-                    .with_source_span(SourceSpan::new(import.source, import.span))
-                })
-                .collect());
-        }
         let program = self.typed_source_scoped(
             preparation,
             host,
             authority,
-            entry_only,
+            Some(check),
             &mut CompileTimings::default(),
         )?;
         program
@@ -133,9 +113,10 @@ impl BuildStageSource {
         authority: Option<Arc<PackageDeclarationScope>>,
         subject: Option<PackageKeyIdentity>,
         declaration: &source_admission::RetainedDeclaration,
+        check: BuildSourceCheck<'_>,
         timings: &mut CompileTimings,
     ) -> Result<(Arc<TypedTrees>, SymbolHandle), Vec<Diagnostic>> {
-        let typed = self.typed_source_scoped(preparation, host, authority, false, timings)?;
+        let typed = self.typed_source_scoped(preparation, host, authority, Some(check), timings)?;
         let entry = crate::source_state::source_subjects::rejoin_build_activation(
             &typed,
             subject,
@@ -150,11 +131,11 @@ impl BuildStageSource {
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
-        entry_only: bool,
+        check: Option<BuildSourceCheck<'_>>,
         timings: &mut CompileTimings,
     ) -> Result<Arc<TypedTrees>, Vec<Diagnostic>> {
         let checkpoint = self
-            .request(preparation, host, authority, entry_only)?
+            .request(preparation, host, authority, check)?
             .prepare(timings)?;
         Ok(checkpoint.shared_typed())
     }
@@ -164,16 +145,19 @@ impl BuildStageSource {
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
-        entry_only: bool,
+        check: Option<BuildSourceCheck<'_>>,
     ) -> Result<ResolveAndTypeRequest, Vec<Diagnostic>> {
         let entry_span = self.entry;
-        let mut subject_files: Vec<_> = self
+        let subject_files: Vec<_> = self
             .parsed
             .files
             .selected_files()
             .filter(|file| {
                 file.dependency_scope == source_provenance::DependencyScope::Build
-                    && ((file.origin == source_admission::SourceOrigin::User && !entry_only)
+                    && ((file.origin == source_admission::SourceOrigin::User
+                        && check.is_none_or(|roots| {
+                            roots.check_entry_file && file.source_id == entry_span.source_id
+                        }))
                         || (file.origin == source_admission::SourceOrigin::Toolchain
                             && source_admission::source_identity::is_build_prelude_path(
                                 &file.path,
@@ -181,10 +165,28 @@ impl BuildStageSource {
             })
             .map(|file| file.source_id)
             .collect();
-        if !subject_files.contains(&entry_span.source_id) && entry_only {
-            // Entry-only builds complete `entry_span` plus its prelude and demand closure.
-        }
-        let _ = &mut subject_files;
+        let pending = imports::DeferredBuildImports::new(self.pending_imports)?;
+        let provider_conformances = check
+            .map(|check| check.providers)
+            .into_iter()
+            .flat_map(|providers| {
+                providers
+                    .overrides
+                    .iter()
+                    .chain(providers.defaults.iter().filter(|choice| {
+                        !providers
+                            .overrides
+                            .iter()
+                            .any(|selected| selected.subject == choice.subject)
+                    }))
+            })
+            .map(|choice| {
+                (
+                    choice.provider.source().path.clone(),
+                    choice.provider.span(),
+                )
+            })
+            .collect();
         let entry = self.parsed.files.get(self.entry.source_id).map(|file| {
             source_admission::RetainedDeclaration::from_source_occurrence(
                 file.clone(),
@@ -203,6 +205,8 @@ impl BuildStageSource {
         request.body_demand = crate::driver::resolve_and_type::BodyDemandRequest::BuildDemand {
             entry_machine: entry_span,
             subject_files,
+            provider_conformances,
+            pending,
         };
         Ok(request.with_build_entry(entry.as_ref()))
     }
@@ -212,6 +216,7 @@ pub struct BuildInvocationJudgment {
     pub invocation: CheckedBuildInvocation,
     pub constants: Vec<ConstantRead>,
     pub accounting: SourceCompletionAccounting,
+    pub declaration_usage: crate::DeclarationUsageAdvisories,
 }
 
 /// Carries the source consent used to check this invocation through publication.
@@ -237,6 +242,19 @@ impl CheckedBuildInvocation {
             diagnostics,
             accounting: Default::default(),
         };
+        // The complete entry file belongs to a subject Build. Other files enter
+        // this private program through the declarations the entry and its selected
+        // providers actually need. Product checks have their own full subjects.
+        program.build_invocation_entry = Some(
+            program
+                .symbols
+                .symbol_provenance_source_span(entry)
+                .ok_or_else(|| {
+                    uncharged(vec![Diagnostic::error(
+                        "Build entry has no admitted source occurrence",
+                    )])
+                })?,
+        );
         let overrides = provider_declarations::rejoin_in_scope(
             &mut program,
             &providers.overrides,
@@ -285,6 +303,19 @@ impl CheckedBuildInvocation {
             },
         )?;
         let constants = judged.accepted.constants_read();
+        let mut build_roots = Vec::with_capacity(1 + roots.len());
+        build_roots.push(entry);
+        build_roots.extend(roots.iter().copied());
+        let mut declaration_usage = crate::DeclarationUsageAdvisories::default();
+        declaration_usage
+            .observe(
+                judged.accepted.source(),
+                subjects,
+                DependencyScope::Build,
+                &build_roots,
+                &[],
+            )
+            .map_err(|reason| uncharged(vec![Diagnostic::error(reason)]))?;
         Ok(BuildInvocationJudgment {
             invocation: Self {
                 accepted: judged.accepted,
@@ -292,6 +323,7 @@ impl CheckedBuildInvocation {
             },
             constants,
             accounting: judged.accounting,
+            declaration_usage,
         })
     }
 

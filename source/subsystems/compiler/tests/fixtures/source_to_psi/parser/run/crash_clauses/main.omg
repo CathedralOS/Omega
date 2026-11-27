@@ -1,6 +1,7 @@
 // Expected exit: 0
 use pipeline/source_files_to_tokens/lexer.omg;
 use pipeline/tokens_to_syntax_trees/parser.omg;
+use pipeline/tokens_to_syntax_trees/parser_state.omg;
 use representations/syntax_trees/syntax_trees.omg as syntax;
 use representations/source_files/source.omg;
 
@@ -26,8 +27,8 @@ machine start() crashes Trap {
     |lexer|::lexer_initialize(@mutable scanner, 7 as +Trapping);
     append_input(@mutable scanner, "machine plain() crashes none {} machine fallible() crashes Trap {}");
     |lexer|::tokenize(@mutable scanner);
-    let mutable parser: |parser|::Parser;
-    |parser|::parser_initialize(@mutable parser);
+    let mutable parser: |parser_state|::Parser;
+    |parser_state|::parser_initialize(@mutable parser);
     |parser|::parse(@mutable parser, |source|::SourceId { value: 7 as +Trapping }, scanner.source.length as +Trapping, @scanner.output);
     transition parser.output.accepted && parser.output.machine_count == 2 && parser.output.clause_count == 2
         && parser.output.machines[0].first_clause == 0 && parser.output.machines[0].clause_count == 1

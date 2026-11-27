@@ -236,14 +236,12 @@ pub(super) fn select_retained_source(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source_state::TypedTrees;
-    use crate::source_symbols::SymbolTableBuilder;
     use semantic_vocabulary::PackageKeyIdentity;
     use source_admission::{SourceOrigin, SourceResolutionStratum};
     use source_provenance::DependencyScope;
 
     #[test]
-    fn fresh_and_reopened_source_check_the_selected_packages_current_grants() {
+    fn retained_source_checks_the_selected_packages_current_grants() {
         let [root, helper, product, backup] =
             [1, 2, 3, 4].map(|id| PackageKeyIdentity::from_digest([id; 32]).unwrap());
         let scope = |edges: &[(PackageKeyIdentity, PackageKeyIdentity)]| {
@@ -277,76 +275,64 @@ mod tests {
                 (root, "service", backup),
                 (root, "backup", product),
             ]);
-            let mut typed = TypedTrees {
-                symbols: SymbolTableBuilder::with_sources(Some(sources.clone())).finish(),
-                ..TypedTrees::default()
-            };
             let fresh = SourceContext {
                 bindings: vec![],
                 declaration_scope: Some(original.clone()),
                 build_helper_identity: "".into(),
                 purpose,
             };
-            let pending = PreCheckEvaluation::new(Some(original));
-            let limits = record_storage::RecordLimits::default();
-            let reopened =
-                record_storage::decode(&record_storage::encode(&fresh, limits).unwrap(), limits)
-                    .unwrap();
-            let reopened_pending =
-                record_storage::decode(&record_storage::encode(&pending, limits).unwrap(), limits)
-                    .unwrap();
-            for (context, requests) in [(fresh.clone(), pending), (reopened, reopened_pending)] {
-                assert!(matches!(
-                    context.compatibility(&fresh, &sources, &retargeted, &sources),
-                    Err(SourceReuseMiss::ProductAliases)
-                ));
-                // The same files typed for the other purpose are never resumed,
-                // even when every other input agrees.
-                let other_purpose = SourceContext {
-                    purpose: match purpose {
-                        DependencyScope::Build => DependencyScope::Product,
-                        DependencyScope::Product => DependencyScope::Build,
-                    },
+            let requests = PreCheckEvaluation::new(Some(original));
+            let context = fresh.clone();
+            assert!(matches!(
+                context.compatibility(&fresh, &sources, &retargeted, &sources),
+                Err(SourceReuseMiss::ProductAliases)
+            ));
+            // The same files typed for the other purpose are never resumed,
+            // even when every other input agrees.
+            let other_purpose = SourceContext {
+                purpose: match purpose {
+                    DependencyScope::Build => DependencyScope::Product,
+                    DependencyScope::Product => DependencyScope::Build,
+                },
+                ..fresh.clone()
+            };
+            assert!(matches!(
+                context.compatibility(&other_purpose, &sources, &sources, &sources),
+                Err(SourceReuseMiss::BuildHelperSelection)
+            ));
+            assert!(!context.same_input(&other_purpose));
+            let saved = context.declaration_scope.as_ref().unwrap();
+            assert!(saved.allows_declaration_selection(root, granted));
+            assert!(!saved.allows_declaration_selection(root, other));
+            for (edges, allowed) in [
+                (
+                    vec![(root, granted), (root, backup), (other, granted)],
+                    true,
+                ),
+                (vec![(root, backup)], false),
+                (vec![(root, backup), (root, other)], false),
+            ] {
+                let current = SourceContext {
+                    declaration_scope: Some(scope(&edges)),
                     ..fresh.clone()
                 };
-                assert!(matches!(
-                    context.compatibility(&other_purpose, &sources, &sources, &sources),
-                    Err(SourceReuseMiss::BuildHelperSelection)
-                ));
-                assert!(!context.same_input(&other_purpose));
-                let saved = context.declaration_scope.as_ref().unwrap();
-                assert!(saved.allows_declaration_selection(root, granted));
-                assert!(!saved.allows_declaration_selection(root, other));
-                for (edges, allowed) in [
-                    (
-                        vec![(root, granted), (root, backup), (other, granted)],
-                        true,
-                    ),
-                    (vec![(root, backup)], false),
-                    (vec![(root, backup), (root, other)], false),
-                ] {
-                    let current = SourceContext {
-                        declaration_scope: Some(scope(&edges)),
-                        ..fresh.clone()
-                    };
-                    assert_eq!(
-                        context
-                            .compatibility(&current, &sources, &sources, &sources)
-                            .is_ok(),
-                        allowed
-                    );
-                    let mut pending = requests.clone();
-                    assert_eq!(
-                        pending
-                            .rejoin_source_authority(&sources, current.declaration_scope)
-                            .is_ok(),
-                        allowed
-                    );
-                    assert_eq!(
-                        PreCheckEvaluation::record_continuations(vec![pending], &mut typed).is_ok(),
-                        allowed
-                    );
-                }
+                assert_eq!(
+                    context
+                        .compatibility(&current, &sources, &sources, &sources)
+                        .is_ok(),
+                    allowed
+                );
+                let mut pending = requests.clone();
+                assert_eq!(
+                    pending
+                        .rejoin_source_authority(&sources, current.declaration_scope)
+                        .is_ok(),
+                    allowed
+                );
+                assert_eq!(
+                    PreCheckEvaluation::require_rejoined_authorities(&[pending]).is_ok(),
+                    allowed
+                );
             }
         }
     }

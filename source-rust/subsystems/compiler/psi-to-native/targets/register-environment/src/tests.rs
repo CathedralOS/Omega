@@ -201,7 +201,7 @@ fn baseline_profile_is_exact_conservative_and_platform_applicable() {
             .profile()
             .active_overlays
             .iter()
-            .any(|name| name == "darwin.aarch64.platform")
+            .any(|name| name == target_aarch64::AARCH64_PLATFORM_RESERVATION_OVERLAY)
     );
     assert!(
         macos
@@ -209,7 +209,7 @@ fn baseline_profile_is_exact_conservative_and_platform_applicable() {
             .profile()
             .active_overlays
             .iter()
-            .any(|name| name == "darwin.aarch64.platform")
+            .any(|name| name == target_aarch64::AARCH64_PLATFORM_RESERVATION_OVERLAY)
     );
     assert_ne!(
         linux.reservations().identity(),
@@ -231,6 +231,37 @@ fn baseline_profile_is_exact_conservative_and_platform_applicable() {
             inapplicable,
         ),
         Err(TargetRegisterEnvironmentValidationError::InapplicableReservationOverlay)
+    );
+}
+
+// Windows ARM64 keeps the Thread Environment Block pointer in x18, so the
+// allocator must never hand x18 out there, exactly as on Apple platforms.
+#[test]
+fn x18_is_reserved_on_macos_and_windows_arm64_but_not_linux_arm64() {
+    let x18_reserved = |target: NativeTarget| {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let model = environment.physical().model();
+        let x18 = model.view_named("x18").unwrap();
+        let reserved = environment.reservations().reserved_units();
+        let overlay_active = environment
+            .reservations()
+            .profile()
+            .active_overlays
+            .iter()
+            .any(|name| name == target_aarch64::AARCH64_PLATFORM_RESERVATION_OVERLAY);
+        let units_reserved = x18.units.iter().all(|unit| reserved.contains(unit));
+        assert_eq!(overlay_active, units_reserved, "{target:?}");
+        units_reserved
+    };
+    assert!(!x18_reserved(NativeTarget::linux_arm64()));
+    assert!(x18_reserved(NativeTarget::macos_arm64()));
+    assert!(x18_reserved(NativeTarget::windows_arm64()));
+
+    let windows = baseline_target_register_environment(NativeTarget::windows_arm64()).unwrap();
+    let linux = baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
+    assert_ne!(
+        windows.reservations().identity(),
+        linux.reservations().identity()
     );
 }
 

@@ -324,15 +324,28 @@ mod types {
             self.type_parameters(definition.type_parameters)?;
             self.type_arguments(definition.arguments)?;
             for row in &definition.rows {
-                let machine =
-                    crate::resolution::names::owned_conformance_realization(self.program, row)?;
-                if crate::resolution::names::owned_conformance_namespace(self.program, machine)?
-                    != symbol
-                {
-                    return Err(
-                        "constant dependency implementation member lost its exact owner".into(),
-                    );
-                }
+                let machine = if row.source.owns_realization() {
+                    let machine =
+                        crate::resolution::names::owned_conformance_realization(self.program, row)?;
+                    if crate::resolution::names::owned_conformance_namespace(self.program, machine)?
+                        != symbol
+                    {
+                        return Err(
+                            "constant dependency implementation member lost its exact owner".into(),
+                        );
+                    }
+                    machine
+                } else {
+                    let machine = row.realization_machine;
+                    if !machine.is_valid()
+                        || self.program.machines.unique_by_symbol(machine).is_none()
+                    {
+                        return Err(
+                            "constant dependency reference row lost its selected machine".into(),
+                        );
+                    }
+                    machine
+                };
                 self.machines.push(machine);
             }
             Ok(())
@@ -508,8 +521,10 @@ pub(crate) fn collect_machine_body_demand(
     program: &SymbolResolvedTrees,
     machine_roots: &[SymbolHandle],
     expression_roots: &[ExpressionHandle],
+    overloads: Option<&crate::source_resolved::AuthoredDeclarationSelections>,
 ) -> Result<ResolvedMachineBodyDemand, String> {
     let mut collector = Collector {
+        overloads,
         machines: machine_roots.iter().rev().copied().collect(),
         expressions: expression_roots
             .iter()
@@ -552,6 +567,7 @@ pub(crate) fn collect_machine_body_demand(
             continue;
         }
         let mut availability = Collector {
+            overloads,
             machines: vec![machine],
             deferred_machines: Some(Vec::new()),
             purpose: DependencyPurpose::DeclarationReadiness,
@@ -804,6 +820,7 @@ struct Collector<'program, 'selection> {
         Final normalization compares the complete reconstructed source roster.
     */
     selected_calls: Option<&'selection [(SourceSpan, SourceSpan)]>,
+    overloads: Option<&'selection crate::source_resolved::AuthoredDeclarationSelections>,
 }
 
 impl<'program, 'selection> Collector<'program, 'selection> {
@@ -832,6 +849,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             follow_dependencies: true,
             purpose: DependencyPurpose::Authored,
             selected_calls: None,
+            overloads: None,
         }
     }
 
@@ -1016,6 +1034,9 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         &mut self,
         site: crate::resolution::selections::body_calls::CallSite<'_>,
         target_span: SourceSpan,
+        occurrences: impl Iterator<
+            Item = source_declarations::source_selections::AuthoredDeclarationSelectionOccurrenceId,
+        >,
         static_arguments: &[StaticMachineArgument],
     ) -> Result<(), String> {
         let receiver_symbol = site.receiver_symbol;
@@ -1031,6 +1052,19 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             return self.realized_call_dependency(binding, target_span);
         }
         if !target_symbol.is_valid() {
+            if let Some(selections) = self.overloads {
+                // The same occurrence survives typing. Its selected declaration can be a
+                // machine or its entry state; call() follows the owning authored body.
+                for selection in occurrences.filter_map(|id| selections.get(id)) {
+                    if selection.kind()
+                        == crate::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                        && let Some(chosen) = selection.target().as_resolved()
+                    {
+                        self.call(chosen.selected_symbol(), target_span)?;
+                    }
+                }
+                return Ok(());
+            }
             let symbols = &self.program.symbols;
             let candidates = if symbols.get(receiver_symbol).kind == SymbolKind::Module {
                 symbols
@@ -1237,6 +1271,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                             argument_count: table.expression_handles(call.arguments).len(),
                         },
                         call.target.source_span(),
+                        table.authored_selection_occurrences(expression),
                         &call.machine_arguments,
                     )?;
                 }
@@ -1610,6 +1645,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                                         .len(),
                                 },
                                 call.target.source_span(),
+                                call.authored_call_selection.into_iter(),
                                 &call.machine_arguments,
                             )?;
                         }
@@ -1647,6 +1683,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                                                 .len(),
                                         },
                                         target.source_span,
+                                        target.authored_call_selection.into_iter(),
                                         &[],
                                     )?;
                                     let values = expressions.expression_handles(target.arguments);

@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-<a id="packed-simd-spill-has-no-home"></a>
-### Native register allocation fails on a large machine full of packed results
-- Category: 10. Verifying costs more than writing
-- Where: [runtime spill](source-rust/subsystems/compiler/psi-to-native/pipeline/07_selected-instructions-to-register-homes/src/allocation/runtime_spill_and_split.rs) after [`home_assignment`](source-rust/subsystems/compiler/psi-to-native/pipeline/07_selected-instructions-to-register-homes/src/allocation/home_assignment.rs) reports `NoCompatibleHome`
-- Saw: one `main` that computes 21 SIMD results and then checks all 136 of their lanes before one `transition` fails native compilation with `RegisterAllocation(RuntimeSpill(Homes(NoCompatibleHome { .. })))`; Psi runs it. Any third of the checks compiles, and a scalar program with as many checks compiles. Reproduce it by putting every group of `every_lane_of_the_simd_library_matches_a_scalar_reference_on_psi_and_native` in [`packed_integer.rs`](source-rust/application/tests/packed_integer.rs) into one program.
-- Cost: a long SIMD kernel can stop compiling natively once register pressure forces a spill the allocator cannot place, with an error that names no source.
-- Reported: 2026-11-26, Claude Code, while checking every SIMD library lane against a scalar reference.
-
 <a id="flattened-asm-regions-drop-their-target"></a>
 ### Straight-line asm regions of place instructions lose their x86-64 requirement
 - Category: 6. A verdict with nothing behind it
@@ -90,14 +82,6 @@ framework or a list of unimplemented features.
 - Saw: an `asm` region holding only `mov`/`ldr`/`str` or packed instructions over typed places becomes ordinary statements in stage 02, so the machine's `assembly_target_requirement` stays `Any`. The native reachability review now refuses packed integer operations on non-x86-64 targets by operation kind, but `--check --target linux_arm64` still accepts them and a flattened `mov` region keeps no target at all.
 - Cost: the catalog's target is enforced for packed instructions only at native admission, by a second rule beside the catalog.
 - Reported: 2026-11-26, Claude Code, while moving the SIMD library onto checked asm instructions.
-
-<a id="every-bundled-custody-query-compares-the-whole-file"></a>
-### Every bundled-declaration custody query compares the whole source file
-- Category: 4. Re-deriving
-- Where: [`CoreVocabularyCatalog::classify` and `source`](source-rust/subsystems/compiler/source-to-psi/representations/source-files/bundled-declarations/src/core_vocabulary.rs#L10) and `SealedIntrinsicCatalog::classify`, reached through [`toolchain_site`](source-rust/subsystems/compiler/source-to-psi/representations/symbol-resolved-trees/symbol-table/source_symbols.rs#L63) from `SymbolTable::sealed_intrinsic`, `core_source` and `core_vocabulary`
-- Saw: each query strips the file's package root and then tests `crate::bytes(file) == site.source`, a byte comparison of the whole bundled file, every time. Stage 03 asks per operator candidate and per call site: `is_sealed_toolchain_float_operator` makes three such queries for one candidate (two catalog lookups and a second `display_path`), and `retain_static_argument_contexts` asks `core_vocabulary` per argument. A release profile of popcount `--check` on omega-linux (2026-11-25) put about 0.06 s in `__memcmp` and path parsing under `normalize_qualification_casts` and `retain_static_argument_contexts`.
-- Cost: whether a file is the exact bundled one is fixed when the source is admitted, but every query recomputes it. Source admission could record it once on the `SourceFile`.
-- Reported: 2026-11-25, Claude Code, while profiling Psi 02/03 on popcount.
 
 <a id="resuming-a-typing-from-retained-source-costs-more-than-typing-afresh"></a>
 ### Resuming a typing from retained source costs more than typing afresh

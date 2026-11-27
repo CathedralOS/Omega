@@ -54,17 +54,17 @@ fn a_build_calls_its_local_helper_and_the_product_calls_its_own_dependency() {
 }
 
 #[test]
-fn an_unused_external_build_import_requires_a_supplied_library() {
+fn an_unused_external_build_import_warns_without_a_supplied_library() {
     let (compiled, stderr) = check(
         "missing-build-library",
         "use {kit}/main.omg as kit;\n",
         "",
         PRODUCT,
     );
-    assert!(
-        !compiled
-            && stderr.contains("Build import `{kit}/main.omg as kit` has no supplied source")
-            && stderr.contains("build.omg:1:5"),
+    assert!(compiled, "{stderr}");
+    assert_eq!(
+        stderr.matches("unused file import `kit`").count(),
+        1,
         "{stderr}"
     );
 }
@@ -75,7 +75,7 @@ fn the_product_must_resolve_its_own_files() {
         "product-unknown",
         "",
         "",
-        "\nuse missing.omg as missing;\nmachine main() {}",
+        "\nuse missing.omg as missing;\nmachine main() { |missing|::run(); }",
     );
     assert!(
         !compiled
@@ -90,7 +90,7 @@ fn a_product_registration_cannot_supply_an_import_to_its_build() {
     let (compiled, stderr) = check(
         "wrong-scope",
         "use {lib}/main.omg as values;\n",
-        "",
+        "    _ = |values|::v();\n",
         PRODUCT,
     );
     assert!(

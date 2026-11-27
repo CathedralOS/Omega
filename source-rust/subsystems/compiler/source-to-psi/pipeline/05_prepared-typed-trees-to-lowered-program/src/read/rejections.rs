@@ -445,6 +445,96 @@ impl Program<'_> {
             })
     }
 
+    /// The rejection when exactly one side of a machine's result is Unit.
+    /// A machine that declares no result type completes with Unit, so a
+    /// value it supplies as an arm or final value has nowhere to go, and a
+    /// call of such a machine supplies no value to a machine that declares
+    /// one. Result compatibility is the ordinary call rule
+    /// (`wiki/spec/language/state_contracts.md`, "Terminal calls in
+    /// transition arms"). The diagnostic names the machine whose header
+    /// lacks the result type, because that header is what the author must
+    /// change, even when the mismatch is found in its caller.
+    pub(super) fn unit_result_mismatch(
+        &self,
+        id: MachineId,
+        expected: Option<ValueType>,
+        supplied: &crate::body::Expression,
+    ) -> Option<Refusal> {
+        let machine = self.machine_named(id);
+        match (expected, supplied.result) {
+            (None, Some(found)) => {
+                let (found, hint) = match self.value_type_named(found) {
+                    Some(name) => (format!("`{name}`"), format!(" (`-> {name}`)")),
+                    None => (String::from("other than Unit"), String::new()),
+                };
+                Some(reject(
+                    id,
+                    supplied.source,
+                    format!(
+                        "machine `{machine}` declares no result type, so it completes with \
+                         Unit, but this value has type {found}: declare the result in its \
+                         header{hint}"
+                    ),
+                ))
+            }
+            (Some(expected), None) => {
+                let declared = self
+                    .value_type_named(expected)
+                    .map_or_else(String::new, |name| format!(" `{name}`"));
+                let callee = match &supplied.kind {
+                    crate::body::ExpressionKind::Call {
+                        callee: crate::body::CallTarget::Machine(callee),
+                        ..
+                    } => Some(self.machine_named(*callee)),
+                    _ => None,
+                };
+                Some(reject(
+                    id,
+                    supplied.source,
+                    match callee {
+                        Some(callee) => format!(
+                            "machine `{machine}` declares the result type{declared}, but this \
+                             value is the result of `{callee}`, which declares no result type \
+                             and so completes with Unit: declare the result in `{callee}`'s \
+                             header"
+                        ),
+                        None => format!(
+                            "machine `{machine}` declares the result type{declared}, but this \
+                             value is Unit"
+                        ),
+                    },
+                ))
+            }
+            _ => None,
+        }
+    }
+
+    /// The machine `id` as a diagnostic names it.
+    fn machine_named(&self, id: MachineId) -> String {
+        self.symbols
+            .get(id)
+            .copied()
+            .filter(|symbol| symbol.is_valid())
+            .map_or_else(
+                || String::from("<unnamed>"),
+                |symbol| self.typed.symbols.display_path(symbol, "::"),
+            )
+    }
+
+    /// A value type as a diagnostic names it, when its name is known.
+    fn value_type_named(&self, value_type: ValueType) -> Option<String> {
+        match value_type {
+            ValueType::Scalar(scalar, _) => Some(scalar_named(scalar)),
+            ValueType::Record(row, _, _) => match self.record_sources.get(row) {
+                Some(source) if source.declaration.is_valid() => {
+                    Some(self.typed.symbols.display_path(source.declaration, "::"))
+                }
+                _ => self.records.get(row).map(|record| record.identity.clone()),
+            },
+            ValueType::Rigid(_) => None,
+        }
+    }
+
     /// The domains of `qualification` as a diagnostic names them.
     pub(super) fn domains_named(&self, qualification: Qualification) -> String {
         let mut names = Vec::new();

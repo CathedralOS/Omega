@@ -1195,7 +1195,7 @@ fn collect_target<'a>(target: &'a Target, calls: &mut CallCollector<'a>) {
 }
 fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<'a>) {
     match &expression.kind {
-        E::TheoremApplication { .. } => {}
+        E::TheoremApplication { .. } | E::Applied { .. } => {}
         E::Block {
             statements, value, ..
         } => {

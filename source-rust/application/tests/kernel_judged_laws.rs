@@ -43,9 +43,9 @@ fn the_same_machine_without_the_citation_is_refused_at_its_ensures() {
     let (output, report) = check("semiring_identity/fail/uncited");
     assert_eq!(output.status.code(), Some(1), "{report}");
     assert!(
-        report.contains("core\\\\Identity::<T>(Ring::add(b, a), Ring::add(a, b))")
+        report.contains("|proof|::Identity::<T>(Ring::add(b, a), Ring::add(a, b))")
             && report.contains(UNPROVED)
-            && report.contains("main.omg:4:9"),
+            && report.contains("main.omg:5:9"),
         "{report}"
     );
 }
@@ -113,7 +113,7 @@ fn right_distributivity_without_its_recursive_call_is_refused_at_the_successor_a
              `Peano::Succ`: core\\\\Identity::<Peano>(times(plus(Peano::Succ(pred), b), c), \
              plus(times(Peano::Succ(pred), c), times(b, c)))"
         ) && report.contains(UNPROVED)
-            && report.contains("main.omg:51:30"),
+            && report.contains("main.omg:52:30"),
         "{report}"
     );
 }
@@ -168,14 +168,14 @@ fn library_subtraction_under_the_swapped_order_is_refused_at_its_declaration() {
     // The same machine requiring `a <= b` instead: the premise of `-` is
     // not one it holds, and nothing proves it from `a <= b`. The refusal
     // names the premise of the call and is placed at `difference`'s
-    // declaration (`main.omg:9:9`), the only position it carries.
+    // declaration (`main.omg:7:9`), the only position it carries.
     let (output, report) = check("nat_order/fail/swapped_order");
     assert_eq!(output.status.code(), Some(1), "{report}");
     assert!(
         report.contains(
             "cannot prove ensures contract for `difference`: the premise of `subtract` at its call"
         ) && report.contains(UNPROVED)
-            && report.contains("main.omg:9:9"),
+            && report.contains("main.omg:7:9"),
         "{report}"
     );
 }
@@ -192,7 +192,7 @@ fn library_subtraction_without_an_order_premise_is_refused_for_that_premise() {
         report.contains(
             "cannot prove ensures contract for `difference`: the premise of `subtract` at its call"
         ) && report.contains(UNPROVED)
-            && report.contains("main.omg:11:9")
+            && report.contains("main.omg:9:9")
             && !report.contains("typing arm value type"),
         "{report}"
     );
@@ -321,6 +321,65 @@ fn the_same_modulo_recursing_at_its_own_dividend_is_refused_at_that_call() {
 }
 
 #[test]
+fn a_law_that_needs_the_modulo_s_recursive_equation_compiles() {
+    // `mod(a, b) = mod(saturating_sub(a, b), b)` for `1 <= b <= a` holds only
+    // where the fuel reaches the recursive call. Citing `mod(a, b)` cites the
+    // recursive equation the compiler proves for it.
+    let (output, report) = check("computed_descent/pass/mod_steps_down_by_its_divisor");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn the_same_law_without_its_dividend_bound_is_refused_at_its_ensures() {
+    // Below the divisor the law is false, and the equation leaves the
+    // dispatch undecided.
+    let (output, report) = check("computed_descent/fail/mod_step_without_its_dividend_bound");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for `mod_step`")
+            && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_law_that_cites_itself_at_a_computed_dividend_compiles() {
+    // `modulos_agree` cites itself at `saturating_sub(a, b)`, below `a`: it
+    // is proved by induction on fuel that reaches `a`, each side unfolded by
+    // its machine's recursive equation.
+    let (output, report) = check("computed_descent/pass/two_modulos_agree");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn the_same_law_citing_itself_at_its_own_dividend_is_refused() {
+    // At `a` itself the call does not descend, so with no fuel it is not
+    // shown unreachable and the induction's case of zero stays unproved.
+    let (output, report) = check("computed_descent/fail/modulos_agree_at_an_unchanged_dividend");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report
+            .contains("cannot prove ensures contract for `modulos_agree` in the case `Nat::Zero`"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_local_order_without_its_fuel_bound_is_refused_for_that_lemma() {
+    // `Peano` spells core's truncated subtraction, so `drain`'s descent is
+    // checked and holds. The law that its fuel suffices needs the order's
+    // `succ_of_sub_between`, which the program's copy leaves out.
+    let (output, report) = check("computed_descent/fail/local_order_without_its_bound");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("not supported yet")
+            && report.contains("has no lemma `succ_of_sub_between(a, k, w)`")
+            && report.contains("`drain`"),
+        "{report}"
+    );
+}
+
+#[test]
 fn core_division_computes_each_kind_of_quotient_and_remainder() {
     // Zero dividend, divisor one, a dividend smaller than the divisor, exact
     // and inexact division, each checked by computation through `div` and
@@ -336,6 +395,26 @@ fn core_division_by_zero_is_refused_for_its_premise() {
     assert!(
         report.contains("cannot prove ensures contract for `quotient_by`")
             && report.contains("saturating_sub(Nat::Succ(Nat::Zero), Nat::Zero), Nat::Zero)")
+            && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
+fn core_gcd_computes_and_takes_euclids_step() {
+    // A zero divisor, a zero dividend, coprime numbers and common factors,
+    // each checked by computation through `gcd` of `core/nat.omg`, and
+    // Euclid's step at any positive divisor by citing `gcd_step`.
+    let (output, report) = check("core_gcd/pass/euclid");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn euclids_step_without_its_law_is_refused() {
+    let (output, report) = check("core_gcd/fail/euclid_without_its_step");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for `euclid_at`")
             && report.contains(UNPROVED),
         "{report}"
     );
@@ -381,7 +460,7 @@ fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
             "cannot prove the law `lawless` inherits from the requirement it satisfies: \
              core\\\\Identity::<Peano>(plus(plus(a, b), c), plus(a, plus(b, c)))"
         ) && report.contains(UNPROVED)
-            && report.contains("main.omg:18:9"),
+            && report.contains("main.omg:19:9"),
         "{report}"
     );
 }
@@ -453,6 +532,72 @@ fn evidence_the_data_does_not_allow_is_refused_where_it_is_built() {
     assert!(
         report.contains(
             "cannot prove what `Vector::Cons` requires of the value built here in `room`"
+        ),
+        "{report}"
+    );
+}
+
+const ABOVE_ONE_IS_POSITIVE: &str = "data AboveOneIsPositive = machine(x: f64)
+    requires x > 1.0f64
+    ensures x > 0.0f64;
+
+machine above_one_is_positive(x: f64)
+requires x > 1.0f64
+ensures x > 0.0f64
+{
+}
+
+machine use_step<Step: AboveOneIsPositive>(x: f64)
+requires x > 1.0f64
+ensures x > 0.0f64
+{
+    Step(x);
+}
+
+machine main() {
+    use_step::<above_one_is_positive>(2.0f64);
+}
+";
+
+fn float_theorem(name: &str, source: &str) -> (bool, String) {
+    project::check(name, &[("main.omg", source)], &["--check", "main.omg"])
+}
+
+#[test]
+fn a_float_theorem_supplies_its_alias() {
+    let (accepted, report) = float_theorem("float_theorem", ABOVE_ONE_IS_POSITIVE);
+    assert!(accepted, "{report}");
+}
+
+#[test]
+fn a_float_theorem_with_a_narrower_premise_cannot_supply_its_alias() {
+    let source = ABOVE_ONE_IS_POSITIVE.replacen(
+        "machine above_one_is_positive(x: f64)\nrequires x > 1.0f64",
+        "machine above_one_is_positive(x: f64)\nrequires x > 2.0f64",
+        1,
+    );
+    assert!(source.contains("requires x > 2.0f64"), "{source}");
+    let (accepted, report) = float_theorem("float_theorem_narrower", &source);
+    assert!(!accepted, "{report}");
+    assert!(
+        report.contains("explicit proof argument does not establish the complete aliased contract"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_theorem_over_another_float_format_cannot_supply_the_alias() {
+    let source = ABOVE_ONE_IS_POSITIVE.replacen(
+        "machine above_one_is_positive(x: f64)\nrequires x > 1.0f64\nensures x > 0.0f64",
+        "machine above_one_is_positive(x: f32)\nrequires x > 1.0f32\nensures x > 0.0f32",
+        1,
+    );
+    assert!(source.contains("above_one_is_positive(x: f32)"), "{source}");
+    let (accepted, report) = float_theorem("float_theorem_format", &source);
+    assert!(!accepted, "{report}");
+    assert!(
+        report.contains(
+            "cited theorem's subjects are not the aliased contract's subjects and carriers"
         ),
         "{report}"
     );

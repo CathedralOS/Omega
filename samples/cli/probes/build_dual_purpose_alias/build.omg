@@ -1,7 +1,8 @@
 use {omega}/build/dependency.omg;
+use main.omg as app;
 
 machine build(plan: @mutable BuildPlan) {
-    let mutable package: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
+    let mutable package: DependencyDescription = |dependency|::from_source(Source::Path { location: |app|::kit_source() });
     |dependency|::with_alias(@mutable package, "kit");
     _ = |dependency|::add(plan, package);
     plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };

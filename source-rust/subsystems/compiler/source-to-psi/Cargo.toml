@@ -51,17 +51,12 @@ numeric-literals = { path = "../foundation/numeric-literals" }
 source-admission = { path = "representations/source-files/custody" }
 source-text = { path = "../../../foundation/source-text" }
 bignum = { path = "../../../foundation/bignum" }
-sha2 = "0.10.9"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-wire = { path = "../../../foundation/wire" }
 arena = { path = "../../../foundation/arena" }
 record-storage = { path = "../../../foundation/record-storage" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 worker-budget = { path = "../foundation/worker-budget" }
 language-core = { path = "../foundation/language-core" }
 layout-plans = { path = "../psi/layouts/geometry" }
-numerics = { path = "../foundation/numerics" }
 optimization = { path = "../psi/artifact/optimization-selections" }
 rayon = "1.11"
 semantic-vocabulary = { path = "../foundation/semantic-records" }
@@ -76,6 +71,7 @@ terminal-work = { path = "../psi/semantics/work" }
 tokens = { path = "representations/tokens" }
 
 [dev-dependencies]
+numerics = { path = "../foundation/numerics" }
 proof-admission = { path = "../psi/semantics/proofs/bounded" }
 lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program", features = ["test-support"] }
 prepared-typed-trees-to-lowered-program = { path = "pipeline/05_prepared-typed-trees-to-lowered-program", features = ["test-support"] }
@@ -311,6 +307,11 @@ required-features = ["test-support"]
 [[test]]
 name = "lowering_qualified_values"
 path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/qualified_values.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_unit_results"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/unit_results.rs"
 required-features = ["test-support"]
 
 [[test]]

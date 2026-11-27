@@ -12,6 +12,7 @@ mod resident_storage;
 use crate::body::Qualification;
 use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
 use crate::declaration_selection::ResolvedAuthoredCallBinding;
+use crate::read::theorems::TheoremInput;
 use crate::source_selections::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionOccurrenceId,
 };
@@ -737,6 +738,20 @@ impl<'t> Program<'t> {
             return self.runtime_call(id, slots, runtime, arguments, source, None);
         }
         self.bound_target(id, call.target_symbol)?;
+        if call.evidence_arguments.is_empty()
+            && let Some(applied) = self.mathematical_application(
+                id,
+                slots,
+                call.target_symbol,
+                &call.machine_arguments,
+                self.typed
+                    .statement_table
+                    .expression_handles(call.arguments),
+                source,
+            )?
+        {
+            return Ok(applied);
+        }
         if let Some(dispatch) = &call.static_requirement_dispatch {
             return self.requirement_call(
                 id,
@@ -871,6 +886,21 @@ impl<'t> Program<'t> {
             return self.runtime_call(id, slots, runtime, arguments, source, expected);
         }
         self.bound_target(id, call.target_symbol)?;
+        if !call.receiver.is_valid()
+            && call.evidence_arguments.is_empty()
+            && let Some(applied) = self.mathematical_application(
+                id,
+                slots,
+                call.target_symbol,
+                &call.machine_arguments,
+                self.typed
+                    .expression_table
+                    .expression_handles(call.arguments),
+                source,
+            )?
+        {
+            return Ok(applied);
+        }
         // The integer carrier query is answered only through its fields in a
         // static condition (`carriers`); its own body is no answer to run.
         if self.is_carrier_query(call) {
@@ -2139,6 +2169,17 @@ impl<'t> Program<'t> {
         if !authored_arguments.is_empty() && authored_arguments != arguments {
             return unserved("requirement call whose static arguments differ from its application");
         }
+        if binders.is_empty()
+            && self
+                .typed
+                .closed_requirement_application(declaration)
+                .is_some()
+        {
+            self.typed
+                .require_closed_requirement_call_application(declaration, application_handle)
+                .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?;
+            return Ok(Vec::new());
+        }
         if arguments.len() != binders.len() || bindings.len() != binders.len() {
             return unserved("requirement call with static arguments");
         }
@@ -2551,7 +2592,7 @@ impl<'t> Program<'t> {
             .filter(|(parameter, source)| {
                 parameter.machine == id && source.binder == invocation.target
             });
-        let (parameter, _) = parameters.next().ok_or_else(|| {
+        let (parameter, prepared) = parameters.next().ok_or_else(|| {
             unavailable("logical parameter is outside the current declaration's exact header")
         })?;
         if parameters.next().is_some() {
@@ -2560,12 +2601,7 @@ impl<'t> Program<'t> {
             ));
         }
         let proof_position = parameter.proof_position;
-        let types: Vec<_> = parameter
-            .contract
-            .parameters
-            .iter()
-            .map(|parameter| parameter.scalar_type)
-            .collect();
+        let inputs = prepared.inputs.clone();
         let acknowledgement = match call {
             StaticArgumentCall::Statement(call) => call.operational_acknowledgement,
             StaticArgumentCall::Expression(_, call) => call.operational_acknowledgement,
@@ -2573,7 +2609,7 @@ impl<'t> Program<'t> {
         if invocation.unsupported
             || invocation.runtime_receiver
             || acknowledgement != Default::default()
-            || invocation.arguments.len() != types.len()
+            || invocation.arguments.len() != inputs.len()
         {
             return Err(unavailable(
                 "logical application carries an executable feature or another argument telescope",
@@ -2660,33 +2696,59 @@ impl<'t> Program<'t> {
                 }
             }
         }
-        let arguments = invocation
-            .arguments
-            .iter()
-            .zip(types)
-            .map(|(argument, scalar)| {
-                let expression =
-                    self.expression(id, slots, *argument, Some(ValueType::plain(scalar)))?;
-                if expression.result != Some(ValueType::plain(scalar))
-                    || !matches!(
-                        expression.kind,
-                        ExpressionKind::Integer(_)
-                            | ExpressionKind::Boolean(_)
-                            | ExpressionKind::Slot(_)
-                    )
-                {
-                    return Err(unavailable(
-                        "logical subject has another fixed scalar carrier",
-                    ));
+        // A record input is one subject for each of its scalar fields: the
+        // record formal it names, read at each field's path.
+        let mut arguments = Vec::new();
+        let mut fields = Vec::new();
+        for (argument, input) in invocation.arguments.iter().zip(inputs) {
+            match input {
+                TheoremInput::Scalar(scalar) => {
+                    let expression =
+                        self.expression(id, slots, *argument, Some(ValueType::plain(scalar)))?;
+                    if expression.result != Some(ValueType::plain(scalar))
+                        || !matches!(
+                            expression.kind,
+                            ExpressionKind::Integer(_)
+                                | ExpressionKind::Boolean(_)
+                                | ExpressionKind::Slot(_)
+                        )
+                    {
+                        return Err(unavailable(
+                            "logical subject has another fixed scalar carrier",
+                        ));
+                    }
+                    arguments.push(expression);
+                    fields.push(Vec::new());
                 }
-                Ok(expression)
-            })
-            .collect::<Checked<Vec<_>>>()?;
+                TheoremInput::Record { record, leaves } => {
+                    let expression = self.expression(id, slots, *argument, None)?;
+                    let ExpressionKind::Slot(slot) = expression.kind else {
+                        return Err(unavailable(
+                            "logical data subject is not a named record formal",
+                        ));
+                    };
+                    if !matches!(expression.result, Some(ValueType::Record(own, Qualification::NONE, _)) if own == record)
+                        || slots
+                            .get(slot)
+                            .is_none_or(|held| held.erased || held.borrowed.is_some())
+                    {
+                        return Err(unavailable(
+                            "logical data subject is not a named record formal",
+                        ));
+                    }
+                    for (path, _) in leaves {
+                        arguments.push(expression.clone());
+                        fields.push(path);
+                    }
+                }
+            }
+        }
         Ok(Some(Expression {
             call_context: None,
             kind: ExpressionKind::TheoremApplication {
                 source: terminal_psi::TheoremSource::Formal(proof_position),
                 arguments,
+                fields,
                 instantiation,
             },
             result: None,
@@ -3780,16 +3842,16 @@ impl<'t> Program<'t> {
         if formals.len() != read.len() {
             return Err(refuse_at(id, Unserved::Typing("argument types")));
         }
-        let mut nominal_arguments = Vec::new();
+        let mut nominal_types = Vec::new();
         let mut structural_ordinal = 0;
         for ((declared, erased, borrowed), actual) in formals.iter().zip(&read) {
             let formal = self.substitute(*declared, &bound);
             let mut nominal_agrees = false;
             if !erased && (borrowed.is_some() || matches!(formal, ValueType::Record(..))) {
-                if let Some(argument) = self.nominal_call_argument(
+                if let Some(argument) = self.nominal_call_type(
                     id,
                     &callee,
-                    structural_ordinal,
+                    terminal_psi::generic_calls::CallTypePosition::Parameter(structural_ordinal),
                     actual.result,
                     formal,
                     const_values,
@@ -3797,7 +3859,7 @@ impl<'t> Program<'t> {
                     slots,
                 )? {
                     nominal_agrees = argument.agrees();
-                    nominal_arguments.push(argument);
+                    nominal_types.push(argument);
                 }
                 structural_ordinal += 1;
             }
@@ -3870,7 +3932,32 @@ impl<'t> Program<'t> {
                 bound.push((*parameter, chosen));
             }
         }
-        let result = declared_result.map(|result| self.substitute(result, &bound));
+        let mut result = declared_result.map(|result| self.substitute(result, &bound));
+        if let Some(declared) = result
+            && let Some(instantiated) =
+                self.instantiated_nominal_result(id, &callee, declared, const_sources)?
+        {
+            let correspondence = self
+                .nominal_call_type(
+                    id,
+                    &callee,
+                    terminal_psi::generic_calls::CallTypePosition::Result,
+                    Some(instantiated),
+                    declared,
+                    const_values,
+                    const_sources,
+                    slots,
+                )?
+                .filter(|row| row.agrees())
+                .ok_or_else(|| {
+                    refuse_at(
+                        id,
+                        Unserved::Call("nominal result lost its complete type correspondence"),
+                    )
+                })?;
+            nominal_types.push(correspondence);
+            result = Some(instantiated);
+        }
         // Binding is an invocation relation, even when a recursive call's
         // actual region has the same declaration identity as a free formal.
         // Test missing bindings on the declared result, before substitution.
@@ -3885,12 +3972,12 @@ impl<'t> Program<'t> {
                 Unserved::Typing("result lifetime that no argument supplies"),
             ));
         }
-        if !nominal_arguments.is_empty() {
+        if !nominal_types.is_empty() {
             self.nominal_calls
                 .push(super::nominal_applications::NominalCallSource {
                     caller: id,
                     source,
-                    arguments: nominal_arguments,
+                    types: nominal_types,
                 });
         }
         Ok(Expression {
@@ -4696,7 +4783,7 @@ impl Touches<'_> {
         captures: &mut SavedSubjects<'a>,
     ) -> Checked<bool> {
         match &expression.kind {
-            ExpressionKind::TheoremApplication { .. } => Ok(false),
+            ExpressionKind::TheoremApplication { .. } | ExpressionKind::Applied { .. } => Ok(false),
             ExpressionKind::Atomic(operation) => {
                 for operand in operation.inputs() {
                     if self.expression(operand, false, captures)? {

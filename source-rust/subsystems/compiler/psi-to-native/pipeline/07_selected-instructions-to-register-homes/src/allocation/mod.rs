@@ -190,7 +190,8 @@ pub use assignment::post_allocation_manifest::{
 pub(crate) use assignment::runtime_spill::RuntimeSpillAllocationError;
 
 pub(crate) use rewrites::{
-    OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
+    ActiveResidentRematerializationStage, OptimizedActiveResidentRematerializationError,
+    StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedActiveResidentRematerializationPressure,
     stage_optimized_active_resident_rematerialization_pressure,

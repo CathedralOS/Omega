@@ -3,25 +3,10 @@ use pipeline/tokens_to_syntax_trees/generics.omg;
 use pipeline/tokens_to_syntax_trees/input.omg;
 use pipeline/tokens_to_syntax_trees/machine.omg as machine_file;
 use pipeline/tokens_to_syntax_trees/types.omg;
-use pipeline/tokens_to_syntax_trees/parser.omg;
+use pipeline/tokens_to_syntax_trees/parser_state.omg as parser;
 
 use representations/syntax_trees/syntax_trees.omg;
 use representations/tokens/tokens.omg;
-
-// Each frame owns its clauses and direct requirements. A child's semicolon
-// closes exactly that frame; the next token is parsed in the parent scope.
-// Descendants publish first, then the owner's staged direct rows publish as
-// contiguous ranges. No punctuation lookahead can transfer a terminator to
-// another declaration. The explicit stack shares the syntax tables' existing
-// 256-contract budget, including open and staged contracts.
-public data CallableHeaderFrame [copy]
-requires first_clause <= 2048, first_contract <= 256
-{
-    owner: |syntax_trees|::ClauseOwner;
-    contract: |syntax_trees|::Contract;
-    first_clause: u64;
-    first_contract: u64;
-}
 
 public machine parse_callable_header(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, owner: |syntax_trees|::ClauseOwner)
 crashes Trap
@@ -29,7 +14,7 @@ crashes Trap
     parser.header_depth = 1;
     parser.header_clause_count = 0;
     parser.header_contract_count = 0;
-    parser.header_frames[0] = CallableHeaderFrame {
+    parser.header_frames[0] = |parser|::CallableHeaderFrame {
         owner: owner,
         contract: callable_contract(parser, parser.machine_start,
             parser.machine_name_start, parser.machine_name_end,
@@ -40,7 +25,7 @@ crashes Trap
     transition { _ -> clauses(parser, input) }
 
     machine clauses(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
-        let frame: CallableHeaderFrame = top_header_frame(parser);
+        let frame: |parser|::CallableHeaderFrame = top_header_frame(parser);
         |clause|::parse_clauses(parser, input, frame.owner);
         transition parser.output.accepted {
             true -> stage_capacity(parser, input),
@@ -149,7 +134,7 @@ crashes Trap
     }
 
     machine push(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, generic_count: u64 in Trapping) {
-        let frame: CallableHeaderFrame = CallableHeaderFrame {
+        let frame: |parser|::CallableHeaderFrame = |parser|::CallableHeaderFrame {
             owner: |syntax_trees|::ClauseOwner::Contract,
             contract: callable_contract(parser, parser.contract_start,
                 parser.contract_name_start, parser.contract_name_end,
@@ -167,7 +152,7 @@ crashes Trap
     // The optional late return belongs to this exact signature, not the most
     // recently parsed child. A return arrow is not a clause separator.
     machine returned(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
-        let frame: CallableHeaderFrame = top_header_frame(parser);
+        let frame: |parser|::CallableHeaderFrame = top_header_frame(parser);
         let arrow: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Arrow);
         transition arrow && !frame.contract.has_return_type {
             true -> return_type(parser, input),
@@ -185,7 +170,7 @@ crashes Trap
     }
 
     machine return_retained(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
-        let mutable frame: CallableHeaderFrame = top_header_frame(parser);
+        let mutable frame: |parser|::CallableHeaderFrame = top_header_frame(parser);
         frame.contract.has_return_type = true;
         frame.contract.return_type = parser.type_result;
         replace_header_frame(parser, frame);
@@ -208,7 +193,7 @@ crashes Trap
     }
 
     machine publish(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
-        let mutable frame: CallableHeaderFrame = top_header_frame(parser);
+        let mutable frame: |parser|::CallableHeaderFrame = top_header_frame(parser);
         frame.contract.first_clause = parser.output.clause_count as +Trapping;
         frame.contract.clause_count = (parser.header_clause_count as +Trapping)
             - (frame.first_clause as u64 +Trapping);
@@ -258,7 +243,7 @@ crashes Trap
     }
 
     machine publish_contracts(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
-        let frame: CallableHeaderFrame = top_header_frame(parser);
+        let frame: |parser|::CallableHeaderFrame = top_header_frame(parser);
         parser.header_clause_count = frame.first_clause;
         transition { _ -> publish_contract(parser, input, frame.first_contract as u64 +Trapping) }
     }
@@ -280,7 +265,7 @@ crashes Trap
     }
 
     machine pop(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
-        let frame: CallableHeaderFrame = top_header_frame(parser);
+        let frame: |parser|::CallableHeaderFrame = top_header_frame(parser);
         parser.header_contract_count = frame.first_contract;
         pop_header_frame(parser);
         transition parser.header_depth > 0 {
@@ -358,20 +343,20 @@ machine callable_contract(
 // The same storage discipline as the type/expression stacks: a bounded
 // cursor is checked once at the access boundary and survives as an exact
 // argument to the array operation.
-machine top_header_frame(parser: @|parser|::Parser) -> CallableHeaderFrame
+machine top_header_frame(parser: @|parser|::Parser) -> |parser|::CallableHeaderFrame
 crashes Trap
 {
     transition parser.header_depth > 0 {
         true -> read(parser, parser.header_depth - 1),
         _ -> invalid()
     }
-    machine read(parser: @|parser|::Parser, index: u64) -> CallableHeaderFrame
+    machine read(parser: @|parser|::Parser, index: u64) -> |parser|::CallableHeaderFrame
     requires index <= 256
     { parser.header_frames[index] }
-    machine invalid() -> CallableHeaderFrame { crash Trap; }
+    machine invalid() -> |parser|::CallableHeaderFrame { crash Trap; }
 }
 
-machine replace_header_frame(parser: @mutable |parser|::Parser, frame: CallableHeaderFrame)
+machine replace_header_frame(parser: @mutable |parser|::Parser, frame: |parser|::CallableHeaderFrame)
 crashes Trap
 {
     let header_depth: u64 = parser.header_depth;
@@ -379,20 +364,20 @@ crashes Trap
         true -> replace(parser, frame, header_depth - 1),
         _ -> invalid()
     }
-    machine replace(parser: @mutable |parser|::Parser, frame: CallableHeaderFrame, index: u64)
+    machine replace(parser: @mutable |parser|::Parser, frame: |parser|::CallableHeaderFrame, index: u64)
     requires index <= 256
     { parser.header_frames[index] = frame; }
     machine invalid() { crash Trap; }
 }
 
-machine push_header_frame(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, frame: CallableHeaderFrame)
+machine push_header_frame(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, frame: |parser|::CallableHeaderFrame)
 crashes Trap
 {
     transition parser.header_depth < 257 {
         true -> append(parser, frame),
         _ -> full(parser, input)
     }
-    machine append(parser: @mutable |parser|::Parser, frame: CallableHeaderFrame) {
+    machine append(parser: @mutable |parser|::Parser, frame: |parser|::CallableHeaderFrame) {
         parser.header_frames[parser.header_depth] = frame;
         parser.header_depth = parser.header_depth + 1;
     }

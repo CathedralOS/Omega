@@ -96,7 +96,7 @@ pub struct DomainCompletion {
     pub origin: CompletionOrigin,
 }
 
-/// The completion origins of `wiki/spec/terminal-psi/encoding.md` (scalar return origins).
+/// The completion origins of `source-rust/subsystems/compiler/psi/artifact/wire/encoding.md` (scalar return origins).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CompletionOrigin {
     /// A predicate-free, route-free tag. Its carrier’s required memberships must

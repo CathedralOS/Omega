@@ -19,7 +19,7 @@ mod file_result;
 use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use filesystem_authority::FilesystemGrantRootIdentity;
 use package_compilation::build_execution::{
-    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildDirectoryMappings,
+    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildDirectoryMappings, BuildFileError,
     BuildFilesystemEffects, BuildFilesystemRuntime, BuildMachineFilesystemScope, DirectoryAccess,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -58,7 +58,12 @@ struct FilesystemActivation {
 pub(crate) fn installed_operation(action: Operation) -> bool {
     matches!(
         action,
-        Operation::ReadAll | Operation::WriteAll | Operation::CreateDirectory
+        Operation::OpenFile
+            | Operation::ReadFile
+            | Operation::CloseFile
+            | Operation::ReadAll
+            | Operation::WriteAll
+            | Operation::CreateDirectory
     )
 }
 
@@ -115,7 +120,8 @@ impl TerminalBuildFilesystemHost {
             let shape = file_result::FileResult::admit(
                 artifact.module(),
                 result.structural_type,
-                call.action == Operation::ReadAll,
+                call.action,
+                boundary,
             )?;
             file_results.push((id, shape));
         }
@@ -271,6 +277,22 @@ impl TerminalImportAdapter for FilesystemAdapter {
 }
 
 impl TerminalEffectHandler for FilesystemAdapter {
+    fn storage_requirements(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        _: &[TerminalScalarValue],
+    ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        let needs_file = self
+            .host
+            .file_results
+            .iter()
+            .any(|(id, shape)| *id == boundary && shape.needs_file());
+        terminal_interpreter::TerminalCallStorageRequirements {
+            original: false,
+            arguments: if needs_file { &[0] } else { &[] },
+        }
+    }
+
     fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
         Err(TerminalEffectRejection::new(
             "Build filesystem requires result-aware dispatch",
@@ -281,16 +303,17 @@ impl TerminalEffectHandler for FilesystemAdapter {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        self.dispatch(effect, &mut [])
+        self.dispatch(effect, &mut [], &[])
             .map_err(TerminalEffectRejection::new)
     }
 
-    fn handle_effect_with_byte_buffers(
+    fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,
         buffers: &mut [TerminalBoundaryByteBuffer],
+        storage: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        self.dispatch(effect, buffers)
+        self.dispatch(effect, buffers, storage)
             .map_err(TerminalEffectRejection::new)
     }
 }
@@ -300,6 +323,7 @@ impl FilesystemAdapter {
         &self,
         effect: &TerminalEffect,
         buffers: &mut [TerminalBoundaryByteBuffer],
+        storage: &[terminal_interpreter::TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, String> {
         crate::host::require_effect_owner(effect, &self.host.artifact)
             .map_err(|error| error.reason)?;
@@ -328,8 +352,16 @@ impl FilesystemAdapter {
                 .map(|(_, shape)| shape)
                 .ok_or("missing admitted filesystem result")
         };
-        if !buffers.is_empty() && !matches!(action, Operation::Read | Operation::ReadAll) {
+        if !buffers.is_empty()
+            && !matches!(
+                action,
+                Operation::Read | Operation::ReadAll | Operation::ReadFile
+            )
+        {
             return Err("unexpected mutable filesystem operand".into());
+        }
+        if !storage.is_empty() && !matches!(action, Operation::ReadFile | Operation::CloseFile) {
+            return Err("unexpected File storage operand".into());
         }
         let structural = |position: usize| {
             structural_arguments
@@ -442,19 +474,37 @@ impl FilesystemAdapter {
                 } else {
                     runtime.create_directory(path)?
                 };
-                file_result()?
-                    .finish(written.map(|()| None))
+                file_result()?.finish(written.map(|()| None).map_err(BuildFileError::Io))
             }
-            Operation::ReadAll => {
+            Operation::OpenFile => file_result()?.finish(
+                runtime
+                    .open_file(bytes(0)?)?
+                    .map(Some)
+                    .map_err(BuildFileError::Io),
+            ),
+            Operation::CloseFile => {
+                let schema = file_result()?;
+                let handle = schema.handle(structural_arguments, storage)?;
+                schema.finish(runtime.close_handle(handle)?.map(|()| None))
+            }
+            Operation::ReadFile | Operation::ReadAll => {
                 let [buffer] = buffers else {
-                    return Err("read_all requires one mutable byte view".into());
+                    return Err("filesystem read requires one mutable byte view".into());
                 };
                 if buffer.argument_index() != 1 {
-                    return Err("read_all buffer has the wrong argument position".into());
+                    return Err("filesystem read buffer has the wrong argument position".into());
                 }
-                let read = runtime.read_file(bytes(0)?, buffer.bytes_mut(), unsigned(integer(0)?)?)?;
-                file_result()?
-                    .finish(read.map(Some))
+                let count = unsigned(integer(0)?)?;
+                let schema = file_result()?;
+                let read = if action == Operation::ReadFile {
+                    let handle = schema.handle(structural_arguments, storage)?;
+                    runtime.read_handle(handle, buffer.bytes_mut(), count)?
+                } else {
+                    runtime
+                        .read_file(bytes(0)?, buffer.bytes_mut(), count)?
+                        .map_err(BuildFileError::Io)
+                };
+                schema.finish(read.map(Some))
             }
             Operation::Read => {
                 let root = self.host.source_root(structural(0)?)?;

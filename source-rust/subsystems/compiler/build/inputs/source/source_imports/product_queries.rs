@@ -533,7 +533,7 @@ impl ProductQueryInputs {
             for import in authored
                 .imports
                 .iter()
-                .filter(|import| import.used_in(authored.scope))
+                .filter(|import| import.used_in_declaration_query(authored.scope))
             {
                 let contract = storage.installed_roots.root_for(&authored.path);
                 let mounted_owner = owner.is_some_and(|inputs| {

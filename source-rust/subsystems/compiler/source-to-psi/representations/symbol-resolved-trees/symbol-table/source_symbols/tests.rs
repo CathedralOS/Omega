@@ -1542,23 +1542,7 @@ mod paths {
     use crate::source_symbols::SymbolHandle;
 
     #[test]
-    fn resolves_child_paths_by_sibling_walk() {
-        let mut symbols = main_entry_symbols();
-        let root = symbols.root();
-        let path = symbols.resolve_child_path(root, ["main", "entry"]);
-        let names = symbols
-            .path_members(path)
-            .iter()
-            .map(|symbol| symbols.name(*symbol))
-            .collect::<Vec<_>>();
-
-        assert_eq!(names, vec!["main", "entry"]);
-        let missing_path = symbols.resolve_child_path(root, ["main", "missing"]);
-        assert!(symbols.path_members(missing_path).is_empty());
-    }
-
-    #[test]
-    fn resolves_descendant_without_storing_path_members() {
+    fn resolves_descendant_by_sibling_walk() {
         let symbols = main_entry_symbols();
         let root = symbols.root();
         let entry = symbols
@@ -1570,7 +1554,6 @@ mod paths {
             symbols.find_descendant_by_path(root, ["main", "missing"]),
             None
         );
-        assert_eq!(symbols.path_member_arena().len(), 0);
     }
 
     #[test]

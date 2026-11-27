@@ -171,7 +171,7 @@ pub fn prepare_replay<'source>(
 #[derive(Clone, Copy)]
 pub(crate) struct FormedModule<'a> {
     module: &'a TerminalModule,
-    nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
+    nominal_calls: &'a [terminal_psi::generic_calls::NominalCallType],
     pub(crate) schemas: &'a [terminal_check_tables::contracts::StaticSchemaQuestion],
     domain_sources: &'a arena::IdTable<
         semantic_vocabulary::DomainSemanticId,
@@ -182,7 +182,7 @@ pub(crate) struct FormedModule<'a> {
 impl<'a> FormedModule<'a> {
     pub(crate) fn new(
         module: &'a TerminalModule,
-        nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
+        nominal_calls: &'a [terminal_psi::generic_calls::NominalCallType],
         schemas: &'a [terminal_check_tables::contracts::StaticSchemaQuestion],
         domain_sources: &'a arena::IdTable<
             semantic_vocabulary::DomainSemanticId,
@@ -197,7 +197,7 @@ impl<'a> FormedModule<'a> {
         }
     }
 
-    pub(crate) fn nominal_calls(self) -> &'a [terminal_psi::generic_calls::NominalCallArgument] {
+    pub(crate) fn nominal_calls(self) -> &'a [terminal_psi::generic_calls::NominalCallType] {
         self.nominal_calls
     }
 

@@ -49,6 +49,7 @@ mod compilation;
 mod components;
 mod declare;
 mod lower;
+mod identity_tables;
 mod mathematics;
 mod policy;
 mod publication;
@@ -527,7 +528,7 @@ fn read_bodies(
         if program
             .template_bodies
             .iter()
-            .any(|(template, _)| *template == next)
+            .any(|(template, body)| *template == next && !body.lowered)
         {
             if complete {
                 bodies.push(Body {

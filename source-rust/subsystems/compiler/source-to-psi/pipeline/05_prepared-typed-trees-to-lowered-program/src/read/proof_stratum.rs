@@ -60,14 +60,143 @@ impl Program<'_> {
 
     /// Whether a field of this declaration, or of one of its cases, has the
     /// declaration itself as its type.
+    pub(crate) fn contains_itself_directly(&self, data: &DataDefinition) -> bool {
+        self.field_declarations(data).contains(&data.symbol)
+    }
+
+    /// Whether the declaration contains itself: a field of it, or of one of
+    /// its cases, has the declaration as its type, directly or through the
+    /// fields of other declarations. The declarations it so reaches and that
+    /// reach it again are one mutual block with it (`mutual_block`).
     pub(crate) fn contains_itself(&self, data: &DataDefinition) -> bool {
+        self.reaches(data, data.symbol, &mut Vec::new())
+    }
+
+    /// Each declaration a field of `data`, or of one of its cases, names.
+    fn field_declarations(&self, data: &DataDefinition) -> Vec<SymbolHandle> {
         let typed = self.typed;
-        typed.data_members(data).iter().any(|member| match member {
-            DataMember::Field(field) => self.names_data(field.type_reference) == Some(data.symbol),
-            DataMember::Variant(variant) => typed
-                .data_payload_fields(variant)
-                .iter()
-                .any(|field| self.names_data(field.type_reference) == Some(data.symbol)),
+        let mut named = Vec::new();
+        for member in typed.data_members(data) {
+            match member {
+                DataMember::Field(field) => self.names_through(field.type_reference, &mut named),
+                DataMember::Variant(variant) => {
+                    for field in typed.data_payload_fields(variant) {
+                        self.names_through(field.type_reference, &mut named);
+                    }
+                }
+            }
+        }
+        named
+    }
+
+    /// The declarations a field's type names: the data it names, or, for a
+    /// callable (`data Branch = machine(index: u64) -> Tree ..`), every
+    /// declaration its parameters and its result name. A field holding a
+    /// callable whose result is the data holds a child for each argument;
+    /// one whose parameter names the data is a negative occurrence, which
+    /// the signature refuses at the declaration.
+    fn names_through(&self, reference: TypeReferenceHandle, named: &mut Vec<SymbolHandle>) {
+        if let Some(symbol) = self.names_data(reference) {
+            named.push(symbol);
+            return;
+        }
+        if !reference.is_valid() {
+            return;
+        }
+        let typed = self.typed;
+        let TypeReferenceNode::Callable { contract } =
+            typed.type_reference_table.type_reference(reference)
+        else {
+            return;
+        };
+        if !typed.runtime_callable_contracts.is_valid(*contract) {
+            return;
+        }
+        let signature = &typed.runtime_callable_contract(*contract).signature;
+        for parameter in typed
+            .state_parameters
+            .span(signature.parameters)
+            .unwrap_or_default()
+        {
+            self.names_through(parameter.type_reference, named);
+        }
+        self.names_through(signature.return_type, named);
+    }
+
+    fn reaches(
+        &self,
+        data: &DataDefinition,
+        target: SymbolHandle,
+        visited: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        for symbol in self.field_declarations(data) {
+            if symbol == target {
+                return true;
+            }
+            if visited.contains(&symbol) {
+                continue;
+            }
+            visited.push(symbol);
+            if self
+                .typed
+                .unique_data_definition_by_symbol(symbol)
+                .is_some_and(|next| self.reaches(next, target, visited))
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The declarations of the mutual block of data that contains itself:
+    /// `data` and every declaration it reaches through fields that reaches it
+    /// again, in one order whichever member it is asked of.
+    pub(crate) fn mutual_block(&self, data: &DataDefinition) -> Vec<SymbolHandle> {
+        let mut reached = vec![data.symbol];
+        let mut at = 0;
+        while let Some(&symbol) = reached.get(at) {
+            at += 1;
+            let Some(declaration) = self.typed.unique_data_definition_by_symbol(symbol) else {
+                continue;
+            };
+            for named in self.field_declarations(declaration) {
+                if !reached.contains(&named) {
+                    reached.push(named);
+                }
+            }
+        }
+        let mut block: Vec<SymbolHandle> = reached
+            .into_iter()
+            .filter(|&symbol| {
+                symbol == data.symbol
+                    || self
+                        .typed
+                        .unique_data_definition_by_symbol(symbol)
+                        .is_some_and(|member| self.reaches(member, data.symbol, &mut Vec::new()))
+            })
+            .collect();
+        block.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+        block
+    }
+
+    /// Whether a type is a callable whose parameters or result name data
+    /// that is mathematical: a stored function of such data, which is no
+    /// more stored than the data is.
+    pub(crate) fn is_mathematical_callable(&self, reference: TypeReferenceHandle) -> bool {
+        if !reference.is_valid()
+            || !matches!(
+                self.typed.type_reference_table.type_reference(reference),
+                TypeReferenceNode::Callable { .. }
+            )
+        {
+            return false;
+        }
+        let mut named = Vec::new();
+        self.names_through(reference, &mut named);
+        named.into_iter().any(|symbol| {
+            self.typed
+                .unique_data_definition_by_symbol(symbol)
+                .is_some_and(|data| self.is_mathematical_data(data))
         })
     }
 

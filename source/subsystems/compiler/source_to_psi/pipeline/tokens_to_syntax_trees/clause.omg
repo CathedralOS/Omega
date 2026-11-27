@@ -1,7 +1,8 @@
 use pipeline/tokens_to_syntax_trees/expression.omg;
 use pipeline/tokens_to_syntax_trees/input.omg;
 use pipeline/tokens_to_syntax_trees/types.omg;
-use pipeline/tokens_to_syntax_trees/parser.omg;
+use pipeline/tokens_to_syntax_trees/parser_state.omg as parser;
+use pipeline/tokens_to_syntax_trees/path.omg;
 
 use representations/source_files/source.omg;
 use representations/syntax_trees/syntax_trees.omg;
@@ -155,7 +156,7 @@ crashes Trap
     machine satisfied_member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, owner: |syntax_trees|::ClauseOwner) {
         let start: u64 in Trapping = parser.name_start;
         let end: u64 in Trapping = parser.name_end;
-        append_member(parser, input, start, end);
+        |path|::append_member(parser, input, start, end);
         transition parser.output.accepted {
             true -> satisfied_separator(parser, input, owner),
             _ -> done()
@@ -226,7 +227,7 @@ crashes Trap
     machine requirement_member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, owner: |syntax_trees|::ClauseOwner) {
         let start: u64 in Trapping = parser.name_start;
         let end: u64 in Trapping = parser.name_end;
-        append_member(parser, input, start, end);
+        |path|::append_member(parser, input, start, end);
         transition parser.output.accepted {
             true -> satisfied_requirement(parser, input, owner, end),
             _ -> done()
@@ -528,7 +529,7 @@ crashes Trap
     machine service_member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, owner: |syntax_trees|::ClauseOwner) {
         let start: u64 in Trapping = parser.name_start;
         let end: u64 in Trapping = parser.name_end;
-        append_member(parser, input, start, end);
+        |path|::append_member(parser, input, start, end);
         transition parser.output.accepted {
             true -> service_separator(parser, input, owner),
             _ -> done()
@@ -600,7 +601,7 @@ crashes Trap
     machine invokes_member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, owner: |syntax_trees|::ClauseOwner) {
         let start: u64 in Trapping = parser.name_start;
         let end: u64 in Trapping = parser.name_end;
-        append_member(parser, input, start, end);
+        |path|::append_member(parser, input, start, end);
         transition parser.output.accepted {
             true -> operational_end(parser, input, owner, |syntax_trees|::ClauseKind::Invokes),
             _ -> done()
@@ -917,25 +918,6 @@ machine clause_admitted(owner: |syntax_trees|::ClauseOwner, kind: |syntax_trees|
 
     machine refused() -> bool {
         false
-    }
-}
-
-// Append one name to `SyntaxTrees::members`.
-machine append_member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, start: u64 in Trapping, end: u64 in Trapping)
-crashes Trap
-{
-    transition parser.output.member_count < 32000 {
-        true -> append(parser, start, end),
-        _ -> full(parser, input)
-    }
-
-    machine append(parser: @mutable |parser|::Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        parser.output.members[parser.output.member_count] = |parser|::identifier_span(parser, start, end);
-        parser.output.member_count = parser.output.member_count + 1;
-    }
-
-    machine full(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
-        |input|::reject_current(parser, input, |syntax_trees|::ParseDiagnosticCode::PathMemberCapacityExceeded);
     }
 }
 

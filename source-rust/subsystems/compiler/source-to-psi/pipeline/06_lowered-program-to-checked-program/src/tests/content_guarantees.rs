@@ -446,6 +446,7 @@ fn a_returned_record_retires_after_its_qualified_fields_move() {
     let check = |body| {
         let typed = with_content(&format!(
             "{partition}
+data Envelope {{ tag: u64; payload: Parts; }}
 machine consume(a: Region in First & Second, b: Region in First & Second) {{
     drop_region(a as -First -Second);
     drop_region(b as -First -Second);
@@ -464,14 +465,27 @@ requires whole.base == 10 && whole.length == 48 {{
             terminal_codec::TerminalPublication::Invocation,
         ))
     };
-    let RouteVerdict::Accepted(checked) = check("consume(parts.left, parts.right);").unwrap()
-    else {
-        panic!("both qualified components have moved to the callee");
-    };
-    checked.publish_invocation().unwrap();
+    for valid in [
+        "consume(parts.left, parts.right);",
+        "let { left, right } = parts; consume(left, right);",
+        "let envelope: Envelope = Envelope { tag: 7, payload: parts };
+         let { left, right } = envelope.payload;
+         consume(left, right);",
+    ] {
+        let RouteVerdict::Accepted(checked) = check(valid).unwrap() else {
+            panic!("both qualified components should move to the callee: {valid}");
+        };
+        checked.publish_invocation().unwrap();
+    }
     for invalid in [
         "consume(parts.left, parts.left);",
         "drop_region(parts.left as -First -Second);",
+        "let { left, right } = parts; consume(left, left);",
+        "let { left, right as _ } = parts; drop_region(left as -First -Second);",
+        "let envelope: Envelope = Envelope { tag: 7, payload: parts };
+         let { left, right } = envelope.payload;
+         let { base as _, length as _ } = left;
+         drop_region(right as -First -Second);",
     ] {
         let verdict = check(invalid);
         assert!(

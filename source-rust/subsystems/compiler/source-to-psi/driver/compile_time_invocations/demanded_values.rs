@@ -30,6 +30,7 @@ use super::{
     SourceCompletionAccounting,
 };
 use crate::source_state::TypedTrees;
+use crate::source_state::references::ComputationDependencyRows;
 
 /// The request whose compile-time values are evaluated, with the custody
 /// every evaluation runs under.
@@ -153,17 +154,32 @@ pub(crate) fn evaluate_demanded_values(
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<EvaluatedValues, Vec<Diagnostic>> {
     super::constants::retain_evaluation_entries(program)?;
-    let mut layouts = super::fixed_layouts::Layouts::demanded(program, demand.layout_scopes)?;
-    let demanded = super::demanded_declarations(program, demand.compilation, demand.layout_scopes)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    // Finding the demanded values changes no declaration's dependencies (a
+    // layout demand only refreshes refusal rows), so one inventory of them
+    // serves every kind and the demand order.
+    let dependencies = ComputationDependencyRows::of(program);
+    let mut layouts =
+        super::fixed_layouts::Layouts::demanded(program, demand.layout_scopes, &dependencies)?;
+    let demanded = super::demanded_declarations(
+        program,
+        demand.compilation,
+        demand.layout_scopes,
+        &dependencies,
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut plans = super::domain_access_plans::AccessPlans::demanded(program, &demanded);
     let mut arguments = super::constants::Arguments::demanded(program, &demanded);
-    let mut initializers =
-        super::constants::Initializers::demanded(program, &demanded, demand.layout_scopes)?;
+    let mut initializers = super::constants::Initializers::demanded(
+        program,
+        &demanded,
+        demand.layout_scopes,
+        &dependencies,
+    )?;
     settle_in_demand_order(
         program,
         demand,
         &mut [&mut layouts, &mut plans, &mut arguments, &mut initializers],
+        dependencies,
         accounting,
     )?;
     let mut inputs = arguments.into_inputs();
@@ -204,6 +220,8 @@ fn reached(
 }
 
 /// Evaluates every value of `kinds` once, each after the values it waits for.
+/// `dependencies` must be built from `program` as it is now; they are
+/// dropped before the first value changes it.
 ///
 /// A value waits for another when its computation reaches a declaration that
 /// holds the other. Values that wait for nothing unsettled form a round, are
@@ -213,6 +231,7 @@ fn settle_in_demand_order(
     program: &mut TypedTrees,
     demand: &ValueDemand<'_>,
     kinds: &mut [&mut dyn DemandedValues],
+    dependencies: ComputationDependencyRows,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<(), Vec<Diagnostic>> {
     // A value's position in the order, as its kind and its number there.
@@ -224,14 +243,13 @@ fn settle_in_demand_order(
     if places.is_empty() {
         return Ok(());
     }
-    let rows = crate::source_state::references::ComputationDependencyRows::of(program);
     let mut reads = Vec::with_capacity(places.len());
     for &(kind, value) in &places {
-        let reached = reached(program, rows.rows(), kinds[kind].roots(value));
+        let reached = reached(program, dependencies.rows(), kinds[kind].roots(value));
         kinds[kind].reaches(program, value, &reached);
         reads.push(reached);
     }
-    drop(rows);
+    drop(dependencies);
     let mut order = {
         let holders = places
             .iter()

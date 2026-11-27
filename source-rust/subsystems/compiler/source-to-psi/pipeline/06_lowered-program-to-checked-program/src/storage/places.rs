@@ -1908,6 +1908,47 @@ impl<'a> Storage<'a> {
         })
     }
 
+    /// A logical application's clause where its edge leaves. Formal `i`
+    /// is the application's `i`th subject. A subject that is a field of one
+    /// of this machine's record formals is the one value that field holds
+    /// on every path to the edge, as a call's record actual is read
+    /// (`at_call`); only the subjects the clause names are read.
+    pub(crate) fn theorem_clause(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        edge: EdgeId,
+        subjects: &[ScalarTerm],
+        clause: &Proposition,
+        concerns: Construct,
+    ) -> Checked<Proposition> {
+        let formals = &self.lowered.structural_parameters;
+        let (block, _) = self.graph.locate(ProgramPoint::Edge(edge))?;
+        let mut bindings = TheoremSubjects {
+            subjects,
+            held: AtCall {
+                storage: self,
+                references,
+                tables,
+                scalars: Vec::new(),
+                places: formals
+                    .iter()
+                    .map(|formal| Lineage {
+                        root: formal.place,
+                        segments: Vec::new(),
+                    })
+                    .collect(),
+                callee_formals: formals,
+                extent_owner: None,
+                block,
+                up_to: self.block(block)?.operations.len(),
+                concerns,
+            },
+        };
+        crate::substitute_goal(clause, &mut bindings)
+            .map_err(|unbound| unbound.refusal(self.machine, concerns))
+    }
+
     pub(crate) fn arrival(
         &self,
         edge: EdgeId,
@@ -2643,7 +2684,9 @@ impl<'a> Storage<'a> {
                         }
                         StructuralTypeShape::FixedArray {
                             element,
-                            length: terminal_psi::ArrayExtent::Parameter { .. },
+                            length:
+                                terminal_psi::ArrayExtent::Parameter { .. }
+                                | terminal_psi::ArrayExtent::Application(_),
                         } if matches!(segment, Segment::RuntimeIndex { .. }) => element,
                         StructuralTypeShape::ElementView { element, .. }
                             if matches!(segment, Segment::RuntimeIndex { .. }) =>
@@ -2950,6 +2993,13 @@ impl<'a> Storage<'a> {
                 root,
                 projection.path,
                 types,
+                |application| {
+                    self.module
+                        .scalars
+                        .scalar_applications
+                        .declaration(application)
+                        .and_then(|declaration| declaration.scalar_type())
+                },
                 |prefix| {
                     terminal_semantics::preceding_collection_length(
                         preceding,
@@ -5526,9 +5576,6 @@ impl<'a> Storage<'a> {
             Ok(())
         };
         match &block.terminator {
-            // The suspended frame retains the owner and every descriptor that
-            // borrows it. No instruction observes or mutates their storage here.
-            Terminator::PendingNormalCompletion { .. } => {}
             Terminator::StructuralCase { source, path, .. } => {
                 reads.push(self.stored_at(*source, path, Construct::Block(block.id))?);
             }
@@ -6478,8 +6525,6 @@ impl<'a> Storage<'a> {
                 }
             }
             let (edge, used) = match &block.terminator {
-                // Parking transfers no value and consumes no authority.
-                Terminator::PendingNormalCompletion { .. } => continue,
                 Terminator::EliminateEmpty { edge, source, path } => {
                     let at = Construct::Edge(*edge);
                     let subject = vec![self.stored_at(*source, path, at)?];
@@ -7618,6 +7663,73 @@ pub(crate) struct AtCall<'s, 'a> {
     block: BlockId,
     up_to: usize,
     concerns: Construct,
+}
+
+/// A logical application's subjects, each read where its edge leaves.
+struct TheoremSubjects<'t, 's, 'a> {
+    subjects: &'t [ScalarTerm],
+    held: AtCall<'s, 'a>,
+}
+
+impl crate::Bindings for TheoremSubjects<'_, '_, '_> {
+    type Error = crate::Unbound;
+
+    fn value(
+        &mut self,
+        id: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        let subject = usize::try_from(id.get() - 1)
+            .ok()
+            .and_then(|position| self.subjects.get(position))
+            .filter(|subject| subject.scalar_type() == scalar_type)
+            .ok_or(crate::Unbound::Unsupported(
+                "logical clause names a subject the application does not supply",
+            ))?;
+        match subject {
+            ScalarTerm::IntegerField {
+                version,
+                root,
+                path,
+                ..
+            }
+            | ScalarTerm::BooleanField {
+                version,
+                root,
+                path,
+            }
+            | ScalarTerm::IeeeFloatField {
+                version,
+                root,
+                path,
+                ..
+            } => crate::Bindings::field(&mut self.held, *version, *root, path, scalar_type),
+            other => Ok(other.clone()),
+        }
+    }
+
+    fn field(
+        &mut self,
+        _: semantic_vocabulary::ContentPlaceVersion,
+        _: PlaceId,
+        _: &[CanonicalStructuralPathSegment],
+        _: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        Err(crate::Unbound::Unsupported(
+            "a logical contract's clause observes storage",
+        ))
+    }
+
+    fn case(
+        &mut self,
+        _: PlaceId,
+        _: &[CanonicalStructuralPathSegment],
+        _: StructuralCaseId,
+    ) -> Result<CaseAnswer, crate::Unbound> {
+        Err(crate::Unbound::Unsupported(
+            "a logical contract's clause tests a case",
+        ))
+    }
 }
 
 impl<'a> AtCall<'_, 'a> {

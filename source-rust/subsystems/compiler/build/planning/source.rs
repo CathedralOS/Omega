@@ -58,6 +58,7 @@ pub struct PreparedPlanningStage {
 #[derive(Clone)]
 pub(super) struct PlanningSource {
     pub(super) file_imports: source_compiler::FileImportAdvisories,
+    pub(super) declaration_usage: source_compiler::DeclarationUsageAdvisories,
     query_authors: Option<Arc<SourceMap>>,
     query_declarations: Option<(ProductQueryInputs, ProductDeclarations)>,
     pub(super) deferred: DeferredProductSources,
@@ -71,6 +72,7 @@ pub(super) struct PlanningSource {
 /// The opened Product and the exact Build and package graph that admitted it.
 pub struct PlannedProduct {
     file_imports: source_compiler::FileImportAdvisories,
+    declaration_usage: source_compiler::DeclarationUsageAdvisories,
     pub(super) supplied_build_libraries: Arc<[SuppliedBuildLibrary]>,
     pub(crate) evaluated: EvaluatedBuild,
     pub(crate) build_profile: TargetProfile,
@@ -180,6 +182,14 @@ impl PlannedProduct {
         for supplier in self.suppliers.values() {
             supplier.collect_file_imports(uses);
         }
+    }
+
+    /// Fold this validation subject's Build-stage declaration usage into the invocation's advisories.
+    pub fn collect_declaration_usage(
+        &self,
+        uses: &mut source_compiler::DeclarationUsageAdvisories,
+    ) {
+        uses.extend(&self.declaration_usage);
     }
 
     pub fn preparation(&self) -> &SourcePreparation {
@@ -296,7 +306,10 @@ pub fn prepare(
         profile,
         inputs,
         &supplied_libraries,
-        execution.dependency_activation,
+        source_compiler::BuildSourceCheck {
+            providers: &execution.interpreter_providers,
+            check_entry_file: !execution.dependency_activation,
+        },
     )?;
     // A dependency Build checks only what its entry reaches, so typing its
     // file under a check-only owner would produce a subject nothing judges.
@@ -309,7 +322,13 @@ pub fn prepare(
             &assembled.build_scope_sources,
             assembled.build_source,
         ) {
-        check_only_subject(&assembled, &preparation, profile, &supplied_libraries)?
+        check_only_subject(
+            &assembled,
+            &preparation,
+            profile,
+            &supplied_libraries,
+            &execution.interpreter_providers,
+        )?
     } else {
         None
     };
@@ -337,12 +356,15 @@ pub fn prepare(
     )
     .map_err(|failure| locate_failure(failure, &assembled.parsed.files, inputs))?;
     let mut file_imports = std::mem::take(&mut preparations.file_imports);
-    file_imports.observe(&assembled.parsed, source_provenance::DependencyScope::Build);
+    file_imports.observe_build(&assembled.parsed, &interval.program);
+    let mut declaration_usage = std::mem::take(&mut preparations.declaration_usage);
+    declaration_usage.extend(evaluation.declaration_usage());
     Ok(PreparedPlanningStage {
         preparations,
         evaluation,
         source: PlanningSource {
             file_imports,
+            declaration_usage,
             supplied_libraries,
             query_authors: interval.program.symbols.source_map(),
             query_declarations: None,
@@ -362,6 +384,7 @@ fn check_only_subject(
     preparation: &SourcePreparation,
     profile: TargetProfile,
     libraries: &[SuppliedBuildLibrary],
+    providers: &source_compiler::InterpretedProviderSelections,
 ) -> Result<Option<TypedBuildInterval>, CompileFailure> {
     let Some(stage) = assembled.check_only_build_stage_source()? else {
         return Ok(None);
@@ -375,7 +398,15 @@ fn check_only_subject(
         .map_err(refusal)?;
     let scope = SuppliedBuildLibrary::declaration_scope(libraries, check_owner).map(Arc::new);
     stage
-        .prepare(preparation, profile.target_name(), scope)
+        .prepare(
+            preparation,
+            profile.target_name(),
+            scope,
+            source_compiler::BuildSourceCheck {
+                providers,
+                check_entry_file: true,
+            },
+        )
         .map(Some)
         .map_err(|rows| locate_failure(rows.into(), &assembled.parsed.files, None))
 }
@@ -434,18 +465,14 @@ fn resolve(
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
     libraries: &[SuppliedBuildLibrary],
-    entry_only: bool,
+    check: source_compiler::BuildSourceCheck<'_>,
 ) -> Result<TypedBuildInterval, CompileFailure> {
     let scope = inputs
         .map(|inputs| inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
         .or_else(|| SuppliedBuildLibrary::declaration_scope(libraries, assembled.build_owner()))
         .map(Arc::new);
     let stage = assembled.build_stage_source()?;
-    let prepared = if entry_only {
-        stage.prepare_entry_only(preparation, profile.target_name(), scope)
-    } else {
-        stage.prepare(preparation, profile.target_name(), scope)
-    };
+    let prepared = stage.prepare(preparation, profile.target_name(), scope, check);
     prepared.map_err(|rows| locate_failure(rows.into(), &assembled.parsed.files, inputs))
 }
 
@@ -647,10 +674,10 @@ impl PlanningSource {
                 )
             })?
             .1;
-        self.file_imports
-            .observe(&source.parsed, source_provenance::DependencyScope::Product);
+        self.file_imports.observe_product(&source.parsed);
         Ok(PlannedProduct {
             file_imports: self.file_imports,
+            declaration_usage: self.declaration_usage,
             supplied_build_libraries: self.supplied_libraries,
             evaluated,
             build_profile: self.profile,

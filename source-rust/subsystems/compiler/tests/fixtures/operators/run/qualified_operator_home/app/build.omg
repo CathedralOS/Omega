@@ -1,8 +1,8 @@
 use main.omg as app;
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "qualified_operator_home");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "qualified_operator_home" };
     let mutable selected: DependencyDescription = |dependency|::from_source(Source::Path { location: "../provider" });
     |dependency|::with_alias(@mutable selected, "measure");
     let registration: DependencyRegistration = Build::dependency(builder, selected);

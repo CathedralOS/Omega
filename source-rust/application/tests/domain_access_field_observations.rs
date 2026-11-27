@@ -135,3 +135,48 @@ machine main() crashes Trap {
 }
 "#);
 }
+
+#[test]
+fn shared_scalar_recasts_of_fields_and_borrowed_scalars_agree_natively_and_in_psi() {
+    program::assert_silent_return(
+        r#"data Cell [copy] { head: u8; other: u8; }
+machine read_field(cell: @Cell) -> i8 {
+    let seen: @i8 = @cell.other as @i8;
+    $seen
+}
+machine view_field(cell: @Cell) -> @i8 {
+    @cell.other as @i8
+}
+machine view_byte(byte: @u8) -> @i8 {
+    byte as @i8
+}
+machine flag_byte(flag: @bool) -> u8 {
+    let seen: @u8 = flag as @u8;
+    $seen
+}
+machine main() crashes Trap {
+    let cell: Cell = Cell { head: 1u8, other: 255u8 };
+    let local_seen: @i8 = @cell.other as @i8;
+    let from_field: @i8 = view_field(@cell);
+    let byte: u8 = 254u8;
+    let from_byte: @i8 = view_byte(@byte);
+    let flag: bool = true;
+    let word_bits: u32 = 1065353216u32;
+    let as_float: @f32 = @word_bits as @f32;
+    let one: f32 = $as_float;
+    let back_bits: @u32 = @one as @u32;
+    transition read_field(@cell) == -1i8
+        && $local_seen == -1i8
+        && $from_field == -1i8
+        && $from_byte == -2i8
+        && flag_byte(@flag) == 1u8
+        && $back_bits == 1065353216u32 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#,
+    );
+}

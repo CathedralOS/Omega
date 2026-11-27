@@ -464,6 +464,20 @@ impl<'a> DefaultRequirements<'a> {
         carrier: StructuralTypeId,
         demand: DefaultDemand<'_>,
     ) -> Judged<Vec<DefaultRequirement>> {
+        self.at_except(root, path, carrier, demand, &[])
+    }
+
+    /// The default clauses at one place, leaving out the named domains in
+    /// `delivered`: a whole stored value carries those memberships itself,
+    /// so they owe no clause and need no storage predicate theory.
+    fn at_except(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        carrier: StructuralTypeId,
+        demand: DefaultDemand<'_>,
+        delivered: &[StructuralDomainId],
+    ) -> Judged<Vec<DefaultRequirement>> {
         let mut result = Vec::new();
         for position in 0..self.declaration(carrier)?.requires.len() {
             result.push(DefaultRequirement {
@@ -475,7 +489,7 @@ impl<'a> DefaultRequirements<'a> {
         }
         let mut named = Vec::new();
         for id in self.declared.at(root, path).whole {
-            named.extend(self.domain_clauses(id, carrier, path, demand)?);
+            named.extend(self.domain_clauses(id, carrier, path, demand, delivered)?);
         }
         named.sort_unstable();
         named.dedup();
@@ -495,6 +509,7 @@ impl<'a> DefaultRequirements<'a> {
         carrier: StructuralTypeId,
         path: &[StructuralPathSegment],
         demand: DefaultDemand<'_>,
+        delivered: &[StructuralDomainId],
     ) -> Judged<Vec<StructuralDomainId>> {
         let mut named = Vec::new();
         let row = self
@@ -510,6 +525,9 @@ impl<'a> DefaultRequirements<'a> {
             .required_domain_closure(self.domains)
             .ok_or_else(|| self.error("a named default has incomplete membership requirements"))?;
         for domain in closure {
+            if delivered.contains(&domain.id) {
+                continue;
+            }
             // Snapshot demand names predicate operands. Restoring storage additionally
             // owes the value's content, which predicate clauses cannot establish.
             if !domain.complete_predicate_theory
@@ -649,6 +667,7 @@ impl<'a> DefaultRequirements<'a> {
                                         leaf,
                                         &qualified.path,
                                         demand,
+                                        &[],
                                     )?
                                     .is_empty();
                             }
@@ -679,7 +698,9 @@ impl<'a> DefaultRequirements<'a> {
             // zero vocabulary check permits only ungated primitive elements,
             // so there is no nested default clause to inventory here.
             StructuralTypeShape::FixedArray {
-                length: terminal_psi::ArrayExtent::Parameter { .. },
+                length:
+                    terminal_psi::ArrayExtent::Parameter { .. }
+                    | terminal_psi::ArrayExtent::Application(_),
                 ..
             } if zero => {}
             StructuralTypeShape::Record { fields, .. } => {
@@ -1043,11 +1064,12 @@ impl<'a> DefaultRequirements<'a> {
     ) -> Judged<()> {
         let displayed = self.declared.at(displayed_root, displayed_path);
         let lost = self
-            .at(
+            .at_except(
                 root,
                 path,
                 self.carrier(root, path)?,
                 DefaultDemand::Restoration,
+                &displayed.whole,
             )?
             .into_iter()
             .filter(|required| {
@@ -1520,7 +1542,9 @@ fn zero_defaults_supported(
         }
         StructuralTypeShape::FixedArray {
             element,
-            length: terminal_psi::ArrayExtent::Parameter { .. },
+            length:
+                terminal_psi::ArrayExtent::Parameter { .. }
+                | terminal_psi::ArrayExtent::Application(_),
         } => {
             let supported = types
                 .binary_search_by_key(element, |row| row.id)

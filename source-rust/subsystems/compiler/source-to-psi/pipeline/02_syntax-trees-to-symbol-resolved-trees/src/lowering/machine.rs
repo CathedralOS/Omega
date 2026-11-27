@@ -991,11 +991,14 @@ fn sealed_intrinsic(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
-    let file = lowerer
+    let bundled = lowerer
         .sources
         .as_ref()?
-        .get(machine.name.source_span().source_id)?;
-    crate::source_symbols::sealed_intrinsic_at(file, machine.name.as_str(syntax_trees))
+        .bundled_core_file(machine.name.source_span().source_id)?;
+    language_core::sealed_intrinsics::SealedIntrinsicCatalog::classify_bundled(
+        bundled,
+        machine.name.as_str(syntax_trees),
+    )
 }
 
 /*

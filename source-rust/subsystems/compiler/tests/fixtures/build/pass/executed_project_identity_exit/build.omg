@@ -2,23 +2,23 @@ use main.omg as app;
 use {omega}/build/dependency.omg;
 use naming/naming.omg;
 
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     transition |naming|::enabled() {
         true -> declare_project(builder),
         false -> unselected(builder)
     }
 }
 
-machine declare_project(builder: @mutable Build) {
-    Build::application(builder, |naming|::project_name());
+machine declare_project(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: |naming|::project_name() };
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
     Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }
 
-machine unselected(builder: @mutable Build) {
-    Build::application(builder, "wrong_branch");
+machine unselected(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "wrong_branch" };
     let mutable missing_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "never_acquired" });
     |dependency|::with_alias(@mutable missing_dependency, "missing");
     let missing_registration: DependencyRegistration = Build::dependency(builder, missing_dependency);

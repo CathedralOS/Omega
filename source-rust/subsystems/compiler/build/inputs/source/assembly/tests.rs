@@ -140,7 +140,15 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
     let interval = assembled
         .build_stage_source()
         .unwrap()
-        .prepare(&Default::default(), "linux_x86_64", None)
+        .prepare(
+            &Default::default(),
+            "linux_x86_64",
+            None,
+            source_compiler::BuildSourceCheck {
+                providers: &Default::default(),
+                check_entry_file: true,
+            },
+        )
         .expect("exact declared requirement calls reach typed preparation");
     let typed = interval.program.as_ref();
     let unresolved: Vec<_> = typed
@@ -344,7 +352,15 @@ machine build(builder: @mutable BuildPlan) {
             assert_eq!(import.target.to_string(), "{scores}/value.omg as scores");
             assert_eq!(import.span.start, 4);
             let authored = source_text::SourceSpan::new(import.source, import.span);
-            let Err(errors) = source.prepare(&Default::default(), "linux_x86_64", None) else {
+            let Err(errors) = source.prepare(
+                &Default::default(),
+                "linux_x86_64",
+                None,
+                source_compiler::BuildSourceCheck {
+                    providers: &Default::default(),
+                    check_entry_file: true,
+                },
+            ) else {
                 panic!("a conditional wait admitted an unbound Build import");
             };
             assert_eq!(errors.len(), 1);
@@ -360,7 +376,15 @@ machine build(builder: @mutable BuildPlan) {
                 source.pending_imports
             );
             source
-                .prepare(&Default::default(), "linux_x86_64", None)
+                .prepare(
+                    &Default::default(),
+                    "linux_x86_64",
+                    None,
+                    source_compiler::BuildSourceCheck {
+                        providers: &Default::default(),
+                        check_entry_file: true,
+                    },
+                )
                 .expect("local Build code and deferred Product operands both prepare");
         }
     }
@@ -525,30 +549,35 @@ fn a_prepared_build_library_can_import_a_later_frozen_file() {
             &mut Default::default(),
             &mut Default::default(),
         )?;
-        Ok::<_, Vec<diagnostics::Diagnostic>>(
-            storage
-                .resolved_imports
-                .into_iter()
-                .map(|import| import.path)
-                .collect::<Vec<_>>(),
-        )
+        let pending = crate::source::source_imports::pending_build_imports(&storage);
+        let paths = storage
+            .resolved_imports
+            .into_iter()
+            .map(|import| import.path)
+            .collect::<Vec<_>>();
+        Ok::<_, Vec<diagnostics::Diagnostic>>((paths, pending))
     };
-    let expected = vec![
-        root.join(source_admission::GENERATED_SOURCE_DIRECTORY)
-            .join("value.omg"),
-    ];
+    let expected = (
+        vec![
+            root.join(source_admission::GENERATED_SOURCE_DIRECTORY)
+                .join("value.omg"),
+        ],
+        Vec::new(),
+    );
     assert_eq!(
         assemble(vec![value.clone(), user.clone()]).unwrap(),
         expected
     );
     assert_eq!(assemble(vec![user.clone(), value]).unwrap(), expected);
-    let errors = assemble(vec![user]).unwrap_err();
-    assert!(
-        errors[0]
-            .message
-            .contains("no admitted logical file `value.omg`"),
-        "{errors:?}"
-    );
+    let (paths, pending) = assemble(vec![user]).unwrap();
+    assert!(paths.is_empty());
+    let [missing] = pending.as_slice() else {
+        panic!("missing imported file: {pending:?}")
+    };
+    assert_eq!(missing.target.root, None);
+    assert_eq!(missing.target.path, "value.omg");
+    assert_eq!(missing.target.alias, "value");
+    assert_eq!(missing.declarations.len(), 1);
     let collision = assemble(vec![generated("authored.omg", "public data Other {}")]).unwrap_err();
     assert!(
         collision[0]

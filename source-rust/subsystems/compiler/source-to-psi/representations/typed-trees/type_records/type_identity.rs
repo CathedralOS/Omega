@@ -2143,7 +2143,6 @@ pub(crate) mod identity_context {
         pub(crate) exact_toolchain_sources: &'binders [(source_text::SourceId, [u8; 32])],
         pub(crate) missing_exact_nominal_owner: Option<&'binders Cell<bool>>,
         pub(crate) qualification: TypeIdentityQualification,
-        pub(crate) static_context: crate::source_state::expression::ExpressionHandle,
     }
 
     /// lifetimes.md, "Returned views": in a signature's inputs each elided
@@ -3131,15 +3130,6 @@ pub(crate) mod identity_context {
                 replacement_context
             };
             return normalize_type_identity(program, *replacement, &replacement_context);
-        }
-        if context.static_context.is_valid() {
-            let refined =
-                program.statically_refined_type_reference(context.static_context, type_reference);
-            if refined != type_reference
-                && crate::source_state::domain::index_argument_is_closed(program, refined)
-            {
-                return normalize_type_identity(program, refined, context);
-            }
         }
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Reference {
@@ -9456,27 +9446,29 @@ impl TypedTrees {
         &self,
         reference: TypeReferenceHandle,
     ) -> Option<&data::DataDefinition> {
-        // A field keeps its semantic type through a representation choice,
-        // including before that choice's geometry has been evaluated. Following
-        // the authenticated storage argument grants no layout or access rights.
-        let mut reference = reference;
+        self.closed_field_owner(reference).map(|(_, data)| data)
+    }
+
+    /// The semantic record application whose fields this value exposes.
+    /// A representation supplies storage geometry for its own semantic type.
+    pub(crate) fn closed_field_owner(
+        &self,
+        mut reference: TypeReferenceHandle,
+    ) -> Option<(TypeReferenceHandle, &data::DataDefinition)> {
         for _ in 0..=self.type_reference_table.type_reference_count() {
             if !self.type_reference_table.contains_type_reference(reference) {
                 return None;
             }
-            match self.type_reference_table.type_reference(reference) {
-                crate::source_state::types::TypeReferenceNode::Constrained {
-                    base_type, ..
-                } => {
-                    reference = *base_type;
-                }
-                crate::source_state::types::TypeReferenceNode::Generic { .. } => {
-                    match self.layout_storage_arguments(reference) {
-                        Some(storage) => reference = storage.semantic_type,
-                        None => return self.closed_data_definition(reference),
-                    }
-                }
-                _ => return self.closed_data_definition(reference),
+            if let crate::source_state::types::TypeReferenceNode::Constrained {
+                base_type, ..
+            } = self.type_reference_table.type_reference(reference)
+            {
+                reference = *base_type;
+                continue;
+            }
+            match self.layout_storage_arguments(reference) {
+                Some(storage) => reference = storage.semantic_type,
+                None => return Some((reference, self.closed_data_definition(reference)?)),
             }
         }
         None

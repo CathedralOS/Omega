@@ -1,7 +1,7 @@
 // The uefi_x86_64 target emits PE32+. Firmware supplies the system table
 // through the entry parameters.
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "uefi_hello");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "uefi_hello" };
     builder.subsystem = Subsystem::EfiApplication;
 }

@@ -10,12 +10,20 @@ pub struct NominalConstArgument {
     pub actual: ScalarTerm,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CallTypePosition {
+    Parameter(u32),
+    Result,
+}
+
+/// Both sides are oriented by machine: actual belongs to the caller,
+/// expected belongs to the callee, including when a value returns.
 #[derive(Debug, Clone)]
-pub struct NominalCallArgument {
+pub struct NominalCallType {
     pub caller: MachineId,
     pub operation: OperationId,
     pub callee: MachineId,
-    pub argument: u32,
+    pub position: CallTypePosition,
     pub actual: StructuralTypeId,
     pub expected: StructuralTypeId,
     pub actual_constructor: StructuralTypeId,

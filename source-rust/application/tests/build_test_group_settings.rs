@@ -4,8 +4,8 @@ mod project;
 
 const BUILD: &str = r#"use main.omg as app;
 use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) suspends {
-    Build::application(builder, "group_settings");
+machine build(builder: @mutable BuildPlan) suspends {
+    builder.product = BuildProduct::Application { name: "group_settings" };
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     let muted: TestGroup = builder.tests.group::<|app|::Checks::muted>();
     muted.disabled = false;
@@ -32,7 +32,7 @@ fn build(product: &str, configuration: &str) -> (bool, String) {
         &[
             (
                 "kit/build.omg",
-                r#"machine build(builder: @mutable Build) { Build::package(builder, "kit"); }"#,
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "kit" }; }"#,
             ),
             ("kit/main.omg", "public machine version() -> u32 { 1u32 }"),
             ("main.omg", product),
@@ -92,8 +92,8 @@ machine scan() satisfies Checks<ScanFixture>::memory crashes Trap {}
 machine write() satisfies Checks<WriteFixture>::memory crashes Trap { crash Trap; }
 machine main() {}"#;
     let configuration = r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "applied_groups");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "applied_groups" };
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     _ = builder.tests.group::<|app|::Checks<|app|::ScanFixture>::memory>();
     let writes: TestGroup = builder.tests.group::<|app|::Checks<|app|::WriteFixture>::memory>();

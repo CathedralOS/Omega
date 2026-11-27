@@ -92,7 +92,7 @@ unoptimized check's module unchanged.
 
 Publication retains the exact Psi selection and the input and output semantic
 identities in the
-[optimization execution](../terminal-psi/encoding.md#optimization-execution)
+[optimization execution](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#optimization-execution)
 record. Decoding checks the recorded output identity against the published
 semantics. Those identities are not the lowered-form verdict. Proof identities
 remain internal validation provenance. Empty execution may claim only equal

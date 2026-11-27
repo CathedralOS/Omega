@@ -83,11 +83,6 @@ pub(crate) fn admit_build_program(
     let (machine, publication) =
         admit_build_machine(invocation, machine_symbol, &mut filesystem_scope)?;
     let (prepared, produced) = publication.publish()?;
-    if !produced.view().pending_normal_completions().is_empty() {
-        return Err(vec![Diagnostic::error(
-            "Build execution requires checked normal completions for the whole program",
-        )]);
-    }
     let build_authority = providers.selection_scope(DependencyPurpose::Build);
     let product_authority = providers.selection_scope(DependencyPurpose::Product);
     let selections = produced.source_selections().ok_or_else(|| {

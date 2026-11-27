@@ -101,6 +101,7 @@ pub(crate) struct CompletedProductSource {
     deployments: Vec<String>,
     pub(crate) explicit_providers: Vec<provider_choice_inputs::ProviderSelection>,
     pub(crate) native_supplies: Vec<provider_choice_inputs::NativeBuildSupply>,
+    pub(crate) declaration_usage: crate::DeclarationUsageAdvisories,
 }
 
 impl CompletedProductSource {
@@ -441,6 +442,53 @@ pub(crate) fn prepare_lower_and_check(
             .validate_charges()
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
     }
+    let mut declaration_usage = crate::DeclarationUsageAdvisories::default();
+    if matches!(
+        pass.entry,
+        ProductEntry::BuildBindings | ProductEntry::PackageReview
+    ) {
+        let roster = judged.publication.roster()?;
+        let mut usage_roots = roster
+            .entries
+            .iter()
+            .chain(&roster.selected)
+            .copied()
+            .collect::<Vec<_>>();
+        for binding in &roster.bindings {
+            usage_roots.extend([
+                binding.implementation,
+                binding.semantic_schema_symbol,
+                binding.requirement_symbol,
+            ]);
+        }
+        if let Some(activation) = pass.activation {
+            usage_roots.push(activation);
+        }
+        for group in &pass.declarations.test_groups {
+            usage_roots.push(group.requirement);
+            if let Some(adapter) = group.adapter {
+                usage_roots.push(adapter);
+            }
+            for test_machine in crate::registered_tests::satisfiers(&judged.program, group) {
+                usage_roots.push(test_machine.symbol);
+            }
+        }
+        for provider in &pass.explicit_providers {
+            usage_roots.push(provider.provider_type.symbol);
+        }
+        for supply in &pass.native_supplies {
+            usage_roots.extend([supply.selection.subject, supply.selection.requirement]);
+        }
+        declaration_usage
+            .observe(
+                &judged.program,
+                &[pass.inputs.subject],
+                source_provenance::DependencyScope::Product,
+                &usage_roots,
+                &roster.supplies,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    }
     Ok(CompletedProductSource {
         reach_policy: pass.inputs.reach_policy,
         review_package: matches!(pass.entry, ProductEntry::PackageReview),
@@ -457,6 +505,7 @@ pub(crate) fn prepare_lower_and_check(
         declarations: pass.declarations,
         exclusions: admitted.exclusions,
         native_supplies: pass.native_supplies,
+        declaration_usage,
     })
 }
 

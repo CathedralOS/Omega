@@ -110,7 +110,7 @@ fn published_target_entry_emits_linux_image() {
     let artifact = CanonicalTerminalArtifact::from_bytes(SAVED).unwrap();
     assert_eq!(
         artifact.manifest().identity().to_string(),
-        "1f091b28b9e3a5598385365b10a760d42e91a65d9358ea19cb952f24fb999077"
+        "5144a3644e96072721434cab837ef65bc9ccbb96a9042e19c0d6cab68d60503c"
     );
     let entry = artifact
         .semantic_module()
@@ -148,7 +148,7 @@ fn pre_namespace_publication_does_not_supply_the_current_physical_entry() {
     );
     // The specimen was saved under semantic format marker 289, which format 290
     // (#5035) retired; older markers are rejected before their payload is read
-    // (wiki/spec/terminal-psi/encoding.md#machine-rows). Its unqualified
+    // (source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#machine-rows). Its unqualified
     // physical arrival therefore never reaches native admission.
     assert!(matches!(
         CanonicalTerminalArtifact::from_bytes(old),

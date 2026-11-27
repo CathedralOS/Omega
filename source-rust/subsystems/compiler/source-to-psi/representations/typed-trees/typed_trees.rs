@@ -22,6 +22,11 @@ use symbols::SymbolHandle;
 )]
 pub struct TypedTrees {
     pub identity: ProgramIdentity,
+    /// The entered declaration of a private Build judgment, in this forest's
+    /// source table. Its entry file is checked whole for a subject request.
+    /// A later request establishes its own selection when reusing typed source.
+    #[record(skip)]
+    pub build_invocation_entry: Option<source_text::SourceSpan>,
     pub excluded_authored_selection_occurrences: AuthoredSelectionExclusions,
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,

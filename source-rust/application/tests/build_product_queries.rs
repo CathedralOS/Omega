@@ -166,8 +166,8 @@ fn a_build_calls_its_supplied_kit_and_queries_the_products_kit() {
     };
     let build = r#"use {kit}/main.omg as kit;
 use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) suspends {
-    Build::application(builder, "dual_alias");
+machine build(builder: @mutable BuildPlan) suspends {
+    builder.product = BuildProduct::Application { name: "dual_alias" };
     let mutable deployed: DependencyDescription = |dependency|::from_source(Source::Path { location: "runtime" });
     |dependency|::with_alias(@mutable deployed, "kit");
     let p: DependencyRegistration = Build::dependency(builder, deployed);
@@ -177,12 +177,12 @@ machine build(builder: @mutable Build) suspends {
         true -> bind_entry(builder),
         _ -> wrong(builder)
     }
-    machine bind_entry(builder: @mutable Build) {
+    machine bind_entry(builder: @mutable BuildPlan) {
         Build::bind(builder, HOST::ProgramEntry, entry(builder, "HOST::ProgramEntry"));
     }
-    machine wrong(builder: @mutable Build) { Build::application(builder, "wrong"); }
+    machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: "wrong" }; }
 }
-machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
+machine entry(builder: @mutable BuildPlan, slot: @[u8]) -> ProductEntryRef {
     BuildDeclarations::entry(@builder.declarations, "kit::launch", slot)
 }
 "#.replace("HOST", host.target_name());
@@ -192,12 +192,12 @@ machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
             ("tools/main.omg", "public machine choose() -> i32 { 7 }"),
             (
                 "tools/build.omg",
-                r#"machine build(builder: @mutable Build) { Build::package(builder, "tools"); }"#,
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "tools" }; }"#,
             ),
             ("runtime/main.omg", "public machine launch() {}"),
             (
                 "runtime/build.omg",
-                r#"machine build(builder: @mutable Build) { Build::package(builder, "runtime"); }"#,
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "runtime" }; }"#,
             ),
             ("main.omg", "machine main() {}"),
             ("build.omg", &build),

@@ -30,6 +30,10 @@ pub fn contains(
     Ok(program.symbols.symbol_source_is_selected(symbol)
         && !file.origin.is_toolchain()
         && file.dependency_scope == purpose
+        && (purpose != DependencyScope::Build
+            || program
+                .build_invocation_entry
+                .is_none_or(|entry| entry.source_id == file.source_id))
         && requested)
 }
 

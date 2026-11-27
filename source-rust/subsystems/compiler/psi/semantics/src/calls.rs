@@ -26,12 +26,12 @@ pub fn const_array_argument_matches(
 
 /// A checked source correspondence supplies nominal equality; the lowered
 /// representation still supplies and checks access, fields and array geometry.
-pub fn nominal_argument_matches(
+pub fn nominal_call_type_matches(
     module: &terminal_psi::TerminalModule,
     caller: &terminal_psi::TerminalMachine,
     callee: &terminal_psi::TerminalMachine,
     arguments: &[semantic_vocabulary::ValueId],
-    row: &terminal_psi::generic_calls::NominalCallArgument,
+    row: &terminal_psi::generic_calls::NominalCallType,
 ) -> bool {
     if row.caller != caller.id
         || row.callee != callee.id

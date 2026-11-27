@@ -7,15 +7,34 @@ use crate::Unserved;
 use crate::body::{Ceiling, CrashCeiling, Qualification, ValueType};
 use crate::source_state::domain::ProofFact;
 use crate::source_state::signature::{SignatureContractKind, StateSignature};
-use semantic_vocabulary::{MachineId, ScalarType, ValueId};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, MachineId, PlaceId, ScalarType, ValueId,
+};
 use std::fmt::Write;
 use terminal_check_tables::Checked;
-use terminal_psi::{TheoremContract, ValueDeclaration};
+use terminal_psi::TheoremContract;
+use terminal_semantics::theorems::data_subjects::{self, SourceSubject};
 
 pub(crate) struct PreparedTheoremParameter {
     pub(crate) binder: symbols::SymbolHandle,
     pub(crate) source_position: u32,
     pub(crate) carrier_key: Vec<u8>,
+    /// The contract's source inputs, one per authored argument of an
+    /// application, in header order.
+    pub(crate) inputs: Vec<TheoremInput>,
+}
+
+/// One source input of a logical contract: a scalar formal, which is one
+/// subject, or a plain record formal, which is one subject for each of its
+/// scalar fields, in declared order
+/// (`terminal_semantics::theorems::data_subjects`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum TheoremInput {
+    Scalar(ScalarType),
+    Record {
+        record: semantic_vocabulary::StructuralTypeId,
+        leaves: Vec<(Vec<CanonicalStructuralPathSegment>, ScalarType)>,
+    },
 }
 
 impl Program<'_> {
@@ -343,7 +362,7 @@ impl Program<'_> {
             else {
                 continue;
             };
-            let (contract, carrier_key) = self.theorem_contract(id, contract)?;
+            let (contract, carrier_key, inputs) = self.theorem_contract(id, contract)?;
             let unavailable = || {
                 refuse_at(
                     id,
@@ -359,6 +378,7 @@ impl Program<'_> {
                 binder: parameter.symbol,
                 source_position: u32::try_from(position).map_err(|_| unavailable())?,
                 carrier_key,
+                inputs,
             });
         }
         self.theorem_parameters.extend(parameters);
@@ -374,7 +394,7 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         source: &StateSignature,
-    ) -> Checked<(TheoremContract, Vec<u8>)> {
+    ) -> Checked<(TheoremContract, Vec<u8>, Vec<TheoremInput>)> {
         let unavailable = |reason| refuse_at(id, Unserved::Declaration(reason));
         let typed = self.typed;
         // The contract's own proof parameters belong to its header:
@@ -397,7 +417,7 @@ impl Program<'_> {
                     "logical theorem contract declares a static parameter that is not a proof",
                 ));
             };
-            let (nested, _) = self.theorem_contract(id, contract)?;
+            let (nested, _, _) = self.theorem_contract(id, contract)?;
             if !nested.proof_parameters.is_empty() {
                 return Err(unavailable(
                     "a logical contract's proof parameter takes proof parameters of its own",
@@ -481,32 +501,64 @@ impl Program<'_> {
                 "logical evidence cannot supply executable outcomes or authority",
             ));
         }
-        let mut formals = Vec::with_capacity(signature.parameters.len());
+        // A clause names scalar formal `i` as value `i + 1` and the `k`th
+        // record formal as place `k + 1` (`contracts::formal_place`).
+        let mut inputs = Vec::with_capacity(signature.parameters.len());
+        let mut sources = Vec::with_capacity(signature.parameters.len());
         for (position, parameter) in signature.parameters.iter().enumerate() {
-            let ValueType::Scalar(scalar_type, Qualification::NONE) = parameter else {
-                return Err(unavailable(
-                    "logical theorem input needs its complete fixed scalar carrier",
-                ));
-            };
-            if !matches!(scalar_type, ScalarType::Boolean)
-                && !matches!(scalar_type, ScalarType::Integer(integer)
-                    if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && !integer.is_address())
+            match parameter {
+                ValueType::Scalar(scalar_type, Qualification::NONE) => {
+                    sources.push(SourceSubject::Scalar {
+                        id: ValueId::new(position as u64 + 1).ok_or_else(|| {
+                            unavailable("logical theorem input identity overflow")
+                        })?,
+                        scalar_type: *scalar_type,
+                    });
+                    inputs.push(TheoremInput::Scalar(*scalar_type));
+                }
+                ValueType::Record(record, Qualification::NONE, _) => {
+                    let leaves = self.record_leaves(id, *record)?;
+                    let place = PlaceId::new(
+                        inputs
+                            .iter()
+                            .filter(|input| matches!(input, TheoremInput::Record { .. }))
+                            .count() as u64
+                            + 1,
+                    )
+                    .ok_or_else(|| unavailable("logical theorem input identity overflow"))?;
+                    sources.push(SourceSubject::Record {
+                        place,
+                        leaves: leaves.clone(),
+                    });
+                    inputs.push(TheoremInput::Record {
+                        record: *record,
+                        leaves,
+                    });
+                }
+                _ => {
+                    return Err(unavailable(
+                        "logical theorem input needs its complete fixed scalar carrier or plain record",
+                    ));
+                }
+            }
+        }
+        let (formals, requires, ensures) =
+            data_subjects::flatten(&sources, &signature.requires, &signature.ensures)
+                .map_err(unavailable)?;
+        for formal in &formals {
+            let scalar_type = formal.scalar_type;
+            if !matches!(scalar_type, ScalarType::Boolean | ScalarType::IeeeFloat(_))
+                && !matches!(scalar_type, ScalarType::Integer(integer) if integer.bits().is_some())
             {
                 return Err(unavailable(
-                    "logical theorem input has no fixed integer or Boolean denotation",
+                    "logical theorem input has no closed-width integer, float or Boolean denotation",
                 ));
             }
-            formals.push(ValueDeclaration {
-                id: ValueId::new(position as u64 + 1)
-                    .ok_or_else(|| unavailable("logical theorem input identity overflow"))?,
-                scalar_type: *scalar_type,
-                qualifications: Default::default(),
-            });
         }
         let contract = TheoremContract {
             parameters: formals,
-            requires: signature.requires,
-            ensures: signature.ensures,
+            requires,
+            ensures,
             proof_parameters,
         };
         let expected = terminal_semantics::theorems::contract_type(
@@ -525,6 +577,38 @@ impl Program<'_> {
             },
         )
         .map_err(|_| unavailable("logical theorem type has no canonical portable identity"))?;
-        Ok((contract, carrier_key))
+        Ok((contract, carrier_key, inputs))
+    }
+
+    /// A plain record's scalar fields, in declared order, as Terminal Psi
+    /// will publish them (`data_subjects::record_leaves`).
+    fn record_leaves(
+        &self,
+        id: MachineId,
+        record: semantic_vocabulary::StructuralTypeId,
+    ) -> Checked<Vec<(Vec<CanonicalStructuralPathSegment>, ScalarType)>> {
+        let unavailable = |reason| refuse_at(id, Unserved::Declaration(reason));
+        let declared = self.data_type(id, record)?;
+        let crate::StorageShape::Record(fields) = &declared.shape else {
+            return Err(unavailable("logical data subject is not a plain record"));
+        };
+        if !declared.requires.is_empty() {
+            return Err(unavailable("logical data subject has a data invariant"));
+        }
+        fields
+            .iter()
+            .map(|field| match field.value_type {
+                ValueType::Scalar(scalar, Qualification::NONE) => Ok((
+                    vec![CanonicalStructuralPathSegment::Field(field.id)],
+                    scalar,
+                )),
+                ValueType::Record(..) => Err(unavailable(
+                    "logical data subject has a field that is itself data",
+                )),
+                _ => Err(unavailable(
+                    "logical data subject has a field that is not a plain scalar",
+                )),
+            })
+            .collect()
     }
 }

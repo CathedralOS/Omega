@@ -688,6 +688,12 @@ impl Program<'_> {
             if self.owner(entry, alias.symbol, subjects, purpose)? != Owner::Subject {
                 continue;
             }
+            // A callable to or from mathematical data has no value that
+            // runs, like the data: it is a field type of that data, read by
+            // the mathematical reader.
+            if self.is_mathematical_callable(alias.expansion) {
+                continue;
+            }
             if alias.type_parameters.is_empty()
                 && alias.lifetime_parameters.is_empty()
                 && alias.conformance_bounds.is_empty()

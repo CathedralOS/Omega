@@ -53,7 +53,7 @@ pub fn settle_rejoined_build_slice(
     }
     // A retyped Build is a new request in its actual Build context. Nothing
     // copies its old result into Product or uses an old receipt for this input.
-    let (accepted, _, current, accounting) = prepare_admitted_build(
+    let (accepted, _, current, accounting, _) = prepare_admitted_build(
         rejoined,
         entry,
         packages,
@@ -156,7 +156,7 @@ pub(crate) fn check_subject_before_execution(
     libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
     interpreter_providers: &source_compiler::InterpretedProviderSelections,
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<BuildConstants, CompileFailure> {
+) -> Result<(BuildConstants, source_compiler::DeclarationUsageAdvisories), CompileFailure> {
     let owner = anonymous_source
         .provisional_check_owner()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -200,10 +200,13 @@ pub(crate) fn check_subject_before_execution(
         .into_iter()
         .map(|read| unbind_provisional_owner(read, &unowned, &check_only_sources, owner))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(BuildConstants {
-        folded_under_providers: false,
-        read,
-    })
+    Ok((
+        BuildConstants {
+            folded_under_providers: false,
+            read,
+        },
+        judged.declaration_usage,
+    ))
 }
 
 /// Anchor a constant read by the check-only judgment on the same file Build
@@ -266,6 +269,7 @@ pub(crate) fn prepare_admitted_build(
         super::provider_execution::BuildProviderScope,
         BuildConstants,
         source_compiler::compile_time_invocations::SourceCompletionAccounting,
+        source_compiler::DeclarationUsageAdvisories,
     ),
     CompileFailure,
 > {
@@ -309,6 +313,7 @@ pub(crate) fn prepare_admitted_build(
             read: judged.constants,
         },
         judged.accounting,
+        judged.declaration_usage,
     ))
 }
 

@@ -60,6 +60,14 @@ const CITED: &str = include_str!("../../tests/fixtures/semiring_identity/pass/ci
 const UNCITED: &str = include_str!("../../tests/fixtures/semiring_identity/fail/uncited/main.omg");
 
 fn generic(source: &str) -> RouteVerdict {
+    generic_with_tables(source, |_| {})
+}
+
+/// `generic`, after `change` has edited the Identity tables stage 05 wrote.
+fn generic_with_tables(
+    source: &str,
+    change: impl FnOnce(&mut Vec<terminal_check_tables::mathematics::IdentityTable>),
+) -> RouteVerdict {
     let typed = super::build_purpose::frontier_with_core(
         source,
         "machine build_entry() {}",
@@ -88,7 +96,13 @@ fn generic(source: &str) -> RouteVerdict {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    let mut parts = crate::judge_compilation(compilation.program).into_iter();
+    let mut program = compilation.program;
+    if let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
+        &mut program
+    {
+        change(&mut prepared.mathematics.identities);
+    }
+    let mut parts = crate::judge_compilation(program).into_iter();
     let closure = parts.next().expect("package judgment").unwrap();
     assert!(matches!(closure, RouteVerdict::Accepted(_)), "{closure:?}");
     let form = parts.next().expect("generic machine judgment").unwrap();
@@ -101,6 +115,108 @@ fn generic(source: &str) -> RouteVerdict {
 #[test]
 fn semiring_identity_uses_the_cited_law() {
     assert_cited_semiring_identity(generic(CITED));
+}
+
+/// The generic machine's carrier `T`, the operation `Ring::add` and the law
+/// `Ring::add_comm` are one table of the mathematical signature, which the
+/// kernel checks once. The judged Identity starts from that table and adds
+/// only the machine's two inputs.
+#[test]
+fn semiring_identity_starts_from_the_forms_identity_table() {
+    let mut table = None;
+    let verdict = generic_with_tables(CITED, |tables| {
+        let [only] = tables.as_slice() else {
+            panic!("one generic check form has one Identity table: {tables:?}");
+        };
+        table = Some(only.clone());
+    });
+    let table = table.unwrap();
+    assert_eq!(table.suppliers.len(), 1, "{table:?}");
+    assert!(
+        table
+            .carriers
+            .contains(&semantic_vocabulary::ClauseCarrier::Parameter(0)),
+        "{table:?}"
+    );
+    let add = table
+        .operations
+        .iter()
+        .find(|operation| operation.domains.len() == 2)
+        .unwrap_or_else(|| panic!("the table declares `Ring::add`: {table:?}"));
+    assert_eq!(
+        add.declaration.supplier,
+        Some((
+            table.suppliers[0].arena_index(),
+            table.suppliers[0].generation()
+        ))
+    );
+    assert!(!table.laws.is_empty(), "{table:?}");
+    let RouteVerdict::Accepted(closure) = verdict else {
+        panic!("{verdict:?}")
+    };
+    let guarantees = verdicts(closure.elaboration(), closure.discharge(), 1, guarantee);
+    let [(_, Ok(Discharged::Identity(judgment)))] = guarantees.as_slice() else {
+        panic!("{guarantees:?}")
+    };
+    let checked = terminal_codec::decode_mathematical_certificate(&judgment.certificate).unwrap();
+    // Every declaration past the table is one of the machine's two inputs.
+    let declared = checked.certificate.signature.len();
+    let table_declarations = declared - 2;
+    assert!(
+        checked.certificate.signature[table_declarations..]
+            .iter()
+            .all(proof_admission::Declaration::is_assumption)
+    );
+    assert!(table_declarations > table.carriers.len() + table.operations.len());
+}
+
+/// The twin: the same program, with the law it cites missing from the
+/// table. The obligation does not declare the law itself; it is refused.
+#[test]
+fn a_cited_law_missing_from_the_identity_table_is_refused() {
+    let verdict = generic_with_tables(CITED, |tables| tables[0].laws.clear());
+    assert_refused_for(
+        verdict,
+        "a cited law that is not in the form's Identity table",
+    );
+}
+
+/// The twin for an operation: with `Ring::add` missing from the table, the
+/// goal that applies it is refused rather than given a declaration of its own.
+#[test]
+fn a_trait_operation_missing_from_the_identity_table_is_refused() {
+    let verdict = generic_with_tables(CITED, |tables| {
+        tables[0].operations.clear();
+        tables[0].laws.clear();
+    });
+    assert_refused_for(
+        verdict,
+        "a trait operation that is not in the form's Identity table",
+    );
+}
+
+/// The twin for a table the kernel does not accept: an operation declared at
+/// a carrier the table never declared is refused for every Identity of the
+/// form, with the reason.
+#[test]
+fn an_identity_table_the_kernel_refuses_refuses_the_forms_identities() {
+    let verdict = generic_with_tables(CITED, |tables| {
+        let table = &mut tables[0];
+        let mut twice = table.operations[0].clone();
+        twice.result =
+            semantic_vocabulary::ClauseCarrier::Scalar(semantic_vocabulary::ScalarType::Boolean);
+        table.operations.push(twice);
+    });
+    assert_refused_for(verdict, "the machine's Identity table cannot be declared");
+}
+
+fn assert_refused_for(verdict: RouteVerdict, reason: &str) {
+    let text = format!("{verdict:?}");
+    assert!(
+        !matches!(verdict, RouteVerdict::Accepted(_)),
+        "the guarantee must not be judged: {text}"
+    );
+    assert!(text.contains(reason), "expected `{reason}`: {text}");
 }
 
 fn assert_cited_semiring_identity(verdict: RouteVerdict) {
@@ -392,15 +508,16 @@ fn an_erased_application_keeps_its_selected_semiring() {
         if requirement(&failure.kind) && failure.cause == UnprovedCause::NoDerivation));
 }
 
-
 #[test]
 fn a_type_definition_body_forms_identity_through_the_clause_reader() {
-    let verdict = generic(r#"
+    let verdict = generic(
+        r#"
 use {omega}/language/core/proof_clause_operation.omg;
 use {omega}/language/core/foundation.omg as proof;
 let same(x: u64): |proof|::Type<0> = |proof|::Identity::<u64>(|proof_clause_operation|::f(x), |proof_clause_operation|::f(x));
 machine entry<T [copy]>(x: u64, _fallback: T) ensures same(x) {}
-"#);
+"#,
+    );
     let RouteVerdict::Accepted(closure) = verdict else {
         panic!("{verdict:?}");
     };

@@ -7,9 +7,10 @@ mod driver;
 
 pub use compile_product::ProductDeclarations;
 pub use driver::compile_build::{
-    BuildInvocationJudgment, BuildStageSource, CheckedBuildInvocation, PendingBuildImport,
-    PreparedBuildInvocation, ProductDeclarationSource, TypedBuildInterval,
+    BuildInvocationJudgment, BuildSourceCheck, BuildStageSource, CheckedBuildInvocation,
+    PendingBuildImport, PreparedBuildInvocation, ProductDeclarationSource, TypedBuildInterval,
 };
+pub use driver::declaration_usage::DeclarationUsageAdvisories;
 pub use driver::package_handoff::{
     InterpretedProviderSelections, PackageHandoffDeclarations, package_handoff_declarations,
 };
@@ -53,6 +54,14 @@ pub fn check(
     source: StageSource<'_>,
     timings: &mut CompileTimings,
 ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+    check_with_declaration_usage(source, None, timings)
+}
+
+pub fn check_with_declaration_usage(
+    source: StageSource<'_>,
+    declaration_usage: Option<&mut DeclarationUsageAdvisories>,
+    timings: &mut CompileTimings,
+) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
     let (product, resolved) = source.resolve(timings)?;
     let checked = product.judge(
         resolved,
@@ -61,6 +70,9 @@ pub fn check(
         timings,
     )?;
     checked.admit_dependency_uses()?;
+    if let Some(declaration_usage) = declaration_usage {
+        declaration_usage.extend(&checked.declaration_usage);
+    }
     checked.terminal_publication.check(
         product.declaration_scope.as_deref().map(|scope| scope as _),
         timings,
@@ -71,10 +83,19 @@ pub fn compile(
     source: StageSource<'_>,
     advisories: Option<&mut Vec<Diagnostic>>,
 ) -> Result<PublishedPsi, Vec<Diagnostic>> {
+    compile_with_declaration_usage(source, advisories, None)
+}
+
+pub fn compile_with_declaration_usage(
+    source: StageSource<'_>,
+    advisories: Option<&mut Vec<Diagnostic>>,
+    declaration_usage: Option<&mut DeclarationUsageAdvisories>,
+) -> Result<PublishedPsi, Vec<Diagnostic>> {
     driver::publish_stage(
         source,
         ProductEntry::BuildBindings,
         advisories,
+        declaration_usage,
         &mut Default::default(),
         &mut CompileTimings::default(),
     )
@@ -98,11 +119,22 @@ pub fn compile_for_target_with_timings(
     advisories: Option<&mut Vec<Diagnostic>>,
     timings: &mut CompileTimings,
 ) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
+    compile_for_target_with_advisories(source, target, advisories, None, timings)
+}
+
+pub fn compile_for_target_with_advisories(
+    source: StageSource<'_>,
+    target: &str,
+    advisories: Option<&mut Vec<Diagnostic>>,
+    declaration_usage: Option<&mut DeclarationUsageAdvisories>,
+    timings: &mut CompileTimings,
+) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
     let (artifact, checked, subject) = publish_deployment(
         source,
         target,
         ProductEntry::BuildBindings,
         advisories,
+        declaration_usage,
         &mut Default::default(),
         timings,
     )?;
@@ -119,6 +151,16 @@ pub fn compile_for_targets_with_timings(
     source: StageSource<'_>,
     targets: &[&str],
     advisories: Option<&mut Vec<Diagnostic>>,
+    timings: &mut CompileTimings,
+) -> Result<Vec<PublishedTargetProgram>, Vec<Diagnostic>> {
+    compile_for_targets_with_advisories(source, targets, advisories, None, timings)
+}
+
+pub fn compile_for_targets_with_advisories(
+    source: StageSource<'_>,
+    targets: &[&str],
+    advisories: Option<&mut Vec<Diagnostic>>,
+    declaration_usage: Option<&mut DeclarationUsageAdvisories>,
     timings: &mut CompileTimings,
 ) -> Result<Vec<PublishedTargetProgram>, Vec<Diagnostic>> {
     let Some(&first) = targets.first() else {
@@ -139,6 +181,7 @@ pub fn compile_for_targets_with_timings(
         first,
         ProductEntry::BuildBindings,
         advisories,
+        declaration_usage,
         &mut Default::default(),
         timings,
     )?;
@@ -163,6 +206,7 @@ pub fn review_package(
         target,
         ProductEntry::PackageReview,
         None,
+        None,
         accounting,
         &mut CompileTimings::default(),
     )?;
@@ -184,6 +228,7 @@ fn publish_deployment(
     target: &str,
     entry: ProductEntry<'_>,
     advisories: Option<&mut Vec<Diagnostic>>,
+    declaration_usage: Option<&mut DeclarationUsageAdvisories>,
     accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
     timings: &mut CompileTimings,
 ) -> Result<
@@ -200,8 +245,14 @@ fn publish_deployment(
         ))]);
     }
     let subject = source.product.subject;
-    let (artifact, checked) =
-        driver::publish_stage(source, entry, advisories, accounting, timings)?;
+    let (artifact, checked) = driver::publish_stage(
+        source,
+        entry,
+        advisories,
+        declaration_usage,
+        accounting,
+        timings,
+    )?;
     Ok((artifact, checked, subject))
 }
 
@@ -270,6 +321,7 @@ pub fn inspect(source: StageSource<'_>, machine: &str) -> Result<PublishedPsi, V
     driver::publish_stage(
         source,
         ProductEntry::Inspection(machine),
+        None,
         None,
         &mut Default::default(),
         &mut CompileTimings::default(),

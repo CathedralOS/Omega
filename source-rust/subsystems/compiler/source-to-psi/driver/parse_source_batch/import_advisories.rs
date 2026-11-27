@@ -11,7 +11,52 @@ use syntax_trees::item::{Item, UseItem};
 pub struct FileImportAdvisories(BTreeMap<(PathBuf, usize, Arc<str>), (String, bool)>);
 
 impl FileImportAdvisories {
-    pub fn observe(&mut self, stage: &ParsedStageSources, scope: DependencyScope) {
+    pub fn observe_build(
+        &mut self,
+        stage: &ParsedStageSources,
+        program: &crate::source_state::TypedTrees,
+    ) {
+        use crate::source_state::machine::MachineBodyStatus;
+        let mut deferred: std::collections::HashSet<_> = program
+            .machines()
+            .iter()
+            .filter(|machine| machine.body_status == MachineBodyStatus::Deferred)
+            .filter_map(|machine| {
+                program
+                    .symbols
+                    .symbol_provenance_source_span(machine.symbol)
+            })
+            .collect();
+        // A generic declaration counts as used if any of its instantiations was compiled.
+        if !deferred.is_empty() {
+            for machine in program
+                .machines()
+                .iter()
+                .filter(|machine| machine.body_status == MachineBodyStatus::Complete)
+            {
+                if let Some(span) = program
+                    .symbols
+                    .symbol_provenance_source_span(machine.symbol)
+                {
+                    deferred.remove(&span);
+                }
+            }
+        }
+        self.observe(stage, DependencyScope::Build, |owner| {
+            !deferred.contains(&owner)
+        });
+    }
+
+    pub fn observe_product(&mut self, stage: &ParsedStageSources) {
+        self.observe(stage, DependencyScope::Product, |_| true);
+    }
+
+    fn observe(
+        &mut self,
+        stage: &ParsedStageSources,
+        scope: DependencyScope,
+        declaration_used: impl Fn(source_text::SourceSpan) -> bool,
+    ) {
         let syntax = &stage.syntax.trees;
         for handle in syntax.root_item_handles() {
             let Item::Use(UseItem {
@@ -30,8 +75,12 @@ impl FileImportAdvisories {
                 continue;
             }
             let identity = (file.path.clone(), span.span.start, Arc::clone(&file.source));
-            // A designated Product operand is still a use written by this Build.
-            let seen = !qualifiers.is_empty();
+            let seen = qualifiers.iter().any(|usage| {
+                declaration_used(source_text::SourceSpan::new(
+                    span.source_id,
+                    usage.declaration,
+                ))
+            });
             self.0
                 .entry(identity)
                 .or_insert_with(|| (alias.as_str(syntax).to_owned(), false))

@@ -472,11 +472,18 @@ fn platform_abi_differences_are_explicit_call_clobber_facts() {
     let macos_arm64 = baseline_target_register_environment(NativeTarget::macos_arm64()).unwrap();
     assert!(call_clobbers(&linux_arm64, &["x18"]));
     assert!(call_preserves(&macos_arm64, &["x18"]));
+    let windows_arm64 =
+        baseline_target_register_environment(NativeTarget::windows_arm64()).unwrap();
+    assert!(call_preserves(&windows_arm64, &["x18"]));
     let x18 = units_for_names(linux_arm64.physical().model(), &["x18"]);
-    assert!(
-        x18.iter()
-            .all(|unit| macos_arm64.reservations().reserved_units().contains(unit))
-    );
+    for platform_reserving in [&macos_arm64, &windows_arm64] {
+        assert!(x18.iter().all(|unit| {
+            platform_reserving
+                .reservations()
+                .reserved_units()
+                .contains(unit)
+        }));
+    }
 
     let aapcs = convention_for(scalar_abi_cases()[3], linux_arm64.physical());
     let d8_low = units_for_names(linux_arm64.physical().model(), &["d8"]);

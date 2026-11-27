@@ -9,7 +9,6 @@ path = "typed_trees.rs"
 
 [dependencies]
 service-surface = { path = "../../../psi/interfaces/service-surface" }
-artifacts = { path = "../../../foundation/measurements" }
 access-vocabulary = { path = "../../../psi/access/policies" }
 schema-reflection = { path = "../../../psi/types/reflection" }
 application-identity = { path = "../../../psi/identities/applications" }
@@ -19,8 +18,6 @@ source-admission = { path = "../source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
 bignum = { path = "../../../../../foundation/bignum" }
 sha2 = "0.10.9"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 wire = { path = "../../../../../foundation/wire" }
 access-admission = { path = "../../../psi/access/validated-placements" }
 arena = { path = "../../../../../foundation/arena" }

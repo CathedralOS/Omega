@@ -17,10 +17,13 @@ use symbols::SymbolHandle;
 /// Product request names none of them, yet lowering reads their members, so
 /// a domain or constant only a selected provider uses is demanded too: a
 /// Windows filesystem adapter's handle domain needs its access plan.
+///
+/// `dependencies` must be built from `program` as it is now.
 pub(crate) fn demanded_declarations(
     program: &TypedTrees,
     request: production::TerminalSourceCompilation<'_>,
     scopes: &[super::FixedLayoutTargetScope],
+    dependencies: &ComputationDependencyRows,
 ) -> Result<DeclarationSelection, String> {
     let mut pending = request
         .entries
@@ -52,8 +55,7 @@ pub(crate) fn demanded_declarations(
         pending.extend(scope.entry_declarations.iter().copied());
         supplies.extend(scope.selected_supplies());
     }
-    let dependencies = ComputationDependencyRows::of(program);
-    from_supplied_roots(program, &dependencies, pending, supplies).map_err(str::to_owned)
+    from_supplied_roots(program, dependencies, pending, supplies).map_err(str::to_owned)
 }
 
 impl super::FixedLayoutTargetScope {
@@ -82,7 +84,7 @@ impl super::FixedLayoutTargetScope {
 
 /// A supplied member needs its provider's type arguments and its chosen body.
 /// An independent request for the entire provider still reaches every member.
-fn from_supplied_roots(
+pub(crate) fn from_supplied_roots(
     program: &TypedTrees,
     dependencies: &ComputationDependencyRows,
     mut roots: Vec<SymbolHandle>,

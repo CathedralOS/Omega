@@ -443,7 +443,7 @@ machine entry<const N: u64, const M: u64>(token: @Token<N>) -> u64 {
     assert!(
         error
             .detail
-            .contains("nominal call input changed its complete type or const actuals"),
+            .contains("nominal call type changed its complete type or const actuals"),
         "{error:?}"
     );
 
@@ -453,7 +453,7 @@ machine entry<const N: u64, const M: u64>(token: @Token<N>) -> u64 {
     assert!(
         error
             .detail
-            .contains("nominal call input has no complete type correspondence"),
+            .contains("nominal call type has no complete type correspondence"),
         "{error:?}"
     );
 
@@ -474,7 +474,44 @@ machine entry<const N: u64, const M: u64>(token: @Token<N>) -> u64 {
     assert!(
         error
             .detail
-            .contains("nominal call input changed its complete type or const actuals"),
+            .contains("nominal call type changed its complete type or const actuals"),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn a_nominal_result_belongs_to_the_callers_const_application() {
+    use terminal_psi::generic_calls::CallTypePosition;
+
+    let source = "
+data Counter<const Limit: i32> { value: i32; }
+machine entry<const N: i32>(counter: Counter<N>) -> Counter<N> {
+    transition counter.value > 0 { true -> forwarded(counter), _ -> (counter) }
+    machine forwarded(counter: Counter<N>) -> Counter<N> { counter }
+}";
+    let mut form = rigid_array_form(source);
+    let result = form
+        .nominal_calls
+        .iter()
+        .position(|row| row.position == CallTypePosition::Result)
+        .expect("the two machines own distinct presentations of Counter<N>");
+    assert_ne!(
+        form.nominal_calls[result].actual,
+        form.nominal_calls[result].expected
+    );
+    let checked = discharge(&mut form.clone(), &mut Default::default()).unwrap();
+    assert!(
+        checked
+            .machines
+            .iter()
+            .all(|(_, machine)| machine.verdicts.iter().all(|(_, verdict)| verdict.is_ok())),
+        "{checked:?}"
+    );
+
+    form.nominal_calls.remove(result);
+    let error = discharge(&mut form, &mut Default::default()).unwrap_err();
+    assert!(
+        error.detail.contains("no complete type correspondence"),
         "{error:?}"
     );
 }
@@ -540,7 +577,7 @@ requires Count >= 1 {
     assert!(
         error
             .detail
-            .contains("nominal call input changed its complete type or const actuals"),
+            .contains("nominal call type changed its complete type or const actuals"),
         "{error:?}"
     );
 }

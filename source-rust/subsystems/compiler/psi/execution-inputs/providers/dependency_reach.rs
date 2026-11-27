@@ -72,8 +72,8 @@ fn complete_paths(
     reached
 }
 
-fn diagnostic_path<'module>(
-    module: &'module TerminalModule,
+fn diagnostic_path(
+    module: &TerminalModule,
     headers: &BTreeMap<Callable, &ProofCallableHeader>,
     paths: &Paths,
     roots: &Paths,

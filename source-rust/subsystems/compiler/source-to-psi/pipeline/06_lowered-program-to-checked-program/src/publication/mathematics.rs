@@ -1,5 +1,5 @@
 //! Writes the judged mathematical signature into the Psi tables the encoding
-//! specifies for it (`wiki/spec/terminal-psi/encoding.md`, "A mathematical
+//! specifies for it (`source-rust/subsystems/compiler/psi/artifact/wire/encoding.md`, "A mathematical
 //! carrier row").
 //!
 //! Only the carrier table is written. Each data declaration gets one row that

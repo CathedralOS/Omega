@@ -69,22 +69,21 @@ fn prepare_subjects(
     for (value, scalar_type) in subjects {
         let subject = ScalarTerm::value(*value, *scalar_type);
         let term = match scalar_type {
-            ScalarType::Boolean => denotation.scalar_term(&subject)?,
-            ScalarType::Integer(integer)
-                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                    && !integer.is_address()
-                    && integer.minimum_value().is_some()
-                    && integer.maximum_value().is_some() =>
-            {
-                denotation.fixed_scalar_term(&subject)?
-            }
+            ScalarType::Boolean | ScalarType::IeeeFloat(_) => denotation.scalar_term(&subject)?,
+            ScalarType::Integer(_) => denotation.fixed_scalar_term(&subject)?,
             _ => return Err(BoundedTheoremError::UnsupportedSubject(*scalar_type)),
         };
         let Term::Constant { declaration, .. } = denotation.arena.get(term) else {
             return Err(BoundedTheoremError::UnboundSubject);
         };
         selected.push(declaration);
-        if let ScalarType::Integer(integer) = scalar_type {
+        // The scalar carrier-bound judgment covers only fixed integers, so an
+        // address subject is bound without the bounds that judgment refuses.
+        if let ScalarType::Integer(integer) = scalar_type
+            && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+            && integer.minimum_value().is_some()
+            && integer.maximum_value().is_some()
+        {
             for lower in [true, false] {
                 let (_, evidence) = denotation.carrier_bound(&subject, lower, integer)?;
                 let Term::Constant { declaration, .. } = denotation.arena.get(evidence) else {

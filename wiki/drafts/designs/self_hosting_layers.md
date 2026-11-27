@@ -123,7 +123,7 @@ are an optimization to add only if measured compilation time requires them.
 Everything before Terminal Psi has a Rust counterpart and everything after
 does not. Under matched identity allocation, lowering and selected Psi
 optimization profiles, byte-identical PSITERM is a useful differential check.
-The [encoding contract](../../spec/terminal-psi/encoding.md#canonical-form)
+The [encoding contract](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#canonical-form)
 canonicalizes one module; it does not require independent frontends to choose
 that same module. [Selected optimization](../../spec/terminal-psi/product.md#optimization-ordering)
 may also change it. When modules differ, inspect the decoded difference and

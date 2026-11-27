@@ -225,3 +225,171 @@ fn a_hypothesis_binds_between_the_subjects_and_the_premises() {
     )
     .expect("the hypothesis's declarations arrive with it");
 }
+
+/// `(λ (h : 0 < n). inr h) assumption`: the introduction sits inside an implication proof
+/// that is applied on the spot, so the kernel infers the disjunction's pair rather than
+/// checking it against the goal.
+fn disjunction_under_an_applied_implication(index: usize) -> (Proposition, Proposition, ProofNode) {
+    let (_, _, subject, zero) = fixture();
+    let premise = Proposition::LessThan(zero.clone(), subject.clone());
+    let goal =
+        Proposition::Disjunction(vec![Proposition::LessThan(subject, zero), premise.clone()]);
+    let node = |conclusion, rule| ProofNode { conclusion, rule };
+    let introduced = node(
+        goal.clone(),
+        ProofRule::DisjunctionIntroduction {
+            disjunct: Box::new(node(premise.clone(), ProofRule::Assumption { index: 1 })),
+            index,
+        },
+    );
+    let implication = node(
+        Proposition::Implication {
+            premise: Box::new(premise.clone()),
+            conclusion: Box::new(goal.clone()),
+        },
+        ProofRule::ImplicationIntroduction {
+            body: Box::new(introduced),
+        },
+    );
+    let proof = node(
+        goal.clone(),
+        ProofRule::ImplicationElimination {
+            implication: Box::new(implication),
+            premise: Box::new(node(premise.clone(), ProofRule::Assumption { index: 0 })),
+        },
+    );
+    (premise, goal, proof)
+}
+
+#[test]
+fn a_disjunction_introduced_inside_an_applied_implication_keeps_its_type() {
+    let (integer, id, _, _) = fixture();
+    let (premise, goal, proof) = disjunction_under_an_applied_implication(1);
+    verify_bounded_theorem(
+        &[(id, ScalarType::Integer(integer))],
+        &[],
+        &goal,
+        std::slice::from_ref(&premise),
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .expect("the pair is checked against the disjunction it introduces");
+}
+
+#[test]
+fn a_disjunction_introduced_inside_an_applied_implication_still_names_its_disjunct() {
+    let (integer, id, _, _) = fixture();
+    let (premise, goal, proof) = disjunction_under_an_applied_implication(0);
+    assert!(
+        verify_bounded_theorem(
+            &[(id, ScalarType::Integer(integer))],
+            &[],
+            &goal,
+            std::slice::from_ref(&premise),
+            &[],
+            &proof,
+            &mut Budget::default(),
+        )
+        .is_err()
+    );
+}
+
+fn address_fixture() -> (ScalarType, ValueId, ScalarTerm, ScalarTerm) {
+    let address = IntegerType::address(64).unwrap();
+    let id = ValueId::new(1).unwrap();
+    (
+        ScalarType::Integer(address),
+        id,
+        ScalarTerm::value(id, ScalarType::Integer(address)),
+        ScalarTerm::integer(address, IntegerValue::Unsigned(0)).unwrap(),
+    )
+}
+
+#[test]
+fn an_address_subject_binds_no_scalar_carrier_bound() {
+    let (scalar, id, subject, zero) = address_fixture();
+    let expected = denote_bounded_implication_type(
+        &[(id, scalar)],
+        &[],
+        &[],
+        &Proposition::LessOrEqual(zero, subject),
+        &mut Budget::default(),
+    )
+    .expect("an address subject has a logical type");
+    let mut body = expected.ty;
+    let mut binders = 0;
+    while let Term::Pi { codomain, .. } = expected.arena.get(body) {
+        binders += 1;
+        body = codomain;
+    }
+    assert_eq!(
+        binders, 1,
+        "the scalar carrier-bound judgment refuses address bounds, so none is assumed"
+    );
+}
+
+#[test]
+fn an_address_theorem_is_proved_from_its_premise() {
+    let (scalar, id, subject, zero) = address_fixture();
+    let address = scalar.as_integer().unwrap();
+    let one = ScalarTerm::integer(address, IntegerValue::Unsigned(1)).unwrap();
+    let premise = Proposition::Equal(subject.clone(), one.clone());
+    let goal = Proposition::LessThan(zero.clone(), subject.clone());
+    let node = |conclusion, rule| ProofNode { conclusion, rule };
+    let proof = node(
+        goal.clone(),
+        ProofRule::IntegerStrictOrderTransitivity {
+            left_to_middle: Box::new(node(
+                Proposition::LessThan(zero, one.clone()),
+                ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+            )),
+            middle_to_right: Box::new(node(
+                Proposition::LessOrEqual(one.clone(), subject.clone()),
+                ProofRule::IntegerOrderWeakening {
+                    relation: Box::new(node(
+                        Proposition::Equal(one, subject),
+                        ProofRule::EqualitySymmetry {
+                            equality: Box::new(node(
+                                premise.clone(),
+                                ProofRule::Assumption { index: 0 },
+                            )),
+                        },
+                    )),
+                },
+            )),
+        },
+    );
+    verify_bounded_theorem(
+        &[(id, scalar)],
+        &[],
+        &goal,
+        std::slice::from_ref(&premise),
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .expect("the premise alone establishes the conclusion");
+}
+
+#[test]
+fn an_address_theorem_cannot_assume_a_scalar_carrier_bound() {
+    let (scalar, id, subject, zero) = address_fixture();
+    let goal = Proposition::LessOrEqual(zero, subject);
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::Primitive(PrimitiveJudgment::IntegerCarrierBound),
+    };
+    assert!(
+        verify_bounded_theorem(
+            &[(id, scalar)],
+            &[],
+            &goal,
+            &[],
+            &[],
+            &proof,
+            &mut Budget::default(),
+        )
+        .is_err()
+    );
+}

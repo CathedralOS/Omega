@@ -770,7 +770,7 @@ impl Program<'_> {
                 )
             })
             && data.quotient.is_none()
-            && self.contains_itself(data)
+            && self.contains_itself_directly(data)
     }
 
     /// Whether the machine is a theorem over indexed data: it returns

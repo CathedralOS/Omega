@@ -55,7 +55,7 @@ use crate::source_state::data::TypeParameterKind;
 use crate::source_state::deferred_refusals::DeferredRequest;
 use crate::source_state::domain::ProofFact;
 use crate::source_state::expression::{
-    ExpressionHandle, ExpressionNode, ExpressionTable, StaticMachineArgument,
+    ExpressionHandle, ExpressionNode, ExpressionTable, StaticMachineArgument, TableNamePath,
 };
 use crate::source_state::machine::Machine;
 use crate::source_state::name::Identifier;
@@ -2251,65 +2251,70 @@ fn substitute_values(program: &mut TypedTrees, expression_start: usize, operands
 /// Evaluates closed integer `ConstExpression` type references copied into a
 /// specialized machine (`Index<Count + 1>` after `Count = 3` -> `Index<4>`)
 /// and settles them in place so type identity and downstream readers see the
-/// canonical literal form.
+/// canonical literal form. A closed expression with no value (`Count + 1`
+/// after `Count = 255` with `Count: u8`, or a division by zero) refuses the
+/// application rather than settling a number its carrier does not hold.
 fn settle_const_expressions(
     program: &mut TypedTrees,
     type_start: usize,
     operands: &[Operand],
 ) -> Served<()> {
-    let candidates: Vec<_> = program
+    let mut candidates = Vec::new();
+    for (handle, node) in program
         .type_reference_table
         .type_reference_rows_from(type_start)
-        .filter_map(|(handle, node)| match node {
-            TypeReferenceNode::ConstExpression(expression) => {
-                evaluate_substituted_const_int(program, *expression, operands)
-                    .map(|value| (handle, value))
-            }
-            _ => None,
-        })
-        .collect();
+    {
+        if let TypeReferenceNode::ConstExpression(expression) = node
+            && let Some(value) = substituted_const_int(program, *expression, operands)?
+        {
+            candidates.push((handle, value));
+        }
+    }
     for (handle, value) in candidates {
-        data_applications::settle_const_argument(program, handle, &value.to_string())
+        data_applications::settle_const_argument(program, handle, &value)
             .map_err(Stop::Rejected)?;
     }
     Ok(())
 }
 
-fn evaluate_substituted_const_int(
+/// The decimal value of a const expression once each value parameter is
+/// its operand's literal, which carries the parameter's type as its landing.
+/// The fold is exact (`const_integer::exact_value`): `None` leaves an
+/// expression it cannot decide as written, and a closed expression with no
+/// value is refused.
+fn substituted_const_int(
     program: &TypedTrees,
     expression: ExpressionHandle,
     operands: &[Operand],
-) -> Option<i128> {
-    use crate::source_state::expression::BinaryOperator;
-    if !program.expression_table.expression_is_valid(expression) {
-        return None;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => literal.to_string().parse::<i128>().ok(),
-        ExpressionNode::Name(path)
-            if path.symbol.is_valid()
-                && !path.static_application.is_valid()
-                && path.members.count() == 1 =>
+) -> Served<Option<String>> {
+    use crate::source_state::const_integer::{ExactInteger, Operators, exact_value};
+    let operand_literal = |path: &TableNamePath| {
+        if !path.symbol.is_valid()
+            || path.static_application.is_valid()
+            || path.members.count() != 1
         {
-            operands
-                .iter()
-                .find(|operand| operand.parameter == path.symbol)
-                .and_then(|operand| match &operand.scalar {
-                    Some(Value::Integer(literal)) => literal.to_string().parse::<i128>().ok(),
-                    _ => None,
-                })
+            return None;
         }
-        ExpressionNode::Binary(binary) => {
-            let left = evaluate_substituted_const_int(program, binary.left, operands)?;
-            let right = evaluate_substituted_const_int(program, binary.right, operands)?;
-            match binary.operator {
-                BinaryOperator::Add => left.checked_add(right),
-                BinaryOperator::Subtract => left.checked_sub(right),
-                BinaryOperator::Multiply => left.checked_mul(right),
+        operands
+            .iter()
+            .find(|operand| operand.parameter == path.symbol)
+            .and_then(|operand| match &operand.scalar {
+                Some(Value::Integer(literal)) => Some(literal.clone()),
                 _ => None,
-            }
-        }
-        _ => None,
+            })
+    };
+    match exact_value(
+        &program.expression_table,
+        expression,
+        Operators::Ring,
+        &operand_literal,
+    ) {
+        ExactInteger::Value { value, .. } => Ok(Some(value.to_string())),
+        ExactInteger::Undecided => Ok(None),
+        ExactInteger::Refused(refusal) => Err(Stop::Rejected(format!(
+            "the constant argument `{}` of this application has no value: {refusal}",
+            program.expression_table.display_name(expression)
+        ))),
     }
 }
 
@@ -2536,9 +2541,8 @@ fn substitute_arguments(
                 && let TypeReferenceNode::ConstExpression(expression) = *program
                     .type_reference_table
                     .type_reference(argument.type_reference)
-                && let Some(value) = evaluate_substituted_const_int(program, expression, operands)
+                && let Some(spelling) = substituted_const_int(program, expression, operands)?
             {
-                let spelling = value.to_string();
                 let fresh = program
                     .type_reference_table
                     .insert(TypeReferenceNode::Named {
@@ -2551,6 +2555,7 @@ fn substitute_arguments(
                 argument.path = Box::new([Identifier::generated(spelling)]);
             }
         }
+        Served::Ok(())
     };
     let mut callables = operands
         .iter()
@@ -2577,20 +2582,27 @@ fn substitute_arguments(
         .map(|(handle, _)| handle)
         .collect::<Vec<_>>();
     for handle in calls {
-        let mut machine_arguments = match program.expression_table.expression(handle) {
-            ExpressionNode::Call(call) if !call.build_selection.is_valid() => {
-                Some(call.machine_arguments.clone())
-            }
-            _ => None,
-        };
+        let (mut machine_arguments, closed_template) =
+            match program.expression_table.expression(handle) {
+                ExpressionNode::Call(call) if !call.build_selection.is_valid() => (
+                    Some(call.machine_arguments.clone()),
+                    program
+                        .closed_requirement_application(call.target_symbol)
+                        .map(|closed| closed.template),
+                ),
+                _ => (None, None),
+            };
         if let Some(arguments) = machine_arguments.as_mut() {
-            replace(program, arguments);
+            replace(program, arguments)?;
         }
         if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
             && !call.build_selection.is_valid()
         {
             if let Some(arguments) = machine_arguments {
                 call.machine_arguments = arguments;
+            }
+            if let Some(template) = closed_template {
+                call.target_symbol = template;
             }
             if let Some(target) = selected_callable(call.target_symbol) {
                 call.static_machine_parameter = call.target_symbol;
@@ -2600,18 +2612,27 @@ fn substitute_arguments(
         }
     }
     for &handle in &body.statements {
-        let mut machine_arguments = match program.statement_table.statement(handle) {
-            StatementNode::Call(call) => Some(call.machine_arguments.clone()),
-            _ => None,
-        };
+        let (mut machine_arguments, closed_template) =
+            match program.statement_table.statement(handle) {
+                StatementNode::Call(call) => (
+                    Some(call.machine_arguments.clone()),
+                    program
+                        .closed_requirement_application(call.target_symbol)
+                        .map(|closed| closed.template),
+                ),
+                _ => (None, None),
+            };
         if let Some(arguments) = machine_arguments.as_mut() {
-            replace(program, arguments);
+            replace(program, arguments)?;
         }
         let statement = program.statement_table.statement_mut(handle);
         match statement {
             StatementNode::Call(call) => {
                 if let Some(arguments) = machine_arguments {
                     call.machine_arguments = arguments;
+                }
+                if let Some(template) = closed_template {
+                    call.target_symbol = template;
                 }
                 if let Some(target) = selected_callable(call.target_symbol) {
                     call.static_machine_parameter = call.target_symbol;
@@ -2645,7 +2666,7 @@ fn substitute_arguments(
             .expression_table
             .static_machine_application_arguments_mut(application)
             .to_vec();
-        replace(program, &mut arguments);
+        replace(program, &mut arguments)?;
         let table = &mut program.expression_table;
         table
             .static_machine_application_arguments_mut(application)

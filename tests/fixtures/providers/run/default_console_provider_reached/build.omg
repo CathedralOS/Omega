@@ -3,8 +3,8 @@ use {omega}/build/dependency.omg;
 use {omega}/language/core/process_authority.omg;
 use {omega}/language/core/process_exit.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "default_console_provider_reached");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "default_console_provider_reached" };
     let system: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../../../../source/library/system" });
     let allowed: [BoundaryServiceReference; 2] = [
         Build::service::<|process_authority|::StandardOutput>(builder),

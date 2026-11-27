@@ -42,7 +42,7 @@ pub(crate) use declaration_tables_and_index::{
     data_definitions, declaration_tables, machine_declarations, machine_parameter_signatures,
     spelled_declarations, type_parameters,
 };
-pub use evidence_and_inspection::{evidence, inspection};
+pub use evidence_and_inspection::evidence;
 pub use expressions::constant_values::*;
 pub use frozen::{FrozenTypedTrees, ProductSourceIdentity};
 pub use machine_declarations::MachineDeclarationTable;
@@ -92,13 +92,10 @@ pub use declarations::{
     boundary_completions, calling_vocabulary, constant, data, domain, invocations, layout_storage,
     measure, operator, product_operand, trait_definition, type_aliases, visibility, wire,
 };
-pub use evidence::{byte_predicates, mathematical, proof_only, proposition, ranking};
-pub use inspection::snapshot;
+pub use evidence::{byte_predicates, mathematical, proposition, ranking};
 pub use names::{identity, name};
-pub use snapshot::TypedTreesSnapshot;
 pub use source_type_applications::SourceSliceApplication;
-pub use type_system::type_predicates::ProvenTypeContext;
-pub use type_system::{CaseMembershipTypeFacts, closed_numeric, types};
+pub use type_system::{closed_numeric, types};
 pub use values::const_integer;
 pub use values::expression;
 pub use values::subtrees::{SubtreeEdges, SubtreeVisit};

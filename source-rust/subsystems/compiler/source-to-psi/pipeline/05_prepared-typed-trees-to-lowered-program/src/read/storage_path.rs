@@ -22,7 +22,9 @@ pub(super) fn walk<'a, E>(
         match &place.kind {
             ExpressionKind::TestMembership { predicate, .. } => place = predicate,
 
-            ExpressionKind::TheoremApplication { .. } => return Ok(place),
+            ExpressionKind::TheoremApplication { .. } | ExpressionKind::Applied { .. } => {
+                return Ok(place);
+            }
             ExpressionKind::Field { base, .. }
             | ExpressionKind::Payload { base, .. }
             | ExpressionKind::Index { base, .. }

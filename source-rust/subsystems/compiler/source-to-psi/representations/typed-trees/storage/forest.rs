@@ -1,7 +1,6 @@
-//! Construct, snapshot and retain the typed forest.
-use crate::*;
+//! Construct and retain the typed forest.
 use crate::source_symbols::SymbolTable;
-use artifacts::PhaseSnapshot;
+use crate::*;
 use std::ops::{Deref, DerefMut};
 impl Clone for TypedTrees {
     fn clone(&self) -> Self {
@@ -39,6 +38,7 @@ impl TypedTrees {
             }};
         }
         clone_storage!(
+            build_invocation_entry,
             excluded_authored_selection_occurrences,
             roots,
             tables,
@@ -137,6 +137,7 @@ impl TypedTrees {
     ) -> Self {
         Self {
             identity: ProgramIdentity::default(),
+            build_invocation_entry: None,
             excluded_authored_selection_occurrences: AuthoredSelectionExclusions::default(),
             roots,
             tables,
@@ -187,26 +188,6 @@ impl TypedTrees {
         self.ranking_expression_custody
             .iter()
             .find(|custody| custody.machine == machine)
-    }
-
-    pub fn snapshot(&self) -> snapshot::TypedTreesSnapshot {
-        snapshot::TypedTreesSnapshot::from_typed_trees(self)
-    }
-
-    pub fn snapshot_json(&self) -> Result<String, serde_json::Error> {
-        self.snapshot().to_json()
-    }
-
-    pub fn snapshot_json_pretty(&self) -> Result<String, serde_json::Error> {
-        self.snapshot().to_json_pretty()
-    }
-}
-
-impl PhaseSnapshot for TypedTrees {
-    type Snapshot = snapshot::TypedTreesSnapshot;
-
-    fn snapshot(&self) -> Self::Snapshot {
-        TypedTrees::snapshot(self)
     }
 }
 

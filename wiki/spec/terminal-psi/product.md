@@ -195,7 +195,7 @@ The portable envelope retains canonical semantics, contracts, mathematical
 claims, exact subjects, selected operations, assumptions and dependencies. It
 also retains pre-Terminal selection provenance and optional debug information.
 The existing mathematical-certificate forms remain carried and canonically
-decoded as specified by [encoding](encoding.md#mathematical-certificate).
+decoded as specified by [encoding](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#mathematical-certificate).
 Their presence grants no truth, execution authority or producer trust, and
 receipt does not require kernel replay. Local source proving keeps its kernel.
 

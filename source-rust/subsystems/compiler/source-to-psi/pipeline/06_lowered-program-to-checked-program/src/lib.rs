@@ -291,9 +291,6 @@ pub enum Discharged {
     /// they. Empty when the machine has no normal return, where the clause
     /// holds vacuously.
     EveryExit(Vec<ObligationId>),
-    /// Only the existing return edges have been proved. The stated result
-    /// guarantee still applies to an invocation prefix's uncompiled suffix.
-    PendingNormalGuarantee(Vec<ObligationId>),
     /// A `DataDomain` clause that a store or a zero establishment was not
     /// shown to keep, with why: the write opens an invariant window.
     /// `wiki/spec/language/dependent_values.md`, "Invariant windows": "A
@@ -344,7 +341,6 @@ impl Discharged {
             | Self::Law(_)
             | Self::ConservedContent(_)
             | Self::TargetCondition(_)
-            | Self::PendingNormalGuarantee(_)
             | Self::EveryExit(_)
             | Self::Window(_)
             | Self::Preserved
@@ -551,7 +547,7 @@ pub(crate) struct ElaborationView<'a> {
     pub(crate) module: &'a TerminalModule,
     pub(crate) sources: &'a IdTable<MachineId, terminal_check_tables::program::MachineSources>,
     pub(crate) requirements: &'a [MachineId],
-    pub(crate) nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
+    pub(crate) nominal_calls: &'a [terminal_psi::generic_calls::NominalCallType],
     pub(crate) schemas: &'a [terminal_check_tables::contracts::StaticSchemaQuestion],
     pub(crate) domain_sources: &'a IdTable<
         semantic_vocabulary::DomainSemanticId,
@@ -563,6 +559,9 @@ pub(crate) struct PreparedDischarge<'l> {
     inhabitation: terminal_semantics::inhabitation::Inhabitation,
     unreached: Unreached,
     law_instances: Vec<MachineId>,
+    /// The Identity table of a generic check form with const record
+    /// parameters, checked once; `None` for any other module.
+    identities: Option<equality::IdentityTables>,
     theorems: Vec<(MachineId, &'l laws::LawJudgment)>,
     inferred_calls: entry_inputs::InferredCalls,
     inferred_results: Vec<(MachineId, u32, terminal_psi::ContractClause)>,
@@ -571,6 +570,7 @@ pub(crate) struct PreparedDischarge<'l> {
 pub(crate) fn prepare_discharge<'l>(
     elaboration: &mut Elaboration,
     laws: &'l [laws::LawJudgment],
+    identities: Option<&terminal_check_tables::mathematics::IdentityTable>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<PreparedDischarge<'l>> {
     for boundary in &elaboration.module.interfaces.boundary_machines {
@@ -690,11 +690,14 @@ pub(crate) fn prepare_discharge<'l>(
                 .map(move |law| (id, law))
         })
         .collect();
+    let identities =
+        identities.map(|table| equality::check_identity_table(&scope.source().module, table));
     let (inferred_calls, inferred_results) = scope.into_inferred();
     Ok(PreparedDischarge {
         inhabitation,
         unreached,
         law_instances,
+        identities,
         theorems,
         inferred_calls,
         inferred_results,
@@ -715,6 +718,7 @@ pub(crate) fn finish_discharge<'m>(
         inhabitation,
         unreached,
         law_instances,
+        identities,
         theorems,
         inferred_calls,
         inferred_results,
@@ -787,7 +791,10 @@ pub(crate) fn finish_discharge<'m>(
                 &beyond,
                 inputs.carried.map(|position| &carried[position]),
                 inputs.branches,
-                &law_instances,
+                equality::LawScope {
+                    instances: &law_instances,
+                    identities: identities.as_ref(),
+                },
                 proved,
                 &empty_contracts,
                 &summaries,
@@ -827,7 +834,7 @@ pub(crate) fn discharge_inner(
     verified_borrow_ends: Option<&VerifiedBorrowEnds>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    let prepared = prepare_discharge(elaboration, laws, activity)?;
+    let prepared = prepare_discharge(elaboration, laws, None, activity)?;
     let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
     let discharged = finish_discharge(
         ElaborationView {
@@ -948,7 +955,7 @@ fn machine(
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
-    law_instances: &[MachineId],
+    law_instances: equality::LawScope<'_>,
     proved: &[(MachineId, &laws::LawJudgment)],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     summaries: &ModuleReplays<'_>,
@@ -1000,7 +1007,7 @@ fn check_prepared_machine(
     tables: &mut MachineTables,
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
-    law_instances: &[MachineId],
+    law_instances: equality::LawScope<'_>,
     proved: &[(MachineId, &laws::LawJudgment)],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
@@ -1179,7 +1186,8 @@ fn check_prepared_machine(
                             row.created_at,
                             obligation,
                             clause,
-                            law_instances,
+                            law_instances.instances,
+                            law_instances.identities,
                             &mut at_exit,
                         )
                         .map(Discharged::Identity)
@@ -1193,7 +1201,8 @@ fn check_prepared_machine(
                         row.created_at,
                         obligation,
                         clause,
-                        law_instances,
+                        law_instances.instances,
+                        law_instances.identities,
                         &mut storage.at_entry(references, tables),
                     )
                     .map(Discharged::Identity),
@@ -1258,24 +1267,11 @@ fn check_prepared_machine(
     // dependency pass before moving any certificate out of this table. Once
     // it is complete, settlement owns each result; no duplicate proof tree
     // or intermediate verdict table is needed.
-    let pending_result = !lowered.ensures.is_empty()
-        && lowered.blocks.iter().any(|block| {
-            matches!(
-                block.terminator,
-                terminal_psi::Terminator::PendingNormalCompletion { .. }
-            )
-        });
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_none()
             && let ObligationKind::PublishedGuarantee { clause } = row.kind
         {
-            let checked = published(tables, id, obligation, clause, &decided);
-            decided[index] = Some(match checked {
-                Ok(Discharged::EveryExit(exits)) if pending_result => {
-                    Ok(Discharged::PendingNormalGuarantee(exits))
-                }
-                other => other,
-            });
+            decided[index] = Some(published(tables, id, obligation, clause, &decided));
         }
     }
     // A store or a zero establishment that was not shown to keep a clause
@@ -1469,7 +1465,7 @@ fn fill_knowledge<'a>(
     ),
 ) -> Checked<()> {
     let edge_entries = owned_cleanup::edge_entry_points(lowered, tables)?;
-    theorems::fill(module, id, tables)?;
+    theorems::fill(module, id, tables, (storage, &mut *references))?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         let mut premises =
             entry_snapshot_conjuncts(proposition, &mut storage.at_entry(references, tables))
@@ -1770,7 +1766,7 @@ impl PreparedMachine<'_, '_> {
         tables: &mut MachineTables,
         decided: &mut [Option<Checked<Discharged>>],
         unreached: &[ValueId],
-        law_instances: &[MachineId],
+        law_instances: equality::LawScope<'_>,
         activity: &mut ProofSearchActivity,
     ) -> Checked<Vec<BlockId>> {
         joins::check(
@@ -1806,7 +1802,16 @@ impl PreparedMachine<'_, '_> {
         let mut decided = (0..tables.obligations.len())
             .map(|_| None)
             .collect::<Vec<_>>();
-        self.check_joins(tables, &mut decided, &beyond, &[], activity)?;
+        self.check_joins(
+            tables,
+            &mut decided,
+            &beyond,
+            equality::LawScope {
+                instances: &[],
+                identities: None,
+            },
+            activity,
+        )?;
         Ok(beyond)
     }
 }
@@ -1885,7 +1890,6 @@ fn with_prepared_machine<Outcome>(
     )?;
     let graph = Graph::new(id, lowered, tables)?;
     theorems::validate(module, lowered, tables, &graph)?;
-    minted::check_pending_operands(lowered, tables, &graph)?;
     let reference_graph = places::reference_graph_with_generic_calls(
         module,
         id,
@@ -2678,9 +2682,14 @@ fn stated_goal<'a>(
             ))
         }
         ObligationKind::OperationSafety { site } => storage.safety_goal(site, obligation, types),
-        ObligationKind::TheoremRequirement { edge, clause } => {
-            theorems::goal(module, id, edge, clause)
-        }
+        ObligationKind::TheoremRequirement { edge, clause } => theorems::goal(
+            module,
+            id,
+            (storage, &mut *references),
+            tables,
+            edge,
+            clause,
+        ),
         ObligationKind::CallRequirement { invocation, clause } => {
             let row = terminal_check_tables::row(
                 &tables.invocations,
@@ -3599,7 +3608,9 @@ fn search_certificate(
         // last, so the outcome does not depend on search order: the form as
         // written, and the form of the operations that define the values it
         // names (`prove::reach`).
-        let cause = if prover.has_rules_for(goal) && !prover.beyond_rules(goal, unreached) {
+        let cause = if prover.steps_exhausted() {
+            UnprovedCause::BudgetExhausted
+        } else if prover.has_rules_for(goal) && !prover.beyond_rules(goal, unreached) {
             UnprovedCause::NoDerivation
         } else {
             UnprovedCause::NoRuleForGoalForm
@@ -3863,7 +3874,9 @@ pub fn derive_contract_obligation(
     .map_err(|_| malformed("contract formal identities are not a complete dense namespace"))?;
     let mut prover = prove::Prover::new(context, &[], &[], &values, activity);
     let proof = prover.prove(goal).map_err(|detail| {
-        let cause = if prover.has_rules_for(goal) {
+        let cause = if prover.steps_exhausted() {
+            UnprovedCause::BudgetExhausted
+        } else if prover.has_rules_for(goal) {
             UnprovedCause::NoDerivation
         } else {
             UnprovedCause::NoRuleForGoalForm

@@ -17,7 +17,7 @@ machine roll_event(
     random: @mutable |random_state|::RandomState,
     event: @mutable |events|::RoomEvent
 ) {
-    let roll: u32 in Wrapping = |random|::range(@mutable room_events.rng, random, 100u32 as +Wrapping) as u32 +Wrapping;
+    let roll: u32 in Wrapping = |random|::range(@mutable room_events.rng, random, 100u32 as +Wrapping) as +Wrapping;
     apply_event(room_events, depth, random, event, roll);
 
 }

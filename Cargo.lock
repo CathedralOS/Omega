@@ -1477,6 +1477,7 @@ dependencies = [
  "build-providers",
  "calling-conventions",
  "layout",
+ "runtime-abi",
  "semantic-vocabulary",
  "service-surface",
  "target",
@@ -3034,10 +3035,7 @@ dependencies = [
  "retained-product-selections",
  "schema-reflection",
  "semantic-vocabulary",
- "serde",
- "serde_json",
  "service-surface",
- "sha2",
  "source-admission",
  "source-completion-accounting",
  "source-declarations",
@@ -3061,7 +3059,6 @@ dependencies = [
  "tokens",
  "typed-trees",
  "typed-trees-to-prepared-typed-trees",
- "wire",
  "worker-budget",
 ]
 
@@ -3111,14 +3108,11 @@ dependencies = [
 name = "source-lexer"
 version = "0.1.0"
 dependencies = [
- "arena",
  "diagnostics",
  "memchr",
- "rayon",
  "source-files",
  "source-text",
  "tokens",
- "worker-budget",
 ]
 
 [[package]]
@@ -3130,15 +3124,12 @@ dependencies = [
  "language-core",
  "numeric-literals",
  "numerics",
- "rayon",
- "serde_json",
  "source-files",
  "source-lexer",
  "source-text",
  "symbols",
  "syntax-trees",
  "tokens",
- "worker-budget",
 ]
 
 [[package]]
@@ -3292,14 +3283,11 @@ name = "syntax-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "artifacts",
  "diagnostics",
  "language-core",
  "numeric-literals",
  "numerics",
  "record-storage",
- "serde",
- "serde_json",
  "source-files",
  "source-text",
  "syntax-trees-derive",
@@ -3767,7 +3755,6 @@ dependencies = [
  "access-vocabulary",
  "application-identity",
  "arena",
- "artifacts",
  "bignum",
  "bundled-declarations",
  "diagnostics",
@@ -3779,8 +3766,6 @@ dependencies = [
  "record-storage",
  "schema-reflection",
  "semantic-vocabulary",
- "serde",
- "serde_json",
  "service-surface",
  "sha2",
  "source-admission",

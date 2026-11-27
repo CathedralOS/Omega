@@ -27,14 +27,14 @@ requires name.length <= 16
 
 machine heal(player: @mutable |player_state|::Player,
     amount: i32 in Wrapping) {
-    player.health = |math|::min_i32(player.max_health as i32, (player.health + amount) as i32) as i32 +Wrapping;
+    player.health = |math|::min_i32(player.max_health as -Wrapping, (player.health + amount) as -Wrapping) as +Wrapping;
 }
 
 machine take_damage(player: @mutable |player_state|::Player,
     amount: i32 in Wrapping) {
-    let prevented: i32 in Wrapping = |math|::min_i32(amount as i32, player.defense as i32) as i32 +Wrapping;
+    let prevented: i32 in Wrapping = |math|::min_i32(amount as -Wrapping, player.defense as -Wrapping) as +Wrapping;
     let actual: i32 in Wrapping = amount - prevented;
-    player.health = |math|::max_i32(0, (player.health - actual) as i32) as i32 +Wrapping;
+    player.health = |math|::max_i32(0, (player.health - actual) as -Wrapping) as +Wrapping;
 }
 
 machine grant_reward(
@@ -62,7 +62,7 @@ machine grant_xp(
         player_system: @mutable PlayerSystem,
         player: @mutable |player_state|::Player
     ) {
-        player.xp = |math|::max_u32(0, (player.xp - (xp_required(player.level) as u32 +Wrapping)) as u32) as u32 +Wrapping;
+        player.xp = |math|::max_u32(0, (player.xp - (xp_required(player.level) as +Wrapping)) as -Wrapping) as +Wrapping;
         player.level = player.level + 1;
         player.max_health = player.max_health + 5;
         player.attack = player.attack + 1;
@@ -77,7 +77,7 @@ machine grant_xp(
 
 machine xp_required(level: u32 in Wrapping) -> u32 {
     transition {
-        _ -> ((10 + level * 5) as u32)
+        _ -> ((10 + level * 5) as -Wrapping)
     }
 }
 

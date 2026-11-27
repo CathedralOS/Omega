@@ -18,6 +18,14 @@ macro_rules! source_bytes {
 }
 language_core::bundled_library_files!(source_bytes);
 
+/// Recognize an admitted core source by its package-relative path and exact
+/// bundled bytes. Callers must first verify toolchain origin and that the file
+/// belongs to no admitted package graph.
+pub fn recognize_core_file(relative_path: &std::path::Path, source: &[u8]) -> Option<BundledFile> {
+    let file = BundledFile::from_core_relative_path(relative_path)?;
+    (bytes(file) == source).then_some(file)
+}
+
 /// Exact installed declarations for the Build interpreter’s designated standard streams.
 pub const BUILD_STREAMS: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),

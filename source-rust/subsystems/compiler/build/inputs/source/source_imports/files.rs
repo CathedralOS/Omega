@@ -73,8 +73,7 @@ impl<'a> FileImport<'a> {
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
         let Some(path) = captured_file(root, Path::new(relative), filesystem)? else {
-            if self.source.scope == DependencyScope::Build && !self.import.requires_build_binding()
-            {
+            if self.source.scope == DependencyScope::Build {
                 return Ok(FileSelection::Unbound);
             }
             return Err(self.error(format!(

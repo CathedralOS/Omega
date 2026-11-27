@@ -2,8 +2,8 @@ use main.omg as app;
 use {omega}/language/core/external_binding.omg as native;
 use {omega}/language/core/process_exit.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "source_scalar_operator_selection");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "source_scalar_operator_selection" };
     Build::bind_native::<|process_exit|::ProcessExit::exit_process>(builder, linux_x86_64,
         |native|::ForeignBinding::Syscall { number: 231u64 });
     Build::bind_native::<|process_exit|::ProcessExit::exit_process>(builder, linux_arm64,

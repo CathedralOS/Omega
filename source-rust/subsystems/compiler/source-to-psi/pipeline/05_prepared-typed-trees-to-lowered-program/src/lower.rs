@@ -796,7 +796,7 @@ impl Lowering<'_> {
         // The erased scalar formals come after the result pseudo-value. Each is
         // an invocation formal with a value identity and no runtime lane:
         // Terminal Psi declares it in the contract, not among the parameters
-        // (`wiki/spec/terminal-psi/encoding.md`: "Erased formals occupy no tag").
+        // (`source-rust/subsystems/compiler/psi/artifact/wire/encoding.md`: "Erased formals occupy no tag").
         for position in &signature.erased {
             let Some(ValueType::Scalar(scalar_type, _)) =
                 signature.parameters.get(*position).copied()

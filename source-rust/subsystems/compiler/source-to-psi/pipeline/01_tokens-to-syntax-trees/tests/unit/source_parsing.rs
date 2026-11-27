@@ -1,22 +1,20 @@
 use crate::frontend_fixture::Lexer;
-use crate::{parse_into as parse, parse_source_units, parse_sources};
-use source_files::{DependencyScope, LoadedSource, LoadedSources, SourceOrigin};
-use source_lexer::lex as lex_sources;
+use crate::{parse_file, parse_into as parse};
+use source_files::{DependencyScope, LoadedSource, SourceOrigin};
 use source_text::SourceId;
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
 
-fn lexed_source(source_id: SourceId, path: &str, text: &str) -> tokens::LexedSources {
-    let mut loaded = LoadedSources::default();
-    loaded.batch = loaded.sources.insert_many([LoadedSource {
+fn lexed_file(source_id: SourceId, path: &str, text: &str) -> tokens::LexedSource {
+    let mut loaded = LoadedSource {
         source_id,
         path: path.into(),
         source: Arc::from(text),
         origin: Some(SourceOrigin::User),
         scope: DependencyScope::Build,
-    }]);
-    lex_sources(loaded).unwrap()
+    };
+    source_lexer::lex_file(&mut loaded, &mut tokens::TokenScratch::default()).unwrap()
 }
 
 #[test]
@@ -29,16 +27,11 @@ fn appending_sources_preserves_root_handles_and_source_identity() {
         .unwrap()
         .items;
     let original = trees.root_item(first[0]).clone();
-    let lexed = lexed_source(SourceId(22), "second.omg", "data Second {} data Third {}");
-    let backing = lexed.sources.span_or_empty(lexed.batch)[0]
-        .tokens
-        .source_owner()
-        .unwrap()
-        .clone();
-    let parsed = parse_sources(lexed, &mut trees).unwrap();
-    let sources = parsed.sources.span_or_empty(parsed.batch);
-    assert_eq!(sources.len(), 1);
-    let appended = &sources[0];
+    let mut lexed = lexed_file(SourceId(22), "second.omg", "data Second {} data Third {}");
+    let backing = lexed.tokens.source_owner().unwrap().clone();
+    let mut page = SyntaxTrees::new_with_generation(SourceId(22), 2);
+    let appended = parse_file(&mut page, &mut lexed).unwrap();
+    trees.adopt_page(page);
     assert_eq!(appended.source_id, SourceId(22));
     assert_eq!(appended.path, std::path::PathBuf::from("second.omg"));
     assert_eq!(appended.origin, Some(SourceOrigin::User));
@@ -68,9 +61,6 @@ fn appending_sources_preserves_root_handles_and_source_identity() {
             .items
             .is_empty()
     );
-    assert_eq!(trees.root_item_count(), 3);
-    let empty = parse_sources(tokens::LexedSources::default(), &mut trees).unwrap();
-    assert!(empty.sources.span_or_empty(empty.batch).is_empty());
     assert_eq!(trees.root_item_count(), 3);
 }
 
@@ -125,47 +115,7 @@ fn parser_retains_one_worker_page_identity_through_nested_handles() {
 }
 
 #[test]
-fn parallel_parser_pages_preserve_source_order_and_direct_handle_lookup() {
-    let mut loaded = LoadedSources::default();
-    loaded.batch = loaded.sources.insert_many((0..16).map(|position| {
-        let padding = if position == 0 {
-            "/* padding */".repeat(50_000)
-        } else {
-            String::new()
-        };
-        LoadedSource {
-            source_id: SourceId(100 + position),
-            path: format!("source-{position}.omg").into(),
-            source: Arc::from(format!("{padding} data Item{position} {{}}")),
-            origin: Some(SourceOrigin::User),
-            scope: DependencyScope::Product,
-        }
-    }));
-    let lexed = lex_sources(loaded).unwrap();
-    let budget = worker_budget::ExecutionBudget::with_workers(4).unwrap();
-    let parsed = budget.run(|| parse_source_units(lexed)).unwrap();
-
-    assert_eq!(parsed.page_count(), 16);
-    assert_eq!(parsed.sources().len(), 16);
-    for (position, source) in parsed.sources().iter().enumerate() {
-        assert_eq!(source.source().source_id, SourceId(100 + position));
-        assert_eq!(source.source().root_items.len(), 1);
-        assert_eq!(
-            source.source().path,
-            std::path::PathBuf::from(format!("source-{position}.omg"))
-        );
-        let root = source.source().root_items[0];
-        assert_eq!(root.generation(), source.syntax_handle().generation());
-        let syntax = parsed.syntax_for(root).expect("root syntax page");
-        let Item::Data(data) = syntax.root_item(root) else {
-            panic!("data root")
-        };
-        assert_eq!(data.name.as_str(syntax), format!("Item{position}"));
-    }
-}
-
-#[test]
-fn private_construction_keeps_its_prefix_but_failed_stage_output_is_not_adopted() {
+fn parse_file_error_reports_source_location_without_affecting_adopted_trees() {
     let mut trees = SyntaxTrees::new(SourceId(11));
     let tokens = Lexer::new("data Retained {} ;").tokenize().unwrap();
     let error = parse(&mut trees, SourceId(22), &tokens).unwrap_err();
@@ -177,13 +127,12 @@ fn private_construction_keeps_its_prefix_but_failed_stage_output_is_not_adopted(
     };
     assert_eq!(data.name.as_str(&trees), "Retained");
 
-    let errors = parse_sources(
-        lexed_source(SourceId(33), "appended.omg", "data Another {}\n  ;"),
-        &mut trees,
-    )
-    .unwrap_err();
-    assert_eq!(errors.len(), 1);
-    assert!(errors[0].message.starts_with("appended.omg:2:3: "));
+    let mut page = SyntaxTrees::new_with_generation(SourceId(33), 2);
+    let mut failing = lexed_file(SourceId(33), "appended.omg", "data Another {}\n  ;");
+    let error = parse_file(&mut page, &mut failing)
+        .unwrap_err()
+        .into_diagnostic();
+    assert!(error.message.starts_with("appended.omg:2:3: "));
     assert_eq!(trees.root_item_count(), 1);
     let Item::Data(data) = trees.root_items().next().unwrap() else {
         panic!("existing syntax remains intact");
@@ -193,7 +142,7 @@ fn private_construction_keeps_its_prefix_but_failed_stage_output_is_not_adopted(
 }
 
 #[test]
-fn import_bounds_preserve_interleaved_root_ordinals_on_both_parser_routes() {
+fn import_bounds_preserve_interleaved_root_ordinals() {
     let cases = [
         ("", 0..0, vec![]),
         ("data Only {}", 0..0, vec![]),
@@ -207,9 +156,8 @@ fn import_bounds_preserve_interleaved_root_ordinals_on_both_parser_routes() {
     ];
     for (text, expected_range, expected_ordinals) in cases {
         let mut trees = SyntaxTrees::default();
-        let parsed =
-            parse_sources(lexed_source(SourceId(27), "imports.omg", text), &mut trees).unwrap();
-        let source = &parsed.sources.span_or_empty(parsed.batch)[0];
+        let mut lexed = lexed_file(SourceId(27), "imports.omg", text);
+        let source = parse_file(&mut trees, &mut lexed).unwrap();
         assert_eq!(source.import_root_range, expected_range);
         let actual = source.root_items[source.import_root_range.clone()]
             .iter()
@@ -220,31 +168,16 @@ fn import_bounds_preserve_interleaved_root_ordinals_on_both_parser_routes() {
             })
             .collect::<Vec<_>>();
         assert_eq!(actual, expected_ordinals);
-
-        let pages = parse_source_units(lexed_source(SourceId(27), "imports.omg", text)).unwrap();
-        let source = pages.sources()[0].source();
-        assert_eq!(source.import_root_range, expected_range);
-        let actual = source.root_items[source.import_root_range.clone()]
-            .iter()
-            .enumerate()
-            .filter_map(|(offset, root)| {
-                matches!(
-                    pages.syntax_for(*root).unwrap().root_item(*root),
-                    Item::Use(_)
-                )
-                .then_some(source.import_root_range.start + offset)
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(actual, expected_ordinals);
     }
 }
 
 #[test]
 fn syntax_names_remain_valid_after_all_token_and_source_rows_are_released() {
-    let lexed = lexed_source(SourceId(55), "retained.omg", "data Retained {}");
+    let mut lexed = lexed_file(SourceId(55), "retained.omg", "data Retained {}");
     let mut syntax = SyntaxTrees::default();
-    let parsed = parse_sources(lexed, &mut syntax).unwrap();
-    let root = parsed.sources.span_or_empty(parsed.batch)[0].root_items[0];
+    let parsed = parse_file(&mut syntax, &mut lexed).unwrap();
+    let root = parsed.root_items[0];
+    drop(lexed);
     drop(parsed);
     let Item::Data(data) = syntax.root_item(root) else {
         panic!("data root")
@@ -384,6 +317,35 @@ fn a_description_uses_the_file_selected_by_the_query_alias() {
             .map(|usage| usage.role)
             .collect::<Vec<_>>(),
         [Description, Description, Code, Code]
+    );
+}
+
+#[test]
+fn file_qualifiers_keep_their_enclosing_declaration() {
+    use syntax_trees::item::UseItem;
+    let source = "use util.omg; machine first(a: |util|::Byte) -> u8 {
+        nested()
+        machine nested() -> u8 { |util|::one() } }
+        machine second() -> u8 { |util|::two() }";
+    let mut trees = SyntaxTrees::new(SourceId(1));
+    let tokens = Lexer::new(source).tokenize().unwrap();
+    let roots = parse(&mut trees, SourceId(1), &tokens).unwrap();
+    let Item::Use(UseItem { qualifiers, .. }) = trees.root_item(roots.items[0]) else {
+        panic!("expected the file import");
+    };
+    let owners: Vec<_> = qualifiers
+        .iter()
+        .map(|usage| {
+            assert!(usage.declaration.end <= usage.offset);
+            (
+                &source[usage.declaration.start..usage.declaration.end],
+                usage.in_machine_body,
+            )
+        })
+        .collect();
+    assert_eq!(
+        owners,
+        [("first", false), ("nested", true), ("second", true)]
     );
 }
 

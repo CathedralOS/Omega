@@ -797,7 +797,7 @@ ensures
 
 // One is at most any successor: saturating_sub(Succ Zero, Succ pb) == Zero --
 // premise-free, flat (strip the pair, annihilate on the left). The site
-// fact gcd's recursive arm needs to discharge mod's positivity premise.
+// fact a positive divisor `Succ pb` gives for `mod`'s and `div`'s premise.
 public machine le_one_succ(pb: Nat) -> Nat
 ensures
     |proof|::Identity::<Nat>(
@@ -813,28 +813,6 @@ ensures
         _ = succ_sub_succ(Nat::Zero, pb);
         _ = sub_zero_left(pb);
         transition { _ -> Nat::Zero }
-    }
-}
-
-// EUCLID (slice a3): gcd(a, Zero) = a; gcd(a, Succ pb) = gcd(b, mod(a, b))
-// at b = Succ pb. The recursive edge's measure argument is the COMPUTED
-// mod(a, Succ pb); its strict decrease judges through the structural edge
-// judge: the incoming payload alias (b == Succ { prev: pb }), le_one_succ's
-// cited fact (discharging mod's positivity premise), and mod's own ensures
-// at the let-citation (result < divisor) close the obligation. Lean analog:
-// Nat.gcd.
-machine gcd(a: Nat, b: Nat) -> Nat
-terminates by b
-{
-    transition b {
-        Nat::Zero -> (a),
-        Nat::Succ { prev as pb } -> gcd_rec(a, b, pb)
-    }
-
-    machine gcd_rec(a: Nat, b: Nat, pb: Nat) -> Nat {
-        _ = le_one_succ(pb);
-        let next: Nat = mod(a, Nat::Succ { prev: pb });
-        transition { _ -> (gcd(Nat::Succ { prev: pb }, next)) }
     }
 }
 
@@ -1047,6 +1025,329 @@ ensures
         _ = sub_self(k);
         _ = divide_reconstructs(a, k, Nat::Zero, k);
         _ = add_zero_right(a);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// Order is transitive: x <= y and y <= z entail x <= z, in core's spelling
+// saturating_sub(x, z) == Zero. Induction on `x`; a successor on the left
+// forces successors on the right (each premise would otherwise equate a
+// successor with zero), and succ_sub_succ strips the three pairs. Lean
+// analog: Nat.le_trans.
+machine le_trans(x: Nat, y: Nat, z: Nat) -> Nat
+terminates by x
+requires
+    |proof|::Identity::<Nat>(saturating_sub(x, y), Nat::Zero),
+    |proof|::Identity::<Nat>(saturating_sub(y, z), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(saturating_sub(x, z), Nat::Zero)
+{
+    transition x {
+        Nat::Zero -> lt_zero(z),
+        Nat::Succ { prev } -> lt_left(prev, y, z)
+    }
+
+    machine lt_zero(z: Nat) -> Nat {
+        _ = sub_zero_left(z);
+        transition { _ -> Nat::Zero }
+    }
+
+    machine lt_left(prev: Nat, y: Nat, z: Nat) -> Nat {
+        transition y {
+            Nat::Zero -> Nat::Zero,
+            Nat::Succ { prev as py } -> lt_middle(prev, py, z)
+        }
+    }
+
+    machine lt_middle(prev: Nat, py: Nat, z: Nat) -> Nat {
+        transition z {
+            Nat::Zero -> Nat::Zero,
+            Nat::Succ { prev as pz } -> lt_all(prev, py, pz)
+        }
+    }
+
+    machine lt_all(px: Nat, py: Nat, pz: Nat) -> Nat {
+        _ = succ_sub_succ(px, py);
+        _ = succ_sub_succ(py, pz);
+        _ = succ_sub_succ(px, pz);
+        transition { _ -> (le_trans(px, py, pz)) }
+    }
+}
+
+// EUCLID: gcd(a, Zero) == a and gcd(a, Succ pb) == gcd(Succ pb, mod(a,
+// Succ pb)). The remainder is strictly below the divisor, so a divisor `b`
+// bounds the number of steps. `gcd_within(n, a, b)` takes at most `n`
+// steps and recurses on `n` alone, so no fuel is needed; `gcd(a, b)` is
+// gcd_within(b, a, b). With no steps left it answers `a`, which is right
+// only for b == Zero; `gcd_within_agrees` shows that any bound `n` with
+// b <= n gives the same answer, so the bound always suffices. Lean analog:
+// Nat.gcd.
+machine gcd_within(n: Nat, a: Nat, b: Nat) -> Nat
+terminates by n
+{
+    transition n {
+        Nat::Zero -> (a),
+        Nat::Succ { prev } -> gcd_within_step(prev, a, b)
+    }
+
+    machine gcd_within_step(prev: Nat, a: Nat, b: Nat) -> Nat {
+        transition b {
+            Nat::Zero -> (a),
+            Nat::Succ { prev as pb } -> gcd_within_next(prev, a, pb)
+        }
+    }
+
+    machine gcd_within_next(prev: Nat, a: Nat, pb: Nat) -> Nat {
+        transition { _ -> (gcd_within(prev, Nat::Succ { prev: pb }, divide_step(a, pb, Nat::Zero, pb).remainder)) }
+    }
+}
+
+public machine gcd(a: Nat, b: Nat) -> Nat {
+    transition { _ -> (gcd_within(b, a, b)) }
+}
+
+// Every sufficient bound gives the same greatest common divisor: for
+// b <= n and b <= m, gcd_within(n, a, b) == gcd_within(m, a, b). Induction
+// on `n`. A bound of zero forces b == Zero, where both sides are `a`; with
+// two successor bounds and a successor divisor both sides take one step
+// to the remainder, which is below the divisor and so within both smaller
+// bounds (`divide_bounds`, then `le_trans`).
+machine gcd_within_agrees(n: Nat, m: Nat, a: Nat, b: Nat) -> Nat
+terminates by n
+requires
+    |proof|::Identity::<Nat>(saturating_sub(b, n), Nat::Zero),
+    |proof|::Identity::<Nat>(saturating_sub(b, m), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(gcd_within(n, a, b), gcd_within(m, a, b))
+{
+    transition n {
+        Nat::Zero -> gwa_none(m, a, b),
+        Nat::Succ { prev } -> gwa_some(prev, m, a, b)
+    }
+
+    machine gwa_none(m: Nat, a: Nat, b: Nat) -> Nat {
+        transition b {
+            Nat::Zero -> gwa_divisor_zero(m, a),
+            Nat::Succ { prev as pb } -> Nat::Zero
+        }
+    }
+
+    machine gwa_divisor_zero(m: Nat, a: Nat) -> Nat {
+        transition m {
+            Nat::Zero -> Nat::Zero,
+            Nat::Succ { prev as pm } -> Nat::Zero
+        }
+    }
+
+    machine gwa_some(pn: Nat, m: Nat, a: Nat, b: Nat) -> Nat {
+        transition m {
+            Nat::Zero -> gwa_other_none(pn, a, b),
+            Nat::Succ { prev as pm } -> gwa_both(pn, pm, a, b)
+        }
+    }
+
+    machine gwa_other_none(pn: Nat, a: Nat, b: Nat) -> Nat {
+        transition b {
+            Nat::Zero -> Nat::Zero,
+            Nat::Succ { prev as pb } -> Nat::Zero
+        }
+    }
+
+    machine gwa_both(pn: Nat, pm: Nat, a: Nat, b: Nat) -> Nat {
+        transition b {
+            Nat::Zero -> Nat::Zero,
+            Nat::Succ { prev as pb } -> gwa_step(pn, pm, a, pb)
+        }
+    }
+
+    machine gwa_step(pn: Nat, pm: Nat, a: Nat, pb: Nat) -> Nat {
+        _ = sub_self(pb);
+        _ = divide_bounds(a, pb, Nat::Zero, pb);
+        _ = succ_sub_succ(pb, pn);
+        _ = succ_sub_succ(pb, pm);
+        _ = le_trans(divide_step(a, pb, Nat::Zero, pb).remainder, pb, pn);
+        _ = le_trans(divide_step(a, pb, Nat::Zero, pb).remainder, pb, pm);
+        transition { _ -> (gcd_within_agrees(pn, pm, Nat::Succ { prev: pb }, divide_step(a, pb, Nat::Zero, pb).remainder)) }
+    }
+}
+
+// Euclid's step as a law of `gcd`, on every input with a positive
+// divisor: gcd(a, b) == gcd(b, mod(a, b)). Both sides are `gcd_within` at
+// different bounds, which agree.
+public machine gcd_step(a: Nat, b: Nat) -> Nat
+requires
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, b), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(gcd(a, b), gcd(b, mod(a, b)))
+{
+    transition b {
+        Nat::Zero -> Nat::Zero,
+        Nat::Succ { prev as pb } -> gs_of(a, pb)
+    }
+
+    machine gs_of(a: Nat, pb: Nat) -> Nat {
+        _ = sub_self(pb);
+        _ = divide_bounds(a, pb, Nat::Zero, pb);
+        _ = sub_self(divide_step(a, pb, Nat::Zero, pb).remainder);
+        _ = gcd_within_agrees(pb, divide_step(a, pb, Nat::Zero, pb).remainder, Nat::Succ { prev: pb }, divide_step(a, pb, Nat::Zero, pb).remainder);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// ANTISYMMETRY OF NATURAL ORDER: x <= y and y <= x entail x == y. Induction
+// on `x`, then cases on `y`: a Zero against a successor is a premise that
+// computes to a constructor clash, and two successors strip the pair with
+// succ_sub_succ on both premises before the inductive hypothesis. Lean
+// analog: Nat.le_antisymm.
+machine le_antisymm(x: Nat, y: Nat) -> Nat
+terminates by x
+requires
+    |proof|::Identity::<Nat>(saturating_sub(x, y), Nat::Zero),
+    |proof|::Identity::<Nat>(saturating_sub(y, x), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(x, y)
+{
+    transition x {
+        Nat::Zero -> Nat::Zero,
+        Nat::Succ { prev as px } -> lea_succ(px, y)
+    }
+
+    machine lea_succ(px: Nat, y: Nat) -> Nat {
+        transition y {
+            Nat::Zero -> Nat::Zero,
+            Nat::Succ { prev as py } -> lea_both(px, py)
+        }
+    }
+
+    machine lea_both(px: Nat, py: Nat) -> Nat {
+        _ = succ_sub_succ(px, py);
+        _ = succ_sub_succ(py, px);
+        transition { _ -> (le_antisymm(px, py)) }
+    }
+}
+
+// THE FUEL BOUND'S STEP: a value above `k` and at most `Succ k` is `Succ k`.
+// The compiler cites it, recognized by this statement, when it proves that
+// any sufficient fuel gives a machine on fuel the same result
+// (`wiki/drafts/designs/computed_descent_recursion.md`): a unit of fuel that
+// does not yet reach the ranked argument is the last one it needs.
+public machine succ_of_sub_between(a: Nat, k: Nat, w: Nat) -> Nat
+requires
+    |proof|::Identity::<Nat>(saturating_sub(a, k), Nat::Succ { prev: w }),
+    |proof|::Identity::<Nat>(saturating_sub(a, Nat::Succ { prev: k }), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(a, Nat::Succ { prev: k })
+{
+    transition {
+        _ -> sosb_body(a, k, w)
+    }
+
+    machine sosb_body(a: Nat, k: Nat, w: Nat) -> Nat {
+        _ = lt_of_sub_pos(k, a, w);
+        _ = le_antisymm(a, Nat::Succ { prev: k });
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// THE FUEL EQUATION'S STEPS. The compiler cites these, each recognized by
+// its statement, when it proves that a machine on fuel satisfies its own
+// recursive equation (`wiki/drafts/designs/computed_descent_recursion.md`).
+//
+// No successor is at most its predecessor: `Succ p ∸ p` is never zero. A
+// unit of fuel at the machine's own ranked argument never spends itself
+// doing nothing.
+public machine not_succ_le_self(p: Nat) -> Nat
+terminates by p
+requires
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: p }, p), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(Nat::Succ { prev: Nat::Zero }, Nat::Zero)
+{
+    transition p {
+        Nat::Zero -> Nat::Zero,
+        Nat::Succ { prev as q } -> nsls_step(q)
+    }
+
+    machine nsls_step(q: Nat) -> Nat {
+        _ = succ_sub_succ(Nat::Succ { prev: q }, q);
+        _ = not_succ_le_self(q);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// No successor is at most zero: a recursive call owes `Succ e ∸ x = 0`, so
+// with no fuel left no call is reached.
+public machine not_succ_le_zero(e: Nat) -> Nat
+requires
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: e }, Nat::Zero), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(Nat::Succ { prev: Nat::Zero }, Nat::Zero)
+{
+    transition { _ -> Nat::Zero }
+}
+
+// `Succ e <= Succ p` gives `e <= p`: a call strictly below `Succ p` is
+// within the `p` units of fuel left. Lean analog: Nat.le_of_succ_le_succ.
+public machine le_of_succ_le_succ(e: Nat, p: Nat) -> Nat
+requires
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: e }, Nat::Succ { prev: p }), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(saturating_sub(e, p), Nat::Zero)
+{
+    transition {
+        _ -> lossls_body(e, p)
+    }
+
+    machine lossls_body(e: Nat, p: Nat) -> Nat {
+        _ = succ_sub_succ(e, p);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// THE FUEL INDUCTION'S STEPS. The compiler cites these, each recognized by
+// its statement, when it proves a law that cites itself at a computed
+// natural by induction on fuel that reaches its ranked argument
+// (`wiki/drafts/designs/computed_descent_recursion.md`).
+//
+// Nothing is below zero: with `a ∸ 0 = 0`, a call strictly below `a` is
+// absurd, so with no fuel no such call is reached.
+public machine not_lt_of_le_zero(e: Nat, a: Nat) -> Nat
+requires
+    |proof|::Identity::<Nat>(saturating_sub(a, Nat::Zero), Nat::Zero),
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: e }, a), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(Nat::Succ { prev: Nat::Zero }, Nat::Zero)
+{
+    transition a {
+        Nat::Zero -> Nat::Zero,
+        Nat::Succ { prev } -> Nat::Zero
+    }
+}
+
+// A value strictly below `a`, where `a` is above `k` and at most `Succ k`,
+// is at most `k`: a call at a unit of fuel that runs the body is within
+// the rest of the fuel. `succ_of_sub_between` gives `a = Succ k`.
+public machine le_of_lt_of_sub_between(e: Nat, a: Nat, k: Nat, w: Nat) -> Nat
+requires
+    |proof|::Identity::<Nat>(saturating_sub(a, k), Nat::Succ { prev: w }),
+    |proof|::Identity::<Nat>(saturating_sub(a, Nat::Succ { prev: k }), Nat::Zero),
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: e }, a), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(saturating_sub(e, k), Nat::Zero)
+{
+    transition a {
+        Nat::Zero -> lolsb_zero(k, w),
+        Nat::Succ { prev as pa } -> lolsb_succ(e, pa, k, w)
+    }
+
+    machine lolsb_zero(k: Nat, w: Nat) -> Nat {
+        _ = succ_of_sub_between(Nat::Zero, k, w);
+        transition { _ -> Nat::Zero }
+    }
+
+    machine lolsb_succ(e: Nat, pa: Nat, k: Nat, w: Nat) -> Nat {
+        _ = succ_of_sub_between(Nat::Succ { prev: pa }, k, w);
+        _ = le_of_succ_le_succ(e, pa);
         transition { _ -> Nat::Zero }
     }
 }

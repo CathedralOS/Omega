@@ -231,6 +231,41 @@ fn an_unused_subject_helper_that_reaches_the_invalid_dependency_body_fails() {
     assert_refused_in(&project.write("subject_helper_reaches_invalid"), "bump");
 }
 
+/// The package's own caller may use what its private helper's body returns
+/// (state_contracts.md, "Local call summaries"): `read` masks its result to
+/// 32 bits, so `read(value) + 4u64` cannot overflow. Importing the package
+/// does not change its verification unit, so the application that reaches
+/// `codes` accepts the same body that `omega --check` on the package root
+/// accepts. Its twin makes `read` public: a public machine publishes only its
+/// written contract, so both checks refuse the addition.
+#[test]
+fn a_dependency_private_helper_summary_is_the_same_for_its_root_and_a_consumer() {
+    let helper = |visibility: &str| {
+        format!(
+            "{VENDOR_MAIN}{visibility}machine read(value: u32) -> u64 reaches none crashes none {{ ((value as u64) & 4294967295u64) }}\n\
+             public machine codes(value: u32) -> u64 reaches none crashes none {{ let count: u64 = read(value) + 4u64; count }}\n"
+        )
+    };
+    let app_main = format!("{APP_MAIN}public machine coded() -> u64 {{ |vendor|::codes(7u32) }}\n");
+    let private = Project {
+        app_main: app_main.clone(),
+        vendor_main: helper(""),
+        ..Project::valid()
+    };
+    let root = private.write("dependency_private_helper_summary");
+    assert_accepted(&root.join("../vendor"));
+    assert_accepted(&root);
+
+    let public = Project {
+        app_main,
+        vendor_main: helper("public "),
+        ..Project::valid()
+    };
+    let root = public.write("dependency_public_helper_contract");
+    assert_refused_in(&root.join("../vendor"), "codes");
+    assert_refused_in(&root, "codes");
+}
+
 #[test]
 fn a_dependency_build_checks_what_it_executes_and_not_its_unrelated_declarations() {
     let unrelated = Project {

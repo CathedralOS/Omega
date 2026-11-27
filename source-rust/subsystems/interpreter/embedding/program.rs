@@ -1333,11 +1333,6 @@ pub(crate) mod instance {
             if self.closed {
                 return Err(TerminalInstanceError::Closed);
             }
-            self.execution
-                .as_ref()
-                .ok_or(TerminalInstanceError::Closed)?
-                .require_complete_program()
-                .map_err(TerminalInstanceError::Execution)?;
             let missing =
                 self.unbound_imports()
                     .filter(|boundary| {
@@ -1770,21 +1765,6 @@ pub(crate) mod program {
     }
 
     impl ProgramStorage<'_> {
-        pub(crate) fn pending_normal_completions(
-            &self,
-        ) -> &[(
-            semantic_vocabulary::MachineId,
-            semantic_vocabulary::OperationId,
-        )] {
-            match self {
-                Self::Borrowed(code) => code.pending_normal_completions(),
-                Self::Retained(code) => code.view().pending_normal_completions(),
-                Self::Owned(_) => &[],
-                #[cfg(test)]
-                Self::Fixture(_) => &[],
-            }
-        }
-
         pub(crate) fn closed_types(
             &self,
         ) -> Result<&terminal_codec::ClosedTypeCatalog, TerminalInterpretError> {
@@ -1803,18 +1783,9 @@ pub(crate) mod program {
             &self,
         ) -> Result<&terminal_codec::ClosedTerminalModule, TerminalInterpretError> {
             match self {
-                Self::Borrowed(code) => {
-                    code.closed_module()
-                        .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-                            "an unfinished program has no closed module",
-                        ))
-                }
+                Self::Borrowed(code) => Ok(code.closed_module()),
                 Self::Owned(module) => Ok(module),
-                Self::Retained(code) => code.view().closed_module().ok_or(
-                    TerminalInterpretError::UnsupportedSemanticVariant(
-                        "an unfinished program has no closed module",
-                    ),
-                ),
+                Self::Retained(code) => Ok(code.view().closed_module()),
                 #[cfg(test)]
                 Self::Fixture(_) => Err(TerminalInterpretError::UnsupportedSemanticVariant(
                     "mutable engine fixture has no closed publication owner",
@@ -2594,14 +2565,14 @@ pub(crate) mod program {
             installation: Option<&crate::boundary::effects::TerminalRuntimeSupplies>,
             scalars: Option<&psi_scalar_applications::AdmittedScalarApplications>,
         ) -> std::sync::Arc<AdmittedTerminalProgram<'artifact>> {
-            let Some(layouts) = installation.and_then(|supplies| supplies.target_layouts.as_ref())
-            else {
+            let layouts = installation.and_then(|supplies| supplies.target_layouts.as_ref());
+            if layouts.is_none() && scalars.is_none() {
                 return std::sync::Arc::clone(&self.program);
-            };
+            }
             std::sync::Arc::new(AdmittedTerminalProgram {
                 identity: self.program.identity.clone(),
                 catalogs: std::sync::Arc::clone(&self.program.catalogs),
-                target_layouts: Some(std::sync::Arc::clone(layouts)),
+                target_layouts: layouts.map(std::sync::Arc::clone),
                 scalar_geometry: scalars.map(|scalars| std::sync::Arc::clone(scalars.geometry())),
             })
         }

@@ -1,8 +1,8 @@
 //! Locate one described function pointer in the native layout of the borrowed record.
 
-use calling_conventions::FunctionFieldLocation;
 use build_providers::plans::EvaluatedFunctionField;
-use semantic_vocabulary::{CanonicalStructuralPathSegment, ScalarType};
+use calling_conventions::FunctionFieldLocation;
+use semantic_vocabulary::ScalarType;
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryParameterKind, StructuralFieldType, StructuralTypeShape,
     TerminalModule,
@@ -44,31 +44,41 @@ pub fn resolve_function_field(
     {
         return Err("function field must be one live non-atomic address".into());
     }
-    let geometry =
-        calling_conventions::terminal_layout::NativeGeometry::new(&module.types.structural_types)
-            .map_err(|error| format!("function table has no canonical geometry: {error:?}"))?;
-    let layout = geometry
-        .borrowed_storage(record.id)
-        .ok_or("function table has no closed native layout")?;
-    let mut leaves = layout.fields().iter().filter(|leaf| {
-        layout
-            .field_path(leaf)
-            .eq([CanonicalStructuralPathSegment::Field(field.id)])
-            && layout.field_repetitions(leaf).is_empty()
-    });
-    let leaf = leaves
-        .next()
-        .ok_or("function field has no native pointer-sized storage")?;
-    if leaves.next().is_some()
-        || leaf.stored_scalar != leaf.logical_scalar
-        || !matches!(leaf.logical_scalar, ScalarType::Integer(integer) if integer.is_address())
+    let target = evaluated.target();
+    let mut geometry = terminal_semantics::ReferenceStorageGeometry::new(
+        module.types.structural_types.iter(),
+        |extent| {
+            Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                extent,
+            ))
+        },
+    )
+    .with_target_carriers(Some(runtime_abi::target_carrier_layout(
+        target.native_target(),
+    )))
+    .with_record_storage(layout::TerminalRecordStorage { module, target });
+    let placement = geometry
+        .record_fields(record.id)
+        .map_err(|error| format!("function table has no closed native layout: {error}"))?
+        .into_iter()
+        .find(|placement| placement.declaration.id == field.id)
+        .ok_or("function field has no native address storage")?;
+    if placement.repeated.is_some()
+        || placement
+            .storage
+            .and_then(|storage| storage.stored_scalar())
+            .is_some_and(|stored| Some(stored) != field.field_type.scalar_type())
     {
         return Err("function field has no single native address representation".into());
     }
+    let byte_offset = placement
+        .byte_offset
+        .and_then(|offset| u32::try_from(offset).ok())
+        .ok_or("function field has no single native address offset")?;
     Ok(FunctionFieldLocation {
         selector: evaluated.receipt().locator_identity_digest(),
         formal,
-        byte_offset: leaf.byte_offset,
+        byte_offset,
     })
 }
 

@@ -114,8 +114,23 @@ closure in `PreparedCompilation::mathematics`:
   declares it, and a distributivity law may regroup under the one-operation
   laws. A law of the right shape that satisfies no requirement licenses
   nothing.
+- **Identity tables**: one per generic check form with const record
+  parameters (`IdentityTable`, keyed by the form's declaration and form
+  position). It holds what every Identity goal of the form names beyond its
+  own inputs: the carriers, the trait operations the clause reader applied
+  through the record parameters (`StaticRecordBinding::applied`) and the
+  laws those parameters' traits state. A law is the `ensures` equality of the
+  machine standing for a record's law requirement, written over its formals
+  (`ClauseOperand::Formal`), structural formals first. A law that requires
+  something, or names part of a formal, stays out, and a citation of it is
+  refused. Stage 06 checks the table once per form and starts each
+  obligation from it, adding only the obligation's own inputs
+  (`extend_signature`). An obligation that names a trait operation or a law
+  missing from its form's table is refused, and so is every Identity goal of
+  a form whose table the kernel refuses.
 
-Stage 05 writes the table ([`read/signature.rs`](../../pipeline/05_prepared-typed-trees-to-lowered-program/src/read/signature.rs)).
+Stage 05 writes the table ([`read/signature.rs`](../../pipeline/05_prepared-typed-trees-to-lowered-program/src/read/signature.rs);
+Identity tables in [`identity_tables.rs`](../../pipeline/05_prepared-typed-trees-to-lowered-program/src/identity_tables.rs)).
 Stage 06 checks every declaration once with the kernel and judges each law
 ([`laws.rs`](../../pipeline/06_lowered-program-to-checked-program/src/laws.rs)).
 Once the compilation is accepted, stage 06 writes each data declaration,

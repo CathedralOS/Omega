@@ -1,7 +1,7 @@
 use pipeline/tokens_to_syntax_trees/data.omg as data_file;
 use pipeline/tokens_to_syntax_trees/input.omg;
 use pipeline/tokens_to_syntax_trees/types.omg;
-use pipeline/tokens_to_syntax_trees/parser.omg;
+use pipeline/tokens_to_syntax_trees/parser_state.omg as parser;
 
 use representations/syntax_trees/syntax_trees.omg;
 use representations/tokens/tokens.omg;

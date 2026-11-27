@@ -309,6 +309,19 @@ impl<'a> Storage<'a> {
             OperationKind::EstablishScalarArray { elements } => {
                 let root = fresh()?;
                 rows.push((root.clone(), Stored::Established));
+                let shape = &self
+                    .declaration(self.root_type(root.root, concerns)?, concerns)?
+                    .shape;
+                if matches!(
+                    shape,
+                    StructuralTypeShape::FixedArray {
+                        length: terminal_psi::ArrayExtent::Parameter { .. }
+                            | terminal_psi::ArrayExtent::Application(_),
+                        ..
+                    }
+                ) {
+                    return Ok(rows);
+                }
                 for (index, value) in elements.iter().enumerate() {
                     let index = u64::try_from(index)
                         .map_err(|_| self.foreign(concerns, "array element index exceeds u64"))?;
@@ -331,6 +344,16 @@ impl<'a> Storage<'a> {
                     // The operation's actual element arguments are required
                     // established by operation_uses. Its result is a descriptor,
                     // not inline storage with fixed-index child places.
+                    return Ok(rows);
+                }
+                if matches!(
+                    shape,
+                    StructuralTypeShape::FixedArray {
+                        length: terminal_psi::ArrayExtent::Parameter { .. }
+                            | terminal_psi::ArrayExtent::Application(_),
+                        ..
+                    }
+                ) {
                     return Ok(rows);
                 }
                 for (index, value) in elements.iter().enumerate() {

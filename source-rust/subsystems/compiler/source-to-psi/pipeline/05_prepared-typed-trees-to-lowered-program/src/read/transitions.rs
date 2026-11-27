@@ -548,6 +548,9 @@ impl Program<'_> {
         };
         crate::lower::operational::boundary(&mut target);
         if !target.diverges() && !self.agrees(target.result, result) {
+            if let Some(rejection) = self.unit_result_mismatch(id, result, &target) {
+                return Err(rejection);
+            }
             return Err(self.mistyped(
                 id,
                 target.source,

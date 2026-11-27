@@ -524,6 +524,7 @@ impl<'a> Storage<'a> {
         if matches!(
             backing.extent,
             terminal_semantics::CollectionExtent::Parameter { .. }
+                | terminal_semantics::CollectionExtent::Application(_)
         ) {
             let is_byte = is_plain_byte_element(self.declaration(element, concerns)?);
             if typed == is_byte
@@ -1118,7 +1119,7 @@ impl<'a> Storage<'a> {
                             let local_extent = match length {
                                 ArrayExtent::Literal(length) => *length != 0,
                                 ArrayExtent::Parameter { owner, .. } => *owner == self.machine,
-                                ArrayExtent::Application(_) => false,
+                                ArrayExtent::Application(_) => true,
                             };
                             let matching_element = match element {
                                 Some(element) => *backing_element == element,
@@ -1400,6 +1401,36 @@ value,
                             let input = ScalarTerm::value(value, ScalarType::Integer(source_type));
                             if source_type == integer { return Ok(Some(input)); }
                             return ScalarTerm::integer_widen(source_type, integer, input).map(Some).map_err(|_| self.foreign(concerns, "array extent cannot widen exactly to its descriptor length"));
+                        }
+                        terminal_semantics::CollectionExtent::Application(application) => {
+                            let source_type = self
+                                .module
+                                .scalars
+                                .scalar_applications
+                                .declaration(application)
+                                .and_then(|declaration| declaration.scalar_type())
+                                .and_then(|scalar| scalar.as_integer())
+                                .ok_or_else(|| {
+                                    self.foreign(
+                                        concerns,
+                                        "array extent has no integer application",
+                                    )
+                                })?;
+                            let input = ScalarTerm::Application {
+                                application,
+                                scalar_type: ScalarType::Integer(source_type),
+                            };
+                            if source_type == integer {
+                                return Ok(Some(input));
+                            }
+                            return ScalarTerm::integer_widen(source_type, integer, input)
+                                .map(Some)
+                                .map_err(|_| {
+                                    self.foreign(
+                                        concerns,
+                                        "array extent cannot widen exactly to its descriptor length",
+                                    )
+                                });
                         }
                         terminal_semantics::CollectionExtent::LiveLength { .. } => {
                             return Err(self

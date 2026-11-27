@@ -14,10 +14,15 @@ machine with exactly the parameter's signature and no premise, which is then
 the definition the signature gives it (`machine_argument`). One generic
 machine may so cite another.
 
-Such a machine's body is not lowered: lowering a call needs a machine to
-call. A body that only binds values, cites laws and returns a value is read
-here instead, through the clause reader, with each `let` standing for the
-expression it is bound to. A body that does more is refused.
+A body that only binds values, cites laws and returns a value is read here,
+through the clause reader, with each `let` standing for the expression it is
+bound to, and is not lowered. A body that dispatches is lowered, with every
+machine declared inside it, as is a machine that states nothing and any body
+the clause reader cannot read, and read by the signature reader like any other:
+there a call of a machine parameter, or of a generic machine at some
+machines, is an `ExpressionKind::Applied` (`mathematical_application`),
+which applies no operation and only the signature reads. A body that is not
+generic calls or cites a generic machine at concrete machines the same way.
 */
 
 use crate::source_state::data::{MachineParameterContract, TypeParameterKind};
@@ -37,7 +42,7 @@ use super::Program;
 use super::clause_terms::ClauseUse;
 use super::contracts::{AppliedProposition, ClauseScope};
 use crate::Unserved;
-use crate::body::ValueType;
+use crate::body::{AppliedHead, Expression, ExpressionKind, PassedMachine, ValueType};
 
 /// A machine parameter as the signature needs it: a function from its
 /// parameters to its result.
@@ -61,6 +66,9 @@ pub(crate) struct TemplateBody {
     pub(crate) value: Option<u32>,
     /// Each machine the body calls as a statement, with its arguments.
     pub(crate) citations: Vec<(SymbolHandle, Vec<u32>)>,
+    /// The body dispatches, so it is lowered and read like any other
+    /// mathematical body, with each machine parameter a bound function.
+    pub(crate) lowered: bool,
 }
 
 impl<'t> Program<'t> {
@@ -178,6 +186,38 @@ impl<'t> Program<'t> {
         required: &(Vec<ValueType>, ValueType),
         values: &mut Vec<ClauseValue>,
     ) -> Checked<u32> {
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
+        let (_, member, result) = self.passed_machine(id, argument, required)?;
+        let ValueType::Record(record, ..) = result else {
+            return Err(unserved(
+                "machine argument whose result is not mathematical data",
+            ));
+        };
+        let position =
+            u32::try_from(values.len()).map_err(|_| unserved("clause term table overflow"))?;
+        values.push(ClauseValue {
+            carrier: ClauseCarrier::Structural(record),
+            operand: ClauseOperand::Application {
+                declaration: ClauseDeclaration {
+                    member: (member.arena_index(), member.generation()),
+                    supplier: None,
+                },
+                arguments: Vec::new(),
+            },
+        });
+        Ok(position)
+    }
+
+    /// What a machine argument of a generic mathematical machine passes,
+    /// with the symbol a clause names it by and its result: a machine
+    /// parameter, or a concrete mathematical machine, either with exactly
+    /// the formals and result `required` declares.
+    fn passed_machine(
+        &mut self,
+        id: MachineId,
+        argument: &StaticMachineArgument,
+        required: &(Vec<ValueType>, ValueType),
+    ) -> Checked<(PassedMachine, SymbolHandle, ValueType)> {
         let typed = self.typed;
         let unserved = |what| refuse_at(id, Unserved::Contract(what));
         if argument.application.is_some()
@@ -188,7 +228,8 @@ impl<'t> Program<'t> {
                 "machine argument of a generic mathematical machine with arguments of its own",
             ));
         }
-        let (parameters, result) = if let Some(signature) = self.callable_parameter(argument.symbol)
+        let (passed, member, parameters, result) = if let Some(signature) =
+            self.callable_parameter(argument.symbol)
         {
             let formals = typed
                 .state_parameters
@@ -198,7 +239,12 @@ impl<'t> Program<'t> {
             for formal in formals.iter() {
                 parameters.push(self.value_type(id, formal.type_reference)?);
             }
-            (parameters, self.value_type(id, signature.return_type)?)
+            (
+                PassedMachine::Parameter(argument.symbol),
+                argument.symbol,
+                parameters,
+                self.value_type(id, signature.return_type)?,
+            )
         } else {
             let machine = self
                 .entered_machine(argument.symbol)
@@ -236,34 +282,152 @@ impl<'t> Program<'t> {
             for formal in formals.iter() {
                 parameters.push(self.value_type(id, formal.type_reference)?);
             }
-            (parameters, self.value_type(id, entry.return_type)?)
+            (
+                PassedMachine::Machine(read),
+                machine.symbol,
+                parameters,
+                self.value_type(id, entry.return_type)?,
+            )
         };
         if parameters != required.0 || result != required.1 {
             return Err(unserved(
                 "machine argument whose signature differs from the machine parameter's",
             ));
         }
-        let ValueType::Record(record, ..) = result else {
+        Ok((passed, member, result))
+    }
+
+    /// A call in a mathematical body that applies a machine parameter of
+    /// the machine being read, or that passes machines to a generic
+    /// mathematical machine, as `ExpressionKind::Applied`. A call at
+    /// concrete machines names the closed copy the typed trees made for it;
+    /// it is read as the generic machine applied to the machines that copy
+    /// was made for. `None` for any other call.
+    pub(super) fn mathematical_application<'a>(
+        &mut self,
+        id: MachineId,
+        slots: &[super::Slot],
+        target: SymbolHandle,
+        machine_arguments: &'a [StaticMachineArgument],
+        arguments: &[ExpressionHandle],
+        source: crate::SourceOrigin,
+    ) -> Checked<Option<Expression>>
+    where
+        't: 'a,
+    {
+        let typed = self.typed;
+        let unserved = |what| refuse_at(id, Unserved::Call(what));
+        if !self.mathematical || !typed.symbols.symbols().nodes().is_valid(target) {
+            return Ok(None);
+        }
+        if let Some(signature) = self.callable_parameter(target) {
+            // Only the machine being read binds its machine parameters.
+            let owner = self
+                .symbols
+                .get(id)
+                .and_then(|owner| typed.machine_by_symbol(*owner))
+                .ok_or_else(|| unserved("machine parameter call outside a machine"))?;
+            if !typed
+                .machine_type_parameters(owner)
+                .iter()
+                .any(|parameter| parameter.symbol == target)
+            {
+                return Err(unserved("call of a machine parameter of another machine"));
+            }
+            if !machine_arguments.is_empty() {
+                return Err(unserved("machine parameter called with machines"));
+            }
+            let formals = typed
+                .state_parameters
+                .span(signature.parameters)
+                .ok_or_else(|| unserved("machine parameter lost its parameters"))?;
+            if formals.len() != arguments.len() {
+                return Err(unserved(
+                    "machine parameter called with the wrong number of arguments",
+                ));
+            }
+            let mut read = Vec::with_capacity(arguments.len());
+            for (formal, &argument) in formals.iter().zip(arguments) {
+                let ty = self.value_type(id, formal.type_reference)?;
+                let value = self.expression(id, slots, argument, Some(ty))?;
+                if value.result != Some(ty) {
+                    return Err(unserved("machine parameter argument of another type"));
+                }
+                read.push(value);
+            }
+            let result = self.value_type(id, signature.return_type)?;
+            return Ok(Some(Expression {
+                call_context: None,
+                kind: ExpressionKind::Applied {
+                    head: AppliedHead::Parameter(target),
+                    machines: Vec::new(),
+                    arguments: read,
+                },
+                result: Some(result),
+                source,
+            }));
+        }
+        let Some(entered) = self.entered_machine(target) else {
+            return Ok(None);
+        };
+        let (template, selected): (SymbolHandle, Vec<&'a StaticMachineArgument>) = match self
+            .generic_mathematical_origin(entered)
+        {
+            Some(_) if !machine_arguments.is_empty() => {
+                return Err(unserved(
+                    "call of a closed copy of a generic mathematical machine with machines of its own",
+                ));
+            }
+            Some(origin) => origin,
+            None if !machine_arguments.is_empty()
+                && typed
+                    .machine_by_symbol(entered)
+                    .is_some_and(|machine| self.mathematical_template(machine)) =>
+            {
+                (entered, machine_arguments.iter().collect())
+            }
+            None => return Ok(None),
+        };
+        let declared = typed
+            .machine_by_symbol(template)
+            .ok_or_else(|| unserved("generic mathematical machine lost its declaration"))?;
+        let required = self.required_callables(id, declared)?;
+        if required.len() != selected.len() {
             return Err(unserved(
-                "machine argument whose result is not mathematical data",
+                "generic mathematical machine applied to the wrong number of machines",
+            ));
+        }
+        let mut machines = Vec::with_capacity(selected.len());
+        for (&argument, required) in selected.iter().zip(&required) {
+            machines.push(self.passed_machine(id, argument, required)?.0);
+        }
+        let callee = self.machine(template)?;
+        let call = self.call(id, slots, template, arguments, source, None)?;
+        let ExpressionKind::Call {
+            callee: crate::body::CallTarget::Machine(called),
+            arguments,
+            ..
+        } = call.kind
+        else {
+            return Err(unserved(
+                "generic mathematical machine call read as something other than a call",
             ));
         };
-        let member = self
-            .entered_machine(argument.symbol)
-            .unwrap_or(argument.symbol);
-        let position =
-            u32::try_from(values.len()).map_err(|_| unserved("clause term table overflow"))?;
-        values.push(ClauseValue {
-            carrier: ClauseCarrier::Structural(record),
-            operand: ClauseOperand::Application {
-                declaration: ClauseDeclaration {
-                    member: (member.arena_index(), member.generation()),
-                    supplier: None,
-                },
-                arguments: Vec::new(),
+        if called != callee {
+            return Err(unserved(
+                "generic mathematical machine call names another machine",
+            ));
+        }
+        Ok(Some(Expression {
+            call_context: None,
+            kind: ExpressionKind::Applied {
+                head: AppliedHead::Machine(callee),
+                machines,
+                arguments,
             },
-        });
-        Ok(position)
+            result: call.result,
+            source: call.source,
+        }))
     }
 
     /// The machine parameters of a generic mathematical machine.
@@ -310,6 +474,19 @@ impl<'t> Program<'t> {
 
     /// Reads the body of the generic mathematical machine `machine` in the
     /// scope its `requires` clauses are read in.
+    /// Whether the body of `machine` dispatches on a value.
+    fn dispatches(&self, id: MachineId, machine: SymbolHandle) -> Checked<bool> {
+        let (_, state) = self.declaration(id, machine)?;
+        Ok(self
+            .typed
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                matches!(statement, StatementNode::Transition(transition) if !transition.patterns.is_empty())
+            }))
+    }
+
     pub(super) fn template_body(
         &mut self,
         id: MachineId,
@@ -334,8 +511,37 @@ impl<'t> Program<'t> {
             declaration: None,
             arguments: Vec::new(),
         });
+        let statements = typed.statement_table.statements(state.statement_nodes);
+        // A body that dispatches is lowered and read like any other, and so
+        // is each machine declared inside it: those are its cases' helpers,
+        // read in place where it calls them.
+        // A machine that states nothing and returns nothing is a helper a
+        // law reads in place where it calls it, so it is lowered too.
+        let states_nothing = result.is_none()
+            && !super::span(
+                |span| typed.signature_contracts.span(span),
+                declared.contracts,
+                id,
+                "contract span",
+            )?
+            .iter()
+            .any(|clause| {
+                clause.kind == crate::source_state::signature::SignatureContractKind::Ensures
+            });
+        if states_nothing
+            || self.dispatches(id, machine)?
+            || std::iter::successors(self.enclosing_machine(machine), |&outer| {
+                self.enclosing_machine(outer)
+            })
+            .map(|outer| self.dispatches(id, outer))
+            .collect::<Checked<Vec<_>>>()?
+            .into_iter()
+            .any(|dispatches| dispatches)
+        {
+            body.lowered = true;
+            return Ok(body);
+        }
         let read = (|| {
-            let statements = typed.statement_table.statements(state.statement_nodes);
             for (position, statement) in statements.iter().enumerate() {
                 let last = position + 1 == statements.len();
                 match statement {
@@ -402,11 +608,14 @@ impl<'t> Program<'t> {
             Ok(())
         })();
         self.applied_propositions.pop();
-        read?;
-        if result.is_some() != body.value.is_some() {
-            return Err(unserved(
-                "generic mathematical machine body without its value",
-            ));
+        // A body the clause reader cannot read as terms is lowered and read
+        // like any other body instead, which refuses what it cannot read.
+        if read.is_err() || result.is_some() != body.value.is_some() {
+            return Ok(TemplateBody {
+                callables: body.callables,
+                lowered: true,
+                ..TemplateBody::default()
+            });
         }
         Ok(body)
     }

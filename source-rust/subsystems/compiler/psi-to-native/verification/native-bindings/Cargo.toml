@@ -11,6 +11,7 @@ path = "bindings.rs"
 build-providers = { path = "../../../build/providers" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 layout = { path = "../../targets/layout" }
+runtime-abi = { path = "../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 service-surface = { path = "../../../psi/interfaces/service-surface" }
 target = { path = "../../targets/target" }

@@ -1328,20 +1328,27 @@ fn adapt_flow(
                 }
                 OperationKind::EstablishScalarArray { elements } => {
                     let result = result?;
-                    for (ordinal, value) in elements.iter().enumerate() {
-                        let path = crate::scalar_array_leaf_path(
-                            module.types.structural_types.iter(),
-                            result.structural_type,
-                            u64::try_from(ordinal).ok()?,
-                        )?;
-                        step.scalar_value_stores
-                            .push((location(result.place, &path, None)?, *value));
-                        if let Some(value) = scalar_expressions.expression(*value) {
-                            graph
-                                .scalar_payload_writes
-                                .entry(position)
-                                .or_default()
-                                .push((location(result.place, &path, None)?, value));
+                    if crate::scalar_array_application_leaf(
+                        module.types.structural_types.iter(),
+                        result.structural_type,
+                    )
+                    .is_none()
+                    {
+                        for (ordinal, value) in elements.iter().enumerate() {
+                            let path = crate::scalar_array_leaf_path(
+                                module.types.structural_types.iter(),
+                                result.structural_type,
+                                u64::try_from(ordinal).ok()?,
+                            )?;
+                            step.scalar_value_stores
+                                .push((location(result.place, &path, None)?, *value));
+                            if let Some(value) = scalar_expressions.expression(*value) {
+                                graph
+                                    .scalar_payload_writes
+                                    .entry(position)
+                                    .or_default()
+                                    .push((location(result.place, &path, None)?, value));
+                            }
                         }
                     }
                 }
@@ -1359,6 +1366,10 @@ fn adapt_flow(
                             } if usize::try_from(length).ok() == Some(elements.len()) => {
                                 (element, false)
                             }
+                            StructuralTypeShape::FixedArray {
+                                element,
+                                length: terminal_psi::ArrayExtent::Application(_),
+                            } => (element, true),
                             _ => return None,
                         };
                     if stored {
@@ -2153,13 +2164,6 @@ fn adapt_flow(
                         &case.structural_arguments,
                     )?;
                 }
-            }
-            Terminator::PendingNormalCompletion { storage, .. } => {
-                // The successor still holds these descriptors and their backings
-                // at this cut. The parked machine has yet to return a result.
-                step.inputs.extend(storage.iter().map(|&place| {
-                    (Some(DescriptorLocation::whole(place)), None)
-                }));
             }
             Terminator::ReturnStructural { source, .. } => {
                 if let Some(returns) = &mut graph.returns {

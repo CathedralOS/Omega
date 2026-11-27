@@ -438,15 +438,22 @@ pub(crate) fn scalar_storage_writes(
                     .result
                     .structural()
                     .ok_or("scalar array initializer has no structural result")?;
-                for (ordinal, value) in elements.iter().enumerate() {
-                    let path = crate::scalar_array_leaf_path(
-                        module.types.structural_types.iter(),
-                        result.structural_type,
-                        u64::try_from(ordinal)
-                            .map_err(|_| "scalar array initializer ordinal is too large")?,
-                    )
-                    .ok_or("scalar array initializer has no declared scalar leaf")?;
-                    write(result.place, &path, None, *value)?;
+                if crate::scalar_array_application_leaf(
+                    module.types.structural_types.iter(),
+                    result.structural_type,
+                )
+                .is_none()
+                {
+                    for (ordinal, value) in elements.iter().enumerate() {
+                        let path = crate::scalar_array_leaf_path(
+                            module.types.structural_types.iter(),
+                            result.structural_type,
+                            u64::try_from(ordinal)
+                                .map_err(|_| "scalar array initializer ordinal is too large")?,
+                        )
+                        .ok_or("scalar array initializer has no declared scalar leaf")?;
+                        write(result.place, &path, None, *value)?;
+                    }
                 }
             }
             OperationKind::EstablishScalarCase {

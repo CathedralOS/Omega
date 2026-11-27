@@ -9,8 +9,8 @@ machine hosted_entry() crashes Trap {
     machine unexpected() crashes Trap { crash Trap; }
 }
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "theorem_proof_parameters");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "theorem_proof_parameters" };
     Build::bind(builder, windows_x86_64::ProgramEntry, hosted_entry);
     Build::bind(builder, windows_arm64::ProgramEntry, hosted_entry);
     Build::bind(builder, linux_x86_64::ProgramEntry, hosted_entry);

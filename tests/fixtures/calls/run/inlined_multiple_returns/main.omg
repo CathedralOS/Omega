@@ -1,0 +1,25 @@
+// A helper that returns from either arm of its branch is inlined into its
+// caller's loop; each arm's result reaches the caller.
+machine byte_or(view: @[u8], at: u64, missing: u32) -> u32 {
+    transition at < view.length {
+        true -> (view[at] as u32),
+        false -> missing,
+    }
+}
+
+// Sums byte_or over positions 0..6 of a 4-byte view, so the last two
+// positions take the missing arm.
+machine total(view: @[u8], at: u64, acc: u32) -> u32 {
+    transition at < 6 && acc < 1000 {
+        true -> total(view, at + 1, acc + byte_or(view, at, 100)),
+        false -> acc,
+    }
+}
+
+machine start() crashes Trap {
+    let bytes: [u8; 4] = [1, 2, 3, 4];
+    let sum: u32 = total(@bytes[..], 0, 0);
+    transition sum == 210 { true -> done(), _ -> fail() }
+}
+machine done() {}
+machine fail() crashes Trap { crash Trap; }

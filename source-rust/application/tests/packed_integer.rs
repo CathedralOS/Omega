@@ -210,9 +210,9 @@ fn every_lane_of_the_simd_library_matches_a_scalar_reference_on_psi_and_native()
     let low_t = transpose(&rows, 0);
     let high_t = transpose(&rows, 1);
 
-    // Native register allocation fails on one machine that keeps all of
-    // these checks live at once (see OWNER_CODE_CONCERNS.md), so each group
-    // runs as its own program over the same operations.
+    // One program keeps all 21 packed results live until its final
+    // transition, so native register allocation must spill the frame
+    // addresses its packed stores establish.
     let mut groups: Vec<Vec<(String, String)>> = vec![
         vec![
             ("ok_sub".into(), i16_checks("ok_sub", "sub.values", &sub)),
@@ -274,7 +274,8 @@ fn every_lane_of_the_simd_library_matches_a_scalar_reference_on_psi_and_native()
         ));
     }
 
-    for group in groups {
+    {
+        let group: Vec<(String, String)> = groups.into_iter().flatten().collect();
         let checks: String = group.iter().map(|(_, check)| check.as_str()).collect();
         let verdicts: Vec<&str> = group.iter().map(|(name, _)| name.as_str()).collect();
         let source = format!(

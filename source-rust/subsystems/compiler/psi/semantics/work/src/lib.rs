@@ -128,7 +128,6 @@ impl WorkSchedule {
 
     pub const fn terminator_units(self, terminator: &Terminator) -> u64 {
         match terminator {
-            Terminator::PendingNormalCompletion { .. } => 0,
             Terminator::Jump { .. }
             | Terminator::Conditional { .. }
             | Terminator::StructuralCase { .. }
@@ -278,7 +277,6 @@ impl<Payment: WorkPayment> WorkMeter<Payment> {
 
     pub fn charge_terminator(&mut self, terminator: &Terminator) -> Result<(), WorkMeterError> {
         let edge = match terminator {
-            Terminator::PendingNormalCompletion { .. } => return Err(WorkMeterError::PendingNormalCompletion),
             Terminator::Jump { edge, .. }
             | terminal_psi::terminator_return_pair_pattern!(edge, ..)
             | Terminator::ReturnStructural { edge, .. }
@@ -413,7 +411,6 @@ pub enum WorkMeterError {
         reason: String,
     },
     ConditionalEdgeNotSelected,
-    PendingNormalCompletion,
     EdgeNotOwnedByTerminator(EdgeId),
     Exhausted(WorkBudgetExhausted),
     AccountingOverflow(WorkChargeSite),
