@@ -331,3 +331,73 @@ fn repeated_joins_reach_the_wait_after_the_last_acquisition() {
     let sequence = format!("{}signal.word.store(1, Publish);", call.repeat(32));
     reject_deadlock(&wait_after_choice(0, 2, "input == 0").replace(call, &sequence));
 }
+
+// Two distinct constructed cases carry their respective word through an
+// owned block argument. The unused third case would deadlock if selected.
+const CASE_CHOICE: &str = r#"
+    data Choice [copy] { case Early(word: u32); case Late(word: u32); case Never; }
+    machine apply(signal: @Signal, choice: Choice) {
+        transition choice {
+            Choice::Early { word } -> put(signal, word),
+            Choice::Late { word } -> put(signal, word),
+            Choice::Never -> put(signal, 1)
+        }
+        machine put(signal: @Signal, word: u32) { signal.word.store(word, Publish); }
+    }
+"#;
+
+fn wait_after_cases(early: u32, late: u32) -> String {
+    format!(
+        "{AWAIT_CHANGE} {CASE_CHOICE}
+         machine build_entry(input: u32) {{
+             let mutable signal: Signal;
+             let chosen: Choice = match input == 0 {{
+                 true -> (Choice::Early {{ word: {early} }}),
+                 _ -> (Choice::Late {{ word: {late} }})
+             }};
+             apply(@signal, chosen);
+             await_change(@signal);
+         }}"
+    )
+}
+
+#[test]
+fn joined_cases_keep_their_own_scalar_payloads_and_exclude_an_absent_case() {
+    let source = wait_after_cases(0, 2);
+    execute_with_input(&source, 0);
+    execute_with_input(&source, 1);
+    reject_deadlock(&wait_after_cases(1, 1));
+    expect_unproved_progress(&wait_after_cases(0, 1));
+}
+
+#[test]
+fn an_unknown_sum_visits_every_declared_case_before_the_later_wait() {
+    let source = format!(
+        "{AWAIT_CHANGE} {CASE_CHOICE}
+         machine build_entry(choice: Choice) {{
+             let mutable signal: Signal;
+             apply(@signal, choice);
+             await_change(@signal);
+         }}"
+    );
+    expect_unproved_progress(&source);
+    reject_deadlock(&source.replace("-> put(signal, word)", "-> put(signal, 1)"));
+}
+
+#[test]
+fn a_zero_initialized_sum_selects_only_its_first_case_and_zeroed_payload() {
+    let source = format!(
+        "{AWAIT_CHANGE} {CASE_CHOICE}
+         machine build_entry() {{
+             let mutable signal: Signal;
+             let chosen: Choice;
+             apply(@signal, chosen);
+             await_change(@signal);
+         }}"
+    );
+    execute_unit(&source);
+    reject_deadlock(&source.replace(
+        "Choice::Early { word } -> put(signal, word)",
+        "Choice::Early { word } -> put(signal, 1)",
+    ));
+}

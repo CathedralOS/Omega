@@ -25,7 +25,7 @@ pub(in super::super) enum Stored {
 
 #[derive(Clone)]
 pub(in super::super) struct Aggregate {
-    tag: Option<StructuralCaseId>,
+    tags: Vec<StructuralCaseId>,
     zeroed: bool,
     fields: Vec<(Segment, Stored)>,
 }
@@ -33,17 +33,39 @@ pub(in super::super) struct Aggregate {
 impl Stored {
     pub(in super::super) fn variant(case: StructuralCaseId) -> Self {
         Self::Aggregate(Arc::new(Aggregate {
-            tag: Some(case),
+            tags: vec![case],
             zeroed: false,
             fields: Vec::new(),
         }))
     }
 
-    pub(in super::super) fn tag(&self) -> Option<StructuralCaseId> {
+    pub(in super::super) fn tags(&self) -> &[StructuralCaseId] {
         match self {
-            Self::Aggregate(value) => value.tag,
+            Self::Aggregate(value) => &value.tags,
+            _ => &[],
+        }
+    }
+
+    pub(in super::super) fn tag(&self) -> Option<StructuralCaseId> {
+        match self.tags() {
+            [tag] => Some(*tag),
             _ => None,
         }
+    }
+
+    pub(in super::super) fn select_case(&self, case: StructuralCaseId) -> Self {
+        let mut result = match self {
+            Self::Aggregate(aggregate) => aggregate.clone(),
+            _ => Arc::new(Aggregate {
+                tags: Vec::new(),
+                zeroed: matches!(self, Self::Zero),
+                fields: Vec::new(),
+            }),
+        };
+        let value = Arc::make_mut(&mut result);
+        value.tags.clear();
+        value.tags.push(case);
+        Self::Aggregate(result)
     }
 
     pub(super) fn field(&self, key: &Segment) -> &Self {
@@ -68,7 +90,7 @@ impl Stored {
     pub(super) fn field_mut(&mut self, key: &Segment) -> &mut Self {
         if !matches!(self, Self::Aggregate(_)) {
             *self = Self::Aggregate(Arc::new(Aggregate {
-                tag: None,
+                tags: Vec::new(),
                 zeroed: matches!(self, Self::Zero),
                 fields: Vec::new(),
             }));
@@ -97,7 +119,7 @@ impl Stored {
 
     // Identical cells keep all values established at incoming edges. Zero
     // remains untyped until a checked operation supplies its scalar type.
-    pub(super) fn join(&mut self, other: &Self) {
+    pub(in super::super) fn join(&mut self, other: &Self) {
         match (&*self, other) {
             (Self::Unknown, _) | (Self::Zero, Self::Zero) => return,
             (Self::Scalar(a), Self::Scalar(b)) if a == b => return,
@@ -115,8 +137,15 @@ impl Stored {
                 let zeroed = |value: &Self| {
                     matches!(value, Self::Zero) || matches!(value, Self::Aggregate(a) if a.zeroed)
                 };
+                let mut tags = Vec::new();
+                if !self.tags().is_empty() && !other.tags().is_empty() {
+                    tags.extend_from_slice(self.tags());
+                    tags.extend_from_slice(other.tags());
+                    tags.sort_unstable();
+                    tags.dedup();
+                }
                 let mut result = Self::Aggregate(Arc::new(Aggregate {
-                    tag: self.tag().filter(|case| other.tag() == Some(*case)),
+                    tags,
                     zeroed: zeroed(self) && zeroed(other),
                     fields: Vec::new(),
                 }));
@@ -125,8 +154,25 @@ impl Stored {
                 keys.sort_unstable();
                 keys.dedup();
                 for key in keys {
-                    let mut value = self.field(&key).clone();
-                    value.join(other.field(&key));
+                    // A payload field is available only in its own case. A
+                    // predecessor that constructed another case contributes
+                    // no value to this field.
+                    let admits = |v: &Self| match &key {
+                        Segment::Case(tag) if !v.tags().is_empty() => {
+                            v.tags().binary_search(tag).is_ok()
+                        }
+                        _ => true,
+                    };
+                    let value = match (admits(self), admits(other)) {
+                        (true, true) => {
+                            let mut value = self.field(&key).clone();
+                            value.join(other.field(&key));
+                            value
+                        }
+                        (true, false) => self.field(&key).clone(),
+                        (false, true) => other.field(&key).clone(),
+                        (false, false) => continue,
+                    };
                     *result.field_mut(&key) = value;
                 }
                 *self = result;

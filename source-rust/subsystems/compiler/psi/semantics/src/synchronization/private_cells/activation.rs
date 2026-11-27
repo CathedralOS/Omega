@@ -116,7 +116,7 @@ pub(super) struct Frame<'m> {
     pub(super) block: &'m Block,
     pub(super) position: usize,
     pub(super) cleanup_cursor: usize,
-    pub(super) selected_arm: Option<bool>,
+    pub(super) selected_arm: Option<usize>,
     visited: Facts<BlockId, ()>,
     pub(super) bindings: Bindings,
     scalar_types: Rc<OnceCell<crate::MachineScalarIndex<'m>>>,
@@ -158,7 +158,13 @@ impl<'m> Frame<'m> {
             OperationKind::EstablishZeroedStructural {}
             | OperationKind::EstablishStructuralLocal {} => {
                 let value = if matches!(op.kind, OperationKind::EstablishZeroedStructural {}) {
-                    Stored::Zero
+                    let shape = &module
+                        .structural_type(op.result.structural()?.structural_type)?
+                        .shape;
+                    match shape.cases().first() {
+                        Some(first) => Stored::Zero.select_case(first.id),
+                        None => Stored::Zero,
+                    }
                 } else {
                     Stored::Unknown
                 };
@@ -193,23 +199,35 @@ impl<'m> Frame<'m> {
                 bindings.places.insert(result.place, value);
             }
             OperationKind::StructuralCaseMembership { source, path, case } => {
-                let target = memory.locate(&bindings.places, *source, path)?;
-                if let Some(tag) = memory.get(&target).tag() {
+                let target = memory.locate(&bindings.places, *source, path);
+                let tags = target.as_ref().map_or(&[][..], |v| memory.get(v).tags());
+                let membership = match tags {
+                    [_] => Some(tags[0] == *case),
+                    [] => None,
+                    tags if !tags.contains(case) => Some(false),
+                    _ => None,
+                };
+                if let Some(answer) = membership {
                     bindings.values.insert(
                         op.result.scalar()?.id,
-                        ScalarFact::Literal(Scalar::Boolean(tag == *case)),
+                        ScalarFact::Literal(Scalar::Boolean(answer)),
                     );
                 }
             }
             OperationKind::StructuralLeafCopy { source, path } => {
-                let location = memory.locate(&bindings.places, *source, path)?;
+                // Copying an input of unknown value still creates the checked
+                // result. Its possible cases can be visited independently.
+                let location = memory.locate(&bindings.places, *source, path);
+                let value = location
+                    .as_ref()
+                    .map_or(&Stored::Unknown, |v| memory.get(v));
                 match &op.result {
                     terminal_psi::OperationResult::Structural(result) => {
-                        let location = memory.allocate(memory.get(&location).clone());
+                        let location = memory.allocate(value.clone());
                         bindings.places.insert(result.place, location);
                     }
                     terminal_psi::OperationResult::Scalar(result) => {
-                        if let Some(value) = memory.get(&location).scalar(result.scalar_type) {
+                        if let Some(value) = value.scalar(result.scalar_type) {
                             bindings.values.insert(result.id, value);
                         }
                     }

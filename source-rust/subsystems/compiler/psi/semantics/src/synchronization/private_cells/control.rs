@@ -10,32 +10,41 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-/// Returning both arms of the same conditional restores the reachability of
-/// their common predecessor. Unrelated incomplete paths carry no such proof.
+/// Reaching a common successor from every arm restores its predecessor's
+/// coverage, including a sum with more than two admitted cases.
 #[derive(Clone, Default)]
 pub(super) enum Coverage {
     #[default]
     All,
-    Arm {
-        parent: Rc<Coverage>,
-        taken: bool,
+    Arms {
+        fork: Rc<(Coverage, usize)>,
+        returned: Vec<usize>,
     },
     Partial,
 }
 
 impl Coverage {
     fn join(&mut self, other: Self) {
-        *self = match (&*self, other) {
-            (Self::All, _) | (_, Self::All) => Self::All,
+        match (&mut *self, other) {
+            (Self::All, _) | (_, Self::All) => *self = Self::All,
             (
-                Self::Arm { parent, taken },
-                Self::Arm {
-                    parent: incoming,
-                    taken: opposite,
+                Self::Arms { fork, returned },
+                Self::Arms {
+                    fork: incoming,
+                    returned: more,
                 },
-            ) if Rc::ptr_eq(parent, &incoming) && *taken != opposite => (**parent).clone(),
-            _ => Self::Partial,
-        };
+            ) if Rc::ptr_eq(fork, &incoming) => {
+                for arm in more {
+                    if let Err(at) = returned.binary_search(&arm) {
+                        returned.insert(at, arm);
+                    }
+                }
+                if returned.len() == fork.1 {
+                    *self = fork.0.clone();
+                }
+            }
+            _ => *self = Self::Partial,
+        }
     }
 }
 
@@ -51,23 +60,45 @@ impl Execution<'_> {
         matches!(self.coverage, Coverage::All)
     }
 
-    pub fn fork(&mut self) -> Option<Self> {
-        let parent = Rc::new(std::mem::take(&mut self.coverage));
-        let mut other = self.clone();
-        self.coverage = Coverage::Arm {
-            parent: parent.clone(),
-            taken: true,
-        };
-        other.coverage = Coverage::Arm {
-            parent,
-            taken: false,
-        };
-        self.stack.last_mut()?.selected_arm = Some(true);
-        other.stack.last_mut()?.selected_arm = Some(false);
-        Some(other)
+    pub fn fork(self, arms: &[usize], mut queue: impl FnMut(Self)) {
+        let coverage = Rc::new((self.coverage.clone(), arms.len()));
+        for &arm in arms {
+            let mut selected = self.clone();
+            selected.coverage = Coverage::Arms {
+                fork: coverage.clone(),
+                returned: vec![arm],
+            };
+            selected
+                .stack
+                .last_mut()
+                .expect("a fork has a frame")
+                .selected_arm = Some(arm);
+            queue(selected);
+        }
     }
 
     fn join(&mut self, other: Self) {
+        // An owned block formal gets fresh storage on each arrival. At its
+        // entry no operation could have taken a reference to that fresh
+        // home. Join its contents even though the two allocations differ.
+        let mut formals = Vec::new();
+        if let (Some(active), Some(incoming)) = (self.stack.last(), other.stack.last())
+            && active.position == 0
+            && active.cleanup_cursor == 0
+            && active.selected_arm.is_none()
+        {
+            for formal in &active.block.structural_parameters {
+                if formal.access == terminal_psi::StructuralAccess::Owned
+                    && let Some(left) = active.bindings.places.get(&formal.place)
+                    && let Some(right) = incoming.bindings.places.get(&formal.place)
+                    && left != right
+                {
+                    let mut value = self.memory.get(left).clone();
+                    value.join(other.memory.get(right));
+                    formals.push((formal.place, value));
+                }
+            }
+        }
         for (frame, incoming) in self.stack.iter_mut().zip(other.stack) {
             frame
                 .bindings
@@ -79,6 +110,14 @@ impl Execution<'_> {
                 .retain_equal(&incoming.bindings.places);
         }
         self.memory.join(&other.memory);
+        if let Some(active) = self.stack.last_mut() {
+            for (formal, value) in formals {
+                active
+                    .bindings
+                    .places
+                    .insert(formal, self.memory.allocate(value));
+            }
+        }
         self.coverage.join(other.coverage);
     }
 }
@@ -89,7 +128,7 @@ struct FramePosition {
     block_rank: usize,
     operation: usize,
     cleanup: usize,
-    arm: Option<bool>,
+    arm: Option<usize>,
 }
 
 #[derive(PartialEq, Eq)]

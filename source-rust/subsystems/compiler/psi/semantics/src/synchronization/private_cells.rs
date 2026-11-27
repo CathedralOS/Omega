@@ -74,11 +74,7 @@ pub fn private_wait_failure(
             &selected_entry.requires,
         ) {
             Some(Advance::Continue) => paths.queue(path),
-            Some(Advance::Fork) => {
-                let other = path.fork()?;
-                paths.queue(other);
-                paths.queue(path);
-            }
+            Some(Advance::Fork(arms)) => path.fork(&arms, |arm| paths.queue(arm)),
             Some(Advance::Blocked(failure)) if failure.cause == ProgressFailure::Deadlock => {
                 return Some(failure);
             }
@@ -93,7 +89,7 @@ pub fn private_wait_failure(
 
 enum Advance {
     Continue,
-    Fork,
+    Fork(std::borrow::Cow<'static, [usize]>),
     Blocked(PrivateWaitFailure),
 }
 
@@ -200,14 +196,15 @@ fn advance<'m>(
                 let answer = match frame.bindings.values.get(condition) {
                     Some(ScalarFact::Literal(Scalar::Boolean(value))) => *value,
                     _ => match frame.selected_arm {
-                        Some(value) => {
+                        Some(arm) => {
+                            let value = arm == 0;
                             frame
                                 .bindings
                                 .values
                                 .insert(*condition, ScalarFact::Literal(Scalar::Boolean(value)));
                             value
                         }
-                        None => return Some(Advance::Fork),
+                        None => return Some(Advance::Fork(std::borrow::Cow::Borrowed(&[0, 1]))),
                     },
                 };
                 let edge = if answer { when_true } else { when_false };
@@ -226,7 +223,10 @@ fn advance<'m>(
                 cases,
             } => {
                 let (edge, fields) =
-                    aggregate::dispatch(module, frame, memory, *source, path, cases)?;
+                    match aggregate::dispatch(module, frame, memory, *source, path, cases)? {
+                        aggregate::Dispatch::Fork(arms) => return Some(Advance::Fork(arms.into())),
+                        aggregate::Dispatch::Selected(edge, fields) => (edge, fields),
+                    };
                 (
                     Some((
                         edge.target,

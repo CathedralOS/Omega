@@ -66,34 +66,81 @@ pub(super) fn establish(
     Some(root)
 }
 
+pub(super) enum Dispatch<'m> {
+    Fork(Vec<usize>),
+    Selected(&'m StructuralCaseSuccessorEdge, Vec<Option<ScalarFact>>),
+}
+
 pub(super) fn dispatch<'m>(
     module: &TerminalModule,
     frame: &Frame<'_>,
-    storage: &Storage,
+    storage: &mut Storage,
     source: PlaceId,
     path: &[Segment],
     cases: &'m [StructuralCaseSuccessorEdge],
-) -> Option<(&'m StructuralCaseSuccessorEdge, Vec<Option<ScalarFact>>)> {
-    let value = storage.locate(&frame.bindings.places, source, path)?;
-    let tag = storage.get(&value).tag()?;
-    let edge = cases.iter().find(|edge| edge.case == tag)?;
+) -> Option<Dispatch<'m>> {
+    let location = storage.locate(&frame.bindings.places, source, path);
+    let value = location
+        .as_ref()
+        .map_or(&Stored::Unknown, |v| storage.get(v));
+    let root = frame.machine.structural_place_type(source)?;
+    let zero = if matches!(value, Stored::Zero) {
+        Some(
+            crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, path)?
+                .shape
+                .cases()
+                .first()?
+                .id,
+        )
+    } else {
+        None
+    };
+    let edge = if let Some(arm) = frame.selected_arm {
+        cases.get(arm)?
+    } else if let Some(tag) = zero.or_else(|| value.tag()) {
+        cases.iter().find(|edge| edge.case == tag)?
+    } else {
+        let tags = value.tags();
+        let mut admitted = cases.iter().enumerate().filter_map(|(i, edge)| {
+            (tags.is_empty() || tags.binary_search(&edge.case).is_ok()).then_some(i)
+        });
+        let first = admitted.next()?;
+        if let Some(second) = admitted.next() {
+            let mut arms = vec![first, second];
+            arms.extend(admitted);
+            return Some(Dispatch::Fork(arms));
+        }
+        &cases[first]
+    };
     let destination = frame.machine.block(&edge.target)?;
     if edge.payload_fields.len() != destination.parameters.len() {
         return None;
     }
+    let Some(location) = location else {
+        // Borrowed external input or merged aliases can leave the home
+        // unknown. Its checked tag still selects one of the declared edges.
+        return Some(Dispatch::Selected(
+            edge,
+            vec![None; edge.payload_fields.len()],
+        ));
+    };
+    if value.tag() != Some(edge.case) {
+        let selected = value.select_case(edge.case);
+        storage.set(&location, selected);
+    }
     let mut payload_path = path.to_vec();
-    payload_path.push(Segment::Case(tag));
-    let payload = storage.project(value, &[Segment::Case(tag)])?;
+    payload_path.push(Segment::Case(edge.case));
+    let payload = storage.project(location, &[Segment::Case(edge.case)])?;
     let mut fields = Vec::with_capacity(edge.payload_fields.len());
     for (&field, formal) in edge.payload_fields.iter().zip(&destination.parameters) {
         let declared = crate::projected_field_declaration(
             module.types.structural_types.iter(),
-            frame.machine.structural_place_type(source)?,
+            root,
             &payload_path,
             field,
         )?;
         let field = storage.project(payload.clone(), &[Segment::Field(declared.identity)])?;
         fields.push(storage.get(&field).scalar(formal.scalar_type));
     }
-    Some((edge, fields))
+    Some(Dispatch::Selected(edge, fields))
 }
