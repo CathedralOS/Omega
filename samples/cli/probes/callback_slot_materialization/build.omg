@@ -1,8 +1,11 @@
 use main.omg as app;
-machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Application { name: "callback_slot_materialization" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_start);
-    Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry_start);
-    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
+use {omega}/build/dependency.omg;
+
+machine build(build: @mutable BuildPlan) {
+    build.product = BuildProduct::Application { name: "callback_slot_materialization" };
+    let system: DependencyRegistration = Build::dependency(build, |dependency|::from_source(Source::Bundled { name: "system" }));
+    Build::bind(build, windows_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(build, linux_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(build, linux_arm64::ProgramEntry, |app|::entry_start);
+    Build::bind(build, macos_arm64::ProgramEntry, |app|::entry_start);
 }
