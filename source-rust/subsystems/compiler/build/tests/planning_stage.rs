@@ -264,7 +264,7 @@ fn authored_build_returns_its_application_and_target_bindings() {
         build_execution::BuildSubjectValidation::Checked
     );
     let checked = checked_build.view();
-    assert!(checked.closed_module().is_some());
+    assert_eq!(checked.closed_module().identity(), checked.identity());
     let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = checked.module().entry else {
         panic!("the authored Build selects a checked source machine");
     };

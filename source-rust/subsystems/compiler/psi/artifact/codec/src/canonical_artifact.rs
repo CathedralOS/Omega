@@ -433,18 +433,8 @@ pub(crate) mod execution_code {
         LayoutPolicyInvocation,
     }
 
-    use semantic_vocabulary::{MachineId, OperationId};
-
-    /// The canonical byte artifact and the executable prefix have different
-    /// owners. Only the former has bytes a native compiler can consume.
     #[derive(Debug, Clone, Copy)]
-    enum ExecutionOwner<'code> {
-        Closed(&'code ClosedTerminalModule),
-        Prefix(&'code InvocationPrefix),
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct TerminalExecutionView<'code>(ExecutionOwner<'code>);
+    pub struct TerminalExecutionView<'code>(&'code ClosedTerminalModule);
 
     impl<'code> TerminalExecutionView<'code> {
         pub fn custody_identity(self) -> TerminalExecutionIdentity {
@@ -454,43 +444,17 @@ pub(crate) mod execution_code {
             }
         }
         pub fn module(self) -> &'code TerminalModule {
-            match self.0 {
-                ExecutionOwner::Closed(code) => code.module(),
-                ExecutionOwner::Prefix(prefix) => &prefix.module,
-            }
+            self.0.module()
         }
-        pub const fn closed_module(self) -> Option<&'code ClosedTerminalModule> {
-            match self.0 {
-                ExecutionOwner::Closed(code) => Some(code),
-                ExecutionOwner::Prefix(_) => None,
-            }
+        pub const fn closed_module(self) -> &'code ClosedTerminalModule {
+            self.0
         }
         pub const fn closed_types(self) -> &'code crate::ClosedTypeCatalog {
-            match self.0 {
-                ExecutionOwner::Closed(code) => code.closed_types(),
-                ExecutionOwner::Prefix(prefix) => &prefix.types,
-            }
+            self.0.closed_types()
         }
         pub const fn identity(self) -> TerminalPsiIdentity {
-            match self.0 {
-                ExecutionOwner::Closed(code) => code.identity(),
-                ExecutionOwner::Prefix(prefix) => prefix.identity,
-            }
+            self.0.identity()
         }
-        pub fn pending_normal_completions(self) -> &'code [(MachineId, OperationId)] {
-            match self.0 {
-                ExecutionOwner::Closed(_) => &[],
-                ExecutionOwner::Prefix(prefix) => &prefix.pending,
-            }
-        }
-    }
-
-    #[derive(Debug, PartialEq, Eq)]
-    struct InvocationPrefix {
-        module: TerminalModule,
-        types: crate::ClosedTypeCatalog,
-        identity: TerminalPsiIdentity,
-        pending: Vec<(MachineId, OperationId)>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -514,28 +478,19 @@ pub(crate) mod execution_code {
 
     impl<'code> From<TerminalArtifactView<'code>> for TerminalExecutionView<'code> {
         fn from(artifact: TerminalArtifactView<'code>) -> Self {
-            Self(ExecutionOwner::Closed(artifact.closed_module()))
+            Self(artifact.closed_module())
         }
     }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
-    enum RetainedOwner {
-        Closed(Arc<ClosedTerminalModule>),
-        Prefix(Arc<InvocationPrefix>),
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq)]
-    pub struct RetainedTerminalCode(RetainedOwner);
+    pub struct RetainedTerminalCode(Arc<ClosedTerminalModule>);
 
     impl RetainedTerminalCode {
         pub(crate) fn new(module: Arc<ClosedTerminalModule>) -> Self {
-            Self(RetainedOwner::Closed(module))
+            Self(module)
         }
         pub fn view(&self) -> TerminalExecutionView<'_> {
-            TerminalExecutionView(match &self.0 {
-                RetainedOwner::Closed(code) => ExecutionOwner::Closed(code),
-                RetainedOwner::Prefix(prefix) => ExecutionOwner::Prefix(prefix),
-            })
+            TerminalExecutionView(&self.0)
         }
     }
 
@@ -554,80 +509,6 @@ pub(crate) mod execution_code {
                 ));
             }
             Ok(Self(RetainedTerminalCode::new(Arc::new(module))))
-        }
-
-        /// Seal a prefix for invocation-local interpretation. Each missing tail
-        /// belongs to a particular checked suspending call at the end of its
-        /// block; the type catalog closes even though those bodies still owe
-        /// their normal completion. No portable encoding is retained.
-        pub fn from_prefix(module: TerminalModule) -> Result<Self, crate::CodecError> {
-            use terminal_psi::Terminator;
-            let invalid = crate::CodecError::MalformedStructuralFoundation;
-            if module.identities.invocation_scope().is_none() {
-                return Err(invalid(
-                    "a Build prefix requires its invocation-local source owner",
-                ));
-            }
-            let mut pending = Vec::new();
-            for machine in &module.machines {
-                for block in &machine.blocks {
-                    let Terminator::PendingNormalCompletion { call, .. } = block.terminator else {
-                        continue;
-                    };
-                    let Some(last) = block.operations.last() else {
-                        return Err(invalid("a pending completion has no preceding call"));
-                    };
-                    if last.id != call
-                        || last.suspension_crossing.is_none()
-                        || last.declared_invocation().is_none()
-                    {
-                        return Err(invalid(
-                            "a pending completion must follow its own suspending call",
-                        ));
-                    }
-                    let crossing = last.suspension_crossing.expect("checked above");
-                    let selected = last.declared_invocation().expect("checked above").callee;
-                    let target = match selected {
-                        terminal_psi::TargetMachineCallable::Machine(machine) => {
-                            terminal_psi::TerminalSuspensionCallTarget::Machine(machine)
-                        }
-                        terminal_psi::TargetMachineCallable::Boundary(boundary) => {
-                            terminal_psi::TerminalSuspensionCallTarget::Boundary(boundary)
-                        }
-                    };
-                    let plans = &module.execution.suspension_call_plans;
-                    let key = (last.id, crossing);
-                    if plans
-                        .binary_search_by_key(&key, |plan| (plan.operation, plan.crossing))
-                        .ok()
-                        .is_none_or(|index| plans[index].target != target)
-                    {
-                        return Err(invalid(
-                            "a pending completion lacks its call's suspension plan",
-                        ));
-                    }
-                    pending.push((machine.id, call));
-                }
-            }
-            if pending.is_empty() {
-                return Err(invalid(
-                    "an invocation prefix requires a pending completion",
-                ));
-            }
-            // The private encoding binds the pending operands and exact program.
-            let (bytes, types) = terminal_wire::sealing::encode_invocation_prefix(&module)?;
-            let identity = TerminalPsiIdentity {
-                vocabulary_marker: module.vocabulary_marker,
-                program_fingerprint: terminal_wire::sealing::encoded_fingerprint(&module, &bytes),
-            };
-            Ok(Self(RetainedTerminalCode(RetainedOwner::Prefix(Arc::new(
-                InvocationPrefix {
-                    module,
-                    types,
-                    identity,
-                    pending,
-                },
-            )))))
         }
 
         pub fn view(&self) -> TerminalExecutionView<'_> {
@@ -881,10 +762,7 @@ mod tests {
         assert!(std::ptr::eq(transferred.module(), retained.view().module()));
         drop(transferred);
         assert_eq!(retained.view().identity(), identity);
-        assert_eq!(
-            retained.view().closed_module().unwrap().identity(),
-            identity
-        );
+        assert_eq!(retained.view().closed_module().identity(), identity);
     }
 
     #[test]
@@ -927,7 +805,7 @@ mod tests {
         assert_eq!(clone.view().custody_identity(), identity);
         assert_eq!(
             clone.view().identity(),
-            clone.view().closed_module().unwrap().identity()
+            clone.view().closed_module().identity()
         );
 
         let closed = closed_module(true);

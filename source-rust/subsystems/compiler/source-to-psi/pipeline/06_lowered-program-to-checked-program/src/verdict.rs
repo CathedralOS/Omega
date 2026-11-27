@@ -9,12 +9,10 @@ it is given and fills evidence only where a seal arrives, so a module with an
 undischarged obligation must never reach it: Omega 00 would accept that
 obligation with no evidence. A complete closure is accepted only after the
 kernel has discharged every obligation and established every use of storage.
-When a Build helper's result depends on a package it prepares, the checker
-can accept the executed prefix with the original result still owed at its
-exact suspending call. Only the Build interpreter can receive that prefix.
-It parks there until a checked successor supplies the suffix. A program can
-also be rejected for an unproved obligation or unestablished use, left
-incomplete because the prover has no rule for a goal's form, or refused whole because the route does not serve some construct in it
+Suspension leaves the complete checked code in place. A program can also be
+rejected for an unproved obligation or unestablished use, left incomplete
+because the prover has no rule for a goal's form, or refused whole because
+the route does not serve some construct in it
 (`RefusalReason::Unsupported`). The variant is still named `FallBack`, but
 nothing falls back since the owner's ruling of 2026-11-12: the router refuses
 the compilation with an error naming the construct, and no other checker
@@ -93,9 +91,6 @@ pub enum RouteVerdict {
     /// the kernel accepted. `seals` are the operation obligations' evidence
     /// for Omega 00.
     Accepted(Box<AcceptedClosure>),
-    /// Every operation up to the marked calls has passed ordinary checking.
-    /// Completing one of these bodies requires an admitted successor.
-    AcceptedPrefix(Box<AcceptedClosure>),
     /// The program is rejected. `unproved` has one entry per obligation the
     /// prover could not discharge, in machine and obligation order;
     /// `unestablished` one per use of storage that some path reaches with
@@ -473,22 +468,6 @@ fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) 
                 first,
                 "proof callable differs from this closure's accepted declaration",
             ));
-        }
-        // The invocation may execute only through this call. Its outstanding
-        // result cannot supply a checked body for compiler evaluation.
-        if body.blocks.iter().any(|block| {
-            matches!(
-                block.terminator,
-                terminal_psi::Terminator::PendingNormalCompletion { .. }
-            )
-        }) {
-            if header.supplies_checked_body {
-                return Err(invalid(
-                    machine,
-                    "an unfinished Build suffix claims to supply a checked callable body",
-                ));
-            }
-            continue;
         }
         header.supplies_checked_body = true;
         if let Ok(facts) = &mut header.compiler_evaluation {
@@ -1668,22 +1647,12 @@ fn conclude(
                 )
             })?;
     }
-    let pending = elaboration
-        .module
-        .pending_normal_completions()
-        .next()
-        .is_some();
-    let checked = Box::new(AcceptedClosure {
+    Ok(RouteVerdict::Accepted(Box::new(AcceptedClosure {
         elaboration,
         discharge: discharged,
         seals,
         optimization: None,
-    });
-    Ok(if pending {
-        RouteVerdict::AcceptedPrefix(checked)
-    } else {
-        RouteVerdict::Accepted(checked)
-    })
+    })))
 }
 
 /// A compilation refused before a verdict. Binding failures carry their own

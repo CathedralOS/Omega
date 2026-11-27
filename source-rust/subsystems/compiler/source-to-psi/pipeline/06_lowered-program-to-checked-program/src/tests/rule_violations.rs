@@ -14,7 +14,6 @@ fn violations(text: &str) -> Result<Vec<String>, String> {
             .map(|violation| violation.statement.clone())
             .collect()),
         RouteVerdict::Accepted(_) => Err("accepted".into()),
-        RouteVerdict::AcceptedPrefix(_) => Err(String::from("unfinished")),
         RouteVerdict::Incomplete(_) => Err("incomplete".into()),
         RouteVerdict::FallBack(refusal) => Err(format!("not supported: {}", refusal.detail)),
         RouteVerdict::Laws(_) | RouteVerdict::UnprovedLaws(_) => {

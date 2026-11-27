@@ -200,8 +200,7 @@ fn completion_disposition(terminator: &Terminator) -> NormalCompletionDispositio
     match terminator {
         // The checked suffix may return. An open tail can never prove a
         // no-normal callee or let its caller omit the result contract.
-        Terminator::PendingNormalCompletion { .. }
-        | Terminator::Return { .. }
+        Terminator::Return { .. }
         | Terminator::ReturnUnit { .. }
         | Terminator::ReturnStructural { .. } => NormalCompletionDisposition::Return,
         Terminator::InvokeNoNormal { callee, .. } => NormalCompletionDisposition::Invoke(*callee),

@@ -4074,12 +4074,6 @@ pub(crate) fn encode_raw_closed(
     encode_raw_with_writer(module, Writer::default(), MAGIC)
 }
 
-pub(crate) fn encode_invocation_prefix(
-    module: &TerminalModule,
-) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
-    encode_raw_with_writer(module, Writer::invocation_prefix(), b"PSIPREFIX\0")
-}
-
 fn encode_raw_with_writer(
     module: &TerminalModule,
     mut writer: Writer,

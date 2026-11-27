@@ -77,8 +77,7 @@ pub mod test_support {
 pub mod sealing {
     pub use crate::sections::artifact_manifest::manifest_for_semantic;
     pub use crate::semantic_module::{
-        decode_closed_parts, encode_closed_execution_module, encode_invocation_prefix,
-        encoded_fingerprint,
+        decode_closed_parts, encode_closed_execution_module, encoded_fingerprint,
     };
 }
 

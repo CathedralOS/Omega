@@ -64,10 +64,7 @@ impl PackageDeclarationScope {
     /// Each requester must keep every package it was allowed to select.
     /// A grant only decides whether an already resolved selection is
     /// permitted; it never changes what a name resolves to. A retained check
-    /// that passed with fewer grants therefore still passes with more. This
-    /// is how a Build that waits for a dependency keeps its checked prefix:
-    /// preparation adds the dependency's grant
-    /// (`wiki/spec/build/scoped_execution.md`, "Checked Build stages").
+    /// that passed with fewer grants therefore still passes with more.
     ///
     /// No scope means a package selects only its own and toolchain
     /// declarations, the smallest grant any current scope can give it.
