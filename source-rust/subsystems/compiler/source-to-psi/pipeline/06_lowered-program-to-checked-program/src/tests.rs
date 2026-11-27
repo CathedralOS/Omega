@@ -49,6 +49,7 @@ mod compiler_primitive_headers;
 mod connected_facts;
 mod content_guarantees;
 mod contract_formation;
+mod data_indexed_family;
 mod empty_records;
 mod entry_inputs;
 mod entryless;

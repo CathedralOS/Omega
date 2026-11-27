@@ -46,7 +46,7 @@ use mathematical_kernel::{
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue,
     IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarTerm, ScalarType,
-    StructuralCaseId, StructuralFieldId, StructuralTypeId,
+    StructuralCaseId, StructuralCaseSubject, StructuralFieldId, StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
@@ -57,7 +57,9 @@ use terminal_check_tables::mathematics::{
 use terminal_check_tables::{Checked, Construct, Refusal};
 
 use super::Program;
-use super::families::{EvidenceUse, FamilyRecord, FamilyTerm, FamilyTheorem};
+use super::families::{
+    EvidenceUse, FamilyDomain, FamilyRecord, FamilyTerm, FamilyTheorem, FamilyValue,
+};
 use super::proof_stratum::TemplateField;
 use super::quotients::{LiftArgument, LiftedOperation};
 use crate::Unserved;
@@ -195,6 +197,7 @@ impl Program<'_> {
             unfolding: None,
             within: None,
             result_as: None,
+            family_inputs: Vec::new(),
             callable_scope: Vec::new(),
             bound_values: Vec::new(),
             generic_premises: Vec::new(),
@@ -755,6 +758,10 @@ struct Converter<'p, 't> {
     /// While a law is read for its induction on fuel: the machine and the
     /// term its clauses' `result` stands for.
     result_as: Option<(MachineId, TermHandle)>,
+    /// While a clause over a family indexed by data is read: the term each
+    /// input that names an index or a payload value stands for
+    /// (`families::index_place`).
+    family_inputs: Vec<(StructuralCaseSubject, TermHandle)>,
     /// The machine parameters of the generic machine being read, each as
     /// the variable it is under that machine's formals.
     callable_scope: Vec<(SymbolHandle, TermHandle)>,
@@ -810,6 +817,9 @@ struct FamilyCaseTerms {
 struct Integers<'e> {
     indices: &'e [TermHandle],
     payload: Option<(StructuralCaseId, &'e [(StructuralFieldId, TermHandle)])>,
+    /// Each index or payload value that is data, as the input a clause
+    /// names it by and the term it is.
+    inputs: &'e [(StructuralCaseSubject, TermHandle)],
 }
 
 fn unserved(id: MachineId, what: &'static str) -> Refusal {
@@ -2934,6 +2944,24 @@ impl<'p> Converter<'p, '_> {
         scope: &Integers<'_>,
         components: &mut Vec<TermHandle>,
     ) -> Checked<()> {
+        match proposition {
+            Proposition::Conjunction(parts) => {
+                for part in parts {
+                    self.integer_proposition(id, part, scope, components)?;
+                }
+                return Ok(());
+            }
+            // An Identity over data, read as a law's is, with each index
+            // and payload value the term it stands for.
+            Proposition::DeclarationIdentity(_) => {
+                let saved = std::mem::replace(&mut self.family_inputs, scope.inputs.to_vec());
+                let term = self.equality(id, proposition, &[], None);
+                self.family_inputs = saved;
+                components.push(term?);
+                return Ok(());
+            }
+            _ => {}
+        }
         let vocabulary = self.integer_vocabulary(id)?;
         let related = |converter: &mut Self, relation: u32, left, right| {
             let relation = converter.constant(relation);
@@ -2950,12 +2978,6 @@ impl<'p> Converter<'p, '_> {
                 .insert(Term::Id { ty, left, right })
         };
         let term = match proposition {
-            Proposition::Conjunction(parts) => {
-                for part in parts {
-                    self.integer_proposition(id, part, scope, components)?;
-                }
-                return Ok(());
-            }
             Proposition::Equal(left, right) => {
                 let left = self.integer_scalar(id, left, scope)?;
                 let right = self.integer_scalar(id, right, scope)?;
@@ -2989,7 +3011,7 @@ impl<'p> Converter<'p, '_> {
             _ => {
                 return Err(unserved(
                     id,
-                    "clause over indexed data other than equalities and orders of integers",
+                    "clause over indexed data other than Identities and orders of integers",
                 ));
             }
         };
@@ -3007,8 +3029,11 @@ impl<'p> Converter<'p, '_> {
     /// proof of what the declaration requires of that case, and each child
     /// sits at the index its field's type names.
     fn indexed_family(&mut self, id: MachineId, family: &FamilyRecord) -> Checked<()> {
-        let vocabulary = self.integer_vocabulary(id)?;
-        let integer = self.constant(vocabulary.carrier);
+        let index_domains = family
+            .indices
+            .iter()
+            .map(|index| self.family_domain(id, index))
+            .collect::<Checked<Vec<_>>>()?;
         let indices = family.indices.len() as u32;
         // What the declaration requires of each case: one disjunct per
         // case, naming it.
@@ -3048,11 +3073,24 @@ impl<'p> Converter<'p, '_> {
                         .ok_or_else(|| unserved(id, "payload value lost its field"))?;
                     Ok((field, self.variable(payload - 1 - position as u32)))
                 })
-                .collect::<Checked<_>>()?;
+                .collect::<Checked<Vec<_>>>()?;
+            let inputs =
+                self.family_inputs(id, family, &index_terms, Some((case, &payload_terms)))?;
             let scope = Integers {
                 indices: &index_terms,
                 payload: Some((case.case, &payload_terms)),
+                inputs: &inputs,
             };
+            let payload_domains = case
+                .payload
+                .iter()
+                .map(|value| self.family_domain(id, value))
+                .collect::<Checked<Vec<_>>>()?;
+            let binders: Vec<_> = index_domains
+                .iter()
+                .chain(&payload_domains)
+                .copied()
+                .collect();
             let mut clauses = required.iter().filter(|parts| {
                 parts.iter().any(|part| {
                     matches!(part, Proposition::StructuralCaseMembership { case: named, .. }
@@ -3086,17 +3124,19 @@ impl<'p> Converter<'p, '_> {
                     at.push(self.family_term_kernel(id, term, &index_terms, &payload_terms)?);
                 }
                 let tuple = self.index_tuple(&at);
-                child_indices.push(self.over(integer, total, tuple));
+                child_indices.push(self.over(&binders, tuple));
                 children.push(at);
             }
             described.push(IndexedCase {
-                payload: (0..payload)
-                    .map(|position| IndexedField {
-                        name: indices + position,
-                        domain: integer,
+                payload: payload_domains
+                    .iter()
+                    .enumerate()
+                    .map(|(position, &domain)| IndexedField {
+                        name: indices + position as u32,
+                        domain,
                     })
                     .collect(),
-                constraints: self.over(integer, total, all),
+                constraints: self.over(&binders, all),
                 child_indices,
             });
             cases.push(FamilyCaseTerms {
@@ -3107,10 +3147,12 @@ impl<'p> Converter<'p, '_> {
         }
         let declared = IndexedData {
             parameters: Vec::new(),
-            fields: (0..indices)
-                .map(|index| IndexedField {
-                    name: index,
-                    domain: integer,
+            fields: index_domains
+                .iter()
+                .enumerate()
+                .map(|(index, &domain)| IndexedField {
+                    name: index as u32,
+                    domain,
                 })
                 .collect(),
             indices: (0..indices).collect(),
@@ -3149,6 +3191,7 @@ impl<'p> Converter<'p, '_> {
             let scope = Integers {
                 indices: &open,
                 payload: None,
+                inputs: &[],
             };
             if self
                 .integer_proposition(id, proposition, &scope, &mut components)
@@ -3338,12 +3381,63 @@ impl<'p> Converter<'p, '_> {
             .expect("indexed data has at least one index")
     }
 
-    /// `body` as a function of `count` values of `domain`.
-    fn over(&mut self, domain: TermHandle, count: u32, mut body: TermHandle) -> TermHandle {
-        for _ in 0..count {
+    /// `body` as a function of a value of each domain, outermost first.
+    fn over(&mut self, domains: &[TermHandle], mut body: TermHandle) -> TermHandle {
+        for &domain in domains.iter().rev() {
             body = self.signature.arena.insert(Term::Lambda { domain, body });
         }
         body
+    }
+
+    /// The type of an index or payload value of a family: the integer
+    /// carrier, or the data it is.
+    fn family_domain(&mut self, id: MachineId, value: &FamilyValue) -> Checked<TermHandle> {
+        let entry = match value.domain {
+            FamilyDomain::Integer(_) => self.integer_vocabulary(id)?.carrier,
+            FamilyDomain::Data(record) => self.data(id, record)?,
+        };
+        Ok(self.constant(entry))
+    }
+
+    /// The input each data index stands at in a family's clauses, with
+    /// its term, and each data payload value of `case` at its field.
+    fn family_inputs(
+        &self,
+        id: MachineId,
+        family: &FamilyRecord,
+        index_terms: &[TermHandle],
+        payload: Option<(
+            &super::families::FamilyCase,
+            &[(StructuralFieldId, TermHandle)],
+        )>,
+    ) -> Checked<Vec<(StructuralCaseSubject, TermHandle)>> {
+        let mut inputs = Vec::new();
+        for (position, (index, &term)) in family.indices.iter().zip(index_terms).enumerate() {
+            if let FamilyDomain::Data(_) = index.domain {
+                let place = super::families::index_place(position)
+                    .ok_or_else(|| unserved(id, "index place identity"))?;
+                inputs.push((StructuralCaseSubject::new(place, Vec::new()), term));
+            }
+        }
+        if let Some((case, terms)) = payload {
+            let root =
+                crate::body::self_place().ok_or_else(|| unserved(id, "self place identity"))?;
+            for (value, &(field, term)) in case.payload.iter().zip(terms) {
+                if let FamilyDomain::Data(_) = value.domain {
+                    inputs.push((
+                        StructuralCaseSubject::new(
+                            root,
+                            vec![
+                                CanonicalStructuralPathSegment::Case(case.case),
+                                CanonicalStructuralPathSegment::Field(field),
+                            ],
+                        ),
+                        term,
+                    ));
+                }
+            }
+        }
+        Ok(inputs)
     }
 
     /// A theorem over indexed data: for every index and every value of the
@@ -3371,8 +3465,11 @@ impl<'p> Converter<'p, '_> {
             .symbols
             .get(id)
             .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
-        let vocabulary = self.integer_vocabulary(id)?;
-        let integer = self.constant(vocabulary.carrier);
+        let index_domains = source
+            .indices
+            .iter()
+            .map(|index| self.family_domain(id, index))
+            .collect::<Checked<Vec<_>>>()?;
         let indices = source.indices.len() as u32;
         let open: Vec<_> = (0..indices)
             .map(|index| self.variable(indices - 1 - index))
@@ -3384,12 +3481,15 @@ impl<'p> Converter<'p, '_> {
         // What each step requires, per case, under the indices and the
         // case's payload; and, for the theorem's rank, that it is smaller
         // at each child the step cites.
-        let zero = self.integer_literal(id, bignum::BigInt::from_u128(0))?;
-        let one = self.integer_literal(id, bignum::BigInt::from_u128(1))?;
+        // Only an unsigned integer is natural, and only one may rank the
+        // theorem; a family of data alone needs no integers.
         let unsigned = |value: &super::families::FamilyValue| {
-            value.integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+            value
+                .integer()
+                .is_some_and(|integer| integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
         };
         let mut owed = Vec::with_capacity(theorem.cases.len());
+        let mut domains = Vec::with_capacity(theorem.cases.len());
         let mut ranked = Vec::with_capacity(theorem.cases.len());
         for ((case, read), terms) in source.cases.iter().zip(&theorem.cases).zip(&declared.cases) {
             let total = indices + terms.payload;
@@ -3406,18 +3506,25 @@ impl<'p> Converter<'p, '_> {
                         .ok_or_else(|| unserved(id, "payload value lost its field"))?;
                     Ok((field, self.variable(terms.payload - 1 - position as u32)))
                 })
-                .collect::<Checked<_>>()?;
+                .collect::<Checked<Vec<_>>>()?;
+            let inputs =
+                self.family_inputs(id, source, &index_terms, Some((case, &payload_terms)))?;
             let scope = Integers {
                 indices: &index_terms,
                 payload: Some((case.case, &payload_terms)),
+                inputs: &inputs,
             };
             let mut required = Vec::new();
             for proposition in &read.requires {
                 self.integer_proposition(id, proposition, &scope, &mut required)?;
             }
             owed.push(required);
-            let at_most = self.constant(vocabulary.less_or_equal);
-            let add = self.constant(vocabulary.add);
+            let payload_domains = case
+                .payload
+                .iter()
+                .map(|value| self.family_domain(id, value))
+                .collect::<Checked<Vec<_>>>()?;
+            domains.push(payload_domains);
             let mut natural = Vec::new();
             let held = source.indices.iter().zip(&index_terms).chain(
                 case.payload
@@ -3426,6 +3533,9 @@ impl<'p> Converter<'p, '_> {
             );
             for (value, &term) in held {
                 if unsigned(value) {
+                    let at_most = self.integer_vocabulary(id)?.less_or_equal;
+                    let at_most = self.constant(at_most);
+                    let zero = self.integer_literal(id, bignum::BigInt::from_u128(0))?;
                     natural.push(self.signature.arena.apply_arguments(at_most, &[zero, term]));
                 }
             }
@@ -3439,6 +3549,10 @@ impl<'p> Converter<'p, '_> {
                         .get(child)
                         .and_then(|at| at.get(rank as usize))
                         .ok_or_else(|| unserved(id, "cited child without the ranked index"))?;
+                    let vocabulary = self.integer_vocabulary(id)?;
+                    let at_most = self.constant(vocabulary.less_or_equal);
+                    let add = self.constant(vocabulary.add);
+                    let one = self.integer_literal(id, bignum::BigInt::from_u128(1))?;
                     let arena = &mut self.signature.arena;
                     let next = arena.apply_arguments(add, &[smaller, one]);
                     descent
@@ -3448,6 +3562,7 @@ impl<'p> Converter<'p, '_> {
             ranked.push((natural, descent));
         }
         let mut laws = Vec::with_capacity(theorem.ensures.len());
+        let inputs = self.family_inputs(id, source, &open, None)?;
         for (clause, proposition) in theorem.ensures.iter().enumerate() {
             let mut components = Vec::new();
             self.integer_proposition(
@@ -3456,6 +3571,7 @@ impl<'p> Converter<'p, '_> {
                 &Integers {
                     indices: &open,
                     payload: None,
+                    inputs: &inputs,
                 },
                 &mut components,
             )?;
@@ -3508,13 +3624,14 @@ impl<'p> Converter<'p, '_> {
             let (text, text_source) = names
                 .ensures
                 .get(clause)
+                .or(theorem.ensures_text.get(clause))
                 .map(|text| (names.authored(text), text.source))
                 .unwrap_or_default();
             self.signature.laws.push(Law {
                 machine: symbol,
                 clause: clause as u32,
                 statement: entry,
-                formals: vec![integer; indices as usize],
+                formals: index_domains.clone(),
                 premises: Vec::new(),
                 goal,
                 declared: None,
@@ -3526,18 +3643,25 @@ impl<'p> Converter<'p, '_> {
                         .iter()
                         .zip(&theorem.cases)
                         .zip(owed.iter().zip(&source.cases))
-                        .zip(&ranked)
+                        .zip(ranked.iter().zip(&domains))
                         .map(
-                            |(((terms, read), (owed, case)), (natural, descent))| FamilyLawCase {
-                                natural: natural.clone(),
-                                descent: descent.clone(),
-                                name: format!("{}::{}", self.name(source.declaration), case.name),
-                                payload: terms.payload,
-                                constraints: terms.constraints.clone(),
-                                children: terms.children.clone(),
-                                cited: read.cited.clone(),
-                                owed: owed.clone(),
-                                source: read.source,
+                            |(((terms, read), (owed, case)), ((natural, descent), domains))| {
+                                FamilyLawCase {
+                                    natural: natural.clone(),
+                                    descent: descent.clone(),
+                                    name: format!(
+                                        "{}::{}",
+                                        self.name(source.declaration),
+                                        case.name
+                                    ),
+                                    payload: terms.payload,
+                                    payload_domains: domains.clone(),
+                                    constraints: terms.constraints.clone(),
+                                    children: terms.children.clone(),
+                                    cited: read.cited.clone(),
+                                    owed: owed.clone(),
+                                    source: read.source,
+                                }
                             },
                         )
                         .collect(),
@@ -7753,6 +7877,15 @@ impl<'p> Converter<'p, '_> {
                 }
             });
             let term = match &value.operand {
+                // An index or payload value of a family, in its clause.
+                ClauseOperand::Input(subject)
+                    if let Some(&(_, term)) = self
+                        .family_inputs
+                        .iter()
+                        .find(|(input, _)| input == subject) =>
+                {
+                    term
+                }
                 ClauseOperand::Scalar(ScalarTerm::Boolean(truth))
                     if value.carrier == ClauseCarrier::Scalar(ScalarType::Boolean) =>
                 {
