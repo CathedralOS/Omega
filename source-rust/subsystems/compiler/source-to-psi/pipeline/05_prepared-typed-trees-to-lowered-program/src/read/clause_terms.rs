@@ -1447,6 +1447,27 @@ impl Program<'_> {
                 return self.clause_term(id, scope, actual, ClauseUse::Operand(expected, values));
             }
             let operand = match (table.expression(expression), expected) {
+                // The value a for-every definition being read binds.
+                (ExpressionNode::Name(path), _)
+                    if !path.static_application.is_valid()
+                        && !path.reserved_result_of.is_valid()
+                        && table.name_path_members(path.members).len() == 1
+                        && self.universal_binder(path.symbol).is_some() =>
+                {
+                    let (place, value_type) = self
+                        .universal_binder(path.symbol)
+                        .expect("the guard found the binder");
+                    if expected.is_some_and(|expected| expected != value_type) {
+                        return Err(unavailable(
+                            "for-every binder differs from the written carrier",
+                        ));
+                    }
+                    expected = Some(value_type);
+                    ClauseOperand::Input(semantic_vocabulary::StructuralCaseSubject::new(
+                        place,
+                        Vec::new(),
+                    ))
+                }
                 // A machine defined by cases over data that contains itself is
                 // a function of the signature. The clause applies it by its
                 // declaration; the kernel unfolds it, never this reader.
@@ -1788,6 +1809,22 @@ impl Program<'_> {
                     }
                     ClauseOperand::Scalar(term)
                 }
+                // An index or payload value of a family indexed by data
+                // values (`families`): the input that stands for it.
+                (ExpressionNode::Name(path), Some(expected))
+                    if !path.static_application.is_valid()
+                        && let Some((_, ty, subject)) = self
+                            .data_indices
+                            .iter()
+                            .find(|(symbol, ..)| *symbol == path.symbol) =>
+                {
+                    if *ty != expected {
+                        return Err(unavailable(
+                            "Identity operand differs from the written carrier",
+                        ));
+                    }
+                    ClauseOperand::Input(subject.clone())
+                }
                 (ExpressionNode::Name(path), Some(expected))
                     if path.reserved_result_of.is_valid()
                         || scope
@@ -1944,6 +1981,29 @@ impl Program<'_> {
                 // A field of data that has storage is the input's value at
                 // that field path; the checker projects it from the record.
                 (ExpressionNode::Member(_), Some(expected)) if !self.mathematical => {
+                    let (root, path, ty) =
+                        self.projected(id, scope, expression)?.ok_or_else(|| {
+                            unavailable("Identity operand has no term at its written carrier")
+                        })?;
+                    if ty != expected {
+                        return Err(unavailable(
+                            "Identity operand differs from the written carrier",
+                        ));
+                    }
+                    ClauseOperand::Input(semantic_vocabulary::StructuralCaseSubject::new(
+                        root, path,
+                    ))
+                }
+                // A data payload of a family's case, in the family's own
+                // clause (`self.rest` of a derivation): the input at the
+                // case's field, as an integer payload is its scalar there.
+                (ExpressionNode::Member(_), Some(expected))
+                    if self.mathematical
+                        && scope.subject.is_some_and(|subject| {
+                            matches!(subject.value_type, ValueType::Record(record, ..)
+                                if self.families.iter().any(|family| family.record == record))
+                        }) =>
+                {
                     let (root, path, ty) =
                         self.projected(id, scope, expression)?.ok_or_else(|| {
                             unavailable("Identity operand has no term at its written carrier")

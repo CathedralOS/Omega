@@ -193,11 +193,13 @@ pub use terminal_check_tables::compilation::{CallableFormationDefect, CallableFo
 #[cfg(any(test, feature = "test-support"))]
 pub use verdict::{
     AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, ExceededReach,
-    PublicationError, RoutePublication, RouteVerdict, RuleViolation, UnestablishedUse,
-    UnprovedObligation, judge, judge_compilation,
+    ObligationSource, PublicationError, RoutePublication, RouteVerdict, RuleViolation,
+    UnestablishedUse, UnprovedObligation, judge, judge_compilation,
 };
 #[cfg(not(any(test, feature = "test-support")))]
-pub use verdict::{AcceptedClosure, CompilationRefusal, RouteVerdict, UnprovedObligation};
+pub use verdict::{
+    AcceptedClosure, CompilationRefusal, ObligationSource, RouteVerdict, UnprovedObligation,
+};
 
 #[cfg(test)]
 pub(crate) use prove::has_rules_for;

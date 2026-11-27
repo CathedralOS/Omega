@@ -50,6 +50,7 @@ impl PackagePolicyBaseline {
                 | crate::encoding::BASELINE_WITH_PROVIDER_APPLICATION_GRANTS
                 | crate::encoding::BASELINE_WITH_TYPE_ALIASES
                 | crate::encoding::BASELINE_WITH_CARRIED_TYPES
+                | crate::encoding::BASELINE_WITH_APPLIED_SERVICES
                 | PACKAGE_POLICY_BASELINE_VERSION
         ) {
             return Err(Error::UnsupportedVersion);
@@ -64,7 +65,7 @@ impl PackagePolicyBaseline {
             selected_providers: selected_providers::policy(&mut reader)?,
             terminal_permissions: terminal_permissions::policy(&mut reader)?,
             representation: representation::policy(&mut reader)?,
-            native_bindings: reader.sequence(1, native_binding)?,
+            native_bindings: reader.sequence(1, |reader| native_binding(reader, schema_version))?,
             external_supplies: reader.sequence(1, external::policy)?,
             dangerous_capabilities: reader.sequence(1, dangerous_authority)?,
             slack_uses: reader.sequence(1, slack)?,
@@ -101,9 +102,27 @@ fn component_assumption(
     })
 }
 
-fn native_binding(reader: &mut Reader<'_>) -> Result<PackagePolicyNativeBinding, Error> {
+fn native_binding(
+    reader: &mut Reader<'_>,
+    schema_version: u16,
+) -> Result<PackagePolicyNativeBinding, Error> {
+    use crate::record::PackagePolicyNativeApplication as Application;
+    let application = match reader.byte()? {
+        0 => Application::Concrete(None),
+        1 => Application::Concrete(Some(reader.string()?)),
+        2 if schema_version >= crate::encoding::BASELINE_WITH_UNUSED_GENERIC_IMPORTS => {
+            Application::UnusedGeneric {
+                declaration: reader.string()?,
+                unbound_parameters: reader.sequence(8, |reader| reader.string())?,
+                custom_calling_policy: reader.option(nominal)?,
+                source_occurrence: reader.digest()?,
+                evaluation: reader.digest()?,
+            }
+        }
+        _ => return Err(Error::InvalidTag),
+    };
     Ok(PackagePolicyNativeBinding {
-        application: reader.option(|reader| reader.string())?,
+        application,
         method: selected_providers::service_method(reader)?,
         binding: selected_providers::bindings::binding(reader)?,
     })

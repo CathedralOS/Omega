@@ -2711,6 +2711,9 @@ impl<'a> Prover<'a> {
             Proposition::IsMere(_) => self
                 .closed(goal.clone())
                 .ok_or("mere-proposition obligation is not established"),
+            Proposition::Universal { .. } => self
+                .closed(goal.clone())
+                .ok_or("a for-every obligation is not established"),
         }
     }
 

@@ -2,7 +2,10 @@
 //! of its test in the lowered control flow. The waiting path must revisit the
 //! access, the other must return, and neither may have any unaccounted effect.
 
+mod cases;
+
 use super::facts::Facts;
+use cases::CaseValue;
 
 use crate::entry_values::TerminalScalarValue as Scalar;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, ScalarType, ValueId};
@@ -16,7 +19,38 @@ pub struct SpinWait {
     pub(super) parameter: usize,
     pub(super) path: Vec<StructuralPathSegment>,
     pub(super) while_value: SpinCondition,
-    pub(super) writes: Option<Scalar>,
+    pub(super) update: CellUpdate,
+}
+
+/// These transfers are idempotent. Once a private retry observes the result
+/// of its own update, all later iterations see those same bits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum CellUpdate {
+    Observe,
+    Replace(Scalar),
+    CompareExchange {
+        expected: Scalar,
+        replacement: Scalar,
+    },
+}
+
+impl CellUpdate {
+    pub(super) fn apply(self, prior: Scalar) -> Scalar {
+        match self {
+            Self::Observe => prior,
+            Self::Replace(value) => value,
+            Self::CompareExchange {
+                expected,
+                replacement,
+            } => {
+                if prior == expected {
+                    replacement
+                } else {
+                    prior
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -101,11 +135,12 @@ impl ForwardedWait {
 struct Read {
     site: OperationId,
     cell: Subject,
-    writes: Option<Scalar>,
+    update: CellUpdate,
 }
 
 #[derive(Default)]
 struct Trace {
+    cases: Facts<PlaceId, CaseValue>,
     places: Facts<PlaceId, Subject>,
     borrows: Facts<PlaceId, Subject>,
     forwarded: Option<ForwardedWait>,
@@ -153,9 +188,6 @@ impl Trace {
     }
 
     fn operation(&mut self, module: &TerminalModule, operation: &Operation) -> Option<bool> {
-        if operation.suspension_crossing.is_some() {
-            return None;
-        }
         if let Some(call) = operation.declared_invocation() {
             if !matches!(operation.result, OperationResult::Unit)
                 || !call.claim_transfers.is_empty()
@@ -214,6 +246,16 @@ impl Trace {
             }
             _ => {}
         }
+        if let Some(result) = operation.result.as_structural() {
+            let case = CaseValue::from_operation(&operation.kind, &self.cases)?;
+            if !result.is_unrestricted_plain()
+                || !case.has_known_fields(|id| self.scalar(id).is_some())
+            {
+                return None;
+            }
+            bind(&mut self.cases, result.place, case)?;
+            return Some(false);
+        }
         let result = operation.result.scalar()?.id;
         let mut reads = false;
         let value = if let Some(constant) = constant(operation) {
@@ -226,17 +268,25 @@ impl Trace {
                     event,
                     resident_obligation: None,
                 } => {
-                    let writes = match event {
-                        AtomicAccessEvent::Load { .. } => None,
+                    let update = match event {
+                        AtomicAccessEvent::Load { .. } => CellUpdate::Observe,
                         AtomicAccessEvent::Swap { value, .. } => {
-                            Some(self.scalar(*value)?.literal()?)
+                            CellUpdate::Replace(self.scalar(*value)?.literal()?)
                         }
+                        AtomicAccessEvent::CompareExchange {
+                            expected,
+                            replacement,
+                            ..
+                        } => CellUpdate::CompareExchange {
+                            expected: self.scalar(*expected)?.literal()?,
+                            replacement: self.scalar(*replacement)?.literal()?,
+                        },
                         _ => return None,
                     };
                     let read = Read {
                         site: operation.id,
                         cell: self.subject(*place, path)?,
-                        writes,
+                        update,
                     };
                     if self.read.as_ref().is_some_and(|seen| seen != &read) {
                         return None;
@@ -244,6 +294,11 @@ impl Trace {
                     self.read = Some(read);
                     reads = true;
                     Word::Observed
+                }
+                OperationKind::StructuralCaseMembership { source, path, case }
+                    if path.is_empty() =>
+                {
+                    Word::Literal(Scalar::Boolean(self.cases.get(source)?.is(*case)))
                 }
                 OperationKind::BooleanNot { operand } => {
                     self.scalar(*operand)?.equal(Scalar::Boolean(false))?
@@ -301,6 +356,14 @@ impl Trace {
             bind(&mut self.values, formal.id, supplied)?;
         }
         for (formal, actual) in dest.structural_parameters.iter().zip(places) {
+            if formal.access == terminal_psi::StructuralAccess::Owned
+                && actual.access == terminal_psi::StructuralAccess::Owned
+                && actual.path.is_empty()
+            {
+                let supplied = self.cases.get(&actual.place)?.clone();
+                bind(&mut self.cases, formal.place, supplied)?;
+                continue;
+            }
             if !matches!(formal.access, terminal_psi::reading_borrow_pair_pattern!())
                 || !matches!(actual.access, terminal_psi::reading_borrow_pair_pattern!())
             {
@@ -355,6 +418,7 @@ fn trace(
         for operation in &block.operations {
             observations += usize::from(state.operation(module, operation)?);
         }
+        let fields: Vec<ValueId>;
         let (next, arguments, places, cleanup) = match &block.terminator {
             Terminator::ReturnUnit {
                 cleanup_actions, ..
@@ -379,6 +443,21 @@ fn trace(
                 (
                     &edge.target,
                     &edge.arguments,
+                    &edge.structural_arguments,
+                    &edge.cleanup_actions,
+                )
+            }
+            Terminator::StructuralCase {
+                source,
+                path,
+                cases,
+            } if path.is_empty() => {
+                let known = state.cases.get(source)?;
+                let edge = cases.iter().find(|edge| known.is(edge.case))?;
+                fields = known.payload(&edge.payload_fields)?;
+                (
+                    &edge.target,
+                    &fields,
                     &edge.structural_arguments,
                     &edge.cleanup_actions,
                 )
@@ -416,7 +495,7 @@ pub fn spin_wait(module: &TerminalModule, machine: &TerminalMachine) -> Option<S
     Some(SpinWait {
         parameter: read.cell.parameter,
         path: read.cell.path,
-        writes: read.writes,
+        update: read.update,
         while_value: SpinCondition {
             value,
             equal: equal == Completion::Retries,

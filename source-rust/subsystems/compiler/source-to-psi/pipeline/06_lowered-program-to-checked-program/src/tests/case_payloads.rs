@@ -183,7 +183,7 @@ requires depth > 0 && depth <= 2 && restart <= 1 {
                 row.cause == UnprovedCause::NoDerivation
                     && row.statement.contains("call directory from next")
                     && arrivals.iter().any(|&(machine, obligation, edge, origin)| {
-                        row.machine == machine && row.obligation == obligation
+                        row.machine == machine && row.source == crate::ObligationSource::Lowered(obligation)
                             && row.kind == (ObligationKind::ArrivalInvariant { edge })
                             && row.site == origin
                     })
@@ -317,7 +317,7 @@ requires count <= 2 {
                         row.cause == UnprovedCause::NoDerivation
                             && row.statement.contains("call close from pop")
                             && arrivals.iter().any(|&(machine, obligation, edge, origin)| {
-                                row.machine == machine && row.obligation == obligation
+                                row.machine == machine && row.source == crate::ObligationSource::Lowered(obligation)
                                     && row.kind == (ObligationKind::ArrivalInvariant { edge })
                                     && row.site == origin
                             })

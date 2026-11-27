@@ -12,7 +12,14 @@ pub type SourceNativeBinding = Result<NativeBindingMaterialization, String>;
 /// Includes declarations outside the executable entry's reachable requirements.
 pub struct SourcePackageReviewRequirements {
     pub numeric: Result<Vec<BoundaryMachineId>, Vec<Diagnostic>>,
-    pub bindings: Result<Vec<(BoundaryMachineId, NativeBindingMaterialization)>, Vec<Diagnostic>>,
+    pub bindings: Result<SourceNativeBindingInventory, Vec<Diagnostic>>,
+}
+
+#[derive(Default)]
+pub struct SourceNativeBindingInventory {
+    pub applications: Vec<(BoundaryMachineId, NativeBindingMaterialization)>,
+    /// These checked import declarations have no concrete boundary in this publication.
+    pub unused_generic_imports: Vec<NativeBindingMaterialization>,
 }
 
 pub enum SourceProviderDemand {

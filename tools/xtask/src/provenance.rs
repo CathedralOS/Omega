@@ -268,6 +268,29 @@ fn claude_pending_provenance_call(path: &Path) -> Option<PendingCall> {
     pending.map(|(_, call)| call)
 }
 
+/// The command's words with quotes removed but backslashes kept. POSIX
+/// splitting treats `\` as an escape and turns a Windows path such as
+/// `C:\Omega\.agents\worktree\worker-3`, written in a PowerShell or cmd call,
+/// into `C:Omega.agentsworktreeworker-3`.
+fn literal_words(command: &str) -> impl Iterator<Item = &str> {
+    let mut quote = None;
+    command
+        .split(move |character: char| match quote {
+            Some(open) if character == open => {
+                quote = None;
+                false
+            }
+            None if character == '"' || character == '\'' => {
+                quote = Some(character);
+                false
+            }
+            None => character.is_whitespace(),
+            Some(_) => false,
+        })
+        .map(|word| word.trim_matches(|character| character == '"' || character == '\''))
+        .filter(|word| !word.is_empty())
+}
+
 /// Pick the transcript of the agent running this command: the coordinator's
 /// own conversation, or the subagent's when a subagent runs it. Several agents
 /// running `provenance` at once are told apart by the checkout each one names.
@@ -283,16 +306,23 @@ fn select_claude_transcript(home: &Path, root: &Path) -> Result<PathBuf, String>
             .collect();
     if running.len() > 1 {
         let root_text = root.to_string_lossy();
+        // Windows `canonicalize` adds a `\\?\` prefix the invocation directory
+        // lacks, so compare a resolved path only with the resolved root.
+        let canonical_root = root.canonicalize().ok();
         running.retain(|(_, call)| {
             let in_checkout = |path: &Path| {
                 path.is_absolute()
                     && (path.starts_with(root)
-                        || path.canonicalize().is_ok_and(|path| path.starts_with(root)))
+                        || canonical_root.as_deref().is_some_and(|canonical_root| {
+                            path.canonicalize()
+                                .is_ok_and(|path| path.starts_with(canonical_root))
+                        }))
             };
             call.command.contains(root_text.as_ref())
                 || in_checkout(Path::new(&call.cwd))
                 || shlex::split(&call.command)
                     .is_some_and(|words| words.iter().any(|word| in_checkout(Path::new(word))))
+                || literal_words(&call.command).any(|word| in_checkout(Path::new(word)))
         });
     }
     let session = session_id

@@ -28,7 +28,7 @@ impl AcceptedTerminalSource {
                 .filter(|supply| supply.selection.target.canonical_name() == target)
                 .peekable();
             if supplies.peek().is_none() {
-                return Ok(Vec::new());
+                return Ok(Default::default());
             }
             let mut declared = declared.iter().collect::<Vec<_>>();
             let key = |row: &&DeclaredBoundaryRequirement| {
@@ -48,22 +48,41 @@ impl AcceptedTerminalSource {
                     "one accepted declaration for a native requirement",
                 ));
             }
-            let mut bindings = Vec::new();
+            let mut bindings = source_provider_publication::SourceNativeBindingInventory::default();
+            let typed = self.source();
             for supply in supplies {
-                let before = bindings.len();
-                for row in declared
-                    .iter()
-                    .filter(|row| row.slot == supply.selection.subject)
-                {
+                let selection = &supply.selection;
+                let generic_import = selection.application.is_none()
+                    && matches!(
+                        selection.locator,
+                        semantic_vocabulary::NativeBindingLocator::Import(_)
+                    )
+                    && !typed
+                        .declaration_type_parameters(selection.requirement)
+                        .is_empty();
+                let before = bindings.applications.len();
+                for row in declared.iter().filter(|row| {
+                    row.slot == selection.subject
+                        && !(generic_import && row.requirement == selection.requirement)
+                }) {
                     let binding = supply
-                        .materialization_for(self.source(), row.requirement)
+                        .materialization_for(typed, row.requirement)
                         .map_err(|reason| vec![Diagnostic::error(reason)])?;
                     if let Some(binding) = binding {
-                        bindings.push((row.boundary, binding));
+                        bindings.applications.push((row.boundary, binding));
                     }
                 }
-                if bindings.len() == before {
-                    let selection = &supply.selection;
+                if bindings.applications.len() == before {
+                    if generic_import {
+                        let materialization = supply
+                            .materialization_for(typed, selection.requirement)
+                            .map_err(|reason| vec![Diagnostic::error(reason)])?
+                            .ok_or_else(|| {
+                                unavailable("the generic import's checked declaration")
+                            })?;
+                        bindings.unused_generic_imports.push(materialization);
+                        continue;
+                    }
                     let name = self.source().symbols.display_path(selection.requirement, "::");
                     let diagnostic = Diagnostic::error(format!(
                         "no accepted application of native requirement `{name}` for `{target}` during package review"

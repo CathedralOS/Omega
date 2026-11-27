@@ -84,7 +84,7 @@ fn check_witness(
             )?;
             unproved.push(crate::UnprovedObligation {
                 machine,
-                obligation,
+                source: crate::ObligationSource::Lowered(obligation),
                 kind: row.kind,
                 site,
                 cause,

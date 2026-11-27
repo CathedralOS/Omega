@@ -38,3 +38,134 @@ fn a_forwarding_machine_preserves_the_lock_across_both_calls() {
         "{diagnostic}"
     );
 }
+
+const DECISIVE: &str =
+    include_str!("../../../tests/fixtures/synchronization/run/decisive_atomic_lock/main.omg");
+
+#[test]
+fn a_decisive_exchange_acquires_the_released_flag() {
+    program::assert_silent_return(DECISIVE);
+}
+
+#[test]
+fn a_decisive_exchange_keeps_observing_a_private_held_flag() {
+    let held = DECISIVE.replace("flag.held.store(0, Publish);", "");
+    let (outcome, diagnostic) = program::invoke(&held, &["--check"]);
+    assert!(!outcome.status.success(), "{diagnostic}");
+    assert!(
+        diagnostic.contains("synchronization deadlock"),
+        "{diagnostic}"
+    );
+}
+
+#[test]
+fn a_failed_exchange_cannot_write_the_value_that_would_release_its_wait() {
+    let source = DECISIVE
+        .replace("compare_exchange(0, 1,", "compare_exchange(0, 0,")
+        .replace(
+            "    acquire(@flag);\n    flag.held.store(0, Publish);",
+            "    flag.held.store(1, Publish);",
+        );
+    let (outcome, diagnostic) = program::invoke(&source, &["--check"]);
+    assert!(!outcome.status.success(), "{diagnostic}");
+    assert!(
+        diagnostic.contains("synchronization deadlock"),
+        "{diagnostic}"
+    );
+}
+
+#[test]
+fn a_decisive_exchange_must_receive_the_observing_outcome() {
+    let template = r#"
+        use {omega}/language/core/layout.omg;
+        data Flag { held: AtomicU32; }
+        data Impostor [copy] { case Mismatched(observed: u32); case Exchanged; }
+        machine main() {
+            let mutable flag: Flag;
+            let outcome: RESULT = flag.held.compare_exchange(0, 1, ReceivePublish, Receive);
+        }
+    "#;
+    for wrong in [
+        "u32",
+        "Impostor",
+        "|layout|::AtomicCompareExchangeOutcome<u64>",
+        "|layout|::AtomicCompareExchangeOnceOutcome<u32>",
+    ] {
+        let source = template.replace("RESULT", wrong);
+        let (outcome, diagnostic) = program::invoke(&source, &["--check"]);
+        assert!(!outcome.status.success(), "{wrong}: {diagnostic}");
+        assert!(
+            diagnostic.contains("AtomicCompareExchangeOutcome"),
+            "{wrong}: {diagnostic}"
+        );
+    }
+}
+
+#[test]
+fn a_mismatch_returns_the_observed_word_and_leaves_the_cell_unchanged() {
+    let source = r#"
+        use {omega}/language/core/layout.omg;
+        data Flag { held: AtomicU32; }
+
+        machine main() crashes Trap {
+            let mutable flag: Flag;
+            flag.held.store(17, Publish);
+            let mutable attempt: |layout|::AtomicCompareExchangeOutcome<u32> =
+                |layout|::AtomicCompareExchangeOutcome::Exchanged;
+            attempt = flag.held.compare_exchange(0, 9, ReceivePublish, Receive);
+            transition attempt {
+                |layout|::AtomicCompareExchangeOutcome::Exchanged -> bad(),
+                |layout|::AtomicCompareExchangeOutcome::Mismatched { observed } ->
+                    check(@flag, observed)
+            }
+            machine check(flag: @Flag, observed: u32) crashes Trap {
+                let stored: u32 = flag.held.load(Receive);
+                transition observed == 17 && stored == 17 {
+                    true -> done(),
+                    _ -> bad()
+                }
+            }
+            machine done() {}
+            machine bad() crashes Trap { crash Trap; }
+        }
+    "#;
+    program::assert_silent_return(source);
+}
+
+#[test]
+fn an_exchange_in_the_entry_supplies_the_actual_bits_and_case_to_a_later_wait() {
+    let (library, _) = DECISIVE.split_once("machine main()").unwrap();
+    let entry = r#"
+        machine main() {
+            let mutable flag: Flag;
+            flag.held.store(1, Publish);
+            let first: |layout|::AtomicCompareExchangeOutcome<u32> =
+                flag.held.compare_exchange(0, 0, ReceivePublish, Receive);
+            transition first {
+                |layout|::AtomicCompareExchangeOutcome::Exchanged -> finished(),
+                |layout|::AtomicCompareExchangeOutcome::Mismatched { observed } ->
+                    retry(@flag, observed)
+            }
+            machine retry(flag: @Flag, observed: u32) {
+                transition observed == 1 {
+                    true -> acquire(flag),
+                    _ -> finished()
+                }
+            }
+            machine finished() {}
+        }
+    "#;
+    let (outcome, diagnostic) = program::invoke(&format!("{library}{entry}"), &["--check"]);
+    assert!(!outcome.status.success(), "{diagnostic}");
+    assert!(
+        diagnostic.contains("synchronization deadlock"),
+        "{diagnostic}"
+    );
+
+    // With the expected value corrected, the same operation releases the
+    // flag, returns Exchanged, and the caller's mismatch arm cannot run.
+    let released = entry
+        .replace("compare_exchange(0, 0,", "compare_exchange(1, 0,")
+        .replace("::Exchanged -> finished()", "::Exchanged -> acquire(@flag)");
+    program::assert_silent_return(&format!("{library}{released}"));
+}

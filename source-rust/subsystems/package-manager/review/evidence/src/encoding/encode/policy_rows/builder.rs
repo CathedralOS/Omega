@@ -151,7 +151,7 @@ impl Builder {
         // Only a row that writes an application changes its format. A stable
         // finding key still identifies the same declaration if its ceiling changes.
         let baseline_schema = if measure.encoded_applied_service {
-            crate::encoding::BASELINE_WITH_APPLIED_SERVICES
+            baseline_schema.max(crate::encoding::BASELINE_WITH_APPLIED_SERVICES)
         } else {
             baseline_schema
         };
