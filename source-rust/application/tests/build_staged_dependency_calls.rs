@@ -1764,3 +1764,127 @@ machine build(builder: @mutable BuildPlan) suspends {
         );
     }
 }
+
+#[test]
+fn unused_private_declarations_warn_once_and_preserve_used_roots() {
+    let build = r#"use main.omg as app;
+
+machine used_build_helper() -> u32 { 1u32 }
+machine dead_build_helper() -> u32 { 2u32 }
+
+machine build(builder: @mutable BuildPlan) {
+    let _: u32 = used_build_helper();
+    builder.product = BuildProduct::Application { name: "unused_decl_check" };
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+}
+"#;
+    let main = r#"const USED_CONST: u32 = 1u32;
+const DEAD_CONST: u32 = 2u32;
+
+data UsedData [copy] { value: u32; }
+data DeadData [copy] { value: u32; }
+
+domain u32::UsedDomain requires self > 0u32;
+domain u32::DeadDomain requires self > 0u32;
+
+machine used_generic<T>(x: T) -> T { x }
+machine dead_generic<T>(x: T) -> T { x }
+
+machine used_helper(x: u32 in UsedDomain) -> u32 { x as -UsedDomain }
+machine dead_helper() -> u32 { 7u32 }
+
+machine island_a() -> u32 { island_b() }
+machine island_b() -> u32 { 3u32 }
+
+machine contract_only(x: u32) -> bool { x > 0u32 }
+machine guarded(x: u32) -> u32 requires contract_only(x) { x }
+
+machine helper_for_public() -> u32 { 9u32 }
+public machine exported_api() -> u32 { helper_for_public() }
+
+machine main() {
+    let item: UsedData = UsedData { value: USED_CONST };
+    let val: u32 = used_generic::<u32>(item.value);
+    let first: u32 = used_helper(USED_CONST as +UsedDomain);
+    let second: u32 = guarded(USED_CONST);
+    let _: u32 = val;
+}
+"#;
+    let scratch = project::stage(
+        "unused-private-declarations",
+        &[("main.omg", main), ("build.omg", build)],
+    );
+    let output = project::omega(
+        scratch.path(),
+        &["--check", "--target", "linux_x86_64", "build.omg"],
+    );
+    let report = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success()
+            && report.matches("unused machine `dead_build_helper`").count() == 1
+            && report.matches("unused const `DEAD_CONST`").count() == 1
+            && report.matches("unused data `DeadData`").count() == 1
+            && report.matches("unused domain `u32::DeadDomain`").count() == 1
+            && report.matches("unused machine `dead_generic`").count() == 1
+            && report.matches("unused machine `dead_helper`").count() == 1
+            && report.matches("unused machine `island_a`").count() == 1
+            && report.matches("unused machine `island_b`").count() == 1
+            && !report.contains("used_build_helper")
+            && !report.contains("USED_CONST")
+            && !report.contains("UsedData")
+            && !report.contains("UsedDomain")
+            && !report.contains("used_generic")
+            && !report.contains("used_helper")
+            && !report.contains("contract_only")
+            && !report.contains("guarded")
+            && !report.contains("helper_for_public")
+            && !report.contains("exported_api")
+            && !report.contains("`main`")
+            && !report.contains("`build`"),
+        "{report}"
+    );
+}
+
+#[test]
+fn unused_private_declaration_in_dependency_does_not_warn() {
+    let dep_build = r#"machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "dep" };
+}
+"#;
+    let dep_lib = r#"machine dep_dead() -> u32 { 42u32 }
+public machine dep_used() -> u32 { 7u32 }
+"#;
+    let app_build = r#"use main.omg as app;
+use {omega}/build/dependency.omg;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "consumer" };
+    let mutable req: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable req, "dep");
+    let _: DependencyRegistration = Build::dependency(builder, req);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+}
+"#;
+    let app_main = r#"use {dep}/lib.omg as dep;
+machine main() {
+    let _: u32 = |dep|::dep_used();
+}
+"#;
+    let scratch = project::stage(
+        "unused-decl-dep-isolation",
+        &[
+            ("dep/build.omg", dep_build),
+            ("dep/lib.omg", dep_lib),
+            ("build.omg", app_build),
+            ("main.omg", app_main),
+        ],
+    );
+    let output = project::omega(
+        scratch.path(),
+        &["--check", "--target", "linux_x86_64", "build.omg"],
+    );
+    let report = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success() && !report.contains("dep_dead") && !report.contains("unused "),
+        "{report}"
+    );
+}
