@@ -9,6 +9,20 @@ use std::cmp::Ordering;
 pub(in super::super) struct Comparison {
     pub(in super::super) pivot: Scalar,
     pub(in super::super) order: Ordering,
+    pub(in super::super) mask: Option<Scalar>,
+}
+
+/// An observed word can be restricted to the bits selected by one or more
+/// literal masks. Bits outside that intersection have no bearing on its test.
+pub(super) fn masked(value: Scalar, mask: Option<Scalar>) -> Option<Scalar> {
+    match mask {
+        None => Some(value),
+        Some(mask) => crate::atomic_read_modify_write(
+            terminal_psi::AtomicReadModifyWrite::FetchAnd,
+            value,
+            mask,
+        ),
+    }
 }
 
 impl Comparison {
@@ -35,6 +49,7 @@ impl Comparison {
         Self {
             pivot,
             order: Ordering::Equal,
+            mask: None,
         }
     }
 }
@@ -47,7 +62,7 @@ pub(in super::super) struct SpinCondition {
 
 impl SpinCondition {
     pub(in super::super) fn matches(self, observed: Scalar) -> Option<bool> {
-        let actual = ScalarFact::Literal(observed).known_integer();
+        let actual = ScalarFact::Literal(masked(observed, self.comparison.mask)?).known_integer();
         let pivot = ScalarFact::Literal(self.comparison.pivot).known_integer();
         let ((ty, actual), (expected, pivot)) = actual.zip(pivot)?;
         (ty == expected).then(|| self.accepts(actual.cmp(&pivot)))
@@ -68,7 +83,7 @@ impl SpinCondition {
         else {
             return false;
         };
-        if ty != other_ty {
+        if ty != other_ty || self.comparison.mask != other.comparison.mask {
             return false;
         }
         match left.cmp(&right) {
@@ -115,7 +130,11 @@ impl SpinCondition {
                     crate::inhabitation::known_scalar_value_with(bound, |_| None)
                     && let Some(ScalarFact::Literal(pivot)) = ScalarFact::from_integer(ty, raw)
                     && self.disjoint(Self {
-                        comparison: Comparison { pivot, order },
+                        comparison: Comparison {
+                            pivot,
+                            order,
+                            mask: None,
+                        },
                         positive,
                     })
                 {
@@ -132,7 +151,7 @@ impl SpinCondition {
         let Scalar::Integer { scalar_type, .. } = self.comparison.pivot else {
             return false;
         };
-        if self.comparison.order == Ordering::Equal {
+        if self.comparison.order == Ordering::Equal || self.comparison.mask.is_some() {
             return false;
         }
         let (Some(lower), Some(upper)) = (scalar_type.minimum_value(), scalar_type.maximum_value())
@@ -145,6 +164,10 @@ impl SpinCondition {
     }
 
     pub(in super::super) fn sole_blocked_value(self) -> Option<Scalar> {
+        // All values with those selected bits pass the same equality test.
+        if self.comparison.mask.is_some() {
+            return None;
+        }
         match (self.comparison.order, self.positive, self.comparison.pivot) {
             (Ordering::Equal, true, pivot) => Some(pivot),
             (Ordering::Equal, false, Scalar::Boolean(bit)) => Some(Scalar::Boolean(!bit)),

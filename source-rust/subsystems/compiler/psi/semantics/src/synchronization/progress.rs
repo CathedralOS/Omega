@@ -131,7 +131,7 @@ impl SpinCondition {
             if !blocked {
                 return None;
             }
-            if let Some(retries) = self.matches(update.apply(value)) {
+            if let Some(retries) = update.apply(value).and_then(|next| self.matches(next)) {
                 return retries.then_some(ProgressFailure::Deadlock);
             }
         }
@@ -139,7 +139,9 @@ impl SpinCondition {
         // the next observation even when the starting value is unknown.
         let only_blocked = self.sole_blocked_value();
         if self.excludes_every_word()
-            || only_blocked.is_some_and(|value| self.matches(update.apply(value)) == Some(false))
+            || only_blocked.is_some_and(|value| {
+                update.apply(value).and_then(|next| self.matches(next)) == Some(false)
+            })
             || matches!(update, CellUpdate::Replace(value) if self.matches(value) == Some(false))
             || matches!(initial, Some(ScalarFact::EntryInput(input)) if self.input_enabled(input, requires))
         {

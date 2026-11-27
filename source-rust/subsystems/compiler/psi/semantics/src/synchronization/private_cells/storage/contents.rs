@@ -245,10 +245,12 @@ impl Stored {
             } if expected == replacement => {
                 return self.clone();
             }
-            CellUpdate::CompareExchange { expected, .. } => expected,
+            CellUpdate::CompareExchange { expected, .. }
+            | CellUpdate::BitwiseAnd(expected)
+            | CellUpdate::BitwiseOr(expected) => expected,
         };
         self.map_scalars(expected.scalar_type(), |prior| match prior {
-            ScalarFact::Literal(bits) => Some(ScalarFact::Literal(update.apply(bits))),
+            ScalarFact::Literal(bits) => update.apply(bits).map(ScalarFact::Literal),
             ScalarFact::EntryInput(_) => None,
         })
     }
