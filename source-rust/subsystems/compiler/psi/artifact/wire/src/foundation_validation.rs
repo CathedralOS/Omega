@@ -7502,11 +7502,26 @@ pub(crate) mod storage_foundations {
             {
                 return malformed("structural field store value must be a whole owned place");
             }
-            let owned_root = (*disposition == StructuralStoreDisposition::Vacant
-                && path.is_empty()
-                && field.is_none())
-            .then(|| owned_store_root_type(machine, *destination))
-            .flatten();
+            let owned_root = (path.is_empty() && field.is_none())
+                .then(|| owned_store_root_type(machine, *destination))
+                .flatten();
+            // The incoming value's eligibility cannot discharge a whole owned
+            // destination's previous cleanup or conserved claims.
+            if let Some(owned) = owned_root
+                && *disposition == StructuralStoreDisposition::ReplaceDiscardable
+                && (!module.structural_type(owned).is_some_and(|declared| {
+                    declared.nominal_cleanup.is_none() && !declared.owns_linear_claim
+                }) || !structural_store_value_admitted(
+                    machine,
+                    module.types.structural_types.iter(),
+                    *disposition,
+                    *destination,
+                ))
+            {
+                return malformed(
+                    "owned structural replacement cannot discard the destination's contents",
+                );
+            }
             let Some(root_type) = owned_root.or_else(|| {
                 window_root_type(
                     module,
@@ -7518,7 +7533,7 @@ pub(crate) mod storage_foundations {
                 )
             }) else {
                 return malformed(
-                    "structural field store requires declared owned vacant storage or an accessible borrowed window",
+                    "structural field store requires an owned root or an accessible borrowed window",
                 );
             };
             let field_type = window_field_type(module, root_type, path, *field)?;
@@ -13689,3 +13704,6 @@ mod installed_interrupt_owner_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod owned_replacement_tests;

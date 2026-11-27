@@ -8,7 +8,9 @@ use crate::source_state::expression::{
 };
 use crate::source_state::statement::{StatementNode, TableLocalData};
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
-use language_core::atomic::{AtomicExpressionResultCustody, AtomicOrderingPlan};
+use language_core::atomic::{
+    AtomicCompareExchangeOutcomeIdentity, AtomicExpressionResultCustody, AtomicOrderingPlan,
+};
 use semantic_vocabulary::{AtomicCellType, IntegerSign, IntegerType, MachineId, ScalarType};
 use symbols::BuiltinTypeAtom;
 use terminal_check_tables::Checked;
@@ -158,13 +160,118 @@ impl Program<'_> {
         Ok((place, cell.scalar_type()))
     }
 
-    pub(super) fn atomic_load(
+    fn atomic_outcome(
+        &self,
+        machine: MachineId,
+        expected: Option<ValueType>,
+        resident: ScalarType,
+        outcome: AtomicCompareExchangeOutcomeIdentity,
+        source: SourceOrigin,
+    ) -> Checked<ValueType> {
+        let invalid = || {
+            reject(
+                machine,
+                source,
+                format!(
+                    "atomic exchange requires its exact core outcome `{}` for the resident",
+                    outcome.name()
+                ),
+            )
+        };
+        let Some(
+            ty @ ValueType::Record(
+                record,
+                crate::body::Qualification::NONE,
+                crate::body::Regions::NONE,
+            ),
+        ) = expected
+        else {
+            return Err(invalid());
+        };
+        // Application checking records each argument against its original
+        // template binder, whether the closed definition is a materialized
+        // symbol or a retained view of its source occurrence.
+        let application = self
+            .record_sources
+            .get(record)
+            .and_then(|source| source.application.as_ref())
+            .ok_or_else(invalid)?;
+        let [(parameter, _)] = application.substitutions.as_slice() else {
+            return Err(invalid());
+        };
+        let declaration = self.typed.symbols.get(*parameter).parent;
+        if self.typed.symbols.core_source(declaration)
+            != Some(language_core::core_vocabulary::CoreSource::Layout)
+            || self.typed.symbols.display_path(declaration, "::") != outcome.name()
+        {
+            return Err(invalid());
+        }
+        // The nominal application may be aliased. Its payload must still have
+        // the cell's exact resident type, including domain qualifications.
+        let StorageShape::Sum(cases) = &self.data_type(machine, record)?.shape else {
+            return Err(invalid());
+        };
+        if cases
+            .iter()
+            .flat_map(|case| &case.fields)
+            .any(|field| field.value_type != ValueType::plain(resident))
+        {
+            return Err(invalid());
+        }
+        Ok(ty)
+    }
+
+    pub(super) fn atomic_value(
         &mut self,
         machine: MachineId,
         slots: &[Slot],
         atomic: &TableAtomicExpression,
+        expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        if let AtomicOrderingPlan::CompareExchangeOnce { success, failure } = atomic.ordering {
+            let invalid = || {
+                reject(
+                    machine,
+                    source,
+                    "single-attempt exchange has invalid operands or result custody",
+                )
+            };
+            let access = self
+                .typed
+                .atomic_once_operands(atomic)
+                .ok_or_else(invalid)?;
+            let AtomicExpressionResultCustody::CompareExchangeOnce(custody) = atomic.result_custody
+            else {
+                return Err(invalid());
+            };
+            let (place, scalar) = self.atomic_place(machine, slots, access.place, true, true)?;
+            let result =
+                self.atomic_outcome(machine, expected, scalar, custody.outcome_identity, source)?;
+            let [compare, replace] = access.operands.as_slice() else {
+                return Err(invalid());
+            };
+            let operands = vec![
+                self.atomic_operand(machine, slots, *compare, scalar)?,
+                self.atomic_operand(machine, slots, *replace, scalar)?,
+            ];
+            return Ok(Expression {
+                call_context: None,
+                kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access {
+                    place: Box::new(place),
+                    event: AtomicAccessEvent::CompareExchangeOnce {
+                        expected: 0,
+                        replacement: 1,
+                        custody,
+                        success,
+                        failure,
+                    },
+                    operands,
+                }),
+                result: Some(result),
+                source,
+            });
+        }
         let AtomicOrderingPlan::Load(ordering) = atomic.ordering else {
             return Err(refuse_at(
                 machine,
@@ -172,6 +279,7 @@ impl Program<'_> {
             ));
         };
         if atomic.result.is_valid()
+            || atomic.exchange_operands.is_some()
             || atomic.result_custody != AtomicExpressionResultCustody::Scalar
             || !ordering.valid_for_load()
         {
@@ -316,6 +424,7 @@ impl Program<'_> {
             ));
         };
         if atomic.result.is_valid()
+            || atomic.exchange_operands.is_some()
             || atomic.result_custody != AtomicExpressionResultCustody::Scalar
             || !ordering.valid_for_store()
         {
@@ -392,6 +501,7 @@ impl Program<'_> {
         let atomic = *atomic;
         let same_result = |handle| matches!(self.node(machine, handle), Ok(ExpressionNode::Name(path)) if path.resolved_symbol() == Some(local.symbol));
         if !atomic.result.is_valid()
+            || atomic.exchange_operands.is_some()
             || !same_result(atomic.result)
             || atomic.result_custody != AtomicExpressionResultCustody::Scalar
         {

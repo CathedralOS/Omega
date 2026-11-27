@@ -868,6 +868,9 @@ pub(crate) fn scoped_expression_type_reference(
                     return Err(crate::unavailable_judgment("saved value source type"));
                 }
             },
+            // The exchange's checked result is a structural outcome. Its receiver
+            // is storage, so it cannot supply the result type of this call.
+            ExpressionNode::Atomic(atomic) if atomic.exchange_operands.is_some() => None,
             ExpressionNode::Atomic(atomic) => visit(
                 program,
                 parameters,

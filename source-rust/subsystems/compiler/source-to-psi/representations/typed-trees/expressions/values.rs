@@ -872,7 +872,12 @@ pub mod expression {
                     }
                     Self::Atomic(atomic) => {
                         let _ = write!(out, "atomic[{:?}](", atomic.ordering);
-                        table.write_display_name(atomic.value, out);
+                        for (index, input) in atomic.inputs().enumerate() {
+                            if index != 0 {
+                                out.push_str(", ");
+                            }
+                            table.write_display_name(input, out);
+                        }
                         out.push(')');
                     }
                     Self::Binary(binary) => binary.write_display_name_with(table, out),
@@ -1929,7 +1934,9 @@ pub mod expression {
                         }
                     }
                     ExpressionNode::Atomic(atomic) => {
-                        self.remap_symbols_in_inner(atomic.value, symbols, visited);
+                        for input in atomic.inputs() {
+                            self.remap_symbols_in_inner(input, symbols, visited);
+                        }
                         self.remap_symbols_in_inner(atomic.result, symbols, visited);
                     }
                     ExpressionNode::Binary(binary) => {
@@ -2259,8 +2266,14 @@ pub mod expression {
                         );
                         let result =
                             self.copy_optional_subtree(source, atomic.result, retain, copies);
+                        let exchange_operands = atomic.exchange_operands.map(|operands| {
+                            operands.map(|operand| {
+                                self.copy_subtree_with_occurrences(source, operand, retain, copies)
+                            })
+                        });
                         self.insert(ExpressionNode::Atomic(TableAtomicExpression {
                             value,
+                            exchange_operands,
                             result,
                             ordering: atomic.ordering,
                             result_custody: atomic.result_custody,
@@ -4863,9 +4876,18 @@ pub mod expression {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
     pub struct TableAtomicExpression {
         pub value: ExpressionHandle,
+        /// Comparing exchanges store their receiver in `value` and retain
+        /// the authored expected and replacement expressions here, in order.
+        pub exchange_operands: Option<[ExpressionHandle; 2]>,
         pub result: ExpressionHandle,
         pub ordering: language_core::atomic::AtomicOrderingPlan,
         pub result_custody: language_core::atomic::AtomicExpressionResultCustody,
+    }
+
+    impl TableAtomicExpression {
+        pub fn inputs(self) -> impl Iterator<Item = ExpressionHandle> {
+            std::iter::once(self.value).chain(self.exchange_operands.into_iter().flatten())
+        }
     }
 
     impl Default for ExpressionNode {
@@ -5905,17 +5927,10 @@ pub mod subtrees {
             else {
                 return None;
             };
-            let ExpressionNode::Call(call) = self.expression_table.expression(atomic.value) else {
-                return None;
-            };
-            let [expected, replacement] = self.expression_table.expression_handles(call.arguments)
-            else {
-                return None;
-            };
-            if !call.receiver.is_valid()
-                || call.target.as_str() != custody.observation.single_attempt_member_name()
-                || !call.machine_arguments.is_empty()
-                || !call.evidence_arguments.is_empty()
+            let operands = atomic.exchange_operands?;
+            if !atomic
+                .inputs()
+                .all(|handle| self.expression_table.expression_is_valid(handle))
             {
                 return None;
             }
@@ -5925,8 +5940,8 @@ pub mod subtrees {
                     success,
                     failure,
                 ),
-                place: call.receiver,
-                operands: vec![*expected, *replacement],
+                place: atomic.value,
+                operands: operands.to_vec(),
                 result: ExpressionHandle::invalid(),
             })
         }
@@ -5938,15 +5953,6 @@ pub mod subtrees {
             node: &ExpressionNode,
             mut child: impl FnMut(ExpressionHandle),
         ) {
-            if let ExpressionNode::Atomic(atomic) = node
-                && let Some(once) = self.atomic_once_operands(atomic)
-            {
-                child(once.place);
-                for operand in once.operands {
-                    child(operand);
-                }
-                return;
-            }
             self.subtree_children(node, SubtreeEdges::STRUCTURAL, |expression| {
                 child(expression);
                 false
@@ -6062,7 +6068,10 @@ pub mod subtrees {
                     }
                 }
                 ExpressionNode::Atomic(atomic) => {
-                    let _ = child(atomic.value) || (edges.atomic_results && child(atomic.result));
+                    let _ = atomic.inputs().any(&mut child)
+                        || (edges.atomic_results
+                            && atomic.result.is_valid()
+                            && child(atomic.result));
                 }
                 ExpressionNode::ArrayLiteral(values) => {
                     let _ = table

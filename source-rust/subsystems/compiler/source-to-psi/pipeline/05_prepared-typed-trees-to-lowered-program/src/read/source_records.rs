@@ -189,9 +189,30 @@ pub(super) fn source_application_in_scope(
                 ));
             }
             if parameter.bounds != crate::source_state::data::DataProperties::default() {
-                return Err(unavailable(
-                    "record application with constrained parameters",
-                ));
+                use crate::source_state::static_operand_binding::{
+                    Stop, type_argument_meets_bounds,
+                };
+                if parameter.kind != TypeParameterKind::Type {
+                    return Err(unavailable("record property bound on a non-type parameter"));
+                }
+                let supplied = scope
+                    .supplied_type_reference(typed, *argument)
+                    .map_err(|reason| malformed(machine, reason))?;
+                type_argument_meets_bounds(typed, parameter, supplied.reference).map_err(
+                    |stop| match stop {
+                        Stop::Rejected(reason) => {
+                            let at = crate::SourceOrigin::of(
+                                typed
+                                    .symbols
+                                    .symbol_source_span(parameter.symbol)
+                                    .unwrap_or_default(),
+                            );
+                            crate::reject(machine, at, reason)
+                        }
+                        Stop::Unserved(reason) => super::unavailable(machine, reason),
+                        Stop::Defect(reason) => malformed(machine, reason),
+                    },
+                )?;
             }
             match parameter.kind {
                 TypeParameterKind::Type => {}
@@ -1841,19 +1862,29 @@ mod tests {
     }
 
     #[test]
-    fn an_unlowered_generic_premise_is_not_an_empty_application_tuple() {
-        let mut fixture = AppliedFixture::new(crate::source_state::data::DataProperties {
-            multiplicity: language_core::Multiplicity::Unrestricted,
-        });
-        let constrained = fixture.apply(fixture.u64_type, fixture.u64_type);
-        let mut program = Program::new(&fixture.typed, false);
-        let refusal = program.record_at(machine(), constrained).unwrap_err();
-        assert!(
-            refusal
-                .detail
-                .contains("record application with constrained parameters"),
-            "{refusal:?}"
-        );
+    fn a_closed_record_checks_the_stored_multiplicity_of_its_argument() {
+        use language_core::Multiplicity;
+        for (bound, accepted) in [
+            (Multiplicity::Unrestricted, true),
+            (Multiplicity::Linear, false),
+        ] {
+            let mut fixture = AppliedFixture::new(crate::source_state::data::DataProperties {
+                multiplicity: bound,
+            });
+            let constrained = fixture.apply(fixture.u64_type, fixture.u64_type);
+            let mut program = Program::new(&fixture.typed, false);
+            let result = program.record_at(machine(), constrained);
+            if accepted {
+                result.unwrap();
+            } else {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .detail
+                        .contains("binder requires `[linear]`")
+                );
+            }
+        }
     }
 
     #[test]
