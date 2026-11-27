@@ -8,5 +8,4 @@ version.workspace = true
 path = "declaration_scope.rs"
 
 [dependencies]
-record-storage = { path = "../../../../foundation/record-storage" }
 semantic-vocabulary = { path = "../semantic-records" }

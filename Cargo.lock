@@ -659,7 +659,6 @@ dependencies = [
 name = "declaration-scope"
 version = "0.1.0"
 dependencies = [
- "record-storage",
  "semantic-vocabulary",
 ]
 

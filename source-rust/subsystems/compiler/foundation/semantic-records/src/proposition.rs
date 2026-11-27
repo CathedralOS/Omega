@@ -2046,31 +2046,6 @@ mod propositions {
     }
 
     impl Proposition {
-        /// A compound clause containing Identity or IsMere needs a mathematical
-        /// judgment of the entire proposition, including the connective.
-        pub fn contains_declaration_identity(&self) -> bool {
-            match self {
-                Self::DeclarationIdentity(_) | Self::IsMere(_) => return true,
-                Self::Conjunction(_) | Self::Disjunction(_) | Self::Implication { .. } => {}
-                _ => return false,
-            }
-            let mut pending = vec![self];
-            while let Some(part) = pending.pop() {
-                match part {
-                    Self::DeclarationIdentity(_) | Self::IsMere(_) => return true,
-                    Self::Conjunction(parts) | Self::Disjunction(parts) => pending.extend(parts),
-                    Self::Implication {
-                        premise,
-                        conclusion,
-                    } => {
-                        pending.extend([premise.as_ref(), conclusion.as_ref()]);
-                    }
-                    _ => {}
-                }
-            }
-            false
-        }
-
         pub fn same_commutative_predicate(&self, other: &Self) -> bool {
             match (self, other) {
                 (Self::Equal(left_a, left_b), Self::Equal(right_a, right_b)) => {

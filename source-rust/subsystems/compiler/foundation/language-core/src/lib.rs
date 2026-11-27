@@ -48,19 +48,6 @@ pub mod logical_filename {
     }
 }
 
-pub mod activation_storage {
-    pub const ACTIVATION_CORE_SOURCE: &str = "activation.omg";
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum ActivationStorageOperation {
-        Establish,
-        BorrowBytes,
-        Release,
-        Split, // Divide one established claim into two children that cover it.
-        Merge, // Merge the two children of one split back into that claim.
-    }
-}
-
 pub mod cast_form {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, record_storage::Record)]
     pub enum CastForm {
@@ -154,26 +141,7 @@ pub mod data_layout_queries {
 }
 
 pub mod descriptor_tables {
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
-    pub enum DescriptorTableOperation {
-        ActivateTask {
-            entries: u16, // Checked table entry count before changing TR.
-        },
-        ReadTask, // Observe the selector currently retained by TR.
-        ReloadSegments {
-            entries: u16,
-            kind: SegmentReload, // Kernel code or data descriptor from the current borrowed GDT.
-        },
-        ReadSegment {
-            register: SegmentRegister, // Exact segment selector to observe.
-        },
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum SegmentReload {
         Code,
         Data,
@@ -234,7 +202,6 @@ pub mod descriptor_tables {
 
 pub mod layout_storage {
     pub const CONSTRUCTOR_NAME: &str = "LayoutStorage";
-    pub const SOURCE_FILE_NAME: &str = "layout.omg";
 }
 
 pub mod operator_spelling {
@@ -329,16 +296,6 @@ pub mod static_interrupts {
             Self::BeginCompletion,
             Self::FinishCompletion,
         ];
-
-        /// The core service an operation must reach, as vocabulary.
-        pub const fn required_service(self) -> Option<crate::core_vocabulary::CoreVocabulary> {
-            match self {
-                Self::Install => {
-                    Some(crate::core_vocabulary::CoreVocabulary::MachineControlService)
-                }
-                Self::Context | Self::BeginCompletion | Self::FinishCompletion => None,
-            }
-        }
 
         pub const fn required_service_identity(self) -> Option<&'static str> {
             match self {

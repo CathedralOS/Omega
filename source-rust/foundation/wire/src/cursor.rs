@@ -86,11 +86,6 @@ impl<'a> Cursor<'a> {
         let value = self.u64().map_err(|_| TakeError::Truncated)?;
         usize::try_from(value).map_err(|_| TakeError::LengthOverflow)
     }
-
-    pub fn length_prefixed(&mut self) -> Result<&'a [u8], TakeError> {
-        let length = self.length()?;
-        self.take(length).map_err(|_| TakeError::Truncated)
-    }
 }
 
 #[macro_export]

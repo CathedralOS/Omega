@@ -4,10 +4,8 @@
 mod custody;
 pub use custody::require_declaration_selection;
 
-use record_storage::{Record, RecordError, RecordReader, RecordWriter};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
 pub trait DeclarationSelectionAuthority: Send + Sync {
     fn allows_declaration_selection(
@@ -109,45 +107,6 @@ impl PackageDeclarationScope {
         self.owners
             .get(&requester)
             .is_some_and(|owners| owners.binary_search(&owner).is_ok())
-    }
-
-    /// Existing source checkpoints encode a 32-bit tag followed by the requesters' direct grants.
-    pub fn write_checkpoint(
-        scope: Option<&Self>,
-        out: &mut RecordWriter,
-    ) -> Result<(), RecordError> {
-        out.record(|out| match scope {
-            None => 0u32.write(out),
-            Some(scope) => {
-                1u32.write(out)?;
-                scope.owners.write(out)
-            }
-        })
-    }
-
-    pub fn read_checkpoint<C>(
-        input: &mut RecordReader<'_, C>,
-    ) -> Result<Option<Arc<Self>>, RecordError> {
-        input.record(|input| match u32::read(input)? {
-            0 => Ok(None),
-            1 => {
-                let owners: BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>> =
-                    Record::read(input)?;
-                for (requester, row) in &owners {
-                    if row.windows(2).any(|pair| pair[0] >= pair[1])
-                        || row.binary_search(requester).is_err()
-                        || row.iter().any(|owner| !owners.contains_key(owner))
-                    {
-                        return Err(input.error("invalid package declaration scope"));
-                    }
-                }
-                Ok(Some(Arc::new(Self {
-                    owners,
-                    names: None,
-                })))
-            }
-            _ => Err(input.error("unknown package declaration scope")),
-        })
     }
 }
 

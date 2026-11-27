@@ -717,19 +717,19 @@ impl BigRational {
         result
     }
 
-    pub fn to_f32(self) -> f32 {
+    pub fn to_f32(&self) -> f32 {
         self.to_f32_with_rounding(IeeeRounding::NearestTiesToEven)
     }
 
-    pub fn to_f64(self) -> f64 {
+    pub fn to_f64(&self) -> f64 {
         self.to_f64_with_rounding(IeeeRounding::NearestTiesToEven)
     }
 
-    pub fn to_f32_with_rounding(self, rounding: IeeeRounding) -> f32 {
+    pub fn to_f32_with_rounding(&self, rounding: IeeeRounding) -> f32 {
         f32::from_bits(self.to_ieee_bits(8, 23, rounding) as u32)
     }
 
-    pub fn to_f64_with_rounding(self, rounding: IeeeRounding) -> f64 {
+    pub fn to_f64_with_rounding(&self, rounding: IeeeRounding) -> f64 {
         f64::from_bits(self.to_ieee_bits(11, 52, rounding))
     }
 
@@ -1020,7 +1020,7 @@ impl ExactFloat {
 
     pub fn to_f32_with_rounding(&self, rounding: IeeeRounding) -> f32 {
         match self {
-            Self::Finite(value) => value.clone().to_f32_with_rounding(rounding),
+            Self::Finite(value) => value.to_f32_with_rounding(rounding),
             Self::Infinity { negative: false } => f32::INFINITY,
             Self::Infinity { negative: true } => f32::NEG_INFINITY,
             Self::NaN => f32::NAN,
@@ -1033,7 +1033,7 @@ impl ExactFloat {
 
     pub fn to_f64_with_rounding(&self, rounding: IeeeRounding) -> f64 {
         match self {
-            Self::Finite(value) => value.clone().to_f64_with_rounding(rounding),
+            Self::Finite(value) => value.to_f64_with_rounding(rounding),
             Self::Infinity { negative: false } => f64::INFINITY,
             Self::Infinity { negative: true } => f64::NEG_INFINITY,
             Self::NaN => f64::NAN,
@@ -1112,26 +1112,24 @@ pub(crate) fn rounded_scaled_quotient(
     negative: bool,
     rounding: IeeeRounding,
 ) -> u64 {
+    // Only the shifted side needs new storage; the other side is borrowed.
+    let shifted;
     let (scaled_numerator, scaled_denominator) = if binary_shift >= 0 {
-        (
-            numerator.shl_bits(binary_shift as usize),
-            denominator.clone(),
-        )
+        shifted = numerator.shl_bits(binary_shift as usize);
+        (&shifted, denominator)
     } else {
-        (
-            numerator.clone(),
-            denominator.shl_bits(binary_shift.unsigned_abs()),
-        )
+        shifted = denominator.shl_bits(binary_shift.unsigned_abs());
+        (numerator, &shifted)
     };
     let (quotient, remainder) = scaled_numerator
-        .div_rem(&scaled_denominator)
+        .div_rem(scaled_denominator)
         .expect("rational denominator is nonzero");
     let mut quotient = quotient.to_u64().expect("IEEE significand fits in one u64");
     let twice_remainder = remainder.add(&remainder);
     let increment = match rounding {
         IeeeRounding::NearestTiesToEven => {
-            twice_remainder > scaled_denominator
-                || (twice_remainder == scaled_denominator && quotient & 1 == 1)
+            twice_remainder > *scaled_denominator
+                || (twice_remainder == *scaled_denominator && quotient & 1 == 1)
         }
         IeeeRounding::TowardZero => false,
         IeeeRounding::TowardPositive => !negative && !remainder.is_zero(),
