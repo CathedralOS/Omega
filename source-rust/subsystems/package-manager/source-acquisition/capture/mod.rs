@@ -1,5 +1,4 @@
 //! The immutable trees that local and Git acquisition supply to package compilation.
-#![forbid(unsafe_code)]
 
 mod filesystem;
 pub mod read_accounting;

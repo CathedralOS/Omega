@@ -5,7 +5,7 @@
 use build_declarations::DependencyPurpose;
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
-use source_capture::{CapturedSourceNode, CapturedSourceTree};
+use source_acquisition::capture::{CapturedSourceNode, CapturedSourceTree};
 use std::sync::Arc;
 
 #[derive(Clone, record_storage::Record)]
@@ -14,7 +14,7 @@ pub struct AnonymousSourceCapture {
     pub(crate) acquisition: Option<crate::CapturedLocalSource>,
     pub(crate) root: std::path::PathBuf, // Canonical live root of the anonymous capture.
     pub(crate) capture: Arc<CapturedSourceTree>, // Complete captured source tree.
-    pub(crate) filesystem: source_capture::SourceFileSystem, // Captured virtual filesystem used during assembly.
+    pub(crate) filesystem: source_acquisition::capture::SourceFileSystem, // Captured virtual filesystem used during assembly.
     pub(crate) semantic_dependencies: Vec<[u8; 32]>, // Applicable core and imported toolchain source digests.
     pub(crate) sources: Arc<source_compiler::representations::source_inputs::SourceMap>, // Retained source map prior to owner binding.
     pub(crate) installed_roots: crate::source::source_imports::InstalledSourceRoots, // Closed installed source roots of this capture.
@@ -66,7 +66,7 @@ impl AnonymousSourceCapture {
         &self.root
     }
 
-    pub fn filesystem(&self) -> &source_capture::SourceFileSystem {
+    pub fn filesystem(&self) -> &source_acquisition::capture::SourceFileSystem {
         &self.filesystem
     }
 
@@ -392,7 +392,7 @@ mod tests {
             .join("anonymous");
         let text = "machine local() {}";
         let tree = Arc::new(snapshot("build.omg", text.as_bytes()));
-        let mut filesystem = source_capture::SourceFileSystem::default();
+        let mut filesystem = source_acquisition::capture::SourceFileSystem::default();
         filesystem
             .add_capture(root.clone(), Arc::clone(&tree))
             .unwrap();

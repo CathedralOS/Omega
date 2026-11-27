@@ -31,7 +31,7 @@ use super::identity::SourceIdentityHasher;
 use crate::SourceResolveError;
 use crate::error::too_many_files;
 use crate::limits::{CANONICAL_DIRECTORY_MODE, LocalSourceLimits};
-use source_selection::SourceCaptureRequest;
+use crate::selection::SourceCaptureRequest;
 use traversal::{CapturedTreeObservations, verify_captured_tree};
 
 #[cfg(test)]

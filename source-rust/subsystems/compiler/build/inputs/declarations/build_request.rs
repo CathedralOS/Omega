@@ -22,7 +22,7 @@ pub struct BuildEntryPath(String);
 
 impl BuildEntryPath {
     pub fn validate(path: &str) -> Result<(), &'static str> {
-        if source_selection::source_snapshot_path_is_canonical(path.as_bytes(), false)
+        if source_acquisition::selection::source_snapshot_path_is_canonical(path.as_bytes(), false)
             && path.rsplit('/').next().is_some_and(|file| {
                 file.strip_suffix(".omg")
                     .is_some_and(|stem| !stem.is_empty())

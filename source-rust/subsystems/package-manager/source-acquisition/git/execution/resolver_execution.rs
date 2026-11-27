@@ -8,12 +8,12 @@
 // against `package_controlled_roots` so a symlink in a host directory cannot
 // redirect execution into a package-controlled tree.
 
-use crate::ResolverPreparedExecution;
-use crate::path_custody::{
+use super::path_custody::{
     require_absolute, require_lexically_canonical_bounded_path, require_outside_roots,
     require_regular_file,
 };
 use bounded_process::BoundedProcessLimits;
+use bounded_process::BoundedProcessPrepared;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -55,7 +55,7 @@ impl ResolverExecutionBackend {
     }
 
     /// ```compile_fail
-    /// use resolver_execution::{ResolverExecutionBackend, ResolverExecutionPhase};
+    /// use source_acquisition::git::execution::{ResolverExecutionBackend, ResolverExecutionPhase};
     /// fn missing_root(backend: &ResolverExecutionBackend) {
     ///     backend.prepare(ResolverExecutionPhase::Fetch, None);
     /// }
@@ -64,7 +64,7 @@ impl ResolverExecutionBackend {
         &self,
         phase: ResolverExecutionPhase,
         working_root: &Path,
-    ) -> io::Result<ResolverPreparedExecution> {
+    ) -> io::Result<BoundedProcessPrepared> {
         let root_name = match phase {
             ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
                 "resolver mutable root"
@@ -78,7 +78,7 @@ impl ResolverExecutionBackend {
         let mut command = Command::new(&self.executable);
         command.current_dir(working_root);
         let mut prepared =
-            ResolverPreparedExecution::new(command, resolver_process_limits(), "resolver")?;
+            BoundedProcessPrepared::new(command, resolver_process_limits(), "resolver")?;
         // Git creates the cache's repository files with the inherited umask,
         // and cache custody refuses group-writable entries.
         prepared.create_private_files();

@@ -8,13 +8,13 @@ use super::{
 };
 use crate::error::SourceResolveError;
 use crate::git::executable::test_system_git_executor;
+use crate::git::execution::ResolverExecutionPhase;
 use crate::git::git_command::*;
 use crate::git::request::GitExecutionTransport;
 use crate::git::snapshot::preflight_git_snapshot;
 use crate::identity::GitObjectIdAlgorithm;
 use crate::limits::*;
 use crate::test_support::*;
-use resolver_execution::ResolverExecutionPhase;
 use sha1_checked::Sha1 as CheckedSha1;
 use sha2::Digest;
 use std::ffi::OsStr;
@@ -752,15 +752,15 @@ fn git_paths_use_native_separators_without_changing_portable_identity() {
         path.as_os_str(),
         Path::new(".agents").join("skills").as_os_str()
     );
-    let tree = source_capture::CapturedSourceTree::new([
+    let tree = crate::capture::CapturedSourceTree::new([
         (
             PathBuf::from(".agents"),
-            source_capture::CapturedSourceNode::Directory,
+            crate::capture::CapturedSourceNode::Directory,
         ),
-        (path.clone(), source_capture::CapturedSourceNode::Directory),
+        (path.clone(), crate::capture::CapturedSourceNode::Directory),
         (
             path.join("main.omg"),
-            source_capture::CapturedSourceNode::File {
+            crate::capture::CapturedSourceNode::File {
                 bytes: Arc::from(b"source".as_slice()),
                 executable: false,
             },

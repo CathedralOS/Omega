@@ -143,7 +143,11 @@ impl AcquiredWorkspaceBuild {
         for path in &workspace.members {
             let prefix = Path::new(path.as_str());
             if !root.source_capture().tree().entries().any(|(entry, node)| {
-                entry == prefix && matches!(node, source_capture::CapturedSourceNode::Directory)
+                entry == prefix
+                    && matches!(
+                        node,
+                        source_acquisition::capture::CapturedSourceNode::Directory
+                    )
             }) {
                 return Err(format!(
                     "workspace member `{}` is not an authenticated directory",
@@ -166,7 +170,11 @@ impl AcquiredWorkspaceBuild {
                 .checked_add(projected.len())
                 .ok_or("workspace inventory entry count overflowed")?;
             for (_, node) in &projected {
-                if let source_capture::CapturedSourceNode::File { bytes: content, .. } = node {
+                if let source_acquisition::capture::CapturedSourceNode::File {
+                    bytes: content,
+                    ..
+                } = node
+                {
                     bytes = bytes
                         .checked_add(
                             u64::try_from(content.len())
@@ -180,7 +188,7 @@ impl AcquiredWorkspaceBuild {
                     "workspace catalog exceeds its captured-inventory resource ceiling".into(),
                 );
             }
-            let expected = source_capture::CapturedSourceTree::new(projected)
+            let expected = source_acquisition::capture::CapturedSourceTree::new(projected)
                 .map_err(|error| error.to_string())?;
             let materialized = catalog
                 .materialize(storage, &source_relative_path(path))

@@ -8,7 +8,7 @@
 // and executable bits so landing the edit produces the identical content pin),
 // and publishes the candidate snapshot into the retained storage lane.
 
-use source_selection::SourceCaptureRequest;
+use crate::selection::SourceCaptureRequest;
 use std::path::{Path, PathBuf};
 
 use super::resolution_observations::ResolvedLocalSource;

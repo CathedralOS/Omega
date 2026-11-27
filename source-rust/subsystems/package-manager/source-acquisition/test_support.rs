@@ -293,8 +293,8 @@ pub(crate) fn first_regular_descendant(root: &Path) -> PathBuf {
 }
 
 #[cfg(unix)]
-pub(crate) fn shell_command(script: &str) -> resolver_execution::ResolverPreparedExecution {
-    use resolver_execution::{ResolverExecutionBackend, ResolverExecutionPhase};
+pub(crate) fn shell_command(script: &str) -> bounded_process::BoundedProcessPrepared {
+    use crate::git::execution::{ResolverExecutionBackend, ResolverExecutionPhase};
 
     let temporary_root = std::env::temp_dir()
         .canonicalize()

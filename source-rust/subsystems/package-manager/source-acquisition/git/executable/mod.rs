@@ -6,13 +6,13 @@ pub(crate) mod validation;
 
 use self::selection::PrimaryGitSelection;
 use crate::SourceResolveError;
+use crate::git::execution::ResolverExecutionBackend;
 use crate::git::git_command::duration_millis;
 use crate::git::request::GitExecutionTransport;
 use crate::limits::{
     GIT_COMMAND_TIMEOUT, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_TIMEOUT, LocalSourceLimits,
 };
 pub(crate) use bounded_process::BoundedCaptureBudget as GitCapturedOutputBudget;
-use resolver_execution::ResolverExecutionBackend;
 use std::cell::Cell;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};

@@ -281,7 +281,7 @@ dependencies = [
  "optimization-selections",
  "record-storage",
  "semantic-vocabulary",
- "source-selection",
+ "source-acquisition",
  "source-syntax",
  "syntax-trees",
 ]
@@ -903,7 +903,7 @@ name = "filesystem-authority"
 version = "0.1.0"
 dependencies = [
  "record-storage",
- "source-selection",
+ "source-acquisition",
  "wire",
 ]
 
@@ -1911,7 +1911,6 @@ dependencies = [
  "project-build",
  "psi-authorization",
  "psi-entry-memory",
- "resolver-execution",
  "retained-image-runtime",
  "runtime-abi",
  "semantic-vocabulary",
@@ -2063,11 +2062,9 @@ dependencies = [
  "sha2",
  "source-acquisition",
  "source-admission",
- "source-capture",
  "source-compiler",
  "source-declarations",
  "source-provenance",
- "source-selection",
  "source-symbol-table",
  "source-text",
  "symbols",
@@ -2108,7 +2105,6 @@ dependencies = [
  "sha2",
  "source-acquisition",
  "source-admission",
- "source-capture",
  "source-completion-accounting",
  "source-syntax",
  "source-text",
@@ -2784,13 +2780,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "resolver-execution"
-version = "0.1.0"
-dependencies = [
- "bounded-process",
-]
-
-[[package]]
 name = "resource-bounds"
 version = "0.1.0"
 dependencies = [
@@ -3142,11 +3131,8 @@ dependencies = [
  "nix",
  "platform-custody",
  "record-storage",
- "resolver-execution",
  "sha1-checked",
  "sha2",
- "source-capture",
- "source-selection",
  "wire",
 ]
 
@@ -3159,13 +3145,6 @@ dependencies = [
  "source-provenance",
  "source-text",
  "symbols",
-]
-
-[[package]]
-name = "source-capture"
-version = "0.1.0"
-dependencies = [
- "record-storage",
 ]
 
 [[package]]
@@ -3339,10 +3318,6 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
 ]
-
-[[package]]
-name = "source-selection"
-version = "0.1.0"
 
 [[package]]
 name = "source-symbol-table"
