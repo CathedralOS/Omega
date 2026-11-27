@@ -65,7 +65,7 @@ fn exits_with(code: i32, runs: [(Option<i32>, String); 2]) {
 
 const QUIT: &str = "use {omega}/language/core/process_exit.omg;
 machine quit(code: i32, other: i32) reaches |process_exit|::ProcessExit { |process_exit|::ProcessExit::exit_process(code); }
-public machine main() reaches |process_exit|::ProcessExit { quit(3, 5); }
+machine main() reaches |process_exit|::ProcessExit { quit(3, 5); }
 ";
 
 /// `quit(3, 5)` exits with its first formal, 3; the twin that passes
@@ -88,7 +88,7 @@ fn nothing_after_an_exit_runs() {
             "exit-grouped",
             "use {omega}/language/core/process_exit.omg;
 machine quit(code: i32) -> i32 reaches |process_exit|::ProcessExit { (|process_exit|::ProcessExit::exit_process(code)); 7 }
-public machine main() reaches |process_exit|::ProcessExit { let ignored: i32 = quit(4); }
+machine main() reaches |process_exit|::ProcessExit { let ignored: i32 = quit(4); }
 ",
         ),
     );
@@ -103,7 +103,7 @@ fn a_same_spelled_local_requirement_is_not_the_exit() {
         "exit-local-requirement",
         "boundary trait ProcessExit { machine exit_process(return_code: i32) -> i32 reaches ProcessExit crashes none terminates; }
 machine stop(code: i32) -> i32 reaches ProcessExit { ProcessExit::exit_process(code) }
-public machine main() reaches ProcessExit { let ignored: i32 = stop(6); }
+machine main() reaches ProcessExit { let ignored: i32 = stop(6); }
 ",
     ) {
         assert_ne!(status, Some(0), "{report}");
@@ -140,7 +140,7 @@ machine build(builder: @mutable BuildPlan) {
     let honest = "use {omega}/language/core/never.omg;
 use {omega}/language/core/process_exit.omg;
 use {omega}/language/core/process_exit_native.omg;
-public LocalExit satisfies |process_exit|::ProcessExit {
+LocalExit satisfies |process_exit|::ProcessExit {
     machine exit_process(return_code: i32) -> |never|::Never
     reaches |process_exit|::ProcessExit
     crashes none
@@ -148,7 +148,7 @@ public LocalExit satisfies |process_exit|::ProcessExit {
         |process_exit_native|::ProcessExitPrimitive(return_code);
     }
 }
-public machine main() reaches |process_exit|::ProcessExit { |process_exit|::ProcessExit::exit_process(7); }
+machine main() reaches |process_exit|::ProcessExit { |process_exit|::ProcessExit::exit_process(7); }
 ";
     exits_with(7, run_build("exit-provider", build, honest));
 
