@@ -156,15 +156,6 @@ impl HostedIntrinsicBundle {
         self.target_profile().target_name()
     }
 
-    pub const fn console_source(self) -> &'static str {
-        match self {
-            Self::LinuxArm64 => "targets/linux_arm64/console_impl.omg",
-            Self::LinuxX64 => "targets/linux_x86_64/console_impl.omg",
-            Self::MacosArm64 => "targets/macos_arm64/console_impl.omg",
-            Self::MacosX64 => "targets/macos_x86_64/console_impl.omg",
-        }
-    }
-
     pub fn from_target_name(target_name: &str) -> Option<Self> {
         Self::ALL
             .into_iter()
@@ -865,8 +856,6 @@ mod tests {
                 TargetProfile::from_canonical_target_name(name).ok(),
                 Some(bundle.target_profile())
             );
-            let prefix = format!("targets/{name}/");
-            assert_eq!(bundle.console_source(), format!("{prefix}console_impl.omg"));
         }
     }
 

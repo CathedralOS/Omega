@@ -67,9 +67,7 @@ pub use host_numeric::{
 pub use network_address::HostInternetAddress;
 pub use scalar_reference::{ScalarReferenceLayout, ScalarStorageCodec};
 pub use target::{CASE_TAG_BYTE_ALIGNMENT, CASE_TAG_BYTE_SIZE};
-pub use windows_provider::{
-    WINDOWS_INTERNET_PROVIDER_LIBRARY, imports_windows_internet_provider, needs_windows_internet_companion,
-};
+pub use windows_provider::{WINDOWS_INTERNET_PROVIDER_LIBRARY, needs_windows_internet_companion};
 
 use target::NativeTarget;
 

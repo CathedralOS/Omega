@@ -1,10 +1,6 @@
 //! Select the bundled Windows x64 Internet provider for compatible foreign imports.
 pub const WINDOWS_INTERNET_PROVIDER_LIBRARY: &[u8] = b"omega_host.dll";
 
-pub fn imports_windows_internet_provider(locator: target::NormalizedImportLocatorRef<'_>) -> bool {
-    needs_windows_internet_companion([locator])
-}
-
 pub fn needs_windows_internet_companion<'a>(
     imports: impl IntoIterator<Item = target::NormalizedImportLocatorRef<'a>>,
 ) -> bool {

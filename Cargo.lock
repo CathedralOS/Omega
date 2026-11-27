@@ -1192,7 +1192,6 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "calling-conventions",
- "diagnostics",
  "layout-plans",
  "runtime-abi",
  "semantic-vocabulary",
@@ -3320,7 +3319,6 @@ dependencies = [
  "isa-aarch64",
  "isa-conformance",
  "layout-plans",
- "normalized-foreign-call-plan",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
@@ -3479,7 +3477,6 @@ dependencies = [
  "isa-conformance",
  "isa-x86_64",
  "layout-plans",
- "normalized-foreign-call-plan",
  "optimization-selections",
  "register-model",
  "selected-instructions",
