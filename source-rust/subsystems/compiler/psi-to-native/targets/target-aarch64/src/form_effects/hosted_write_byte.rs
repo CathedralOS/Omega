@@ -15,7 +15,7 @@ use selected_instructions::MachineTrapBehavior;
 use target::NativeTarget;
 
 pub fn effects(target: NativeTarget) -> MachineEncodedEffects {
-    let physical = crate::aarch64_physical_register_model();
+    let physical = crate::aarch64_physical_register_model_ref();
     let view = |name: &str| {
         physical
             .view_named(name)

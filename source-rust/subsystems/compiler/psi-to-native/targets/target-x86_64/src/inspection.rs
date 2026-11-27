@@ -72,7 +72,6 @@ pub fn decode_hosted_read_byte_operand(target: NativeTarget, bytes: &[u8]) -> Op
     decode_linux_read_byte(bytes)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn selected_system_call_effects(
     target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,

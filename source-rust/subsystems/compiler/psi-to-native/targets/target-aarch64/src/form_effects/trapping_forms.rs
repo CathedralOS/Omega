@@ -15,7 +15,7 @@ use selected_instructions::TrappingOperation;
 use semantic_vocabulary::IntegerSign;
 
 pub fn effects(reads: Vec<u16>, writes: Vec<u16>) -> MachineEncodedEffects {
-    let physical = crate::aarch64_physical_register_model();
+    let physical = crate::aarch64_physical_register_model_ref();
     MachineEncodedEffects {
         implicit_unit_clobbers: physical
             .view_named("nzcv")

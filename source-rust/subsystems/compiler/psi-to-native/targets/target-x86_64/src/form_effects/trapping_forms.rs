@@ -243,7 +243,7 @@ impl TrappingShape {
     pub fn encoded_effects(self) -> MachineEncodedEffects {
         let (reads, writes) = self.operand_reads_and_writes();
         let mut encoded = MachineEncodedEffects::fallthrough_v1(reads, writes);
-        encoded.implicit_unit_clobbers = crate::x86_64_physical_register_model()
+        encoded.implicit_unit_clobbers = crate::x86_64_physical_register_model_ref()
             .view_named("condition_flags")
             .expect("canonical x86-64 model declares condition flags")
             .units

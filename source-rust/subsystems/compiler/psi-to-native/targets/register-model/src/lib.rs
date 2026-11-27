@@ -117,16 +117,25 @@ impl PhysicalRegisterModel {
         self.views.iter().find(|view| view.name == name)
     }
 
+    // Validation requires every unit, view and class id to equal its row index,
+    // so lookups index directly. A row whose id does not match its slot is
+    // treated as absent, which validation refuses before any other lookup.
     pub fn view(&self, id: RegisterViewId) -> Option<&RegisterView> {
-        self.views.iter().find(|view| view.id == id)
+        self.views
+            .get(usize::from(id.0))
+            .filter(|view| view.id == id)
     }
 
     pub fn unit(&self, id: RegisterUnitId) -> Option<&RegisterUnit> {
-        self.units.iter().find(|unit| unit.id == id)
+        self.units
+            .get(usize::from(id.0))
+            .filter(|unit| unit.id == id)
     }
 
     pub fn class(&self, id: RegisterClassId) -> Option<&RegisterClass> {
-        self.classes.iter().find(|class| class.id == id)
+        self.classes
+            .get(usize::from(id.0))
+            .filter(|class| class.id == id)
     }
 
     pub fn convention_named(&self, name: &str) -> Option<&PreservationConvention> {
@@ -180,7 +189,6 @@ impl PhysicalModelBuilder {
         id
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn view(
         &mut self,
         name: String,
@@ -353,7 +361,7 @@ pub fn validate_physical_register_model(
         if !view
             .units
             .iter()
-            .all(|unit| view.write_units.contains(unit))
+            .all(|unit| view.write_units.binary_search(unit).is_ok())
         {
             return Err(RegisterModelValidationError::WriteFootprintMismatch(
                 view.id,
@@ -398,7 +406,8 @@ pub fn validate_physical_register_model(
             .class(view.class)
             .expect("view class validated above")
             .views
-            .contains(&view.id)
+            .binary_search(&view.id)
+            .is_ok()
         {
             return Err(RegisterModelValidationError::ClassMembershipMismatch);
         }

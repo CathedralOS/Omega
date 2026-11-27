@@ -12,7 +12,7 @@ use selected_instructions::MachineSizeKnowledge;
 use selected_instructions::MachineTrapBehavior;
 
 pub fn clobbers(restore: bool) -> Vec<register_model::RegisterUnitId> {
-    let physical = crate::aarch64_physical_register_model();
+    let physical = crate::aarch64_physical_register_model_ref();
     let mut units = physical
         .view_named("x9")
         .expect("canonical floating-control scratch")
@@ -33,7 +33,7 @@ pub fn clobbers(restore: bool) -> Vec<register_model::RegisterUnitId> {
 }
 
 pub fn effects(restore: bool) -> MachineEncodedEffects {
-    let physical = crate::aarch64_physical_register_model();
+    let physical = crate::aarch64_physical_register_model_ref();
     let view = |name| {
         physical
             .view_named(name)

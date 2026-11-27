@@ -14,7 +14,7 @@ use selected_instructions::MachineTrapBehavior;
 use selected_instructions::ieee_float_arithmetic_is_trapping;
 
 pub fn view_units(name: &str) -> Vec<RegisterUnitId> {
-    crate::aarch64_physical_register_model()
+    crate::aarch64_physical_register_model_ref()
         .view_named(name)
         .unwrap_or_else(|| panic!("canonical AArch64 model declares {name}"))
         .units
