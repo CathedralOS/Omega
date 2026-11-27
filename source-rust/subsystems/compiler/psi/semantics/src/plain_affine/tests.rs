@@ -2035,3 +2035,57 @@ fn scoped_cleanup_does_not_inspect_an_unrequested_erased_field() {
         "the existing whole-partition refusal remains unchanged"
     );
 }
+
+/// A table is rebuilt after each edit, so it checks the module's type
+/// permissions only when a walk first needs them, and every walk that
+/// shares it then gets the answer a walk alone gives.
+#[test]
+fn a_summary_table_checks_type_permissions_on_first_use_and_refuses_as_a_walk_alone() {
+    let mut types = reconvergence_types();
+    // A copyable parent whose fields hold affine records.
+    types[0].multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
+    let mut module = terminal_psi::TerminalModule::for_entry(id(1));
+    module.types.structural_types = types.to_vec();
+    module.machines = vec![transferring(
+        &[id(3)],
+        &[id(3)],
+        vec![StructuralArgument::whole(id(1), StructuralAccess::Owned)],
+    )];
+    let summaries = AffineSummaries::new(&module);
+    assert!(summaries.type_permissions.get().is_none());
+    let alone = MachineAffine::new(&module, id(1), None)
+        .unwrap()
+        .plan()
+        .unwrap_err();
+    assert!(
+        matches!(
+            alone,
+            Error::Malformed {
+                detail: "parent type permissions erase a nested ownership obligation",
+                site: None,
+            }
+        ),
+        "{alone:?}"
+    );
+    for _ in 0..2 {
+        let shared = MachineAffine::new(&module, id(1), Some(&summaries))
+            .unwrap()
+            .plan()
+            .unwrap_err();
+        assert_eq!(format!("{shared:?}"), format!("{alone:?}"));
+        assert!(matches!(
+            summaries.type_permissions.get(),
+            Some(Err(Error::Malformed { .. }))
+        ));
+    }
+
+    // Valid permissions are checked once and accepted.
+    module.types.structural_types = reconvergence_types().to_vec();
+    let summaries = AffineSummaries::new(&module);
+    assert!(summaries.type_permissions.get().is_none());
+    MachineAffine::new(&module, id(1), Some(&summaries))
+        .unwrap()
+        .plan()
+        .unwrap();
+    assert!(matches!(summaries.type_permissions.get(), Some(Ok(()))));
+}

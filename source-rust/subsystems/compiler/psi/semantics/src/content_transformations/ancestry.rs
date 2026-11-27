@@ -12,8 +12,13 @@ pub(crate) mod retirement;
 
 type OriginKey = (MachineId, ClaimId, ContentProjectionIdentity);
 
-pub(crate) struct OriginTraversal {
+/// `'a` borrows the bundle whose affine walks check each callee's claims;
+/// `'m` is that bundle's module.
+pub(crate) struct OriginTraversal<'a, 'm> {
     forwarding: bool,
+    /// A bundle over the traversed module, so each callee's claim walk reuses
+    /// its shared descriptor rows (`forwarding::validate_claims`).
+    analyses: Option<&'a crate::module_analyses::ModuleAnalyses<'m>>,
     active: Vec<OriginKey>,
     completed: Vec<(OriginKey, Vec<ClaimId>)>,
     remaining: usize,
@@ -21,10 +26,11 @@ pub(crate) struct OriginTraversal {
     retired: Vec<((MachineId, ClaimId), bool)>,
 }
 
-impl OriginTraversal {
+impl<'a, 'm> OriginTraversal<'a, 'm> {
     pub(super) fn new() -> Self {
         Self {
             forwarding: false,
+            analyses: None,
             active: Vec::new(),
             completed: Vec::new(),
             remaining: 65_536,
@@ -38,6 +44,18 @@ impl OriginTraversal {
             forwarding: true,
             ..Self::new()
         }
+    }
+
+    /// Check callee claims with `analyses`' walks; `None` walks each alone.
+    pub(super) fn with_analyses(
+        self,
+        analyses: Option<&'a crate::module_analyses::ModuleAnalyses<'m>>,
+    ) -> Self {
+        Self { analyses, ..self }
+    }
+
+    pub(super) fn analyses(&self) -> Option<&'a crate::module_analyses::ModuleAnalyses<'m>> {
+        self.analyses
     }
 
     fn visit(&mut self) -> Result<(), &'static str> {

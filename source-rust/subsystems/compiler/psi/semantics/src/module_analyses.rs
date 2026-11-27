@@ -469,6 +469,13 @@ pub struct ModuleAnalyses<'m> {
     /// builds over its borrowed-storage family. Built on the first such
     /// analysis.
     replays: OnceLock<ModuleSummaries<'m>>,
+    /// Which calls may run while an owned value is out of borrowed storage,
+    /// shared by every affine walk over the module. The tables fill on the
+    /// first call inside an open window.
+    pub(crate) fences: crate::plain_affine::CallFences<'m>,
+    /// Whether the module's type permissions keep every nested ownership
+    /// obligation, checked by the first affine walk that needs it.
+    pub(crate) type_permissions: crate::plain_affine::TypePermissions,
 }
 
 impl<'m> ModuleAnalyses<'m> {
@@ -488,6 +495,8 @@ impl<'m> ModuleAnalyses<'m> {
             dynamic_slots: OnceLock::new(),
             rows: Default::default(),
             replays: OnceLock::new(),
+            fences: crate::plain_affine::CallFences::new(module),
+            type_permissions: crate::plain_affine::TypePermissions::new(),
         })
     }
 
@@ -506,6 +515,16 @@ impl<'m> ModuleAnalyses<'m> {
 
     pub fn types(&self) -> &StructuralTypeIndex<'m> {
         self.zeroed_cases.types()
+    }
+
+    /// The affine walks of `machine`. They take the machine's borrowed-storage
+    /// closure from this bundle's shared rows, unless the closure reaches a
+    /// dynamic call, and share the bundle's call fences and type permissions.
+    pub fn affine(
+        &self,
+        machine: MachineId,
+    ) -> Result<crate::plain_affine::MachineAffine<'_>, crate::plain_affine::Error> {
+        crate::plain_affine::MachineAffine::from_analyses(self, machine, None)
     }
 
     /// Whether the machine's body contains a dynamic call.
