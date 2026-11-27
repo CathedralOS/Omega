@@ -68,28 +68,6 @@ pub(crate) mod codec_bytes {
         );
     }
 
-    pub(crate) fn encode_target(bytes: &mut Vec<u8>, target: target::NativeTarget) {
-        bytes.push(match target.architecture {
-            target::Architecture::X86_64 => 0,
-            target::Architecture::Aarch64 => 1,
-        });
-        bytes.push(match target.object_format {
-            target::ObjectFormat::Elf => 0,
-            target::ObjectFormat::MachO => 1,
-            target::ObjectFormat::Coff => 2,
-        });
-        bytes.extend_from_slice(
-            &u64::try_from(target.pointer_size)
-                .expect("terminal target pointer size fits u64")
-                .to_le_bytes(),
-        );
-        bytes.extend_from_slice(
-            &u64::try_from(target.pointer_alignment)
-                .expect("terminal target pointer alignment fits u64")
-                .to_le_bytes(),
-        );
-    }
-
     pub(crate) fn option<T>(
         bytes: &mut Vec<u8>,
         value: Option<T>,
@@ -132,18 +110,16 @@ pub mod recovery;
 pub use constraints::{
     AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
     AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, EntryFixedViewTransition,
-    FixedPrecoloredInterval, FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPlanIdentity,
-    FixedPrecoloredIntervalPolicy, FixedPrecoloredRegisterSplitRequirements,
-    FixedPrecoloredSourceFragmentRequirements, FixedPrecoloredSourceSegment,
-    FixedPrecoloredSourceSegmentId, FixedPrecoloredSourceSegmentOpening,
-    FixedPrecoloredSplitRequirementPlan, FixedPrecoloredSplitRequirementPlanIdentity,
+    FixedPrecoloredInterval, FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPolicy,
+    FixedPrecoloredRegisterSplitRequirements, FixedPrecoloredSourceFragmentRequirements,
+    FixedPrecoloredSourceSegment, FixedPrecoloredSourceSegmentId,
+    FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPlan,
     FixedPrecoloredSplitRequirementPolicy, FunctionAllocationLegality,
     FunctionFixedPrecoloredIntervals, FunctionFixedPrecoloredSplitRequirements,
     RegisterClassAvailability, VirtualEarlyClobberPointLegality, VirtualLegalitySpan,
     VirtualRegisterAllocationLegality, allocation_legality, allocation_legality_function_digest,
     allocation_legality_identity_from_digests, allocator_availability,
-    allocator_availability_identity, fixed_precolored_interval_plan_identity,
-    fixed_precolored_intervals, fixed_precolored_split_requirement_plan_identity,
+    allocator_availability_identity, fixed_precolored_intervals,
     fixed_precolored_split_requirements,
 };
 pub use post_allocation_manifest::{
@@ -153,13 +129,13 @@ pub use post_allocation_manifest::{
 };
 pub use recovery::{
     FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
-    FixedViewCopySourceEvidence, FunctionRecoveryClassification, FunctionSpillChoices,
-    NoAdmittedRecoveryReason, PressureContender, PressureRecoveryClassification,
-    PressureRematerializationPolicy, PressureResident, RecoveryClassification,
-    RecoveryClassificationIdentity, RecoveryClassificationPlan, RecoveryClassificationPolicy,
-    RecoveryFutureUse, RecoveryVictimRole, SpillChoice, SpillChoiceIdentity, SpillChoicePlan,
-    SpillChoicePolicy, classification, fixed_view_copy, fixed_view_copy_identity,
-    recovery_classification_identity, spill_choice, spill_choice_identity,
+    FunctionRecoveryClassification, FunctionSpillChoices, NoAdmittedRecoveryReason,
+    PressureContender, PressureRecoveryClassification, PressureRematerializationPolicy,
+    PressureResident, RecoveryClassification, RecoveryClassificationIdentity,
+    RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
+    RecoveryVictimRole, SpillChoice, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
+    classification, fixed_view_copy, fixed_view_copy_identity, recovery_classification_identity,
+    spill_choice, spill_choice_identity,
 };
 
 use std::sync::Arc;
@@ -305,8 +281,6 @@ pub struct VirtualRegisterHome {
     pub view: RegisterViewId,                // Assigned physical register view
 }
 
-identity_newtype! { pub struct FixedPrecoloredSegmentHomePlanIdentity(pub(crate) [u8; 32]); }
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FixedPrecoloredSegmentHomePolicy {
     MostConstrainedLowestCompatibleViewV1, // Place most constrained domain into preferred viable view
@@ -317,19 +291,17 @@ pub struct FixedPrecoloredHomeDomainId(pub u32);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedPrecoloredSegmentHomePlan {
-    pub split_requirements: crate::FixedPrecoloredSplitRequirementPlanIdentity, // Split requirements digest
-    pub fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity, // Fixed intervals digest
-    pub ranges: LiveRangeIdentity,                                   // Live-range digest
-    pub legality: AllocationLegalityIdentity,                        // Allocation-legality digest
-    pub register_environment: TargetRegisterEnvironmentIdentity,     // Register environment digest
+    pub ranges: LiveRangeIdentity,            // Live-range digest
+    pub legality: AllocationLegalityIdentity, // Allocation-legality digest
+    pub register_environment: TargetRegisterEnvironmentIdentity, // Register environment digest
     pub allocator_availability: AllocatorAvailabilityIdentity, // Allocator availability digest
-    pub optimization_unit: OptimizationUnitIdentity,           // Optimization unit digest
-    pub work_schedule: WorkScheduleIdentity,                   // Work schedule identity
-    pub target: NativeTarget,                                  // Target architecture and format
-    pub policy: FixedPrecoloredSegmentHomePolicy,              // Segment-home selection policy
-    pub budget: OptimizationWorkBudget,                        // Optimization work budget
-    pub usage: OptimizationWorkUsage,                          // Optimization work usage
-    pub functions: Vec<FunctionFixedPrecoloredSegmentHomes>,   // Per-function segment homes
+    pub optimization_unit: OptimizationUnitIdentity, // Optimization unit digest
+    pub work_schedule: WorkScheduleIdentity,  // Work schedule identity
+    pub target: NativeTarget,                 // Target architecture and format
+    pub policy: FixedPrecoloredSegmentHomePolicy, // Segment-home selection policy
+    pub budget: OptimizationWorkBudget,       // Optimization work budget
+    pub usage: OptimizationWorkUsage,         // Optimization work usage
+    pub functions: Vec<FunctionFixedPrecoloredSegmentHomes>, // Per-function segment homes
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -345,51 +317,6 @@ pub struct FixedPrecoloredSourceSegmentHome {
     pub source_segment: crate::FixedPrecoloredSourceSegmentId, // Source segment identity
     pub allocation_domain: FixedPrecoloredHomeDomainId, // Function-local allocation domain
     pub view: RegisterViewId,                // Assigned physical register view
-}
-
-pub fn fixed_precolored_segment_home_plan_identity(
-    plan: &FixedPrecoloredSegmentHomePlan,
-) -> FixedPrecoloredSegmentHomePlanIdentity {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.fixed-precolored-segment-homes.v2\0");
-    bytes.extend_from_slice(&plan.split_requirements.bytes());
-    bytes.extend_from_slice(&plan.fixed_intervals.bytes());
-    bytes.extend_from_slice(&plan.ranges.bytes());
-    bytes.extend_from_slice(&plan.legality.bytes());
-    bytes.extend_from_slice(&plan.register_environment.bytes());
-    bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
-    crate::codec_bytes::encode_target(&mut bytes, plan.target);
-    bytes.push(match plan.policy {
-        FixedPrecoloredSegmentHomePolicy::MostConstrainedLowestCompatibleViewV1 => 0,
-    });
-    bytes.extend_from_slice(&plan.budget.encode());
-    bytes.extend_from_slice(&plan.usage.encode());
-    encode_segment_home_family(&mut bytes, &plan.functions);
-    FixedPrecoloredSegmentHomePlanIdentity(crate::digest_encoder::content_identity(&bytes))
-}
-
-fn encode_segment_home_family(
-    bytes: &mut Vec<u8>,
-    functions: &[FunctionFixedPrecoloredSegmentHomes],
-) {
-    length(bytes, functions.len(), "fixed/precolored segment-home");
-    for function in functions {
-        crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
-        length(
-            bytes,
-            function.assignments.len(),
-            "fixed/precolored segment-home",
-        );
-        for assignment in &function.assignments {
-            crate::codec_bytes::push_encoded(bytes, assignment.virtual_register.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, assignment.class.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, assignment.source_segment.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, assignment.allocation_domain.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, assignment.view.0.to_le_bytes());
-        }
-    }
 }
 
 identity_newtype! { pub struct AllocatedCalleeSavedRequirementIdentity([u8; 32]); }
@@ -560,19 +487,17 @@ pub mod preservation {
 pub mod fixed_precolored_segment_homes {
     pub use crate::{
         FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomePlan,
-        FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSegmentHomePolicy,
-        FixedPrecoloredSourceSegmentHome, FunctionFixedPrecoloredSegmentHomes,
-        fixed_precolored_segment_home_plan_identity,
+        FixedPrecoloredSegmentHomePolicy, FixedPrecoloredSourceSegmentHome,
+        FunctionFixedPrecoloredSegmentHomes,
     };
 }
 
 pub mod storage {
     pub use crate::{
         FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomePlan,
-        FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSegmentHomePolicy,
-        FixedPrecoloredSourceSegmentHome, FunctionFixedPrecoloredSegmentHomes,
-        FunctionRegisterHomes, RegisterHomePlan, VirtualRegisterHome,
-        fixed_precolored_segment_home_plan_identity, fixed_precolored_segment_homes,
+        FixedPrecoloredSegmentHomePolicy, FixedPrecoloredSourceSegmentHome,
+        FunctionFixedPrecoloredSegmentHomes, FunctionRegisterHomes, RegisterHomePlan,
+        VirtualRegisterHome, fixed_precolored_segment_homes,
     };
 }
 

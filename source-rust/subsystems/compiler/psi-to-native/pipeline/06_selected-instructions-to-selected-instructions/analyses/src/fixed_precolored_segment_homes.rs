@@ -1,8 +1,7 @@
 /*
   Deterministic physical view assignment for fixed/precolored source-segment
   domains (`assign_fixed_precolored_segment_homes`,
-  `ValidatedFixedPrecoloredSegmentHomes`,
-  `FixedPrecoloredSegmentHomeValidationReceipt`).
+  `ValidatedFixedPrecoloredSegmentHomes`).
 
   Assigns one deterministic physical register view to each authenticated
   source-segment domain while checking interference and conflict boundaries.
@@ -733,18 +732,14 @@ mod compute {
 
         use crate::{
             FixedPrecoloredSegmentHomeError, ValidatedAllocationLegality,
-            ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSplitRequirements,
-            ValidatedLiveRanges,
+            ValidatedFixedPrecoloredSplitRequirements, ValidatedLiveRanges,
         };
-        use register_homes::{
-            FixedPrecoloredIntervalPolicy, FixedPrecoloredSplitRequirementPolicy,
-        };
+        use register_homes::FixedPrecoloredSplitRequirementPolicy;
 
         #[allow(clippy::too_many_arguments)]
         pub(super) fn validate(
             ranges: &ValidatedLiveRanges,
             legality: &ValidatedAllocationLegality,
-            fixed: &ValidatedFixedPrecoloredIntervals,
             requirements: &ValidatedFixedPrecoloredSplitRequirements,
             register_environment: TargetRegisterEnvironmentIdentity,
             physical: &ValidatedPhysicalRegisterModel,
@@ -752,20 +747,16 @@ mod compute {
             reservations: &ValidatedRegisterReservationProfile,
             selected_keys: &TargetRegisterEnvironmentConstraintKeys,
         ) -> Result<(), FixedPrecoloredSegmentHomeError> {
-            if requirements.receipt().fixed_intervals() != fixed.receipt().identity()
-                || requirements.receipt().ranges() != ranges.receipt().identity()
-                || requirements.receipt().legality() != legality.receipt().identity()
-                || requirements.receipt().register_environment() != register_environment
-                || requirements.receipt().allocator_availability()
-                    != legality.receipt().allocator_availability()
-                || requirements.receipt().optimization_unit()
-                    != ranges.receipt().optimization_unit()
-                || requirements.receipt().work_schedule() != ranges.receipt().work_schedule()
-                || requirements.receipt().target() != ranges.plan().target
-                || requirements.receipt().policy()
+            let split = requirements.plan();
+            if split.ranges != ranges.receipt().identity()
+                || split.legality != legality.receipt().identity()
+                || split.register_environment != register_environment
+                || split.allocator_availability != legality.receipt().allocator_availability()
+                || split.optimization_unit != ranges.receipt().optimization_unit()
+                || split.work_schedule != ranges.receipt().work_schedule()
+                || split.target != ranges.plan().target
+                || split.policy
                     != FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1
-                || fixed.receipt().policy()
-                    != FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1
                 || legality.receipt().ranges() != ranges.receipt().identity()
                 || !infrastructure_environment_agrees(
                     ranges.plan().target,
@@ -793,8 +784,7 @@ mod compute {
 
     use crate::{
         FixedPrecoloredSegmentHomeError, ValidatedAllocationLegality,
-        ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSplitRequirements,
-        ValidatedLiveRanges,
+        ValidatedFixedPrecoloredSplitRequirements, ValidatedLiveRanges,
     };
     use register_homes::{FixedPrecoloredSegmentHomePlan, FixedPrecoloredSegmentHomePolicy};
 
@@ -802,7 +792,6 @@ mod compute {
     pub fn compute(
         ranges: &ValidatedLiveRanges,
         legality: &ValidatedAllocationLegality,
-        fixed: &ValidatedFixedPrecoloredIntervals,
         requirements: &ValidatedFixedPrecoloredSplitRequirements,
         register_environment: TargetRegisterEnvironmentIdentity,
         physical: &ValidatedPhysicalRegisterModel,
@@ -815,7 +804,6 @@ mod compute {
         roots::validate(
             ranges,
             legality,
-            fixed,
             requirements,
             register_environment,
             physical,
@@ -841,8 +829,6 @@ mod compute {
         )?;
         let usage = work.finish(budget)?;
         Ok(FixedPrecoloredSegmentHomePlan {
-            split_requirements: requirements.receipt().identity(),
-            fixed_intervals: fixed.receipt().identity(),
             ranges: ranges.receipt().identity(),
             legality: legality.receipt().identity(),
             register_environment,
@@ -1092,26 +1078,17 @@ use crate::work_accounting::Work;
 pub use error::FixedPrecoloredSegmentHomeError;
 use register_homes::FixedPrecoloredSegmentHomePolicy;
 
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
-use register_homes::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlanIdentity,
-    FixedPrecoloredSegmentHomePlan, FixedPrecoloredSegmentHomePlanIdentity,
-    FixedPrecoloredSplitRequirementPlanIdentity,
-};
+use register_homes::FixedPrecoloredSegmentHomePlan;
 use register_model::{
     PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
     TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
     ValidatedRegisterReservationProfile,
 };
-use selected_instructions::LiveRangeIdentity;
-use semantic_vocabulary::WorkScheduleIdentity;
-use target::NativeTarget;
 
 #[allow(clippy::too_many_arguments)]
 pub fn assign_fixed_precolored_segment_homes(
     ranges: &crate::ValidatedLiveRanges,
     legality: &crate::ValidatedAllocationLegality,
-    fixed: &crate::ValidatedFixedPrecoloredIntervals,
     requirements: &crate::ValidatedFixedPrecoloredSplitRequirements,
     register_environment: TargetRegisterEnvironmentIdentity,
     physical: &ValidatedPhysicalRegisterModel,
@@ -1124,7 +1101,6 @@ pub fn assign_fixed_precolored_segment_homes(
     let plan = compute::compute(
         ranges,
         legality,
-        fixed,
         requirements,
         register_environment,
         physical,
@@ -1134,61 +1110,10 @@ pub fn assign_fixed_precolored_segment_homes(
         policy,
         budget,
     )?;
-    seal_fixed_precolored_segment_homes(plan)
+    Ok(ValidatedFixedPrecoloredSegmentHomes { plan })
 }
 
-seal_plan!(
-    seal_fixed_precolored_segment_homes(FixedPrecoloredSegmentHomePlan)
-        -> ValidatedFixedPrecoloredSegmentHomes: FixedPrecoloredSegmentHomeValidationReceipt
-        = register_homes::fixed_precolored_segment_home_plan_identity,
-        FixedPrecoloredSegmentHomeError
-    {
-        split_requirements,
-        fixed_intervals,
-        ranges,
-        legality,
-        register_environment,
-        allocator_availability,
-        optimization_unit,
-        work_schedule,
-        target,
-        policy,
-        usage
-    }
-);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FixedPrecoloredSegmentHomeValidationReceipt {
-    pub(crate) identity: FixedPrecoloredSegmentHomePlanIdentity,
-    pub(crate) split_requirements: FixedPrecoloredSplitRequirementPlanIdentity,
-    pub(crate) fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
-    pub(crate) ranges: LiveRangeIdentity,
-    pub(crate) legality: AllocationLegalityIdentity,
-    pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
-    pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
-    pub(crate) optimization_unit: OptimizationUnitIdentity,
-    pub(crate) work_schedule: WorkScheduleIdentity,
-    pub(crate) target: NativeTarget,
-    pub(crate) policy: FixedPrecoloredSegmentHomePolicy,
-    pub(crate) usage: OptimizationWorkUsage,
-}
-
-impl FixedPrecoloredSegmentHomeValidationReceipt {
-    receipt_accessor_rows!(FixedPrecoloredSegmentHomeValidationReceipt {
-        identity: FixedPrecoloredSegmentHomePlanIdentity,
-        split_requirements: FixedPrecoloredSplitRequirementPlanIdentity,
-        fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
-        target: NativeTarget,
-        policy: FixedPrecoloredSegmentHomePolicy,
-        usage: OptimizationWorkUsage,
-    });
-    shared_analysis_identity_accessors!(pub);
-}
-
-validated_plan_carrier!(
-    ValidatedFixedPrecoloredSegmentHomes: FixedPrecoloredSegmentHomePlan,
-    FixedPrecoloredSegmentHomeValidationReceipt
-);
+validated_plan_carrier!(ValidatedFixedPrecoloredSegmentHomes: FixedPrecoloredSegmentHomePlan);
 
 fn affinity_edges(
     domains: &[Domain],

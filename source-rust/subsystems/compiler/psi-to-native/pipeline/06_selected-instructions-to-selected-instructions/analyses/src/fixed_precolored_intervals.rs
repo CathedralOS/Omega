@@ -1,7 +1,6 @@
 /*
   Fixed and precolored half-open point-interval analysis
-  (`analyze_fixed_precolored_intervals`, `ValidatedFixedPrecoloredIntervals`,
-  `FixedPrecoloredIntervalValidationReceipt`).
+  (`analyze_fixed_precolored_intervals`, `ValidatedFixedPrecoloredIntervals`).
 
   Resolves existing fixed register view constraints on virtual live ranges to
   exact half-open point intervals without choosing homes, inserting copies, or
@@ -257,14 +256,7 @@ mod compute {
 }
 
 use crate::WorkDefect;
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
-use register_homes::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlan,
-    FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredIntervalPolicy,
-};
-use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::LiveRangeIdentity;
-use semantic_vocabulary::WorkScheduleIdentity;
+use register_homes::{FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPolicy};
 
 pub fn analyze_fixed_precolored_intervals(
     ranges: &crate::ValidatedLiveRanges,
@@ -273,51 +265,10 @@ pub fn analyze_fixed_precolored_intervals(
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedFixedPrecoloredIntervals, FixedPrecoloredIntervalError> {
     let plan = compute::compute(ranges, legality, policy, budget)?;
-    seal_fixed_precolored_intervals(plan)
+    Ok(ValidatedFixedPrecoloredIntervals { plan })
 }
 
-seal_plan!(
-    seal_fixed_precolored_intervals(FixedPrecoloredIntervalPlan)
-        -> ValidatedFixedPrecoloredIntervals: FixedPrecoloredIntervalValidationReceipt
-        = register_homes::fixed_precolored_interval_plan_identity, FixedPrecoloredIntervalError
-    {
-        ranges,
-        legality,
-        register_environment,
-        allocator_availability,
-        optimization_unit,
-        work_schedule,
-        policy,
-        usage
-    }
-);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FixedPrecoloredIntervalValidationReceipt {
-    pub(crate) identity: FixedPrecoloredIntervalPlanIdentity,
-    pub(crate) ranges: LiveRangeIdentity,
-    pub(crate) legality: AllocationLegalityIdentity,
-    pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
-    pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
-    pub(crate) optimization_unit: OptimizationUnitIdentity,
-    pub(crate) work_schedule: WorkScheduleIdentity,
-    pub(crate) policy: FixedPrecoloredIntervalPolicy,
-    pub(crate) usage: OptimizationWorkUsage,
-}
-
-impl FixedPrecoloredIntervalValidationReceipt {
-    receipt_accessor_rows!(FixedPrecoloredIntervalValidationReceipt {
-        identity: FixedPrecoloredIntervalPlanIdentity,
-        policy: FixedPrecoloredIntervalPolicy,
-        usage: OptimizationWorkUsage,
-    });
-    shared_analysis_identity_accessors!(pub);
-}
-
-validated_plan_carrier!(
-    ValidatedFixedPrecoloredIntervals: FixedPrecoloredIntervalPlan,
-    FixedPrecoloredIntervalValidationReceipt
-);
+validated_plan_carrier!(ValidatedFixedPrecoloredIntervals: FixedPrecoloredIntervalPlan);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedPrecoloredIntervalError {

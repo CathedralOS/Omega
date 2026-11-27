@@ -240,8 +240,6 @@ pub fn allocation_legality_function_digest(function: &FunctionAllocationLegality
     content_identity(&bytes)
 }
 
-crate::identity_newtype! { pub struct FixedPrecoloredIntervalPlanIdentity(pub(crate) [u8; 32]); }
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FixedPrecoloredIntervalPolicy {
     FixedConstraintPointIntervalsV1, // Fixed constraints occupy [point, point + 1)
@@ -278,45 +276,6 @@ pub struct FixedPrecoloredInterval {
     pub view: RegisterViewId,                // Required physical register view
 }
 
-pub fn fixed_precolored_interval_plan_identity(
-    plan: &FixedPrecoloredIntervalPlan,
-) -> FixedPrecoloredIntervalPlanIdentity {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.fixed-precolored-point-intervals.v2\0");
-    bytes.extend_from_slice(&plan.ranges.bytes());
-    bytes.extend_from_slice(&plan.legality.bytes());
-    bytes.extend_from_slice(&plan.register_environment.bytes());
-    bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
-    bytes.push(match plan.policy {
-        FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1 => 0,
-    });
-    bytes.extend_from_slice(&plan.budget.encode());
-    bytes.extend_from_slice(&plan.usage.encode());
-    encode_interval_family(&mut bytes, &plan.functions);
-    FixedPrecoloredIntervalPlanIdentity(content_identity(&bytes))
-}
-
-fn encode_interval_family(bytes: &mut Vec<u8>, functions: &[FunctionFixedPrecoloredIntervals]) {
-    crate::codec_bytes::length(bytes, functions.len(), "fixed/precolored interval");
-    for function in functions {
-        crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
-        crate::codec_bytes::length(bytes, function.intervals.len(), "fixed/precolored interval");
-        for interval in &function.intervals {
-            crate::codec_bytes::push_encoded(bytes, interval.virtual_register.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, interval.class.0.to_le_bytes());
-            encode_fixed_constraint_site_identity(bytes, interval.site);
-            crate::codec_bytes::push_encoded(bytes, interval.block.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, interval.start.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, interval.end.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, interval.view.0.to_le_bytes());
-        }
-    }
-}
-
-crate::identity_newtype! { pub struct FixedPrecoloredSplitRequirementPlanIdentity(pub(crate) [u8; 32]); }
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FixedPrecoloredSplitRequirementPolicy {
     FixedUseBoundaryRequirementsV1, // Partition acyclic fragment trees when a fixed use empties the domain
@@ -324,17 +283,16 @@ pub enum FixedPrecoloredSplitRequirementPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedPrecoloredSplitRequirementPlan {
-    pub fixed_intervals: FixedPrecoloredIntervalPlanIdentity, // Fixed intervals digest
-    pub ranges: LiveRangeIdentity,                            // Live-range digest
-    pub legality: AllocationLegalityIdentity,                 // Allocation-legality digest
+    pub ranges: LiveRangeIdentity,            // Live-range digest
+    pub legality: AllocationLegalityIdentity, // Allocation-legality digest
     pub register_environment: TargetRegisterEnvironmentIdentity, // Register environment digest
     pub allocator_availability: AllocatorAvailabilityIdentity, // Allocator availability digest
-    pub optimization_unit: OptimizationUnitIdentity,          // Optimization unit digest
-    pub work_schedule: WorkScheduleIdentity,                  // Work schedule identity
-    pub target: NativeTarget,                                 // Target architecture and format
-    pub policy: FixedPrecoloredSplitRequirementPolicy,        // Split requirement policy
-    pub budget: OptimizationWorkBudget,                       // Optimization work budget
-    pub usage: OptimizationWorkUsage,                         // Optimization work usage
+    pub optimization_unit: OptimizationUnitIdentity, // Optimization unit digest
+    pub work_schedule: WorkScheduleIdentity,  // Work schedule identity
+    pub target: NativeTarget,                 // Target architecture and format
+    pub policy: FixedPrecoloredSplitRequirementPolicy, // Split requirement policy
+    pub budget: OptimizationWorkBudget,       // Optimization work budget
+    pub usage: OptimizationWorkUsage,         // Optimization work usage
     pub functions: Vec<FunctionFixedPrecoloredSplitRequirements>, // Per-function split requirements
 }
 
@@ -384,114 +342,6 @@ pub enum FixedPrecoloredSourceSegmentOpening {
     },
 }
 
-pub fn fixed_precolored_split_requirement_plan_identity(
-    plan: &FixedPrecoloredSplitRequirementPlan,
-) -> FixedPrecoloredSplitRequirementPlanIdentity {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.fixed-precolored-split-requirements.v2\0");
-    bytes.extend_from_slice(&plan.fixed_intervals.bytes());
-    bytes.extend_from_slice(&plan.ranges.bytes());
-    bytes.extend_from_slice(&plan.legality.bytes());
-    bytes.extend_from_slice(&plan.register_environment.bytes());
-    bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
-    crate::codec_bytes::encode_target(&mut bytes, plan.target);
-    bytes.push(match plan.policy {
-        FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1 => 0,
-    });
-    bytes.extend_from_slice(&plan.budget.encode());
-    bytes.extend_from_slice(&plan.usage.encode());
-    encode_split_requirement_family(&mut bytes, &plan.functions);
-    FixedPrecoloredSplitRequirementPlanIdentity(content_identity(&bytes))
-}
-
-fn encode_split_requirement_family(
-    bytes: &mut Vec<u8>,
-    functions: &[FunctionFixedPrecoloredSplitRequirements],
-) {
-    crate::codec_bytes::length(bytes, functions.len(), "fixed/precolored split requirement");
-    for function in functions {
-        crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
-        crate::codec_bytes::length(
-            bytes,
-            function.registers.len(),
-            "fixed/precolored split requirement",
-        );
-        for register in &function.registers {
-            crate::codec_bytes::push_encoded(bytes, register.virtual_register.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, register.class.0.to_le_bytes());
-            crate::codec_bytes::length(
-                bytes,
-                register.fragments.len(),
-                "fixed/precolored split requirement",
-            );
-            for fragment in &register.fragments {
-                crate::codec_bytes::push_encoded(bytes, fragment.block.0.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, fragment.source_start.0.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, fragment.source_end.0.to_le_bytes());
-                crate::codec_bytes::length(
-                    bytes,
-                    fragment.segments.len(),
-                    "fixed/precolored split requirement",
-                );
-                for segment in &fragment.segments {
-                    crate::codec_bytes::push_encoded(bytes, segment.id.0.to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, segment.start.0.to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, segment.end.0.to_le_bytes());
-                    crate::codec_bytes::length(
-                        bytes,
-                        segment.candidates.len(),
-                        "fixed/precolored split requirement",
-                    );
-                    for view in &segment.candidates {
-                        crate::codec_bytes::push_encoded(bytes, view.0.to_le_bytes());
-                    }
-                    match segment.opening {
-                        FixedPrecoloredSourceSegmentOpening::SourceRangeStartV1 => bytes.push(0),
-                        FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 {
-                            connector,
-                        } => {
-                            bytes.push(1);
-                            encode_connector(bytes, connector);
-                        }
-                        FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
-                            incoming,
-                            site,
-                            destination_view,
-                        } => {
-                            bytes.push(2);
-                            bytes.push(u8::from(incoming.is_some()));
-                            if let Some(connector) = incoming {
-                                encode_connector(bytes, connector);
-                            }
-                            encode_fixed_constraint_site_identity(bytes, site);
-                            crate::codec_bytes::push_encoded(
-                                bytes,
-                                destination_view.0.to_le_bytes(),
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn encode_connector(bytes: &mut Vec<u8>, connector: LiveRangeEdgeConnector) {
-    crate::codec_bytes::push_encoded(bytes, connector.source.0.to_le_bytes());
-    crate::codec_bytes::push_encoded(bytes, connector.terminator.0.to_le_bytes());
-    bytes.push(connector.polarity_ordinal);
-    crate::codec_bytes::push_encoded(
-        bytes,
-        connector
-            .psi_edge
-            .map_or(0, |edge| edge.get())
-            .to_le_bytes(),
-    );
-    crate::codec_bytes::push_encoded(bytes, connector.target.0.to_le_bytes());
-}
-
 pub mod allocator_availability {
     pub use super::{
         AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy,
@@ -510,9 +360,8 @@ pub mod allocation_legality {
 
 pub mod fixed_precolored_intervals {
     pub use super::{
-        FixedPrecoloredInterval, FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPlanIdentity,
-        FixedPrecoloredIntervalPolicy, FunctionFixedPrecoloredIntervals,
-        fixed_precolored_interval_plan_identity,
+        FixedPrecoloredInterval, FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPolicy,
+        FunctionFixedPrecoloredIntervals,
     };
 }
 
@@ -521,8 +370,7 @@ pub mod fixed_precolored_split_requirements {
         FixedPrecoloredRegisterSplitRequirements, FixedPrecoloredSourceFragmentRequirements,
         FixedPrecoloredSourceSegment, FixedPrecoloredSourceSegmentId,
         FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPlan,
-        FixedPrecoloredSplitRequirementPlanIdentity, FixedPrecoloredSplitRequirementPolicy,
-        FunctionFixedPrecoloredSplitRequirements, fixed_precolored_split_requirement_plan_identity,
+        FixedPrecoloredSplitRequirementPolicy, FunctionFixedPrecoloredSplitRequirements,
     };
 }
 

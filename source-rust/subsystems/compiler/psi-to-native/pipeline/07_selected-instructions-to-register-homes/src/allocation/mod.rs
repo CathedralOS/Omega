@@ -108,10 +108,10 @@ pub use reanalysis::{
 pub(crate) use rewrites::*;
 pub use rewrites::{
     FixedOccurrencesError, FixedViewCopy, FixedViewCopyPlan, FixedViewCopyPolicy,
-    FixedViewCopySourceEvidence, MaterializedFixedViewCopies,
-    OptimizedFixedPrecoloredSegmentHomeCustodyError, OptimizedFixedViewCopyCustodyError,
-    PressureRematerializationError, PressureRematerializationPolicy, RuntimeRematerializationError,
-    RuntimeSpillError, RuntimeSpillSpanPolicy, RuntimeSplitError, ValidatedFixedOccurrences,
+    MaterializedFixedViewCopies, OptimizedFixedPrecoloredSegmentHomeCustodyError,
+    OptimizedFixedViewCopyCustodyError, PressureRematerializationError,
+    PressureRematerializationPolicy, RuntimeRematerializationError, RuntimeSpillError,
+    RuntimeSpillSpanPolicy, RuntimeSplitError, ValidatedFixedOccurrences,
     ValidatedPressureRematerialization, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
     ValidatedRuntimeSplit, fixed_view_copy_identity, materialize_selected_fixed_occurrences,
     probe_optimized_fixed_precolored_segment_homes, rematerialize_selected_active_resident,
