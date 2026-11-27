@@ -7,7 +7,7 @@ rules in [Ownership and lifetime](../../spec/build/embedding.md#ownership-and-li
 and [Closing and failure](../../spec/build/embedding.md#closing-and-failure). It
 was made on `main` after #6468.
 
-**Verdict: untrusted interpretation is open through the embedding.** A host
+**Audited implementation.** Untrusted interpretation is open through the embedding. A host
 can admit an artifact without producer trust and run it on the interpreter
 under bindings that enforce what they rely on (see
 [Contained interpretation](#contained-interpretation)). Every other route still
@@ -95,8 +95,11 @@ The runtime host's bindings, reviewed one by one:
 
 ## Remaining
 
-1. **A command-line route.** `omega run` names only the trusted route.
-   The [untrusted artifact run flag](../../../OWNER_QUESTIONS.md#untrusted-psi-run-flag)
-   is awaiting an owner decision.
-2. **Wider bindings.** Filesystem delegation and native providers stay
-   unavailable to contained execution.
+1. Wire bare `omega run app.psi` to the contained embedding. Apply the
+   [standalone Product grants](../../spec/build/command_line.md#runtime-directory-mappings)
+   to source and saved Psi, including the default denials for live networking
+   and program launch.
+2. Audit a confined filesystem binding for contained execution. Exercise the
+   read/write cwd mount, replacement by explicit mappings, symlink confinement
+   and ordinary filesystem failures. The audited route above refuses filesystem
+   delegation and native providers.
