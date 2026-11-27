@@ -191,3 +191,66 @@ failed_display!(
     AllocatorAvailabilityError,
     "terminal allocator-availability derivation failed"
 );
+
+#[cfg(test)]
+mod tests {
+    use super::{AllocatorAvailabilityError, materialize_allocator_availability};
+    use register_environment::baseline_target_register_environment;
+    use register_homes::AllocatorAvailabilityPolicy;
+    use target::NativeTarget;
+
+    // Windows ARM64 keeps the Thread Environment Block pointer in x18 and
+    // Apple reserves it as the platform register; only Linux ARM64 may
+    // allocate it. Both the default policy and an explicit allowlist must agree.
+    #[test]
+    fn x18_is_allocatable_only_on_linux_arm64() {
+        for (target, allocatable) in [
+            (NativeTarget::linux_arm64(), true),
+            (NativeTarget::macos_arm64(), false),
+            (NativeTarget::windows_arm64(), false),
+        ] {
+            let environment = baseline_target_register_environment(target).unwrap();
+            let keys = environment.allocation_constraint_keys();
+            let materialize = |policy| {
+                materialize_allocator_availability(
+                    environment.identity(),
+                    target,
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    &keys,
+                    policy,
+                )
+            };
+            let model = environment.physical().model();
+            let x18 = model.view_named("x18").unwrap().id;
+            let class = model
+                .classes
+                .iter()
+                .find(|class| class.views.contains(&x18))
+                .unwrap()
+                .id;
+
+            let all =
+                materialize(AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1).unwrap();
+            let views = all.unconstrained_views(class).unwrap();
+            assert!(!views.is_empty(), "{target:?}");
+            assert_eq!(views.contains(&x18), allocatable, "{target:?}");
+
+            let explicit = materialize(
+                AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
+                    views: vec![x18],
+                },
+            );
+            if allocatable {
+                assert!(explicit.is_ok(), "{target:?}");
+            } else {
+                assert_eq!(
+                    explicit.err(),
+                    Some(AllocatorAvailabilityError::ViewNotEnvironmentAllocatable { view: x18.0 }),
+                    "{target:?}"
+                );
+            }
+        }
+    }
+}

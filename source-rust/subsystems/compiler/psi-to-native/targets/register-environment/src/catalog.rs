@@ -14,11 +14,14 @@ use register_model::{
     ValidatedPhysicalRegisterModel,
 };
 use selected_instructions::SelectedConstraintKeys;
-use target::{Architecture, NativeTarget, ObjectFormat};
+#[cfg(test)]
+use target::ObjectFormat;
+use target::{Architecture, NativeTarget};
 #[cfg(test)]
 use target_aarch64::{AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL};
 use target_aarch64::{
-    aarch64_physical_register_model, prepare_aarch64_register_constraint_catalog,
+    AARCH64_PLATFORM_RESERVATION_OVERLAY, aarch64_physical_register_model,
+    aarch64_reserves_platform_register, prepare_aarch64_register_constraint_catalog,
 };
 #[cfg(test)]
 use target_x86_64::{X86_64_MICROSOFT_CALL, X86_64_SYSTEM_V_CALL};
@@ -47,11 +50,14 @@ pub(super) fn conservative_baseline_reservation_profile(
     target: NativeTarget,
     physical: &PhysicalRegisterModel,
 ) -> RegisterReservationProfile {
+    // The x18 platform overlay applies to Windows ARM64 (TEB pointer) as well
+    // as Apple targets; the ISA crate owns which targets reserve it.
     let mut active_overlays = physical
         .reservations
         .iter()
         .filter(|overlay| {
-            overlay.name != "darwin.aarch64.platform" || target.object_format == ObjectFormat::MachO
+            overlay.name != AARCH64_PLATFORM_RESERVATION_OVERLAY
+                || aarch64_reserves_platform_register(target)
         })
         .map(|overlay| overlay.name.clone())
         .collect::<Vec<_>>();
@@ -103,7 +109,8 @@ pub(super) const fn scalar_call_constraint_key(
         }
         (Architecture::X86_64, ObjectFormat::Coff) => Some(X86_64_MICROSOFT_CALL),
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(AARCH64_AAPCS64_CALL),
-        (Architecture::Aarch64, ObjectFormat::MachO) => Some(AARCH64_DARWIN_CALL),
-        _ => None,
+        (Architecture::Aarch64, ObjectFormat::MachO | ObjectFormat::Coff) => {
+            Some(AARCH64_DARWIN_CALL)
+        }
     }
 }
