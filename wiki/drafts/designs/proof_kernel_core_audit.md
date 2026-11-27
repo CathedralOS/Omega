@@ -1417,8 +1417,22 @@ type), and the clause's `ClauseScope` says what each name denotes there.
   result exists there.
 - **Kept, not yet known to be a rule.** These still name a position. Each
   may state a real rule, so none was removed:
-  - "call in a clause of a state other than the entry" (`unfold_definition`):
-    whether a clause may unfold a call of a machine's non-entry state.
+  - "call in a clause of a state other than the entry" (`unfold_definition`)
+    states a rule, and is now refused as that rule (2026-11-27). A call
+    "invokes its entry, not a saved activation or a private point inside its
+    body", and the source `state` declaration is retired
+    ([nested machines](../../spec/language/machines.md#nested-machines-and-identity)).
+    A clause's call is a call, so the same rule decides it. Resolution gives
+    a call only a machine or its entry state (`one::entry()` and
+    `one::helper()` resolve to nothing a call may name), so no source
+    program reaches the check. The three copies (`unfold`,
+    `unfold_definition` and `call_target_symbol` in `read/calls.rs`, which
+    raised "state other than the entry") are one: `clause_call_machine`
+    resolves the target through `call_target_symbol`, which refuses a
+    non-entry state with the `Violation`
+    `rejections::call_inside_a_machine_body` instead of "not supported yet"
+    (`a_call_runs_a_machine_from_its_entry_never_a_point_inside_it` in
+    `calls_visibility_tests.rs`).
   - "borrowed formal outside an admitted storage clause", "clause that
     projects a formal or result" and "extent without a structural subject"
     are no longer raised for a crash guard (2026-11-25). A published crash

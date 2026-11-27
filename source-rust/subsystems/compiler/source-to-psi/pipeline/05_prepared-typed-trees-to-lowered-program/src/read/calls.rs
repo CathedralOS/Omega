@@ -3285,14 +3285,18 @@ impl<'t> Program<'t> {
     /// Resolve the same exact entry identity for direct and selected calls.
     /// Selection decides which contract is exposed; it does not change which
     /// source machine owns this entry state.
-    fn call_target_symbol(&self, id: MachineId, target: SymbolHandle) -> Checked<SymbolHandle> {
+    pub(super) fn call_target_symbol(
+        &self,
+        id: MachineId,
+        target: SymbolHandle,
+    ) -> Checked<SymbolHandle> {
         Ok(match self.typed.symbols.get(target).kind {
             SymbolKind::Machine => target,
             SymbolKind::State => {
                 let parent = self.typed.symbols.get(target).parent;
                 let (_, state) = self.declaration(id, parent)?;
                 if state.symbol != target {
-                    return Err(refuse_at(id, Unserved::Call("state other than the entry")));
+                    return Err(super::rejections::call_inside_a_machine_body(id));
                 }
                 parent
             }
