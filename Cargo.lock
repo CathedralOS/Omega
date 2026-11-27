@@ -1400,6 +1400,7 @@ dependencies = [
 name = "native-binding-admission"
 version = "0.1.0"
 dependencies = [
+ "application-identity",
  "build-providers",
  "calling-conventions",
  "layout",

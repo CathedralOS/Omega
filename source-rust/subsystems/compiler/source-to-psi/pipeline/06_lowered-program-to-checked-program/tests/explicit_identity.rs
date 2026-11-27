@@ -525,3 +525,35 @@ fn only_its_implementation_sees_what_a_member_ensures_of_itself() {
     ));
     assert!(!owed.is_empty(), "{owed:?}");
 }
+
+#[test]
+fn the_operator_selects_the_comparison_a_law_is_about() {
+    let caller = "machine same(a: Coin, b: Coin)
+requires a == b
+ensures |proof|::Identity::<Coin>(a, b) {
+    CoinByBoth::identity_of_equal(a, b);
+}
+";
+    assert_eq!(unproved(&format!("{BOTH}{caller}")), unproved(BOTH));
+}
+
+#[test]
+fn an_evidence_implementation_is_the_type_s_one_comparison() {
+    match checked(&format!(
+        "{BOTH}CoinByValue satisfies Equatable<Coin> {{
+    machine equals(left: @Coin, right: @Coin) -> bool reaches none crashes none terminates {{
+        left.value == right.value
+    }}
+}}
+machine same(a: Coin, b: Coin) -> bool {{ a == b }}
+"
+    )) {
+        Err(refusal) => assert!(
+            refusal
+                .message
+                .contains("multiple Equatable implementations"),
+            "{refusal:?}"
+        ),
+        other => panic!("expected the operator to find two comparisons, got {other:?}"),
+    }
+}
