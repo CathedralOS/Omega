@@ -65,4 +65,52 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None currently recorded.
+<a id="equality-bridge-binding"></a>
+### 1. How should the two `==`/`Identity` bridge traits name the comparison they are about?
+
+The ratified explicit-identity design asks for two separately selectable
+evidence traits, comparison-implies-identity and identity-implies-comparison,
+"not optional `Equatable` members". The evidence "must bind the exact
+comparison row selected at the use, including its generic application", and
+"merely naming another conformance for the same carrier does not connect
+their equality implementations". None of these says how a trait declaration
+names that row, and `core/equality.omg` declares only `Equatable<T>`.
+[Core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition) ·
+[Equality bridges](wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts) ·
+[Complete row identity](wiki/spec/language/conformances.md#complete-row-identity) ·
+[Implementation sequence, step 3](wiki/drafts/designs/explicit_identity.md#implementation-sequence)
+
+Today a clause may state a user comparison (`requires a == b` reads as the
+selected row's `equals`), and a repeated comparison is congruent with it.
+Nothing lets `a == b` license substituting `a` for `b`, or `Identity(a, b)`
+establish `a == b`. The design's acceptance list needs both: integer records
+support both bridges, case-insensitive text supports only identity-implies-
+comparison, and an always-true comparison supports neither. Synthesized
+bridges for compiler-generated equality wait on the same answer. One fact
+constrains every option, observed in the checker: a clause can apply only an
+operation that promises `reaches none crashes none terminates`, and
+`Equatable::equals` promises none of them. A satisfier's own `equals` must
+say so, as it already must for `==` in a clause.
+
+- **Option A (inherit, recommended):** `EqualImpliesIdentity<T>: Equatable<T>`
+  and `IdentityImpliesEqual<T>: Equatable<T>`, each with one law over the
+  inherited `equals`, for example
+  `machine identity_of_equal(left: T, right: T) requires equals(@left, @right) ensures |proof|::Identity::<T>(left, right);`.
+  One implementation such as `CoinByValue satisfies EqualImpliesIdentity<Coin>`
+  supplies both the comparison and the law, so the law is about exactly the
+  row `==` selects. Inheritance keeps the row's identity
+  ([complete row identity](wiki/spec/language/conformances.md#complete-row-identity)).
+  A combined trait can inherit both. The checker would accept the law's
+  clause over the inherited `equals` because every satisfier's row must be
+  total, checked at the conformance.
+- **Option B (parameter):** `EqualImpliesIdentity<T, Comparison satisfies Equatable<T>>`,
+  as `PrivateCallbackSlot` names its `Layout`. The bridge is a second
+  implementation naming the comparison implementation explicitly, so one type
+  can carry bridges for several comparisons. It costs a second block per
+  type, and clause reading of a comparison named by a type parameter, which
+  the checker refuses today.
+
+Work waiting on the answer: the two traits in `core/equality.omg`, their
+checking and use in stage 05 and stage 06, synthesized bridges from component
+evidence, and the migration inventory in the design. Which shape should Omega
+adopt?
