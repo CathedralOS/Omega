@@ -6,6 +6,7 @@ version.workspace = true
 
 
 [dependencies]
+sha2 = "0.10.9"
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"
 
