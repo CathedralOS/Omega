@@ -98,6 +98,6 @@ fn a_saved_program_can_replace_its_owned_exchange_result() {
         program::invoke(ORDERED_ASSIGNMENT, &["--emit-psi", saved.to_str().unwrap()]);
     assert!(output.status.success(), "{report}");
     let bytes = std::fs::read(saved).unwrap();
-    terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+    let _received = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
         .expect("the received artifact admits the same owned assignment as its producer");
 }
