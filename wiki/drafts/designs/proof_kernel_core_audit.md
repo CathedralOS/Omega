@@ -1486,8 +1486,15 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     path at the call, and one over an element chosen at run time
     (`@rows[row]`) names that element, its selector kept as an index
     (`terminal_semantics::canonical_read_projection`, 2026-11-25). A
-    forwarder over a `@mutable` formal is refused whether or not it writes
-    the guarded element (fails closed).
+    forwarder over a `@mutable` formal is accepted while nothing has written
+    the array it received (2026-11-27): where the whole input still reaches
+    the call from entry, every cell holds its entry contents, so the call's
+    route reads `items[index]` in the form the forwarder's own entry route
+    states (`Storage::entry_read` with `EntryContents::Unwritten`). A write
+    to the guarded element first is refused, and so, conservatively, is a
+    write to any other part of the array before the call
+    (`a_mutable_forwarder_covers_the_call_only_while_the_element_is_unwritten`
+    in stage 06's `indexed_and_member_contracts.rs`).
   - "case membership" in a machine clause (`read_clause`) refused a form
     the specification admits, and is now served where the clause states the
     test outright (2026-11-24). A case is a domain: "A case implicitly
