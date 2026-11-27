@@ -1,13 +1,19 @@
 //! Psi 05 plans storage, claims and reference ends with affine ownership
 //! walks over the module as the loop has edited it so far. The walks over
-//! one unchanged module share callee summaries through one `AffineSummaries`
-//! table, and an edit starts another. Sharing must not change any answer:
-//! each walk gives exactly what it gives alone.
+//! one unchanged module share one `ModuleWalks` round: the module's
+//! `ModuleAnalyses` bundle, whose borrowed-storage rows each walk reads, and
+//! one table of callee summaries. An edit starts another round. Sharing must
+//! not change any answer: each walk gives exactly what it gives alone, and a
+//! loop that edits the module ends with the module that planning each
+//! machine alone produces.
 
 use super::*;
 use crate::body::{Borrowed, BorrowedReferent, Regions};
+use crate::lower::machine_order::ModuleWalks;
 use language_core::ReferenceAccess;
-use terminal_semantics::plain_affine::{self as affine, AffineSummaries, MachineAffine};
+use terminal_semantics::DescriptorRows;
+use terminal_semantics::descriptor_results::DescriptorSlotKind;
+use terminal_semantics::plain_affine as affine;
 
 const LEFT: u64 = 1;
 const RIGHT: u64 = 2;
@@ -95,14 +101,13 @@ fn ids(module: &terminal_psi::TerminalModule) -> Vec<MachineId> {
     module.machines.iter().map(|machine| machine.id).collect()
 }
 
-/// Every walk of `machine` that Psi 05 runs, through one shared table.
+/// Every walk of `machine` that Psi 05 runs, through one shared round.
 fn shared(
-    module: &terminal_psi::TerminalModule,
+    round: &ModuleWalks<'_>,
     machine: MachineId,
     candidates: &terminal_semantics::reference_ends::Candidates,
-    summaries: &AffineSummaries<'_>,
 ) -> String {
-    let walks = MachineAffine::new(module, machine, Some(summaries)).unwrap();
+    let walks = round.affine(machine).unwrap();
     format!(
         "{:?}\n{:?}\n{:?}",
         walks.plan(),
@@ -127,23 +132,32 @@ fn alone(
 }
 
 #[test]
-fn walks_sharing_the_candidates_table_answer_as_they_do_alone() {
+fn walks_sharing_one_round_answer_as_they_do_alone() {
     let module = chain().module;
     let candidates = terminal_semantics::reference_ends::candidates(&module)
         .ok()
         .expect("the chain has reference-end candidates");
     for order in [ids(&module), ids(&module).into_iter().rev().collect()] {
-        let summaries = AffineSummaries::new(&module);
-        let sharing = terminal_semantics::reference_ends::candidates_sharing(&module, &summaries)
+        let round = ModuleWalks::new(&module);
+        let sharing = round
+            .reference_end_candidates()
             .ok()
             .expect("sharing finds the same candidates");
         assert_eq!(sharing, candidates);
         // Finding the candidates replayed the callees once for the walks.
+        let summaries = round.summaries();
         assert!(summaries.holds(id(MIDDLE)) && summaries.holds(id(LEAF)));
+        // No body calls dynamically, so every closure reads the bundle's
+        // shared rows rather than rows adapted for that closure alone.
+        let analyses = round.analyses().expect("the chain repeats no machine");
+        assert!(matches!(
+            analyses.descriptor_closure(DescriptorSlotKind::BorrowedStorage, [id(LEFT)]),
+            Ok(DescriptorRows::Shared { .. })
+        ));
         for machine in order {
             let candidates = candidates.get(machine).unwrap();
             assert_eq!(
-                shared(&module, machine, candidates, &summaries),
+                shared(&round, machine, candidates),
                 alone(&module, machine, candidates),
                 "{machine:?}"
             );
@@ -154,7 +168,7 @@ fn walks_sharing_the_candidates_table_answer_as_they_do_alone() {
 /// `plan_then_apply` with a walk as its plan and an application that edits
 /// only `edited`, against the loop that plans each machine alone against
 /// the module as edited so far. Returns what each walk planned, whether the
-/// table it was given already held the middle machine, and the final module.
+/// round it was given already held the middle machine, and the final module.
 fn applied(
     workers: usize,
     edited: u64,
@@ -166,11 +180,10 @@ fn applied(
         .run(|| {
             crate::lower::machine_order::plan_then_apply(
                 &mut module,
-                |module, summaries, machine| {
-                    let held = summaries.holds(id(MIDDLE));
-                    let plan = MachineAffine::new(module, machine.id, Some(summaries))
-                        .and_then(|walks| walks.plan());
-                    let expected = affine::plan_in(module, machine.id);
+                |round, machine| {
+                    let held = round.summaries().holds(id(MIDDLE));
+                    let plan = round.affine(machine.id).and_then(|walks| walks.plan());
+                    let expected = affine::plan_in(round.module(), machine.id);
                     walked
                         .lock()
                         .unwrap()
@@ -195,10 +208,10 @@ fn applied(
 }
 
 #[test]
-fn applying_plans_shares_one_table_until_an_application_edits_a_machine() {
+fn applying_plans_shares_one_round_until_an_application_edits_a_machine() {
     // In order on one worker, the left walk replays the middle machine into
     // the table, and the right walk, against the same module, finds it there.
-    // The left edit starts a fresh table for the module it leaves.
+    // The left edit starts a fresh round for the module it leaves.
     let (unedited, module) = applied(1, 0);
     let held = |walked: &[(MachineId, String, bool)]| {
         walked
@@ -222,4 +235,51 @@ fn applying_plans_shares_one_table_until_an_application_edits_a_machine() {
     let (parallel, parallel_module) = applied(4, LEFT);
     assert_eq!(parallel_module, module);
     assert_eq!(parallel.len(), 2 * 4 - 1);
+}
+
+/// Storage planning as `finish_storage` runs it: each walk reads its round's
+/// bundle and table, and an application that changes a machine ends the
+/// round. The loop must leave exactly the module that planning each machine
+/// alone, against the module as edited so far, leaves.
+#[test]
+fn storage_rounds_through_shared_walks_leave_the_module_planning_alone_leaves() {
+    // The chain arrives with its storage installed, so its plans change no
+    // machine. Marking the left caller as well edits the module, and the
+    // walks after it must run in a new round over the edited module.
+    let install = |machine: &mut terminal_psi::TerminalMachine, plan: &affine::Plan| {
+        let installed = crate::install_storage_plan(machine, plan).expect("the plan installs");
+        if machine.id == id(LEFT) {
+            machine.attachment = Some(id(LEFT));
+            return true;
+        }
+        installed
+    };
+    let mut expected = chain().module;
+    for ordinal in 0..expected.machines.len() {
+        let plan = affine::plan_in(&expected, expected.machines[ordinal].id)
+            .expect("each machine plans alone");
+        let mut machine = expected.machines[ordinal].clone();
+        install(&mut machine, &plan);
+        expected.machines[ordinal] = machine;
+    }
+    assert_ne!(expected, chain().module);
+    for parallel in [false, true] {
+        let mut module = chain().module;
+        crate::lower::machine_order::plan_then_apply_with(
+            &mut module,
+            parallel,
+            |round, machine| round.affine(machine.id).and_then(|walks| walks.plan()),
+            |plan| {
+                plan.as_ref()
+                    .ok()
+                    .map(|plan| plan.graphed_machines.as_slice())
+            },
+            |machine, plan| {
+                let plan = plan.expect("each machine plans through its round");
+                Ok::<bool, ()>(install(machine, &plan))
+            },
+        )
+        .expect("every plan installs");
+        assert_eq!(module, expected, "parallel: {parallel}");
+    }
 }

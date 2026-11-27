@@ -446,18 +446,15 @@ pub(crate) fn publish(
     crate::lower::machine_order::plan_then_apply_with(
         module,
         parallel,
-        |module, summaries, machine| {
+        |walks, machine| {
             let reads = machine_ordinals
                 .as_deref()
                 .and_then(|ordinals| lookup_ordinal(ordinals, machine.id))
                 .and_then(|slot| read_sets.get(slot))
                 .and_then(Option::as_deref);
-            let plan = terminal_semantics::plain_affine::MachineAffine::new(
-                module,
-                machine.id,
-                Some(summaries),
-            )
-            .and_then(|walks| walks.plan_claims());
+            let plan = walks
+                .affine(machine.id)
+                .and_then(|walks| walks.plan_claims());
             PlannedClaims { reads, plan }
         },
         |planned| planned.reads,

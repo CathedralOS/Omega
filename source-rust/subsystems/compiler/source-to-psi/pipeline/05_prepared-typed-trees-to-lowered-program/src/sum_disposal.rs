@@ -3,6 +3,7 @@
 //! case before component cleanup runs (ownership.md: "only the active sum
 //! payload").
 
+use crate::lower::machine_order::ModuleWalks;
 use arena::IdTable;
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, PlaceId, StructuralTypeId};
 use terminal_check_tables::edges::{Destination, EdgeRow};
@@ -12,7 +13,7 @@ use terminal_psi::{
     Block, StructuralCaseSuccessorEdge, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalMachine, TerminalModule, TerminalRankedScc, Terminator,
 };
-use terminal_semantics::plain_affine::{AffineSummaries, Error, MachineAffine, Site};
+use terminal_semantics::plain_affine::{Error, Site};
 
 /// Bound per-machine expansions so a malformed cyclic graph cannot spin.
 const MAX_EXPANSIONS_PER_MACHINE: usize = 64;
@@ -35,15 +36,15 @@ pub(crate) fn expand_unmatched_sums(
     }
     // Machines are walked in order, each up to `MAX_EXPANSIONS_PER_MACHINE`
     // times, until a walk finds no edge to expand. Walks over the unchanged
-    // module share one callee-summary table; only an expansion changes the
-    // module, so only an expansion ends that table (`machine_order`).
+    // module share one `ModuleWalks` round; only an expansion changes the
+    // module, so only an expansion ends that round (`machine_order`).
     let machine_count = module.machines.len();
     let mut machine_index = 0;
     let mut walks_of_machine = 0;
     while machine_index < machine_count {
         let missing = {
             let module = &*module;
-            let summaries = AffineSummaries::new(module);
+            let walks = ModuleWalks::new(module);
             loop {
                 let Some(machine) = module.machines.get(machine_index) else {
                     break None;
@@ -52,7 +53,7 @@ pub(crate) fn expand_unmatched_sums(
                     && walks_of_machine < MAX_EXPANSIONS_PER_MACHINE
                 {
                     walks_of_machine += 1;
-                    if let Some(missing) = missing_active_case(module, machine.id, &summaries) {
+                    if let Some(missing) = missing_active_case(&walks, machine.id) {
                         break Some(missing);
                     }
                 }
@@ -100,12 +101,8 @@ type MissingCase = (
 /// The edge of `machine` whose disposal needs an active sum case, or `None`
 /// when its ownership walk finds no such edge (or refuses for any other
 /// reason, which planning reports later).
-fn missing_active_case(
-    module: &TerminalModule,
-    machine: MachineId,
-    summaries: &AffineSummaries<'_>,
-) -> Option<MissingCase> {
-    match MachineAffine::new(module, machine, Some(summaries)).and_then(|walks| walks.plan()) {
+fn missing_active_case(walks: &ModuleWalks<'_>, machine: MachineId) -> Option<MissingCase> {
+    match walks.affine(machine).and_then(|walks| walks.plan()) {
         Err(Error::MissingActiveCase {
             place,
             path,
