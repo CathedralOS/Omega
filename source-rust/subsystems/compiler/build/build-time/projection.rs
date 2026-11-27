@@ -593,7 +593,19 @@ mod tests {
                 requires: Vec::new(),
             });
         let closed = terminal_codec::ClosedTerminalModule::new(module).unwrap();
-        (TerminalProgram::load(closed.semantic_bytes()).unwrap(), id)
+        (
+            {
+                let record =
+                    terminal_codec::build_identity_optimization_execution_record(closed.module())
+                        .unwrap();
+                let artifact = terminal_codec::CanonicalTerminalArtifact::from_closed_parts(
+                    closed, record, None,
+                )
+                .unwrap();
+                TerminalProgram::retain(artifact.retain_code()).unwrap()
+            },
+            id,
+        )
     }
 
     #[test]

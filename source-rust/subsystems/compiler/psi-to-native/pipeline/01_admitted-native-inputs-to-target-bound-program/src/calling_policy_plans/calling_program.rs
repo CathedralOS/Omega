@@ -43,7 +43,10 @@ impl CallingProgram {
     /// selection, and pass that analysis to every [`Self::evaluate`] under
     /// those providers, so the whole-program callable projection is built once
     /// rather than twice per policy.
-    pub fn terminal_program(&self) -> terminal_interpreter::TerminalProgram<'_> {
+    pub fn terminal_program(
+        &self,
+    ) -> Result<terminal_interpreter::TerminalProgram<'_>, psi_authorization::ArtifactTrustError>
+    {
         terminal_interpreter::TerminalProgram::borrow(self.artifact.view())
     }
 

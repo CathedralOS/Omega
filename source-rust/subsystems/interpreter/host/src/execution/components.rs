@@ -17,7 +17,11 @@ pub(super) fn prepare<'host, 'artifact>(
     memory_ordering: Option<terminal_interpreter::TerminalMemoryOrderingEnvironment>,
 ) -> Result<TerminalComponentBinding<'host, 'artifact>, TerminalRuntimeError> {
     let artifact = component.artifact().view();
-    let program = TerminalProgram::borrow(artifact);
+    let program = TerminalProgram::borrow(artifact).map_err(|_| {
+        TerminalRuntimeError::InvalidProvision(
+            "received component Psi requires the host's authorization of its exact artifact",
+        )
+    })?;
     let runtime = component.runtime();
     if runtime.identity() != program.terminal_psi()
         || runtime.entry() != component.selection().candidate()

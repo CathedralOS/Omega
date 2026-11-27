@@ -147,7 +147,8 @@ impl PreparedBuildMachineEntry {
             .ok_or("source invocation lost its declaration selections")?
             .admit(produced.view(), &authorities)?;
         use terminal_interpreter::TerminalProgram;
-        let program = TerminalProgram::borrow(produced.view());
+        let program =
+            TerminalProgram::borrow(produced.view()).map_err(|error| error.to_string())?;
         let unselected =
             psi_provider_selections::admit_provider_execution_installation(produced.view(), &[])
                 .map_err(|error| format!("source invocation provider admission: {error:?}"))?;
@@ -230,6 +231,7 @@ impl PreparedBuildMachineEntry {
         layouts: Option<&psi_target_layouts::AdmittedTargetLayouts>,
     ) -> Result<terminal_interpreter::TerminalRuntimeSupplies, String> {
         terminal_interpreter::TerminalProgram::borrow(view)
+            .map_err(|error| error.to_string())?
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
                 native_code_layouts: None,
                 x86_flags: None,

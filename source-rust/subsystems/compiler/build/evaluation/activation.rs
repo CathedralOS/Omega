@@ -361,7 +361,7 @@ impl TerminalBuildHost {
     ) -> Result<Arc<Self>, String> {
         let artifact = produced.view();
         let parameter = machine.receiver_for(artifact.module())?;
-        let program = TerminalProgram::borrow(artifact);
+        let program = TerminalProgram::borrow(artifact).map_err(|error| error.to_string())?;
         let entry = program.entry().map_err(describe)?;
         // The evaluator is the build entry's caller, so it owes the entry's
         // `requires` clauses before it runs anything. It hands the entry a
@@ -488,7 +488,8 @@ impl TerminalBuildHost {
 
     fn instantiate(self: &Arc<Self>) -> Result<TerminalInstance<'static, 'static>, String> {
         let artifact = self.produced.view();
-        let program = TerminalProgram::retain(self.produced.retain_code());
+        let program = TerminalProgram::retain(self.produced.retain_code())
+            .map_err(|error| error.to_string())?;
         let request_calls = self
             .produced
             .build_requests()

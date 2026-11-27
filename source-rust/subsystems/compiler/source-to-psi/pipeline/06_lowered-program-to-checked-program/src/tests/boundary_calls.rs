@@ -2213,7 +2213,8 @@ fn a_declared_conformers_name_invokes_its_requirement() {
         unreachable!()
     };
     let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
@@ -2883,7 +2884,8 @@ fn a_declared_conformer_inherits_a_bare_required_termination_promise() {
         unreachable!()
     };
     let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
@@ -2984,7 +2986,8 @@ fn a_named_owned_inline_member_calls_through_its_requirement() {
         unreachable!()
     };
     let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
@@ -3317,7 +3320,8 @@ fn assert_named_invocation_value(
         unreachable!()
     };
     let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))

@@ -110,7 +110,8 @@ fn a_local_public_nonreturn_still_ends_the_callers_path() {
     };
     assert_eq!(accepted.elaboration.unreachable_statements().count(), 1);
     let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))

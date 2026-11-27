@@ -351,7 +351,7 @@ machine build_entry() -> bool {
         panic!("both overloads must compile in the same Build");
     };
     let publication = checked.publish_invocation().unwrap();
-    let program = TerminalProgram::borrow(publication.artifact.view());
+    let program = TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     assert!(matches!(
         instance

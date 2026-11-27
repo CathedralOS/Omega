@@ -261,7 +261,7 @@ machine main() -> bool reaches Gate invokes Gate suspends {
     initial_value == 3 && cell == 7
 }";
     let checked = accepted(source).publish_invocation().unwrap();
-    let program = TerminalProgram::borrow(checked.artifact.view());
+    let program = TerminalProgram::borrow(checked.artifact.view()).unwrap();
     let imports: Vec<_> = program.imports().collect();
     let [gate] = imports.as_slice() else {
         panic!("one callable host slot expected")
@@ -653,7 +653,8 @@ fn a_call_with_no_normal_return_keeps_its_acknowledgement() {
             ))
     );
     let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(32))

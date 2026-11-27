@@ -268,7 +268,13 @@ impl<'program> HostedTerminalProgram<'program> {
         request: TerminalRuntimeRequest<'program>,
     ) -> Result<Self, TerminalRuntimeError> {
         let artifact = request.artifact.view();
-        let program = TerminalProgram::borrow(artifact);
+        // Received Psi executes only after the host authorized its exact
+        // artifact and producer (`psi_authorization::authorize_terminal_artifact`).
+        let program = TerminalProgram::borrow(artifact).map_err(|_| {
+            TerminalRuntimeError::InvalidProvision(
+                "received Psi requires the host's authorization of its exact artifact and producer",
+            )
+        })?;
         if let Some(entry) = request.entry {
             if entry.terminal_psi_identity() != program.terminal_psi() {
                 return Err(TerminalRuntimeError::InvalidProvision(

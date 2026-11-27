@@ -115,16 +115,19 @@ values only known while running stays in execution. Measured on `main`
 The table depends on what loading does today. A program reaches execution by
 one of two routes:
 
-- **Bytes** (`TerminalProgram::load`, `load_envelope`,
-  `TerminalExecution::start_artifact`). `decode_closed_parts`
+- **Received** (`TerminalProgram::admit`, `retain_authorized`,
+  `TerminalExecution::start_artifact`). The host decodes the bytes
+  (`CanonicalTerminalArtifact::from_bytes`), which marks the closed module as
+  received, and authorizes the exact artifact and producer with
+  `psi_authorization::authorize_terminal_artifact`. Only that authorized copy
+  executes; `borrow` and `retain` refuse received code with
+  `ArtifactTrustError::ProducerTrustRequired`. `decode_closed_parts`
   (`psi/artifact/wire/src/semantic_module.rs`) decodes canonically, then runs
   `validate_storage_foundation` and `validate_structural_foundation`
   (`foundation_validation.rs`). The latter calls
   `machine_foundations::validate_machine` and `validate_operation_foundation`
   on every machine and operation. Decoding does **not** run the lowered-form
-  checker. These routes also take no host trust witness yet
-  ([admission plan](../../../wiki/drafts/designs/psi_claim_admission.md),
-  step 1), so they can receive bytes that no checker accepted.
+  checker; the host's trust in the producer stands in for it.
 - **In process** (`TerminalProgram::borrow`, `retain`). The module comes from
   this process's compiler after the lowered-form checker accepted it.
   `ClosedTerminalModule::new` only seals it: `encode_closed_execution_module`
@@ -132,9 +135,11 @@ one of two routes:
   validators above.
 
 So "covered" below means covered on both routes. A property that only the
-checker establishes is not covered on the bytes route until execution entries
-require trust. Until then, removing its refusal would let an unchecked artifact
-reach code that assumes it. Under AGENTS.md rule 2 such a check moves into a
+checker establishes is covered on the received route only by the host's trust
+in the producer. Untrusted execution
+([admission plan](../../../wiki/drafts/designs/psi_claim_admission.md), step 5)
+would let an unchecked artifact reach code that assumes it, so removing a
+refusal still needs a preparation check on every route. Under AGENTS.md rule 2 such a check moves into a
 preparation pass that runs on every route. It is never just deleted. The
 [admission contract](../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
 asks for exactly this split: preparation computes declaration-dependent check
@@ -191,9 +196,11 @@ the trust witness or a definition-before-use pass.
 
 This crate exposes the public API of the accepted
 [embedding contract](../../../wiki/spec/build/embedding.md), not only the raw
-hook. `TerminalProgram::load` decodes canonical semantic bytes, `load_envelope`
-reads the portable envelope, and `borrow` uses an existing canonical artifact
-view. All three keep immutable shared code. `instantiate` starts an independent
+hook. `admit` executes an artifact the host authorized
+(`psi_authorization::AuthorizedTerminalArtifact`), and `borrow` and `retain`
+reuse code this process produced; they refuse code decoded from bytes. All
+keep immutable shared code. Inspection needs no authorization: decode with
+`CanonicalTerminalArtifact::from_bytes` and read the module. `instantiate` starts an independent
 instance without reading the bytes again. Its `TerminalInstantiation` request
 carries scalar and structural inputs, an optional admitted installation and an
 optional Terminal invocation account; there is no separate route for installed
@@ -581,7 +588,7 @@ written prefix; buffer writeback grants none.
 ## Fixed byte arrays
 
 `TerminalExecution::start_artifact`, the only start entry since `8e2dc8b8ade91`,
-supplies initialized fixed-array contents through
+takes a host-authorized artifact and supplies initialized fixed-array contents through
 `TerminalStructuralInputs.byte_arrays`, by structural argument and relative
 field path. Each value must match a real unqualified `FixedArray(u8, N)` and
 hold exactly `N` bytes. Duplicate referents, mistyped paths, and fabricated storage

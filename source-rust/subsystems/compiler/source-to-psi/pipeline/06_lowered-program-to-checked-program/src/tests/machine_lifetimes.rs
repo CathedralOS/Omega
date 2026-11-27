@@ -432,7 +432,8 @@ fn a_literal_match_keeps_each_incoming_view_for_a_caller_chosen_result() {
         panic!("the literal match must be judged: {verdict:?}");
     };
     let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))

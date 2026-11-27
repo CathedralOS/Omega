@@ -4,7 +4,7 @@
 #[test]
 fn runtime_borrows_the_produced_terminal_storage() {
     let source = include_str!("execution.rs");
-    assert!(source.contains("TerminalProgram::borrow(artifact)"));
+    assert!(source.contains("TerminalProgram::borrow(artifact).map_err("));
     assert!(!source.contains("TerminalProgram::load("));
     assert!(!source.contains("semantic_bytes()"));
 }

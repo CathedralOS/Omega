@@ -38,7 +38,8 @@ fn assert_operator_value(verdict: Result<RouteVerdict, String>, expected: bool) 
         panic!("enum operator was not accepted");
     };
     let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))

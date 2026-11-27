@@ -158,7 +158,16 @@ fn program() -> std::sync::Arc<CanonicalTerminalArtifact> {
         .retain_completion(ScalarConditionSubject::Module, application(1));
     let optimized = build_identity_optimization_execution_record(&module).unwrap();
     let artifact = CanonicalTerminalArtifact::from_parts(module, optimized, None).unwrap();
-    std::sync::Arc::new(CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap())
+    // Evaluate the program a host receives: its reopened bytes, authorized
+    // for this producer.
+    let received =
+        std::sync::Arc::new(CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap());
+    let host = psi_authorization::HostProducerTrust::accept("scalar evaluation test host");
+    std::sync::Arc::clone(
+        psi_authorization::authorize_terminal_artifact(received, Some(&host))
+            .unwrap()
+            .shared_artifact(),
+    )
 }
 fn unscoped(artifact: &CanonicalTerminalArtifact) -> ScalarScopeEvaluation {
     ScalarScopeEvaluation {

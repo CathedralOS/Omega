@@ -136,7 +136,9 @@ impl SelectedProgramEntryCallingPlans {
             return Err("semantic and physical entry signatures must be distinct".into());
         }
         let target = slot.owner;
-        let terminal = program.terminal_program();
+        let terminal = program
+            .terminal_program()
+            .map_err(|error| error.to_string())?;
         let analysis = terminal.callable_analysis(Some(admission.providers()));
         let semantic_calling_application = program.evaluate(
             &analysis,

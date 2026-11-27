@@ -268,7 +268,8 @@ fn executed_source(text: &str) {
     // A formed contract must still survive publication and execution of the
     // same body. A bodyless boundary is checked separately without a provider.
     let publication = accepted_source(text).publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
@@ -769,7 +770,8 @@ machine build_entry() {
         ),
     );
     let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     assert_eq!(
         instance

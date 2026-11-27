@@ -136,6 +136,7 @@ fn verify_publication(
             accepted_assumptions: AcceptedComponentAssumptions::PendingConsumerAcceptance,
         },
     )
+    .and_then(|checked| checked.with_executable_artifact(&artifact))
     .map_err(|why| refuse(why.to_string()))?;
     Ok(Supplier {
         component: Arc::new(checked),

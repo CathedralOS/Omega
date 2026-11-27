@@ -181,7 +181,7 @@ impl<'input> ArtifactInvocation<'input> {
     > {
         let view = self.input.code;
         let meter = &mut *self.meter;
-        let program = TerminalProgram::borrow(view);
+        let program = TerminalProgram::borrow(view).map_err(|error| error.to_string())?;
         let entry = program
             .entry_installed(self.input.supplies)
             .map_err(|error| format!("source invocation entry: {error:?}"))?;

@@ -76,7 +76,8 @@ mod tests {
         let (_, admitted) = receive(Arc::clone(&reopened), Some(&host))
             .unwrap()
             .into_parts();
-        assert!(Arc::ptr_eq(admitted.shared_artifact(), &reopened));
+        assert_eq!(admitted.artifact(), reopened.as_ref());
+        assert!(!admitted.artifact().requires_host_trust());
 
         let debug = TerminalDebugMap {
             semantic: original.view().identity(),
