@@ -23,6 +23,7 @@ use crate::{
 use diagnostics::Diagnostic;
 use language_core::build_protocol::SELECTION_PROTOCOL;
 use language_core::build_protocol::SelectionProtocolOperation;
+use language_core::bundled_files::BuildCompanionFile;
 use semantic_vocabulary::{BoundaryMachineId, InvocationSite, StructuralTypeId};
 use std::sync::Arc;
 use symbols::SymbolHandle;
@@ -312,6 +313,21 @@ pub(crate) fn produce(
     Ok(companions)
 }
 
+/// Whether source admission recognized the file declaring `owner` as the
+/// installed Build companion `expected`. Admission checks the supplier, path
+/// and complete bytes once per file.
+fn declared_in_companion(
+    source: &TypedTrees,
+    owner: SymbolHandle,
+    expected: BuildCompanionFile,
+) -> bool {
+    source
+        .symbols
+        .symbol_source_span(owner)
+        .and_then(|span| source.symbols.build_companion_file(span))
+        == Some(expected)
+}
+
 /// A matching declaration in a user package or a modified toolchain file cannot
 /// acquire a stream service. Call-site and artifact custody are attached above.
 fn sandbox_stream_operation(
@@ -319,20 +335,10 @@ fn sandbox_stream_operation(
     owner: SymbolHandle,
     operation: &str,
 ) -> Option<TerminalBuildRequestOperation> {
-    use TerminalBuildRequestOperation as Action;
-    if source.symbols.name(owner) != "SandboxOutput" || operation != "write" {
-        return None;
-    }
-    let file = source
-        .symbols
-        .source_file(source.symbols.symbol_source_span(owner)?)?;
-    (file.origin == source_admission::SourceOrigin::ToolchainLibrary
-        && file.package_identity.is_none()
-        && file.package_root.file_name()?.to_str()? == "core"
-        && file.path.strip_prefix(&file.package_root).ok()?
-            == std::path::Path::new("sandbox/streams.omg")
-        && file.source.as_bytes() == bundled_declarations::BUILD_STREAMS)
-        .then_some(Action::SandboxWrite)
+    (source.symbols.name(owner) == "SandboxOutput"
+        && operation == "write"
+        && declared_in_companion(source, owner, BuildCompanionFile::SandboxStreams))
+    .then_some(TerminalBuildRequestOperation::SandboxWrite)
 }
 
 /// The invocation may supply the installed system's public filesystem operations.
@@ -354,16 +360,17 @@ fn installed_filesystem_operation(
         "create_dir" => TerminalBuildFilesystemOperation::CreateDirectory,
         _ => return None,
     };
+    if !declared_in_companion(source, owner, BuildCompanionFile::SystemFilesystem) {
+        return None;
+    }
     let file = source
         .symbols
         .symbol_source_span(owner)
         .and_then(|span| source.symbols.source_file(span))?;
-    (file.origin == source_admission::SourceOrigin::User
-        && file.package_identity.is_some()
-        && file.path.strip_prefix(&file.package_root).ok()
-            == Some(std::path::Path::new("filesystem.omg"))
-        && file.source.as_bytes() == bundled_declarations::SYSTEM_FILESYSTEM
-        && source.symbols.source_files().any(|core| {
+    source
+        .symbols
+        .source_files()
+        .any(|core| {
             core.origin == source_admission::SourceOrigin::Toolchain
                 && core.package_identity.is_none()
                 && core
@@ -374,33 +381,17 @@ fn installed_filesystem_operation(
                     .package_root
                     .parent()
                     .is_some_and(|root| root.join("system") == file.package_root)
-        }))
-    .then_some(action)
+        })
+        .then_some(action)
 }
 
 /// Only the checked machine in the installed Build library may ask the host
 /// for this operation. Matching a local trait, method or import alias confers
 /// no authority.
 fn is_installed_launcher(source: &TypedTrees, owner: SymbolHandle, operation: &str) -> bool {
-    if source.symbols.name(owner) != "Launcher" || operation != "run" {
-        return false;
-    }
-    let Some(file) = source
-        .symbols
-        .symbol_source_span(owner)
-        .and_then(|span| source.symbols.source_file(span))
-    else {
-        return false;
-    };
-    file.origin == source_admission::SourceOrigin::ToolchainLibrary
-        && file.package_identity.is_none()
-        && file
-            .package_root
-            .file_name()
-            .is_some_and(|name| name == "build")
-        && file.path.strip_prefix(&file.package_root).ok()
-            == Some(std::path::Path::new("program.omg"))
-        && file.source.as_bytes() == bundled_declarations::BUILD_PROGRAM
+    source.symbols.name(owner) == "Launcher"
+        && operation == "run"
+        && declared_in_companion(source, owner, BuildCompanionFile::BuildProgram)
 }
 
 fn designated_selection<'a>(

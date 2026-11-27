@@ -91,6 +91,54 @@ macro_rules! define_files {
 }
 bundled_library_files!(define_files);
 
+/// Installed library files whose declarations may ask the Build host for a
+/// service. Source admission recognizes each one once, by its supplier,
+/// package directory, package-relative path and complete bytes, so the Build
+/// companion publisher reads that recognition instead of comparing the file.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BuildCompanionFile {
+    /// `SandboxOutput::write` acquires the Build's standard output stream.
+    SandboxStreams,
+    /// `Launcher::run` asks the host to launch a checked program.
+    BuildProgram,
+    /// The installed system package's public filesystem operations.
+    SystemFilesystem,
+}
+
+impl BuildCompanionFile {
+    pub const ALL: [Self; 3] = [
+        Self::SandboxStreams,
+        Self::BuildProgram,
+        Self::SystemFilesystem,
+    ];
+
+    /// The library package directory that supplies this file.
+    pub const fn package_directory(self) -> &'static str {
+        match self {
+            Self::SandboxStreams => "core",
+            Self::BuildProgram => "build",
+            Self::SystemFilesystem => "system",
+        }
+    }
+
+    /// Path relative to the supplying package's root.
+    pub const fn package_relative_path(self) -> &'static str {
+        match self {
+            Self::SandboxStreams => "sandbox/streams.omg",
+            Self::BuildProgram => "program.omg",
+            Self::SystemFilesystem => "filesystem.omg",
+        }
+    }
+
+    /// Match a package directory name and package-relative path.
+    pub fn from_package_path(directory: &std::ffi::OsStr, path: &std::path::Path) -> Option<Self> {
+        Self::ALL.into_iter().find(|file| {
+            directory == file.package_directory()
+                && path == std::path::Path::new(file.package_relative_path())
+        })
+    }
+}
+
 /// Expected source revisions for the core owners retained in saved programs.
 pub mod core_revision {
     include!(concat!(env!("OUT_DIR"), "/core_revisions.rs"));

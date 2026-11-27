@@ -1,5 +1,5 @@
 //! Source settlement owns activation, visibility and the mutable source catalogue.
-use language_core::bundled_files::BundledFile;
+use language_core::bundled_files::{BuildCompanionFile, BundledFile};
 use record_storage::{Record, RecordError, RecordReader, RecordWriter};
 use source_admission::SourceFile;
 use source_admission::SourceOrigin;
@@ -37,7 +37,7 @@ pub trait InvocationSourceConsent: Send + Sync {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SourceMap {
     files: Vec<SourceFile>,
-    bundled_core_files: Vec<Option<BundledFile>>,
+    bundled_files: Vec<Option<AdmittedBundledFile>>, // Recognized once per file at admission; parallel to `files`.
     selection: SourceSelection,
     source_rejoins: Vec<(SourceId, SourceId)>, // Producer-issued correspondence when an anonymous Build capture becomes a Product instance.
     product_dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>, // Authorized `DependencyPurpose::Product` alias edges by requester.
@@ -68,15 +68,12 @@ impl Record for SourceMap {
             let query_dependencies =
                 Option::<(PathBuf, BTreeMap<String, PackageKeyIdentity>)>::read(input)?;
             let returned_product = Option::<ReturnedBuildProduct>::read(input)?;
-            // Re-authenticate bundled core files against the running compiler's
+            // Re-authenticate bundled files against the running compiler's
             // embedded bytes rather than trusting a persisted tag on decode.
-            let bundled_core_files = files
-                .iter()
-                .map(crate::source_symbols::recognize_bundled_core_file)
-                .collect();
+            let bundled_files = files.iter().map(recognize_bundled_file).collect();
             Ok(Self {
                 files,
-                bundled_core_files,
+                bundled_files,
                 selection,
                 source_rejoins,
                 product_dependencies,
@@ -85,6 +82,24 @@ impl Record for SourceMap {
             })
         })
     }
+}
+
+/// A file source admission matched against the compiler's embedded library
+/// bytes. Core files and Build companions require different suppliers, so a
+/// file is at most one of them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AdmittedBundledFile {
+    Core(BundledFile),
+    BuildCompanion(BuildCompanionFile),
+}
+
+fn recognize_bundled_file(file: &SourceFile) -> Option<AdmittedBundledFile> {
+    crate::source_symbols::recognize_bundled_core_file(file)
+        .map(AdmittedBundledFile::Core)
+        .or_else(|| {
+            crate::source_symbols::recognize_build_companion_file(file)
+                .map(AdmittedBundledFile::BuildCompanion)
+        })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
@@ -124,7 +139,7 @@ impl SourceCatalogue {
     pub fn begin_selection(&self) -> SourceMap {
         SourceMap {
             files: self.backing.files.clone(),
-            bundled_core_files: self.backing.bundled_core_files.clone(),
+            bundled_files: self.backing.bundled_files.clone(),
             selection: SourceSelection::Explicit(vec![false; self.backing.files.len()]),
             source_rejoins: Vec::new(),
             product_dependencies: BTreeMap::new(),
@@ -241,8 +256,8 @@ impl SourceCatalogue {
             .files
             .extend_from_slice(&self.backing.files[previous_length..]);
         selection
-            .bundled_core_files
-            .extend_from_slice(&self.backing.bundled_core_files[previous_length..]);
+            .bundled_files
+            .extend_from_slice(&self.backing.bundled_files[previous_length..]);
         if let SourceSelection::Explicit(selected) = &mut selection.selection {
             selected.resize(self.backing.files.len(), false);
             selected[admitted.0] = true;
@@ -262,13 +277,10 @@ impl SourceSelection {
 
 impl SourceMap {
     pub fn from_files(files: Vec<SourceFile>) -> Self {
-        let bundled_core_files = files
-            .iter()
-            .map(crate::source_symbols::recognize_bundled_core_file)
-            .collect();
+        let bundled_files = files.iter().map(recognize_bundled_file).collect();
         Self {
             files,
-            bundled_core_files,
+            bundled_files,
             selection: SourceSelection::All,
             source_rejoins: Vec::new(),
             product_dependencies: BTreeMap::new(),
@@ -447,12 +459,14 @@ impl SourceMap {
             }
         }
         let selection = &self.selection;
-        for file in &mut self.files {
+        for (file, bundled) in self.files.iter_mut().zip(&mut self.bundled_files) {
             if !selection.includes(file.source_id) {
                 continue;
             }
             if file.origin == SourceOrigin::User && file.package_identity.is_none() {
                 file.package_identity = Some(identity);
+                // Recognition depends on the package owner, so re-read it.
+                *bundled = recognize_bundled_file(file);
             }
         }
         Ok(())
@@ -709,9 +723,9 @@ impl SourceMap {
             resolution_stratum,
             source: source.into(),
         };
-        let bundled = crate::source_symbols::recognize_bundled_core_file(&file);
+        let bundled = recognize_bundled_file(&file);
         self.files.push(file);
-        self.bundled_core_files.push(bundled);
+        self.bundled_files.push(bundled);
         if let SourceSelection::Explicit(selected) = &mut self.selection {
             selected.push(true);
         }
@@ -727,7 +741,18 @@ impl SourceMap {
 
     /// Bundled core file recognized at admission for `source_id`, if any.
     pub fn bundled_core_file(&self, source_id: SourceId) -> Option<BundledFile> {
-        self.bundled_core_files.get(source_id.0).copied().flatten()
+        match self.bundled_files.get(source_id.0).copied().flatten()? {
+            AdmittedBundledFile::Core(file) => Some(file),
+            AdmittedBundledFile::BuildCompanion(_) => None,
+        }
+    }
+
+    /// Installed Build companion file recognized at admission for `source_id`.
+    pub fn build_companion_file(&self, source_id: SourceId) -> Option<BuildCompanionFile> {
+        match self.bundled_files.get(source_id.0).copied().flatten()? {
+            AdmittedBundledFile::BuildCompanion(file) => Some(file),
+            AdmittedBundledFile::Core(_) => None,
+        }
     }
 
     pub fn file_at(&self, source_span: SourceSpan) -> Option<&SourceFile> {
@@ -1420,5 +1445,136 @@ mod identity_tests {
         assert_eq!(restored.bundled_core_file(edited_id), None);
         assert_eq!(restored.bundled_core_file(wrong_path_id), None);
         assert_eq!(restored.bundled_core_file(packaged_id), None);
+    }
+
+    /*
+        Build companions are recognized once at admission: each needs its
+        installed supplier, package directory, package-relative path and exact
+        bytes. A copy from any other supplier, an edited file, or a core file
+        is not a companion, and decoding re-authenticates the same answer.
+    */
+    #[test]
+    fn build_companions_are_authenticated_at_admission_and_record_decode() {
+        let text = |file| {
+            std::str::from_utf8(bundled_declarations::build_companion_bytes(file))
+                .unwrap()
+                .to_owned()
+        };
+        let streams = text(BuildCompanionFile::SandboxStreams);
+        let program = text(BuildCompanionFile::BuildProgram);
+        let filesystem = text(BuildCompanionFile::SystemFilesystem);
+        let package = source_provenance::PackageKeyIdentity::from_digest([7; 32]);
+        let mut sources = SourceMap::default();
+        let mut admit = |path: &str, text: &str, root: &str, packaged: bool, origin| {
+            sources
+                .add_with_metadata(
+                    PathBuf::from(path),
+                    text.to_owned(),
+                    PathBuf::from(root),
+                    package.filter(|_| packaged),
+                    origin,
+                )
+                .source_id
+        };
+        let library = SourceOrigin::ToolchainLibrary;
+        let streams_id = admit(
+            "/compiler/core/sandbox/streams.omg",
+            &streams,
+            "/compiler/core",
+            false,
+            library,
+        );
+        let program_id = admit(
+            "/compiler/build/program.omg",
+            &program,
+            "/compiler/build",
+            false,
+            library,
+        );
+        let filesystem_id = admit(
+            "/compiler/system/filesystem.omg",
+            &filesystem,
+            "/compiler/system",
+            true,
+            SourceOrigin::User,
+        );
+        let user_streams_id = admit(
+            "/workspace/core/sandbox/streams.omg",
+            &streams,
+            "/workspace/core",
+            false,
+            SourceOrigin::User,
+        );
+        let packaged_program_id = admit(
+            "/compiler/build/program.omg",
+            &program,
+            "/compiler/build",
+            true,
+            library,
+        );
+        let edited_program_id = admit(
+            "/compiler/build/program.omg",
+            &format!("{program}\n// edited"),
+            "/compiler/build",
+            false,
+            library,
+        );
+        let wrong_directory_id = admit(
+            "/compiler/tools/program.omg",
+            &program,
+            "/compiler/tools",
+            false,
+            library,
+        );
+        let unowned_filesystem_id = admit(
+            "/compiler/system/filesystem.omg",
+            &filesystem,
+            "/compiler/system",
+            false,
+            SourceOrigin::User,
+        );
+        let expected = [
+            (streams_id, Some(BuildCompanionFile::SandboxStreams)),
+            (program_id, Some(BuildCompanionFile::BuildProgram)),
+            (filesystem_id, Some(BuildCompanionFile::SystemFilesystem)),
+            (user_streams_id, None),
+            (packaged_program_id, None),
+            (edited_program_id, None),
+            (wrong_directory_id, None),
+            (unowned_filesystem_id, None),
+        ];
+        for (id, companion) in expected {
+            assert_eq!(sources.build_companion_file(id), companion, "{id:?}");
+            assert_eq!(sources.bundled_core_file(id), None, "{id:?}");
+        }
+
+        let limits = record_storage::RecordLimits::default();
+        let bytes = record_storage::encode(&sources, limits).unwrap();
+        let restored: SourceMap = record_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(restored, sources);
+        for (id, companion) in expected {
+            assert_eq!(restored.build_companion_file(id), companion, "{id:?}");
+        }
+
+        // Giving the unowned system file a package owner makes it the
+        // installed companion; recognition follows the owner change.
+        let mut captured = SourceMap::default();
+        let unowned = captured
+            .add_with_metadata(
+                PathBuf::from("/compiler/system/filesystem.omg"),
+                filesystem,
+                PathBuf::from("/compiler/system"),
+                None,
+                SourceOrigin::User,
+            )
+            .source_id;
+        assert_eq!(captured.build_companion_file(unowned), None);
+        captured
+            .bind_anonymous_owner(std::path::Path::new("/compiler/system"), package.unwrap())
+            .unwrap();
+        assert_eq!(
+            captured.build_companion_file(unowned),
+            Some(BuildCompanionFile::SystemFilesystem)
+        );
     }
 }
