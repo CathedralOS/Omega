@@ -92,25 +92,10 @@ public machine main() crashes Trap {
 ";
 
 /// A view, or a window of one, casts to a fixed-array reference that reads
-/// the view's own elements.
+/// the view's own elements, on Psi and in native code.
 #[test]
 fn a_view_casts_to_a_fixed_array_reference_of_its_proven_length() {
-    let scratch = stage("view-to-array", VIEW_TO_ARRAY);
-    let (output, report) = observations::run(&scratch, &["run", "--engine", "psi"], &["build.omg"]);
-    assert!(output.status.success(), "{report}");
-}
-
-/// Native code does not yet form a reference into a view's payload, and says
-/// so instead of compiling something else.
-#[test]
-fn native_code_refuses_a_fixed_array_reference_into_a_view() {
-    let scratch = stage("view-to-array-native", VIEW_TO_ARRAY);
-    let (output, report) = observations::run(&scratch, &["run"], &["build.omg"]);
-    assert!(!output.status.success(), "{report}");
-    assert!(
-        report.contains("UnsupportedFixedArrayViewReference"),
-        "{report}"
-    );
+    observations::assert_silent_return(|| stage("view-to-array", VIEW_TO_ARRAY), &["build.omg"]);
 }
 
 /// The cast needs a proof that the view holds exactly `N` elements.

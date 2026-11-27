@@ -3,7 +3,7 @@
 use crate::preparation::LegalizationError as Error;
 use crate::preparation::legalization::runtime_indices::retained_operands;
 use crate::preparation::legalization_source::scalar_graph::instruction::{
-    call_instructions, project_reference, storage_instructions as storage,
+    call_instructions, project_fixed_array, project_reference, storage_instructions as storage,
 };
 use legalized_operations::LegalizedScalarInstructionKind as Kind;
 use semantic_vocabulary::{MachineId, OperationId, ScalarType, ValueId};
@@ -46,6 +46,7 @@ pub(crate) fn project(
         Operation::EstablishReference { .. } | Operation::EstablishAccessReference { .. } => {
             project_reference(machine, facts, row)?
         }
+        Operation::ElementViewFixedArray { .. } => project_fixed_array(machine, facts, row)?,
         Operation::PrimitiveScalarRead { .. } => {
             storage::project_primitive_scalar_read(machine, facts, row)?
         }
