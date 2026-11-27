@@ -59,7 +59,7 @@ linux_x86_64` refuses these twins too, naming the `windows_x86_64` Build row.
 
 Each place has `invalid_<place>/main.omg`. The root duplicates local. Every
 positive binds all four hosted ProgramEntry targets, expects zero and must run with
-`omega run --both`. A returned difference is tested only after the subtraction;
+`mbx xtask sample-gate --filter samples/cli/facts/independent_call_result_bound`. A returned difference is tested only after the subtraction;
 that observation does not supply its formation proof. Replacing the final
 `difference == 0` with `difference == 1` makes every place trap on both engines.
 
@@ -94,7 +94,7 @@ On the Windows x86-64 workstation, with a debug producer built from
 `42ce2aad3206` plus this change, `omega --check --target windows_x86_64` checks
 the root and all nine positives and refuses all nine twins with the fragment above.
 An earlier Linux x86-64 run (`1efc2536b3bc`, opt-level 1) observed native and
-interpreter exit 0 for all nine positives from `omega run --both`, and a trap on
+interpreter exit 0 for all nine positives from the native/Psi comparison, and a trap on
 both engines for all nine corrupted-oracle controls; it predates the re-expressed
 twins. Windows and macOS execution of these sources is not observed; binding a
 hosted target does not establish execution on that host.

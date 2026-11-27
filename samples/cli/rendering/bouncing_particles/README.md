@@ -7,9 +7,11 @@ remain valid until a write changes one of their operands.
 After ordinary local package review, run:
 
 ```sh
-omega run --engine native samples/cli/rendering/bouncing_particles/main.omg < /dev/null
-omega run --engine psi samples/cli/rendering/bouncing_particles/main.omg < /dev/null
+omega run samples/cli/rendering/bouncing_particles/main.omg < /dev/null
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/rendering/bouncing_particles` from the repository root.
 
 On Linux x86_64, native execution exits 0. The checked interpreter currently
 declines `LinuxClockWait::poll` because it has no selected Clock provider.

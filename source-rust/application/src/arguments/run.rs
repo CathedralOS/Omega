@@ -1,9 +1,6 @@
-//! Parse the engine, inputs and observation destination for an application run.
-
-use crate::execution::ExecutionSelection;
+//! Parse inputs, runtime configuration and observation output for an application run.
 
 pub(crate) struct RunArguments {
-    pub(crate) selection: ExecutionSelection,
     pub(crate) build_directories: platform_custody::directory_mappings::DirectoryMappings,
     pub(crate) run_directories: platform_custody::directory_mappings::DirectoryMappings,
     pub(crate) build_inputs: Option<package_compilation::BuildSourceCaptureRequest>,
@@ -21,13 +18,13 @@ pub(crate) struct RunArguments {
 
 macro_rules! run_help {
     (synopsis) => {
-        "omega run [--engine <native|psi>] [--build-directories-readonly <host::/guest>]... [--build-directories-readwrite <host::/guest>]... [--run-directories-readonly <host::/guest>]... [--run-directories-readwrite <host::/guest>]... [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name>] [--inputs <dir> | --input <file>...] [--outputs <dir>] [--trusted-artifact <manifest-id>] [--max-psi-input-bytes <bytes>] <root.omg|program.psi>"
+        "omega run [--build-directories-readonly <host::/guest>]... [--build-directories-readwrite <host::/guest>]... [--run-directories-readonly <host::/guest>]... [--run-directories-readwrite <host::/guest>]... [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name>] [--inputs <dir> | --input <file>...] [--outputs <dir>] [--trusted-artifact <manifest-id>] [--max-psi-input-bytes <bytes>] <root.omg|program.psi>"
     };
     (host_packages) => {
         "For saved Psi, OMEGA_HOST_PACKAGE_LOCK selects an absolute path to the host's reviewed omega.lock. Set OMEGA_HOST_PACKAGE_LOCK_SHA256 to its approved SHA-256 digest."
     };
     (work_budget) => {
-        "--psi-work-budget applies to --engine psi."
+        "--psi-work-budget sets the work limit for interpreted execution."
     };
 }
 pub(super) use run_help;
@@ -39,7 +36,7 @@ pub(super) const USAGE: &str = concat!(
     run_help!(work_budget),
     "\n",
     run_help!(host_packages),
-    "\nFor a single engine, --outputs <new-dir> writes raw stdout, stderr and termination.tsv. The command succeeds when it records a completed execution, including a guest crash or nonzero exit.\nWith --target, the native engine emits artifacts\nwithout running the program, even when the target matches this host.\nWith --engine psi, --target selects the target environment for Psi execution.",
+    "\nomega run lowers Omega source to Psi and interprets it, or interprets a trusted saved Psi program.\nFor a single run, --outputs <new-dir> writes raw stdout, stderr and termination.tsv. The command succeeds when it records a completed execution, including a guest crash or nonzero exit.\n--target selects the target environment for interpretation.",
 );
 
 pub(super) fn parse_arguments(
@@ -48,7 +45,6 @@ pub(super) fn parse_arguments(
     let mut build_inputs = Vec::new();
     let mut build_directories = Default::default();
     let mut run_directories = Default::default();
-    let mut engine = None;
     let mut psi_work_budget = None;
     let mut private_entry_ram = Vec::new();
     let mut help = false;
@@ -73,18 +69,6 @@ pub(super) fn parse_arguments(
             }
             Some("--help" | "-h") => super::set_flag(&mut help, &argument.to_string_lossy())?,
             Some("--offline") => return Err("omega run does not support --offline".into()),
-            Some("--engine") => super::set_once(&mut engine, "--engine", || {
-                let value =
-                    super::option_value(arguments).ok_or("--engine requires `native` or `psi`")?;
-                match value.to_str() {
-                    Some("native") => Ok(ExecutionSelection::Native),
-                    Some("psi") => Ok(ExecutionSelection::Terminal),
-                    _ => Err(format!(
-                        "--engine requires `native` or `psi`, not `{}`",
-                        value.to_string_lossy()
-                    )),
-                }
-            })?,
             Some("--keep") => super::set_flag(&mut keep, "--keep")?,
             Some("--psi-work-budget") => {
                 super::set_once(&mut psi_work_budget, "--psi-work-budget", || {
@@ -182,29 +166,12 @@ pub(super) fn parse_arguments(
             })?,
         }
     }
-    let selection = engine.unwrap_or_default();
-    let terminal = selection == ExecutionSelection::Terminal;
-    if !terminal && !run_directories.is_empty() {
-        return Err("Product directory mappings require --engine psi".into());
-    }
     let cases = inputs.is_some() || !input_files.is_empty();
     if inputs.is_some() && !input_files.is_empty() {
         return Err("use either --inputs <dir> or --input <file>, not both".into());
     }
     if cases && outputs.is_none() {
         return Err("--inputs or --input is used together with --outputs".into());
-    }
-    if outputs.is_some() && !cases && !terminal && target_name.is_some() {
-        return Err("--outputs requires an executing single engine or an input case list".into());
-    }
-    if cases && target_name.is_some() && !terminal {
-        return Err(
-            "native case runs require host execution; --target with cases requires --engine psi"
-                .into(),
-        );
-    }
-    if psi_work_budget.is_some() && !terminal {
-        return Err("--psi-work-budget requires --engine psi".into());
     }
     if help {
         return Ok(None);
@@ -236,7 +203,6 @@ pub(super) fn parse_arguments(
         build_directories,
         run_directories,
         private_entry_ram,
-        selection,
         psi_work_budget,
         keep,
         target_name,
@@ -251,7 +217,6 @@ pub(super) fn parse_arguments(
 mod tests {
     use super::parse_arguments;
     use crate::arguments::Arguments;
-    use crate::execution::ExecutionSelection;
 
     fn parse(arguments: &[&str]) -> Result<super::RunArguments, String> {
         parse_arguments(&mut Arguments::new(
@@ -263,18 +228,7 @@ mod tests {
     #[test]
     fn every_execution_route_retains_the_same_caller_source_inventory() {
         use package_compilation::BuildSourceCaptureObligation::{Optional, Required};
-        for route in [
-            vec!["--engine", "native"],
-            vec!["--engine", "psi"],
-            vec![
-                "--engine",
-                "native",
-                "--input",
-                "case.stdin",
-                "--outputs",
-                "out",
-            ],
-        ] {
+        for route in [vec![], vec!["--input", "case.stdin", "--outputs", "out"]] {
             let mut arguments = route;
             arguments.extend([
                 "--build-input",
@@ -324,17 +278,8 @@ mod tests {
 
     #[test]
     fn inputs_and_outputs_select_a_case_run() {
-        let arguments = parse(&[
-            "--engine",
-            "native",
-            "--inputs",
-            "data",
-            "--outputs",
-            "out",
-            "main.omg",
-        ])
-        .expect("case run parses");
-        assert_eq!(arguments.selection, ExecutionSelection::Native);
+        let arguments =
+            parse(&["--inputs", "data", "--outputs", "out", "main.omg"]).expect("case run parses");
         assert_eq!(
             arguments.inputs.as_deref(),
             Some(std::path::Path::new("data"))
@@ -346,10 +291,8 @@ mod tests {
     }
 
     #[test]
-    fn inputs_need_outputs_and_only_psi_can_select_a_target() {
+    fn input_cases_can_set_a_target_and_require_outputs() {
         let psi = parse(&[
-            "--engine",
-            "psi",
             "--target",
             "linux_arm64",
             "--inputs",
@@ -361,22 +304,7 @@ mod tests {
         .unwrap();
         assert_eq!(psi.target_name.as_deref(), Some("linux_arm64"));
         assert!(parse(&["--inputs", "data", "main.omg"]).is_err());
-        for engine in ["native", "psi"] {
-            assert!(parse(&["--engine", engine, "--outputs", "out", "main.omg"]).is_ok());
-        }
-        assert!(parse(&["--target", "linux_x86_64", "--outputs", "out", "main.omg"]).is_err());
-        assert!(
-            parse(&[
-                "--inputs",
-                "d",
-                "--outputs",
-                "o",
-                "--target",
-                "linux_x86_64",
-                "main.omg"
-            ])
-            .is_err()
-        );
+        assert!(parse(&["--target", "linux_x86_64", "--outputs", "out", "main.omg"]).is_ok());
         assert!(
             parse(&[
                 "--inputs",
@@ -420,21 +348,15 @@ mod tests {
     }
 
     #[test]
-    fn psi_work_budget_is_explicit_and_order_independent() {
-        let arguments = parse(&[
-            "--psi-work-budget",
-            "100000000",
-            "--engine",
-            "psi",
-            "main.omg",
-        ])
-        .expect("positive host reference allowance parses");
+    fn psi_work_budget_is_optional() {
+        let arguments = parse(&["--psi-work-budget", "100000000", "main.omg"])
+            .expect("positive host reference allowance parses");
         assert_eq!(
             arguments.psi_work_budget.map(std::num::NonZeroU64::get),
             Some(100_000_000)
         );
         assert!(
-            parse(&["--engine", "psi", "main.omg"])
+            parse(&["main.omg"])
                 .expect("default allowance parses")
                 .psi_work_budget
                 .is_none()
@@ -442,89 +364,19 @@ mod tests {
     }
 
     #[test]
-    fn engine_selects_one_execution_and_defaults_to_native() {
-        for (arguments, expected) in [
-            (vec!["main.omg"], ExecutionSelection::Native),
-            (
-                vec!["--engine", "native", "main.omg"],
-                ExecutionSelection::Native,
-            ),
-            (
-                vec!["--engine", "psi", "main.omg"],
-                ExecutionSelection::Terminal,
-            ),
-            (
-                vec!["main.omg", "--engine", "psi"],
-                ExecutionSelection::Terminal,
-            ),
-            (
-                vec!["--engine", "psi", "--target", "linux_x86_64", "main.omg"],
-                ExecutionSelection::Terminal,
-            ),
-            (
-                vec!["--engine", "psi", "--psi-work-budget", "5", "main.omg"],
-                ExecutionSelection::Terminal,
-            ),
-        ] {
-            assert_eq!(
-                parse(&arguments).expect("engine parses").selection,
-                expected
-            );
+    fn psi_work_budget_rejects_invalid_or_repeated_values() {
+        for value in ["0", "-1", "many", "18446744073709551616"] {
+            assert!(parse(&["--psi-work-budget", value, "main.omg"]).is_err());
         }
-    }
-
-    #[test]
-    fn engine_rejects_both_unknown_names_and_duplicates() {
-        for arguments in [
-            vec!["--both", "main.omg"],
-            vec!["--engine", "jit", "main.omg"],
-            vec!["--engine", "terminal", "main.omg"],
-            vec!["--engine", "main.omg"],
-            vec!["--engine", "native", "--engine", "psi", "main.omg"],
-            vec!["--engine", "native", "--psi-work-budget", "5", "main.omg"],
-        ] {
-            assert!(parse(&arguments).is_err(), "{arguments:?} should reject");
-        }
-    }
-
-    #[test]
-    fn psi_work_budget_rejects_invalid_or_unused_requests() {
         assert!(
             parse(&[
-                "--engine",
-                "psi",
-                "--terminal-fuel-allowance",
-                "1",
-                "main.omg"
-            ])
-            .is_err()
-        );
-        for value in ["0", "-1", "many", "18446744073709551616"] {
-            assert!(parse(&["--engine", "psi", "--psi-work-budget", value, "main.omg"]).is_err());
-        }
-        for arguments in [
-            vec!["--psi-work-budget", "--engine", "psi", "main.omg"],
-            vec!["--psi-work-budget", "1", "main.omg"],
-            vec![
-                "--engine",
-                "native",
-                "--target",
-                "linux_x86_64",
-                "--psi-work-budget",
-                "1",
-                "main.omg",
-            ],
-            vec![
-                "--engine",
-                "psi",
                 "--psi-work-budget",
                 "1",
                 "--psi-work-budget",
                 "2",
-                "main.omg",
-            ],
-        ] {
-            assert!(parse(&arguments).is_err());
-        }
+                "main.omg"
+            ])
+            .is_err()
+        );
     }
 }

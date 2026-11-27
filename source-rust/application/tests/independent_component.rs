@@ -145,7 +145,7 @@ fn a_windows_arm64_consumer_imports_the_slot_exported_by_its_component() {
             .unwrap();
         assert!(native.status.success(), "{native:?}");
         let psi = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["run", "--engine", "psi", "--target", "windows_arm64"])
+            .args(["run", "--target", "windows_arm64"])
             .arg(consumer.join("build.omg"))
             .output()
             .unwrap();
@@ -251,7 +251,7 @@ fn independent_packages_can_call_an_independently_compiled_supplier() {
     );
     require_native_suppliers(&consumer, &root.join("out"), 2);
     let interpreted = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--engine", "psi", "--target", "linux_x86_64"])
+        .args(["run", "--target", "linux_x86_64"])
         .arg(build)
         .output()
         .unwrap();
@@ -372,8 +372,6 @@ fn independent_wait_uses_the_selected_export_and_the_callers_private_cell() {
                 &application,
                 &[
                     "run",
-                    "--engine",
-                    "psi",
                     "--target",
                     "linux_x86_64",
                     "--psi-work-budget",
@@ -385,7 +383,7 @@ fn independent_wait_uses_the_selected_export_and_the_callers_private_cell() {
             for report in [&diagnostic, &psi_diagnostic] {
                 assert!(
                     report.contains("synchronization deadlock")
-                        && report.contains("the call retries on an unchanged private atomic cell"),
+                        && report.contains("unchanged private atomic"),
                     "{report}"
                 );
             }
@@ -562,16 +560,16 @@ machine dispatch(signal: @|signals|::Signal) reaches |signals|::Wait invokes |si
                 [&admitted],
                 |_| None,
             );
-            if provider.ends_with("::TwoWaits")
-                || (provider.ends_with("::ObservedWait") && lend_before_wait)
-            {
+            if provider.ends_with("::TwoWaits") {
                 let failure =
                     failure.expect("an unprojected or unvisited input obligation stays open");
                 assert_eq!(failure.cause, ProgressFailure::UnprovedImport);
                 if !use_descriptor {
                     assert_eq!(failure.machine, entry);
                 }
-            } else if provider.ends_with("::ObservedWait") && requires.is_empty() {
+            } else if provider.ends_with("::ObservedWait")
+                && (requires.is_empty() || lend_before_wait)
+            {
                 let failure =
                     failure.expect("the installed provider may never see an enabled value");
                 assert_eq!(failure.cause, ProgressFailure::Unproved);
@@ -634,8 +632,6 @@ fn a_fused_wait_uses_the_body_selected_by_the_actual_target() {
             ][..],
             &[
                 "run",
-                "--engine",
-                "psi",
                 "--target",
                 "linux_x86_64",
                 "--psi-work-budget",

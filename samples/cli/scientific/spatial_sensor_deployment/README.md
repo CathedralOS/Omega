@@ -54,14 +54,14 @@ From the repository root, with a compiler built from the same checkout:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-omega packages update --project samples/cli/independent/spatial_sensor_deployment --target linux_x86_64
+omega packages update --project samples/cli/scientific/spatial_sensor_deployment --target linux_x86_64
 # Read the produced review. Accept only its documented decisions, then resume.
-omega packages update --resume --project samples/cli/independent/spatial_sensor_deployment
-omega --check --target linux_x86_64 samples/cli/independent/spatial_sensor_deployment/main.omg
-printf 0 | omega run --both --keep samples/cli/independent/spatial_sensor_deployment/main.omg
+omega packages update --resume --project samples/cli/scientific/spatial_sensor_deployment
+omega --check --target linux_x86_64 samples/cli/scientific/spatial_sensor_deployment/main.omg
+printf 0 | omega run --keep samples/cli/scientific/spatial_sensor_deployment/main.omg
 ```
 
-`omega run --both` compares termination and the exact stdout and stderr bytes from
+The comparison checks termination and the exact stdout and stderr bytes from
 both engines. The corpus harness normalizes
 line endings; numeric tolerance is zero. Its per-engine stdout facts and
 pre-execution fixture hashes are retained in `build/terminal-validation/`;

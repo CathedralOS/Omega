@@ -25,7 +25,7 @@ the companion must retain 43 after the loans end. The runtime comparison is the 
 post-hoc proof granting access to the write. Each reject twin changes only the
 plan's write permission, including its named constant in `const_name`.
 
-Run each place with `omega run --both <place>/main.omg`. All four hosted targets
+Run each place with `mbx xtask sample-gate --filter samples/cli/facts/placed_stable_write/<place>`. All four hosted targets
 are bound; actual execution evidence currently covers macOS ARM64 only.
 
 | Place | Transport exercised |

@@ -1,5 +1,5 @@
 // Expected exit: 0. Expected output contains: 41
-// Run: omega run --both --keep --entry-ram 0=2900000003000000 main.omg
+// Run: omega run --keep --entry-ram 0=2900000003000000 main.omg
 // The explicit runtime recipe constructs original Registers{status:41,transmit:3}
 // before lending this direct entry parameter. Read32@0 yields41; write8@4 stores9.
 // Native and captured Terminal streams must contain41 followed by LF. After

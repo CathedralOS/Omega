@@ -8,7 +8,7 @@
 //! value/comparison ladders and predicate-domain guards require a wildcard".
 //!
 //! The wildcard and proved-coverage fixtures must select the same values in
-//! both engines. A gap between two comparisons owes a proof at the last guard.
+//! the interpreter and the built executable. A gap between two comparisons owes a proof at the last guard.
 
 #[path = "support/observations.rs"]
 mod observations;

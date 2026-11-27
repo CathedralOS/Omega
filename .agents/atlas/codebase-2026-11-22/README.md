@@ -10,6 +10,9 @@ on it.
 
 Track current repairs, earlier fixes and outstanding claims in the [Atlas repair queue](triage/README.md).
 
+For the current CLI contract, see [standalone interpretation](../../../wiki/spec/build/embedding.md#standalone-interpretation).
+The run comparisons recorded here used the [November 22 driver](https://github.com/CathedralOS/Omega/tree/4f3c255d05599c11b1ea8ac668635f15f2a6eb86/source-rust/application/src).
+
 ## Verified follow-ups
 
 The counts below describe the November 22 survey. The area digests also record fixes verified after that revision.
@@ -117,11 +120,11 @@ see first:
   refuses (`psi/artifact/callable-encoding/src/certificates.rs:219-362` against `:453-676`); evidence seals
   in a `PSIART` artifact go through the same reader. Whether any program produces those rules was not
   traced (digest 08, unit 037).
-- At the survey revision, `omega run --both` could report agreement when the native and Psi runs
+- At the survey revision, the CLI could report agreement when the native and Psi runs
   printed different output. [#5188](https://github.com/CathedralOS/Omega/pull/5188) fixed the CLI
-  comparison for single runs and input cases. Both stdout and stderr must now match byte for byte.
+  comparison for single runs and input cases. That check required both stdout and stderr to match byte for byte.
   The separate [Build test comparison](../../../wiki/spec/build/testing.md#comparing-native-and-psi-tests)
-  specified in [#5187](https://github.com/CathedralOS/Omega/pull/5187) remains open.
+  was specified in [#5187](https://github.com/CathedralOS/Omega/pull/5187).
 - The compiler entry accepts its own output with `HostProducerTrust::accept("current compiler invocation")`
   on every compilation (`compiler.rs:103-109`), and the Build program reaches the interpreter with no
   separate authorization step (`build/evaluation/activation.rs:405-410`) (`boundaries/outputs_and_drivers.md`).

@@ -13,13 +13,11 @@ From the repository root, with the current `omega` executable:
 omega packages update --project samples/gui/window_app --target macos_arm64 --offline
 # If review is required, inspect the reported file and decide its pending rows.
 omega packages update --resume --project samples/gui/window_app --offline
-omega run --keep samples/gui/window_app/main.omg
+omega --build-dir build samples/gui/window_app/main.omg
 ```
 
 Run `--resume` only after an update requests review. Local source identities
-belong to the checkout, so moving it requires fresh review. The run command
-omits `--target` to execute on the host; `--keep` retains the reported build
-folder and its `window_app.app`. Launch that bundle separately with:
+belong to the checkout, so moving it requires fresh review. Launch the published bundle with:
 
 ```sh
 open -n /path/reported/by/omega/window_app.app

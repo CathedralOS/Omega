@@ -189,8 +189,8 @@ impl<'m> Frame<'m> {
                         .structural_type(op.result.structural()?.structural_type)?
                         .shape;
                     match shape.cases().first() {
-                        Some(first) => Stored::Zero.select_case(first.id),
-                        None => Stored::Zero,
+                        Some(first) => Stored::ZERO.select_case(first.id),
+                        None => Stored::ZERO,
                     }
                 } else {
                     Stored::Unknown
@@ -371,10 +371,7 @@ impl<'m> Frame<'m> {
                         match (expect, proposal) {
                             (Some(expected), _) if observed == Some(expected) => proposal.into(),
                             (Some(expected), _) if proposal == Some(expected) => return Some(()),
-                            (
-                                Some(ScalarFact::Literal(expected)),
-                                Some(ScalarFact::Literal(replacement)),
-                            ) => memory
+                            (Some(expected), Some(replacement)) => memory
                                 .get(&location)
                                 .after_update(CellUpdate::CompareExchange {
                                     expected,

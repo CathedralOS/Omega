@@ -28,7 +28,7 @@ as the original 85/11/17 result, so choosing the wrong arm or skipping the
 helper cannot silently pass. The helper's explicit result lifetime relates the
 returned view to the destination input, independently of the marker.
 
-Acceptance is `omega run --both <place>/main.omg`: native execution and the Terminal Psi
+Acceptance is `mbx xtask sample-gate --filter samples/cli/facts/write_only_reference_store/<place>`: native execution and the Terminal Psi
 interpreter must both exit 0. Each `invalid/main.omg` must reject for observing write-only
 contents. The nine places are `local`, `field`, `parameter`, `call_result`, `match_join`,
 `const_name`, `other_state` (a nested machine), `other_machine`, and `target_body`. All
@@ -94,7 +94,7 @@ and [checked boundary providers](../../../../wiki/spec/terminal-psi/boundary_cal
 
 All nine places execute with native and Terminal exit 0 on Linux x86-64. All
 nine twins reject for observing write-only contents. The root program and all
-nine places also pass the ordinary `omega run --both` sample path, with the
+nine places also pass the ordinary the native/Psi comparison sample path, with the
 invalid projects matching their authored rejection expectations.
 
 [The integrated focused run](https://github.com/CathedralOS/Omega/actions/runs/41528819705)

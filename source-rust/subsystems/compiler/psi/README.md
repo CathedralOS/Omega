@@ -1,6 +1,6 @@
 # Psi
 
-[Psi](psi.rs) is the portable program that source stage 07 publishes and both execution engines read. Start with the fields of `struct Psi`. The instruction vocabulary, the entry and the machine bodies appear directly on that record. The other fields name the tables their instructions and declarations use.
+[Psi](psi.rs) is the portable program that source stage 07 publishes. The interpreter executes it directly, and the native compiler lowers it to machine code. Start with the fields of `struct Psi`. The instruction vocabulary, the entry and the machine bodies appear directly on that record. The other fields name the tables their instructions and declarations use.
 
 | Field | Definition |
 | --- | --- |

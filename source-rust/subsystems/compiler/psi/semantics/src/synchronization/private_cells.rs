@@ -4,8 +4,8 @@
 mod activation;
 mod aggregate;
 mod computed;
+mod continuation;
 mod control;
-mod imports;
 mod opaque_calls;
 mod storage;
 mod successor;
@@ -117,14 +117,24 @@ pub fn private_wait_failure(
             Some(Advance::Blocked(failure)) => {
                 unproved.get_or_insert(failure);
             }
-            None if imported_obligations => {
-                if let Some(failure) =
-                    imports::unproved_continuation(module, &path.stack, &boundary, &computed)
-                {
+            Some(Advance::Terminated) => {}
+            outcome @ (Some(Advance::OpaqueReturn) | None) => {
+                let opaque_return = matches!(outcome, Some(Advance::OpaqueReturn));
+                if !opaque_return && !imported_obligations {
+                    continue;
+                }
+                if let Some(failure) = continuation::unproved(
+                    module,
+                    &path.stack,
+                    &boundary,
+                    &computed,
+                    &mut summaries,
+                    opaque_return,
+                    imported_obligations,
+                ) {
                     unproved.get_or_insert(failure);
                 }
             }
-            None => {}
         }
     }
     unproved
@@ -132,6 +142,8 @@ pub fn private_wait_failure(
 
 enum Advance {
     Continue,
+    Terminated,
+    OpaqueReturn,
     Fork(std::borrow::Cow<'static, [usize]>),
     Blocked(PrivateWaitFailure),
 }
@@ -150,40 +162,33 @@ fn advance<'m>(
     let stack = &mut path.stack;
     while let Some(frame) = stack.last_mut() {
         if let Some(op) = frame.block.operations.get(frame.position) {
-            let (selected, arguments, structural_arguments) = if let Some(call) =
-                op.declared_invocation()
-            {
-                let Some(selected) = SelectedCall::resolve(call.callee, boundary) else {
-                    let terminal_psi::TargetMachineCallable::Boundary(slot) = call.callee else {
+            let (selected, arguments, structural_arguments) =
+                if let Some(call) = op.declared_invocation() {
+                    (
+                        SelectedCall::resolve(call.callee, boundary),
+                        call.arguments,
+                        call.structural_arguments,
+                    )
+                } else if let Some(call) = op.kind.callable_invocation() {
+                    let reached = computed.site(module, boundary, frame.machine.id, op.id)?;
+                    let [callee] = reached.selected_machines.as_slice() else {
                         return None;
                     };
-                    if !opaque_calls::returns_without_storage(module, slot, op, &call)? {
-                        path.coverage = control::Coverage::Partial;
+                    if !reached.targets_are_resolved() {
+                        return None;
                     }
+                    (
+                        Some(SelectedCall::Local(*callee)),
+                        call.arguments,
+                        call.structural_arguments,
+                    )
+                } else {
+                    frame.step(module, op, memory)?;
                     frame.position += 1;
-                    return Some(Advance::Continue);
+                    continue;
                 };
-                (selected, call.arguments, call.structural_arguments)
-            } else if let Some(call) = op.kind.callable_invocation() {
-                let reached = computed.site(module, boundary, frame.machine.id, op.id)?;
-                let [callee] = reached.selected_machines.as_slice() else {
-                    return None;
-                };
-                if !reached.targets_are_resolved() {
-                    return None;
-                }
-                (
-                    SelectedCall::Local(*callee),
-                    call.arguments,
-                    call.structural_arguments,
-                )
-            } else {
-                frame.step(module, op, memory)?;
-                frame.position += 1;
-                continue;
-            };
             let spin = match selected {
-                SelectedCall::Local(id) => {
+                Some(SelectedCall::Local(id)) => {
                     if let Some(summary) = summaries.get(module, id, boundary) {
                         summary
                     } else {
@@ -205,8 +210,38 @@ fn advance<'m>(
                         continue;
                     }
                 }
-                SelectedCall::ImportedWait(wait) => wait,
-                SelectedCall::UnresolvedImport => {
+                Some(SelectedCall::ImportedWait(wait)) => wait,
+                None | Some(SelectedCall::PendingProvider) => {
+                    let call = op.declared_invocation()?;
+                    let terminal_psi::TargetMachineCallable::Boundary(slot) = call.callee else {
+                        return None;
+                    };
+                    let row = module.boundary_machine(slot)?;
+                    if row.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn {
+                        return Some(Advance::Terminated);
+                    }
+                    let pending = selected.is_some();
+                    let transfer = opaque_calls::normal_return(
+                        module,
+                        row,
+                        op,
+                        &call,
+                        &frame.bindings,
+                        memory,
+                        pending,
+                    );
+                    frame.position += 1;
+                    match transfer {
+                        None if !pending && scope == ProgressScope::Executable => {
+                            return Some(Advance::OpaqueReturn);
+                        }
+                        None => return None,
+                        Some(false) => path.coverage = control::Coverage::Partial,
+                        Some(true) => {}
+                    }
+                    return Some(Advance::Continue);
+                }
+                Some(SelectedCall::UnresolvedImport) => {
                     return Some(Advance::Blocked(PrivateWaitFailure {
                         machine: frame.machine.id,
                         operation: op.id,

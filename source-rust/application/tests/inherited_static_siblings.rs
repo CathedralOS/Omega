@@ -12,21 +12,21 @@ fn fixture_path(tier: &str, fixture_name: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn inherited_static_siblings_run_in_both_engines() {
-    assert_runs_in_both_engines("inherited_static_siblings");
+fn inherited_static_siblings_run_when_interpreted_and_built() {
+    assert_runs_when_interpreted_and_built("inherited_static_siblings");
 }
 
 #[test]
 fn selected_trait_defaults_keep_their_lexical_helpers() {
-    assert_runs_in_both_engines("trait_default_helpers");
+    assert_runs_when_interpreted_and_built("trait_default_helpers");
 }
 
 #[test]
 fn selected_maps_pass_their_own_private_callback() {
-    assert_runs_in_both_engines("private_map_callback");
+    assert_runs_when_interpreted_and_built("private_map_callback");
 }
 
-fn assert_runs_in_both_engines(fixture: &str) {
+fn assert_runs_when_interpreted_and_built(fixture: &str) {
     program::assert_fixture_silent_return(&fixture_path("run", fixture));
 }
 

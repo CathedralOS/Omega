@@ -24,7 +24,7 @@ fn default_build_selects_only_the_named_files_main() {
         "{}",
         String::from_utf8_lossy(&built.stderr)
     );
-    let run = project::omega(root, &["run", "--engine", "psi", "chosen.omg"]);
+    let run = project::omega(root, &["run", "chosen.omg"]);
     assert!(
         run.status.success(),
         "{}",
@@ -48,17 +48,7 @@ fn a_renamed_build_can_select_a_product_from_the_same_file() {
     let root = scratch.path();
     std::fs::write(root.join("build.omg"), "machine build() {}").unwrap();
     std::fs::write(root.join("release.omg"), format!("{BUILD}{MAIN}")).unwrap();
-    let run = project::omega(
-        root,
-        &[
-            "run",
-            "--engine",
-            "psi",
-            "--target",
-            "linux_x86_64",
-            "release.omg",
-        ],
-    );
+    let run = project::omega(root, &["run", "--target", "linux_x86_64", "release.omg"]);
     assert!(
         run.status.success(),
         "{}",
@@ -70,17 +60,7 @@ fn a_renamed_build_can_select_a_product_from_the_same_file() {
         format!("{BUILD}{MAIN}").replace("main", "launch"),
     )
     .unwrap();
-    let alternate = project::omega(
-        root,
-        &[
-            "run",
-            "--engine",
-            "psi",
-            "--target",
-            "linux_x86_64",
-            "release.omg",
-        ],
-    );
+    let alternate = project::omega(root, &["run", "--target", "linux_x86_64", "release.omg"]);
     assert!(
         alternate.status.success(),
         "{}",
@@ -126,7 +106,7 @@ fn private_ram_can_only_initialize_an_installed_argument() {
     std::fs::write(root.join("build.omg"), BUILD).unwrap();
     std::fs::write(root.join("main.omg"), MAIN).unwrap();
     let run = |ram: bool| {
-        let mut args = vec!["run", "--engine", "psi", "--target", "linux_x86_64"];
+        let mut args = vec!["run", "--target", "linux_x86_64"];
         if ram {
             args.extend(["--entry-ram", "0=29000000"]);
         }

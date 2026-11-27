@@ -70,16 +70,16 @@ fn default_only(name: &str, main: &str) -> TemporaryDirectory {
     project::stage(name, &[("build.omg", &defaults), ("main.omg", main)])
 }
 
-fn assert_runs_on_each_engine(root: &std::path::Path) {
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let report = omega(&["run", "--engine", engine, "build.omg"], root);
-        assert!(report.lines().any(|line| line == expected), "{report}");
+fn assert_runs_when_interpreted_and_built(root: &std::path::Path) {
+    for command in ["run", "build"] {
+        let result = project::observe(root, &[command, "build.omg"]);
+        assert!(result.status.success(), "{result:?}");
     }
 }
 
 #[test]
 fn a_chosen_dependency_default_is_laid_out_for_its_target_and_runs() {
-    assert_runs_on_each_engine(&fixture());
+    assert_runs_when_interpreted_and_built(&fixture());
 }
 
 #[test]
@@ -88,7 +88,7 @@ fn an_unchosen_dependency_default_is_never_laid_out() {
         "unreached",
         "use {layout_default_kit}/main/layouts.omg;\n\nmachine main() {\n}\n",
     );
-    assert_runs_on_each_engine(root.path());
+    assert_runs_when_interpreted_and_built(root.path());
 }
 
 #[test]

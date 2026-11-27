@@ -82,18 +82,18 @@ each.
 Windows x86-64 only; producer rebuilt at `89c92b530e1` (`omega --build-profile`
 reports `opt_level` 1).
 
-- All nine positives: `omega run --both` native exit 0, Terminal Psi exit 0.
+- All nine positives: the native/Psi comparison native exit 0, Terminal Psi exit 0.
 - All nine twins and six controls: the counts in the table above, each with the
   expected fragment.
 - `corpus_gate --record --filter`: 25 outcomes (24 new rows and the narrowing
-  fixture's row, now two lines). `--both --record`: 9 rows, each
+  fixture's row, now two lines). The native/Psi comparison: 9 rows, each
   `exit:0 interpreter-exit:0 interpreter:agrees`.
 - Regression filter over `fail/atomics`, `pass/atomics`,
   `signed_slice_index_upper_only` and `implicit_`: 78 fixtures, every fail
   fixture still rejects with its expected fragment. One diagnostics move is not
   from this change: `implicit_integer_policy_erasure_rejected` relabels one of
   its six lines from "terminal expression" to "return value".
-- The item's acceptance filter under `--both`: 36 fixtures, 34 meet their
+- The item's acceptance filter under the native/Psi comparison: 36 fixtures, 34 meet their
   oracle. `pass/proofs/numeric_state_contract_exit` does not, in either engine:
   five digit-bound requirements are unproved. The golden already records it as
   `regressed-from:checked`, so it predates this change.

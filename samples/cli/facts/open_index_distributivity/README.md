@@ -70,17 +70,16 @@ The specialized instance is checked on its own: the twin's second diagnostic nam
 
 ## Execution
 
-Every positive binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native execution agreement:
+Every positive binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`. The native/Psi comparison reports Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --engine native samples/cli/facts/open_index_distributivity/<place>/main.omg < /dev/null
-omega run --engine psi samples/cli/facts/open_index_distributivity/<place>/main.omg < /dev/null
+omega run samples/cli/facts/open_index_distributivity/<place>/main.omg < /dev/null
 omega --check samples/cli/facts/open_index_distributivity/<place>/invalid/main.omg < /dev/null
 ```
 
 Measured on Windows x86-64 with an optimized producer built from `af2cbd5e683` (`opt_level: 1`), base `6e9573fc181` plus this change; the base observations below are from the producer at `05a6f6af37e`, where the defect was first recorded:
 
-- The nine places and the commutative-semiring production report `native exit 0` and `interp exit: 0` through `omega run --both` (20 of 20 engine runs exit 0).
+- The nine places and the commutative-semiring production report `native exit 0` and `interp exit: 0` through the native/Psi comparison (20 of 20 engine runs exit 0).
 - The ten twins and the six controls exit at compile time with the diagnostics above. The place twins and the production twin fail at the template and again at its specialized instance; the controls `conditional_law`, `repeated_operand_law`, `foreign_addition` and `mutual_distributivity` fail the same way, and `missing_law_member` and `unproved_law` fail at the conformance.
 - The unmodified base producer rejects all nine place positives and the production positive with the compatibility error above (10 of 10 `--check` runs exit 1), so none of them meets its oracle at base.
 

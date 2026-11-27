@@ -7,9 +7,11 @@ remainder and increment safe without wrapping arithmetic.
 From the repository root:
 
 ```sh
-mbx run -p omega -- run --engine native samples/cli/arithmetic/smallest_prime_factor/main.omg
-mbx run -p omega -- run --engine psi samples/cli/arithmetic/smallest_prime_factor/main.omg
+mbx run -p omega -- run samples/cli/arithmetic/smallest_prime_factor/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/arithmetic/smallest_prime_factor` from the repository root.
 
 Use Cargo if `mbx` is unavailable. Complete any requested local package review
 with `omega packages update --target macos_arm64 --project samples/cli/arithmetic/smallest_prime_factor`,

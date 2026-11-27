@@ -8,7 +8,7 @@ mod program;
 mod support;
 
 #[test]
-fn unchanged_views_cross_transitions_on_both_engines() {
+fn unchanged_views_cross_transitions_when_interpreted_and_built() {
     program::assert_fixture_silent_return(
         &support::repository_root()
             .join("source-rust/application/tests/fixtures/views/run/view_transition_copies"),

@@ -62,13 +62,13 @@ From the repository root, with a compiler built from the same revision/library:
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=/absolute/path/to/verified/omega
-PROJECT=samples/cli/independent/thermocouple_compensation
+PROJECT=samples/cli/scientific/thermocouple_compensation
 "$OMEGA" update --project "$PROJECT" --target linux_x86_64
 # Review the generated decisions through the documented package review workflow.
 # Resume only after those decisions are accepted; retain any denial as a blocker.
 "$OMEGA" update --resume --project "$PROJECT"
 "$OMEGA" --check --target linux_x86_64 "$PROJECT/main.omg"
-"$OMEGA" run --both --keep "$PROJECT/main.omg" < "$PROJECT/data/curved_hot.txt"
+"$OMEGA" run --keep "$PROJECT/main.omg" < "$PROJECT/data/curved_hot.txt"
 "$OMEGA" psi inspect --machine main --target linux_x86_64 "$PROJECT/main.omg"
 "$OMEGA" --check --target linux_x86_64 "$PROJECT/controls/invalid_bounds/control.omg"
 ```
@@ -84,7 +84,7 @@ The serial validator records exact commands, exit status, elapsed time and captu
 output under `build/validation/`. It consumes the frozen fixture hashes and refuses
 a rewritten oracle. It never updates package acceptance. After authorized review:
 
-The `--both` comparison establishes Terminal/native process-exit agreement. The
+The native/Psi comparison comparison establishes Terminal/native process-exit agreement. The
 independent numeric/output oracle checks the captured native reports separately;
 exit agreement is not a proof of equivalent intermediate calculations.
 

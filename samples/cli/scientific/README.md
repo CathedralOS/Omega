@@ -9,7 +9,7 @@ mbx run -p scientific-capture-check -- samples/cli/scientific/spatial_diffusion 
 
 The capture directory must contain `NAME.stdout`, `NAME.stderr` and `NAME.exit` for every case in the sample. Each `.exit` contains the process exit code in decimal. The checker reads those files without changing them. Both suites require the expected exit code and empty stderr. Pareto also requires the exact stdout bytes for each of its 28 inputs. Diffusion reads the expected exit for each of its 20 cases from `data/oracle.json`. Numerical accuracy and the origin of a recorded run are separate questions from these capture comparisons.
 
-The current CLI compares native and Psi termination, stdout and stderr. Earlier sample reports that recorded only agreement on exit establish that result for the compiler used at the time. A frozen output file can also establish whether both engines printed the expected answer. [CLI execution](../../../source-rust/application/README.md)
+Use `omega run` to lower source to Psi and interpret it. To collect a native observation, compile with `omega <root.omg>` and launch the published image on its target host. Compare the two captures for termination, stdout and stderr. Earlier sample reports that recorded only agreement on exit establish that result for the compiler used at the time. A frozen output file can also establish whether both engines printed the expected answer. [CLI execution](../../../source-rust/application/README.md)
 
 ## Running the programs through a project Build
 

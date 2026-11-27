@@ -5,10 +5,12 @@
 mod cases;
 mod condition;
 mod observations;
+mod update;
 use condition::Comparison;
 pub(super) use condition::Operand;
 pub(super) use condition::SpinCondition;
 pub(super) use observations::Observation;
+pub(super) use update::CellUpdate;
 
 use super::facts::Facts;
 use cases::CaseValue;
@@ -23,6 +25,24 @@ use terminal_psi::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SpinWait(pub(super) WaitRule);
 
+impl SpinWait {
+    /// A retry can release itself even when the caller has no storage facts.
+    pub(super) fn can_block_without_inputs(&self) -> bool {
+        match &self.0 {
+            WaitRule::Cell(cell) => {
+                let update = cell
+                    .update
+                    .try_map(|operand| operand.literal().map(super::progress::ScalarFact::Literal));
+                cell.while_value.failure(None, None, update, &[]).is_some()
+            }
+            WaitRule::Observations(predicate) => {
+                predicate.evaluate(|_, _| (Observation::Unproved, None::<((), SpinCondition)>))
+                    != Observation::Known(false)
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum WaitRule {
     Cell(CellWait),
@@ -33,46 +53,7 @@ pub(super) enum WaitRule {
 pub(super) struct CellWait {
     pub(super) subject: Subject,
     pub(super) while_value: SpinCondition,
-    pub(super) update: CellUpdate,
-}
-
-/// These transfers are idempotent. Once a private retry observes the result
-/// of its own update, all later iterations see those same bits.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum CellUpdate {
-    Observe,
-    Replace(Scalar),
-    BitwiseAnd(Scalar),
-    BitwiseOr(Scalar),
-    CompareExchange {
-        expected: Scalar,
-        replacement: Scalar,
-    },
-}
-
-impl CellUpdate {
-    pub(super) fn apply(self, prior: Scalar) -> Option<Scalar> {
-        Some(match self {
-            Self::Observe => prior,
-            Self::Replace(value) => value,
-            Self::BitwiseAnd(mask) => condition::masked(prior, Some(mask))?,
-            Self::BitwiseOr(mask) => crate::atomic_read_modify_write(
-                terminal_psi::AtomicReadModifyWrite::FetchOr,
-                prior,
-                mask,
-            )?,
-            Self::CompareExchange {
-                expected,
-                replacement,
-            } => {
-                if prior == expected {
-                    replacement
-                } else {
-                    prior
-                }
-            }
-        })
-    }
+    pub(super) update: CellUpdate<Operand>,
 }
 
 pub(super) fn constant(operation: &Operation) -> Option<Scalar> {
@@ -92,19 +73,12 @@ pub(super) fn constant(operation: &Operation) -> Option<Scalar> {
 enum Word {
     Literal(Scalar),
     Observed,
-    Masked(Scalar),
+    Masked(Operand),
     Argument(Operand),
     Test(SpinCondition),
 }
 
 impl Word {
-    fn literal(self) -> Option<Scalar> {
-        match self {
-            Self::Literal(v) => Some(v),
-            _ => None,
-        }
-    }
-
     fn operand(self) -> Option<Operand> {
         match self {
             Self::Literal(value) => Some(Operand::Literal(value)),
@@ -114,17 +88,18 @@ impl Word {
     }
 
     fn bitwise_and(self, other: Self) -> Option<Self> {
-        match (self, other) {
-            (Self::Observed, Self::Literal(mask)) | (Self::Literal(mask), Self::Observed) => {
-                Some(Self::Masked(mask))
-            }
-            (Self::Masked(prior), Self::Literal(mask))
-            | (Self::Literal(mask), Self::Masked(prior)) => {
-                Some(Self::Masked(condition::masked(prior, Some(mask))?))
-            }
-            (Self::Literal(left), Self::Literal(right)) => {
-                Some(Self::Literal(condition::masked(left, Some(right))?))
-            }
+        let (word, mask) = if let Some(operand) = other.operand() {
+            (self, operand)
+        } else {
+            (other, self.operand()?)
+        };
+        match word {
+            Self::Observed => Some(Self::Masked(mask)),
+            Self::Masked(prior) => Some(Self::Masked(mask.intersect(Some(prior))?)),
+            Self::Literal(left) => Some(Self::Literal(condition::masked(
+                left,
+                Some(mask.literal()?),
+            )?)),
             _ => None,
         }
     }
@@ -194,25 +169,26 @@ impl SpinWait {
 impl ForwardedWait {
     /// Substitute the actual borrowed argument for each formal in the predicate.
     pub(super) fn apply(&self, mut spin: SpinWait) -> Option<SpinWait> {
-        let remap = |test: &mut SpinCondition| -> Option<()> {
-            if let Operand::Parameter {
+        let remap = |operand: Operand| match operand {
+            Operand::Literal(_) => Some(operand),
+            Operand::Parameter {
                 position,
                 scalar_type,
-            } = test.comparison.pivot
-            {
-                let actual = (*self.scalars.get(position)?)?;
-                if actual.scalar_type() != scalar_type {
-                    return None;
-                }
-                test.comparison.pivot = actual;
-            }
-            Some(())
+            } => self
+                .scalars
+                .get(position)
+                .copied()
+                .flatten()
+                .filter(|actual| actual.scalar_type() == scalar_type),
         };
         match &mut spin.0 {
-            WaitRule::Cell(cell) => remap(&mut cell.while_value)?,
+            WaitRule::Cell(cell) => {
+                cell.while_value.comparison.substitute(remap)?;
+                cell.update = cell.update.try_map(remap)?;
+            }
             WaitRule::Observations(predicate) => {
                 for (_, test) in predicate.inputs() {
-                    remap(test)?;
+                    test.comparison.substitute(remap)?;
                 }
             }
         }
@@ -231,7 +207,7 @@ impl ForwardedWait {
 struct Read {
     site: OperationId,
     cell: Subject,
-    update: CellUpdate,
+    update: CellUpdate<Operand>,
 }
 
 #[derive(Default)]
@@ -415,12 +391,12 @@ impl Trace {
                     let update = match event {
                         AtomicAccessEvent::Load { .. } => CellUpdate::Observe,
                         AtomicAccessEvent::Swap { value, .. } => {
-                            CellUpdate::Replace(self.scalar(*value)?.literal()?)
+                            CellUpdate::Replace(self.scalar(*value)?.operand()?)
                         }
                         AtomicAccessEvent::ReadModifyWrite {
                             operation, operand, ..
                         } => {
-                            let mask = self.scalar(*operand)?.literal()?;
+                            let mask = self.scalar(*operand)?.operand()?;
                             match operation {
                                 terminal_psi::AtomicReadModifyWrite::FetchAnd => {
                                     CellUpdate::BitwiseAnd(mask)
@@ -436,8 +412,8 @@ impl Trace {
                             replacement,
                             ..
                         } => CellUpdate::CompareExchange {
-                            expected: self.scalar(*expected)?.literal()?,
-                            replacement: self.scalar(*replacement)?.literal()?,
+                            expected: self.scalar(*expected)?.operand()?,
+                            replacement: self.scalar(*replacement)?.operand()?,
                         },
                         _ => return None,
                     };

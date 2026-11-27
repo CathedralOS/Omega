@@ -17,7 +17,7 @@ use terminal_psi::{
 enum Word {
     Literal(Scalar),
     Argument(Operand),
-    Cell(Subject, Option<Scalar>),
+    Cell(Subject, Option<Operand>),
     Boolean(Guard),
 }
 
@@ -70,14 +70,22 @@ impl Analysis<'_> {
                 OperationKind::IntegerBitwiseAnd { left, right } => {
                     let left = self.words.get(left)?;
                     let right = self.words.get(right)?;
-                    match (left, right) {
-                        (Word::Cell(subject, prior), Word::Literal(mask))
-                        | (Word::Literal(mask), Word::Cell(subject, prior)) => Word::Cell(
-                            subject.clone(),
-                            Some(super::condition::masked(*mask, *prior)?),
-                        ),
-                        (Word::Literal(left), Word::Literal(right)) => {
-                            Word::Literal(super::condition::masked(*left, Some(*right))?)
+                    let operand = |word: &Word| match word {
+                        Word::Literal(value) => Some(Operand::Literal(*value)),
+                        Word::Argument(formal) => Some(*formal),
+                        _ => None,
+                    };
+                    let (word, mask) = if let Some(mask) = operand(right) {
+                        (left, mask)
+                    } else {
+                        (right, operand(left)?)
+                    };
+                    match word {
+                        Word::Cell(subject, prior) => {
+                            Word::Cell(subject.clone(), Some(mask.intersect(*prior)?))
+                        }
+                        Word::Literal(left) => {
+                            Word::Literal(super::condition::masked(*left, Some(mask.literal()?))?)
                         }
                         _ => return None,
                     }

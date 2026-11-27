@@ -1,18 +1,22 @@
-//! A loss of caller storage facts cannot discharge an independent supplier's
-//! obligation. Look only in the unfinished suffix of the selected call stack.
+//! An opaque call can obscure storage needed by a later checked wait. Locate
+//! obligations only in the unfinished suffix of the selected call stack.
 
 use super::super::facts::Facts;
 use super::super::progress::{PrivateWaitFailure, ProgressFailure};
-use super::super::selected::SelectedCall;
+use super::super::selected::{SelectedCall, Summaries};
+
 use super::activation::Frame;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::{TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule};
 
-pub(super) fn unproved_continuation(
+pub(super) fn unproved(
     module: &TerminalModule,
     frames: &[Frame<'_>],
     boundary: &impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
     computed: &super::computed::Invocations,
+    summaries: &mut Summaries,
+    local_waits: bool,
+    imported_obligations: bool,
 ) -> Option<PrivateWaitFailure> {
     let mut pending = frames
         .iter()
@@ -33,13 +37,32 @@ pub(super) fn unproved_continuation(
                 pending.push((body.id, body.entry, 0));
             }
         };
+        let mut visit = |id: MachineId, site| {
+            if local_waits && let Some(wait) = summaries.get(module, id, boundary) {
+                return wait
+                    .can_block_without_inputs()
+                    .then_some(PrivateWaitFailure {
+                        machine: machine_id,
+                        operation: site,
+                        cause: ProgressFailure::UnprovedContinuation,
+                    });
+            }
+            enter(id);
+            None
+        };
         for op in block.operations.iter().skip(first) {
             if let Some(call) = op.kind.callable_invocation() {
                 let targets = computed.site(module, boundary, machine_id, op.id);
                 if let Some(row) = targets {
-                    row.selected_machines.iter().copied().for_each(&mut enter);
+                    if let Some(failure) = row
+                        .selected_machines
+                        .iter()
+                        .find_map(|&id| visit(id, op.id))
+                    {
+                        return Some(failure);
+                    }
                 }
-                if !targets.is_some_and(|row| row.targets_are_resolved()) {
+                if imported_obligations && !targets.is_some_and(|row| row.targets_are_resolved()) {
                     let envelope = module
                         .execution
                         .callables
@@ -68,8 +91,12 @@ pub(super) fn unproved_continuation(
                         cause: ProgressFailure::UnprovedImport,
                     });
                 }
-                Some(SelectedCall::Local(id)) => enter(id),
-                None => {}
+                Some(SelectedCall::Local(id)) => {
+                    if let Some(failure) = visit(id, op.id) {
+                        return Some(failure);
+                    }
+                }
+                None | Some(SelectedCall::PendingProvider) => {}
             }
         }
         if let Some((_, call)) = block.terminator.declared_invocation()

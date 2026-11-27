@@ -27,7 +27,7 @@ Each twin changes only the `Observed` alias from `Issued` to the independently
 routed `Other`. It must reject with `cannot mint routed provenance` at the view,
 not because an issuer declaration, import or entry binding is malformed.
 
-Run each positive with `omega run --both <place>/main.omg` and each twin with
+Run each positive with `mbx xtask sample-gate --filter samples/cli/facts/shared_qualification_erasure/<place>` and each twin with
 `omega --check <place>/invalid/main.omg`. All four hosted targets have entry
 bindings; the recorded native/Terminal executions are on macOS arm64. Bindings
 alone do not establish execution on the other hosts. Producer identities and
@@ -35,7 +35,7 @@ observations belong in the qualification/claim record.
 
 ## Measured run record
 
-- All nine positives, `omega run --both <place>/main.omg`: `native exit 0` and
+- All nine positives, the native/Psi comparison: `native exit 0` and
   `interp exit: 0`.
 - All nine twins, `omega --check <place>/invalid/main.omg`: exit 1 with
   `a qualification reference view must retain existing source qualifications; as cannot mint routed provenance` at the view.

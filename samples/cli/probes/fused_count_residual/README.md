@@ -24,6 +24,8 @@ feature for one-rounding `VFMADD`; AArch64 uses `FMADD` without it. Two-rounding
 `multiply_then_add` stays a separate operation.
 
 ```sh
-omega run --engine native samples/cli/probes/fused_count_residual/build.omg < /dev/null
-omega run --engine psi samples/cli/probes/fused_count_residual/build.omg < /dev/null
+omega run samples/cli/probes/fused_count_residual/build.omg < /dev/null
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/fused_count_residual` from the repository root.

@@ -189,12 +189,18 @@ Simulation does not validate real hardware timing or device behavior.
 
 Target environment and execution engine are independent, as in
 [embedding](embedding.md#target-environments-and-execution-engines). For each
-enabled group and selected target, the default is to run every applicable,
+enabled group and selected target, `omega build` runs every applicable,
 permitted engine available on the executing host, including interpreted and
 native. Cross-compilation support alone is not execution availability. Ordinary
 Build group configuration can narrow engines or require particular target/engine
 combinations. Unset engine configuration uses this default; it does not disable
 tests. Exact API spelling is not a new language construct.
+
+`omega run` checks enabled tests before entering the Product. It interprets
+the scheduled tests in Psi. If a group requires a native test or has no
+runnable Psi test for an enabled entry, the driver reports the incomplete
+plan and stops before the Product entry. Use `omega build` to run a group's
+required native tests.
 
 For example, a Build can require native execution for one target or exclude
 interpretation for that target through the handle it received at registration:

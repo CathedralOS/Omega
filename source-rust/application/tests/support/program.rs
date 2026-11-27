@@ -17,7 +17,7 @@ const BUILD_INPUTS: &[&str] = &[
     "build.omg",
 ];
 
-/// Each engine and checker receives its own copy of the source.
+/// Each execution path and checker receives its own copy of the source.
 fn project(source: &str) -> TemporaryDirectory {
     let scratch = TemporaryDirectory::create("omega-test-program", false).unwrap();
     std::fs::write(scratch.path().join("main.omg"), source).unwrap();

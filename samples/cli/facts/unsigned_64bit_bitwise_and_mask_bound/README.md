@@ -7,7 +7,7 @@ Specification Reference: [Numeric values](wiki/spec/language/numeric_values.md),
 
 This fact row demonstrates that 64-bit unsigned bitwise AND mask (`raw & 63u64`) combined with an explicit bounded interval guard (`40u64 <= masked <= 63u64`) establishes the exact interval (`40u64 <= masked <= 63u64`) across all nine standard places. The compiler statically derives that masking by `63u64` (bitmask `0x3F`) guarantees the result cannot exceed `63u64`, and the dominating guard constrains `masked` to `[40, 63]`. This directly discharges exact downstream 64-bit unsigned subtractions `headroom = 63u64 - masked` and `margin = masked - 40u64` and downstream contract `requires value >= 40u64 && value <= 63u64` of `verify_masked` without underflow, overflow, or runtime crash traps across both Terminal Psi and native targets.
 
-Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines (`omega run --both`) agree on exit code 0.
+Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines agree on exit code 0.
 
 ## Places
 
@@ -26,7 +26,7 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 
 ## Execution
 
-Run each positive place with `omega run --both`:
+Run each positive place with `mbx xtask sample-gate --filter samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound`:
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound
@@ -77,9 +77,9 @@ The obligation's class decides where a violation is caught:
 
 ## Run Record
 
-Host: `windows_x86_64`. Command per positive place: `omega run --both <place>/main.omg`.
+Host: `windows_x86_64`. Each positive place was checked in the native/Psi comparison.
 
-| Place | Positive (`--both`) | Reject Twin (`--check`) |
+| Place | Positive | Reject Twin (`--check`) |
 | --- | --- | --- |
 | root | `native exit 0` / `interp exit: 0` | — |
 | local | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_masked from exercise: local_val >= 40 && local_val <= 63` |
@@ -104,10 +104,10 @@ Full 8-layer specification and lowering evidence:
 - **Identity and lifetime:** The 64-bit unsigned integer value maintains 8-byte stored width representation across expression evaluations, local variable assignments, parameter passing, and state transitions, transitioning cleanly between bitwise mask operations and guarded exact interval carrier identity.
 - **Composition:** Guarded bitwise AND mask interval preservation composes through all 9 standard places: local variable assignment (`local`), struct field wrapping (`field`), machine parameter passing (`parameter`), function call return value postcondition (`call_result`), match branch convergence join (`match_join`), named constant operand binding (`const_name`), state transition arrival (`other_state`), forwarding machine delegation (`other_machine`), and target-scoped body candidates (`target_body`). Each `<place>/invalid/main.omg` differs solely in widening the mask to `127u64` and guard to `64u64` (or setting constants yielding `64u64`), causing `verify_masked` to fail closed.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `cannot prove requires contract for call verify_masked` because `64u64` violates the contract upper bound `value <= 63u64`. The compiler soundly refuses any program where bitwise mask bounds cannot guarantee arrival contracts.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Bitwise AND expressions lower into canonical Terminal Psi (`PSITERM\0`) as bitwise AND operations without overflow trap edges. Downstream transition guards synthesize integer range certificates retaining `[40, 63]` through optimization passes, and the Terminal Psi interpreter agrees with native execution on exit code 0 (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Bitwise AND expressions lower into canonical Terminal Psi (`PSITERM\0`) as bitwise AND operations without overflow trap edges. Downstream transition guards synthesize integer range certificates retaining `[40, 63]` through optimization passes, and the Terminal Psi interpreter agrees with native execution on exit code 0.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout planning evaluates `size_of<u64>() == 8`, `align_of<u64>() == 8`, and `size_of<MaskCarrier>() == 8`. In `CallPlan` and `StatePlan`, 64-bit unsigned integers are allocated standard 64-bit general-purpose register lanes (`rcx`/`rdi`/`x0`).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects 64-bit unsigned bitwise AND instructions (`and r64, imm32` / `and r64, r64` on x86_64, `and xd, xn, #imm` / `and xd, xn, xm` on arm64), and exact subtraction selects 64-bit `sub`. Disjoint activation frames allocate standard stack slots, honoring worst-case stack usage (WCSU) and bounded activation claims (`committed <= bound`).
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi (`omega run --both`).
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi.
 
 ## What remains open
 

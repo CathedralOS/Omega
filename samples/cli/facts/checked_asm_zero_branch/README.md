@@ -61,7 +61,7 @@ were frozen before repair.
 The executable reproduction and qualification records retain the frozen source
 and oracle, producer identities, actual results and exact refusal diagnostics.
 Public acceptance uses normal package preparation followed by
-`omega run --both <project>/main.omg`; invalid controls use `omega --check`.
+the native/Psi comparison; invalid controls use `omega --check`.
 Scratch copies preserve the authored source bytes and keep generated files of
 nested projects outside each package's source closure.
 

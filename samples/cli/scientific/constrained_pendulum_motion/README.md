@@ -59,14 +59,15 @@ From the repository root, using an exact verified compiler as `$OMEGA`:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-project=samples/cli/independent/constrained_pendulum_motion
+project=samples/cli/scientific/constrained_pendulum_motion
 "$OMEGA" update --project "$project" --target linux_x86_64
 # Inspect build/package-manager/review-linux_x86_64.txt; resolve required decisions.
 "$OMEGA" update --resume --project "$project"
 "$OMEGA" --check "$project/main.omg"
 "$OMEGA" run "$project/main.omg" < "$project/data/released.stdin"
-"$OMEGA" run --both --keep "$project/main.omg" < "$project/data/small_double.stdin"
-# Or reuse the exact retained native executable printed by a successful run --keep:
+"$OMEGA" run --keep "$project/main.omg" < "$project/data/small_double.stdin"
+# To run the native executable separately, build it once and use its reported path.
+"$OMEGA" "$project/main.omg"
 ```
 
 Package review/acceptance is explicit and host-local. Denied acceptance is a

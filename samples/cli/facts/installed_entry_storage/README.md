@@ -53,8 +53,7 @@ targets. `entry_ram.txt` explicitly requests initialization for source occurrenc
 execution. The portable test entrypoints consume those same files:
 
 ```sh
-omega run --engine native --keep --entry-ram 0=2900000003000000 main.omg
-omega run --engine psi --keep --entry-ram 0=2900000003000000 main.omg
+omega run --keep --entry-ram 0=2900000003000000 main.omg
 ```
 
 `entry_ram.txt` rows are `source-position=hex-bytes`, never addresses. The runtime
@@ -75,9 +74,8 @@ After normal return, the runtime retires the entry loans and observes the same o
 allocations. The private observation protocol (FD 3 on Unix; a process-bound named pipe
 on Windows) binds the canonical artifact, placement seal, occurrence and complete byte
 count; guest stdout/stderr are not this evidence. A partial write, wrong header,
-missing/extra frame or absent normal return cannot pass. The public CLI compares actual
-native and Terminal backing independently of their exit agreement. With `--keep`,
-inspect `native.entry-ram.0.bin`, `terminal.entry-ram.0.bin`, `native.entry-ram.frames`,
+missing/extra frame or absent normal return cannot pass. The earlier qualification compared actual
+native and Terminal backing independently of their exit agreement. Its artifacts included `native.entry-ram.0.bin`, `terminal.entry-ram.0.bin`, `native.entry-ram.frames`,
 `native.identity.txt`, `program.oterm` and `terminal.effects`; both backing files must
 contain `29 00 00 00 09 00 00 00`.
 

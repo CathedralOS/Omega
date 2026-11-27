@@ -10,11 +10,11 @@ companion file. It writes private staging files and completes them under the
 public names `generated.omg` and `companion.txt`. It forwards the generator
 to the application, which calls the package and checks its result.
 
-Run this command from the fixture directory. Use `--engine native` to run the
-same program natively.
+Interpret the program from the fixture directory. To test the native image, compile
+with the same Build inputs and launch the published executable.
 
 ```sh
-omega run --engine psi \
+omega run \
     --build-input build.omg --build-input outputs.omg --build-input main.omg \
     --build-input build_support --build-input generator --build-input template.txt build.omg
 ```

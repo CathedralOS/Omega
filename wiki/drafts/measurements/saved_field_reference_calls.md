@@ -20,7 +20,7 @@ results and unchanged nonzero neighbors. Both match selections run; selected
 implementations have distinct tags. Each invalid counterpart removes the bound
 or returns before restoring it.
 
-All 18 positives pass ordinary `omega run --both` on macOS ARM64, explicitly
+All 18 positives pass the native and interpreted checks on macOS ARM64, explicitly
 reporting native exit 0 and Terminal exit 0. All 36 invalid counterparts reject
 with their own required diagnostic fragments. The 54 sample and fixture pairs
 have identical program and Build files. These results establish the saved-reference

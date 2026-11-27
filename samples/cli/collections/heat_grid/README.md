@@ -14,14 +14,16 @@ The final state takes only the maximum, not the grid borrow.
 From the repository root on macOS ARM64:
 
 ```sh
-target/release/omega run --engine native samples/cli/collections/heat_grid/main.omg
-target/release/omega run --engine psi samples/cli/collections/heat_grid/main.omg
+target/release/omega run samples/cli/collections/heat_grid/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/collections/heat_grid` from the repository root.
 
 The first command completes this checkout's package review for measurement and
 checks the native exit oracle. It records acceptance, not a dependency audit.
 The second compares native execution with the checked interpreter; both must
-exit 45. Omit `--target` from `omega run` to execute on the current host.
+exit 45. `omega run` interprets for the host target by default.
 The former receiver-based sample produced native and interpreted exit 45 on
 macOS ARM64. That result is not execution evidence for the static migration.
 

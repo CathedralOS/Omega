@@ -7,7 +7,7 @@ Specification Reference: [Numeric values](wiki/spec/language/numeric_values.md),
 
 This fact row demonstrates that an 8-bit signed `i8` left shift of a bounded input (`val >= 25i8 && val <= 25i8`) by `2u32` bits establishes the exact shifted interval (`shifted >= 100i8 && shifted <= 100i8`) across all nine standard places. The compiler statically derives interval shift bounds (`[25, 25] << 2 = [100, 100]`), verifying that the outcome does not overflow the signed 8-bit range `[-128, 127]`, which directly discharges exact downstream subtraction `shifted - 100i8 == 0i8` and the contract `requires s >= 100i8 && s <= 100i8` of `verify_i8_shifted` without underflow, overflow, or runtime guard checks across both Terminal Psi and native targets.
 
-Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines (`omega run --both`) agree on exit code 0.
+Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines agree on exit code 0.
 
 ## Places
 
@@ -26,7 +26,7 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 
 ## Execution
 
-Run each positive place with `omega run --both`:
+Run each positive place with `mbx xtask sample-gate --filter samples/cli/facts/signed_8bit_shift_left_bound`:
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/signed_8bit_shift_left_bound
@@ -69,10 +69,10 @@ Full 8-layer specification and lowering evidence:
 - **Identity and lifetime:** 8-bit signed integer values retain exact 1-byte stored width representation across expression evaluations, local variable assignments, parameter passing, and state transitions without loss of sign or precision.
 - **Composition:** 8-bit signed left shift bound preservation composes through all 9 standard places: local variable assignment (`local`), struct field wrapping (`field`), machine parameter passing (`parameter`), function call return value postcondition (`call_result`), match branch convergence join (`match_join`), named constant operand binding (`const_name`), state transition arrival (`other_state`), forwarding machine delegation (`other_machine`), and target-scoped body candidates (`target_body`). Each `<place>/invalid/main.omg` differs solely in widening the value bound to `[20, 25]` (shifted reaching `80i8 < 100i8`), causing `verify_i8_shifted` to fail closed.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `cannot prove requires contract for call verify_i8_shifted ... (needs fact \`s >= 100 && s <= 100\` here)`. The compiler soundly refuses any program where 8-bit left shift intervals fail to guarantee downstream contracts.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** 8-bit signed left shift expressions and integer range certificates lower into canonical Terminal Psi (`PSITERM\0`). Shift operations preserve integer certificates with shift count bounds (`< 8`) through optimization passes, and the Terminal Psi interpreter agrees with native execution on exit code 0 (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** 8-bit signed left shift expressions and integer range certificates lower into canonical Terminal Psi (`PSITERM\0`). Shift operations preserve integer certificates with shift count bounds (`< 8`) through optimization passes, and the Terminal Psi interpreter agrees with native execution on exit code 0.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout planning evaluates `size_of<i8>() == 1`, `align_of<i8>() == 1`, and `size_of<ShiftCarrier>() == 1`. In `CallPlan` and `StatePlan`, 8-bit signed integers are allocated appropriate byte register or stack lanes with standard integer calling conventions.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects 8-bit signed left-shift instructions: byte left shift (`shl r8, imm8` on x86_64) or logical shift left (`lsl w, w, #imm`) on arm64 architectures. Exact subtraction selects `subb`/`sub`. Disjoint activation frames allocate standard stack slots, honoring worst-case stack usage (WCSU) and bounded activation claims (`committed <= bound`).
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi (`omega run --both`).
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi.
 
 ## What remains open
 

@@ -14,9 +14,11 @@ into `bp` before its later guard. The algorithm and guards remain unchanged;
 After the ordinary package review, run from the repository root:
 
 ```sh
-omega run --engine native samples/cli/algorithms/dutch_flag/main.omg < samples/cli/algorithms/dutch_flag/input.txt
-omega run --engine psi samples/cli/algorithms/dutch_flag/main.omg < samples/cli/algorithms/dutch_flag/input.txt
+omega run samples/cli/algorithms/dutch_flag/main.omg < samples/cli/algorithms/dutch_flag/input.txt
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/algorithms/dutch_flag` from the repository root.
 
 The input supplies one newline and then EOF. `expected_stdout.txt` pins the
 complete 141-byte transcript, including the success message and final prompt.

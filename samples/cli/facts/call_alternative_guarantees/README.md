@@ -59,7 +59,7 @@ domain.
 - **Provider/ABI:** all four hosted ProgramEntry bindings are authored. The
   target place selects an ordinary named implementation. No foreign provider
   or interpreter-only shortcut implements the selector.
-- **Native selection, frames, encoding:** `omega run --both` must observe
+- **Native selection, frames, encoding:** the native/Psi comparison must observe
   native and Terminal exits 0/0 for every positive. The operation checks
   totals 212 and 238, so reversed or omitted selection traps. The field place
   also checks four nonzero neighboring canaries.

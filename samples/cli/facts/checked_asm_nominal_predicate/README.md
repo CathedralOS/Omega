@@ -13,7 +13,7 @@ uses `Counted<Count: u64>` and records the exact selected runtime index rather
 than requiring a fixed nominal carrier. Constant carrier eligibility,
 monomorphization inference across constrained generic carriers, and constructor
 static binding resolution have been repaired so all positive places pass
-Terminal Psi and native execution agreement (`omega run --both`, exit 0), and
+Terminal Psi and native execution agreement (exit 0), and
 all nine reject twins reject for the specific fact violation.
 
 ## Requirements and evidence

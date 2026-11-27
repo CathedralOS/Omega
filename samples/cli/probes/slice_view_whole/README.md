@@ -10,12 +10,14 @@ exits zero only when that calculation succeeds. After normal package review:
 
 ```sh
 omega packages update --project samples/cli/probes/slice_view_whole --target macos_arm64
-omega run --engine native samples/cli/probes/slice_view_whole/main.omg
-omega run --engine psi samples/cli/probes/slice_view_whole/main.omg
+omega run samples/cli/probes/slice_view_whole/main.omg
 ```
 
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/slice_view_whole` from the repository root.
+
 The build also binds Linux ARM64/x86-64 and Windows x86-64 hosted entries;
-the command above demonstrates native and Terminal execution on macOS ARM64.
+the earlier macOS ARM64 qualification covered interpretation and the published executable.
 
 ## Historical scalar positions
 

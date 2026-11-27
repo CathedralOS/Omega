@@ -19,8 +19,8 @@ expanded-signature or `as Name` overload-selector form exists.
 
 A direct destination is written `native callback name from Selected` at its
 actual native argument position. It has no source runtime argument. A nested
-destination uses the explicitly cited `PrivateCallbackSlot<Layout, Requirement>`
-implementation whose `Layout` argument is its owning layout policy. The
+destination uses the explicitly cited `PrivateCallbackSlot<Record, Layout, Requirement>`
+implementation. Its `Layout` argument selects the fixed-layout policy for `Record`. The
 [calling plan](calling_plans.md) places these declared demands; it does not
 invent hidden trailing parameters.
 
@@ -63,7 +63,7 @@ that same identity space. Calling policy places declared entries; it cannot
 create, reorder, retarget, or infer a trailing callback argument.
 
 A nested private field destination originates in an explicitly selected named
-`PrivateCallbackSlot<Layout, Requirement>` implementation cited by the plan of
+`PrivateCallbackSlot<Record, Layout, Requirement>` implementation cited by the plan of
 its `Layout` policy; another policy cannot place it. An uncited declaration is
 inert. Retain conformance-owned slot identity, exact
 target-neutral requirement overload, target-closed placement, and the complete

@@ -12,7 +12,7 @@ fn fixture_path(tier: &str, sample: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn mixed_static_arguments_run_in_both_engines() {
+fn mixed_static_arguments_run_when_interpreted_and_built() {
     program::assert_fixture_silent_return(&fixture_path("run", "mixed_static_arguments"));
 }
 
