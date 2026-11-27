@@ -36,6 +36,8 @@ until it is published.
 
 use std::collections::BTreeSet;
 
+use crate::descriptor_results::DescriptorSlotKind;
+use crate::descriptors::row_source::DescriptorRowSource;
 use semantic_vocabulary::{
     BlockId, OperationId, PlaceId, StructuralTypeId, SuspensionCrossingId, TargetMachineCallable,
     ValueId,
@@ -343,18 +345,30 @@ fn delegation_frontier(
 
 /// Crossings in one caller share its block liveness and the transport of its
 /// reference descriptors. A machine without a live reference needs no descriptor graph.
-pub struct MachineFrontiers<'a> {
+pub struct MachineFrontiers<'a, 'r> {
     module: &'a TerminalModule,
     machine: &'a TerminalMachine,
+    rows: DescriptorRowSource<'r, 'a>,
     entering: Vec<BTreeSet<Name>>,
     formations: std::cell::OnceCell<Vec<LoanFormation<'a>>>,
 }
 
-impl<'a> MachineFrontiers<'a> {
+impl<'a, 'r> MachineFrontiers<'a, 'r> {
     pub fn new(module: &'a TerminalModule, machine: &'a TerminalMachine) -> Self {
+        Self::with_rows(DescriptorRowSource::new(module), machine)
+    }
+
+    /// `new`, reading the machine's reference rows from the module's shared
+    /// analyses, so the frontiers of several callers adapt each body once.
+    pub fn new_in(analyses: &'r crate::ModuleAnalyses<'a>, machine: &'a TerminalMachine) -> Self {
+        Self::with_rows(DescriptorRowSource::of(analyses), machine)
+    }
+
+    fn with_rows(rows: DescriptorRowSource<'r, 'a>, machine: &'a TerminalMachine) -> Self {
         Self {
-            module,
+            module: rows.module(),
             machine,
+            rows,
             entering: live_in(machine),
             formations: Default::default(),
         }
@@ -363,12 +377,13 @@ impl<'a> MachineFrontiers<'a> {
     fn formations(&self) -> Vec<LoanFormation<'a>> {
         use crate::descriptor_lifetimes::{DescriptorLocation, descriptor_location_lifetime};
         use terminal_psi::OperationKind;
-        let Some(graph) = crate::descriptor_results::terminal_reference_graph_from(
-            self.module,
-            [self.machine.id],
-        )
-        .ok()
-        .and_then(|graphs| graphs.into_iter().find(|graph| graph.id == self.machine.id)) else {
+        let Ok(graphs) = self
+            .rows
+            .closure(DescriptorSlotKind::References, [self.machine.id])
+        else {
+            return Vec::new();
+        };
+        let Some(graph) = graphs.machine(self.machine.id) else {
             return Vec::new();
         };
         let mut formations = Vec::new();

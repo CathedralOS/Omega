@@ -10,6 +10,8 @@ use crate::descriptor_lifetimes::{
     descriptor_location_lifetime_with_contents_indexed, descriptor_path,
 };
 use crate::descriptor_results::{DescriptorAnalysis, DescriptorSlotKind};
+use crate::descriptors::row_source::DescriptorRowSource;
+use crate::module_analyses::DescriptorRows;
 use arena::IdTable;
 use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -55,7 +57,15 @@ impl Error {
 }
 
 pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidates>, Error> {
-    candidates_with(module, None)
+    candidates_with(&DescriptorRowSource::new(module), None)
+}
+
+/// `candidates`, reading the borrowed-storage rows from the module's shared
+/// analyses instead of adapting them again.
+pub fn candidates_in(
+    analyses: &crate::ModuleAnalyses<'_>,
+) -> Result<IdTable<MachineId, Candidates>, Error> {
+    candidates_with(&DescriptorRowSource::of(analyses), None)
 }
 
 /// `candidates`, taking and publishing callee summaries through the table
@@ -66,13 +76,23 @@ pub fn candidates_sharing(
     module: &TerminalModule,
     summaries: &crate::plain_affine::AffineSummaries<'_>,
 ) -> Result<IdTable<MachineId, Candidates>, Error> {
-    candidates_with(module, Some(summaries))
+    candidates_with(&DescriptorRowSource::new(module), Some(summaries))
+}
+
+/// `candidates_sharing`, reading the borrowed-storage rows from the
+/// module's shared analyses.
+pub fn candidates_sharing_in(
+    analyses: &crate::ModuleAnalyses<'_>,
+    summaries: &crate::plain_affine::AffineSummaries<'_>,
+) -> Result<IdTable<MachineId, Candidates>, Error> {
+    candidates_with(&DescriptorRowSource::of(analyses), Some(summaries))
 }
 
 fn candidates_with(
-    module: &TerminalModule,
+    rows: &DescriptorRowSource<'_, '_>,
     summaries: Option<&crate::plain_affine::AffineSummaries<'_>>,
 ) -> Result<IdTable<MachineId, Candidates>, Error> {
+    let module = rows.module();
     let has_borrowed_storage = |machine: &terminal_psi::TerminalMachine| {
         machine
             .structural_parameters
@@ -91,17 +111,22 @@ fn candidates_with(
                 )
             })
     };
-    let mut graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(
-        module,
-        module
-            .machines
-            .iter()
-            .filter(|machine| has_borrowed_storage(machine) && !machine.blocks.is_empty())
-            .map(|machine| machine.id),
-        &[],
-    )
-    .map_err(|error| Error::from_graph(module, error))?;
-    graph.sort_unstable_by_key(|machine| machine.id);
+    let mut graph = rows
+        .closure(
+            DescriptorSlotKind::BorrowedStorage,
+            module
+                .machines
+                .iter()
+                .filter(|machine| has_borrowed_storage(machine) && !machine.blocks.is_empty())
+                .map(|machine| machine.id),
+        )
+        .map_err(|error| Error::from_graph(module, error))?;
+    // The analysis reads rows in identity order. Shared rows come in module
+    // order, which is identity order in the dense modules this check
+    // accepts; rows adapted for this closure alone are sorted here.
+    if let DescriptorRows::Owned(owned) = &mut graph {
+        owned.sort_unstable_by_key(|machine| machine.id);
+    }
     let needs_analysis: Vec<bool> = module
         .machines
         .iter()
@@ -111,14 +136,11 @@ fn candidates_with(
     let compute_machine = |machine: &terminal_psi::TerminalMachine,
                            analysis: &mut DescriptorAnalysis<'_>|
      -> Result<Candidates, Error> {
-        let prepared = graph
-            .binary_search_by_key(&machine.id, |prepared| prepared.id)
-            .map(|position| &graph[position])
-            .map_err(|_| Error {
-                machine: machine.id,
-                operation: None,
-                detail: "reference disposition lost its prepared descriptor graph".into(),
-            })?;
+        let prepared = graph.machine(machine.id).ok_or_else(|| Error {
+            machine: machine.id,
+            operation: None,
+            detail: "reference disposition lost its prepared descriptor graph".into(),
+        })?;
         let flow = analysis
             .flow_arc(machine.id)
             .map_err(|error| Error::from_graph(module, error))?;

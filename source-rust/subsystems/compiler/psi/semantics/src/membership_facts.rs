@@ -18,6 +18,7 @@ use crate::descriptors::descriptor_lifetimes::{
     DescriptorLocation, DescriptorPathSegment, DescriptorPosition, canonical_descriptor_location,
     descriptor_location,
 };
+use crate::descriptors::row_source::DescriptorRowSource;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Domain {
@@ -1657,13 +1658,20 @@ fn capture_return(state: &mut Facts, source: &ResultBinding) {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn analyze(module: &TerminalModule) -> Judged<MembershipFacts> {
-    let bodies = module
+    analyze_from(&DescriptorRowSource::new(module))
+}
+
+/// `analyze`, reading the reference rows from `rows`.
+pub(crate) fn analyze_from(rows: &DescriptorRowSource<'_, '_>) -> Judged<MembershipFacts> {
+    let bodies = rows
+        .module()
         .machines
         .iter()
         .map(|machine| machine.id)
         .collect::<Vec<_>>();
-    analyze_bodies(module, &bodies)
+    analyze_bodies_from(rows, &bodies)
 }
 
 /// Check every header, but prove normal completion only for these exact bodies.
@@ -1672,7 +1680,15 @@ pub(crate) fn analyze_bodies(
     module: &TerminalModule,
     bodies: &[MachineId],
 ) -> Judged<MembershipFacts> {
-    analyze_observations(module, bodies, &[], &mut [])
+    analyze_bodies_from(&DescriptorRowSource::new(module), bodies)
+}
+
+/// `analyze_bodies`, reading the reference rows from `rows`.
+pub(crate) fn analyze_bodies_from(
+    rows: &DescriptorRowSource<'_, '_>,
+    bodies: &[MachineId],
+) -> Judged<MembershipFacts> {
+    analyze_observations(rows, bodies, &[], &mut [])
 }
 
 /// Nominal provenance of an exact completed operand at one position. A
@@ -1700,21 +1716,40 @@ pub fn test_memberships(
     machine: MachineId,
     tests: &[MembershipTest],
 ) -> Result<Vec<bool>, &'static str> {
+    test_memberships_from(&DescriptorRowSource::new(module), machine, tests)
+}
+
+/// `test_memberships`, reading the reference rows from the module's shared
+/// analyses, so testing several bodies adapts each reached body once.
+pub fn test_memberships_in(
+    analyses: &crate::ModuleAnalyses<'_>,
+    machine: MachineId,
+    tests: &[MembershipTest],
+) -> Result<Vec<bool>, &'static str> {
+    test_memberships_from(&DescriptorRowSource::of(analyses), machine, tests)
+}
+
+fn test_memberships_from(
+    rows: &DescriptorRowSource<'_, '_>,
+    machine: MachineId,
+    tests: &[MembershipTest],
+) -> Result<Vec<bool>, &'static str> {
     if tests.is_empty() {
         return Ok(Vec::new());
     }
     let mut answers = vec![false; tests.len()];
-    analyze_observations(module, &[machine], tests, &mut answers).map_err(|error| error.detail)?;
+    analyze_observations(rows, &[machine], tests, &mut answers).map_err(|error| error.detail)?;
     Ok(answers)
 }
 
 fn analyze_observations(
-    module: &TerminalModule,
+    rows: &DescriptorRowSource<'_, '_>,
     bodies: &[MachineId],
     tests: &[MembershipTest],
     answers: &mut [bool],
 ) -> Judged<MembershipFacts> {
-    use crate::descriptor_results::{DescriptorAnalysis, terminal_reference_graph_from};
+    use crate::descriptor_results::{DescriptorAnalysis, DescriptorSlotKind};
+    let module = rows.module();
     let mut result = MembershipFacts::default();
     let has_result_memberships = module
         .machines
@@ -1806,12 +1841,12 @@ fn analyze_observations(
     }
     // The descriptor builder follows calls from exactly these bodies, so a
     // callee's returned storage and writes still constrain its caller.
-    let graphs = terminal_reference_graph_from(module, bodies.iter().copied()).map_err(|_| {
-        MembershipError {
+    let graphs = rows
+        .closure(DescriptorSlotKind::References, bodies.iter().copied())
+        .map_err(|_| MembershipError {
             machine: None,
             detail: "runtime membership has no complete storage transfer graph",
-        }
-    })?;
+        })?;
     let mut graphs_by_id = graphs.iter().collect::<Vec<_>>();
     graphs_by_id.sort_unstable_by_key(|graph| graph.id);
     if graphs_by_id.windows(2).any(|pair| pair[0].id == pair[1].id) {

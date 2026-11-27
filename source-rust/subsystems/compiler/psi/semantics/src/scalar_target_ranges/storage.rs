@@ -8,10 +8,11 @@ use terminal_psi::{TerminalMachine, TerminalModule};
 
 use crate::descriptor_lifetimes::{DescriptorLocation, DescriptorPosition};
 use crate::descriptor_results::{
-    DescriptorAnalysis, DescriptorMachine, ResidentValueCapture, TerminalScalarCaptures,
-    descriptor_machine, projected_stored_sources_in, terminal_borrowed_storage_graph_from,
-    terminal_resident_value_transfers,
+    DescriptorAnalysis, DescriptorSlotKind, ResidentValueCapture, TerminalScalarCaptures,
+    projected_stored_sources_in, terminal_resident_value_transfers,
 };
+use crate::descriptors::row_source::DescriptorRowSource;
+use crate::module_analyses::DescriptorRows;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Stored {
@@ -19,15 +20,21 @@ enum Stored {
     Copy(DescriptorPosition, DescriptorLocation),
 }
 
-pub(super) struct StorageValues {
-    graph: Vec<DescriptorMachine>,
+pub(super) struct StorageValues<'r> {
+    graph: DescriptorRows<'r>,
     writes: BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, Stored)>>,
 }
 
-impl StorageValues {
-    pub(super) fn new(module: &TerminalModule, machine: &TerminalMachine) -> Option<Self> {
-        let graph = terminal_borrowed_storage_graph_from(module, [machine.id], &[]).ok()?;
-        let row = descriptor_machine(&graph, machine.id)?;
+impl<'r> StorageValues<'r> {
+    pub(super) fn new(
+        rows: &'r DescriptorRowSource<'_, '_>,
+        machine: &TerminalMachine,
+    ) -> Option<Self> {
+        let module = rows.module();
+        let graph = rows
+            .closure(DescriptorSlotKind::BorrowedStorage, [machine.id])
+            .ok()?;
+        let row = graph.machine(machine.id)?;
         let mut writes: BTreeMap<_, Vec<_>> = BTreeMap::new();
         for (at, captured) in TerminalScalarCaptures::new(module, machine).ok()?.writes {
             if let Ok(values) = captured {
@@ -58,7 +65,7 @@ impl StorageValues {
         value: ValueId,
         ty: ScalarType,
     ) -> Option<Vec<(DescriptorPosition, ScalarTerm)>> {
-        let row = descriptor_machine(&self.graph, machine)?;
+        let row = self.graph.machine(machine)?;
         let mut reads = row
             .scalar_payload_reads
             .get(&at)?

@@ -3,6 +3,7 @@ use crate::descriptors::descriptor_lifetimes::DescriptorPosition;
 use crate::descriptors::descriptor_results::{
     self as descriptors, DescriptorAnalysis, DescriptorMachine, PayloadMembershipContract,
 };
+use crate::descriptors::row_source::DescriptorRowSource;
 use semantic_vocabulary::{MachineId, PlaceId, ReferenceOriginExtent, StructuralTypeId};
 use terminal_psi::{
     Operation, ReferenceOriginProjection, StructuralAccess, StructuralOperationResult,
@@ -10,15 +11,27 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 
-pub struct ReferenceResultMemberships<'module> {
+pub struct ReferenceResultMemberships<'module, 'r> {
     module: &'module TerminalModule,
+    rows: DescriptorRowSource<'r, 'module>,
     graph: std::cell::OnceCell<Vec<DescriptorMachine>>,
 }
 
-impl<'module> ReferenceResultMemberships<'module> {
+impl<'module, 'r> ReferenceResultMemberships<'module, 'r> {
     pub fn new(module: &'module TerminalModule) -> Self {
+        Self::with_rows(DescriptorRowSource::new(module))
+    }
+
+    /// `new`, building the module's borrowed-storage rows with its shared
+    /// analyses' machine lookup and type index.
+    pub fn new_in(analyses: &'r crate::ModuleAnalyses<'module>) -> Self {
+        Self::with_rows(DescriptorRowSource::of(analyses))
+    }
+
+    fn with_rows(rows: DescriptorRowSource<'r, 'module>) -> Self {
         Self {
-            module,
+            module: rows.module(),
+            rows,
             graph: std::cell::OnceCell::new(),
         }
     }
@@ -107,7 +120,9 @@ impl<'module> ReferenceResultMemberships<'module> {
             || {
                 self.graph
                     .get_or_init(|| {
-                        descriptors::terminal_borrowed_storage_graph(self.module)
+                        self.rows
+                            .module_graph(descriptors::DescriptorSlotKind::BorrowedStorage)
+                            .unwrap_or_default()
                     })
                     .as_slice()
             },
