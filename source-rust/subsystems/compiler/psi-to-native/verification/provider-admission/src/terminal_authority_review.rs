@@ -60,7 +60,7 @@ mod windows_handle_values;
 
 use abstract_operations::AbstractOperation;
 use terminal_authority_receipts::TerminalAuthorityClosureReviewReceipt;
-use selected_provider_plans::SelectedProviderPlanFacts;
+use build_providers::selections::SelectedProviderPlanFacts;
 
 use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};
 use crate::AdmittedTerminalMechanism;

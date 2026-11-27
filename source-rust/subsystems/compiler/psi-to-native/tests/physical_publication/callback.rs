@@ -5,6 +5,12 @@
 use std::sync::Arc;
 
 use arena::{Arena, HandleSpan};
+use build_providers::plans::{
+    BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, EvaluatedBindingEvaluationDigest,
+    EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
+    EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport, ProviderBinding,
+    ProviderPlanRow, ServiceCallingApplication, ServiceCallingPlan, ServiceMethod,
+};
 use calling_conventions::{
     BoundaryCallbackBinding, BoundaryCallingApplication, BoundaryNativeParameterGeometry,
     BoundaryNativeParameterOrigin, BoundaryNativeParameterShape, BoundarySignatureGeometry,
@@ -14,12 +20,6 @@ use calling_conventions::{
     StaticMachineBinderId, ValueShape, callback_requirement_id,
     evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations,
-};
-use provider_plans::{
-    BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, EvaluatedBindingEvaluationDigest,
-    EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
-    EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport, ProviderBinding,
-    ProviderPlanRow, ServiceCallingApplication, ServiceCallingPlan, ServiceMethod,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use terminal_codec::CanonicalTerminalArtifact;
@@ -36,7 +36,7 @@ const OWNER: &str = "PhysicalCalling";
 
 struct Fixture {
     artifact: Arc<CanonicalTerminalArtifact>,
-    selected: selected_provider_plans::SelectedProviderPlanFacts,
+    selected: build_providers::selections::SelectedProviderPlanFacts,
     external: Vec<ExternalBindingRow>,
     calling: Vec<BoundaryCallingApplication>,
     callbacks: Vec<provider_admission::NativeCallbackArgumentProposal>,
@@ -343,7 +343,7 @@ fn build_fixture() -> Fixture {
         });
     let provider_type = plan.provider_type.clone();
     let selected =
-        selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![plan])
+        build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(vec![plan])
             .unwrap();
     let identity =
         function_identity::MachineFunctionIdentity::callback_thunk(artifact.view().identity(), 0)
@@ -515,7 +515,7 @@ fn check_callback_publication(retain_body_source: bool) {
             .expect("admit callback registrar with exact selected foreign contract")
     };
     if !retain_body_source {
-        let substituted = selected_provider_plans::SelectedProviderPlanFacts::default();
+        let substituted = build_providers::selections::SelectedProviderPlanFacts::default();
         let Err(errors) =
             native_artifact::NativeImageProviders::from_admission(admit().providers, &substituted)
         else {

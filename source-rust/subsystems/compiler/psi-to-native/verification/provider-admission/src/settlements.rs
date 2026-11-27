@@ -28,17 +28,17 @@ We keep physical settlement separated by transport role:
 #[path = "settlements_source_imports.rs"]
 mod source_imports;
 
-use numeric_intrinsic_admission::signature::boundary_contract_matches_selected_schema;
 use crate::AdmittedBoundarySettlement;
 use crate::ProviderExecutionEvidence;
 use crate::terminal_authority_policy::TerminalAuthorityPolicyRow;
 use crate::{
-    AdmittedTerminalMechanism, NativeBoundaryRealization, NativeProviderSettlement,
-    AdmissionSource, ProviderAdmissionRequest,
+    AdmissionSource, AdmittedTerminalMechanism, NativeBoundaryRealization,
+    NativeProviderSettlement, ProviderAdmissionRequest,
 };
+use build_providers::plans::{ProviderBinding, ProviderPlan};
 use calling_conventions::{CallSignature, CallingPolicy, ExternalBindingKind, ExternalBindingRow};
 use diagnostics::Diagnostic;
-use provider_plans::{ProviderBinding, ProviderPlan};
+use numeric_intrinsic_admission::signature::boundary_contract_matches_selected_schema;
 use source_imports::derive_source_evaluated_mechanisms;
 use target::NativeTarget;
 use target_operations::{
@@ -273,7 +273,7 @@ fn settle_boundary<'request>(
 
 fn external_calling_application<'row>(
     row: &'row calling_conventions::ExternalBindingRow,
-    plan: &provider_plans::ProviderPlan,
+    plan: &build_providers::plans::ProviderPlan,
     abi: &semantic_vocabulary::CallingAbiIdentity,
 ) -> Result<&'row calling_conventions::BoundaryCallingApplication, Vec<Diagnostic>> {
     let application = row.calling_application(abi).ok_or_else(|| {
@@ -314,11 +314,11 @@ fn external_calling_application<'row>(
 }
 
 fn selected_plan_from_exact_evidence<'facts>(
-    selected: &'facts selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &'facts build_providers::selections::SelectedProviderPlanFacts,
     report_identity: u64,
-    exact_plan: &provider_plans::ProviderPlan,
+    exact_plan: &build_providers::plans::ProviderPlan,
     requirement: &str,
-) -> Result<&'facts provider_plans::ProviderPlan, Vec<Diagnostic>> {
+) -> Result<&'facts build_providers::plans::ProviderPlan, Vec<Diagnostic>> {
     selected
         .plan_by_exact_evidence(report_identity, exact_plan)
         .ok_or_else(|| {
@@ -334,7 +334,7 @@ fn rejoin_component_call(
     authority: &super::AdmittedNativeCallableAuthority,
     locator: &target::NormalizedComponentLocator,
     same_stack: &provider_stack_contribution::AdmittedSameStackContribution,
-    selected_plan: &provider_plans::ProviderPlan,
+    selected_plan: &build_providers::plans::ProviderPlan,
     requirement: &str,
     identities: &terminal_psi::TerminalIdentityTable,
     receiver: terminal_psi::TerminalPsiIdentity,
@@ -387,7 +387,7 @@ fn rejoin_component_call(
 
 #[allow(clippy::too_many_arguments)]
 fn rejoin_normalized_foreign_call(
-    selected_plan: &provider_plans::ProviderPlan,
+    selected_plan: &build_providers::plans::ProviderPlan,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
     same_stack: &provider_stack_contribution::AdmittedSameStackContribution,
     provider_plan_report_identity: u64,
@@ -437,14 +437,14 @@ fn rejoin_normalized_foreign_call(
     ) {
         let table = match (selected, retained) {
             (
-                provider_plans::ProviderBinding::VtableField { field, .. },
+                build_providers::plans::ProviderBinding::VtableField { field, .. },
                 calling_conventions::ExternalBindingKind::VtableField {
                     field: retained,
                     byte_offset,
                 },
             ) if field == retained => Some((*byte_offset, false)),
             (
-                provider_plans::ProviderBinding::TableFunction { field, .. },
+                build_providers::plans::ProviderBinding::TableFunction { field, .. },
                 calling_conventions::ExternalBindingKind::TableFunction {
                     field: retained,
                     byte_offset,
@@ -476,7 +476,7 @@ fn rejoin_normalized_foreign_call(
         }
     }
     let (
-        provider_plans::ProviderBinding::Import {
+        build_providers::plans::ProviderBinding::Import {
             evaluated: selected_import,
         },
         calling_conventions::ExternalBindingKind::Import {

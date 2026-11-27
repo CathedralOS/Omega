@@ -161,10 +161,11 @@ pub(crate) fn native_calling_results(
             )));
         }
         let policy = match &supplied.binding {
-            provider_plans::EvaluatedNativeBinding::Import(_) | provider_plans::EvaluatedNativeBinding::FunctionField(_) => {
+            build_providers::plans::EvaluatedNativeBinding::Import(_)
+            | build_providers::plans::EvaluatedNativeBinding::FunctionField(_) => {
                 calling_conventions::CallingPolicy::native_for_target(profile.native_target())
             }
-            provider_plans::EvaluatedNativeBinding::Syscall(_) => {
+            build_providers::plans::EvaluatedNativeBinding::Syscall(_) => {
                 calling_conventions::CallingPolicy::native_syscall_for_target(
                     profile.native_target(),
                 )

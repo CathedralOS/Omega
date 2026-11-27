@@ -13,7 +13,7 @@ use terminal_codec::CanonicalTerminalArtifact;
 pub(super) struct PublishedNativeEntry<'a> {
     artifact: &'a Arc<CanonicalTerminalArtifact>,
     nomination: &'a PublishedEntryNomination,
-    providers: &'a [provider_plans::ProviderPlan],
+    providers: &'a [build_providers::plans::ProviderPlan],
 }
 
 impl<'a> PublishedNativeEntry<'a> {

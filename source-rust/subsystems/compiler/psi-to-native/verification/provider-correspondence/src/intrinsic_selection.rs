@@ -1,20 +1,20 @@
 //! Match demanded published boundaries to the selected plan rows and the exact declaring provider.
 use crate::CompilerIntrinsicPlanProvenance;
+use build_providers::plans::ServiceSchema;
 use diagnostics::Diagnostic;
 use native_intrinsics::CompilerIntrinsicExecutionIdentity;
-use provider_plans::ServiceSchema;
 use std::collections::BTreeSet;
 pub struct SelectedIntrinsicRow<'a> {
     pub requirement_identity: &'a str,
     pub plan_index: usize,
-    pub row: &'a provider_plans::ProviderPlanRow,
+    pub row: &'a build_providers::plans::ProviderPlanRow,
     pub semantic_schema: &'a ServiceSchema,
     pub execution: Option<CompilerIntrinsicExecutionIdentity>,
     pub external_realization: Option<&'a str>,
 }
 
 pub fn visit_selected_intrinsics<'a>(
-    selected: &'a selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &'a build_providers::selections::SelectedProviderPlanFacts,
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
     module: &terminal_psi::TerminalModule,
@@ -55,7 +55,7 @@ pub fn visit_selected_intrinsics<'a>(
         {
             if matches!(
                 row.binding,
-                provider_plans::ProviderBinding::CompilerIntrinsic { .. }
+                build_providers::plans::ProviderBinding::CompilerIntrinsic { .. }
             ) {
                 selected_rows.push(SelectedIntrinsicRow {
                     requirement_identity: plan.identities.text(row.requirement_identity),

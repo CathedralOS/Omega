@@ -1,7 +1,9 @@
-// Shared by the provider-plan and provider-selection retained-input tests through
-// `include!`: both pin digests of this exact plan, so one copy keeps them in step.
+//! The provider-plan and provider-selection retained-input tests both pin
+//! digests of this exact plan, so one copy keeps them in step.
 
-fn selected_plan() -> ProviderPlan {
+use super::*;
+
+pub(crate) fn selected_plan() -> ProviderPlan {
     let mut plan = ProviderPlan {
         name: "selected-provider".into(),
         provider_type: "Provider".into(),

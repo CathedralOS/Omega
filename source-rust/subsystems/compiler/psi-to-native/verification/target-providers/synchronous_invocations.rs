@@ -5,7 +5,7 @@ one plan and no selected cycle is admitted, while opaque rows keep their
 declared ceilings.
 */
 
-use provider_plans::{ProviderBinding, ProviderPlan};
+use build_providers::plans::{ProviderBinding, ProviderPlan};
 use service_surface::ServiceSynchronousInvocation;
 
 pub enum SynchronousBoundaryTarget {
@@ -15,7 +15,7 @@ pub enum SynchronousBoundaryTarget {
         application: Option<String>,
     },
     Selected {
-        plan: provider_plans::ProviderPlanDigest,
+        plan: build_providers::plans::ProviderPlanDigest,
         label: String,
     },
 }
@@ -74,7 +74,7 @@ pub fn validate_selected_synchronous_invocation_cycles<'plan>(
     selected_plans: impl IntoIterator<Item = &'plan ProviderPlan>,
     mut checked_targets: impl FnMut(
         &ProviderPlan,
-        &provider_plans::ProviderPlanRow,
+        &build_providers::plans::ProviderPlanRow,
     )
         -> Result<Vec<SynchronousBoundaryTarget>, diagnostics::Diagnostic>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
@@ -276,7 +276,7 @@ fn synchronous_cycle_from(
 
 fn exact_authored_invocations(
     plan: &ProviderPlan,
-    method: &provider_plans::ServiceMethod,
+    method: &build_providers::plans::ServiceMethod,
 ) -> Result<Vec<String>, diagnostics::Diagnostic> {
     ServiceSynchronousInvocation::validate_entries(
         &method.synchronous_invocations,

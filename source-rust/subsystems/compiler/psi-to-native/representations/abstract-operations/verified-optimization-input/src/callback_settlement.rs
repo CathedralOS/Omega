@@ -115,7 +115,7 @@ mod placement {
 
     pub fn settle_native_callback_placements(
         module: &TerminalModule,
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
         calling: &[BoundaryCallingApplication],
     ) -> Result<Vec<NativeCallbackPlacement>, String> {
         let operations = CallbackTerminalOperations::new(
@@ -149,7 +149,7 @@ mod placement {
             };
             if matches!(
                 row.binding,
-                provider_plans::ProviderBinding::CheckedAdapter { .. }
+                build_providers::plans::ProviderBinding::CheckedAdapter { .. }
             ) {
                 continue;
             }
@@ -249,7 +249,7 @@ mod placement {
         calling: &'plans [BoundaryCallingApplication],
         abi: &semantic_vocabulary::CallingAbiIdentity,
         calling_owner: Option<&str>,
-        expected: Option<&provider_plans::ServiceCallingPlan>,
+        expected: Option<&build_providers::plans::ServiceCallingPlan>,
     ) -> Result<&'plans BoundaryCallingApplication, String> {
         let mut matching = calling.iter().filter(|application| {
             &application.abi == abi
@@ -530,7 +530,7 @@ mod registrar_imports {
 
     pub fn settle_callback_registrar_imports(
         terminal_module: &TerminalModule,
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
         callback_placements: &[NativeCallbackPlacement],
         callback_occurrences: impl Iterator<Item = CallbackRegistrarOccurrence> + Clone,
         calling_applications: &[BoundaryCallingApplication],

@@ -119,7 +119,7 @@ struct TargetRealizedIntrinsics {
     profile: target::TargetProfile,
     x86_fma: Option<target::AdmittedX86ScalarFmaProvider>,
     artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
-    selected: selected_provider_plans::SelectedProviderPlanFacts,
+    selected: build_providers::selections::SelectedProviderPlanFacts,
 }
 
 impl TargetRealizedIntrinsics {
@@ -129,7 +129,7 @@ impl TargetRealizedIntrinsics {
         profile: target::TargetProfile,
         x86_fma: Option<target::AdmittedX86ScalarFmaProvider>,
     ) -> Result<Self, String> {
-        let selected = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(
+        let selected = build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(
             selection.plans.clone(),
         )?;
         Ok(Self {

@@ -31,7 +31,7 @@ pub(super) fn compare(
     package: Option<semantic_vocabulary::PackageKeyIdentity>,
     program: &native_compiler::NativeProgram,
     components: &[review_evidence::record::PackagePolicyComponentAssumption],
-    bindings: &[provider_acceptance::AcceptedSemanticBinding],
+    bindings: &[build_providers::acceptance::AcceptedSemanticBinding],
     declarations: &source_compiler::RuntimePermissionDeclarations,
 ) -> Result<(), Vec<Diagnostic>> {
     let package = package.ok_or_else(|| {

@@ -1,10 +1,10 @@
 //! Builtins selected for reachable Psi boundaries, before native instruction selection.
+use build_providers::plans::{ProviderPlan, ServiceSchema};
+use build_providers::selections::SelectedProviderPlanFacts;
 use diagnostics::Diagnostic;
 use native_intrinsics::CompilerIntrinsicExecutionIdentity;
 use provider_correspondence::external_providers::reconcile_numeric_meaning;
 use provider_correspondence::{CompilerIntrinsicPlanProvenance, selected_external_execution};
-use provider_plans::{ProviderPlan, ServiceSchema};
-use selected_provider_plans::SelectedProviderPlanFacts;
 use semantic_vocabulary::{BoundaryMachineId, IeeeFloatFormat};
 use std::collections::BTreeSet;
 use std::sync::Arc;

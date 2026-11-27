@@ -7,12 +7,12 @@ no author-selected trust field exists on these types; admission and trust
 classification belong to downstream review receipts.
 */
 
-#![forbid(unsafe_code)]
-
 mod digest_encoder;
 mod evaluated_bindings;
 #[cfg(test)]
 mod retained_inputs_tests;
+#[cfg(test)]
+pub(crate) mod selected_plan_fixture;
 mod service_schemas;
 
 use service_surface::ServiceSynchronousInvocation;
@@ -35,7 +35,7 @@ pub use service_schemas::{
 pub use service_surface::identities::ProviderIdentityId;
 pub use service_surface::identities::ProviderIdentityTable;
 
-use crate::digest_encoder::ProviderPlanDigestEncoder;
+use crate::plans::digest_encoder::ProviderPlanDigestEncoder;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderBinding {
@@ -902,7 +902,9 @@ impl ProviderPlan {
             match &row.binding {
                 ProviderBinding::FunctionField { evaluated } => {
                     if self.target != evaluated.target().target_name()
-                        || evaluated.selector().table.requirement_application != self.identities.text(row.requirement_identity).as_bytes() {
+                        || evaluated.selector().table.requirement_application
+                            != self.identities.text(row.requirement_identity).as_bytes()
+                    {
                         errors.push(format!("plan `{}` row `{}` has a function field for another target or requirement", self.name, row.method));
                     }
                 }

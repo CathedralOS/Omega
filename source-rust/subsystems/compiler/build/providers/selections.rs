@@ -1,9 +1,7 @@
 //! Keep the exact selected provider plans and their checked installation
 //! and specialization rows. Retained candidates must reproduce
 //! these identities when they re-enter Build or native admission.
-#![forbid(unsafe_code)]
-
-use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
+use crate::plans::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
 use std::collections::BTreeSet;
 use terminal_psi::{TerminalIdentityIndex, TerminalIdentityTable};
 use wire::digest_encoder::DomainDigestEncoder;
@@ -492,16 +490,15 @@ impl SelectedProviderPlanFacts {
                 Some(plan.identities.text(plan_row.requirement_identity))
                     == self.identities.text(row.selected_requirement_identity)
                     && match &plan_row.binding {
-                        provider_plans::ProviderBinding::CheckedAdapter {
-                            machine_identity,
-                            ..
+                        crate::plans::ProviderBinding::CheckedAdapter {
+                            machine_identity, ..
                         } => {
                             Some(plan.identity_text(*machine_identity))
                                 == self.identities.text(row.selected_machine_identity)
                         }
-                        provider_plans::ProviderBinding::Import { .. }
-                        | provider_plans::ProviderBinding::CompilerIntrinsic { .. }
-                        | provider_plans::ProviderBinding::Syscall { .. } => {
+                        crate::plans::ProviderBinding::Import { .. }
+                        | crate::plans::ProviderBinding::CompilerIntrinsic { .. }
+                        | crate::plans::ProviderBinding::Syscall { .. } => {
                             row.selected_machine_identity == row.selected_requirement_identity
                                 && row.machine_identity == row.selected_requirement_identity
                         }
@@ -532,7 +529,7 @@ impl SelectedProviderPlanFacts {
                     && plan.rows.iter().any(|row| {
                         matches!(
                             row.binding,
-                            provider_plans::ProviderBinding::CheckedAdapter { .. }
+                            crate::plans::ProviderBinding::CheckedAdapter { .. }
                         ) && Some(plan.identities.text(row.requirement_identity))
                             == self
                                 .identities
@@ -628,7 +625,7 @@ impl SelectedProviderPlanFacts {
     pub fn selected_requirement_row(
         &self,
         requirement: &str,
-    ) -> Option<(&ProviderPlan, &provider_plans::ProviderPlanRow)> {
+    ) -> Option<(&ProviderPlan, &crate::plans::ProviderPlanRow)> {
         let (target_requirement, target_plan_fingerprint) =
             if let Some(row) = self.specialized_requirement_row(requirement) {
                 (
@@ -792,7 +789,8 @@ impl SelectedProviderPlanFacts {
                 .ok_or_else(|| format!("root installation reach lost service {:?}", service.id))
         };
         let mut services = module
-            .interfaces.services
+            .interfaces
+            .services
             .iter()
             .map(|row| Ok((service_identity(row)?, row.id)))
             .collect::<Result<Vec<_>, String>>()?;
@@ -817,7 +815,8 @@ impl SelectedProviderPlanFacts {
                 .iter()
                 .map(|id| {
                     let position = module
-                        .interfaces.services
+                        .interfaces
+                        .services
                         .binary_search_by_key(id, |service| service.id)
                         .map_err(|_| {
                             format!("root installation reach names an absent service {id:?}")

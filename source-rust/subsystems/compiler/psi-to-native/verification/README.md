@@ -35,7 +35,7 @@ install a handler. Their callers need the checked records during compilation.
   carry the installed interrupt and callback entries, helper associations and
   measured stacks read by instruction selection and frame binding.
 - [Target providers](target-providers/target_providers.rs) joins Build's
-  [selected plans](../../build/providers/selections/selection.rs) to the
+  [selected plans](../../build/providers/selections.rs) to the
   canonical candidate and service declarations, checks synchronous call cycles
   and rechecks every retained folded-constant dependency before installation.
 - [Component descriptions](component-description/description.rs) reconstruct the published
