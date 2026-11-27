@@ -927,21 +927,65 @@ fn an_applied_nested_record_theorem_concludes_nothing_about_another_field() {
     assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
 }
 
-/// A data invariant is a premise the contract does not state, so a record
-/// with one is refused by name.
+/// A record's data invariant holds for every value of its type, so it is a
+/// premise of a contract over that record: `x != 0` gives `x > 0` with no
+/// stated `requires`.
+const NONZERO_FIRST: &str = "data Pair requires self.x != 0u8 { x: u8; y: u8; }
+
+data FirstIsPositive = machine(p: Pair)
+    ensures p.x > 0u8;
+
+machine first_is_positive(p: Pair)
+ensures p.x > 0u8
+{
+}
+
+machine use_step<Step: FirstIsPositive>(p: Pair)
+ensures p.x > 0u8
+{
+    Step(p);
+}
+
+machine entry() -> u8 {
+    use_step::<first_is_positive>(Pair { x: 1u8, y: 2u8 });
+    0u8
+}
+";
+
 #[test]
-fn a_record_with_a_data_invariant_is_not_a_logical_subject() {
-    let source = FIRST_IS_NONZERO.replacen(
-        "data Pair { x: u8; y: u8; }",
-        "data Pair requires self.x < 9u8 { x: u8; y: u8; }",
-        1,
-    );
-    assert_ne!(source, FIRST_IS_NONZERO);
-    let verdict = Program::try_of(&[("product/main.omg", &source)]).map(|p| p.judged(|_| {}));
-    assert!(
-        format!("{verdict:?}").contains("logical data subject has a data invariant"),
-        "{verdict:?}"
-    );
+fn a_record_data_invariant_is_a_premise_of_its_logical_subject() {
+    let verdict = stored(NONZERO_FIRST);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+#[test]
+fn an_invariant_on_another_field_does_not_establish_the_conclusion() {
+    let source = NONZERO_FIRST.replace("requires self.x != 0u8", "requires self.y != 0u8");
+    assert_ne!(source, NONZERO_FIRST);
+    let verdict = stored(&source);
+    assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+/// A nested record's invariant is a premise over the outer record's subjects.
+#[test]
+fn a_nested_record_data_invariant_is_a_premise_of_its_logical_subject() {
+    let source = NONZERO_FIRST
+        .replace(
+            "data Pair requires self.x != 0u8 { x: u8; y: u8; }",
+            "data Inner requires self.x != 0u8 { x: u8; z: u8; }\n\ndata Pair { inner: Inner; y: u8; }",
+        )
+        .replace("p.x", "p.inner.x")
+        .replace(
+            "Pair { x: 1u8, y: 2u8 }",
+            "Pair { inner: Inner { x: 1u8, z: 3u8 }, y: 2u8 }",
+        );
+    assert!(source.contains("ensures p.inner.x > 0u8"), "{source}");
+    let verdict = stored(&source);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+    let other = source.replace("requires self.x != 0u8", "requires self.z != 0u8");
+    assert_ne!(other, source);
+    let verdict = stored(&other);
+    assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
 }
 
 /// A constant record stores a machine in an ordinary callable field. The
