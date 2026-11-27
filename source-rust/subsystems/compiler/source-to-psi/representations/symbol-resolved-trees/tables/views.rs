@@ -60,9 +60,7 @@ impl SymbolResolvedTrees {
         &self,
         owner: symbols::SymbolHandle,
     ) -> impl Iterator<Item = &signature::AuthoredServiceReachRow> {
-        self.authored_service_reach_rows
-            .iter()
-            .filter(move |row| row.owner == owner)
+        self.authored_service_reach_rows.owned_by(owner)
     }
 
     pub fn data_members(&self, span: HandleSpan<data::DataMember>) -> &[data::DataMember] {

@@ -1005,7 +1005,7 @@ fn lower_machine_states(
     any. Lowering reads the catalog before the machine has a symbol, from the
     same toolchain file and declaration path the symbol table later reports.
 */
-fn sealed_intrinsic(
+pub(super) fn sealed_intrinsic(
     lowerer: &Lowerer,
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
