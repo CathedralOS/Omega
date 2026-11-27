@@ -419,10 +419,14 @@ pub enum LawProof {
     /// for every amount of fuel, by induction on it: `goal` is the law's
     /// equality with the machine's result read as that definition, stated
     /// under the fuel and then the formals. `script` is the body's
-    /// argument, the same in every case of the fuel.
+    /// argument, the same in every case of the fuel. A unit of fuel is
+    /// guarded by the ranked formal's truncated subtraction at entry
+    /// `order`: when the rest of the fuel already reaches the ranked
+    /// formal, the unit does nothing.
     Fuel {
         data: u32,
         formal: u32,
+        order: u32,
         goal: TermHandle,
         script: LawCase,
     },

@@ -572,6 +572,24 @@ struct Fuel {
     descent: Option<Descent>,
 }
 
+/// What the guard of a unit of fuel reads, as terms of the body's scope.
+#[derive(Clone, Copy)]
+struct Guard {
+    /// The entries of the ranked formal's data and of its truncated
+    /// subtraction.
+    data: u32,
+    order: u32,
+    /// The closed result type.
+    result: TermHandle,
+    /// The caller's ranked formal and the rest of the fuel.
+    ranked: TermHandle,
+    rest: TermHandle,
+    /// The definition at the rest of the fuel, over every argument.
+    step: TermHandle,
+    /// How many arguments it takes: machine parameters, then formals.
+    all: u32,
+}
+
 /// What a recursive call at a computed natural owes: its ranked argument
 /// `next` strictly below the caller's ranked formal `ranked` in natural
 /// order, spelled as core spells it, `saturating_sub(Succ(next), ranked) =
@@ -4352,6 +4370,12 @@ impl<'p> Converter<'p, '_> {
                 "recursive call at a computed value of a mutual block of data, which has no natural order",
             ));
         }
+        // A unit of fuel first asks whether the ranked argument is already
+        // within the rest of the fuel, `ranked ∸ rest = 0`, and if so spends
+        // it doing nothing. Then any sufficient fuel gives the same answer,
+        // which a law about the definition proves without its body
+        // (`wiki/drafts/designs/computed_descent_recursion.md`).
+        let order = self.natural_order(id, data)?;
         let default = self.inhabitant(id, result_entry)?;
         // The definition over fuel is a declaration of its own: a generic
         // machine's machine parameters are its arguments too, after the
@@ -4426,6 +4450,18 @@ impl<'p> Converter<'p, '_> {
             let read = self.body_value(id, slots, None, &valuing);
             self.callable_scope = enclosing;
             let mut branch = read?;
+            if let Some(step) = step {
+                let guard = Guard {
+                    data,
+                    order,
+                    result: defining.result,
+                    ranked: self.variable((count - 1 - measure) as u32),
+                    rest: shape.field(&mut self.signature.arena, case, 0, all),
+                    step,
+                    all,
+                };
+                branch = self.guarded(id, &shape, guard, &context, branch)?;
+            }
             for &formal in types.iter().rev() {
                 branch = self.signature.arena.insert(Term::Lambda {
                     domain: formal,
@@ -4481,6 +4517,108 @@ impl<'p> Converter<'p, '_> {
         let head = self.constant(over_fuel);
         let mut operands = vec![own[parameters as usize + measure]];
         operands.extend(own);
+        Ok(self.signature.arena.apply_arguments(head, &operands))
+    }
+
+    /// The body of a machine on fuel with a unit of fuel left, guarded: by
+    /// cases on `ranked ∸ rest`, the definition at the rest of the fuel when
+    /// that is zero, and `body` otherwise. The cases are a definition of
+    /// their own over the guard value and every variable of the fuel's case,
+    /// `scope`, so that a proof's normal form computes it once the guard
+    /// value is a case and leaves it folded otherwise.
+    fn guarded(
+        &mut self,
+        id: MachineId,
+        shape: &PlainData,
+        guard: Guard,
+        scope: &[TermHandle],
+        body: TermHandle,
+    ) -> Checked<TermHandle> {
+        let outer = scope.len() as u32;
+        let monus = self.constant(guard.order);
+        let nat = self.constant(guard.data);
+        let own: Vec<_> = (0..guard.all)
+            .map(|position| self.variable(guard.all - 1 - position))
+            .collect();
+        let variables: Vec<_> = (0..outer).map(|at| self.variable(outer - 1 - at)).collect();
+        let arena = &mut self.signature.arena;
+        let mut landing = guard.result;
+        for &variable in scope.iter().rev() {
+            landing = arena.insert(Term::Pi {
+                domain: variable,
+                codomain: landing,
+            });
+        }
+        let motive = arena.insert(Term::Lambda {
+            domain: nat,
+            body: landing,
+        });
+        // Each branch binds the case's fields, then every variable of the
+        // scope again in the same order, so the scope's terms are terms of
+        // the branch as they stand.
+        let branches: Vec<_> = (0..shape.cases())
+            .map(|case| {
+                let mut branch = if shape.arity(case) == 0 {
+                    arena.apply_arguments(guard.step, &own)
+                } else {
+                    body
+                };
+                for &variable in scope.iter().rev() {
+                    branch = arena.insert(Term::Lambda {
+                        domain: variable,
+                        body: branch,
+                    });
+                }
+                shape.branch(arena, guard.data, motive, case, branch)
+            })
+            .collect();
+        let tree = arena.insert(Term::Variable(outer));
+        let induction = shape.induct(arena, guard.data, motive, &branches, tree);
+        let mut term = arena.apply_arguments(induction, &variables);
+        let mut function = guard.result;
+        for &variable in scope.iter().rev() {
+            term = arena.insert(Term::Lambda {
+                domain: variable,
+                body: term,
+            });
+            function = arena.insert(Term::Pi {
+                domain: variable,
+                codomain: function,
+            });
+        }
+        term = arena.insert(Term::Lambda {
+            domain: nat,
+            body: term,
+        });
+        function = arena.insert(Term::Pi {
+            domain: nat,
+            codomain: function,
+        });
+        let subject = arena.apply_arguments(monus, &[guard.ranked, guard.rest]);
+        index(id, self.signature.declarations.len() + 1)?;
+        let symbol = *self
+            .program
+            .symbols
+            .get(id)
+            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let name = format!("{} guarded", self.name(symbol));
+        let entry = self.push(
+            Declaration::definition(0, function, term),
+            SignatureEntryKind::Function {
+                machine: symbol,
+                cases: Some(FunctionCases {
+                    data: guard.data,
+                    subject: 0,
+                    arity: outer + 1,
+                    motive,
+                    branches,
+                }),
+            },
+            name,
+        );
+        let head = self.constant(entry);
+        let mut operands = vec![subject];
+        operands.extend(variables);
         Ok(self.signature.arena.apply_arguments(head, &operands))
     }
 
@@ -5893,11 +6031,13 @@ impl<'p> Converter<'p, '_> {
                     LawProof::Fuel {
                         data,
                         formal,
+                        order,
                         script,
                         ..
                     } => LawProof::Fuel {
                         data: *data,
                         formal: *formal,
+                        order: *order,
                         goal: over_fuel[clause],
                         script: script.clone(),
                     },
@@ -6527,6 +6667,7 @@ impl<'p> Converter<'p, '_> {
                 Some((data, formal)) => LawProof::Fuel {
                     data,
                     formal,
+                    order: self.natural_order(id, data)?,
                     goal: self.signature.arena.insert(Term::Dummy),
                     script: case,
                 },

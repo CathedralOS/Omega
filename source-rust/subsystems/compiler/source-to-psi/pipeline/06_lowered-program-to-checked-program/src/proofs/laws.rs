@@ -17,8 +17,9 @@ use proof_admission::{
 };
 use terminal_check_tables::UnprovedCause;
 use terminal_check_tables::mathematics::{
-    Evidence, FamilyLawCase, IntegerPositions, Law, LawCase, LawProof, MathematicalSignature,
-    OperandLaw, OperandLicense, SignatureEntry, SignatureEntryKind, SplitSubject,
+    Citation, Evidence, FamilyLawCase, IntegerPositions, Law, LawCase, LawProof,
+    MathematicalSignature, OperandLaw, OperandLicense, SignatureEntry, SignatureEntryKind,
+    SplitSubject,
 };
 
 use super::equality::{
@@ -681,8 +682,13 @@ enum Split {
     /// The law's induction on one of its formals.
     Induction,
     /// The induction on fuel of a law about a machine defined on fuel. Its
-    /// cases bind units of fuel, which the body's script never names.
-    Fuel,
+    /// cases bind units of fuel, which the body's script never names. A
+    /// unit of fuel is guarded by `ranked ∸ rest`, the truncated
+    /// subtraction at entry `order`, so its case splits on that first.
+    Fuel { order: u32, ranked: u32 },
+    /// The split on a unit of fuel's guard: a case analysis whose field
+    /// the body's script never names either.
+    Guard,
 }
 
 struct Proving<'p> {
@@ -784,7 +790,16 @@ impl Proving<'_> {
                         )
                     }
                     SplitSubject::Value(value) => {
-                        self.split_value(frame, &context, value, split.data, &split.cases, reported)
+                        let value = instantiate(self.arena, value, &frame.names);
+                        self.split_value(
+                            frame,
+                            &context,
+                            value,
+                            split.data,
+                            &split.cases,
+                            Split::Cases,
+                            reported,
+                        )
                     }
                 }
             }
@@ -1092,7 +1107,9 @@ impl Proving<'_> {
     /// in the goal, so a definition that chooses by that value computes,
     /// and gives the case the equality as evidence for whatever else names
     /// the computed value. The whole is applied to the computed value and
-    /// the proof that it equals itself.
+    /// the proof that it equals itself. `value` is stated under the
+    /// frame's telescope, and `how` is `Split::Cases` or `Split::Guard`.
+    #[allow(clippy::too_many_arguments)]
     fn split_value(
         &mut self,
         frame: Frame,
@@ -1100,11 +1117,11 @@ impl Proving<'_> {
         value: TermHandle,
         data: u32,
         cases: &[LawCase],
+        how: Split,
         reported: Option<usize>,
     ) -> Result<TermHandle, Failure> {
         let unproved = |error| failure(reported, error);
         let mut computing = Budget::new(SEARCH_COMPUTING);
-        let value = instantiate(self.arena, value, &frame.names);
         let value = normal(self.arena, context, self.definitions, value, &mut computing)
             .map_err(unproved)?;
         let Term::Id { ty, left, right } = self.arena.get(frame.goal) else {
@@ -1145,7 +1162,7 @@ impl Proving<'_> {
             companions: frame.companions,
             telescope,
         };
-        let mut proof = self.split(inner, count, data, cases, Split::Cases, reported)?;
+        let mut proof = self.split(inner, count, data, cases, how, reported)?;
         proof = self.arena.insert(Term::Lambda {
             domain: equation,
             body: proof,
@@ -1156,6 +1173,58 @@ impl Proving<'_> {
         });
         let reflexivity = self.arena.insert(Term::Refl { ty: subject, value });
         Ok(self.arena.apply_arguments(proof, &[value, reflexivity]))
+    }
+
+    /// The proof of the frame's goal in a case of fuel with a unit `rest`
+    /// left, by the cases of its guard `ranked ∸ rest`: at zero the unit is
+    /// spent doing nothing, so the law at the rest of the fuel and the same
+    /// arguments is the goal; otherwise the definition runs its body, which
+    /// `script` argues.
+    #[allow(clippy::too_many_arguments)]
+    fn guard(
+        &mut self,
+        frame: Frame,
+        order: u32,
+        ranked: u32,
+        rest: TermHandle,
+        data: u32,
+        script: &LawCase,
+        reported: Option<usize>,
+    ) -> Result<TermHandle, Failure> {
+        let Some(SignatureEntryKind::Data { shape, .. }) =
+            self.entries.get(data as usize).map(|entry| &entry.kind)
+        else {
+            return Err(failure(reported, SearchError::NoProof));
+        };
+        let Some(&formal) = frame.names.get(ranked as usize) else {
+            return Err(failure(reported, SearchError::NoProof));
+        };
+        let count = self.law.formals.len();
+        let same = LawCase {
+            citations: vec![Citation {
+                evidence: Evidence::Fuel,
+                arguments: (0..count)
+                    .map(|formal| variable(self.arena, frame.names.len() - 1 - formal))
+                    .collect(),
+            }],
+            ..LawCase::default()
+        };
+        let cases: Vec<LawCase> = (0..shape.cases())
+            .map(|case| {
+                if shape.arity(case) == 0 {
+                    same.clone()
+                } else {
+                    script.clone()
+                }
+            })
+            .collect();
+        let monus = constant(self.arena, order);
+        let value = self.arena.apply_arguments(monus, &[formal, rest]);
+        let mut context = self.closed.clone();
+        for &ty in &frame.telescope {
+            context = context.extend(ty);
+        }
+        self.split_value(frame, &context, value, data, &cases, Split::Guard, reported)
     }
 
     /// The proof of the frame's goal by the cases of the variable at `place`
@@ -1183,7 +1252,7 @@ impl Proving<'_> {
         how: Split,
         reported: Option<usize>,
     ) -> Result<TermHandle, Failure> {
-        let induction = how != Split::Cases;
+        let induction = matches!(how, Split::Induction | Split::Fuel { .. });
         let unproved = || failure(reported, SearchError::NoProof);
         let Some(SignatureEntryKind::Data { shape, .. }) =
             self.entries.get(data as usize).map(|entry| &entry.kind)
@@ -1196,7 +1265,7 @@ impl Proving<'_> {
         if shape.is_mutual() && how == Split::Induction {
             return self.mutual_induction(frame, place, data, shape, cases, reported);
         }
-        if shape.is_mutual() && how == Split::Fuel {
+        if shape.is_mutual() && matches!(how, Split::Fuel { .. }) {
             return Err(unproved());
         }
         let count = frame.telescope.len();
@@ -1259,8 +1328,9 @@ impl Proving<'_> {
                 .iter()
                 .map(|&name| instantiate(self.arena, name, &actuals))
                 .collect();
-            // A unit of fuel is no name of the script's.
-            if how != Split::Fuel {
+            // A unit of fuel, or what its guard computed, is no name of the
+            // script's.
+            if how == Split::Cases || how == Split::Induction {
                 for field in 0..shape.arity(case) {
                     names.push(shape.field(self.arena, case, field, rest));
                 }
@@ -1293,7 +1363,14 @@ impl Proving<'_> {
                 telescope,
             };
             let bound_again = inner.telescope[fields..].to_vec();
-            let mut branch = self.case(inner, script, reported.or(Some(case)))?;
+            let reported = reported.or(Some(case));
+            let mut branch = match how {
+                Split::Fuel { order, ranked } if shape.arity(case) == 1 => {
+                    let rest = shape.field(self.arena, case, 0, rest);
+                    self.guard(inner, order, ranked, rest, data, script, reported)?
+                }
+                _ => self.case(inner, script, reported)?,
+            };
             for &domain in bound_again.iter().rev() {
                 branch = self.arena.insert(Term::Lambda {
                     domain,
@@ -1978,10 +2055,12 @@ fn prove_law(
         )?,
         // The law for every amount of fuel, then at the machine's own: its
         // ranked formal. The fuel is one more variable, bound first; every
-        // case of it runs the same script.
+        // case of it runs the same script, a unit of fuel after the split
+        // on its guard.
         LawProof::Fuel {
             data,
             formal,
+            order,
             goal,
             script,
         } => {
@@ -2003,7 +2082,11 @@ fn prove_law(
                 ..frame
             };
             let scripts = vec![script.clone(); shape.cases()];
-            let general = proving.split(over_fuel, 0, *data, &scripts, Split::Fuel, None)?;
+            let how = Split::Fuel {
+                order: *order,
+                ranked: *formal,
+            };
+            let general = proving.split(over_fuel, 0, *data, &scripts, how, None)?;
             // `general` is stated under the fuel, the formals and the
             // premises. Here the fuel is the ranked formal.
             let mut actuals = vec![variable(proving.arena, count - 1 - ranked + held as usize)];
