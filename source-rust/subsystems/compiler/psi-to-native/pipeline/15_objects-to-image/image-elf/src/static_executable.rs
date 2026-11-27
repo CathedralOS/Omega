@@ -191,10 +191,6 @@ pub fn emit_elf_executable(mut image: FinalImage) -> Result<ExecutableImageOutpu
     let imports = canonical_referenced_imports(&image)?;
     if let Some(import) = imports.first() {
         let message = match &import.locator {
-            ElfImportLocator::StringBackedBootstrap { library, symbol } => format!(
-                "ELF direct image relocation references unknown symbol `{symbol}`; canonical dynamic import request names library `{library}` at {} relocation site(s), but ELF loader binding is not implemented",
-                import.relocations.len(),
-            ),
             ElfImportLocator::Component { locator, .. } => format!(
                 "component ELF image {} requires the selected loader and separate-image publication; static emission cannot resolve this slot",
                 locator.image_filename(),

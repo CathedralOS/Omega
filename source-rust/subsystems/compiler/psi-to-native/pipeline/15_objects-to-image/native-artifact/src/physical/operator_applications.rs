@@ -459,16 +459,6 @@ fn derive_checked_call_span(
                 && call.operation_ordinal == occurrence.operation_ordinal())
             .then_some((call.target, call.code_offset, call.byte_count))
         })
-        .chain(
-            function
-                .internal_unit_scalar_calls
-                .iter()
-                .filter_map(|call| {
-                    (call.owner == CallSiteOwner::Operation(occurrence.operation())
-                        && call.operation_ordinal == occurrence.operation_ordinal())
-                    .then_some((call.target, call.code_offset, call.byte_count))
-                }),
-        )
         .collect::<Vec<_>>();
     let [(callee, code_offset, byte_count)] = calls.as_slice() else {
         return if calls.is_empty() {

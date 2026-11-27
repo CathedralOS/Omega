@@ -15,10 +15,6 @@ use target::{ForeignLocatorCandidate, NormalizedImportLocator, TargetProfile};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ElfImportLocator {
-    StringBackedBootstrap {
-        library: String,
-        symbol: String,
-    },
     Component {
         locator: target::NormalizedComponentLocator,
         object: Vec<u8>,
@@ -73,22 +69,6 @@ pub(crate) fn canonical_referenced_imports(
             )));
         }
         let locator = match &import.import {
-            FinalImageImportPlan::StringBackedBootstrap { library } => {
-                if library.is_empty()
-                    || library.as_bytes().contains(&0)
-                    || symbol.name.is_empty()
-                    || symbol.name.as_bytes().contains(&0)
-                {
-                    return Err(Diagnostic::error(format!(
-                        "ELF import `{}` lacks a canonical library/symbol spelling",
-                        symbol.name
-                    )));
-                }
-                ElfImportLocator::StringBackedBootstrap {
-                    library: library.clone(),
-                    symbol: symbol.name.clone(),
-                }
-            }
             FinalImageImportPlan::Normalized(locator) => {
                 let normalized = match locator {
                     NormalizedImportLocator::Foreign(foreign) => {
@@ -208,43 +188,18 @@ mod tests {
     use target::{ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator};
 
     fn imported_image() -> FinalImage {
-        let mut image = crate::test_support::relocation_image(FinalImage::default().target, 16);
-        crate::test_support::import_with_text_relocations(
-            &mut image,
-            "omega_probe",
-            FinalImageImportPlan::StringBackedBootstrap {
-                library: "libomega-probes.so".into(),
-            },
-            &[4, 12],
-        );
-        image
+        normalized_versioned_image(
+            NativeTarget::linux_x64(),
+            TargetProfile::LinuxX64,
+            b"libomega-probes.so",
+            b"omega_probe",
+            b"OMEGA_1",
+        )
+        .0
     }
 
     #[test]
-    fn canonical_request_retains_exact_library_symbol_and_relocation_sites() {
-        let image = imported_image();
-        let requests = canonical_referenced_imports(&image).expect("canonical request");
-
-        assert_eq!(requests.len(), 1);
-        assert_eq!(
-            requests[0].locator,
-            ElfImportLocator::StringBackedBootstrap {
-                library: "libomega-probes.so".into(),
-                symbol: "omega_probe".into(),
-            }
-        );
-        assert_eq!(
-            requests[0]
-                .relocations
-                .iter()
-                .map(|relocation| relocation.offset)
-                .collect::<Vec<_>>(),
-            [4, 12]
-        );
-    }
-
-    #[test]
-    fn duplicate_or_unqualified_import_identity_rejects() {
+    fn duplicate_import_rows_reject() {
         let mut duplicate = imported_image();
         let imported = duplicate
             .symbol_table
@@ -256,17 +211,6 @@ mod tests {
             .clone();
         duplicate.symbol_table.imports.insert(imported);
         assert!(canonical_referenced_imports(&duplicate).is_err());
-
-        let mut unqualified = imported_image();
-        let import_handle = unqualified.symbol_table.imports.iter().next().unwrap().0;
-        unqualified
-            .symbol_table
-            .imports
-            .get_mut(import_handle)
-            .import = FinalImageImportPlan::StringBackedBootstrap {
-            library: String::new(),
-        };
-        assert!(canonical_referenced_imports(&unqualified).is_err());
     }
 
     fn normalized_versioned_image(

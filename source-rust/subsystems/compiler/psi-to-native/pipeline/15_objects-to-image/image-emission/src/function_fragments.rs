@@ -1550,7 +1550,6 @@ mod byte_literals {
             || symbol.offset != pool_text_offset
             || symbol.size != pool_bytes.len()
             || symbol.kind != SymbolKind::Object
-            || !symbol.import_library.is_empty()
         {
             return Err(Error::Mismatch(
                 "byte-literal pool differs from its literals",
@@ -1603,7 +1602,6 @@ mod image_addresses {
                 offset: 0,
                 size: 0,
                 kind: SymbolKind::Object,
-                import_library: String::new(),
             })
         }
 
@@ -1694,7 +1692,6 @@ pub(crate) mod image_residence {
             || symbol.offset != 0
             || symbol.size != 0
             || symbol.kind != SymbolKind::Object
-            || !symbol.import_library.is_empty()
         {
             return Err(Error::Mismatch(
                 "image residence was defined before physical placement",
@@ -1961,7 +1958,6 @@ pub(crate) mod code_descriptors {
                 offset: 0,
                 size: 4,
                 kind: SymbolKind::Function,
-                import_library: String::new(),
             });
             let relocations =
                 records_for_symbols(&pool, |selected| (selected == machine).then_some(symbol))
@@ -2140,7 +2136,6 @@ mod imports {
                 || symbol.section != SymbolSection::None
                 || symbol.offset != 0
                 || symbol.size != 0
-                || !symbol.import_library.is_empty()
                 || layout
                     .symbols
                     .iter()
@@ -2659,7 +2654,6 @@ mod private_addresses {
                 || symbol.section != SymbolSection::None
                 || symbol.offset != 0
                 || symbol.size != 0
-                || !symbol.import_library.is_empty()
             {
                 return Err(Error::Mismatch(
                     "private function reference differs from its retained identity",
@@ -2795,7 +2789,6 @@ mod production {
                 attachment,
                 scalar_abi: abi.scalar.clone(),
                 mixed_structural_scalar_abi: abi.mixed_structural_scalar.clone(),
-                structural_call_scalar_return: None,
                 parameter_abi: abi.parameter_abi().map(|(call_plan, parameters, _)| {
                     machine_code::ParameterFunctionAbiRecord {
                         call_plan: call_plan.clone(),
@@ -2804,7 +2797,6 @@ mod production {
                     }
                 }),
                 provenance: provenance.clone(),
-                x86_floating_control: None,
                 unit_stack: unit.then_some(ObjectUnitStack {
                     frame_bytes,
                     local_peak_bytes: local_peak,
@@ -2817,23 +2809,10 @@ mod production {
                 unit_call_stacks,
                 scalar_call_stacks,
                 internal_unit_calls: Vec::new(),
-                internal_unit_scalar_calls: Vec::new(),
-                installed_provider_unit_scalar_calls: Vec::new(),
-                unit_scalar_homes: Vec::new(),
-                unit_integer_constants: Vec::new(),
-                unit_affine_scalar_records: Vec::new(),
-                unit_structural_scalar_field_stores: Vec::new(),
-                unit_write_only_primitive_stores: Vec::new(),
-                scalar_structural_scalar_field_stores: Vec::new(),
                 unit_parameters: Vec::new(),
                 unit_parameter_homes: Vec::new(),
-                unit_continuations: Vec::new(),
-                unit_affine_cleanup: None,
-                scalar_affine_cleanup: None,
-                scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
-                structural_return: None,
             });
             let fragment = fragments
                 .function(machine)
@@ -2992,9 +2971,6 @@ pub(crate) mod replay {
     }
 
     impl Eq for FragmentReplay {}
-
-    #[cfg(any(test, feature = "test-support"))]
-    impl crate::ObjectArtifact {}
 
     pub(crate) fn validate(
         artifact: &crate::ObjectArtifact,
@@ -5622,9 +5598,6 @@ mod structural {
             let plan = super::super::internal_calls::publication(source, function.machine)?;
             let invalid =
                 || Error::Mismatch("structural object differs from current ABI or call evidence");
-            if function.unit_affine_cleanup.is_some() {
-                return Err(invalid());
-            }
             let (records, homes, unused, unused_homes) =
                 if function.mixed_structural_scalar_abi.is_some() {
                     (

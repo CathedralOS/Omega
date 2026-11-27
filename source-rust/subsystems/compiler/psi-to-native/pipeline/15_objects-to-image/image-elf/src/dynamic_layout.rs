@@ -149,11 +149,6 @@ pub(crate) fn plan_dynamic_layout(
         let import_target = match &import.locator {
             ElfImportLocator::Versioned { target_profile, .. } => *target_profile,
             ElfImportLocator::Component { locator, .. } => locator.target(),
-            ElfImportLocator::StringBackedBootstrap { .. } => {
-                return Err(Diagnostic::error(
-                    "string-backed ELF bootstrap imports cannot enter normalized dynamic-link planning",
-                ));
-            }
         };
         if import_target != target {
             return Err(Diagnostic::error(

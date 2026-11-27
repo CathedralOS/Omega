@@ -68,7 +68,6 @@ impl ObjectFileLayout {
             offset: 0,
             size: 0,
             kind: SymbolKind::Import,
-            import_library: String::new(),
         });
         self.normalized_imports.push(NormalizedImportPlan {
             symbol,
@@ -292,7 +291,6 @@ pub struct SymbolPlan {
     pub offset: usize,
     pub size: usize,
     pub kind: SymbolKind,
-    pub import_library: String,
 }
 
 pub type ObjectSymbolHandle = Handle<SymbolPlan>;
@@ -326,7 +324,6 @@ impl Default for SymbolPlan {
             offset: 0,
             size: 0,
             kind: SymbolKind::Object,
-            import_library: String::new(),
         }
     }
 }

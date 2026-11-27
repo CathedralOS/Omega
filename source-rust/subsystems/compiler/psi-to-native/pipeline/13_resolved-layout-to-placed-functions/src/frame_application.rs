@@ -211,28 +211,6 @@ impl StagedFunctionFragmentFrameApplication {
     pub fn fragments(&self) -> &FunctionFragmentEmissionPlan {
         &self.application.fragments
     }
-
-    pub fn validate_relative_branch_rows<'a>(
-        &self,
-        machine: MachineId,
-        candidates: impl IntoIterator<Item = &'a FunctionFragmentInstructionSpan>,
-    ) -> Result<Vec<SelectedInstructionId>, FunctionFragmentFrameApplicationError> {
-        validate_current_relative_branch_rows(self.fragments(), &self.branches, machine, candidates)
-    }
-}
-
-/// Validate the carried branch obligations against the current framed bytes.
-/// The input contains no earlier fragment plan or executable source graph.
-fn validate_current_relative_branch_rows<'a>(
-    fragments: &FunctionFragmentEmissionPlan,
-    origins: &[crate::relative_branches::FunctionFrameBranchOrigins],
-    machine: MachineId,
-    candidates: impl IntoIterator<Item = &'a FunctionFragmentInstructionSpan>,
-) -> Result<Vec<SelectedInstructionId>, FunctionFragmentFrameApplicationError> {
-    relative_branches::validate_current_relative_branch_rows(
-        fragments, origins, machine, candidates,
-    )
-    .map_err(FunctionFragmentFrameApplicationError::from)
 }
 
 fn prepare_branch_origins(
@@ -2375,13 +2353,32 @@ mod tests {
             .instructions()
             .find(|row| row.branch.is_some())
             .unwrap();
+        // Place the candidate row and its bytes into a copy of the framed
+        // function, then read the published branches back from those bytes.
         let check = |origins: &[crate::relative_branches::FunctionFrameBranchOrigins],
                      candidate: &FunctionFragmentInstructionSpan| {
-            super::validate_current_relative_branch_rows(
-                fragments,
+            let mut placed = fragments.clone();
+            let function = placed
+                .functions
+                .iter_mut()
+                .find(|function| function.machine == source.entry)
+                .unwrap();
+            let row = function
+                .blocks
+                .iter_mut()
+                .flat_map(|block| block.instructions.iter_mut())
+                .find(|row| row.instruction == candidate.instruction)
+                .unwrap();
+            *row = candidate.clone();
+            let offset = usize::try_from(candidate.offset).unwrap();
+            function.bytes[offset..offset + candidate.bytes.len()]
+                .copy_from_slice(&candidate.bytes);
+            let bytes = function.bytes.clone();
+            crate::relative_branches::validate_published_relative_branches(
+                &placed,
                 origins,
                 source.entry,
-                [candidate],
+                &bytes,
             )
         };
         assert!(check(&origins, original).is_ok());

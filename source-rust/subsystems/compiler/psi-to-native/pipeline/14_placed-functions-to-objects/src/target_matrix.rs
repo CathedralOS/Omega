@@ -33,28 +33,20 @@ const fn row(
     }
 }
 
-pub(crate) fn object_target_policy(target: NativeTarget) -> Option<ObjectTargetPolicy> {
+pub(crate) fn object_target_policy(target: NativeTarget) -> ObjectTargetPolicy {
     match (target.architecture, target.object_format) {
         (Architecture::Aarch64, ObjectFormat::Elf | ObjectFormat::Coff) => {
-            Some(row("main", ".text", ".data", ".bss", 4))
+            row("main", ".text", ".data", ".bss", 4)
         }
-        (Architecture::Aarch64, ObjectFormat::MachO) => Some(row(
-            "_main",
-            "__TEXT,__text",
-            "__DATA,__data",
-            "__DATA,__bss",
-            4,
-        )),
+        (Architecture::Aarch64, ObjectFormat::MachO) => {
+            row("_main", "__TEXT,__text", "__DATA,__data", "__DATA,__bss", 4)
+        }
         (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::Coff) => {
-            Some(row("main", ".text", ".data", ".bss", 1))
+            row("main", ".text", ".data", ".bss", 1)
         }
-        (Architecture::X86_64, ObjectFormat::MachO) => Some(row(
-            "_main",
-            "__TEXT,__text",
-            "__DATA,__data",
-            "__DATA,__bss",
-            1,
-        )),
+        (Architecture::X86_64, ObjectFormat::MachO) => {
+            row("_main", "__TEXT,__text", "__DATA,__data", "__DATA,__bss", 1)
+        }
     }
 }
 
@@ -87,7 +79,7 @@ mod tests {
                 row("main", ".text", ".data", ".bss", 1),
             ),
         ] {
-            assert_eq!(object_target_policy(target), Some(expected));
+            assert_eq!(object_target_policy(target), expected);
         }
         assert_eq!(
             object_target_policy(NativeTarget::uefi_x64()),
@@ -99,7 +91,7 @@ mod tests {
     fn windows_arm64_objects_use_the_coff_names_and_aarch64_alignment() {
         assert_eq!(
             object_target_policy(NativeTarget::windows_arm64()),
-            Some(row("main", ".text", ".data", ".bss", 4))
+            row("main", ".text", ".data", ".bss", 4)
         );
     }
 }

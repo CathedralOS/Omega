@@ -25,9 +25,8 @@ Every evidence carrier pairs a strong 32-byte SHA-256 digest over a versioned
 domain string with a compact 64-bit FNV-1a reporting fingerprint. Because compact
 fingerprints can collide, we enforce a strict `*_report_fingerprint` naming
 discipline so compact coordinates never stand in for strong digests during
-artifact admission or equivalence checks. When an import symbol carries both a
-normalized foreign locator and a legacy `import_library` string, the normalized
-locator wins unconditionally so object-local symbol spellings never override
+artifact admission or equivalence checks. An import's identity comes only from
+its normalized locator, so object-local symbol spellings never override
 target-validated import identity.
 */
 
@@ -350,7 +349,6 @@ mod tests {
             offset: 0,
             size: 0,
             kind: SymbolKind::Import,
-            import_library: "must-not-win.dll".into(),
         });
         object.layout.normalized_imports.push(NormalizedImportPlan {
             symbol,
@@ -375,7 +373,7 @@ mod tests {
         assert_eq!(
             &import.import,
             &FinalImageImportPlan::Normalized((locator).into()),
-            "normalized coordinates must win atomically over legacy symbol fields"
+            "normalized coordinates must win atomically over the symbol spelling"
         );
     }
 
@@ -395,7 +393,6 @@ mod tests {
                 offset,
                 size,
                 kind,
-                import_library: String::new(),
             });
         }
         let relocations = RelocationPlan::with_target(target);
