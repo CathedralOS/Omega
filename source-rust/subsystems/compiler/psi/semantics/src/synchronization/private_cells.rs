@@ -210,7 +210,7 @@ fn advance<'m>(
                 }
                 (Destination::Structural(dest), Terminator::ReturnStructural { source, .. }) => {
                     let location = frame.bindings.places.get(source)?;
-                    let returned = memory.allocate(memory.get(location).clone());
+                    let returned = memory.allocate(memory.get(location));
                     caller.bindings.places.insert(dest, returned);
                 }
                 _ => return None,

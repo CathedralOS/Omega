@@ -68,6 +68,15 @@ impl Stored {
         Self::Aggregate(result)
     }
 
+    pub(super) fn project(&self, path: &[Segment]) -> &Self {
+        path.iter().fold(self, |value, field| value.field(field))
+    }
+
+    pub(super) fn project_mut(&mut self, path: &[Segment]) -> &mut Self {
+        path.iter()
+            .fold(self, |value, field| value.field_mut(field))
+    }
+
     pub(super) fn field(&self, key: &Segment) -> &Self {
         match self {
             Self::Zero => &Self::Zero,
@@ -120,10 +129,22 @@ impl Stored {
     // Identical cells keep all values established at incoming edges. Zero
     // remains untyped until a checked operation supplies its scalar type.
     pub(in super::super) fn join(&mut self, other: &Self) {
+        self.join_with(other, &mut Location::join);
+    }
+
+    pub(super) fn join_with(
+        &mut self,
+        other: &Self,
+        borrow: &mut impl FnMut(&mut Location, &Location),
+    ) {
         match (&*self, other) {
             (Self::Unknown, _) | (Self::Zero, Self::Zero) => return,
             (Self::Scalar(a), Self::Scalar(b)) if a == b => return,
-            (Self::Reference(a), Self::Reference(b)) if a == b => return,
+            (Self::Reference(a), Self::Reference(b)) => {
+                let mut home = a.clone();
+                borrow(&mut home, b);
+                *self = Self::Reference(home);
+            }
             (Self::Aggregate(a), Self::Aggregate(b)) if Arc::ptr_eq(a, b) => return,
             (Self::Aggregate(_) | Self::Zero, Self::Aggregate(_) | Self::Zero) => {
                 let fields = |value: &Self| match value {
@@ -166,7 +187,7 @@ impl Stored {
                     let value = match (admits(self), admits(other)) {
                         (true, true) => {
                             let mut value = self.field(&key).clone();
-                            value.join(other.field(&key));
+                            value.join_with(other.field(&key), borrow);
                             value
                         }
                         (true, false) => self.field(&key).clone(),

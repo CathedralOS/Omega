@@ -2,6 +2,10 @@
 //! home. References inside the copy still select the original allocation.
 
 mod contents;
+mod join;
+mod location;
+pub(super) use join::Arrivals;
+pub(super) use location::Location;
 
 use super::super::facts::Facts;
 pub(super) use contents::Stored;
@@ -10,41 +14,47 @@ use std::cell::Cell;
 use std::rc::Rc;
 use terminal_psi::StructuralPathSegment as Segment;
 
-#[derive(Clone, PartialEq, Eq)]
-pub(super) struct Location {
-    allocation: usize,
-    path: Vec<Segment>,
-}
-
 #[derive(Clone, Default)]
 pub(super) struct Storage {
     next_allocation: Rc<Cell<usize>>,
     contents: Rc<Facts<usize, Stored>>,
+    /// A write through a selected reference establishes its value even
+    /// when the individual candidate allocations only receive weak updates.
+    selected: Rc<Vec<(Location, Stored)>>,
 }
 
 impl Storage {
-    pub(super) fn join(&mut self, other: &Self) {
-        if Rc::ptr_eq(&self.contents, &other.contents) {
-            return;
+    pub(super) fn join(&mut self, other: &Self, mut arrivals: Arrivals<'_>) {
+        if !Rc::ptr_eq(&self.selected, &other.selected) {
+            Rc::make_mut(&mut self.selected).retain_mut(|(place, value)| {
+                if let Some((_, incoming)) = other.selected.iter().find(|(home, _)| home == place) {
+                    arrivals.value(value, incoming);
+                    true
+                } else {
+                    false
+                }
+            });
         }
-        Rc::make_mut(&mut self.contents).retain(|location, value| {
-            if let Some(incoming) = other.contents.get(location) {
-                value.join(incoming);
-                true
-            } else {
-                false
+        if !Rc::ptr_eq(&self.contents, &other.contents) {
+            // Each fork allocates distinct homes. A reference to a home
+            // created on just one arm can only have arrived from that arm.
+            let contents = Rc::make_mut(&mut self.contents);
+            for (id, incoming) in other.contents.entries() {
+                if let Some(current) = contents.get_mut(id) {
+                    arrivals.value(current, incoming);
+                } else {
+                    contents.insert(*id, incoming.clone());
+                }
             }
-        });
+        }
+        arrivals.record(self);
     }
 
     pub(super) fn allocate(&mut self, contents: Stored) -> Location {
         let allocation = self.next_allocation.get();
         self.next_allocation.set(allocation + 1);
         Rc::make_mut(&mut self.contents).insert(allocation, contents);
-        Location {
-            allocation,
-            path: Vec::new(),
-        }
+        Location::allocation(allocation)
     }
 
     pub(super) fn locate(
@@ -67,7 +77,7 @@ impl Storage {
                     let Stored::Reference(referent) = self.get(&location) else {
                         return None;
                     };
-                    location = referent.clone();
+                    location = referent;
                 }
                 _ => return None,
             }
@@ -75,23 +85,62 @@ impl Storage {
         Some(location)
     }
 
-    pub(super) fn get(&self, location: &Location) -> &Stored {
-        let mut value = self
-            .contents
-            .get(&location.allocation)
-            .unwrap_or(&Stored::Unknown);
-        for field in &location.path {
-            value = value.field(field);
+    pub(super) fn get(&self, location: &Location) -> Stored {
+        let mut result = None;
+        if location.is_choice() {
+            for (home, stored) in self.selected.iter() {
+                if let Some(path) = home.suffix(location) {
+                    return stored.project(path).clone();
+                }
+            }
+        }
+        location.each_home(|allocation, path| {
+            let value = self
+                .contents
+                .get(&allocation)
+                .unwrap_or(&Stored::Unknown)
+                .project(path);
+            match &mut result {
+                Some(prior) => Stored::join(prior, value),
+                None => result = Some(value.clone()),
+            }
+        });
+        let mut value = result.unwrap_or_default();
+        if location.is_choice() {
+            for (home, stored) in self.selected.iter() {
+                if let Some(path) = location.suffix(home) {
+                    *value.project_mut(path) = stored.clone();
+                }
+            }
         }
         value
     }
 
     pub(super) fn set(&mut self, location: &Location, new: Stored) {
-        let mut value = Rc::make_mut(&mut self.contents)
-            .get_or_insert_with(location.allocation, Stored::default);
-        for field in &location.path {
-            value = value.field_mut(field);
+        let choices = Rc::make_mut(&mut self.selected);
+        let mut contained = false;
+        choices.retain_mut(|(home, stored)| {
+            if let Some(path) = home.suffix(location) {
+                *stored.project_mut(path) = new.clone();
+                contained = true;
+                return true;
+            }
+            !home.may_be_written_by(location)
+        });
+        let weak = location.is_choice();
+        if weak && !contained {
+            choices.push((location.clone(), new.clone()));
         }
-        *value = new;
+        let contents = Rc::make_mut(&mut self.contents);
+        location.each_home(|allocation, path| {
+            let value = contents
+                .get_or_insert_with(allocation, Stored::default)
+                .project_mut(path);
+            if weak {
+                value.join(&new);
+            } else {
+                *value = new.clone();
+            }
+        });
     }
 }

@@ -78,6 +78,8 @@ impl Execution<'_> {
     }
 
     fn join(&mut self, other: Self) {
+        let previous = self.memory.clone();
+        let mut arrivals = super::storage::Arrivals::new(&previous, &other.memory);
         // An owned block formal gets fresh storage on each arrival. At its
         // entry no operation could have taken a reference to that fresh
         // home. Join its contents even though the two allocations differ.
@@ -93,19 +95,19 @@ impl Execution<'_> {
                     && let Some(right) = incoming.bindings.places.get(&formal.place)
                     && left != right
                 {
-                    let mut value = self.memory.get(left).clone();
-                    value.join(other.memory.get(right));
+                    let mut value = self.memory.get(left);
+                    arrivals.value(&mut value, &other.memory.get(right));
                     formals.push((formal.place, value));
                 }
             }
         }
         for (frame, incoming) in self.stack.iter_mut().zip(other.stack) {
-            frame.bindings.retain_equal(&incoming.bindings);
+            frame.bindings.join(&incoming.bindings, &mut arrivals);
             if let (Some(captured), Some(other)) = (&mut frame.arrival, incoming.arrival) {
-                captured.bindings.retain_equal(&other.bindings);
+                captured.bindings.join(&other.bindings, &mut arrivals);
             }
         }
-        self.memory.join(&other.memory);
+        self.memory.join(&other.memory, arrivals);
         if let Some(active) = self.stack.last_mut() {
             for (formal, value) in formals {
                 active

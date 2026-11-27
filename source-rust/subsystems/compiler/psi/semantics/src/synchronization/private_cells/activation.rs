@@ -27,9 +27,16 @@ pub(super) enum ScalarArguments<'a> {
 }
 
 impl Bindings {
-    pub(super) fn retain_equal(&mut self, other: &Self) {
+    pub(super) fn join(&mut self, other: &Self, arrivals: &mut super::storage::Arrivals<'_>) {
         self.values.retain_equal(&other.values);
-        self.places.retain_equal(&other.places);
+        self.places.retain(|key, place| {
+            if let Some(incoming) = other.places.get(key) {
+                arrivals.place(place, incoming);
+                true
+            } else {
+                false
+            }
+        });
     }
 
     pub(super) fn arguments(
@@ -63,7 +70,7 @@ impl Bindings {
             }
             if let Some(loc) = memory.locate(&self.places, actual.place, &actual.path) {
                 let loc = if actual.access == StructuralAccess::Owned {
-                    memory.allocate(memory.get(&loc).clone())
+                    memory.allocate(memory.get(&loc))
                 } else {
                     loc
                 };
@@ -217,7 +224,8 @@ impl<'m> Frame<'m> {
             }
             OperationKind::StructuralCaseMembership { source, path, case } => {
                 let target = memory.locate(&bindings.places, *source, path);
-                let tags = target.as_ref().map_or(&[][..], |v| memory.get(v).tags());
+                let contents = target.as_ref().map_or(Stored::Unknown, |v| memory.get(v));
+                let tags = contents.tags();
                 let membership = match tags {
                     [_] => Some(tags[0] == *case),
                     [] => None,
@@ -235,9 +243,7 @@ impl<'m> Frame<'m> {
                 // Copying an input of unknown value still creates the checked
                 // result. Its possible cases can be visited independently.
                 let location = memory.locate(&bindings.places, *source, path);
-                let value = location
-                    .as_ref()
-                    .map_or(&Stored::Unknown, |v| memory.get(v));
+                let value = location.as_ref().map_or(Stored::Unknown, |v| memory.get(v));
                 match &op.result {
                     terminal_psi::OperationResult::Structural(result) => {
                         let location = memory.allocate(value.clone());
@@ -253,7 +259,7 @@ impl<'m> Frame<'m> {
             }
             OperationKind::MoveStructuralValue { source } => {
                 let location = memory.locate(&bindings.places, source.place, &source.path)?;
-                let moved = memory.allocate(memory.get(&location).clone());
+                let moved = memory.allocate(memory.get(&location));
                 bindings.places.insert(op.result.structural()?.place, moved);
             }
             OperationKind::StoreStructuralField {
@@ -273,7 +279,7 @@ impl<'m> Frame<'m> {
                     path,
                     *field,
                 )?;
-                memory.set(&dest, memory.get(&source).clone());
+                memory.set(&dest, memory.get(&source));
             }
             OperationKind::MoveStructuralField {
                 source,
@@ -289,7 +295,7 @@ impl<'m> Frame<'m> {
                     path,
                     *field,
                 )?;
-                let moved = memory.allocate(memory.get(&location).clone());
+                let moved = memory.allocate(memory.get(&location));
                 bindings.places.insert(op.result.structural()?.place, moved);
             }
             OperationKind::StructuralScalarFieldStore {

@@ -58,7 +58,7 @@ pub(super) fn establish(
             RecordFieldValue::Scalar { value, .. } => bindings.values.get(value).copied().into(),
             RecordFieldValue::Structural(arg) => storage
                 .locate(&bindings.places, arg.place, &arg.path)
-                .map(|location| storage.get(&location).clone())
+                .map(|location| storage.get(&location))
                 .unwrap_or_default(),
         };
         storage.set(&location, contents);
@@ -82,7 +82,7 @@ pub(super) fn dispatch<'m>(
     let location = storage.locate(&frame.bindings.places, source, path);
     let value = location
         .as_ref()
-        .map_or(&Stored::Unknown, |v| storage.get(v));
+        .map_or(Stored::Unknown, |v| storage.get(v));
     let root = frame.machine.structural_place_type(source)?;
     let zero = if matches!(value, Stored::Zero) {
         Some(
