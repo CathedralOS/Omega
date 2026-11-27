@@ -1,0 +1,18 @@
+public data Signal { word: AtomicU32; }
+
+public boundary trait Clear {
+    machine normalize(signal: @Signal, input: u32) reaches none crashes none;
+}
+
+public machine adjust(signal: @Signal, input: u32) {
+    transition input == 1 {
+        true -> clear(signal),
+        _ -> write(signal, input)
+    }
+    machine clear(signal: @Signal) { signal.word.store(0, Publish); }
+    machine write(signal: @Signal, input: u32) { signal.word.store(input, Publish); }
+}
+
+public ChosenWord satisfies Clear {
+    machine normalize(signal: @Signal, input: u32) { adjust(signal, input); }
+}

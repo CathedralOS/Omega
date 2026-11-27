@@ -9,6 +9,7 @@ use location::Allocation;
 pub(super) use location::Location;
 
 use super::super::facts::Facts;
+use super::condition::Assumption;
 pub(super) use contents::Stored;
 use semantic_vocabulary::PlaceId;
 use std::cell::Cell;
@@ -17,7 +18,10 @@ use terminal_psi::StructuralPathSegment as Segment;
 
 #[derive(Clone, Default)]
 pub(super) struct Storage {
-    next_allocation: Rc<Cell<usize>>,
+    // Shared by forked executions. This supplier of fresh names is excluded
+    // from joins and worklist keys; frame/control visitation bounds the calls.
+    next_identity: Rc<Cell<usize>>,
+    pub(super) conditions: Rc<Vec<Assumption>>,
     contents: Rc<Facts<Allocation, Stored>>,
     /// A write through a selected reference establishes its value even
     /// when the individual candidate allocations only receive weak updates.
@@ -25,6 +29,25 @@ pub(super) struct Storage {
 }
 
 impl Storage {
+    pub(super) fn requirements<'a>(
+        &self,
+        prior: &'a [semantic_vocabulary::Proposition],
+    ) -> std::borrow::Cow<'a, [semantic_vocabulary::Proposition]> {
+        let mut result = std::borrow::Cow::Borrowed(prior);
+        if !self.conditions.is_empty() {
+            result
+                .to_mut()
+                .extend(self.conditions.iter().filter_map(|test| test.proposition()));
+        }
+        result
+    }
+
+    pub(super) fn assume(&mut self, condition: Assumption) {
+        if !self.conditions.contains(&condition) {
+            Rc::make_mut(&mut self.conditions).push(condition);
+        }
+    }
+
     pub(super) fn join(&mut self, other: &Self, mut arrivals: Arrivals<'_>) {
         if !Rc::ptr_eq(&self.selected, &other.selected) {
             Rc::make_mut(&mut self.selected).retain_mut(|(place, value)| {
@@ -49,6 +72,10 @@ impl Storage {
             }
         }
         arrivals.record(self);
+        if !Rc::ptr_eq(&self.conditions, &other.conditions) {
+            Rc::make_mut(&mut self.conditions)
+                .retain(|condition| other.conditions.contains(condition));
+        }
     }
 
     pub(super) fn allocate(&mut self, contents: Stored) -> Location {
@@ -59,10 +86,24 @@ impl Storage {
         self.allocate_with(Stored::INCOMING, Allocation::ExclusiveInput)
     }
 
+    pub(super) fn observation(
+        &self,
+        scalar_type: semantic_vocabulary::ScalarType,
+    ) -> super::super::progress::ScalarFact {
+        super::super::progress::ScalarFact::Observation {
+            occurrence: self.fresh_identity(),
+            scalar_type,
+        }
+    }
+
+    fn fresh_identity(&self) -> usize {
+        let id = self.next_identity.get();
+        self.next_identity.set(id + 1);
+        id
+    }
+
     fn allocate_with(&mut self, contents: Stored, home: fn(usize) -> Allocation) -> Location {
-        let id = self.next_allocation.get();
-        let allocation = home(id);
-        self.next_allocation.set(id + 1);
+        let allocation = home(self.fresh_identity());
         Rc::make_mut(&mut self.contents).insert(allocation, contents);
         Location::allocation(allocation)
     }

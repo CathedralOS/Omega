@@ -12,7 +12,7 @@ mod carriers {
     use object_file::{ObjectPlan, ObjectSymbolHandle, RelocationPlan};
     use semantic_vocabulary::MachineId;
     use target::NativeTarget;
-    use target_operations::{CallSiteOwner, TerminalPsiProvenance};
+    use target_vocabulary::{CallSiteOwner, TerminalPsiProvenance};
     use terminal_psi::TerminalPsiIdentity;
     use verified_optimization_input::hosted_receiver::AdmittedHostedReceiver;
 
@@ -84,7 +84,7 @@ mod carriers {
             let (function, _) = self.entry_facts()?;
             Ok(matches!(
                 function.result,
-                abstract_operations::AbstractFunctionResult::Unit
+                operation_operands::values::AbstractFunctionResult::Unit
             ) && function.entry_claims.is_empty()
                 && function.parameters.is_empty()
                 && function.structural_parameters.is_empty())
@@ -102,7 +102,7 @@ mod carriers {
         ) -> Result<
             (
                 &verified_optimization_input::publication::EmissionFunctionFacts,
-                &legalized_operations::LegalizedFunctionAbi,
+                &target_vocabulary::LegalizedFunctionAbi,
             ),
             diagnostics::Diagnostic,
         > {
@@ -337,9 +337,9 @@ mod carriers {
     pub struct ObjectFunction {
         pub location: object_file::ObjectFunctionLocation,
         pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
-        pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
+        pub scalar_abi: Option<target_vocabulary::ScalarFunctionAbi>,
         pub mixed_structural_scalar_abi:
-            Option<target_operations::MixedStructuralScalarFunctionAbi>,
+            Option<target_vocabulary::MixedStructuralScalarFunctionAbi>,
         pub parameter_abi: Option<machine_code::ParameterFunctionAbiRecord>,
         pub provenance: TerminalPsiProvenance,
         pub unit_stack: Option<ObjectUnitStack>,
@@ -406,7 +406,7 @@ mod carriers {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectPrivateFunctionEntry {
         pub machine: MachineId,
-        pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
+        pub scalar_abi: Option<target_vocabulary::ScalarFunctionAbi>,
         pub symbol: ObjectSymbolHandle,
         pub text_offset: usize,
         pub byte_count: usize,
@@ -907,7 +907,7 @@ pub(crate) mod replay {
         pub(crate) mod byte_sequence_custody {
             use machine_code::BoundarySettlementRecord;
             use target::{Architecture, NativeTarget, ObjectFormat};
-            use target_operations::BoundaryRealization;
+            use target_vocabulary::BoundaryRealization;
 
             pub fn linux_write_line_custody_is_exact(
                 target: NativeTarget,
@@ -976,7 +976,7 @@ pub(crate) mod replay {
 
             use machine_code::{BoundarySettlementRecord, derive_completion_provider_custody};
             use semantic_vocabulary::{ClaimId, ContentPlaceSegment, ContentPlaceVersion};
-            use target_operations::CompletionClaimSource;
+            use target_vocabulary::CompletionClaimSource;
             use terminal_psi::{CompletionReceipt, StructuralArgument, StructuralPathSegment};
 
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1016,32 +1016,32 @@ pub(crate) mod replay {
                     match (settlement.execution, settlement.realization) {
                         (
                             machine_code::BoundaryExecutionRecord::AdmittedProvider(_),
-                            target_operations::BoundaryRealization::HostedWriteByteI32(_),
+                            target_vocabulary::BoundaryRealization::HostedWriteByteI32(_),
                         ) => true,
                         (
                             machine_code::BoundaryExecutionRecord::CompilerBuiltin(
-                                target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                                target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
                             ),
-                            target_operations::BoundaryRealization::HostedExitProcessI32(_),
+                            target_vocabulary::BoundaryRealization::HostedExitProcessI32(_),
                         )
                         | (
                             machine_code::BoundaryExecutionRecord::CompilerBuiltin(
-                                target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                                target_vocabulary::CompilerBuiltinExecution::HostedWriteByteI32,
                             ),
-                            target_operations::BoundaryRealization::HostedWriteByteI32(_),
+                            target_vocabulary::BoundaryRealization::HostedWriteByteI32(_),
                         )
                         | (
                             machine_code::BoundaryExecutionRecord::CompilerBuiltin(
-                                target_operations::CompilerBuiltinExecution::HostedReadByte,
+                                target_vocabulary::CompilerBuiltinExecution::HostedReadByte,
                             ),
-                            target_operations::BoundaryRealization::HostedReadByte(_),
+                            target_vocabulary::BoundaryRealization::HostedReadByte(_),
                         ) => true,
                         (machine_code::BoundaryExecutionRecord::CompilerBuiltin(_), _)
                         | (machine_code::BoundaryExecutionRecord::NativeBinding(_), _)
                         | (
                             _,
-                            target_operations::BoundaryRealization::HostedExitProcessI32(_)
-                            | target_operations::BoundaryRealization::HostedReadByte(_),
+                            target_vocabulary::BoundaryRealization::HostedExitProcessI32(_)
+                            | target_vocabulary::BoundaryRealization::HostedReadByte(_),
                         ) => false,
                         _ => true,
                     };
@@ -1194,8 +1194,8 @@ pub(crate) mod replay {
                         execution: machine_code::BoundaryExecutionRecord::AdmittedProvider(
                             provider_execution,
                         ),
-                        realization: target_operations::BoundaryRealization::MetadataOnlyPort(
-                            target_operations::MetadataOnlyPortRealization {
+                        realization: target_vocabulary::BoundaryRealization::MetadataOnlyPort(
+                            target_vocabulary::MetadataOnlyPortRealization {
                                 effect_operation: semantic_vocabulary::OperationId::new(2)
                                     .expect("effect operation"),
                                 service: semantic_vocabulary::ServiceId::new(1).expect("service"),
@@ -1405,7 +1405,7 @@ pub(crate) mod replay {
                     let mut role_substitution = settlement(Vec::new(), Vec::new(), Vec::new());
                     role_substitution.execution =
                         machine_code::BoundaryExecutionRecord::CompilerBuiltin(
-                            target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                            target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
                         );
                     assert_eq!(
                         validate_completion_custody(&role_substitution, &Default::default()),
@@ -1414,7 +1414,7 @@ pub(crate) mod replay {
 
                     let mut provider_output = settlement(Vec::new(), Vec::new(), Vec::new());
                     provider_output.realization =
-                        target_operations::BoundaryRealization::HostedWriteByteI32(
+                        target_vocabulary::BoundaryRealization::HostedWriteByteI32(
                             Default::default(),
                         );
                     assert_eq!(
@@ -1424,7 +1424,7 @@ pub(crate) mod replay {
 
                     let mut reverse_role_substitution = provider_output;
                     reverse_role_substitution.realization =
-                        target_operations::BoundaryRealization::HostedExitProcessI32(
+                        target_vocabulary::BoundaryRealization::HostedExitProcessI32(
                             Default::default(),
                         );
                     assert_eq!(
@@ -1599,7 +1599,7 @@ pub(crate) mod replay {
             };
             use semantic_vocabulary::{IntegerSign, ScalarType};
             use target::{Architecture, NativeTarget};
-            use target_operations::CompilerBuiltinExecution;
+            use target_vocabulary::CompilerBuiltinExecution;
 
             pub(crate) mod process_exit {
                 use super::{
@@ -1658,7 +1658,7 @@ pub(crate) mod replay {
                             )
                         && matches!(
                             settlement.realization,
-                            target_operations::BoundaryRealization::HostedExitProcessI32(_)
+                            target_vocabulary::BoundaryRealization::HostedExitProcessI32(_)
                         )
                         && settlement.byte_count == byte_count
                         && super::settlement_carries_only_runtime_scalars(settlement)
@@ -1849,7 +1849,7 @@ pub(crate) mod replay {
                     )
                     && matches!(
                         settlement.realization,
-                        target_operations::BoundaryRealization::HostedWriteByteI32(_)
+                        target_vocabulary::BoundaryRealization::HostedWriteByteI32(_)
                     )
                     && settlement_carries_only_runtime_scalars(settlement)
             }
@@ -2049,7 +2049,7 @@ pub(crate) mod stack_demand {
                     (None, None) => {
                         let mut matching = artifact.boundary_settlements.iter().filter(|row| row.machine == function.machine);
                         let stackless = matching.next().is_some_and(|row| matching.next().is_none()
-                            && matches!(row.settlement.realization, target_operations::BoundaryRealization::HostedExitProcessI32(_))
+                            && matches!(row.settlement.realization, target_vocabulary::BoundaryRealization::HostedExitProcessI32(_))
                             && row.settlement.code_offset == 0 && row.settlement.byte_count == function.byte_count);
                         if stackless { LocalStackExtent::Finite(0) } else { LocalStackExtent::Unaccounted }
                     }

@@ -9,8 +9,8 @@ mod progress;
 mod selected;
 mod spin;
 
-pub use component::component_spin_wait;
-pub use private_cells::private_wait_failure;
+pub use component::{component_normal_effects, component_spin_wait};
+pub use private_cells::{NormalEffects, private_wait_failure};
 pub use progress::{PrivateWaitFailure, ProgressFailure, ProgressScope};
 pub use selected::{SelectedCall, selected_spin_wait};
 pub use spin::{SpinWait, spin_wait};

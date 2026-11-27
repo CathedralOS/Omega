@@ -460,7 +460,7 @@ pub(crate) mod callable_entry_transport {
                     byte_literals: Vec::new(),
                     call_targets: vec![(
                         operation,
-                        target_operations::NativeCallTarget::Callable { callee, contract },
+                        target_vocabulary::NativeCallTarget::Callable { callee, contract },
                     )],
                 };
                 let context = ReachableCallableInvocations {
@@ -498,7 +498,7 @@ pub(crate) mod callable_entry_transport {
                 };
                 assert_eq!(query(&body, &context).unwrap(), Some(vec![target]));
                 let mut foreign = body.clone();
-                foreign.call_targets[0].1 = target_operations::NativeCallTarget::Callable {
+                foreign.call_targets[0].1 = target_vocabulary::NativeCallTarget::Callable {
                     callee: ValueId::new(6).unwrap(),
                     contract,
                 };

@@ -19,13 +19,7 @@ pub(super) fn apply(
     requirements: &[Proposition],
     scope: ProgressScope,
 ) -> Result<(), ProgressFailure> {
-    let resolve = |operand: Operand| match operand {
-        Operand::Literal(value) => Some(ScalarFact::Literal(value)),
-        Operand::Parameter {
-            position,
-            scalar_type,
-        } => scalar(position).filter(|fact| fact.ty() == scalar_type),
-    };
+    let resolve = |operand: Operand| operand.binding(&scalar);
     let locate = |subject: &Subject| {
         let actual = arguments.get(subject.parameter)?;
         if !matches!(actual.access, terminal_psi::reading_borrow_pair_pattern!()) {
@@ -46,20 +40,7 @@ pub(super) fn apply(
         }
         Some(location)
     };
-    let pivot = |mut test: SpinCondition| {
-        let mut input = None;
-        if let Some(mask) = test.comparison.mask
-            && let Some(ScalarFact::Literal(value)) = resolve(mask)
-        {
-            test.comparison.mask = Some(Operand::Literal(value));
-        }
-        match resolve(test.comparison.pivot) {
-            Some(ScalarFact::Literal(value)) => test.comparison.pivot = Operand::Literal(value),
-            Some(ScalarFact::EntryInput(formal)) => input = Some(formal),
-            None => {}
-        }
-        (test, input)
-    };
+    let pivot = |test: SpinCondition| test.with_actuals(resolve);
     match &wait.0 {
         WaitRule::Cell(cell) => {
             let location = locate(&cell.subject).ok_or(ProgressFailure::Unproved)?;
@@ -85,9 +66,9 @@ pub(super) fn apply(
             let orbit = cell.update.try_map(|operand| resolve(operand)?.literal());
             let stored = memory.get(&location);
             let shared = location.includes_shared();
-            let trip = |prior: Option<ScalarFact>| {
+            let trip = |prior: Option<ScalarFact>, requires: &[Proposition]| {
                 if condition
-                    .failure(prior, input, Some(CellUpdate::Observe), requirements)
+                    .failure(prior, input, Some(CellUpdate::Observe), requires)
                     .is_none()
                 {
                     let updated = orbit.and_then(|update| update.next(prior?.literal()?));
@@ -98,18 +79,18 @@ pub(super) fn apply(
                 }
                 orbit?.trip(condition, prior.and_then(ScalarFact::literal))
             };
-            let assess = |prior| match trip(prior) {
+            let assess = |prior, requires: &[Proposition]| match trip(prior, requires) {
                 Some(Trip::Stuck) => Some(ProgressFailure::Deadlock),
                 Some(Trip::Returns(_)) => None,
                 None => Some(ProgressFailure::Unproved),
             };
-            let observation = classify_entries(memory, &location, ty, assess);
+            let observation = classify_entries(memory, &location, ty, requirements, assess);
             require_progress(observation, scope)?;
-            let updated = match trip(None) {
+            let updated = match trip(None, requirements) {
                 Some(Trip::Returns(Some(word))) if !stored.includes_pending_provider() => {
                     Stored::Scalar(ScalarFact::Literal(word))
                 }
-                _ => stored.map_scalars(ty, |old| match trip(Some(old))? {
+                _ => stored.map_scalars(ty, |old| match trip(Some(old), requirements)? {
                     Trip::Returns(Some(value)) => Some(ScalarFact::Literal(value)),
                     _ => None,
                 }),
@@ -118,31 +99,50 @@ pub(super) fn apply(
             Ok(())
         }
         WaitRule::Observations(predicate) => {
-            let retry = predicate.evaluate(|subject, test| {
-                let Some(location) = locate(subject) else {
-                    return (Observation::Unproved, None);
-                };
-                let (test, input) = pivot(test);
-                let observation = classify(
-                    memory,
-                    &location,
-                    test,
-                    input,
-                    Some(CellUpdate::Observe),
-                    requirements,
-                );
-                let stable = (!location.includes_shared()
-                    && location.stable()
-                    && test.comparison.pivot.literal().is_some())
-                .then_some((location, test));
-                (observation, stable)
-            });
+            let retry = predicate.evaluate(
+                |subject, test| {
+                    let Some(location) = locate(subject) else {
+                        return (Observation::Unproved, None);
+                    };
+                    let (test, input) = pivot(test);
+                    let observation = classify(
+                        memory,
+                        &location,
+                        test,
+                        input,
+                        Some(CellUpdate::Observe),
+                        requirements,
+                    );
+                    let stable = (!location.includes_shared()
+                        && location.stable()
+                        && test.comparison.pivot.literal().is_some())
+                    .then_some((location, test));
+                    (observation, stable)
+                },
+                |subject, ty| {
+                    let location = locate(subject).ok_or(Observation::Unproved)?;
+                    let value = memory.get(&location);
+                    if !location.includes_shared()
+                        && !value.includes_pending_provider()
+                        && let Some(literal) = value.scalar(ty).and_then(ScalarFact::literal)
+                    {
+                        return Ok(literal);
+                    }
+                    Err(classify_entries(memory, &location, ty, requirements, |_, _| {
+                        Some(ProgressFailure::Unproved)
+                    }))
+                },
+                |operand| resolve(operand)?.literal(),
+            );
             require_progress(retry, scope)
         }
     }
 }
 
-fn require_progress(observation: Observation, scope: ProgressScope) -> Result<(), ProgressFailure> {
+pub(super) fn require_progress(
+    observation: Observation,
+    scope: ProgressScope,
+) -> Result<(), ProgressFailure> {
     match observation {
         Observation::Known(false) | Observation::PendingProvider => Ok(()),
         Observation::Known(true) => Err(ProgressFailure::Deadlock),
@@ -152,11 +152,11 @@ fn require_progress(observation: Observation, scope: ProgressScope) -> Result<()
     }
 }
 
-fn classify(
+pub(super) fn classify(
     memory: &Storage,
     location: &super::storage::Location,
     condition: SpinCondition,
-    pivot_input: Option<terminal_psi::ValueDeclaration>,
+    pivot_input: Option<ScalarFact>,
     update: Option<CellUpdate<ScalarFact>>,
     requirements: &[Proposition],
 ) -> Observation {
@@ -164,7 +164,8 @@ fn classify(
         memory,
         location,
         condition.comparison.pivot.scalar_type(),
-        |initial| condition.failure(initial, pivot_input, update, requirements),
+        requirements,
+        |initial, facts| condition.failure(initial, pivot_input, update, facts),
     )
 }
 
@@ -172,9 +173,11 @@ fn classify_entries(
     memory: &Storage,
     location: &super::storage::Location,
     ty: semantic_vocabulary::ScalarType,
-    failure: impl Fn(Option<ScalarFact>) -> Option<ProgressFailure>,
+    requirements: &[Proposition],
+    failure: impl Fn(Option<ScalarFact>, &[Proposition]) -> Option<ProgressFailure>,
 ) -> Observation {
-    let assess = |stored: &Stored| observation(stored, ty, &failure);
+    let common = memory.requirements(requirements);
+    let assess = |stored: &Stored| observation(stored, ty, &common, &failure);
     let result = assess(&memory.get(location));
     if result != Observation::Known(false)
         && memory.only_caller_can_block(location, |stored| {
@@ -190,16 +193,23 @@ fn classify_entries(
 fn observation(
     stored: &Stored,
     ty: semantic_vocabulary::ScalarType,
-    failure: impl Fn(Option<ScalarFact>) -> Option<ProgressFailure>,
+    common: &[Proposition],
+    failure: impl Fn(Option<ScalarFact>, &[Proposition]) -> Option<ProgressFailure>,
 ) -> Observation {
     let mut all_block = true;
     let mut can_block = false;
-    let visited = stored.visit_scalars(ty, |value| {
-        let cause = failure(Some(value));
+    let visited = stored.visit_witnesses(ty, |value, when| {
+        let mut facts = std::borrow::Cow::Borrowed(common);
+        if !when.is_empty() {
+            facts
+                .to_mut()
+                .extend(when.iter().filter_map(|condition| condition.proposition()));
+        }
+        let cause = failure(Some(value), &facts);
         all_block &= cause == Some(ProgressFailure::Deadlock);
         can_block |= cause.is_some();
     });
-    let unresolved = failure(None);
+    let unresolved = failure(None, common);
     let unresolved_can_block = unresolved.is_some();
     if stored.includes_pending_provider() && unresolved_can_block {
         return if can_block {

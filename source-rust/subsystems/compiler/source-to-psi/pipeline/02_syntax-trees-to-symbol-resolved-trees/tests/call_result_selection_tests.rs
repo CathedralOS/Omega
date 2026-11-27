@@ -159,6 +159,34 @@ fn structural_equation_calls_keep_their_callee_occurrence() {
     compare(text);
 }
 
+/*
+    Resolution first tries the ordinary pass alone. A call that leaves out
+    `Element` and `N` still needs equation completion, so the provisional
+    route must run and the resolved call must carry all three arguments.
+*/
+#[test]
+fn a_partial_structural_equation_call_recovers_its_omitted_arguments() {
+    let text = r#"
+        data Buffer<Element, const N: u64> { items: [Element; N]; }
+        machine inspect<Kind, Element, const N: u64>(value: @Buffer<Element, N>) -> u64
+        requires Kind == Buffer<Element, N> { 1u64 }
+        machine caller(value: @Buffer<u8, 2>) -> u64 {
+            inspect::<Buffer<u8, 2>>(value)
+        }
+    "#;
+    let (full, _) = compare(text);
+    let argument_counts = body_expressions(&full)
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target.as_str() == "inspect" => {
+                Some(call.machine_arguments.len())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(argument_counts, [3]);
+}
+
 #[test]
 fn a_structural_equation_machine_still_cannot_escape_as_a_plain_name() {
     let text = r#"

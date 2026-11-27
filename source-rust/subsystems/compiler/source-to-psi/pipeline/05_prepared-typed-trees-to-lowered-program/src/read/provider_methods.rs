@@ -72,10 +72,10 @@ impl<'program> Program<'program> {
         Ok(members)
     }
 
-    /// Read the public header with the implementation's type parameters.
+    /// Read the public header in the implementation's static parameter scope.
     /// Each declaration owns its binder names. Their order and declared bounds
     /// determine which parameter in the body stands for a public parameter.
-    pub(super) fn with_method_type_parameters<T>(
+    pub(super) fn with_method_parameters<T>(
         &mut self,
         context: MachineId,
         member: &Machine,
@@ -85,10 +85,12 @@ impl<'program> Program<'program> {
         use crate::source_state::data::TypeParameterKind;
         let typed = self.typed;
         let parameters = typed.state_signature_type_parameters(required);
-        if !parameters
-            .iter()
-            .any(|parameter| parameter.kind == TypeParameterKind::Type)
-        {
+        if !parameters.iter().any(|parameter| {
+            matches!(
+                parameter.kind,
+                TypeParameterKind::Type | TypeParameterKind::Machine { .. }
+            )
+        }) {
             return read(self);
         }
         let member_parameters = typed.machine_type_parameters(member);
@@ -133,10 +135,89 @@ impl<'program> Program<'program> {
         let previous = std::mem::replace(&mut self.source_scope, outer);
         let previous_len = self.scope.len();
         self.scope.extend(bindings);
-        let result = read(self);
+        let result = (|| {
+            for (public, private) in parameters.iter().zip(member_parameters.iter()) {
+                match (&public.kind, &private.kind) {
+                    (
+                        TypeParameterKind::Machine { contract: required },
+                        TypeParameterKind::Machine {
+                            contract: implementation,
+                        },
+                    ) => {
+                        self.match_method_callback(
+                            context,
+                            public.symbol,
+                            required,
+                            implementation,
+                        )?;
+                    }
+                    (TypeParameterKind::Machine { .. }, _)
+                    | (_, TypeParameterKind::Machine { .. }) => {
+                        return Err(crate::read::unavailable(
+                            context,
+                            "the method and its requirement disagree on a callable parameter",
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+            read(self)
+        })();
         self.scope.truncate(previous_len);
         self.source_scope = previous;
         result
+    }
+
+    /// A provider's body can use only the callback contract available to
+    /// everyone calling the public requirement, including its effect ceiling.
+    fn match_method_callback(
+        &mut self,
+        context: MachineId,
+        parameter: SymbolHandle,
+        required: &'program crate::source_state::data::MachineParameterContract,
+        implementation: &'program crate::source_state::data::MachineParameterContract,
+    ) -> Checked<()> {
+        use crate::source_state::data::MachineParameterContract;
+        if !matches!(
+            (required, implementation),
+            (
+                MachineParameterContract::Structural(_),
+                MachineParameterContract::Structural(_)
+            )
+        ) && required != implementation
+        {
+            return Err(crate::read::unavailable(
+                context,
+                "the method and its requirement need the same nominal callback selection",
+            ));
+        }
+        let signature = |contract| {
+            self.typed
+                .machine_parameter_contract_view(contract)
+                .map(|view| view.signature())
+        };
+        let required = signature(required).ok_or_else(|| {
+            crate::read::unavailable(context, "the public callback has no checked contract")
+        })?;
+        let implementation = signature(implementation).ok_or_else(|| {
+            crate::read::unavailable(
+                context,
+                "the implementation callback has no checked contract",
+            )
+        })?;
+        let public_signature = self.callback_requirement_signature(context, required)?;
+        let private_signature = self.callback_requirement_signature(context, implementation)?;
+        if public_signature != private_signature
+            || self.static_envelope(context, required, false)?
+                != self.static_envelope(context, implementation, false)?
+        {
+            return Err(crate::read::unavailable(
+                context,
+                "the method requires a different callback contract from its public requirement",
+            ));
+        }
+        self.binder_requirement(parameter, required, &[])?;
+        Ok(())
     }
 
     /// Recover the public arguments used to specialize a selected provider.

@@ -18,6 +18,14 @@ pub(super) const NATIVE_ARTIFACT: &str = native!("/pipeline/15_objects-to-image/
 pub(super) const OBJECT_REPLAY: &str = native!("/verification/published-objects");
 pub(super) const PRODUCT_PUBLICATION: &str =
     "source-rust/subsystems/compiler/build/publication";
+/// Program forms instruction selection consumes. Later stages read the facts
+/// they need from the target vocabulary and the physical program instead.
+const EARLIER_FORMS: [&str; 4] = [
+    native!("/representations/abstract-operations"),
+    native!("/representations/abstract-operations/optimization-unit-semantics"),
+    native!("/representations/target-operations"),
+    native!("/representations/target-operations/legalized-operations"),
+];
 
 pub(super) fn scoped_readers() -> Vec<Allowance> {
     let stages = &NATIVE_STAGES;
@@ -74,28 +82,18 @@ pub(super) fn rules() -> Vec<Rule> {
             allowed,
         });
     }
-    let earlier_forms = vec![
-        native!("/representations/abstract-operations"),
-        native!("/representations/target-operations"),
-        native!("/representations/target-operations/legalized-operations"),
-    ];
-    // The image package still contains the requested object correspondence audit.
-    // Its accessor and validator call sites are also restricted by boundary.rs.
-    let retained_image_readers = earlier_forms
-        .iter()
-        .map(|&dependency| Allowance {
-            owner: IMAGE_EMISSION,
-            dependency,
-        })
-        .collect();
+    // Stage 02's abstract program and stage 04's target operations stop at
+    // instruction selection. The requested object audit that rejoins them to an
+    // emitted object lives in the published-object verifier, outside the pipeline,
+    // so no later stage package, image emission included, may depend on them.
     rules.push(Rule {
         owners: stages[5..].to_vec(),
         forbidden: vec![],
-        forbidden_packages: earlier_forms,
+        forbidden_packages: EARLIER_FORMS.to_vec(),
         reason: "selected and later stages must read operands from the owning vocabulary",
         except_package: None,
         except_owners: vec![],
-        allowed: retained_image_readers,
+        allowed: vec![],
     });
     rules
 }
@@ -118,7 +116,6 @@ mod tests {
                     NATIVE_STAGES[8],
                     &[("record", vocabulary, None), ("earlier", target, None)],
                 ),
-                pkg("audit", IMAGE_EMISSION, &[("earlier", target, None)]),
                 pkg(
                     "artifact",
                     NATIVE_ARTIFACT,
@@ -137,6 +134,41 @@ mod tests {
             violations
                 .iter()
                 .any(|message| message.starts_with("artifact -> target-operations:"))
+        );
+    }
+
+    /// Image emission reads the object stage's handoff and the target vocabulary.
+    /// Its unit tests may still build abstract fixtures, so only dev edges pass.
+    #[test]
+    fn image_emission_cannot_import_any_earlier_program_form() {
+        let vocabulary = native!("/representations/target-operations/target-vocabulary");
+        let mut production = vec![("record", vocabulary, None)];
+        production.extend(EARLIER_FORMS.iter().map(|&form| ("earlier", form, None)));
+        let fixtures: Vec<_> = EARLIER_FORMS
+            .iter()
+            .map(|&form| ("fixture", form, Some("dev")))
+            .collect();
+        let metadata = Metadata {
+            workspace_root: "/repo".into(),
+            packages: vec![
+                pkg("image-emission", IMAGE_EMISSION, &production),
+                pkg("image-tests", IMAGE_EMISSION, &fixtures),
+                pkg(
+                    "audit",
+                    OBJECT_REPLAY,
+                    &[
+                        ("earlier", EARLIER_FORMS[0], None),
+                        ("target", EARLIER_FORMS[2], None),
+                    ],
+                ),
+            ],
+        };
+        let violations = forbidden_dependency_violations(&metadata, &rules()).unwrap();
+        assert_eq!(violations.len(), EARLIER_FORMS.len(), "{violations:?}");
+        assert!(
+            violations
+                .iter()
+                .all(|message| message.starts_with("image-emission -> "))
         );
     }
 }

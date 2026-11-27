@@ -3,7 +3,8 @@
 
 mod stable_words;
 
-use super::{SpinCondition, Subject};
+use super::{Operand, Scalar, SpinCondition, Subject, scalars::Expressions};
+use semantic_vocabulary::ScalarType;
 use stable_words::StableWords;
 use std::ops::Not;
 
@@ -33,6 +34,7 @@ impl Not for Guard {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Node {
     Observation(Subject, SpinCondition),
+    Computed(usize),
     Both(Guard, Guard),
     Select(Guard, Guard, Guard),
 }
@@ -40,6 +42,7 @@ enum Node {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in super::super::super) struct Predicate {
     nodes: Vec<Node>,
+    pub(super) expressions: Expressions,
     pub(super) retry: Guard,
 }
 
@@ -47,6 +50,7 @@ impl Predicate {
     pub(super) fn new() -> Self {
         Self {
             nodes: Vec::new(),
+            expressions: Expressions::default(),
             retry: NEVER,
         }
     }
@@ -57,6 +61,10 @@ impl Predicate {
             node: self.nodes.len(),
             inverted: false,
         }
+    }
+
+    pub(super) fn computed(&mut self, index: usize) -> Guard {
+        self.push(Node::Computed(index))
     }
 
     pub(super) fn observe(&mut self, subject: Subject, test: SpinCondition) -> Guard {
@@ -110,23 +118,50 @@ impl Predicate {
         }
     }
 
-    pub(in super::super) fn inputs(
+    pub(in super::super) fn subjects(&mut self) -> impl Iterator<Item = &mut Subject> {
+        self.nodes
+            .iter_mut()
+            .filter_map(|node| match node {
+                Node::Observation(subject, _) => Some(subject),
+                _ => None,
+            })
+            .chain(self.expressions.subjects())
+    }
+
+    pub(in super::super) fn substitute(
         &mut self,
-    ) -> impl Iterator<Item = (&mut Subject, &mut SpinCondition)> {
-        self.nodes.iter_mut().filter_map(|node| match node {
-            Node::Observation(subject, test) => Some((subject, test)),
-            Node::Both(..) | Node::Select(..) => None,
-        })
+        map: impl Copy + Fn(Operand) -> Option<Operand>,
+    ) -> Option<()> {
+        for node in &mut self.nodes {
+            if let Node::Observation(_, test) = node {
+                test.comparison.substitute(map)?;
+            }
+        }
+        self.expressions.substitute(map)
     }
 
     pub(in super::super::super) fn evaluate<K: Eq + std::hash::Hash>(
         &self,
         mut observe: impl FnMut(&Subject, SpinCondition) -> (Observation, Option<(K, SpinCondition)>),
+        cell: impl Fn(&Subject, ScalarType) -> Result<Scalar, Observation>,
+        formal: impl Fn(Operand) -> Option<Scalar>,
     ) -> Observation {
         let mut answers = vec![Observation::Known(false); self.nodes.len() + 1];
+        // An opaque call or possible trap can prevent this iteration from
+        // reaching its retry. A later comparison cannot establish completion.
+        let computed = match self.expressions.evaluate(cell, formal) {
+            Ok(values) => values,
+            Err(unknown) => return unknown,
+        };
         let mut words = StableWords::default();
         for (index, node) in self.nodes.iter().enumerate() {
-            if let Node::Observation(subject, test) = node {
+            if let Node::Computed(id) = node {
+                answers[index + 1] = match computed[*id] {
+                    Ok(Scalar::Boolean(value)) => Observation::Known(value),
+                    Ok(_) => Observation::Unproved,
+                    Err(unknown) => unknown,
+                };
+            } else if let Node::Observation(subject, test) = node {
                 let (answer, stable_word) = observe(subject, *test);
                 answers[index + 1] = answer;
                 if let Some((word, known_test)) = stable_word
@@ -153,7 +188,7 @@ impl Predicate {
         };
         for (index, node) in self.nodes.iter().enumerate() {
             let answer = match node {
-                Node::Observation(..) => continue,
+                Node::Observation(..) | Node::Computed(_) => continue,
                 Node::Both(left, right) => value(answers, *left).and(value(answers, *right)),
                 Node::Select(test, yes, no) => {
                     let yes = value(answers, *yes);
@@ -186,7 +221,7 @@ pub(in super::super::super) enum Observation {
 }
 
 impl Observation {
-    fn and(self, other: Self) -> Self {
+    pub(super) fn and(self, other: Self) -> Self {
         match (self, other) {
             (Self::Known(false), _) | (_, Self::Known(false)) => Self::Known(false),
             (Self::Known(true), value) | (value, Self::Known(true)) => value,

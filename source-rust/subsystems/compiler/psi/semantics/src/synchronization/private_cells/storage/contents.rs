@@ -3,12 +3,12 @@
 
 mod indices;
 
-use super::Location;
+use super::{Assumption, Location};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::progress::ScalarFact;
 use crate::synchronization::spin::CellUpdate;
 use semantic_vocabulary::{ScalarType, StructuralCaseId};
-use std::sync::Arc;
+use std::rc::Rc;
 use terminal_psi::StructuralPathSegment as Segment;
 
 #[derive(Clone, Default)]
@@ -18,12 +18,48 @@ pub(in super::super) enum Stored {
     Alternatives {
         pending_provider: bool,
         includes_zero: bool,
-        values: Vec<ScalarFact>,
+        values: Vec<ScalarWitness>,
     },
     Reference(Location),
-    Aggregate(Arc<Aggregate>),
+    /// A result returned by a checked lock constructor. Within an order
+    /// summary its selected cleanup consumes this exact acquisition.
+    Guard(usize),
+    Aggregate(Rc<Aggregate>),
     #[default]
     Unknown,
+}
+
+/// Facts are attached to the particular incoming scalar. Merging arrivals
+/// of the same scalar retains only requirements true on every such arrival.
+#[derive(Clone)]
+pub(in super::super) struct ScalarWitness {
+    value: ScalarFact,
+    when: Vec<Assumption>,
+}
+
+impl ScalarWitness {
+    fn record(
+        values: &mut Vec<Self>,
+        value: ScalarFact,
+        prior: &[Assumption],
+        path: &[Assumption],
+    ) {
+        let relevant =
+            |fact: &Assumption| matches!(value, ScalarFact::EntryInput(_)) && fact.mentions(value);
+        if let Some(existing) = values.iter_mut().find(|candidate| candidate.value == value) {
+            existing
+                .when
+                .retain(|fact| prior.contains(fact) || path.contains(fact));
+        } else {
+            let mut when = prior.to_vec();
+            for &condition in path.iter().filter(|fact| relevant(fact)) {
+                if !when.contains(&condition) {
+                    when.push(condition);
+                }
+            }
+            values.push(Self { value, when });
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -100,7 +136,7 @@ impl Stored {
     }
 
     pub(in super::super) fn variant(case: StructuralCaseId) -> Self {
-        Self::Aggregate(Arc::new(Aggregate {
+        Self::Aggregate(Rc::new(Aggregate {
             tags: vec![case],
             fill: FieldDefault::Unknown,
             fields: Vec::new(),
@@ -124,13 +160,13 @@ impl Stored {
     pub(in super::super) fn select_case(&self, case: StructuralCaseId) -> Self {
         let mut result = match self {
             Self::Aggregate(aggregate) => aggregate.clone(),
-            _ => Arc::new(Aggregate {
+            _ => Rc::new(Aggregate {
                 tags: Vec::new(),
                 fill: self.fill(),
                 fields: Vec::new(),
             }),
         };
-        let value = Arc::make_mut(&mut result);
+        let value = Rc::make_mut(&mut result);
         value.tags.clear();
         value.tags.push(case);
         Self::Aggregate(result)
@@ -173,7 +209,7 @@ impl Stored {
     /// is written. Nesting a record never expands all possible element paths.
     pub(super) fn field_mut(&mut self, key: &Segment) -> &mut Self {
         if !matches!(self, Self::Aggregate(_)) {
-            *self = Self::Aggregate(Arc::new(Aggregate {
+            *self = Self::Aggregate(Rc::new(Aggregate {
                 tags: Vec::new(),
                 fill: self.fill(),
                 fields: Vec::new(),
@@ -182,7 +218,7 @@ impl Stored {
         let Self::Aggregate(record) = self else {
             unreachable!()
         };
-        let record = Arc::make_mut(record);
+        let record = Rc::make_mut(record);
         let index = match record.fields.iter().position(|(field, _)| field == key) {
             Some(index) => index,
             None => {
@@ -207,26 +243,29 @@ impl Stored {
     // Identical cells keep all values established at incoming edges. Zero
     // remains untyped until a checked operation supplies its scalar type.
     pub(in super::super) fn join(&mut self, other: &Self) {
-        self.join_with(other, &mut Location::join);
+        self.join_with(other, &mut Location::join, &[], &[]);
     }
 
     pub(super) fn join_with(
         &mut self,
         other: &Self,
         borrow: &mut impl FnMut(&mut Location, &Location),
+        left_facts: &[Assumption],
+        right_facts: &[Assumption],
     ) {
         match (&*self, other) {
-            (Self::Unknown, _) => return,
+            (Self::Unknown, _) => {}
             (Self::Uniform(left), Self::Uniform(right)) => {
                 *self = left.join(*right).contents().clone();
             }
-            (Self::Scalar(a), Self::Scalar(b)) if a == b => return,
+            (Self::Scalar(a), Self::Scalar(b)) if a == b => {}
+            (Self::Guard(a), Self::Guard(b)) if a == b => {}
             (Self::Reference(a), Self::Reference(b)) => {
                 let mut home = a.clone();
                 borrow(&mut home, b);
                 *self = Self::Reference(home);
             }
-            (Self::Aggregate(a), Self::Aggregate(b)) if Arc::ptr_eq(a, b) => return,
+            (Self::Aggregate(a), Self::Aggregate(b)) if Rc::ptr_eq(a, b) => {}
             (Self::Aggregate(_), Self::Aggregate(_) | Self::Uniform(_))
             | (Self::Uniform(_), Self::Aggregate(_)) => {
                 let fields = |value: &Self| match value {
@@ -244,7 +283,7 @@ impl Stored {
                     tags.sort_unstable();
                     tags.dedup();
                 }
-                let mut result = Self::Aggregate(Arc::new(Aggregate {
+                let mut result = Self::Aggregate(Rc::new(Aggregate {
                     tags,
                     fill: self.fill().join(other.fill()),
                     fields: Vec::new(),
@@ -266,7 +305,7 @@ impl Stored {
                     let value = match (admits(self), admits(other)) {
                         (true, true) => {
                             let mut value = self.field(&key).clone();
-                            value.join_with(other.field(&key), borrow);
+                            value.join_with(other.field(&key), borrow, left_facts, right_facts);
                             value
                         }
                         (true, false) => self.field(&key).clone(),
@@ -296,7 +335,7 @@ impl Stored {
                 let mut pending_provider = false;
                 let mut includes_zero = false;
                 let mut values = Vec::new();
-                for item in [&*self, other] {
+                for (item, path) in [(&*self, left_facts), (other, right_facts)] {
                     match item {
                         Self::Uniform(FieldDefault::Zero) => includes_zero = true,
                         Self::Uniform(FieldDefault::PendingProvider) => pending_provider = true,
@@ -304,7 +343,9 @@ impl Stored {
                             pending_provider = true;
                             includes_zero = true;
                         }
-                        Self::Scalar(value) => values.push(*value),
+                        Self::Scalar(value) => {
+                            ScalarWitness::record(&mut values, *value, &[], path)
+                        }
                         Self::Alternatives {
                             includes_zero: zero,
                             values: alternatives,
@@ -312,21 +353,22 @@ impl Stored {
                         } => {
                             includes_zero |= zero;
                             pending_provider |= pending;
-                            values.extend(alternatives);
+                            for witness in alternatives {
+                                ScalarWitness::record(
+                                    &mut values,
+                                    witness.value,
+                                    &witness.when,
+                                    path,
+                                );
+                            }
                         }
                         _ => unreachable!(),
-                    }
-                }
-                let mut unique = Vec::new();
-                for value in values {
-                    if !unique.contains(&value) {
-                        unique.push(value);
                     }
                 }
                 *self = Self::Alternatives {
                     pending_provider,
                     includes_zero,
-                    values: unique,
+                    values,
                 };
             }
             _ => *self = Self::Unknown,
@@ -393,8 +435,16 @@ impl Stored {
         ty: ScalarType,
         mut visit: impl FnMut(ScalarFact),
     ) -> Option<()> {
+        self.visit_witnesses(ty, |value, _| visit(value))
+    }
+
+    pub(in super::super) fn visit_witnesses(
+        &self,
+        ty: ScalarType,
+        mut visit: impl FnMut(ScalarFact, &[Assumption]),
+    ) -> Option<()> {
         if matches!(self, Self::Uniform(FieldDefault::PendingOrZero)) {
-            visit(ScalarFact::Literal(Scalar::zero(ty)?));
+            visit(ScalarFact::Literal(Scalar::zero(ty)?), &[]);
             return Some(());
         }
         if let Self::Alternatives {
@@ -404,16 +454,16 @@ impl Stored {
         } = self
         {
             if *includes_zero {
-                visit(ScalarFact::Literal(Scalar::zero(ty)?));
+                visit(ScalarFact::Literal(Scalar::zero(ty)?), &[]);
             }
-            for &value in values {
-                if value.ty() != ty {
+            for witness in values {
+                if witness.value.ty() != ty {
                     return None;
                 }
-                visit(value);
+                visit(witness.value, &witness.when);
             }
         } else {
-            visit(self.scalar(ty)?);
+            visit(self.scalar(ty)?, &[]);
         }
         Some(())
     }
@@ -430,9 +480,9 @@ impl Stored {
                 let value = if *includes_zero {
                     ScalarFact::Literal(Scalar::zero(ty)?)
                 } else {
-                    *values.first()?
+                    values.first()?.value
                 };
-                (value.ty() == ty && values.iter().all(|&candidate| candidate == value))
+                (value.ty() == ty && values.iter().all(|candidate| candidate.value == value))
                     .then_some(value)
             }
             _ => None,

@@ -357,19 +357,41 @@ fn corresponding_record_path(
     use crate::exactly_one::exactly_one;
     use semantic_vocabulary::CanonicalStructuralPathSegment;
 
+    // A case selects a field namespace inside its sum. It does not
+    // select another structural type until its payload field is chosen.
+    fn field_owner(
+        prefix: &[CanonicalStructuralPathSegment],
+    ) -> (
+        &[CanonicalStructuralPathSegment],
+        Option<semantic_vocabulary::StructuralCaseId>,
+    ) {
+        match prefix.split_last() {
+            Some((CanonicalStructuralPathSegment::Case(case), parent)) => (parent, Some(*case)),
+            _ => (prefix, None),
+        }
+    }
+
     let types = module.types.structural_types.iter();
     let mut translated = Vec::with_capacity(path.len());
     for (position, step) in path.iter().enumerate() {
-        let destination = crate::canonical_structural_path_tip(types.clone(), actual, &translated)?;
-        let source =
-            crate::canonical_structural_path_tip(types.clone(), expected, &path[..position])?;
+        let (from, source_case) = field_owner(&path[..position]);
+        let (to, destination_case) = field_owner(&translated);
+        if source_case.is_some() && !matches!(step, CanonicalStructuralPathSegment::Field(_)) {
+            return None;
+        }
+        let source = crate::canonical_structural_path_tip(types.clone(), expected, from)?;
+        let destination = crate::canonical_structural_path_tip(types.clone(), actual, to)?;
         let step = match *step {
             CanonicalStructuralPathSegment::Field(id) => {
-                let field = exactly_one(source.shape.fields(), |field| field.id == id)?;
-                let corresponding = exactly_one(destination.shape.fields(), |candidate| {
-                    candidate.identity == field.identity
-                        && candidate.declaration_identity == field.declaration_identity
+                let (_, field) = exactly_one(source.shape.fields_with_case(), |(case, field)| {
+                    case.map(|case| case.id) == source_case && field.id == id
                 })?;
+                let (_, corresponding) =
+                    exactly_one(destination.shape.fields_with_case(), |(case, candidate)| {
+                        case.map(|case| case.id) == destination_case
+                            && candidate.identity == field.identity
+                            && candidate.declaration_identity == field.declaration_identity
+                    })?;
                 CanonicalStructuralPathSegment::Field(corresponding.id)
             }
             CanonicalStructuralPathSegment::Case(id) => {
@@ -418,6 +440,25 @@ fn rebind_requirements_paths(
                 conclusion,
             } => {
                 clauses.extend([premise.as_mut(), conclusion.as_mut()]);
+            }
+            Proposition::StructuralCaseMembership { subject, case } => {
+                if subject.root().get() != 1 {
+                    return false;
+                }
+                let mut selection = subject.path().to_vec();
+                selection.push(semantic_vocabulary::CanonicalStructuralPathSegment::Case(
+                    *case,
+                ));
+                let Some(mut rebound) = path(&selection) else {
+                    return false;
+                };
+                let Some(semantic_vocabulary::CanonicalStructuralPathSegment::Case(selected)) =
+                    rebound.pop()
+                else {
+                    return false;
+                };
+                *subject = semantic_vocabulary::StructuralCaseSubject::new(subject.root(), rebound);
+                *case = selected;
             }
             Proposition::Truth | Proposition::Falsehood => {}
             _ => return false,

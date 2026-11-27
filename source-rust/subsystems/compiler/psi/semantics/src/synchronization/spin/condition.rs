@@ -84,7 +84,7 @@ pub(super) fn masked(value: Scalar, mask: Option<Scalar>) -> Option<Scalar> {
 }
 
 impl Comparison {
-    pub(super) fn operands(
+    pub(in super::super) fn operands(
         kind: &terminal_psi::OperationKind,
     ) -> Option<(
         semantic_vocabulary::ValueId,
@@ -114,7 +114,7 @@ impl Comparison {
         Some(())
     }
 
-    pub(super) fn equal(pivot: Scalar) -> Self {
+    pub(in super::super) fn equal(pivot: Scalar) -> Self {
         Self {
             pivot: Operand::Literal(pivot),
             order: Ordering::Equal,
