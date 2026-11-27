@@ -7,7 +7,6 @@ use crate::Unserved;
 use crate::body::{Ceiling, CrashCeiling, Qualification, ValueType};
 use crate::source_state::domain::ProofFact;
 use crate::source_state::signature::{SignatureContractKind, StateSignature};
-use crate::{Unserved, refuse};
 use semantic_vocabulary::{MachineId, ScalarType, ValueId};
 use std::fmt::Write;
 use terminal_check_tables::Checked;
