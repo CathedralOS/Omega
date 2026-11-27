@@ -445,6 +445,7 @@ pub fn borrowed_loan_sources<'a>(
     >,
 ) -> Result<BorrowedLoanSources, &'static str> {
     let mut parent = None;
+    let mut alternatives = Vec::new();
     // Loans that may still own the descriptor here, but not on every
     // arrival: each arm of a join formed its own loan.
     let mut joined = Vec::new();
@@ -481,11 +482,27 @@ pub fn borrowed_loan_sources<'a>(
         if !authorized {
             continue;
         }
-        if parent.is_some_and(|previous| previous != identity) {
-            return Err("reference descriptor has ambiguous immediate loan occurrences");
+        if let Some(first) = parent {
+            if alternatives.is_empty() {
+                alternatives.push(first);
+            }
+            alternatives.push((identity, lifetime));
+        } else {
+            parent = Some((identity, lifetime));
         }
-        parent = Some(identity);
     }
+    if !alternatives.is_empty() {
+        if joined.is_empty()
+            && let Some(choice) = crate::descriptor_lifetimes::DescriptorLoanChoice::returned(
+                (at, descriptor.clone()),
+                &alternatives,
+            )
+        {
+            return Ok(BorrowedLoanSources::Selected(choice));
+        }
+        return Err("reference descriptor has ambiguous immediate loan occurrences");
+    }
+    let parent = parent.map(|(id, _)| id);
     if !joined.is_empty() {
         const UNRESOLVED: &str =
             "reference descriptor has an unresolved surviving immediate loan occurrence";
@@ -895,6 +912,9 @@ fn retain_call_lifetime(
         .find(|previous| previous.position == position && previous.path == path)
     {
         let previous = &mut previous.lifetime;
+        if previous.returned_origin != lifetime.returned_origin {
+            previous.returned_origin = None;
+        }
         previous.live.extend(lifetime.live);
         for (at, names) in lifetime.demanded {
             previous.demanded.entry(at).or_default().extend(names);
@@ -1111,6 +1131,7 @@ fn retain_result_dependencies(
             position,
             argument.path.clone(),
             crate::descriptor_lifetimes::DescriptorLifetime {
+                returned_origin: None,
                 recurring_authority: None,
                 live: lifetime.live.clone(),
                 demanded: lifetime.demanded.clone(),
@@ -1456,7 +1477,22 @@ fn reference_call_lifetimes_with_index(
             None,
         )
         .ok_or_else(|| refuse("returned reference has no exact result descriptor path"))?;
-        for (position, bound) in source_positions.into_iter().zip(binding.sources) {
+        let alternatives = binding.sources.len();
+        let input_choice = alternatives > 1
+            && binding.sources.iter().all(|source| {
+                matches!(
+                    source.origin,
+                    ReferenceCallOrigin::Parameter {
+                        transfers_existing: false,
+                        ..
+                    }
+                )
+            });
+        for (ordinal, (position, bound)) in source_positions
+            .into_iter()
+            .zip(binding.sources)
+            .enumerate()
+        {
             let (position, source, transfers_existing) = match (position, bound.origin) {
                 (
                     Some(position),
@@ -1486,7 +1522,15 @@ fn reference_call_lifetimes_with_index(
                     "returned reference does not retain an actual input loan",
                 ));
             }
-            let lifetime = compute_lifetime(&descriptor);
+            let mut lifetime = compute_lifetime(&descriptor);
+            if input_choice {
+                lifetime.returned_origin =
+                    Some(Box::new(crate::descriptor_lifetimes::ReturnedLoanOrigin {
+                        leaf: (at, descriptor.clone()),
+                        alternatives,
+                        source: ordinal,
+                    }));
+            }
             if lifetime.live.contains(&at) {
                 return Err(refuse(
                     "returned reference loan crosses its own call formation",

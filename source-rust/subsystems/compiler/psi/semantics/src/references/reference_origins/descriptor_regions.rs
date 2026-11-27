@@ -434,17 +434,6 @@ fn reference_sources_for_leaves(
         }
         sources.sort();
         sources.dedup();
-        let first = sources
-            .first()
-            .and_then(|source| source.parameter())
-            .map(|source| source.place);
-        if sources
-            .iter()
-            .filter_map(|source| source.parameter())
-            .any(|source| Some(source.place) != first)
-        {
-            return Err("reference result has alternatives from different input roots");
-        }
         mappings.push(terminal_psi::StructuralReferenceResultSource {
             path: leaf.path,
             sources,

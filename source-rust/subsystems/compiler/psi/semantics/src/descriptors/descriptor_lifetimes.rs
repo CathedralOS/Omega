@@ -519,7 +519,16 @@ fn location_live_positions(
     }
 }
 
+/// One possible input selected by a checked call's returned reference.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct ReturnedLoanOrigin {
+    pub leaf: LoanChoiceLocation,
+    pub alternatives: usize,
+    pub source: usize,
+}
+
 pub struct DescriptorLifetime {
+    pub(crate) returned_origin: Option<Box<ReturnedLoanOrigin>>,
     /// At this formation the previous dynamic occurrence, when present,
     /// supplies the new one. The external lender still owns the lineage.
     pub(crate) recurring_authority: Option<Box<LocationsByPosition>>,
@@ -853,6 +862,7 @@ fn descriptor_lifetime_with_predecessors(
         )
     };
     DescriptorLifetime {
+        returned_origin: None,
         recurring_authority,
         live: demand.live,
         demanded: demand.names,
@@ -1007,6 +1017,42 @@ pub struct DescriptorLoanChoice {
 }
 
 impl DescriptorLoanChoice {
+    /// Each distinct candidate must come from the complete source family
+    /// of the same call and returned field. Two live loans by themselves
+    /// do not establish that either lends the value being used here.
+    pub(crate) fn returned(
+        root: LoanChoiceLocation,
+        parents: &[(ObligationId, &DescriptorLifetime)],
+    ) -> Option<Self> {
+        let (_, first) = parents.first()?;
+        let family = first.returned_origin.as_ref()?;
+        if parents.len() != family.alternatives {
+            return None;
+        }
+        let mut ordinals = BTreeSet::new();
+        let mut loans = Vec::with_capacity(parents.len());
+        for &(id, life) in parents {
+            let origin = life.returned_origin.as_ref()?;
+            if origin.leaf != family.leaf
+                || origin.alternatives != family.alternatives
+                || !ordinals.insert(origin.source)
+            {
+                return None;
+            }
+            loans.push(id);
+        }
+        Some(Self {
+            nodes: BTreeMap::from([(
+                root.clone(),
+                LoanChoice::CallResult {
+                    leaf: family.leaf.clone(),
+                    loans,
+                },
+            )]),
+            root,
+        })
+    }
+
     pub fn includes_incoming(&self) -> bool {
         self.nodes
             .values()
@@ -1014,9 +1060,13 @@ impl DescriptorLoanChoice {
     }
 
     pub fn loans(&self) -> impl Iterator<Item = ObligationId> + '_ {
-        self.nodes.values().filter_map(|node| match node {
-            LoanChoice::Loan(parent) => Some(*parent),
-            LoanChoice::Incoming(_) | LoanChoice::Arrivals(_) => None,
+        self.nodes.values().flat_map(|node| {
+            let loans: &[ObligationId] = match node {
+                LoanChoice::Loan(parent) => std::slice::from_ref(parent),
+                LoanChoice::CallResult { loans, .. } => loans,
+                LoanChoice::Incoming(_) | LoanChoice::Arrivals(_) => &[],
+            };
+            loans.iter().copied()
         })
     }
 }
@@ -1027,6 +1077,10 @@ pub enum LoanChoice {
     Incoming(DescriptorLocation),
     Loan(ObligationId),
     Arrivals(Vec<LoanChoiceArrival>),
+    CallResult {
+        leaf: LoanChoiceLocation,
+        loans: Vec<ObligationId>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
