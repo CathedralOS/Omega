@@ -1,0 +1,61 @@
+// The program of `core_gcd/pass` with one change: `euclid_at` does not
+// cite `gcd_step`. Its two sides are Euclid's algorithm at two different
+// bounds, and without the law that sufficient bounds agree nothing proves
+// them equal, so the compiler refuses its ensures.
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/nat.omg;
+
+// zero divisor: gcd(5, 0) = 5.
+machine gcd_5_0() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } })
+{
+    transition { _ -> (|nat|::gcd(|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } }, |nat|::Nat::Zero)) }
+}
+
+// zero dividend: gcd(0, 5) = 5.
+machine gcd_0_5() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } })
+{
+    transition { _ -> (|nat|::gcd(|nat|::Nat::Zero, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } })) }
+}
+
+// coprime: gcd(7, 3) = 1.
+machine gcd_7_3() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Succ { prev: |nat|::Nat::Zero })
+{
+    transition { _ -> (|nat|::gcd(|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } } } }, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } })) }
+}
+
+// common factor: gcd(6, 4) = 2.
+machine gcd_6_4() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } })
+{
+    transition { _ -> (|nat|::gcd(|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } } }, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } })) }
+}
+
+// common factor: gcd(9, 6) = 3.
+machine gcd_9_6() -> |nat|::Nat
+ensures
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } })
+{
+    transition { _ -> (|nat|::gcd(|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } } } } } }, |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } } } } } })) }
+}
+
+// Euclid's step at any positive divisor `b`, from a program.
+machine euclid_at(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, b), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(|nat|::gcd(a, b), |nat|::gcd(b, |nat|::mod(a, b)))
+{
+    transition { _ -> |nat|::Nat::Zero }
+}
+
+data Main { }
+
+// The entry does nothing: the program is here for its proofs.
+machine entry_start() { }

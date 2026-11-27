@@ -342,6 +342,26 @@ fn core_division_by_zero_is_refused_for_its_premise() {
 }
 
 #[test]
+fn core_gcd_computes_and_takes_euclids_step() {
+    // A zero divisor, a zero dividend, coprime numbers and common factors,
+    // each checked by computation through `gcd` of `core/nat.omg`, and
+    // Euclid's step at any positive divisor by citing `gcd_step`.
+    let (output, report) = check("core_gcd/pass/euclid");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn euclids_step_without_its_law_is_refused() {
+    let (output, report) = check("core_gcd/fail/euclid_without_its_step");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for `euclid_at`")
+            && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_machine_that_recurses_on_a_computed_value_of_local_data_is_refused() {
     // `Peano` is the program's own data, so no natural order checks the
     // descent of `drain(before(a))`.
