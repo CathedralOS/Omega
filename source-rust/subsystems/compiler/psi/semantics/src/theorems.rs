@@ -64,6 +64,14 @@ pub fn contract_subjects(
         }
         subjects.push((formal.id, formal.scalar_type));
     }
+    for (position, subject) in contract.data_subjects.iter().enumerate() {
+        if subject.place.get() != position as u64 + 1 {
+            return Err("logical contract has another sum subject telescope");
+        }
+    }
+    if !contract.data_subjects.is_empty() {
+        return Err("logical contract's sum subject has no mathematical denotation yet");
+    }
     let context = PropositionContext::from_value_types(subjects.iter().copied())
         .map_err(|_| "logical subjects do not form a proposition context")?;
     let mut pending: Vec<_> = contract.requires.iter().chain(&contract.ensures).collect();
@@ -266,6 +274,7 @@ pub fn named_contract(
                 .cloned()
                 .collect(),
             requires: contract.requires.clone(),
+            data_subjects: Vec::new(),
             ensures,
             proof_parameters: Vec::new(),
         }
@@ -278,6 +287,7 @@ pub fn named_contract(
         TheoremContract {
             parameters,
             requires,
+            data_subjects: Vec::new(),
             ensures,
             proof_parameters: Vec::new(),
         }
@@ -545,6 +555,7 @@ fn citation_goals_with(
     }
     let actual = TheoremContract {
         parameters,
+        data_subjects: Vec::new(),
         requires,
         ensures,
         proof_parameters: Vec::new(),
@@ -809,6 +820,64 @@ pub fn denote_citation(
 #[cfg(test)]
 mod premise_tests {
     use super::*;
+
+    fn contract(data_subjects: &[u64]) -> TheoremContract {
+        let n = ValueId::new(1).unwrap();
+        let u8_type = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                .unwrap(),
+        );
+        TheoremContract {
+            parameters: vec![terminal_psi::ValueDeclaration {
+                id: n,
+                scalar_type: u8_type,
+                qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+            }],
+            data_subjects: data_subjects
+                .iter()
+                .map(|&place| terminal_psi::TheoremDataSubject {
+                    place: PlaceId::new(place).unwrap(),
+                    structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                })
+                .collect(),
+            requires: vec![Proposition::Truth],
+            ensures: vec![Proposition::Equal(
+                ScalarTerm::Value {
+                    id: n,
+                    scalar_type: u8_type,
+                },
+                ScalarTerm::Value {
+                    id: n,
+                    scalar_type: u8_type,
+                },
+            )],
+            proof_parameters: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_contract_without_sum_subjects_keeps_its_scalar_subjects() {
+        assert_eq!(contract_subjects(&contract(&[])).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_sum_subject_is_refused_until_it_has_a_denotation() {
+        assert_eq!(
+            contract_subjects(&contract(&[1])),
+            Err("logical contract's sum subject has no mathematical denotation yet")
+        );
+    }
+
+    #[test]
+    fn sum_subjects_number_their_places_from_one() {
+        for places in [&[2][..], &[1, 3], &[1, 1]] {
+            assert_eq!(
+                contract_subjects(&contract(places)),
+                Err("logical contract has another sum subject telescope"),
+                "{places:?}"
+            );
+        }
+    }
 
     #[test]
     fn header_premises_keep_their_exact_assumption_indices() {

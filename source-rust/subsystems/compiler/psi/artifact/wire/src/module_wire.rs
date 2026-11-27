@@ -85,8 +85,8 @@ mod theorem_parameter_wire {
     };
     use psi_callable_encoding::signatures::Declaration;
     use terminal_psi::{
-        TheoremApplication, TheoremCitation, TheoremContract, TheoremInstantiation,
-        TheoremParameter, TheoremSource,
+        TheoremApplication, TheoremCitation, TheoremContract, TheoremDataSubject,
+        TheoremInstantiation, TheoremParameter, TheoremSource,
     };
 
     wire_enum! {
@@ -126,6 +126,7 @@ mod theorem_parameter_wire {
         fn read(reader: &mut Reader<'_>) -> Result<TheoremContract, CodecError> {
             Ok(TheoremContract {
                 parameters: List::<Declaration>::read(reader)?,
+                data_subjects: List::<DataSubject>::read(reader)?,
                 requires: List::<Proposition>::read(reader)?,
                 ensures: List::<Proposition>::read(reader)?,
                 proof_parameters: Vec::new(),
@@ -135,11 +136,16 @@ mod theorem_parameter_wire {
 
     fn write_clauses(writer: &mut Writer, value: &TheoremContract) -> Result<(), CodecError> {
         List::<Declaration>::write(writer, &value.parameters)?;
+        List::<DataSubject>::write(writer, &value.data_subjects)?;
         List::<Proposition>::write(writer, &value.requires)?;
         List::<Proposition>::write(writer, &value.ensures)
     }
 
     wire_record! {
+        DataSubject: TheoremDataSubject {
+            place: Id,
+            structural_type: Id,
+        }
         Parameter: TheoremParameter {
             machine: Id,
             proof_position: U32,
@@ -165,6 +171,57 @@ mod theorem_parameter_wire {
         Instantiation: TheoremInstantiation {
             source: Source,
             derivations: List<Certificate>,
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use semantic_vocabulary::{PlaceId, StructuralTypeId};
+
+        fn contract(data_subjects: Vec<TheoremDataSubject>) -> TheoremContract {
+            TheoremContract {
+                parameters: Vec::new(),
+                data_subjects,
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                proof_parameters: Vec::new(),
+            }
+        }
+
+        fn encode(value: &TheoremContract) -> Vec<u8> {
+            let mut writer = Writer::default();
+            Contract::write(&mut writer, value).expect("encode contract");
+            writer.finish()
+        }
+
+        #[test]
+        fn a_contract_keeps_its_sum_subjects() {
+            let subject = TheoremDataSubject {
+                place: PlaceId::new(1).unwrap(),
+                structural_type: StructuralTypeId::new(4).unwrap(),
+            };
+            let with = contract(vec![subject]);
+            let bytes = encode(&with);
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(Contract::read(&mut reader).expect("decode contract"), with);
+            assert_eq!(reader.remaining(), 0);
+            for end in 0..bytes.len() {
+                assert!(Contract::read(&mut Reader::new(&bytes[..end])).is_err());
+            }
+        }
+
+        #[test]
+        fn a_sum_subject_changes_the_contract_bytes() {
+            let without = contract(Vec::new());
+            let with = contract(vec![TheoremDataSubject {
+                place: PlaceId::new(1).unwrap(),
+                structural_type: StructuralTypeId::new(4).unwrap(),
+            }]);
+            assert_ne!(encode(&without), encode(&with));
+            let bytes = encode(&without);
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(Contract::read(&mut reader).unwrap(), without);
         }
     }
 }

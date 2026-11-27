@@ -4,12 +4,22 @@
 
 use crate::{CertificateEnvelope, ValueDeclaration};
 use semantic_vocabulary::{
-    BlockId, EdgeId, InvocationSite, MachineId, ObligationId, Proposition, ScalarTerm,
+    BlockId, EdgeId, InvocationSite, MachineId, ObligationId, PlaceId, Proposition, ScalarTerm,
+    StructuralTypeId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TheoremContract {
     pub parameters: Vec<ValueDeclaration>,
+    /// The contract's sum subjects, after its scalar ones. Each is one value
+    /// of its sum's inductive declaration, not a tuple of case Booleans and
+    /// payload scalars: mathematical_bindings.md, "A sum input in a logical
+    /// contract denotes a single mathematical value of that sum's checked
+    /// inductive declaration". Clauses name one by its place, as a case test
+    /// (`StructuralCaseMembership`) or a payload read under a
+    /// `Case(c), Field(f)` path. A record input stays flattened into
+    /// `parameters`.
+    pub data_subjects: Vec<TheoremDataSubject>,
     pub requires: Vec<Proposition>,
     pub ensures: Vec<Proposition>,
     /// The contract's own proof parameters, in its header order, such as
@@ -20,6 +30,14 @@ pub struct TheoremContract {
     /// takes a proof parameter, that parameter belongs to the contract's own
     /// header. The outer caller supplies one proof of the whole contract."
     pub proof_parameters: Vec<TheoremContract>,
+}
+
+/// One sum subject of a logical contract. Its places number the contract's
+/// sum subjects from 1, in order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TheoremDataSubject {
+    pub place: PlaceId,
+    pub structural_type: StructuralTypeId,
 }
 
 /// The proof position indexes the owning machine's erased proof formals.
