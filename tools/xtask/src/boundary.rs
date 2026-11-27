@@ -23,6 +23,8 @@ pub const NATIVE_PROVIDER_RUNTIME_ROOT: &str = "source-rust/subsystems/interpret
 
 const BOUND_FRAMED_MACHINE: &str = "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine";
 const BINDING_ISSUER: &str = "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/issuer";
+// Stage 09 binds each framed body after the driver measures every retained handler.
+const INSTALLATION_BINDING: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning";
 
 const PSI_RECORDS: &str = "source-rust/subsystems/compiler/psi";
 const PSI_ARTIFACT: &str = "source-rust/subsystems/compiler/psi/artifact";
@@ -169,8 +171,14 @@ pub fn forbidden_rules() -> Vec<Rule> {
     rules.push(Rule {
         forbidden_packages: vec![BINDING_ISSUER],
         allowed: vec![
-            Allowance { owner: NATIVE_STAGES[10], dependency: BINDING_ISSUER },
-            Allowance { owner: BOUND_FRAMED_MACHINE, dependency: BINDING_ISSUER },
+            Allowance {
+                owner: INSTALLATION_BINDING,
+                dependency: BINDING_ISSUER,
+            },
+            Allowance {
+                owner: BOUND_FRAMED_MACHINE,
+                dependency: BINDING_ISSUER,
+            },
         ],
         ..rule(vec![""], vec![], "only installation binding may issue a bound framed machine")
     });
@@ -199,8 +207,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
             (linear_pipeline::TEXT_READER, linear_pipeline::PSI_STAGES[0]),
             (linear_pipeline::TEXT_READER, linear_pipeline::PSI_STAGES[1]),
             ("source-rust/subsystems/compiler/build/evaluation/result", linear_pipeline::PSI_STAGES[7]),
-            ("source-rust/subsystems/compiler/source-to-psi/representations/evaluation-receipts", linear_pipeline::PSI_STAGES[7]),
-        ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
+        ].into_iter().chain(linear_pipeline::legacy_representation_links_into(&linear_pipeline::PSI_STAGES)).map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
         ..rule(
             vec![""],
             linear_pipeline::PSI_STAGES.to_vec(),
@@ -217,7 +224,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
     });
     rules.extend(native_stages::rules());
     rules.push(rule(
-        NATIVE_STAGES[5..=9].to_vec(),
+        NATIVE_STAGES[4..=8].to_vec(),
         vec![EARLIER_PROGRAM_FORMS, SEALED_TERMINAL_MODULE],
         "physical planning reads the retained target operations",
     ));
@@ -1016,7 +1023,6 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
         ],
         &[
             (TARGET_REPLAY_RECORD, "pub fn target_for_correspondence(&self) -> &TargetOperationsForReplay {"),
-            ("source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/object_artifact.rs", ".map(crate::RetainedTargetOperations::target_for_correspondence)"),
         ],
         "only explicit object correspondence audits may inspect the original target forms",
     ));
@@ -1316,14 +1322,26 @@ mod tests {
         let metadata = Metadata {
             workspace_root: "/repo".into(),
             packages: vec![
-                pkg("installation-binding", linear_pipeline::NATIVE_STAGES[10], &key),
+                pkg("entry-planning", INSTALLATION_BINDING, &key),
+                pkg("frame-planning", linear_pipeline::NATIVE_STAGES[8], &key),
                 pkg("bound-framed-machine", BOUND_FRAMED_MACHINE, &key),
-                pkg("native-encoding", linear_pipeline::NATIVE_STAGES[11], &key),
+                pkg("native-encoding", linear_pipeline::NATIVE_STAGES[9], &key),
             ],
         };
         let violations = forbidden_dependency_violations(&metadata, &rules).unwrap();
-        assert_eq!(violations.len(), 1, "{violations:?}");
-        assert!(violations[0].contains("native-encoding"), "{violations:?}");
+        assert_eq!(violations.len(), 2, "{violations:?}");
+        assert!(
+            violations
+                .iter()
+                .any(|row| row.starts_with("frame-planning ->")),
+            "{violations:?}"
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|row| row.starts_with("native-encoding ->")),
+            "{violations:?}"
+        );
     }
 
     #[test]
@@ -1465,12 +1483,12 @@ mod tests {
 
     #[test]
     fn only_the_native_driver_runs_omega_stages() {
-        let library = linear_pipeline::NATIVE_STAGES[13];
+        let library = linear_pipeline::NATIVE_STAGES[11];
         let stages = linear_pipeline::NATIVE_STAGES;
         for (owner, dependency, kind, permitted) in [
-            (native_stages::DRIVER, stages[7], None, true),
-            (stages[14], stages[12], None, true),
-            (stages[15], stages[12], None, false),
+            (native_stages::DRIVER, stages[6], None, true),
+            (stages[12], stages[10], None, true),
+            (stages[13], stages[10], None, false),
             (linear_pipeline::PSI_STAGES[7], SOURCE_PROVIDER_PUBLICATION, None, true),
             (NATIVE_PROVIDER_DEMAND, SOURCE_PROVIDER_PUBLICATION, None, true),
             (PACKAGE_MANAGER, SOURCE_PROVIDER_PUBLICATION, None, false),
@@ -1487,7 +1505,7 @@ mod tests {
             (PACKAGE_MANAGER, linear_pipeline::SOURCE_DRIVER, None, false),
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER, None, true),
             (library, stages[1], None, false),
-            (library, stages[7], None, false),
+            (library, stages[6], None, false),
             (native_stages::IMAGE_EMISSION, stages[2], None, false),
             (
                 native_stages::PRODUCT_PUBLICATION,
@@ -1964,7 +1982,7 @@ mod tests {
                 workspace_root: "/repo".to_owned(),
                 packages: vec![pkg(
                     "selection",
-                    linear_pipeline::NATIVE_STAGES[5],
+                    linear_pipeline::NATIVE_STAGES[4],
                     &[("dependency", dependency, kind)],
                 )],
             };

@@ -52,13 +52,14 @@ well as CLI entry points. Trusted immutable stage outputs may carry their existi
 authorization. A decoded object or an artifact-supplied producer name cannot
 manufacture that authorization. Native realization requires trusted input.
 
-Shared external loaders enforce the 64 MiB input cap, bounded counts before
-allocation, nesting and string limits, and an overall work budget. The work
-budget covers decoding, canonical re-encoding, validation and preparation,
+The receiving host sets resource limits for loading external Psi artifacts and
+may set a maximum encoded input size. Shared loaders check encoded lengths and
+counts before allocation and enforce nesting and string limits. An overall
+work budget covers decoding, canonical re-encoding, validation and preparation,
 including descriptor analysis and bounded entailment. Per-query limits do not
-replace the total budget. Exhaustion reports resource refusal separately from
-malformed input or a failed semantic check. Receiving limits do not require
-rediscovering the producer's source proofs.
+replace the total budget. Exceeding a host limit produces a resource refusal,
+distinct from malformed input or a failed semantic check. Receiving limits do
+not require rediscovering the producer's source proofs.
 
 Preparation retains declaration-dependent restrictions, descriptor plans and
 indexed lookups with the immutable program. Reuse results already computed during

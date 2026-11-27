@@ -10,7 +10,6 @@ macro_rules! failed_display {
     };
 }
 
-pub use legalized_operations::installed_interrupt_geometry::InstalledInterruptOperandLayout;
 pub(crate) use legalized_operations::{native_geometry, structural_inputs};
 mod register_constraints;
 mod selection;

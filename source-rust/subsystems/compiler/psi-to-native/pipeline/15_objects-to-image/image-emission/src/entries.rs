@@ -2651,7 +2651,6 @@ pub(crate) mod hosted_unit_entry {
             offset,
             size: bytes.len(),
             kind: SymbolKind::Function,
-            import_library: String::new(),
         });
         object.layout.entry_symbol = symbol;
         Ok((symbol, offset))
@@ -4213,7 +4212,6 @@ pub(crate) mod physical_entry {
                     .map_err(|_| invalid("entry storage offset exceeds host coordinates"))?,
                 size,
                 kind: SymbolKind::Object,
-                import_library: String::new(),
             }))
         };
         let saved = symbol_at(

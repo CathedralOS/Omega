@@ -19,7 +19,8 @@ pub(crate) mod derivation {
     #[cfg(test)]
     mod tests;
 
-    pub(crate) use evidence::{NativePhysicalEvidenceDerivation, derive_physical_evidence};
+    pub use evidence::NativePhysicalEvidenceDerivation;
+    pub(crate) use evidence::derive_physical_evidence;
 }
 mod fragment_publication;
 mod originals;
@@ -90,12 +91,11 @@ pub(crate) mod identity_bytes {
 }
 mod operator_applications;
 mod projection;
-mod replay;
-pub(crate) use replay::PhysicalEvidencePass;
 
 use crate::NativeSelectedProviderPlanDigest;
 use boundary_applications::OperatorApplicationCoverageRef;
-pub(crate) use derivation::{NativePhysicalEvidenceDerivation, derive_physical_evidence};
+pub use derivation::NativePhysicalEvidenceDerivation;
+pub(crate) use derivation::derive_physical_evidence;
 pub(crate) use fragment_publication::derive_scope as derive_fragment_publication_scope;
 use optimization_core::{
     NativeOptimizationProjectionIdentity, OptimizationUnitIdentity,

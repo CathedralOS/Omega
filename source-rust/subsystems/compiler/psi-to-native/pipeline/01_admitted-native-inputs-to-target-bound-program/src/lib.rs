@@ -28,7 +28,6 @@ pub use terminal_semantics::logical_providers::satisfies_plan_name;
 mod execution;
 mod provider_execution_inputs;
 pub use host_provider_inputs::ProviderExecutionOrigins;
-pub use provider_execution_inputs::plan_provider_execution_inputs;
 mod folded_entry;
 mod package_review;
 pub use package_review::{
@@ -45,23 +44,6 @@ pub use folded_entry::FoldedTargetProgram;
 pub use provider_correspondence::trust;
 pub use selected_execution::{SelectedExecution, SelectedProviderResult};
 pub use target_supply::SelectedProviderRealization;
-
-#[cfg(feature = "test-support")]
-pub mod test_support {
-    use super::{SelectedExecution, target_supply::RealizedTargetSupply};
-    pub fn select_realization(
-        module: &terminal_psi::TerminalModule,
-        profile: Option<target::TargetProfile>,
-        realization: RealizedTargetSupply,
-    ) -> Result<SelectedExecution, Vec<diagnostics::Diagnostic>> {
-        let program = terminal_codec::terminal_psi_identity(module)
-            .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?;
-        realization
-            .require_program(program)
-            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
-        SelectedExecution::from_realization(module, profile, realization)
-    }
-}
 
 mod provider_selection;
 pub use provider_selection::{PublishedSelection, select_published_providers};

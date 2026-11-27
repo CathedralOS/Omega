@@ -11,9 +11,12 @@ use symbols::SymbolHandle;
 
 mod arguments;
 mod execution;
+mod round_callers;
 mod source_selection;
 mod target;
 mod typed_call;
+pub(crate) use round_callers::PlannedCall;
+use round_callers::{PlannedCallee, RoundCallers};
 pub use target::InvocationTarget;
 
 /// The input source is retained as metadata, never as a checked-program witness.
@@ -24,6 +27,9 @@ pub struct PreparedBuildMachineProgram {
     authority: Option<Arc<PackageDeclarationScope>>,
     purpose: source_provenance::DependencyScope,
     source_consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
+    /// The callers of the current round frozen together
+    /// (`share_round_calls`), if any.
+    round_callers: Option<Arc<RoundCallers>>,
 }
 #[derive(Clone)]
 pub struct PreparedBuildMachineEntry {
@@ -95,7 +101,6 @@ impl PreparedBuildMachineEntry {
             .produce(
                 production::TerminalProductionCustody {
                     invocation_sources: self.source_consent.as_deref(),
-                    ..Default::default()
                 },
                 &mut artifacts::compile_timings::CompileTimings::default(),
             )
@@ -154,11 +159,13 @@ impl PreparedBuildMachineProgram {
             authority,
             purpose,
             source_consent,
+            round_callers: None,
         })
     }
 
     /// The same program and custody, publishing each call as a layout
-    /// policy invocation.
+    /// policy invocation. Freezing does not depend on the publication, so
+    /// both share the round's frozen callers.
     pub(crate) fn for_layout_policies(&self) -> Self {
         Self {
             source: Arc::clone(&self.source),
@@ -167,7 +174,38 @@ impl PreparedBuildMachineProgram {
             authority: self.authority.clone(),
             purpose: self.purpose,
             source_consent: self.source_consent.clone(),
+            round_callers: self.round_callers.clone(),
         }
+    }
+
+    /// Freezes the callers of `plans` together, so each call this program
+    /// later prepares from an equal plan skips its own copy and stage 04
+    /// (`calls::round_callers`).
+    pub(crate) fn share_round_calls(&mut self, plans: Vec<PlannedCall>) {
+        let callers = RoundCallers::freeze(&self.source, plans, |probe, plan| {
+            let declaration = plan.declaration(&self.source)?;
+            self.add_caller(
+                probe,
+                plan.requester,
+                declaration,
+                &plan.call,
+                crate::source_state::expression::ExpressionHandle::invalid(),
+                &plan.arguments,
+                plan.selected
+                    .as_ref()
+                    .map(|(selection, owner)| (selection, *owner)),
+            )
+        });
+        self.round_callers = (!callers.is_empty()).then(|| Arc::new(callers));
+    }
+
+    /// How many callers each of this program's frozen copies holds.
+    #[cfg(test)]
+    pub(crate) fn shared_caller_groups(&self) -> Vec<(Option<String>, usize)> {
+        self.round_callers
+            .as_ref()
+            .map(|callers| callers.group_sizes())
+            .unwrap_or_default()
     }
 
     /// The same custody over `source`: this owner's program with the
@@ -181,6 +219,9 @@ impl PreparedBuildMachineProgram {
             authority: self.authority.clone(),
             purpose: self.purpose,
             source_consent: self.source_consent.clone(),
+            // The round's callers were frozen from this owner's program, not
+            // from `source`.
+            round_callers: None,
         }
     }
 
@@ -193,6 +234,68 @@ impl PreparedBuildMachineProgram {
         &self.exact_toolchain_sources
     }
 
+    /// The checked compilation of one generated caller: its dependency
+    /// closure, with the caller as the only entry.
+    fn caller_compilation<'compilation>(
+        &self,
+        caller: &'compilation [SymbolHandle],
+        supplies: &'compilation [production::TerminalSourceSupply],
+    ) -> production::TerminalSourceCompilation<'compilation> {
+        production::TerminalSourceCompilation {
+            declaration_metadata: &[],
+            entries: caller,
+            // Evaluating this call requests its dependency closure, not a
+            // full check of the requester's package or standalone source.
+            subjects: &[],
+            purpose: self.purpose,
+            selected: &[],
+            bindings: &[],
+            calling: None,
+            providers: None,
+            supplies,
+        }
+    }
+
+    /// Adds the caller of one call to `probe`, a copy of this owner's
+    /// program.
+    fn add_caller(
+        &self,
+        probe: &mut TypedTrees,
+        requester: SymbolHandle,
+        declaration: crate::source_state::callable_signature_shapes::CallableDeclaration<'_>,
+        request: &crate::source_state::expression::TableCallExpression,
+        request_expression: crate::source_state::expression::ExpressionHandle,
+        arguments: &[crate::compile_time_invocations::BuildTimeValue],
+        selected: Option<(
+            &crate::source_state::expression::StaticMachineArgument,
+            SymbolHandle,
+        )>,
+    ) -> Result<typed_call::TypedCall, Vec<Diagnostic>> {
+        if !self.source.symbols.symbols().nodes().is_valid(requester)
+            || self
+                .source
+                .symbols
+                .symbol_provenance_source_span(requester)
+                .is_none()
+        {
+            return Err(invocation_error(
+                "source job requires its actual requesting declaration",
+            ));
+        }
+        typed_call::prepare_into(
+            &self.source,
+            probe,
+            requester,
+            declaration,
+            request,
+            arguments,
+            request_expression,
+            selected,
+        )
+        .map_err(invocation_error)
+    }
+
+    /// Judges one call alone: its own copy of the program, its own caller.
     fn prepare_call(
         &self,
         requester: SymbolHandle,
@@ -206,52 +309,92 @@ impl PreparedBuildMachineProgram {
         )>,
         supplies: &[production::TerminalSourceSupply],
     ) -> Result<PreparedBuildMachineEntry, Vec<Diagnostic>> {
-        if !self.source.symbols.symbols().nodes().is_valid(requester)
-            || self
-                .source
-                .symbols
-                .symbol_provenance_source_span(requester)
-                .is_none()
-        {
-            return Err(invocation_error(
-                "source job requires its actual requesting declaration",
-            ));
-        }
-        let typed_call::TypedCall {
-            source,
-            caller,
-            call,
-            input_values,
-        } = typed_call::prepare(
-            &self.source,
+        let mut probe = TypedTrees::clone(&self.source);
+        let typed = self.add_caller(
+            &mut probe,
             requester,
             declaration,
             request,
-            arguments,
             request_expression,
+            arguments,
             selected,
-        )
-        .map_err(invocation_error)?;
-        let accepted = judge_lowered_source::SettledSource::materialized_call(source)
+        )?;
+        let accepted = judge_lowered_source::SettledSource::materialized_call(probe)
             .judge(
-                production::TerminalSourceCompilation {
-                    declaration_metadata: &[],
-                    entries: &[caller],
-                    // Evaluating this call requests its dependency closure, not a
-                    // full check of the requester's package or standalone source.
-                    subjects: &[],
-                    purpose: self.purpose,
-                    selected: &[],
-                    bindings: &[],
-                    calling: None,
-                    providers: None,
-                    supplies,
-                },
+                self.caller_compilation(&[typed.caller], supplies),
                 self.publication,
                 Default::default(),
             )
             .map_err(|failure| failure.diagnostics)?
             .accepted;
+        self.accepted_entry(requester, declaration, arguments, typed, accepted)
+    }
+
+    /// Judges the caller the round froze for `plan`, with that caller as the
+    /// only entry. `None` when the round froze no caller for it or the
+    /// shared judgment failed: the caller then judges the call alone, so a
+    /// refusal is always the one the call gets alone.
+    pub(crate) fn judge_shared(&self, plan: &PlannedCall) -> Option<PreparedBuildMachineEntry> {
+        let (frozen, typed) = self.round_callers.as_deref()?.take(plan)?;
+        let declaration = plan.declaration(&self.source).ok()?;
+        let accepted = judge_lowered_source::FrozenSource {
+            program: frozen,
+            accounting: Default::default(),
+        }
+        .judge(
+            self.caller_compilation(&[typed.caller], &[]),
+            self.publication,
+            Default::default(),
+        )
+        .ok()?
+        .accepted;
+        self.accepted_entry(
+            plan.requester,
+            declaration,
+            &plan.arguments,
+            typed,
+            accepted,
+        )
+        .ok()
+    }
+
+    /// Judges the call `plan` names: through the round's frozen caller when
+    /// that is accepted, and alone otherwise.
+    pub(crate) fn prepare_planned(
+        &self,
+        plan: &PlannedCall,
+    ) -> Result<PreparedBuildMachineEntry, Vec<Diagnostic>> {
+        if let Some(entry) = self.judge_shared(plan) {
+            return Ok(entry);
+        }
+        self.prepare_call(
+            plan.requester,
+            plan.declaration(&self.source)?,
+            &plan.call,
+            crate::source_state::expression::ExpressionHandle::invalid(),
+            &plan.arguments,
+            plan.selected
+                .as_ref()
+                .map(|(selection, owner)| (selection, *owner)),
+            &[],
+        )
+    }
+
+    /// Checks that the judgment of `typed`'s caller accepted that caller and
+    /// the declaration it was asked to call, and keeps the job.
+    fn accepted_entry(
+        &self,
+        requester: SymbolHandle,
+        declaration: crate::source_state::callable_signature_shapes::CallableDeclaration<'_>,
+        arguments: &[crate::compile_time_invocations::BuildTimeValue],
+        typed: typed_call::TypedCall,
+        accepted: production::AcceptedTerminalSource,
+    ) -> Result<PreparedBuildMachineEntry, Vec<Diagnostic>> {
+        let typed_call::TypedCall {
+            caller,
+            call,
+            input_values,
+        } = typed;
         let entry = accepted
             .entry()
             .ok_or_else(|| invocation_error("source invocation has no accepted entry"))?;
@@ -496,6 +639,16 @@ impl PreparedBuildMachineProgram {
         symbol: SymbolHandle,
         arguments: &[crate::compile_time_invocations::BuildTimeValue],
     ) -> Result<PreparedBuildMachineEntry, Vec<Diagnostic>> {
+        self.prepare_planned(&self.plan_entry(requester, symbol, arguments)?)
+    }
+
+    /// The plan of a direct call of `symbol`'s one entry state.
+    pub(crate) fn plan_entry(
+        &self,
+        requester: SymbolHandle,
+        symbol: SymbolHandle,
+        arguments: &[crate::compile_time_invocations::BuildTimeValue],
+    ) -> Result<PlannedCall, Vec<Diagnostic>> {
         if !self.source.symbols.symbols().nodes().is_valid(requester)
             || self
                 .source
@@ -511,32 +664,30 @@ impl PreparedBuildMachineProgram {
             invocation_error("no product route yet: source Build entry is unavailable")
         })?;
         let call = typed_call::direct_call(&self.source, machine).map_err(invocation_error)?;
-        self.prepare_call(
+        Ok(PlannedCall {
             requester,
-            crate::source_state::callable_signature_shapes::CallableDeclaration::Machine(
-                machine.symbol,
-            ),
-            &call,
-            crate::source_state::expression::ExpressionHandle::invalid(),
-            arguments,
-            None,
-            &[],
-        )
+            callee: PlannedCallee::Machine(machine.symbol),
+            call,
+            arguments: arguments.to_vec(),
+            selected: None,
+            target: None,
+        })
     }
 
-    /// Construct an ordinary call through an exact named implementation. The
-    /// operand describes a requested choice; the returned entry has still
-    /// passed the same actual-argument and independent refinement judgments.
-    /// Domain consumers must separately authenticate their owning source
-    /// coordinate against this entry before adopting its result as a policy.
-    pub fn entry_selected(
+    /// Plan an ordinary call through an exact named implementation. The
+    /// operand describes a requested choice; the entry `prepare_planned`
+    /// returns for this plan has still passed the same actual-argument and
+    /// independent refinement judgments. Domain consumers must separately
+    /// authenticate their owning source coordinate against that entry before
+    /// adopting its result as a policy.
+    pub(crate) fn plan_selected(
         &self,
         requester: SymbolHandle,
         selection_owner: SymbolHandle,
         selection: &crate::source_state::expression::StaticMachineArgument,
         requirement: SymbolHandle,
         arguments: &[crate::compile_time_invocations::BuildTimeValue],
-    ) -> Result<PreparedBuildMachineEntry, String> {
+    ) -> Result<PlannedCall, String> {
         use crate::source_state::type_identity::{
             DeclaredStaticOperandIdentityRequest, IndexIdentityArgument,
         };
@@ -632,18 +783,13 @@ impl PreparedBuildMachineProgram {
                 "selected source invocation needs its prepared complete application".into(),
             );
         }
-        let call = typed_call::declaration_call(signature.symbol, signature.name.clone());
-        self.prepare_call(
+        Ok(PlannedCall {
             requester,
-            crate::source_state::callable_signature_shapes::CallableDeclaration::Signature(
-                signature,
-            ),
-            &call,
-            crate::source_state::expression::ExpressionHandle::invalid(),
-            arguments,
-            Some((selection, selection_owner)),
-            &[],
-        )
-        .map_err(|errors| diagnostics::join_messages(&errors))
+            callee: PlannedCallee::Requirement(requirement),
+            call: typed_call::declaration_call(signature.symbol, signature.name.clone()),
+            arguments: arguments.to_vec(),
+            selected: Some((selection.clone(), selection_owner)),
+            target: None,
+        })
     }
 }

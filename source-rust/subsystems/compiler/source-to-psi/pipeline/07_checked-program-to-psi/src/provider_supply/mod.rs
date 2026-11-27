@@ -202,11 +202,13 @@ impl PreparedTargetSupply {
         let mut met = Vec::<BoundaryMachineId>::new();
         let mut resolved = Vec::<(BoundaryMachineId, MachineId)>::new();
         let mut requirements = Vec::<DemandedRequirement>::new();
+        // The module does not change while the walk runs, so its machine
+        // catalog and callable values are built once in these analyses; each
+        // round only applies the boundaries it resolved to the shared values.
+        let analyses =
+            terminal_semantics::synchronous_calls::call_analyses(module).map_err(defect)?;
+        let mut graph = analyses.calls();
         loop {
-            let graph =
-                terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
-                    .and_then(|graph| graph.with_boundary_calls(resolved.iter().copied()))
-                    .map_err(defect)?;
             let scalar_roots = graph
                 .scalar_evaluation_roots(&roots, target)
                 .map_err(defect)?;
@@ -338,6 +340,9 @@ impl PreparedTargetSupply {
             if resolved.len() == before {
                 break;
             }
+            graph = graph
+                .with_boundary_calls(resolved[before..].iter().copied())
+                .map_err(defect)?;
         }
         if !refusals.is_empty() {
             return Err(refusals);
@@ -356,12 +361,6 @@ impl PreparedTargetSupply {
 
     pub fn requirements(&self) -> &[DemandedRequirement] {
         &self.requirements
-    }
-
-    /// Whether the target's entries reach no boundary requirement, so this
-    /// target has no provider to settle.
-    pub fn demands_nothing(&self) -> bool {
-        self.requirements.is_empty()
     }
 }
 

@@ -1,9 +1,6 @@
 pub mod field_identities {
-    use crate::layout_reports::{
-        ConventionalSumLayoutReport, LayoutFieldEntryReport, LayoutPlanReport,
-    };
+    use crate::layout_reports::{LayoutFieldEntryReport, LayoutPlanReport};
     use crate::materialization_records::MaterializationDiagnostic;
-    use crate::symbolic_values::SymbolicFieldValue;
 
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -159,26 +156,6 @@ pub mod field_identities {
         )
     }
 
-    pub fn validate_conventional_sum_materialization_identities(
-        layout: &ConventionalSumLayoutReport,
-    ) -> Result<(), MaterializationDiagnostic> {
-        validate_member_identities(
-            layout.cases.iter().flat_map(|case| {
-                [(case.case.as_str(), case.member_identity)]
-                    .into_iter()
-                    .chain(
-                        case.payload_fields
-                            .iter()
-                            .map(|payload| (payload.field.as_str(), payload.member_identity)),
-                    )
-            }),
-            |prior, field| format!("sum interior identity names both `{prior}` and `{field}`"),
-            |field| {
-                format!("sum interior field `{field}` does not retain the same stable identity")
-            },
-        )
-    }
-
     /// Each stable identity names one member, and each member name keeps one
     /// stable identity across all of its fragments.
     fn validate_member_identities<'a>(
@@ -210,49 +187,6 @@ pub mod field_identities {
         } else {
             ""
         }
-    }
-
-    pub fn symbolic_index_display(element_index: Option<u64>) -> String {
-        match element_index {
-            Some(index) => format!("[{index}]"),
-            None => String::new(),
-        }
-    }
-
-    pub fn symbolic_path_display(symbolic: &SymbolicFieldValue) -> String {
-        let mut display = format!(
-            "{}{}",
-            symbolic.field,
-            symbolic_index_display(symbolic.element_index)
-        );
-        let mut segment = symbolic.inner.as_ref();
-        while let Some(inner) = segment {
-            display.push('.');
-            display.push_str(&inner.field);
-            display.push_str(&symbolic_index_display(inner.element_index));
-            segment = inner.inner();
-        }
-        display
-    }
-
-    type SymbolicPathHop<'a> = (&'a str, Option<u64>, Option<u64>);
-
-    pub fn symbolic_path_hops(symbolic: &SymbolicFieldValue) -> Vec<SymbolicPathHop<'_>> {
-        let mut hops = vec![(
-            symbolic.field.as_str(),
-            symbolic.member_identity,
-            symbolic.element_index,
-        )];
-        let mut segment = symbolic.inner.as_ref();
-        while let Some(inner) = segment {
-            hops.push((
-                inner.field.as_str(),
-                inner.member_identity,
-                inner.element_index,
-            ));
-            segment = inner.inner();
-        }
-        hops
     }
 }
 
@@ -448,7 +382,6 @@ pub mod stored_integer_checks {
     };
     use crate::materialization_records::MaterializationDiagnostic;
     use crate::materialization_records::field_values::ScalarFieldValue;
-    use crate::placement::{MaterializationWrite, StoredIntegerFit};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ScalarFragment {
@@ -617,70 +550,6 @@ pub mod stored_integer_checks {
         Ok(())
     }
 
-    pub fn validate_write_source_value(
-        write: &MaterializationWrite,
-        source_value: u64,
-        value_kind: &str,
-    ) -> Result<(), MaterializationDiagnostic> {
-        let Some(fit) = write.stored_integer_fit else {
-            return Ok(());
-        };
-        validate_stored_integer_fit(&write.field, fit, source_value, value_kind)
-    }
-
-    pub fn validate_stored_integer_fit(
-        field: &str,
-        fit: StoredIntegerFit,
-        source_value: u64,
-        value_kind: &str,
-    ) -> Result<(), MaterializationDiagnostic> {
-        validate_stored_integer_fit_shape(field, fit, value_kind)?;
-        let StoredIntegerFit {
-            source_width_bits,
-            stored_width_bits,
-            interpretation,
-        } = fit;
-
-        if !stored_value_fits(
-            interpretation,
-            stored_width_bits,
-            source_width_bits,
-            source_value,
-        ) {
-            return Err(MaterializationDiagnostic(format!(
-                "{value_kind} field `{field}` value {source_value:#x} does not fit its {stored_width_bits}-bit {} storage",
-                match interpretation {
-                    IntegerInterpretation::Signed => "signed",
-                    IntegerInterpretation::Unsigned => "unsigned",
-                }
-            )));
-        }
-        Ok(())
-    }
-
-    pub fn validate_stored_integer_fit_shape(
-        field: &str,
-        fit: StoredIntegerFit,
-        value_kind: &str,
-    ) -> Result<(), MaterializationDiagnostic> {
-        let StoredIntegerFit {
-            source_width_bits,
-            stored_width_bits,
-            interpretation: _,
-        } = fit;
-        if source_width_bits == 0 || source_width_bits > 64 {
-            return Err(MaterializationDiagnostic(format!(
-                "{value_kind} field `{field}` has an invalid {source_width_bits}-bit source width"
-            )));
-        }
-        if !byte_sized_width(stored_width_bits) || source_width_bits < stored_width_bits {
-            return Err(MaterializationDiagnostic(format!(
-                "{value_kind} field `{field}` has an invalid {stored_width_bits}-bit stored-integer fit constraint"
-            )));
-        }
-        Ok(())
-    }
-
     fn signed_bits(value: u64, width: u16) -> i128 {
         let value = value & low_mask(width);
         if value & (1_u64 << (width - 1)) == 0 {
@@ -688,33 +557,6 @@ pub mod stored_integer_checks {
         } else {
             i128::from(value) - (1_i128 << width)
         }
-    }
-
-    pub fn validate_write(
-        materialization_len: usize,
-        write: &MaterializationWrite,
-    ) -> Result<(), MaterializationDiagnostic> {
-        validate_fragment(
-            materialization_len,
-            &write.field,
-            write.container_byte_offset,
-            write.container_width_bits,
-            write.destination_lsb,
-            write.source_lsb,
-            write.width,
-        )?;
-        if let Some(fit) = write.stored_integer_fit
-            && (fit.stored_width_bits != write.container_width_bits
-                || fit.stored_width_bits != write.width
-                || write.destination_lsb != 0
-                || write.source_lsb != 0)
-        {
-            return Err(MaterializationDiagnostic(format!(
-                "symbolic field `{}` has stored-integer fit evidence inconsistent with its write geometry",
-                write.field
-            )));
-        }
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -770,15 +612,6 @@ pub mod stored_integer_checks {
             (1_u64 << width) - 1
         }
     }
-}
-
-use crate::{ByteOrder, MaterializationAction, PlacementConstraints};
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SymbolicMaterializationPlan {
-    pub byte_len: usize,
-    pub byte_order: ByteOrder,
-    pub placement: PlacementConstraints,
-    pub actions: Vec<MaterializationAction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

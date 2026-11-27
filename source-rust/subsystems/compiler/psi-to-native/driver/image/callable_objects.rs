@@ -76,7 +76,7 @@ pub(super) fn prepare_callable_physical(
 impl CallablePhysicalProduct {
     pub(super) fn bind(
         self,
-        handlers: &installation_binding::RetainedHandlerMeasurements,
+        handlers: &entry_planning::installation_binding::RetainedHandlerMeasurements,
     ) -> Result<BoundCallable, Vec<Diagnostic>> {
         Ok(CallableProduct {
             body: self.body.bind(handlers, None)?,

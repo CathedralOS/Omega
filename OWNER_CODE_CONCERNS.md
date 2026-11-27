@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+<a id="native-stages-compare-identities-that-restate-their-inputs"></a>
+### Native stages 04–15 compare three identities that only restate their inputs
+- Category: 8. Zombie machinery
+- Where: `OptimizedAbstractProgram::unoptimized` (`source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/unoptimized.rs`) issues `optimization`, `projection` and `pre_physical_manifest`; `PreparedInstructionSelection` (`representations/target-operations/legalized-operations/src/selection.rs`) carries them into stage 05's selected-instruction custody (`representations/selected-instructions/src/lib.rs:263-272`), the stage 06 analyses and stage 07 allocation receipts; `pre_physical` also enters `PostAllocationOptimizationManifest` (`representations/register-homes/src/post_allocation_manifest.rs`) and the execution facts (`target-vocabulary/src/execution_facts.rs`), and the projection reaches stage 15 (`native-artifact/src/physical/projection.rs`)
+- Saw: native stage 03 is archived, and its ledger, decision log, pass manifests, statistics and ownership-frontier facts are deleted, so these three digests bind nothing a later stage lacks. The optimization identity rehashes the selection identity; the projection rehashes the Terminal identity, work schedule, unit identity and selection identity; the manifest identity rehashes the projection, selection identity and budget. Stages 05–08 carry and compare all three beside the selections and budget they already hold.
+- Cost: each stage record carries three 32-byte fields and their comparisons, and a reader has to learn identities that no optimization run produces. A repair has stages 05–15 compare the selection identity, unit identity and budget directly and deletes the three identity types, or brings them back with a native optimization phase that changes the plan.
+- Reported: 2026-11-27, Claude Code, while archiving native stage 03; narrowed the same day after the empty optimizer records were deleted
+
 <a id="flattened-asm-regions-drop-their-target"></a>
 ### Straight-line asm regions of place instructions lose their x86-64 requirement
 - Category: 6. A verdict with nothing behind it
@@ -135,5 +143,3 @@ framework or a list of unimplemented features.
 - Saw: each pass of `close_typed_cohort` (`lowerer.rs`) visits the whole typed program six times for expression and type-reference owners; `omega --check` on popcount (259 std files) builds 48 tables, and every one is queried, so building lazily saves nothing. In each pass the tables built by the second `construction_destinations::prepare`, by `equality_preparation.rs:160` and by `constructor_applications.rs:254` came out identical on popcount, but the passes between them do write fields the walk reads (constructed value types, call targets, constructor application types), and `TypedTrees` keeps plain `Vec` fields with no revision, so nothing cheap proves that one table still answers exactly. Each walk now skips the name lookups whose only result is a discarded symbol and finds alias applications through an index; the rest of its cost is spread across about 100k node visits.
 - Cost: about 0.8–1.2 s of owner-table builds per popcount `omega --check` (measured in-process against the former walk, which cost 1.2–1.6 s on the same states). The same table sequence is also built twice for some cohorts, once on each of two threads and once more in sequence, which comes from how Build schedules typing rather than from stage 03. A repair needs the passes to state which ownership they change, or a table that extends from an append frontier.
 - Reported: 2026-11-25, Claude Code, while profiling stages 02–04 on popcount; walk cost updated 2026-11-25
-
-<a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>

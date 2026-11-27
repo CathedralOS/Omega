@@ -8,7 +8,7 @@ autoexamples = false
 autobenches = false
 
 [features]
-test-support = []
+test-support = ["prepared-source/test-support"]
 
 [dependencies]
 proof-admission = { path = "../../../psi/semantics/proofs/bounded" }

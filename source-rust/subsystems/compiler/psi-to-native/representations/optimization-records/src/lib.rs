@@ -1,46 +1,23 @@
-//! Rule contracts, work counters and decision evidence carried through native optimization.
+//! Work budgets and the identities native optimization phases bind to.
+//!
+//! Each native optimization phase runs under an `OptimizationWorkBudget`,
+//! reports its `OptimizationWorkUsage`, and names its inputs and results by the
+//! digests in `identities`. The rule contracts, decision logs and pass
+//! manifests of the abstract-operations optimizer are archived with native
+//! stage 03 under `_recycling/`.
 #![forbid(unsafe_code)]
 
-mod contracts;
-mod decisions;
+mod budget;
 mod identities;
-mod manifest;
-mod record_encoding;
 
-#[cfg(test)]
-mod canonical_rows;
-
-pub(crate) use contracts::CoreContractDecodeError;
-pub use contracts::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OPTIMIZATION_REFERENCE_EXTENT,
-    OptimizationCandidateVerdict, OptimizationReasonCode, OptimizationRuleContract,
-    OptimizationSafetyClass, OptimizationWorkBudget,
-};
-pub use decisions::{
-    BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionLogDecodeError,
-    BaselineDecisionOutcome, BaselineDecisionRecordError, ExternalCandidateFeatures,
-    ExternalDecisionAction, ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint,
-    ExternalDecisionSchemaError, ValidatedCandidateSummary, external_psi_decision_schema_identity,
-    psi_target_neutral_decision_target_identity,
-};
+pub use budget::{InvalidOptimizationWorkBudget, OptimizationWorkBudget, OptimizationWorkUsage};
 pub use identities::{
     AcceptedObligationFactIdentity, CanonicalIdentityEncoder, NativeOptimizationProjectionIdentity,
-    OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
-    OptimizationDecisionSchemaIdentity, OptimizationDecisionTargetIdentity,
-    OptimizationIdentityBundle, OptimizationIdentityBundleIdentity, OptimizationPassIdentity,
-    OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationUnitIdentity,
-    OptimizationValidatorIdentity, OptimizationWorkloadProfileIdentity,
+    OptimizationIdentityBundleIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
-    OptimizedOperatorOccurrenceIdentity, OwnershipFrontierFactIdentity,
-    PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
-    PrePhysicalOptimizationManifestIdentity, ScalarConstantFactIdentity,
-    SelectedLoweringOptimizationCompletionIdentity, TargetCostModelIdentity,
-    TransformationLedgerIdentity, ValueRangeFactIdentity,
-};
-pub(crate) use manifest::OptimizationFactReferenceDecodeError;
-pub use manifest::{
-    InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
-    OptimizationPassManifestRecord, OptimizationWorkUsage,
+    OptimizedOperatorOccurrenceIdentity, PostAllocationOptimizationManifestIdentity,
+    PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
+    SelectedLoweringOptimizationCompletionIdentity,
 };
 pub use optimization_selections::{
     Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,

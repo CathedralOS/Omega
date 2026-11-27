@@ -17,9 +17,12 @@ owner.
 
 ```text
 omega [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
+omega --emit-psi <file.psi> [--max-psi-output-bytes <bytes>] <root.omg>
+omega --trusted-artifact <manifest-id> [--max-psi-input-bytes <bytes>] <program.psi>
 omega --check [--floor-only] [--verify] [--validator <ExactName>]... [--every-validator] [<root.omg>]
 omega build [--allow Network] [--allow ProgramLaunch] [--program <logical-path> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <milliseconds>]]... [--compare-tests] <root.omg>
 omega run [--engine native|psi] [--target <name>] <root.omg>
+omega run [--engine native|psi] --trusted-artifact <manifest-id> [--max-psi-input-bytes <bytes>] <program.psi>
 omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
 omega packages audit --kind <local|git> <locator> [--rev <rev>]
@@ -27,7 +30,7 @@ omega packages audit [--project <dir>] [--target <name>]... [--details] ...
 omega packages install <source> ...
 omega packages update [package-or-alias...] ...
 omega psi inspect --machine <qualified> [--target <name>] [--output <file>] <root.omg>
-omega psi inspect --artifact <file>
+omega psi inspect --artifact <file> [--max-psi-input-bytes <bytes>]
 ```
 
 These forms show routing, not an exhaustive restatement of existing options.
@@ -38,6 +41,14 @@ Omitting it leaves the root offline. Each dependency Build requires an explicit
 `--allow ProgramLaunch` permits the root Build to use the [specific program bindings](program_launch.md#grant-and-delegation) supplied by the invoker.
 `omega build --compare-tests` requests [native/Psi comparison of registered
 tests](testing.md#comparing-native-and-psi-tests). This replaces `omega run --both`.
+
+`--emit-psi` writes the compiled Psi artifact subject to the destination's
+capacity. Pass `--max-psi-output-bytes` to set an inclusive output quota.
+The receiving host can pass `--max-psi-input-bytes` to set an inclusive
+encoded input limit when it [loads the artifact](embedding.md#loading-and-preparation).
+Both options take a nonnegative decimal byte count. Omitting an option leaves
+that byte count uncapped.
+
 `omega source parse` checks the syntax of the whole file. Success
 exits silently with status 0. File-read, lexer and parser errors go to stderr
 with status 1. Source refusals include the path, one-based line and byte

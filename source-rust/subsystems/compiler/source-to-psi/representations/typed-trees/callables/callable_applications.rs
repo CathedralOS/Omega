@@ -975,12 +975,9 @@ pub(crate) mod call_targets {
             call.target_symbol = selected.target;
             call.target = selected.name;
             if let Some((symbol, name)) = selected.attached_data {
-                call.receiver =
-                    program
-                        .expression_table
-                        .insert_tree(&expression::Expression::Name(
-                            expression::NamePath::resolved_from_iter([name], symbol, symbol),
-                        ));
+                call.receiver = program.expression_table.insert_name_path(
+                    &expression::NamePath::resolved_from_iter([name], symbol, symbol),
+                );
             }
             Ok(())
         }
@@ -5771,11 +5768,9 @@ pub(crate) mod selected_operands {
                             "callable expression argument does not name a const or value declaration",
                         );
                     }
-                    Ok(program
-                        .expression_table
-                        .insert_tree(&expression::Expression::Name(
-                            expression::NamePath::resolved_from_iter([name], symbol, symbol),
-                        )))
+                    Ok(program.expression_table.insert_name_path(
+                        &expression::NamePath::resolved_from_iter([name], symbol, symbol),
+                    ))
                 }
                 _ => Err(
                     "nominal callable expression application needs an expression-valued argument",
@@ -6526,17 +6521,62 @@ pub(crate) mod signatures {
                             .rev()
                             .find(|(symbol, _)| *symbol == application.proposition)
                         {
-                            let crate::source_state::types::TypeReferenceNode::Named {
-                                symbol,
-                                name,
-                            } = program.type_reference_table.type_reference(*replacement)
-                            else {
-                                return Err(
-                                    "applied callable proposition head needs a named proposition operand",
-                                );
-                            };
-                            application.proposition = *symbol;
-                            application.name = name.clone();
+                            match program.type_reference_table.type_reference(*replacement) {
+                                crate::source_state::types::TypeReferenceNode::Named {
+                                    symbol,
+                                    name,
+                                } => {
+                                    application.proposition = *symbol;
+                                    application.name = name.clone();
+                                }
+                                // A proposition generic over types, applied
+                                // at the operand's arguments (`same_count<T>`).
+                                crate::source_state::types::TypeReferenceNode::Generic {
+                                    base_symbol,
+                                    base_name,
+                                    lifetime_arguments,
+                                    arguments,
+                                } if lifetime_arguments.is_empty()
+                                    && application.binder_arguments.is_empty()
+                                    && program.symbols.symbols().nodes().is_valid(*base_symbol)
+                                    && program.symbols.get(*base_symbol).kind
+                                        == symbols::SymbolKind::Proposition =>
+                                {
+                                    application.proposition = *base_symbol;
+                                    application.name = base_name.clone();
+                                    let mut binder_arguments = Vec::new();
+                                    for &argument in program
+                                        .type_reference_table
+                                        .type_reference_handles(*arguments)
+                                    {
+                                        let crate::source_state::types::TypeReferenceNode::Named {
+                                            symbol,
+                                            name,
+                                        } = program.type_reference_table.type_reference(argument)
+                                        else {
+                                            return Err(
+                                                "applied callable proposition operand applies a type that is not named",
+                                            );
+                                        };
+                                        binder_arguments.push(
+                                            crate::source_state::proposition::PropositionBinderArgument {
+                                                kind: crate::source_state::proposition::PropositionBinderArgumentKind::Type,
+                                                path: vec![name.clone()].into_boxed_slice(),
+                                                const_literal: None,
+                                                evidence_projection: None,
+                                                symbol: *symbol,
+                                            },
+                                        );
+                                    }
+                                    application.binder_arguments =
+                                        binder_arguments.into_boxed_slice();
+                                }
+                                _ => {
+                                    return Err(
+                                        "applied callable proposition head needs a named proposition operand",
+                                    );
+                                }
+                            }
                         } else {
                             application.proposition = self.symbol(application.proposition);
                         }
@@ -9223,6 +9263,83 @@ impl TypedTrees {
             ..CallableApplication::default()
         }
         .type_reference(self, original)
+    }
+
+    /// `original` with each type parameter in `substitutions` replaced by
+    /// its type, wherever it is written.
+    pub fn substitute_type_parameters(
+        &mut self,
+        original: types::TypeReferenceHandle,
+        declaration: SymbolHandle,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        CallableApplication {
+            region_scope: declaration,
+            types: substitutions.to_vec(),
+            ..CallableApplication::default()
+        }
+        .type_reference(self, original)
+    }
+
+    /// The proposition a closed application of `definition`, generic over
+    /// types, selects: each binder replaced by its type and each parameter
+    /// a fresh symbol, wherever the parameters and the formula name them.
+    /// Only a proposition declared as one boolean formula is copied.
+    pub fn copy_proposition_application(
+        &mut self,
+        definition: &crate::source_state::proposition::PropositionDefinition,
+        instance: SymbolHandle,
+        name: crate::source_state::name::Identifier,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+    ) -> Result<crate::source_state::proposition::PropositionDefinition, &'static str> {
+        use crate::source_state::proposition::{PropositionBody, PropositionFormula};
+        let PropositionBody::Transparent {
+            proposition: PropositionFormula::BooleanExpression(formula),
+        } = &definition.body
+        else {
+            return Err("a generic proposition is copied only from one boolean formula");
+        };
+        let mut application = CallableApplication {
+            region_scope: definition.symbol,
+            types: substitutions.to_vec(),
+            ..CallableApplication::default()
+        };
+        // What the formula writes, its static applications among them, was
+        // written in the generated proposition.
+        application.symbols.push((definition.symbol, instance));
+        let declared = self
+            .state_parameters
+            .span_or_empty(definition.parameters)
+            .to_vec();
+        for parameter in &declared {
+            let kind = self.symbols.get(parameter.symbol).kind;
+            let fresh = self.symbols.insert_generated_root_from(
+                parameter.symbol,
+                kind,
+                parameter.name.as_str(),
+            );
+            application.symbols.push((parameter.symbol, fresh));
+        }
+        let mut parameters = arena::HandleSpan::empty();
+        for mut parameter in declared {
+            parameter.symbol = application.symbol(parameter.symbol);
+            parameter.type_reference =
+                application.type_reference(self, parameter.type_reference)?;
+            self.state_parameters
+                .append_to_span(&mut parameters, parameter);
+        }
+        let formula = application.expression(self, *formula)?;
+        Ok(crate::source_state::proposition::PropositionDefinition {
+            symbol: instance,
+            name,
+            is_public: false,
+            binders: arena::HandleSpan::empty(),
+            parameters,
+            transparent_formula_source_span: definition.transparent_formula_source_span,
+            body: PropositionBody::Transparent {
+                proposition: PropositionFormula::BooleanExpression(formula),
+            },
+        })
     }
 
     /// Copies every form of callable contract fact under the same declaration

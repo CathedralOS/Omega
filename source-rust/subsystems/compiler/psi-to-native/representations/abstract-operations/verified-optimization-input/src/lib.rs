@@ -324,18 +324,28 @@ impl VerifiedPsiOptimizationInput {
     pub fn selected_program_entry_call(&self) -> Option<&SelectedProgramEntryCall> {
         self.selected_program_entry_call.as_ref()
     }
-    pub fn into_optimized_body(
+    /// Pair the program target lowering receives with the facts that admitted this
+    /// input. `program` receives this input's plan by value, so the body never
+    /// carries a plan other than the one these facts were admitted with.
+    pub fn into_optimized_body<Error>(
         self,
-        program: optimization_unit::OptimizedAbstractProgram,
-    ) -> OptimizedAbstractBody {
-        OptimizedAbstractBody {
-            program,
-            lowering_facts: self.into_lowering_facts(),
-        }
+        program: impl FnOnce(
+            AbstractOperationPlan,
+        ) -> Result<optimization_unit::OptimizedAbstractProgram, Error>,
+    ) -> Result<OptimizedAbstractBody, Error> {
+        let (plan, lowering_facts) = self.into_plan_and_lowering_facts();
+        Ok(OptimizedAbstractBody {
+            program: program(plan)?,
+            lowering_facts,
+        })
     }
 
     pub fn into_lowering_facts(self) -> AdmittedLoweringFacts {
-        AdmittedLoweringFacts {
+        self.into_plan_and_lowering_facts().1
+    }
+
+    fn into_plan_and_lowering_facts(self) -> (AbstractOperationPlan, AdmittedLoweringFacts) {
+        let facts = AdmittedLoweringFacts {
             borrowed_storage: self.borrowed_storage,
             terminal: self.plan.psi,
             entry: self.plan.entry,
@@ -346,7 +356,8 @@ impl VerifiedPsiOptimizationInput {
             target_context: self.target_context,
             native_callbacks: self.admitted_native_callbacks,
             installed_interrupts: self.admitted_installed_interrupts,
-        }
+        };
+        (self.plan, facts)
     }
 
     pub const fn plan(&self) -> &AbstractOperationPlan {

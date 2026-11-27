@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+bound-framed-machine = { path = "../../../representations/bound-framed-machine" }
+installation-binding-issuer = { path = "../../../representations/bound-framed-machine/issuer" }
 target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
 operation-operands = { path = "../../../representations/operation-operands" }
 physical-program = { path = "../../../representations/post-allocation-machine/body-facts" }

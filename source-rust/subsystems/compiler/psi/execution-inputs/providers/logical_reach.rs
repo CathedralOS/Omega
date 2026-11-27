@@ -1,8 +1,18 @@
 //! Follow the published program's calls, including scalar evaluation and chosen provider bodies.
+use std::cell::OnceCell;
+
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::TerminalModule;
-use terminal_semantics::callable_values::CallableBoundaryImplementation;
+use terminal_semantics::callable_values::{BoundCallableValues, CallableBoundaryImplementation};
+use terminal_semantics::module_analyses::ModuleAnalyses;
+use terminal_semantics::synchronous_calls::SynchronousCallGraph;
+
+fn defect(detail: String) -> Diagnostic {
+    Diagnostic::error(format!(
+        "cannot determine executable boundary supply: {detail}"
+    ))
+}
 
 pub fn boundary_call_reach(
     module: &TerminalModule,
@@ -10,54 +20,94 @@ pub fn boundary_call_reach(
     implementations: &[CallableBoundaryImplementation],
     target: Option<&str>,
 ) -> Result<terminal_semantics::callable_values::ReachedBoundaryCalls, Diagnostic> {
-    let defect = |detail| {
-        Diagnostic::error(format!(
-            "cannot determine executable boundary supply: {detail}"
-        ))
-    };
-    let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
-        .and_then(|graph| {
-            graph.with_boundary_calls(
-                implementations
-                    .iter()
-                    .map(|row| (row.boundary, row.machine)),
-            )
-        })
-        .map_err(defect)?;
-    let scalar_roots = graph
-        .scalar_evaluation_roots(&[entry], target)
-        .map_err(defect)?;
-    let mut roots = vec![entry];
-    let mut boundaries = Vec::new();
-    let mut reached_machines = Vec::new();
-    for root in scalar_roots {
-        match root {
-            semantic_vocabulary::TargetMachineCallable::Machine(machine) => roots.push(machine),
-            semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
-                boundaries.push(boundary);
-                if let Some(row) = implementations.iter().find(|row| row.boundary == boundary) {
-                    roots.push(row.machine);
+    let analyses = terminal_semantics::synchronous_calls::call_analyses(module).map_err(defect)?;
+    BoundaryCallReach::new(&analyses, implementations).reach(entry, target)
+}
+
+/// Boundary reach under one set of selected provider bodies.
+///
+/// Provider closure asks about the entry and about each selected body under
+/// the same bodies. Every question used to build its own call graph and its
+/// own callable values for the whole module; this builds each once per set
+/// and only when a question first needs it, so refusals keep their order.
+pub struct BoundaryCallReach<'a, 'm> {
+    analyses: &'a ModuleAnalyses<'m>,
+    implementations: &'a [CallableBoundaryImplementation],
+    graph: OnceCell<Result<SynchronousCallGraph<'a>, String>>,
+    values: OnceCell<Result<BoundCallableValues<'a>, String>>,
+}
+
+impl<'a, 'm> BoundaryCallReach<'a, 'm> {
+    pub fn new(
+        analyses: &'a ModuleAnalyses<'m>,
+        implementations: &'a [CallableBoundaryImplementation],
+    ) -> Self {
+        Self {
+            analyses,
+            implementations,
+            graph: OnceCell::new(),
+            values: OnceCell::new(),
+        }
+    }
+
+    pub fn reach(
+        &self,
+        entry: MachineId,
+        target: Option<&str>,
+    ) -> Result<terminal_semantics::callable_values::ReachedBoundaryCalls, Diagnostic> {
+        let module = self.analyses.module();
+        let implementations = self.implementations;
+        let graph = self
+            .graph
+            .get_or_init(|| {
+                self.analyses.calls().with_boundary_calls(
+                    implementations
+                        .iter()
+                        .map(|row| (row.boundary, row.machine)),
+                )
+            })
+            .as_ref()
+            .map_err(|error| defect(error.clone()))?;
+        let scalar_roots = graph
+            .scalar_evaluation_roots(&[entry], target)
+            .map_err(defect)?;
+        let mut roots = vec![entry];
+        let mut boundaries = Vec::new();
+        let mut reached_machines = Vec::new();
+        for root in scalar_roots {
+            match root {
+                semantic_vocabulary::TargetMachineCallable::Machine(machine) => roots.push(machine),
+                semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
+                    boundaries.push(boundary);
+                    if let Some(row) = implementations.iter().find(|row| row.boundary == boundary) {
+                        roots.push(row.machine);
+                    }
                 }
             }
         }
+        roots.sort_unstable();
+        roots.dedup();
+        for root in roots {
+            let values = self
+                .values
+                .get_or_init(|| self.analyses.bound_callable_values(implementations))
+                .as_ref()
+                .map_err(|error| defect(error.clone()))?;
+            let reached =
+                terminal_semantics::callable_values::boundary_call_reach_in(module, values, root)
+                    .map_err(defect)?;
+            boundaries.extend(reached.boundaries);
+            reached_machines.extend(reached.reached_machines);
+        }
+        boundaries.sort_unstable();
+        boundaries.dedup();
+        reached_machines.sort_unstable();
+        reached_machines.dedup();
+        Ok(terminal_semantics::callable_values::ReachedBoundaryCalls {
+            boundaries,
+            reached_machines,
+        })
     }
-    roots.sort_unstable();
-    roots.dedup();
-    for root in roots {
-        let reached =
-            terminal_semantics::callable_values::boundary_call_reach(module, root, implementations)
-                .map_err(defect)?;
-        boundaries.extend(reached.boundaries);
-        reached_machines.extend(reached.reached_machines);
-    }
-    boundaries.sort_unstable();
-    boundaries.dedup();
-    reached_machines.sort_unstable();
-    reached_machines.dedup();
-    Ok(terminal_semantics::callable_values::ReachedBoundaryCalls {
-        boundaries,
-        reached_machines,
-    })
 }
 
 /// All actually reached boundaries and their chosen checked implementations.
@@ -100,12 +150,25 @@ pub fn close_providers(
             "provider closure lost its canonical identity: {error:?}"
         ))]
     })?;
+    // A module that repeats a machine is refused only when a question needs
+    // the call graph, as before.
+    let analyses = terminal_semantics::synchronous_calls::call_analyses(module);
     let mut bindings = Vec::new();
     loop {
+        let reach = analyses
+            .as_ref()
+            .map(|analyses| BoundaryCallReach::new(analyses, &bindings))
+            .map_err(|error| vec![defect(error.clone())]);
+        let reach_from = |entry| {
+            reach
+                .as_ref()
+                .map_err(Clone::clone)?
+                .reach(entry, Some(target))
+                .map_err(|error| vec![error])
+        };
         let (mut reached, invoked_machines) = match entry {
             Some(entry) => {
-                let reach = boundary_call_reach(module, entry, &bindings, Some(target))
-                    .map_err(|error| vec![error])?;
+                let reach = reach_from(entry)?;
                 (reach.boundaries, reach.reached_machines)
             }
             None => (Vec::new(), Vec::new()),
@@ -116,11 +179,7 @@ pub fn close_providers(
                 .is_ok()
                 && invoked_machines.binary_search(&binding.machine).is_err()
             {
-                reached.extend(
-                    boundary_call_reach(module, binding.machine, &bindings, Some(target))
-                        .map_err(|error| vec![error])?
-                        .boundaries,
-                );
+                reached.extend(reach_from(binding.machine)?.boundaries);
             }
         }
         reached.extend(selected_requirements.iter().copied());

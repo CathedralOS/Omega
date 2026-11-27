@@ -4,7 +4,6 @@ pub(crate) fn issue(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     owners: Option<&Result<psi_authorization::selection_questions::ProductSchemaCustody, String>>,
     provenance: psi_publication_records::TerminalMachineProvenance,
-    has_bound_applications: bool,
 ) -> psi_publication_records::PublishedEntryMetadata {
     let module = artifact.semantic_module();
     let mut entry_custody = Vec::new();
@@ -42,7 +41,9 @@ pub(crate) fn issue(
     };
     psi_publication_records::PublishedEntryMetadata::new(
         provenance,
-        has_bound_applications,
+        // Source publication binds no application roots; native preparation
+        // attaches and checks those against its own execution view.
+        false,
         entry_custody,
         calling_custody,
     )

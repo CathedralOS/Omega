@@ -1065,6 +1065,7 @@ pub fn validate_flow(
                 }
                 O::ByteSequenceSubslice { source, .. }
                 | O::ElementViewSubslice { source, .. }
+                | O::ElementViewFixedArray { source, .. }
                 | O::EstablishReference { source, .. }
                 | O::EstablishAccessReference { source, .. }
                 | O::EstablishElementView { source, .. }

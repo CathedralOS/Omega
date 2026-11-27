@@ -27,6 +27,9 @@ pub(super) struct GenericData {
     pub(super) members: HandleSpan<DataMember>,
     pub(super) properties: syntax_trees::item::DataProperties,
     pub(super) supply_mode: language_core::DataSupplyMode,
+    /// A generic quotient's carrier, relation and selected conformance,
+    /// each applied at the template's parameters.
+    pub(super) quotient: Option<syntax_trees::item::QuotientDefinition>,
 }
 
 pub(super) struct PendingRewrite {

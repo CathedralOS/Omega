@@ -231,7 +231,8 @@ pub fn derive_component_inventory(
                     | OperationKind::ElementViewLength { .. }
                     | OperationKind::ElementViewRead { .. }
                     | OperationKind::ElementViewWrite { .. }
-                    | OperationKind::ElementViewSubslice { .. } => {}
+                    | OperationKind::ElementViewSubslice { .. }
+                    | OperationKind::ElementViewFixedArray { .. } => {}
                     OperationKind::IntegerConstant { .. }
                     | OperationKind::SelectImplementation { .. }
                     | OperationKind::SelectMachine { .. }

@@ -344,6 +344,118 @@ fn out_of_order_body_completion_matches_fresh_typing_semantics() {
     }
 }
 
+// Each body completion closes a cohort holding one machine. `apply` makes a
+// runtime call through its `target` parameter, and every other body makes
+// direct calls to machines typed in earlier cohorts.
+const DIRECT_CALL_PROGRAM: &str = r#"
+data Unary = machine(value: u64) -> u64;
+machine increment(value: u64) -> u64 { value + 1 }
+machine twice(value: u64) -> u64 { increment(increment(value)) }
+machine apply(target: Unary, value: u64) -> u64 { target(value) }
+machine driver(input: u64) -> u64 {
+    let stepped: u64 = twice(input);
+    let applied: u64 = apply(increment, stepped);
+    applied
+}
+"#;
+
+/// Every call expression's target and runtime binding, grouped by the
+/// machine that owns it, in a form two separately typed programs can compare.
+fn call_bindings_by_machine(program: &TypedTrees) -> Vec<(String, String, bool, bool)> {
+    let owners = collect_program_operand_owners(program);
+    let mut rows = Vec::new();
+    for (handle, node) in program.expression_table.iter_expressions() {
+        let ExpressionNode::Call(call) = node else {
+            continue;
+        };
+        let target = if call.target_symbol.is_valid() {
+            program.symbols.name(call.target_symbol).to_owned()
+        } else {
+            String::new()
+        };
+        let runtime = call.runtime_call.is_some();
+        let bound = call.runtime_call.is_some_and(|binding| {
+            program
+                .runtime_callable_contracts
+                .is_valid(binding.contract)
+        });
+        for owner in owners.expression_owners(handle) {
+            rows.push((
+                program.symbols.name(owner).to_owned(),
+                target.clone(),
+                runtime,
+                bound,
+            ));
+        }
+    }
+    rows.sort();
+    rows
+}
+
+#[test]
+fn cohort_scoped_closing_matches_fresh_typing_for_direct_calls() {
+    let fresh_typed = lower_symbol_resolved_trees(&resolve_fresh(DIRECT_CALL_PROGRAM)).unwrap();
+
+    let (typing, frontier, sources) = begin_deferred(DIRECT_CALL_PROGRAM);
+    let (mut typing, mut frontier) = activate_deferred(typing, frontier, sources, Vec::new());
+    let apply = machine_by_name(typing.typed(), "apply");
+    let pending: Vec<_> = frontier.pending_machines().collect();
+    assert!(pending.contains(&apply));
+    for selected in pending {
+        let predecessor = typing.resolved().clone();
+        let retained = typing.typed().clone();
+        (typing, frontier) = complete_one_machine(typing, frontier, selected);
+        if selected != apply {
+            continue;
+        }
+        let program = typing.typed();
+        let base = TypingCohort::continuing(&predecessor, &retained);
+        assert!(
+            program
+                .expression_table
+                .iter_expressions_from(base.typed_expressions + 1)
+                .any(|(_, node)| matches!(
+                    node,
+                    ExpressionNode::Call(call) if call.runtime_call.is_some()
+                )),
+            "completing `apply` adds a runtime call"
+        );
+        // The cohort that completed `apply` reaches its runtime call, so its
+        // binding walk stays inside the cohort.
+        let completed = [apply];
+        let owning = TypingCohort::continuing(&predecessor, &retained).completing(&completed);
+        assert!(
+            crate::expressions::runtime_callables::cohort_walk_reaches_new_sites(program, &owning)
+                .unwrap()
+        );
+        // A cohort that does not own `apply` misses that call, so binding
+        // would walk the whole program instead of leaving it unbound.
+        assert!(
+            !crate::expressions::runtime_callables::cohort_walk_reaches_new_sites(program, &base)
+                .unwrap()
+        );
+    }
+    assert_eq!(frontier.pending_machines().count(), 0);
+
+    let fresh_same_resolved = lower_symbol_resolved_trees(typing.resolved()).unwrap();
+    let incremental_typed = typing.into_typed();
+    assert_semantic_equivalence_by_machine(&incremental_typed, &fresh_typed);
+    assert_semantic_equivalence_by_machine(&incremental_typed, &fresh_same_resolved);
+    let bindings = call_bindings_by_machine(&incremental_typed);
+    assert!(
+        bindings
+            .iter()
+            .any(|(owner, _, runtime, bound)| owner == "apply" && *runtime && *bound),
+        "the runtime call in `apply` is bound: {bindings:?}"
+    );
+    assert_eq!(bindings, call_bindings_by_machine(&fresh_typed));
+    assert_eq!(bindings, call_bindings_by_machine(&fresh_same_resolved));
+    assert_eq!(
+        incremental_typed.deferred_refusals,
+        fresh_same_resolved.deferred_refusals
+    );
+}
+
 #[test]
 fn seeded_extension_matches_fresh_typing() {
     let base_text = r#"

@@ -492,6 +492,193 @@ impl Program<'_> {
         present(self, formed).map(Some)
     }
 
+    /// The fixed array storage `base` lends, when it is a shared borrow of an
+    /// array place, a borrowed array formal, the referent of a held array
+    /// reference, or a reference to an array. Anything else comes back
+    /// unchanged.
+    fn fixed_array_backing(
+        &mut self,
+        machine: MachineId,
+        slots: &[Slot],
+        base: Expression,
+    ) -> Checked<Result<Expression, Expression>> {
+        let is_array = |reader: &mut Self, value: Option<ValueType>| -> Checked<bool> {
+            Ok(match value {
+                Some(ValueType::Record(row, _, _)) => matches!(
+                    reader.data_type(machine, row)?.shape,
+                    StorageShape::FixedArray { .. }
+                ),
+                _ => false,
+            })
+        };
+        if let ExpressionKind::Borrow {
+            access: language_core::ReferenceAccess::Shared,
+            place,
+            ..
+        } = &base.kind
+            && is_array(self, place.result)?
+        {
+            let ExpressionKind::Borrow { place, .. } = base.kind else {
+                unreachable!("matched above");
+            };
+            return Ok(Ok(*place));
+        }
+        let crosses_reference = match base.kind {
+            ExpressionKind::Slot(slot) => {
+                slots.get(slot).is_some_and(|slot| slot.borrowed.is_some())
+            }
+            ExpressionKind::Referent(_) => true,
+            _ => false,
+        };
+        if crosses_reference && is_array(self, base.result)? {
+            return Ok(Ok(base));
+        }
+        if let Some(value) = base.result
+            && let Some((referent, _)) = self.reference_referent(machine, value)?
+            && is_array(self, Some(referent))?
+        {
+            return Ok(Ok(Expression {
+                call_context: None,
+                source: base.source,
+                kind: ExpressionKind::Referent(Box::new(base)),
+                result: Some(referent),
+            }));
+        }
+        Ok(Err(base))
+    }
+
+    /// `window as @[T; N]` and `@items[a..b] as @[T; N]`: a shared reference
+    /// to the whole of a view as one fixed array, which owes the view's
+    /// length equal to `N` (owner ruling on slice and fixed-array casts). A
+    /// cast whose operand is not a view, or whose target is not a shared
+    /// fixed-array reference, is not this form.
+    pub(super) fn view_fixed_array(
+        &mut self,
+        machine: MachineId,
+        slots: &[Slot],
+        cast: &crate::source_state::expression::TableCastExpression,
+        expected: ValueType,
+        source: SourceOrigin,
+    ) -> Checked<Option<Expression>> {
+        use terminal_psi::StructuralAccess;
+        let unavailable = |detail| refuse_at(machine, Unserved::Expression(detail));
+        let Some((ValueType::Record(array, _, _), StructuralAccess::SharedBorrow)) =
+            self.reference_referent(machine, expected)?
+        else {
+            return Ok(None);
+        };
+        let StorageShape::FixedArray {
+            element: array_element,
+            length,
+            ..
+        } = self.data_type(machine, array)?.shape
+        else {
+            return Ok(None);
+        };
+        // The operand is a view when it names a view binding or constructs
+        // one, such as a range.
+        let named = match self.typed.expression_table.expression(cast.value) {
+            ExpressionNode::Name(path) => self
+                .slot_of(machine, slots, path)
+                .ok()
+                .map(|slot| slots[slot].value_type),
+            _ => None,
+        };
+        let view = match named {
+            Some(value) => value,
+            None => {
+                let operand = self
+                    .typed
+                    .expression_table
+                    .constructed_value_type_reference(cast.value);
+                if !self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(operand)
+                {
+                    return Ok(None);
+                }
+                let Some(view) = self.view_type(machine, operand)? else {
+                    return Ok(None);
+                };
+                view
+            }
+        };
+        let ValueType::Record(view_row, _, _) = view else {
+            return Ok(None);
+        };
+        if !matches!(
+            self.data_type(machine, view_row)?.shape,
+            StorageShape::ElementView { .. }
+                | StorageShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                )
+        ) {
+            return Ok(None);
+        }
+        let same_element = match self.data_type(machine, view_row)?.shape {
+            StorageShape::ElementView {
+                element,
+                qualification: Qualification::NONE,
+                access: Some(StructuralAccess::SharedBorrow),
+            } => element == array_element,
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            }) => matches!(
+                self.data_type(machine, array_element)?.shape,
+                StorageShape::PrimitiveScalar {
+                    scalar_type: ScalarType::Integer(integer),
+                    qualification: Qualification::NONE,
+                } if integer == IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid")
+            ),
+            _ => {
+                return Err(unavailable(
+                    "fixed-array reference to a view that is not a plain shared view",
+                ));
+            }
+        };
+        if !same_element {
+            return Err(unavailable(
+                "fixed-array reference whose element differs from its view's",
+            ));
+        }
+        let Some(extent) = length.literal() else {
+            return Err(unavailable("fixed-array reference to a symbolic extent"));
+        };
+        let base =
+            match self.borrowed_array_range(machine, slots, cast.value, view, source, None)? {
+                Some(range) => range,
+                None => self.expression(machine, slots, cast.value, Some(view))?,
+            };
+        let Some(viewed @ ValueType::Record(backing, Qualification::NONE, _)) = base.result else {
+            return Err(unavailable("fixed-array reference without a plain view"));
+        };
+        if !self.is_borrowed_view(viewed)
+            || self.data_type(machine, backing)?.shape != self.data_type(machine, view_row)?.shape
+        {
+            return Err(unavailable(
+                "fixed-array reference without its shared element view",
+            ));
+        }
+        self.representation_read_authorized(machine, &base)?;
+        let loan = self.loan_regions(machine, slots, &base)?;
+        let ValueType::Record(reference, qualification, declared) = expected else {
+            unreachable!("a reference type is a record")
+        };
+        let mut regions = self.region_tuple(loan).to_vec();
+        regions.extend(self.region_tuple(declared).iter().skip(1).copied());
+        let regions = self.intern_regions(regions);
+        Ok(Some(Expression {
+            kind: ExpressionKind::CollectionFixedArray {
+                base: Box::new(base),
+                extent,
+            },
+            result: Some(ValueType::Record(reference, qualification, regions)),
+            call_context: None,
+            source,
+        }))
+    }
+
     /// A collection recast borrows the same captured window. Its destination
     /// supplies only presentation; geometry, total validity and count fit are
     /// judged on the resulting representation-view operation.
@@ -553,6 +740,30 @@ impl Program<'_> {
             }
         };
         let base = self.expression(machine, slots, cast.value, None)?;
+        // A borrowed fixed array presents its whole extent: the view covers
+        // all `N` elements of the same backing, and its length comes from the
+        // array type (owner ruling on slice and fixed-array casts).
+        let base = match self.fixed_array_backing(machine, slots, base)? {
+            Ok(fixed) => {
+                let backing = fixed
+                    .result
+                    .ok_or_else(|| unavailable("fixed array recast without backing storage"))?;
+                self.authorized(machine, backing, Access::Read)?;
+                self.representation_read_authorized(machine, &fixed)?;
+                let regions = self.storage_loan_regions(machine, slots, &fixed)?;
+                return Ok(Expression {
+                    kind: ExpressionKind::CollectionView {
+                        base: Box::new(fixed),
+                        access: ReferenceAccess::Shared,
+                        element,
+                    },
+                    result: Some(ValueType::Record(view, Qualification::NONE, regions)),
+                    call_context: None,
+                    source,
+                });
+            }
+            Err(base) => base,
+        };
         let Some(viewed @ ValueType::Record(backing, Qualification::NONE, _)) = base.result else {
             return Err(unavailable(
                 "collection recast without plain collection backing",

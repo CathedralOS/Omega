@@ -464,8 +464,12 @@ fn compile_subject(
         && let Some(path) = &arguments.emit_psi
     {
         let mut products: Vec<_> = portable.iter_mut().collect();
-        CompletedProduct::save_shared_psi(&mut products, path)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        CompletedProduct::save_shared_psi_with_quota(
+            &mut products,
+            path,
+            arguments.max_psi_output_bytes,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let identity = portable[0]
             .artifact()
             .expect("saved Psi retains its artifact")
@@ -811,6 +815,7 @@ fn build_saved(arguments: CompileArguments) -> Result<Vec<PathBuf>, SavedProgram
     let authorization = crate::saved_program::input::open_trusted_program(
         &arguments.root_path,
         arguments.trusted_artifact.as_deref(),
+        arguments.max_psi_input_bytes,
     )?;
     let targets = resolve_targets(&arguments.target_names)?;
     let profiles = targets.profiles()?;

@@ -2,7 +2,8 @@ use super::*;
 use semantic_vocabulary::InvocationSite;
 use terminal_psi::OperationResult;
 
-pub(crate) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
+pub(crate) fn validate(rows: &DescriptorRowSource<'_, '_>) -> Result<(), &'static str> {
+    let module = rows.module();
     for invocation in &module.proofs.proof_output_calls {
         if invocation
             .runtime_call
@@ -53,7 +54,8 @@ pub(crate) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
             .iter()
             .any(|lane| lane.kind == EvidenceContractLaneKind::Requires);
     let graph = if consumes_snapshots {
-        descriptor_results::terminal_graph(module)
+        rows.module_graph(descriptor_results::DescriptorSlotKind::Views)
+            .unwrap_or_default()
     } else {
         Vec::new()
     };

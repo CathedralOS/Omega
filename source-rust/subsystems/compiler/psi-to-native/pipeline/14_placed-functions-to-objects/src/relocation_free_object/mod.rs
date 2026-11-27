@@ -177,9 +177,7 @@ fn foreign_field_byte_width(kind: NormalizedForeignCallResolutionKind) -> u8 {
 pub(crate) fn validate_relocation_free_object(
     object: &RelocationFreeObjectPlan,
 ) -> Result<(), RelocationFreeObjectError> {
-    let Some(policy) = object_target_policy(object.target) else {
-        return Err(RelocationFreeObjectError::NonCanonicalTarget);
-    };
+    let policy = object_target_policy(object.target);
     if object.target.pointer_size != 8 || object.target.pointer_alignment != 8 {
         return Err(RelocationFreeObjectError::NonCanonicalTarget);
     }

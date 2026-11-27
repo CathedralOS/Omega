@@ -1473,7 +1473,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     );
     let result = replay
         .summary(caller, 0)
-        .and_then(|summary| summary.result.into_slots())
+        .and_then(|summary| summary.result.slots_without_contents().cloned())
         .unwrap();
     assert_eq!(result.len(), 1);
     let [
@@ -1689,7 +1689,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     assert!(
         replay
             .summary(reader_id, 0)
-            .and_then(|summary| summary.result.into_slots())
+            .and_then(|summary| summary.result.slots_without_contents().cloned())
             .is_some(),
         "the helper can carry a view borrowed from its caller"
     );
@@ -1793,7 +1793,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     );
     let result = replay
         .summary(caller, 0)
-        .and_then(|summary| summary.result.into_slots())
+        .and_then(|summary| summary.result.slots_without_contents().cloned())
         .unwrap();
     let mut lengths = result[0]
         .origins

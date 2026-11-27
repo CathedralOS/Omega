@@ -57,6 +57,7 @@ impl WorkSchedule {
             | OperationKind::ElementViewRead { .. }
             | OperationKind::ElementViewWrite { .. }
             | OperationKind::ElementViewSubslice { .. }
+            | OperationKind::ElementViewFixedArray { .. }
             | OperationKind::EstablishTrivialAffineLocal { .. }
             | OperationKind::EstablishStructuralArray { .. }
             | OperationKind::EstablishRecord { .. }

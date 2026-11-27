@@ -4336,6 +4336,7 @@ pub(crate) mod expression {
                 typed::expression::EvidenceProjection {
                     term: crate::lowerer::name::lower_name(&projection.term),
                     member: crate::lowerer::name::lower_name(&projection.member),
+                    term_symbol: projection.term_symbol,
                 }
             }),
             symbol: argument.symbol,

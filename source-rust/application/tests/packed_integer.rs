@@ -72,6 +72,65 @@ public machine main() crashes Trap {
     observations::assert_silent_return(|| project_source(source), &["build.omg"]);
 }
 
+/// A packed sum computed in a helper machine survives when the helper is
+/// inlined and the sum is copied through more than one stack slot before it
+/// is stored and read.
+#[test]
+fn u8x16_wrapping_addition_in_a_helper_reaches_its_caller() {
+    let source = r#"
+use {system}/simd/simd.omg as simd;
+use {system}/simd/u8x16.omg as u8x16;
+
+machine sum() -> u64 {
+    let x: [u8; 16] = [1u8, 2u8, 3u8, 4u8, 5u8, 6u8, 7u8, 8u8, 9u8, 10u8, 11u8, 12u8, 13u8, 14u8, 15u8, 16u8];
+    let y: [u8; 16] = [17u8, 18u8, 19u8, 20u8, 21u8, 22u8, 23u8, 24u8, 25u8, 26u8, 27u8, 28u8, 29u8, 30u8, 31u8, 32u8];
+    let a: |simd|::Lanes<u8, 16> = |u8x16|::load(@x);
+    let b: |simd|::Lanes<u8, 16> = |u8x16|::load(@y);
+    let s: |simd|::Lanes<u8, 16> = |u8x16|::wrapping_add(@a, @b);
+    let mutable out: [u8; 16];
+    |u8x16|::store(@mutable out, @s);
+    (out[0] as u64) + (out[15] as u64)
+}
+
+public machine main() crashes Trap {
+    transition sum() == 66u64 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#;
+    observations::assert_silent_return(|| project_source(source), &["build.omg"]);
+}
+
+/// Windows of a view cast to `@[u8; 16]` load as lanes, on Psi and in native
+/// code, and the cast reference still reads elements directly.
+#[test]
+fn u8x16_loads_windows_of_a_view() {
+    let source = r#"
+use {system}/simd/simd.omg as simd;
+use {system}/simd/u8x16.omg as u8x16;
+
+machine sum(row: @[u8]) -> u64 requires row.length >= 33 {
+    let a: @[u8; 16] = @row[1..17] as @[u8; 16];
+    let b: @[u8; 16] = @row[17..33] as @[u8; 16];
+    let va: |simd|::Lanes<u8, 16> = |u8x16|::load(a);
+    let vb: |simd|::Lanes<u8, 16> = |u8x16|::load(b);
+    let s: |simd|::Lanes<u8, 16> = |u8x16|::wrapping_add(@va, @vb);
+    (s.values[0] as u64) + (s.values[15] as u64) + (a[2] as u64)
+}
+public machine main() crashes Trap {
+    let data: [u8; 40] = [0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 6u8, 7u8, 8u8, 9u8, 10u8, 11u8, 12u8, 13u8, 14u8, 15u8, 16u8, 17u8, 18u8, 19u8, 20u8, 21u8, 22u8, 23u8, 24u8, 25u8, 26u8, 27u8, 28u8, 29u8, 30u8, 31u8, 32u8, 33u8, 34u8, 35u8, 36u8, 37u8, 38u8, 39u8];
+    let w: u64 = sum(@data as @[u8]);
+    transition w == 69u64 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#;
+    observations::assert_silent_return(|| project_source(source), &["build.omg"]);
+}
+
 #[test]
 fn i16x8_abs_min_cmpgt_and_bitops_match_psi_and_native() {
     let source = r#"

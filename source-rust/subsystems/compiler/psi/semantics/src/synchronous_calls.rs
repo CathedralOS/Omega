@@ -5,10 +5,31 @@
 mod scalar_conditions;
 mod scalar_roots;
 mod service_reach;
-use std::collections::{BTreeMap, BTreeSet};
+use std::borrow::Cow;
+use std::collections::BTreeSet;
+use std::sync::OnceLock;
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::{OperationKind, TargetMachineCallable, TerminalModule};
+
+use crate::callable_values::{
+    BoundCallableValues, CallableBoundaryImplementation, CallableValueProgram, CallableValueRows,
+    CallableValueView,
+};
+use crate::module_analyses::{MachineSlots, ModuleAnalyses};
+
+/// The shared analyses a call graph reads, refused with the call graph's
+/// own message when the module repeats a machine identity.
+pub fn call_analyses(module: &TerminalModule) -> Result<ModuleAnalyses<'_>, String> {
+    ModuleAnalyses::new(module).map_err(repeated_machine)
+}
+
+fn repeated_machine(error: crate::descriptor_results::DescriptorGraphError) -> String {
+    format!(
+        "synchronous call catalog repeats machine {:?}",
+        error.machine()
+    )
+}
 
 pub struct SynchronousCallClosure<'module> {
     pub machines: Vec<&'module terminal_psi::TerminalMachine>,
@@ -17,35 +38,93 @@ pub struct SynchronousCallClosure<'module> {
 
 pub struct SynchronousCallGraph<'module> {
     module: &'module TerminalModule,
-    machines: BTreeMap<MachineId, &'module terminal_psi::TerminalMachine>,
+    machine_slots: Cow<'module, MachineSlots>,
     entry_bridge: Option<(BoundaryMachineId, MachineId)>,
     boundary_calls: Vec<(BoundaryMachineId, MachineId)>,
+    callable_values: CallableValueSource<'module>,
+}
+
+/// Reads shared callable values from a `ModuleAnalyses` bundle without naming
+/// the bundle's invariant module lifetime.
+trait SharedCallableValues: Sync {
+    fn callable_values(
+        &self,
+    ) -> Result<CallableValueView<'_>, &crate::callable_values::CallableValuePreparationError>;
+}
+
+impl SharedCallableValues for ModuleAnalyses<'_> {
+    fn callable_values(
+        &self,
+    ) -> Result<CallableValueView<'_>, &crate::callable_values::CallableValuePreparationError> {
+        ModuleAnalyses::callable_values(self)
+    }
+}
+
+/// A module's callable values, shared by every closure of a call graph.
+///
+/// A computed call resolves its code value from the closure's entries over
+/// the whole module, so the first computed call pays for the program and
+/// every later closure of the same graph reuses it. The stored rows carry no
+/// module borrow, so callers can still shorten the graph's lifetime.
+enum CallableValueSource<'module> {
+    /// Built from the module on first use, with this graph's boundary bodies
+    /// applied.
+    Built(OnceLock<Result<CallableValueRows, String>>),
+    /// The shared analyses' program, read through this graph's boundary
+    /// bodies once they are checked against it.
+    Shared {
+        analyses: &'module dyn SharedCallableValues,
+        bindings: OnceLock<Result<Vec<CallableBoundaryImplementation>, String>>,
+    },
+}
+
+impl CallableValueSource<'_> {
+    /// The same source before any program was built for this graph's
+    /// boundary bodies.
+    fn unbound(&self) -> Self {
+        match self {
+            Self::Built(_) => Self::Built(OnceLock::new()),
+            Self::Shared { analyses, .. } => Self::Shared {
+                analyses: *analyses,
+                bindings: OnceLock::new(),
+            },
+        }
+    }
 }
 
 impl<'module> SynchronousCallGraph<'module> {
     pub fn machine(&self, identity: MachineId) -> Option<&'module terminal_psi::TerminalMachine> {
-        self.machines.get(&identity).copied()
+        let module = self.module;
+        module.machines.get(self.machine_slots.slot(identity)?)
     }
 
     pub fn new(
         module: &'module TerminalModule,
         entry_bridge: Option<(BoundaryMachineId, MachineId)>,
     ) -> Result<Self, String> {
-        let mut machines = BTreeMap::new();
-        for machine in &module.machines {
-            if machines.insert(machine.id, machine).is_some() {
-                return Err(format!(
-                    "synchronous call catalog repeats machine {:?}",
-                    machine.id
-                ));
-            }
-        }
+        let machine_slots = MachineSlots::new(module).map_err(repeated_machine)?;
         Ok(Self {
             module,
-            machines,
+            machine_slots: Cow::Owned(machine_slots),
             entry_bridge,
             boundary_calls: Vec::new(),
+            callable_values: CallableValueSource::Built(OnceLock::new()),
         })
+    }
+
+    /// A graph over the analyses' module that borrows their machine lookup
+    /// and callable values instead of building its own.
+    pub(crate) fn shared(analyses: &'module ModuleAnalyses<'_>) -> Self {
+        Self {
+            module: analyses.module(),
+            machine_slots: Cow::Borrowed(analyses.machine_slots()),
+            entry_bridge: None,
+            boundary_calls: Vec::new(),
+            callable_values: CallableValueSource::Shared {
+                analyses,
+                bindings: OnceLock::new(),
+            },
+        }
     }
 
     pub fn with_boundary_calls(
@@ -55,10 +134,10 @@ impl<'module> SynchronousCallGraph<'module> {
         self.boundary_calls.extend(calls);
         self.boundary_calls
             .sort_unstable_by_key(|(boundary, _)| *boundary);
+        // A program built for the earlier boundary bodies no longer applies.
+        self.callable_values = self.callable_values.unbound();
         for &(boundary, machine) in &self.boundary_calls {
-            if self.module.boundary_machine(boundary).is_none()
-                || !self.machines.contains_key(&machine)
-            {
+            if self.module.boundary_machine(boundary).is_none() || self.machine(machine).is_none() {
                 return Err("synchronous boundary call names an absent boundary or body".into());
             }
         }
@@ -140,9 +219,7 @@ impl<'module> SynchronousCallGraph<'module> {
                 continue;
             };
             let body = self
-                .machines
-                .get(&machine)
-                .copied()
+                .machine(machine)
                 .ok_or_else(|| format!("synchronous call names absent machine {machine:?}"))?;
             machines.push(body);
             pending.extend(
@@ -160,23 +237,7 @@ impl<'module> SynchronousCallGraph<'module> {
                         // a helper's formal keeps its caller's selection.
                         // Starting each helper as a root would lose it.
                         if callable_reach.is_none() {
-                            use crate::callable_values::{
-                                CallableBoundaryImplementation, reachable_callable_invocations,
-                                terminal_callable_values_with_boundary_implementations,
-                            };
-                            let mut implementations = Vec::new();
-                            for boundary in &self.module.interfaces.boundary_machines {
-                                if let Some(machine) = self.boundary_callee(boundary.id)? {
-                                    implementations.push(CallableBoundaryImplementation {
-                                        boundary: boundary.id,
-                                        machine,
-                                    });
-                                }
-                            }
-                            let program = terminal_callable_values_with_boundary_implementations(
-                                self.module,
-                                &implementations,
-                            )?;
+                            let values = self.callable_values()?;
                             let mut entries = Vec::with_capacity(roots.len());
                             for root in &roots {
                                 match *root {
@@ -195,8 +256,10 @@ impl<'module> SynchronousCallGraph<'module> {
                                 }
                             }
                             callable_reach = Some(
-                                reachable_callable_invocations(&program, entries)
-                                    .map_err(str::to_owned)?,
+                                crate::callable_values::reachable_callable_invocations(
+                                    values, entries,
+                                )
+                                .map_err(str::to_owned)?,
                             );
                         }
                         let reached = callable_reach
@@ -253,6 +316,53 @@ impl<'module> SynchronousCallGraph<'module> {
             machines,
             boundaries,
         })
+    }
+
+    /// The module's callable values with this graph's boundary bodies
+    /// applied, built on the first request.
+    fn callable_values(&self) -> Result<CallableValueView<'_>, String> {
+        let implementations = || {
+            let mut implementations = Vec::new();
+            for boundary in &self.module.interfaces.boundary_machines {
+                if let Some(machine) = self.boundary_callee(boundary.id)? {
+                    implementations.push(CallableBoundaryImplementation {
+                        boundary: boundary.id,
+                        machine,
+                    });
+                }
+            }
+            Ok::<_, String>(implementations)
+        };
+        match &self.callable_values {
+            CallableValueSource::Built(rows) => rows
+                .get_or_init(|| {
+                    crate::callable_values::terminal_callable_values_with_boundary_implementations(
+                        self.module,
+                        &implementations()?,
+                    )
+                    .map(CallableValueProgram::into_rows)
+                })
+                .as_ref()
+                .map(|rows| rows.view(self.module))
+                .map_err(Clone::clone),
+            CallableValueSource::Shared { analyses, bindings } => {
+                let bindings = bindings
+                    .get_or_init(|| {
+                        crate::callable_values::bind_declared_implementations(
+                            self.module,
+                            analyses.callable_values(),
+                            &implementations()?,
+                        )
+                        .map(BoundCallableValues::into_bindings)
+                    })
+                    .as_ref()
+                    .map_err(Clone::clone)?;
+                let values = analyses
+                    .callable_values()
+                    .map_err(|error| error.clone().in_module(self.module))?;
+                Ok(values.with_bindings(bindings))
+            }
+        }
     }
 
     pub fn dynamic_callees(

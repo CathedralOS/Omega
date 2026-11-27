@@ -2,10 +2,9 @@
 use crate::input::BoundExecutionPlan;
 use optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
-    OptimizationValidatorIdentity, OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
+    OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
     PrePhysicalOptimizationManifestIdentity,
 };
-use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use terminal_psi::TerminalPsiIdentity;
 
@@ -60,25 +59,10 @@ impl StagedOptimizedSelectedInstructions {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedSelectionCustodyReceipt {
     pub(crate) core: StagedOptimizedCustodyCore,
-    pub(crate) legalization_validator: OptimizationValidatorIdentity,
-    pub(crate) selected: SelectedInstructionPlanIdentity,
-    pub(crate) function_count: usize,
 }
 
 impl StagedOptimizedSelectionCustodyReceipt {
     selected_instructions::staging_custody_core_accessors!();
-
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-
-    pub const fn legalization_validator(self) -> OptimizationValidatorIdentity {
-        self.legalization_validator
-    }
-
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
 }
 
 #[derive(Debug)]
@@ -102,7 +86,6 @@ pub(crate) fn selection_custody_receipt(
     input: &legalized_operations::PreparedInstructionSelection,
     register_environment: &ValidatedTargetRegisterEnvironment,
     bound: &BoundExecutionPlan<'_>,
-    selected: &ValidatedSelectedInstructions,
 ) -> StagedOptimizedSelectionCustodyReceipt {
     let plan = bound.plan();
     StagedOptimizedSelectionCustodyReceipt {
@@ -117,8 +100,5 @@ pub(crate) fn selection_custody_receipt(
             work_schedule: plan.work_schedule,
             register_environment: register_environment.identity(),
         },
-        legalization_validator: bound.receipt().validator(),
-        selected: selected.receipt().identity(),
-        function_count: selected.plan().functions.len(),
     }
 }

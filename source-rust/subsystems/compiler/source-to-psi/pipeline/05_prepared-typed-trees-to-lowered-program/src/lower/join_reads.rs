@@ -28,7 +28,7 @@ impl BeforeArms {
         Self {
             roots: lowering.roots.len(),
             values: lowering.tables.values.len(),
-            writes: lowering.tables.writes.len(),
+            writes: lowering.writes.len(),
         }
     }
 }
@@ -100,7 +100,7 @@ impl Lowering<'_> {
             self.join_reads = None;
             return Ok(None);
         }
-        let branch_writes = self.tables.writes.values().skip(writes_before);
+        let branch_writes = self.writes[writes_before..].iter();
         loop {
             let Some(place) = self.tables.places.get(leaf) else {
                 return Err(self.internal("a join read names no place"));

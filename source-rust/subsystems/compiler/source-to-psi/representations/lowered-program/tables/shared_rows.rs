@@ -81,35 +81,6 @@ mod tests {
     }
 
     #[test]
-    fn sharing_places_keeps_each_entrys_writes() {
-        use crate::bindings::{Content, WriteRow, record_write};
-        use crate::{MachineId, ProgramPoint};
-        use semantic_vocabulary::BlockId;
-
-        let mut store = LoopCheckingRows::default();
-        let mut untouched = tables(0);
-        let mut written = tables(0);
-        let place = written.places.keys().next().unwrap();
-        record_write(
-            MachineId::new(1).unwrap(),
-            &written.places,
-            &mut written.writes,
-            WriteRow {
-                place,
-                at: ProgramPoint::BlockEntry(BlockId::new(1).unwrap()),
-                content: Content::Overwritten,
-            },
-        )
-        .unwrap();
-
-        store.retain(&mut untouched);
-        store.retain(&mut written);
-        assert!(Arc::ptr_eq(&untouched.places.0, &written.places.0));
-        assert!(untouched.writes.is_empty());
-        assert_eq!(written.writes.values().next().unwrap().place, place);
-    }
-
-    #[test]
     fn finding_an_existing_projection_keeps_shared_geometry() {
         use crate::MachineId;
         use crate::bindings::{Segment, intern_projection};

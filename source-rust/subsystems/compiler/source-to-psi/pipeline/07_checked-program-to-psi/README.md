@@ -6,7 +6,7 @@ The [source driver](../../driver/judge_lowered_source.rs) lowers the frozen
 source, then passes that input to the lowered-form checker. The
 [accepted-source factory](src/production/accepted.rs) receives the verdicts and source
 correspondence of that one compilation. It publishes the module and its evidence, then binds the emitted Build request
-rows, source-record correspondence and application roots to that code owner.
+rows and source-record correspondence to that code owner.
 Its structural reading refuses unserved selection, query, native-formation and
 filesystem constructs before publication loses their meaning.
 
@@ -35,15 +35,14 @@ independent of these private implementation groups:
 
 | Group | Responsibility |
 | --- | --- |
-| [Production](src/production/mod.rs) | Receive the checked source judgment, publish its code and evidence, retain custody, and attach application and invocation identities. Start at [accepted.rs](src/production/accepted.rs). |
+| [Production](src/production/mod.rs) | Receive the checked source judgment, publish its code and evidence, retain custody, and authenticate compile-time invocation sites. Start at [accepted.rs](src/production/accepted.rs). |
 | [Build](src/build/mod.rs) | Publish companion rows for accepted Build calls and identify the checked host receiver. [bindings.rs](src/build/bindings.rs) defines the retained records; [companions.rs](src/build/companions.rs) fills them. |
 | [Source](src/source/mod.rs) | Retain source selections, publish one shared source artifact, issue entry metadata, and record the source's numeric review requirements. |
 | [Provider supply](src/provider_supply/mod.rs) | Close and publish the checked demand for a deployment target using the existing [provider choice inputs](src/provider_choice_inputs.rs). |
 
 For native compilation, stage 07 publishes the checked provider demand and completed Build bindings for the exact Psi manifest and deployment target. Native stage 00 verifies both before consuming the record. [Published target providers](../../representations/published-target-providers/publication.rs)
 
-The [entry receipt](../../../psi/artifact/codec/src/entry_receipt.rs) binds the selected
-Unit declaration to the canonical artifact. Both source publication and native
-preparation [attach application roots](../../../psi/artifact/codec/src/entry_receipt/application.rs)
-to the current execution view. [Source publication](src/production/application.rs) records
-the receipt check as a separate compilation stage when an entry was requested.
+Source publication binds no application roots and issues no entry receipt.
+Native preparation [attaches application roots](../../../psi/artifact/codec/src/entry_receipt/application.rs)
+and checks the [entry receipt](../../../psi/artifact/codec/src/entry_receipt.rs)
+against its own execution view.

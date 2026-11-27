@@ -1113,6 +1113,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 141 | StorageAlignment | shared structural argument naming the observed location |
 | 142 | PackedIntegerBinary | selector byte, optional shuffle indices, left and right structural arguments |
 | 143 | PackedIntegerUnary | selector byte, optional shift count, source structural argument |
+| 144 | ElementViewFixedArray | source structural argument naming a shared element or byte view + length value id + `u64` extent + obligation id; affine shared reference to `[T; extent]` result, immediately after the view's length measurement |
 
 Tag 142 selects wrapping 16-bit addition (0), wrapping 16-bit subtraction
 (1), a two-input shuffle (2), wrapping 16-byte unsigned addition (3),

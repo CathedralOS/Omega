@@ -68,7 +68,6 @@ impl ObjectFileLayout {
             offset: 0,
             size: 0,
             kind: SymbolKind::Import,
-            import_library: String::new(),
         });
         self.normalized_imports.push(NormalizedImportPlan {
             symbol,
@@ -292,7 +291,6 @@ pub struct SymbolPlan {
     pub offset: usize,
     pub size: usize,
     pub kind: SymbolKind,
-    pub import_library: String,
 }
 
 pub type ObjectSymbolHandle = Handle<SymbolPlan>;
@@ -326,7 +324,6 @@ impl Default for SymbolPlan {
             offset: 0,
             size: 0,
             kind: SymbolKind::Object,
-            import_library: String::new(),
         }
     }
 }
@@ -455,26 +452,6 @@ impl RelocationOrigin {
             } => object_symbol_handle,
         }
     }
-
-    pub const fn semantic_operation_identity(self) -> Option<u64> {
-        match self {
-            Self::SemanticOperation {
-                operation_identity, ..
-            } => Some(operation_identity),
-            Self::Instruction { .. } | Self::SemanticEdge { .. } | Self::Materialization { .. } => {
-                None
-            }
-        }
-    }
-
-    pub const fn semantic_edge_identity(self) -> Option<u64> {
-        match self {
-            Self::SemanticEdge { edge_identity, .. } => Some(edge_identity),
-            Self::Instruction { .. }
-            | Self::SemanticOperation { .. }
-            | Self::Materialization { .. } => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -546,11 +523,7 @@ mod tests {
         };
 
         assert_eq!(operation.symbol_handle(), function_symbol_handle);
-        assert_eq!(operation.semantic_operation_identity(), Some(7));
-        assert_eq!(operation.semantic_edge_identity(), None);
         assert_eq!(edge.symbol_handle(), function_symbol_handle);
-        assert_eq!(edge.semantic_operation_identity(), None);
-        assert_eq!(edge.semantic_edge_identity(), Some(7));
         assert_ne!(operation, edge);
     }
 }

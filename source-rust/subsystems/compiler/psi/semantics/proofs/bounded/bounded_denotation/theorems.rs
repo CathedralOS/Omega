@@ -77,14 +77,18 @@ fn prepare_subjects(
             return Err(BoundedTheoremError::UnboundSubject);
         };
         selected.push(declaration);
-        // The scalar carrier-bound judgment covers only fixed integers, so an
-        // address subject is bound without the bounds that judgment refuses.
+        // Each endpoint the scalar carrier-bound judgment accepts is bound: both
+        // of a fixed integer's, and an address's lower endpoint zero. An
+        // address's upper endpoint is the selected target's, never assumed.
         if let ScalarType::Integer(integer) = scalar_type
-            && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
             && integer.minimum_value().is_some()
             && integer.maximum_value().is_some()
         {
-            for lower in [true, false] {
+            let endpoints: &[bool] = match integer.carrier() {
+                semantic_vocabulary::IntegerCarrier::Fixed => &[true, false],
+                semantic_vocabulary::IntegerCarrier::Address => &[true],
+            };
+            for &lower in endpoints {
                 let (_, evidence) = denotation.carrier_bound(&subject, lower, integer)?;
                 let Term::Constant { declaration, .. } = denotation.arena.get(evidence) else {
                     return Err(BoundedTheoremError::UnboundSubject);

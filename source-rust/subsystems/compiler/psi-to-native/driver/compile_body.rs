@@ -1,9 +1,10 @@
-//! Run stages 03 through 15 for application entries and private callables.
+//! Run stages 04 through 15 for application entries and private callables.
 //! Callers bind measured handlers between frame planning and instruction encoding.
 //! Validators can request the original stage inputs for independent replay.
 
 use crate::driver::observations::{NativePipelineObservation, NativePipelineStage};
 use artifact_lowering::VerifiedNativeArtifactInput;
+use entry_planning::installation_binding;
 use function_layout::FunctionRelativeOptimizationRealizationError;
 use instruction_selection::OptimizedSelectionPipelineError;
 use machine::OptimizedPostAllocationMachinePipelineError;
@@ -13,10 +14,12 @@ use target_lowering::{NativeBodyPlan, OptimizedTargetLoweringRequest};
 
 #[derive(Debug)]
 pub enum NativeBodyPlanningError {
-    AbstractOptimization(abstract_optimization::AbstractOptimizationError),
+    AbstractInput(target_lowering::AbstractInputError),
     Target(target_lowering::LoweringError),
 }
 
+/// Stage 02's abstract program goes straight to target lowering: the receiving
+/// native lowerer runs no Psi passes (`wiki/spec/terminal-psi/product.md#optimization-ordering`).
 pub fn plan_native_body(
     input: VerifiedNativeArtifactInput,
     target: OptimizedTargetLoweringRequest<'_>,
@@ -25,17 +28,14 @@ pub fn plan_native_body(
     observation: &NativePipelineObservation,
     retain_original: bool,
 ) -> Result<NativeBodyPlan, NativeBodyPlanningError> {
-    observation.enter(NativePipelineStage::AbstractOptimization);
-    let selections = selections.selections();
-    let optimized = abstract_optimization::optimize_abstract_operations(
+    observation.enter(NativePipelineStage::AbstractToTarget);
+    let body = target_lowering::admit_abstract_body(
         input.into_optimization_input(),
-        selections,
-        &selections.project_psi(),
+        selections.selections(),
         budget,
     )
-    .map_err(NativeBodyPlanningError::AbstractOptimization)?;
-    observation.enter(NativePipelineStage::AbstractToTarget);
-    target_lowering::lower_native_body(optimized.into_lowering_input(), target, retain_original)
+    .map_err(NativeBodyPlanningError::AbstractInput)?;
+    target_lowering::lower_native_body(body, target, retain_original)
         .map_err(NativeBodyPlanningError::Target)
 }
 

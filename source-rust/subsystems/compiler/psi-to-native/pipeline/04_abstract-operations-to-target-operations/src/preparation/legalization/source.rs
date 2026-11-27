@@ -1164,6 +1164,53 @@ pub(crate) mod scalar_graph {
             })
         }
 
+        /// A fixed-array reference into a view keeps its result home, the
+        /// measured length and the proof that the length equals the extent.
+        pub(crate) fn project_fixed_array(
+            machine: semantic_vocabulary::MachineId,
+            facts: &[optimization_unit::AcceptedObligationFact],
+            targeted: &target_operations::TargetUnitOperation,
+        ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+            let target_operations::TargetUnitOperation::ElementViewFixedArray {
+                psi_operation,
+                result_home,
+                source,
+                indices,
+                length,
+                extent,
+                obligation,
+            } = targeted
+            else {
+                return Err(Error::custody());
+            };
+            let (_, result) = result_home
+                .operation_result()
+                .filter(|(defining, _)| *defining == *psi_operation)
+                .ok_or(Error::custody())?;
+            let indices = crate::preparation::legalization::runtime_indices::retained_operands(
+                facts,
+                machine,
+                *psi_operation,
+                indices,
+            )?;
+            let accepted_fact = crate::preparation::legalization::obligations::retained_fact(
+                facts,
+                machine,
+                *psi_operation,
+                *obligation,
+            )?;
+            Ok(LegalizedScalarInstructionKind::ElementViewFixedArray {
+                result: result.clone(),
+                source: source.clone(),
+                indices,
+                length: *length,
+                extent: *extent,
+                obligation: *obligation,
+                accepted_fact,
+                shape: result_home.layout.shape(),
+            })
+        }
+
         pub(crate) use crate::preparation::legalization_instruction::project;
 
         /// The instruction owns its already-retained execution and custody annotations.
@@ -1325,12 +1372,6 @@ pub(crate) fn derive_target_function_rosters(
             )?,
             entry_block: function.graph.entry,
             blocks,
-            ownership_frontier_facts: evidence
-                .ownership_frontier_facts
-                .iter()
-                .filter(|fact| fact.machine == function.machine)
-                .cloned()
-                .collect(),
         });
     }
     Ok(SourceFunctionRosters { scalar_functions })

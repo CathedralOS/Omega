@@ -1,14 +1,9 @@
 //! Import bodies have already been encoded. Container placement may fill only
 //! their declared operands; it cannot request another body from the encoder.
+//! Each body is keyed by the exact normalized locator of the import it calls.
 
 use std::sync::Arc;
 use target::{NativeTarget, NormalizedImportLocator};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ImportCodeIdentity {
-    Normalized(NormalizedImportLocator),
-    StringBackedBootstrap { library: String, symbol: String },
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImportOperandKind {
@@ -50,7 +45,7 @@ pub struct EncodedImportBody {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedImport {
-    pub identity: ImportCodeIdentity,
+    pub identity: NormalizedImportLocator,
     pub body: EncodedImportBody,
 }
 
@@ -70,7 +65,7 @@ impl EncodedImportProgram {
         }
     }
 
-    pub fn body(&self, identity: &ImportCodeIdentity) -> Option<&EncodedImportBody> {
+    pub fn body(&self, identity: &NormalizedImportLocator) -> Option<&EncodedImportBody> {
         let mut matches = self
             .imports
             .iter()

@@ -5,10 +5,10 @@ use crate::descriptor_lifetimes::{
 };
 use crate::descriptor_results::{
     DescriptorAnalysis, DescriptorCallOrigin, DescriptorDefinition, DescriptorMachine,
-    DescriptorPayloadTarget, DescriptorSourceOrigin, contents_membership_path,
-    require_unchanged_produced_payload_in, terminal_borrowed_storage_graph_from,
-    terminal_payload_contract,
+    DescriptorPayloadTarget, DescriptorSlotKind, DescriptorSourceOrigin, contents_membership_path,
+    require_unchanged_produced_payload_in, terminal_payload_contract,
 };
+use crate::module_analyses::DescriptorRowView;
 use access_vocabulary::AccessOperation;
 
 // Reuse a judgment only for this function, instruction and value. The
@@ -34,7 +34,10 @@ struct RuleJudgment<'a> {
 
 struct Permissions<'a> {
     module: &'a TerminalModule,
-    graph: &'a [DescriptorMachine],
+    graph: DescriptorRowView<'a>,
+    /// The same rows sorted by machine, for lookup and for checking callers
+    /// in a fixed order.
+    by_id: Vec<&'a DescriptorMachine>,
     analysis: DescriptorAnalysis<'a>,
     // One borrowed lookup serves this pass. Source declarations and
     // blocks keep their original order in the module.
@@ -100,9 +103,9 @@ impl<'a> Permissions<'a> {
             "memory access call has no supported original invocation"))
     }
     fn descriptor(&self, identity: MachineId) -> Judged<&DescriptorMachine> {
-        self.graph
+        self.by_id
             .binary_search_by_key(&identity, |row| row.id)
-            .map(|index| &self.graph[index])
+            .map(|index| self.by_id[index])
             .map_err(|_| {
                 failure(
                     identity,
@@ -592,7 +595,8 @@ impl<'a> Permissions<'a> {
         Ok(())
     }
 }
-pub(super) fn validate(module: &TerminalModule) -> Judged<()> {
+pub(super) fn validate(rows: &DescriptorRowSource<'_, '_>) -> Judged<()> {
+    let module = rows.module();
     let has_rules = |id| {
         domain(module, id)
             .and_then(|row| row.access_policy.as_ref())
@@ -621,7 +625,8 @@ pub(super) fn validate(module: &TerminalModule) -> Judged<()> {
             "the compiler cannot check access through this public entry yet",
         );
     }
-    let mut graph = terminal_borrowed_storage_graph_from(module, roots.iter().copied(), &[])
+    let graph = rows
+        .closure(DescriptorSlotKind::BorrowedStorage, roots.iter().copied())
         .map_err(|error| StructuralQualificationError {
             violation: None,
             machine: Some(error.machine()),
@@ -629,11 +634,12 @@ pub(super) fn validate(module: &TerminalModule) -> Judged<()> {
                 .detail()
                 .unwrap_or("memory access storage history cannot be reconstructed"),
         })?;
-    graph.sort_by_key(|row| row.id);
+    let mut by_id = graph.iter().collect::<Vec<_>>();
+    by_id.sort_by_key(|row| row.id);
     let mut declarations = module
         .machines
         .iter()
-        .filter(|body| graph.binary_search_by_key(&body.id, |row| row.id).is_ok())
+        .filter(|body| by_id.binary_search_by_key(&body.id, |row| row.id).is_ok())
         .map(|body| {
             let mut blocks = body.blocks.iter().collect::<Vec<_>>();
             blocks.sort_unstable_by_key(|block| block.id);
@@ -658,7 +664,8 @@ pub(super) fn validate(module: &TerminalModule) -> Judged<()> {
     }
     let mut permissions = Permissions {
         module,
-        graph: &graph,
+        graph: graph.view(),
+        by_id: by_id.clone(),
         analysis: DescriptorAnalysis::with_borrowed_storage_slots(
             &module.types.structural_types,
             &graph,
@@ -666,7 +673,7 @@ pub(super) fn validate(module: &TerminalModule) -> Judged<()> {
         declarations,
         incoming: Vec::new(),
     };
-    for caller in &graph {
+    for caller in &by_id {
         for (position, call) in caller.known_invocations() {
             if let Some(callee) = call.callee() {
                 let invocation = permissions
@@ -697,7 +704,7 @@ pub(super) fn validate(module: &TerminalModule) -> Judged<()> {
             .map_err(|detail| failure(identity, detail))?
             .ok_or_else(|| failure(identity, "a helper's memory accesses are unresolved"))?;
     }
-    for machine in &graph {
+    for machine in &by_id {
         let accesses = permissions
             .analysis
             .storage_access_frame(machine.id)

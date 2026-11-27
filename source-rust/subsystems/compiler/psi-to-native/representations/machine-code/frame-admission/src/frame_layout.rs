@@ -7,7 +7,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use crate::count_where;
 pub use machine_code::{
     CalleeSaveFrameSlot, FrameUnwindPlan, FrameUnwindRestore,
     FunctionNonAuthoritativeCalleeSaveStorage, FunctionTargetFrameLayout,
@@ -26,13 +25,11 @@ use register_environment::{
     selected_preservation_storage_catalog,
 };
 use register_homes::{
-    AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
-    AllocatedCalleeSavedRequirements, AllocatedCalleeSavedUnitRequirement,
-    encode_callee_saved_modification_witness_identity,
+    AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirements,
+    AllocatedCalleeSavedUnitRequirement, encode_callee_saved_modification_witness_identity,
 };
 use register_model::{
-    PhysicalRegisterModelIdentity, PreservationStorageCatalogIdentity, PreservationStorageGroupId,
-    RegisterUnitId, TargetRegisterEnvironmentIdentity, ValidatedPreservationStorageCatalog,
+    PreservationStorageGroupId, RegisterUnitId, ValidatedPreservationStorageCatalog,
 };
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, MachineAlternativeFamily};
 use target::{Architecture, NativeTarget, ObjectFormat};
@@ -85,21 +82,7 @@ impl std::error::Error for NonAuthoritativeCalleeSaveStorageError {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NonAuthoritativeCalleeSaveStorageReceipt {
     identity: NonAuthoritativeCalleeSaveStorageIdentity,
-    callee_saved_requirements: AllocatedCalleeSavedRequirementIdentity,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical_register_model: PhysicalRegisterModelIdentity,
-    preservation_storage_catalog: PreservationStorageCatalogIdentity,
     target: NativeTarget,
-    abi: FrameAbiPreservationConvention,
-    policy: NonAuthoritativeCalleeSaveStoragePolicy,
-    usage: OptimizationWorkUsage,
-    function_count: usize,
-    modified_function_count: usize,
-    slot_count: usize,
-    modified_unit_count: usize,
-    witness_count: usize,
-    max_abstract_area_bytes: u64,
-    max_abstract_area_alignment: u64,
 }
 
 impl NonAuthoritativeCalleeSaveStorageReceipt {
@@ -133,18 +116,7 @@ impl ValidatedNonAuthoritativeCalleeSaveStorage {
 pub struct TargetFrameLayoutReceipt {
     identity: TargetFrameLayoutIdentity,
     post_allocation_machine: PostAllocationMachineIdentity,
-    callee_saved_requirements: AllocatedCalleeSavedRequirementIdentity,
-    callee_save_storage: NonAuthoritativeCalleeSaveStorageIdentity,
     target: NativeTarget,
-    abi: FrameAbiPreservationConvention,
-    policy: TargetFrameLayoutPolicy,
-    function_count: usize,
-    framed_function_count: usize,
-    calling_function_count: usize,
-    callee_save_slot_count: usize,
-    saved_link_count: usize,
-    probed_function_count: usize,
-    max_frame_size_bytes: u64,
 }
 
 impl TargetFrameLayoutReceipt {
@@ -454,11 +426,20 @@ pub fn validate_non_authoritative_callee_save_storage(
     if candidate.functions != replayed.functions {
         return Err(NonAuthoritativeCalleeSaveStorageError::NonCanonicalStorage);
     }
-    let receipt = seal_storage(&candidate);
-    Ok(ValidatedNonAuthoritativeCalleeSaveStorage {
-        plan: candidate,
-        receipt,
-    })
+    Ok(seal_admitted_callee_save_storage(candidate))
+}
+
+/// Seal storage that `admit_storage_plan` just built from its roots.
+///
+/// `admit_storage_plan` fixes the roots and enforces the work budget, and the
+/// derivation it ran rejects a requirement no storage group preserves. Replaying
+/// the derivation would only compare it with itself; a body that retains its
+/// stage inputs calls `validate_non_authoritative_callee_save_storage` instead.
+pub fn seal_admitted_callee_save_storage(
+    plan: NonAuthoritativeCalleeSaveStoragePlan,
+) -> ValidatedNonAuthoritativeCalleeSaveStorage {
+    let receipt = seal_storage(&plan);
+    ValidatedNonAuthoritativeCalleeSaveStorage { plan, receipt }
 }
 
 pub fn admit_storage_plan(
@@ -696,48 +677,7 @@ fn seal_storage(
 ) -> NonAuthoritativeCalleeSaveStorageReceipt {
     NonAuthoritativeCalleeSaveStorageReceipt {
         identity: non_authoritative_callee_save_storage_identity(plan),
-        callee_saved_requirements: plan.callee_saved_requirements,
-        register_environment: plan.register_environment,
-        physical_register_model: plan.physical_register_model,
-        preservation_storage_catalog: plan.preservation_storage_catalog,
         target: plan.target,
-        abi: plan.abi,
-        policy: plan.policy,
-        usage: plan.usage,
-        function_count: plan.functions.len(),
-        modified_function_count: count_where(&plan.functions, |function| {
-            !function.slots.is_empty()
-        }),
-        slot_count: plan
-            .functions
-            .iter()
-            .map(|function| function.slots.len())
-            .sum(),
-        modified_unit_count: plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.slots)
-            .map(|slot| slot.modified_units.len())
-            .sum(),
-        witness_count: plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.slots)
-            .flat_map(|slot| &slot.modified_units)
-            .map(|requirement| requirement.witnesses.len())
-            .sum(),
-        max_abstract_area_bytes: plan
-            .functions
-            .iter()
-            .map(|function| function.abstract_area_bytes)
-            .max()
-            .unwrap_or(0),
-        max_abstract_area_alignment: plan
-            .functions
-            .iter()
-            .map(|function| function.abstract_area_alignment)
-            .max()
-            .unwrap_or(1),
     }
 }
 
@@ -778,6 +718,44 @@ pub fn validate_target_frame_demands(
     environment: &ValidatedTargetRegisterEnvironment,
     candidate: TargetFrameLayoutPlan,
 ) -> Result<ValidatedTargetFrameLayout, TargetFrameLayoutError> {
+    validate_frame_roots(&machine, requirements, storage, environment, &candidate)?;
+    validate_frame_layout_plan(&machine, requirements, storage, environment, &candidate)?;
+    Ok(seal_validated_frame_layout(machine, candidate))
+}
+
+/// Seal a layout that frame planning just derived from these roots.
+///
+/// Frame planning already enforces the layout rules while it derives the plan,
+/// so replaying them here would only compare the derivation with itself. A
+/// body that retains its stage inputs calls `validate_target_frame_demands`
+/// instead, which replays every rule.
+pub fn seal_derived_target_frame_layout(
+    machine: Arc<machine_code::frame_demands::MachineFrameDemands>,
+    requirements: &AllocatedCalleeSavedRequirements,
+    storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
+    environment: &ValidatedTargetRegisterEnvironment,
+    candidate: TargetFrameLayoutPlan,
+) -> Result<ValidatedTargetFrameLayout, TargetFrameLayoutError> {
+    validate_frame_roots(&machine, requirements, storage, environment, &candidate)?;
+    if candidate.functions.len() != machine.functions.len()
+        || candidate
+            .functions
+            .iter()
+            .zip(&machine.functions)
+            .any(|(row, source)| row.machine != source.machine)
+    {
+        return Err(TargetFrameLayoutError::FunctionRosterMismatch);
+    }
+    Ok(seal_validated_frame_layout(machine, candidate))
+}
+
+fn validate_frame_roots(
+    machine: &machine_code::frame_demands::MachineFrameDemands,
+    requirements: &AllocatedCalleeSavedRequirements,
+    storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
+    environment: &ValidatedTargetRegisterEnvironment,
+    candidate: &TargetFrameLayoutPlan,
+) -> Result<(), TargetFrameLayoutError> {
     if candidate.post_allocation_machine != machine.identity
         || candidate.callee_saved_requirements != requirements.identity()
         || candidate.callee_save_storage != storage.receipt().identity()
@@ -788,49 +766,26 @@ pub fn validate_target_frame_demands(
     {
         return Err(TargetFrameLayoutError::RootMismatch);
     }
-    validate_frame_layout_plan(&machine, requirements, storage, environment, &candidate)?;
+    Ok(())
+}
+
+fn seal_validated_frame_layout(
+    machine: Arc<machine_code::frame_demands::MachineFrameDemands>,
+    candidate: TargetFrameLayoutPlan,
+) -> ValidatedTargetFrameLayout {
     let receipt = seal_frame_layout(&candidate);
-    Ok(ValidatedTargetFrameLayout {
+    ValidatedTargetFrameLayout {
         demands: machine,
         plan: Arc::new(candidate),
         receipt,
-    })
+    }
 }
 
 fn seal_frame_layout(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutReceipt {
     TargetFrameLayoutReceipt {
         identity: target_frame_layout_identity(plan),
         post_allocation_machine: plan.post_allocation_machine,
-        callee_saved_requirements: plan.callee_saved_requirements,
-        callee_save_storage: plan.callee_save_storage,
         target: plan.target,
-        abi: plan.abi,
-        policy: plan.policy,
-        function_count: plan.functions.len(),
-        framed_function_count: count_where(&plan.functions, |row| row.frame_size_bytes != 0),
-        calling_function_count: count_where(&plan.functions, |row| row.contains_call),
-        callee_save_slot_count: plan
-            .functions
-            .iter()
-            .map(|row| row.callee_save_slots.len())
-            .sum(),
-        saved_link_count: plan
-            .functions
-            .iter()
-            .filter(|row| {
-                matches!(
-                    row.return_address,
-                    ReturnAddressFrameCustody::SavedLinkRegister { .. }
-                )
-            })
-            .count(),
-        probed_function_count: count_where(&plan.functions, |row| row.stack_probe.touches != 0),
-        max_frame_size_bytes: plan
-            .functions
-            .iter()
-            .map(|row| row.frame_size_bytes)
-            .max()
-            .unwrap_or(0),
     }
 }
 

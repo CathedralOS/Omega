@@ -9,6 +9,7 @@ pub(crate) mod replay;
 pub mod descriptor_lifetimes;
 pub(crate) mod membership_presentations;
 pub(crate) mod primitive_store_memberships;
+pub(crate) mod row_source;
 pub(crate) mod selected_memberships;
 
 pub mod descriptor_results;

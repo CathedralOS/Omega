@@ -19,7 +19,7 @@ impl EncodedForeignAdapter {
 /// ```compile_fail,E0308
 /// let _ = bound_framed_machine::entries::BoundEntry::from_binding((), ());
 /// ```
-/// Encoding accepts the bound entry issued by stage 10.
+/// Encoding accepts the bound entry issued by stage 09's installation binding.
 /// ```compile_fail,E0308
 /// fn skip_binding(plan: physical_recipes::native_foreign_bridge::ForeignAdapterPlan<entry_planning::PhysicalRecipeOrigin>) {
 ///     let _ = native_encoding::native_foreign_bridge::encode_foreign_adapter(plan);

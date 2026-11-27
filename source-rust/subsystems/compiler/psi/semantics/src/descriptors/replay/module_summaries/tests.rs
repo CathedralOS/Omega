@@ -175,7 +175,7 @@ fn left(replay: &Replay<'_>) -> Left {
     replay
         .summaries
         .iter()
-        .map(|(machine, summary)| (*machine, summary.as_ref().map(shape)))
+        .map(|(machine, summary)| (*machine, summary.as_deref().map(shape)))
         .collect()
 }
 
@@ -208,7 +208,7 @@ fn unshared(
     depth: usize,
 ) -> (Option<(Shape, Option<usize>, bool)>, Left) {
     let mut alone = replay(types, graph, None);
-    let answer = alone.summary(id(root), depth).as_ref().map(shape);
+    let answer = alone.summary(id(root), depth).as_deref().map(shape);
     (answer, left(&alone))
 }
 
@@ -245,7 +245,7 @@ fn replay_requires_the_exact_opaque_entry_contents_even_after_summary_sharing() 
             let mut replay = replay(&types, &graph, summaries);
             let effects = replay
                 .summary(id(LEAF), 0)
-                .and_then(|s| s.effects.into_observed());
+                .and_then(|s| s.effects.observed().cloned());
             assert_eq!(
                 effects.map(|effects| effects.len()),
                 (!invalidate).then_some(0)
@@ -348,7 +348,7 @@ fn an_adopted_summary_is_the_one_its_caller_would_replay() {
     let shared = table(&types, Vec::new());
 
     let mut first = replay(&types, &graph, Some(&shared));
-    let answer = first.summary(id(TOP), 0).as_ref().map(shape);
+    let answer = first.summary(id(TOP), 0).as_deref().map(shape);
     assert!(answer.as_ref().is_some_and(|(slots, _, _)| slots.is_some()));
     assert_eq!((answer, left(&first)), unshared(&types, &graph, TOP, 0));
     assert_eq!(shared.get(id(LEAF)).unwrap().height, Some(0));
@@ -360,7 +360,7 @@ fn an_adopted_summary_is_the_one_its_caller_would_replay() {
     // The second top machine adopts the middle machine and its leaf rather
     // than replaying their states, and keeps what a lone replay keeps.
     let mut second = replay(&types, &graph, Some(&shared));
-    let answer = second.summary(id(OTHER_TOP), 0).as_ref().map(shape);
+    let answer = second.summary(id(OTHER_TOP), 0).as_deref().map(shape);
     assert_eq!(
         (answer, left(&second)),
         unshared(&types, &graph, OTHER_TOP, 0)
@@ -384,7 +384,7 @@ fn an_adoption_that_could_reach_the_depth_bound_replays_instead() {
     // lone replay stays within the bound; from 127 its leaf reaches it.
     for (depth, adopts) in [(126, true), (127, false)] {
         let mut late = replay(&types, &graph, Some(&shared));
-        let answer = late.summary(id(MIDDLE), depth).as_ref().map(shape);
+        let answer = late.summary(id(MIDDLE), depth).as_deref().map(shape);
         let expected = unshared(&types, &graph, MIDDLE, depth);
         assert_eq!(expected.0.is_some(), adopts);
         assert_eq!((answer, left(&late)), expected);
@@ -414,11 +414,11 @@ fn a_callee_unavailable_here_refuses_adoption() {
     for record in prior {
         let mut alone = replay(&types, &graph, None);
         record(&mut alone);
-        let expected = alone.summary(id(MIDDLE), 0).as_ref().map(shape);
+        let expected = alone.summary(id(MIDDLE), 0).as_deref().map(shape);
         assert!(expected.is_none());
         let mut sharing = replay(&types, &graph, Some(&shared));
         record(&mut sharing);
-        let answer = sharing.summary(id(MIDDLE), 0).as_ref().map(shape);
+        let answer = sharing.summary(id(MIDDLE), 0).as_deref().map(shape);
         assert_eq!((answer, left(&sharing)), (expected, left(&alone)));
     }
 }
@@ -450,4 +450,28 @@ fn only_rows_the_table_was_replayed_from_share_it() {
     let mut started = DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph);
     assert!(started.result_slots(id(LEAF)).is_some());
     assert!(!started.share_summaries(&shared, NOMINAL));
+}
+
+#[test]
+fn a_replay_finds_each_row_of_an_unsorted_slice_and_refuses_a_repeated_identity() {
+    let types = types();
+    // Declaration order differs from identity order, and the leaf appears
+    // twice, so the sorted lookup must find each row and refuse the leaf.
+    let graph = [
+        returning(OTHER_TOP, Some(MIDDLE)),
+        returning(LEAF, None),
+        returning(TOP, Some(MIDDLE)),
+        returning(MIDDLE, Some(LEAF)),
+        returning(LEAF, None),
+    ];
+    let replay = replay(&types, &graph, None);
+    assert!(replay.machine(id(LEAF)).is_none());
+    for (identity, row) in [(OTHER_TOP, 0), (TOP, 2), (MIDDLE, 3)] {
+        assert!(std::ptr::eq(
+            replay.machine(id(identity)).unwrap(),
+            &graph[row]
+        ));
+    }
+    assert!(replay.machine(id(5)).is_none());
+    assert!(replay.machines.unique(id(LEAF)).is_none());
 }

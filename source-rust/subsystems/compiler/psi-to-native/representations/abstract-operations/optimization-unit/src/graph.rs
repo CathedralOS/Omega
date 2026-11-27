@@ -10,10 +10,9 @@ countdown ranking certificates used by loop analyses.
 use super::MachineId;
 use super::{
     AbstractFunctionResult, AbstractOperation, BTreeSet, BlockId, ClaimId, ContentEntryClaim,
-    EdgeId, EntryClaim, EvidenceContractLane, IntegerType, IntegerValue, MachineContract,
-    ObligationId, OperationId, PlaceId, ServiceId, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralTypeId, TerminalAffineCleanupAction, ValueBinding,
-    ValueId,
+    EdgeId, EntryClaim, EvidenceContractLane, IntegerValue, MachineContract, ObligationId,
+    OperationId, PlaceId, ServiceId, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralTypeId, TerminalAffineCleanupAction, ValueBinding, ValueId,
 };
 pub use operation_evidence::provenance::{
     EffectLink, OwnershipEvent, PsiProvenance, ValueDefinition, ValueDefinitionSite,
@@ -258,60 +257,4 @@ pub struct CycleComponentEdge {
 pub struct CycleComponentId {
     pub machine: MachineId,
     pub internal_edges: Vec<CycleComponentEdge>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizerCycleComponent {
-    pub id: CycleComponentId,
-    pub members: Vec<BlockId>,
-    pub entries: Vec<CycleComponentEdge>,
-    pub exits: Vec<CycleComponentEdge>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizerCycleComponentSnapshot {
-    pub terminal_psi: terminal_psi::TerminalPsiIdentity,
-    pub components: Vec<OptimizerCycleComponent>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizerUnsignedCountdownRankingCertificate {
-    pub component: CycleComponentId,
-    pub header: BlockId,
-    pub rank_parameter: ValueId,
-    pub rank_type: IntegerType,
-    pub lower_bound: IntegerValue,
-    pub upper_bound: IntegerValue,
-    pub guard: OptimizerUnsignedPositiveGuard,
-    pub descent: OptimizerUnsignedMinusOneDescent,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OptimizerUnsignedPositiveGuard {
-    pub block: BlockId,
-    pub edge: EdgeId,
-    pub condition: ValueId,
-    pub parameter: ValueId,
-    pub zero: ValueId,
-    pub zero_operation: OperationId,
-    pub comparison_operation: OperationId,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OptimizerUnsignedMinusOneDescent {
-    pub backedge: CycleComponentEdge,
-    pub argument_index: u32,
-    pub argument: ValueId,
-    pub source_parameter: ValueId,
-    pub target_parameter: ValueId,
-    pub one: ValueId,
-    pub one_operation: OperationId,
-    pub subtract_operation: OperationId,
-    pub subtract_obligation: semantic_vocabulary::ObligationId,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizerRankingCertificateSnapshot {
-    pub terminal_psi: terminal_psi::TerminalPsiIdentity,
-    pub certificates: Vec<OptimizerUnsignedCountdownRankingCertificate>,
 }

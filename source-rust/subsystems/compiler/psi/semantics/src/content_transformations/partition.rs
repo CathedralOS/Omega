@@ -151,7 +151,7 @@ pub(crate) fn checked_casts(
         }
     }
     if !casts.is_empty() {
-        super::forwarding::validate_claims(module, machine)?;
+        super::forwarding::validate_claims(module, None, machine)?;
     }
     Ok(casts)
 }

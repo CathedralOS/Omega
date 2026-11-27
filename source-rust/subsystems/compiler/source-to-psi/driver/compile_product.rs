@@ -416,12 +416,14 @@ pub(crate) fn prepare_lower_and_check(
                     provider_defaults: judged.provider_defaults,
                 };
             }
-            ProviderWork::PrepareLayouts(chosen) => {
-                layouts = chosen;
-                let typed = unprepared.clone().ok_or_else(|| vec![Diagnostic::error(
-                    "a target chose a provider default absent from the source preparation frontier"
-                )])?;
-                current = prepare_roster(&mut pass, typed, &layouts)?;
+            // Settlement on the lowered closure already chose every layout
+            // and dropped the unprepared source when it completed, so a
+            // layout the checked program asks for now has no source to
+            // prepare it from.
+            ProviderWork::PrepareLayouts(_) => {
+                return Err(vec![Diagnostic::error(
+                    "a target chose a provider default absent from the source preparation frontier",
+                )]);
             }
         }
     };

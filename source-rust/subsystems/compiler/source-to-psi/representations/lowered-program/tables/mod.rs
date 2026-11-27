@@ -3,7 +3,7 @@ The checker tables for the lowered form: the explicit,
 unsealed Terminal Psi module that structure-only elaboration produces
 (`wiki/drafts/designs/check_on_lowered_form.md`). They hold what the checker
 knows about one machine, as tables over dense identities: values with
-their knowledge rows, places with the forward write log, obligations, and
+their knowledge rows, places, obligations, and
 edges with invocations.
 
 Semantic rows never identify a fact by a name, printed expression, path string
@@ -69,10 +69,6 @@ check_id!(
 check_id!(
     KnowledgeId,
     "One knowledge row over value identities (`values::KnowledgeRow`)."
-);
-check_id!(
-    WriteId,
-    "One entry of the forward write log (`bindings::WriteRow`)."
 );
 check_id!(
     InvocationId,
@@ -161,8 +157,8 @@ pub enum RefusalReason {
     /// zero satisfies the default domain, the value is zero-constructible.
     /// Otherwise the type is gated: construction or checked qualification
     /// must establish the domain before observation." It is a structural
-    /// judgment over the write log and the lowered graph, so it has no
-    /// obligation row and no certificate.
+    /// judgment over the checker's write log and the lowered graph, so it has
+    /// no obligation row and no certificate.
     ///
     /// The same reason covers the two structural judgments over a sum. A
     /// case payload named where its case is not established on every path:
@@ -348,6 +344,17 @@ pub struct ErasedFieldTerm {
     pub term: semantic_vocabulary::ScalarTerm,
 }
 
+/// An Identity of two classes of a quotient of data that has storage, and
+/// the quotient's relation read at their two representatives. The checker
+/// may prove the Identity from a proof of the relation by the quotient's
+/// soundness (wiki/spec/proofs/quotients.md, "Set-quotient foundation":
+/// `sound`), an assumption its receipt counts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotientSoundness {
+    pub classes: semantic_vocabulary::ClauseIdentity,
+    pub related: semantic_vocabulary::ClauseIdentity,
+}
+
 /// Everything the checker holds for one machine. Value, place, claim and
 /// edge identities are machine-local in the lowered form (ownership.md:
 /// "Claim identities stay machine-local"), so these tables are too.
@@ -363,11 +370,13 @@ pub struct MachineTables {
     /// The `ExactPlaceId` of each root `PlaceId`. Elaboration mints root
     /// `PlaceId`s densely too, so interning a root is one index.
     pub roots: IdTable<PlaceId, ExactPlaceId>,
-    pub writes: IdTable<WriteId, bindings::WriteRow>,
     pub obligations: IdTable<ObligationId, obligations::ObligationRow>,
     pub edges: IdTable<EdgeId, edges::EdgeRow>,
     pub invocations: IdTable<InvocationId, edges::InvocationRow>,
     pub erased_field_terms: Vec<ErasedFieldTerm>,
+    /// Each Identity of two classes this machine's contracts state over a
+    /// quotient of data that has storage, with what relates them.
+    pub quotient_soundness: Vec<QuotientSoundness>,
 }
 
 /// The module: one `MachineTables` per machine.

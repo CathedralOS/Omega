@@ -93,11 +93,6 @@ fn require_no_recorded_work(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     if !typed.pending_const_range_endpoints.is_empty() {
         return Err(unsupported("source constant range-endpoint evaluation"));
     }
-    if typed.static_type_contexts != Default::default() {
-        return Err(unsupported(
-            "retained source type judgments need their actual producer correspondence",
-        ));
-    }
     // A numbered record contributes a derived schema for later selection.
     // Evaluation is owed once an encoding or its executable plan is present.
     if typed

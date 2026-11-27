@@ -6,7 +6,7 @@
 //! `ticket as +Stamped` to `StampAccess::plan`. Psi 05 cannot answer that
 //! from the declaration, so before it runs, this owner calls the selected
 //! `plan` once per demanded domain through the checked selected-call entry
-//! (`PreparedBuildMachineProgram::entry_selected`), with the domain
+//! (`PreparedBuildMachineProgram::plan_selected`), with the domain
 //! subject's semantic schema as its argument. Only a result it can state in
 //! full becomes `CheckedDomainAccessPlan` on the domain's policy:
 //!
@@ -53,8 +53,9 @@ use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
 use symbols::SymbolHandle;
 
 use super::demanded_values::{DemandedValues, RoundProgram};
-use crate::compile_time_invocations::PreparedBuildMachineProgram;
-use crate::compile_time_invocations::{InvocationTarget, SourceCompletionAccounting};
+use crate::compile_time_invocations::{
+    InvocationTarget, PlannedCall, PreparedBuildMachineProgram, SourceCompletionAccounting,
+};
 
 /// One policy-governed domain whose plan has not been evaluated.
 struct Demand {
@@ -142,6 +143,23 @@ impl DemandedValues for AccessPlans {
             .symbol_source_span(self.demands[value].domain[0])
     }
 
+    /// Each domain calls its policy's `plan` once, in the round's program.
+    fn plan_round(
+        &mut self,
+        values: &[usize],
+        round: &RoundProgram,
+        _program: &TypedTrees,
+    ) -> Vec<PlannedCall> {
+        values
+            .iter()
+            .filter_map(|&value| {
+                domain_call(round.source(), round.calls(), self.demands[value].domain[0])
+                    .ok()
+                    .map(|call| call.plan)
+            })
+            .collect()
+    }
+
     /// Evaluates the plan in the round's program and records the checked
     /// result on the domain. A plan this pass cannot judge stays refused at
     /// each use that needs it (an `as +D`, a read or write inside a governed
@@ -182,13 +200,24 @@ impl DemandedValues for AccessPlans {
     }
 }
 
-fn evaluate_domain(
+/// The call that plans one domain's access, with what its result is
+/// checked against.
+struct DomainCall {
+    plan: PlannedCall,
+    implementation: SymbolHandle,
+    expected_selection: String,
+    schema_graph: schema_reflection::SemanticSchemaGraph,
+    schema: crate::compile_time_invocations::BuildTimeValue,
+    revision: Vec<u8>,
+}
+
+/// Names the `plan` call of `domain`'s selected policy, with the domain
+/// subject's schema as its argument.
+fn domain_call(
     typed: &TypedTrees,
     prepared: &PreparedBuildMachineProgram,
-    descriptions: &[Description],
     domain: SymbolHandle,
-    accounting: &mut SourceCompletionAccounting,
-) -> Result<CheckedDomainAccessPlan, String> {
+) -> Result<DomainCall, String> {
     let definition = typed
         .domain_definition(domain)
         .ok_or("the domain has no declaration")?;
@@ -213,20 +242,47 @@ fn evaluate_domain(
     }
     let (schema_graph, schema, revision) = subject_schema(typed, definition, schema_type)?;
     let expected_selection = policy_identity(typed, domain, &policy.selection)?;
-    let entry = prepared.entry_selected(
+    let plan = prepared.plan_selected(
         domain,
         domain,
         &policy.selection,
         row.requirement,
         std::slice::from_ref(&schema),
     )?;
+    Ok(DomainCall {
+        plan,
+        implementation: policy.implementation(),
+        expected_selection,
+        schema_graph,
+        schema,
+        revision,
+    })
+}
+
+fn evaluate_domain(
+    typed: &TypedTrees,
+    prepared: &PreparedBuildMachineProgram,
+    descriptions: &[Description],
+    domain: SymbolHandle,
+    accounting: &mut SourceCompletionAccounting,
+) -> Result<CheckedDomainAccessPlan, String> {
+    let DomainCall {
+        plan,
+        implementation,
+        expected_selection,
+        schema_graph,
+        schema,
+        revision,
+    } = domain_call(typed, prepared, domain)?;
+    let entry = prepared
+        .prepare_planned(&plan)
+        .map_err(|errors| diagnostics::join_messages(&errors))?;
     let accepted = entry.accepted_source();
     let (selected, member, _) = accepted
         .named_conformance_call_member(entry.call())?
         .ok_or("the plan call lost its selected policy member")?;
     let plan_machine = member.realization_machine;
-    if selected.symbol != policy.implementation() || typed.machine_by_symbol(plan_machine).is_none()
-    {
+    if selected.symbol != implementation || typed.machine_by_symbol(plan_machine).is_none() {
         return Err("the plan call lost its policy's source declaration".into());
     }
     let receiver = accepted

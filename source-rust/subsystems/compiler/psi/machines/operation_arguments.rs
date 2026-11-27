@@ -151,6 +151,7 @@ impl OperationKind {
                 *index = map(*index);
                 *length = map(*length);
             }
+            Self::ElementViewFixedArray { length, .. } => *length = map(*length),
             Self::ElementViewWrite {
                 index,
                 value,

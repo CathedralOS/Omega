@@ -14,6 +14,7 @@ test-support = [
     "syntax-trees-to-symbol-resolved-trees/test-support",
     "symbol-resolved-trees-to-typed-trees/test-support",
     "prepared-typed-trees-to-lowered-program/test-support",
+    "typed-trees-to-prepared-typed-trees/test-support",
 ]
 
 [dependencies]
@@ -76,6 +77,7 @@ proof-admission = { path = "../psi/semantics/proofs/bounded" }
 lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program", features = ["test-support"] }
 prepared-typed-trees-to-lowered-program = { path = "pipeline/05_prepared-typed-trees-to-lowered-program", features = ["test-support"] }
 symbol-resolved-trees-to-typed-trees = { path = "pipeline/03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }
+typed-trees-to-prepared-typed-trees = { path = "pipeline/04_typed-trees-to-prepared-typed-trees", features = ["test-support"] }
 syntax-trees-to-symbol-resolved-trees = { path = "pipeline/02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
 
 [[bench]]

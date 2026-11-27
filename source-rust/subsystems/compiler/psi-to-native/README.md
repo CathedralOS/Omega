@@ -8,7 +8,7 @@ The native entry accepts an authorized Psi program, its deployment target and th
 | --- | --- |
 | Admit the exact program, entry and provider demand | [Stage 00](pipeline/00_psi-to-admitted-native-inputs/src/lib.rs) receives the program and the [provider installation](pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs). [Stage 01](pipeline/01_admitted-native-inputs-to-target-bound-program/src/native_execution.rs) binds the [published entry and its calling contracts](pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application.rs) to the selected target and reachable bodies. Its [provider selection](pipeline/01_admitted-native-inputs-to-target-bound-program/src/native_execution/provider_bindings.rs) matches the reachable requirements to providers and checks competing external bindings for both programs and exports. |
 | Prepare the target inputs | [Target preparation](driver/inputs/mod.rs) checks the retained publication, private entry memory and scalar inputs. Build and the interpreter use the same [scalar input checks](../psi/execution-inputs/scalar-applications/scalar_applications.rs). |
-| Lower one selected body | [Stage 02](pipeline/02_target-bound-program-to-abstract-operations/src/lib.rs) lowers its checked Psi to abstract operations. The [body driver](driver/compile_body.rs) coordinates stages 03–15 for the entry and its private callables, from optimization through object construction. |
+| Lower one selected body | [Stage 02](pipeline/02_target-bound-program-to-abstract-operations/src/lib.rs) lowers its checked Psi to abstract operations. The [body driver](driver/compile_body.rs) coordinates stages 04–15 for the entry and its private callables, from target lowering through object construction. |
 | Complete the requested product | The [program driver](driver/mod.rs) returns the interpreter’s provisions at runtime admission. An image request [collects the required bodies](driver/image/mod.rs) and [stage 15](pipeline/15_objects-to-image/) publishes the finished image. [Entry signature and storage contract](representations/program-entry-contracts/program_entry.rs) · [Target arrival ABI](targets/calling-conventions/src/process_entry.rs) |
 | Verify an emitted object | An [explicit stage validator](verification/stage_validators.rs) requests originals from the emission and gives them to [published-object verification](verification/published-objects/). Its checks compare the root and private callable objects against their retained stage inputs before the caller releases the image. |
 
@@ -32,34 +32,77 @@ ELF, Mach-O and PE writer tests use fixed encoded inputs with known instruction 
 ## Stage map
 
 Each numbered stage, the form it hands on, and what reads that form. Lines are
-production Rust outside `tests/` directories, measured on `d75a30117`. Stages 03,
-06 and 10 change nothing about the representation. The driver waits for every
+production Rust outside `tests/` directories, measured on `d75a30117`. Stage 06
+changes nothing about the representation. The driver waits for every
 body at two points: after stage 04, for the callee closure in
-[`plan_callables.rs`](driver/plan_callables.rs), and after stage 09, for handler
-measurement and entry planning in [`object_emission.rs`](driver/image/object_emission.rs).
+[`plan_callables.rs`](driver/plan_callables.rs), and between stage 09's two
+phases, for handler measurement and entry planning in
+[`object_emission.rs`](driver/image/object_emission.rs).
+
+Stage 09 runs in two phases because one body's installed-handler stack bound
+depends on other bodies. First it frames each body on its own. The driver then
+measures every retained installed handler across the whole body roster. Last,
+stage 09's [installation binding](pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/installation_binding.rs)
+checks each body's installation guards against those measurements and issues
+the `BoundFunctionBody` and bound entry recipes that stage 11 encodes. Only that
+module links the [binding issuer](representations/bound-framed-machine/issuer/issuer.rs),
+so stage 11 cannot accept a body or entry that skipped the check.
 
 | Stage | Lines | Produces | Read by |
 | --- | --- | --- | --- |
 | 00 admitted inputs | 919 | `AdmittedProviderDemand` (checks the authorization matches the artifact) | 01 only |
 | 01 target-bound program | 9,742 | `PublishedSelection`, `PreparedNativeExecution` | 02 and driver runtime, components, callables |
-| 02 abstract operations | 6,418 | `VerifiedPsiOptimizationInput` | 03 and driver |
-| 03 abstract optimization | 21,803 | `OptimizedAbstractBody` (same form) | 04 only |
+| 02 abstract operations | 6,418 | `VerifiedPsiOptimizationInput` | 04 and driver |
 | 04 target operations | 33,812 | `NativeBodyPlan` | 05, driver closure, `TargetOperationCorrespondence` |
 | 05 instruction selection | 47,046 | `StagedOptimizedSelectedInstructions` | 06 only |
 | 06 selected rewrites | 26,880 | `SelectedAllocationInput` (same form plus liveness) | 07, `SelectedInstructionRewriteReplay` |
 | 07 register allocation | 16,292 | `RetainedAllocation` | 08, `FixedFrameCorrespondence` |
 | 08 post-allocation machine | 2,119 | `StagedOptimizedPostAllocationMachinePlan` | 09, `FixedFrameCorrespondence` |
-| 09 frame | 10,139 | `FramedNativeBody`, `PreparedFunctionBody` | 10 and driver entry planning |
-| 10 installation binding | 491 | `BoundFunctionBody` (newtype plus handler stack checks) | 11 only |
+| 09 frame and installation binding | 10,630 | `FramedNativeBody`, `PreparedFunctionBody`, then `BoundFunctionBody` | driver entry planning and handler measurement, then 11 |
 | 11 encoding | 23,475 | `EncodedMachineProgram` | 12 and validator replay |
 | 12 layout | 4,396 | `ResolvedFunctionLayout` | 13 |
 | 13 function placement | 10,004 | `FunctionPlacement` | 14 only |
 | 14 relocation-free object | 5,776 | `PublishedFunctionObject` | 15 |
 | 15 objects and image | 51,561 | `FinishedNativeImage` | Build publication |
 
+There is no stage 03 or stage 10. Stage 09 binds installations itself (above). Stage 04 receives the abstract program Stage 02 lowered,
+unchanged, because a receiving native lowerer does not rerun Psi passes
+([Terminal Psi product](../../../../wiki/spec/terminal-psi/product.md#optimization-ordering)). The
+native abstract-operations optimizer that used to sit there never ran in the
+shipped compiler, since post-Terminal selections refuse every Psi-phase
+optimization. It is archived with its validators under
+[`_recycling/.../pipeline/03_abstract-operations-to-abstract-operations/`](../../../../_recycling/source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/).
+Its global value numbering, control-flow cleanup and proof-check elision passes
+are kept there to be ported as Psi-to-Psi passes.
+
+## Optimization phases
+
+The [optimization contract](../../../../wiki/spec/build/optimizations.md#exact-selection)
+requires each optimization to have one phase owner. It leaves the list of
+phases to this compiler. That list is `OptimizationExecutionPhase` in
+[`optimization-selections`](../foundation/optimization-selections/src/lib.rs). The
+table shows each phase's catalog entry count and the native stages that name the
+phase, measured on `baa76c5b222e` (after archiving Stage 03).
+
+| Phase | Catalog entries | Stages naming it |
+| --- | --- | --- |
+| `Psi` | 9 | none; runs before Terminal Psi publication |
+| `TargetOperations` | 2 | 04 (rewrites applied in 05) |
+| `SelectedLowering` | 23 | 06, 07, 12, 13 |
+| `PreAllocation` | 10 | 06, 07 |
+| `AllocationRecovery` | 2 | 06, 07, 13 |
+| `PostAllocationMachine` | 9 | 08, 13 |
+| `FunctionRelativeLayout` | 1 | 12, 13 |
+
+Stage 05 also runs call inlining (`selection_inlining.rs`) and vector promotion
+(`selection_vector_promotion.rs`) on every build without a catalog entry. The
+contract forbids a compiler default from enabling an optimization, so every
+part a target can lower without belongs in the catalog, off by default.
+`TASKS.md` **STAGE-05-DEFAULT-REWRITES** tracks that split.
+
 ## Plan identities
 
-Stages 03–14 hash their in-memory plans with SHA-256 and hand the hashes on.
+Stages 04–14 hash their in-memory plans with SHA-256 and hand the hashes on.
 Because both sides run in the same compile, most of these hashes only let the
 compiler check its own output, which default compilation does not do. They are
 being removed. A hash stays only where an explicit validator, a published
@@ -71,9 +114,9 @@ artifact or a foreign-package boundary reads it.
 | `ResolvedSelectedFormLayoutIdentity`, `TargetFrameLayoutIdentity` (machine-code, 12–13) | receipts; validator compares baseline layout | delete; validators compare the retained values |
 | Fragment, frame-application and text-section identities, their manifests and the realization manifest identity (machine-code, 13–14) | own receipts; object custody compared between publications | deleted; validators compare the retained text section and selections |
 | `PostAllocationMachineIdentity` (08, 11) | `FixedFrameCorrespondence` compares retained program | delete; validator compares structurally |
-| `FixedPrecolored*PlanIdentity`, register-homes receipts (06–07) | sibling receipts only | delete |
+| `FixedPrecolored*PlanIdentity`, register-homes receipts (06–07) | sibling receipts only | deleted |
 | `SelectedInstructionPlanIdentity`, `RetainedPlanPrefix`, effects identities (05–06) | receipts; validators compare retained program | delete; validators compare structurally |
-| `OptimizationUnitIdentity` (03) | pass manager oscillation key, fact keys | replace with a revision counter, or keep as the one unit hash |
+| `OptimizationUnitIdentity` (04) | the unoptimized program record and its pre-physical manifest, fact keys | keep as the one unit hash |
 | `MachineFunctionIdentity` | sort key in validator replay; program fingerprint plus placement, not a plan hash | keep |
 | `NativeArtifactIdentity` | `native.identity.txt` (`omega run --keep`) | keep; binds emitted bytes, no longer plan hashes |
 

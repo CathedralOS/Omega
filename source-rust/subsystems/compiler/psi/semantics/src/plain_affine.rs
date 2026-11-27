@@ -10,6 +10,7 @@ pub use claims::{ClaimLocation, ClaimsPlan, publish_contract_claims};
 mod fences;
 
 pub use fences::CallFence;
+pub(crate) use fences::CallFences;
 
 use arena::IdSet;
 use semantic_vocabulary::{
@@ -1150,7 +1151,23 @@ static NO_NOMINAL_CALLS: [terminal_psi::generic_calls::NominalCallType; 0] = [];
 pub struct AffineSummaries<'m> {
     summaries: crate::descriptor_results::ModuleSummaries<'m>,
     fences: fences::CallFences<'m>,
-    type_permissions: Result<(), Error>,
+    /// Checked by the first walk that needs it, so a table rebuilt after
+    /// each edit does not scan every type up front.
+    type_permissions: TypePermissions,
+}
+
+/// Whether the module's type permissions keep every nested ownership
+/// obligation (`validate_type_permissions`), checked once on first use.
+pub(crate) type TypePermissions = std::sync::OnceLock<Result<(), Error>>;
+
+/// The shared answer for `types`, checking them on the first request.
+pub(crate) fn checked_type_permissions(
+    permissions: &TypePermissions,
+    types: &[StructuralTypeDeclaration],
+) -> Result<(), Error> {
+    permissions
+        .get_or_init(|| validate_type_permissions(types))
+        .clone()
 }
 
 impl<'m> AffineSummaries<'m> {
@@ -1161,7 +1178,7 @@ impl<'m> AffineSummaries<'m> {
                 &NO_NOMINAL_CALLS,
             ),
             fences: fences::CallFences::new(module),
-            type_permissions: validate_type_permissions(&module.types.structural_types),
+            type_permissions: TypePermissions::new(),
         }
     }
 
@@ -1181,23 +1198,58 @@ impl<'m> AffineSummaries<'m> {
     }
 }
 
+/// Where a walk takes its machine's borrowed-storage closure from when a
+/// `ModuleAnalyses` bundle built it. A trait object lets `MachineAffine`
+/// borrow the bundle without naming the bundle's module lifetime.
+trait BorrowedStorageClosure {
+    fn borrowed_storage_closure(
+        &self,
+        root: semantic_vocabulary::MachineId,
+    ) -> Result<
+        crate::module_analyses::DescriptorRows<'_>,
+        crate::descriptor_results::DescriptorGraphError,
+    >;
+}
+
+impl BorrowedStorageClosure for crate::module_analyses::ModuleAnalyses<'_> {
+    fn borrowed_storage_closure(
+        &self,
+        root: semantic_vocabulary::MachineId,
+    ) -> Result<
+        crate::module_analyses::DescriptorRows<'_>,
+        crate::descriptor_results::DescriptorGraphError,
+    > {
+        self.descriptor_closure(
+            crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+            [root],
+        )
+    }
+}
+
 /// The affine walks of one machine in one module. Every walk that needs
 /// conditional storage reads the same borrowed-storage graph, built from
-/// this machine (`terminal_borrowed_storage_graph_from`); the first walk
-/// builds it and later walks reuse it. With an `AffineSummaries` table the
-/// walks also take callee summaries other walks of the module completed.
-/// Each answer is the one a walk alone would give.
+/// this machine; the first walk builds it and later walks reuse it. A walk
+/// made by `ModuleAnalyses::affine` takes that graph from the bundle's
+/// shared rows instead of adapting the machine's closure again. With an
+/// `AffineSummaries` table the walks also take callee summaries other walks
+/// of the module completed. Each answer is the one a walk alone would give.
 pub struct MachineAffine<'s> {
     module: &'s terminal_psi::TerminalModule,
     machine: &'s TerminalMachine,
     summaries: Option<&'s AffineSummaries<'s>>,
+    /// The bundle that builds this machine's closure, or `None` when the walk
+    /// builds its own (`terminal_borrowed_storage_graph_from`).
+    analyses: Option<&'s dyn BorrowedStorageClosure>,
     graph: std::cell::OnceCell<
         Result<
-            Vec<crate::descriptor_results::DescriptorMachine>,
+            crate::module_analyses::DescriptorRows<'s>,
             crate::descriptor_results::DescriptorGraphError,
         >,
     >,
-    /// Used only without a module table built from this exact module.
+    /// The call fences and type permissions of a table or bundle built from
+    /// this exact module, shared by every walk over it.
+    shared: Option<(&'s fences::CallFences<'s>, &'s TypePermissions)>,
+    /// Used only without `shared`.
     fences: fences::CallFences<'s>,
 }
 
@@ -1207,40 +1259,77 @@ impl<'s> MachineAffine<'s> {
         identity: semantic_vocabulary::MachineId,
         summaries: Option<&'s AffineSummaries<'s>>,
     ) -> Result<Self, Error> {
+        let shared = summaries
+            .filter(|summaries| std::ptr::eq(summaries.fences.module(), module))
+            .map(|summaries| (&summaries.fences, &summaries.type_permissions));
         Ok(Self {
             module,
             machine: module_machine(module, identity)?,
             summaries,
+            analyses: None,
             graph: std::cell::OnceCell::new(),
+            shared,
             fences: fences::CallFences::new(module),
         })
     }
 
-    /// The module table's call fences when it was built from this module,
-    /// so every walk over the module shares one; otherwise this walk's own.
+    /// The walks of `identity` over the bundle's module. The walks take the
+    /// machine's borrowed-storage closure from the bundle's shared rows and
+    /// share its call fences and type permissions. With `summaries` they also
+    /// share callee summaries, as `MachineAffine::new` does.
+    pub fn from_analyses(
+        analyses: &'s crate::module_analyses::ModuleAnalyses<'_>,
+        identity: semantic_vocabulary::MachineId,
+        summaries: Option<&'s AffineSummaries<'s>>,
+    ) -> Result<Self, Error> {
+        let module = analyses.module();
+        Ok(Self {
+            module,
+            machine: module_machine(module, identity)?,
+            summaries,
+            analyses: Some(analyses),
+            graph: std::cell::OnceCell::new(),
+            shared: Some((&analyses.fences, &analyses.type_permissions)),
+            fences: fences::CallFences::new(module),
+        })
+    }
+
+    /// The shared call fences when a table or bundle was built from this
+    /// module, so every walk over the module shares one; otherwise this
+    /// walk's own.
     fn fences(&self) -> &fences::CallFences<'s> {
-        match self.summaries {
-            Some(summaries) if std::ptr::eq(summaries.fences.module(), self.module) => {
-                &summaries.fences
-            }
-            _ => &self.fences,
+        match self.shared {
+            Some((fences, _)) => fences,
+            None => &self.fences,
+        }
+    }
+
+    /// The module's type permissions, checked at most once per shared table
+    /// or bundle and on every walk without one.
+    fn type_permissions(&self) -> Result<(), Error> {
+        let types = &self.module.types.structural_types;
+        match self.shared {
+            Some((_, permissions)) => checked_type_permissions(permissions, types),
+            None => validate_type_permissions(types),
         }
     }
 
     fn graph(
         &self,
     ) -> Result<
-        &[crate::descriptor_results::DescriptorMachine],
+        crate::module_analyses::DescriptorRowView<'_>,
         crate::descriptor_results::DescriptorGraphError,
     > {
-        match self.graph.get_or_init(|| {
-            crate::descriptor_results::terminal_borrowed_storage_graph_from(
+        match self.graph.get_or_init(|| match self.analyses {
+            Some(analyses) => analyses.borrowed_storage_closure(self.machine.id),
+            None => crate::descriptor_results::terminal_borrowed_storage_graph_from(
                 self.module,
                 [self.machine.id],
                 &[],
             )
+            .map(crate::module_analyses::DescriptorRows::Owned),
         }) {
-            Ok(graph) => Ok(graph),
+            Ok(graph) => Ok(graph.view()),
             Err(failure) => Err(*failure),
         }
     }
@@ -1249,14 +1338,25 @@ impl<'s> MachineAffine<'s> {
     /// callee summaries through the module's table when there is one.
     fn references<'r>(
         &'r self,
-        graph: &'r [crate::descriptor_results::DescriptorMachine],
+        graph: crate::module_analyses::DescriptorRowView<'r>,
     ) -> crate::descriptor_results::DescriptorAnalysis<'r> {
         let mut references =
             crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 &self.module.types.structural_types,
                 graph,
             );
-        if let Some(summaries) = self.summaries {
+        // A bundle returns owned rows only for a closure that reaches a
+        // dynamic call. Those rows were adapted against this closure alone,
+        // so they never share summaries (`ModuleSummaries::serves` refuses
+        // them as well).
+        let closure_owns_rows = self.analyses.is_some()
+            && matches!(
+                self.graph.get(),
+                Some(Ok(crate::module_analyses::DescriptorRows::Owned(_)))
+            );
+        if let Some(summaries) = self.summaries
+            && !closure_owns_rows
+        {
             summaries.share_with(&mut references);
         }
         references
@@ -1738,14 +1838,9 @@ fn analyze(
             ..Plan::default()
         });
     }
-    if let Some(summaries) = walks.and_then(|walks| {
-        walks
-            .summaries
-            .filter(|summaries| std::ptr::eq(summaries.fences.module(), walks.module))
-    }) {
-        summaries.type_permissions.clone()?;
-    } else {
-        validate_type_permissions(types)?;
+    match walks {
+        Some(walks) => walks.type_permissions()?,
+        None => validate_type_permissions(types)?,
     }
     let mut contracts = vec![None; machine.structural_places.len()];
     // Read static whole-origin restrictions once with the custody declarations.
@@ -2266,7 +2361,10 @@ fn analyze(
         };
         (graph, Some(walks.references(graph)))
     } else {
-        (&[][..], None)
+        (
+            crate::module_analyses::DescriptorRowView::from(&[][..]),
+            None,
+        )
     };
     let mut graphed_machines = reference_graph
         .iter()
@@ -2279,8 +2377,7 @@ fn analyze(
             "reference backing lost its storage analysis",
         ))?;
         let graph = reference_graph
-            .iter()
-            .find(|graph| graph.id == machine.id)
+            .find(machine.id)
             .ok_or(Error::malformed("reference storage lost its machine graph"))?;
         reference_backing_uses(types, graph, references, reference_candidates)?
     } else {

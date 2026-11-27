@@ -43,6 +43,13 @@ pub enum BuildTimeValue {
         payload: Vec<(String, BuildTimeValue)>,
     },
     Array(Vec<BuildTimeValue>),
+    /// An exact static machine selection: the selected declaration's owner
+    /// and callable identities. It grants no execution authority; the
+    /// receiving source owner resolves it to the one declaration it names.
+    StaticCallable {
+        owner: String,
+        callable: String,
+    },
 }
 
 impl BuildTimeValue {
@@ -63,7 +70,8 @@ impl BuildTimeValue {
             | Self::Bool(_)
             | Self::Float(_)
             | Self::UndeterminedNaN(_)
-            | Self::Text(_) => 0,
+            | Self::Text(_)
+            | Self::StaticCallable { .. } => 0,
         };
         children.checked_add(1)
     }
@@ -71,6 +79,9 @@ impl BuildTimeValue {
     pub fn retained_text_byte_count(&self) -> Option<u64> {
         match self {
             Self::Text(bytes) => u64::try_from(bytes.len()).ok(),
+            Self::StaticCallable { owner, callable } => {
+                u64::try_from(owner.len().checked_add(callable.len())?).ok()
+            }
             Self::LayoutTarget(facts) => u64::try_from(facts.profile.len()).ok(),
             Self::Struct { fields, .. }
             | Self::Case {

@@ -27,7 +27,7 @@ use std::sync::Arc;
 ///     let _ = native_encoding::encode_bound_function_body(body);
 /// }
 /// ```
-/// Only the binding stage imports the issuer.
+/// Only stage 09's installation binding imports the issuer.
 /// ```compile_fail,E0432
 /// use installation_binding_issuer::BINDER;
 /// ```
@@ -69,20 +69,32 @@ pub fn encode_bound_function_body<FrameOrigin, ImportOrigin, Installations, Publ
 > {
     let (program, requirements) = body.into_encoding_parts();
     let original = requirements.capture_original(&program.frame.instructions);
-    let input = frame_protocol::encode_function_frame(program, original.is_some())?;
-    let current = encode_program(input).map_err(FunctionBodyEncodingError::Encoding)?;
+    let audit = original.is_some();
+    let input = frame_protocol::encode_function_frame(program, audit)?;
+    let current = encode_program(input, audit).map_err(FunctionBodyEncodingError::Encoding)?;
     let contracts = requirements
         .finish(&current, original)
         .map_err(FunctionBodyEncodingError::BodyContracts)?;
     Ok(StagedOptimizedSelectedFormEncoding { current, contracts })
 }
 
+/// Encode every row and publish the encoded program.
+///
+/// `compute` enforces each row's encoding contracts as it encodes: byte length
+/// against the declared size, encoded effects against the allocator's
+/// alternative, external operands, and the frame-address equation. Replaying
+/// the program through encoding admission re-encodes every row and re-hashes
+/// the artifact to compare it with itself, so only an audited body (`audit`,
+/// set when the body retains its originals) pays for that replay.
 fn encode_program(
     input: machine_code::FramedMachineProgram,
+    audit: bool,
 ) -> Result<machine_code::EncodedMachineProgram, OptimizedSelectedFormEncodingError> {
-    let artifact = compute(&input.instructions, Some(&input.frame))?;
+    let artifact = compute(&input.instructions, &input.frame)?;
     let program = Arc::new(artifact);
-    validate_current_selected_form_encoding(&input.instructions, &input.frame, &program)?;
+    if audit {
+        validate_current_selected_form_encoding(&input.instructions, &input.frame, &program)?;
+    }
     let context = Arc::new(program_context(
         &input.instructions,
         Arc::clone(&input.frame_demands),
@@ -91,8 +103,12 @@ fn encode_program(
     Ok(machine_code::EncodedMachineProgram {
         bindings: input.bindings,
         exit_requirements: Arc::new(
-            exit_requirements::prepare_exit_requirements(&input.instructions, &program)
-                .map_err(OptimizedSelectedFormEncodingError::ExitRequirements)?,
+            exit_requirements::prepare_exit_requirements_for_frame(
+                &input.instructions,
+                &program,
+                Some(input.frame_identity),
+            )
+            .map_err(OptimizedSelectedFormEncodingError::ExitRequirements)?,
         ),
         fragment_origins: input.fragment_origins,
         layout_requirements: Arc::new(layout_requirements::prepare_layout_requirements(
@@ -169,8 +185,9 @@ impl<Contracts> StagedOptimizedSelectedFormEncoding<Contracts> {
 
 fn compute(
     input: &post_allocation_machine::PostAllocationMachineProgram,
-    frame: Option<&TargetFrameLayoutPlan>,
+    shared_frame: &Arc<TargetFrameLayoutPlan>,
 ) -> Result<SelectedFormEncoding, OptimizedSelectedFormEncodingError> {
+    let frame = Some(&**shared_frame);
     let machine = &input.machine;
     let physical = input.physical();
     frame_address::validate_frame_root(machine, frame)?;
@@ -205,13 +222,22 @@ fn compute(
                 if operation.id != machine_instruction.instruction {
                     return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
                 }
+                let address = frame_address::resolve(machine_function, frame, machine_instruction)?;
+                // The resolved address must satisfy the frame-space equation
+                // admission states; this is cheap and runs on every build.
+                frame_address::validate_address(
+                    machine_function,
+                    frame,
+                    machine_instruction,
+                    address,
+                )?;
                 rows.push(row_encoding::encode_row(
                     target,
                     operation,
                     machine_instruction,
                     physical,
                     &function.normalized_foreign_calls,
-                    frame_address::resolve(machine_function, frame, machine_instruction)?,
+                    address,
                     &mut encoded,
                 )?);
             }
@@ -225,7 +251,7 @@ fn compute(
         identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
         rows,
         encoded: Arc::new(encoded),
-        frame: frame.cloned(),
+        frame: Some(Arc::clone(shared_frame)),
         counts,
     };
     program.identity = program.recomputed_identity();

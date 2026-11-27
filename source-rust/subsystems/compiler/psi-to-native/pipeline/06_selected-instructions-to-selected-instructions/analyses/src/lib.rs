@@ -26,9 +26,10 @@
   same `SelectedInstructionPlan` representation. Housing these analyses in a
   single representation-analysis crate lets both pipeline stages share the
   exact dataflow and interference engines, while `UnsealedRecoveryFacts` and
-  `carried_digests` reuse unchanged per-function `Arc` rows across iterative
-  spill/split recovery steps without re-analyzing or re-hashing untouched
-  functions.
+  `carried_digests` reuse unchanged per-function `Arc` rows without
+  re-analyzing or re-hashing untouched functions: across stage 07's iterative
+  spill/split recovery steps, and through `reanalyze_rewritten_functions`
+  after each rewrite stage 06 commits.
 */
 
 /*
@@ -196,6 +197,18 @@ macro_rules! work_defect_conversion {
 
 #[macro_export]
 macro_rules! validated_plan_carrier {
+    ($carrier:ident : $plan:ty) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $carrier {
+            pub(crate) plan: $plan,
+        }
+
+        impl $carrier {
+            pub const fn plan(&self) -> &$plan {
+                &self.plan
+            }
+        }
+    };
     ($carrier:ident : $plan:ty, $receipt:ty) => {
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct $carrier {
@@ -553,7 +566,6 @@ mod selected_optimization_record {
     }
 }
 pub use selected_optimization_record::SelectedOptimizationRecord;
-#[path = "../../../../representations/selected-instructions/allocation_input.rs"]
 mod allocation_input;
 pub use ::wire::cursor;
 pub use allocation_input::SelectedAllocationInput;
@@ -619,14 +631,13 @@ pub use legality::{
 };
 pub use live_ranges::{
     LiveRangeError, StagedOptimizedLiveRanges, ValidatedLiveRanges, analyze_live_ranges,
-    analyze_live_ranges_reusing,
 };
 pub use live_ranges::{
     LiveRangeValidationReceipt, OptimizedLiveRangeCustodyError,
     StagedOptimizedLiveRangeCustodyReceipt, admit_optimized_live_ranges,
     stage_optimized_live_ranges,
 };
-pub use liveness::{LivenessError, ValidatedLiveness, analyze_liveness, analyze_liveness_reusing};
+pub use liveness::{LivenessError, ValidatedLiveness, analyze_liveness};
 pub use liveness::{
     LivenessValidationReceipt, OptimizedLivenessCustodyError, StagedOptimizedLiveness,
     StagedOptimizedLivenessCustodyReceipt, admit_optimized_liveness, stage_optimized_liveness,
@@ -765,32 +776,103 @@ mod selected_input {
             self.work_schedule
         }
     }
+
+    /// A selected program a stage may treat as already validated: instruction
+    /// selection's output, a retained copy or view of it, or a stage's own
+    /// validated rewrite result. Stage code that must never receive an
+    /// unchecked `SelectedInstructionPlan` bounds on this trait. The trait is
+    /// sealed; stages 06 and 07 admit their rewrite results through
+    /// `validated_selected_analysis!`.
+    pub trait ValidatedSelectedAnalysis:
+        crate::validated_selected_support::Sealed + SelectedProgramView
+    {
+    }
+
+    crate::validated_selected_analysis!(@sealed SelectedProgram);
+    crate::validated_selected_analysis!(@sealed OwnedSelectedProgram);
+    crate::validated_selected_analysis!(@sealed SelectedProgramRef<'_>);
+}
+
+/// Names `validated_selected_analysis!` expands to in the stage crates.
+#[doc(hidden)]
+pub mod validated_selected_support {
+    pub use optimization_core::OptimizationUnitIdentity;
+    pub use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+    pub use semantic_vocabulary::WorkScheduleIdentity;
+
+    /// Keeps `ValidatedSelectedAnalysis` closed to the types the macro admits.
+    pub trait Sealed {}
+}
+
+/// Admits a validated rewrite result as a `ValidatedSelectedAnalysis`.
+///
+/// `validated_selected_analysis!(Name)` also implements `SelectedProgramView`
+/// for a type that exposes `transformed()`, `shared_transformed()` and a
+/// `receipt()` naming the transformed program, its optimization unit and its
+/// work schedule. `validated_selected_analysis!(@sealed Name)` only admits the
+/// type, for one that implements `SelectedProgramView` itself.
+#[macro_export]
+macro_rules! validated_selected_analysis {
+    (@sealed $name:ty) => {
+        impl $crate::validated_selected_support::Sealed for $name {}
+        impl $crate::ValidatedSelectedAnalysis for $name {}
+    };
+    ($name:ident) => {
+        $crate::validated_selected_analysis!(@sealed $name);
+
+        impl $crate::SelectedProgramView for $name {
+            fn selected_plan(&self) -> &$crate::validated_selected_support::SelectedInstructionPlan {
+                self.transformed()
+            }
+            fn shared_selected_plan(
+                &self,
+            ) -> std::sync::Arc<$crate::validated_selected_support::SelectedInstructionPlan> {
+                self.shared_transformed()
+            }
+            fn selected_identity(
+                &self,
+            ) -> $crate::validated_selected_support::SelectedInstructionPlanIdentity {
+                self.receipt().transformed_selected()
+            }
+            fn optimization_unit_identity(
+                &self,
+            ) -> $crate::validated_selected_support::OptimizationUnitIdentity {
+                self.receipt().optimization_unit()
+            }
+            fn work_schedule_identity(
+                &self,
+            ) -> $crate::validated_selected_support::WorkScheduleIdentity {
+                self.receipt().work_schedule()
+            }
+        }
+    };
 }
 pub mod spill_choice;
 pub use allocation_legality::AllocationLegalityValidationReceipt;
 pub use allocation_legality::{
     AllocationLegalityError, ValidatedAllocationLegality, analyze_allocation_legality,
-    analyze_allocation_legality_reusing,
 };
 pub use allocator_availability::AllocatorAvailabilityError;
 pub use allocator_availability::ValidatedAllocatorAvailability;
 pub use allocator_availability::materialize_allocator_availability;
 pub use fixed_precolored_intervals::{
-    FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
-    ValidatedFixedPrecoloredIntervals, analyze_fixed_precolored_intervals,
+    FixedPrecoloredIntervalError, ValidatedFixedPrecoloredIntervals,
+    analyze_fixed_precolored_intervals,
 };
 pub use fixed_precolored_segment_homes::{
-    FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
-    ValidatedFixedPrecoloredSegmentHomes, assign_fixed_precolored_segment_homes,
+    FixedPrecoloredSegmentHomeError, ValidatedFixedPrecoloredSegmentHomes,
+    assign_fixed_precolored_segment_homes,
 };
 pub use fixed_precolored_split_requirements::{
-    FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
-    ValidatedFixedPrecoloredSplitRequirements, analyze_fixed_precolored_split_requirements,
+    FixedPrecoloredSplitRequirementError, ValidatedFixedPrecoloredSplitRequirements,
+    analyze_fixed_precolored_split_requirements,
 };
 pub use recovery_classification::{
     RecoveryClassificationError, ValidatedRecoveryClassifications, classify_pressure_recovery,
 };
-pub use selected_input::{OwnedSelectedProgram, SelectedProgramRef, SelectedProgramView};
+pub use selected_input::{
+    OwnedSelectedProgram, SelectedProgramRef, SelectedProgramView, ValidatedSelectedAnalysis,
+};
 
 work_defect_conversion!(
     FixedPrecoloredIntervalError,
@@ -861,6 +943,11 @@ impl UnsealedRecoveryFacts {
         &self.legality_functions
     }
 
+    /// Recomputes facts only for functions whose selected body changed
+    /// between `previous` and `selected`. Changed functions get the liveness
+    /// live ranges need and nothing more; `seal` fills in the per-instruction
+    /// live sets once, so a caller that reanalyzes many times before sealing
+    /// pays for them only at the end.
     pub fn reanalyze_changed_functions(
         &self,
         previous: &impl SelectedProgramView,
@@ -868,6 +955,25 @@ impl UnsealedRecoveryFacts {
         availability: &ValidatedAllocatorAvailability,
         physical: &register_model::ValidatedPhysicalRegisterModel,
         reservations: &register_model::ValidatedRegisterReservationProfile,
+    ) -> Result<Self, RecoveryReanalysisError> {
+        self.reanalyze_functions(
+            previous,
+            selected,
+            availability,
+            physical,
+            reservations,
+            LivenessDetail::RangesOnly,
+        )
+    }
+
+    fn reanalyze_functions(
+        &self,
+        previous: &impl SelectedProgramView,
+        selected: &impl SelectedProgramView,
+        availability: &ValidatedAllocatorAvailability,
+        physical: &register_model::ValidatedPhysicalRegisterModel,
+        reservations: &register_model::ValidatedRegisterReservationProfile,
+        detail: LivenessDetail,
     ) -> Result<Self, RecoveryReanalysisError> {
         if !self.belongs_to(previous)
             || availability.receipt().physical() != physical.identity()
@@ -902,11 +1008,22 @@ impl UnsealedRecoveryFacts {
                     Arc::clone(&self.range_functions[index]),
                 )
             } else {
-                let liveness = liveness::compute::compute_function_for_ranges(index, function)
-                    .map_err(RecoveryReanalysisError::Liveness)?;
+                let liveness = match detail {
+                    LivenessDetail::RangesOnly => {
+                        liveness::compute::compute_function_for_ranges(index, function)
+                    }
+                    LivenessDetail::Complete => {
+                        liveness::compute::compute_function(index, function)
+                    }
+                }
+                .map_err(RecoveryReanalysisError::Liveness)?;
                 let ranges = live_ranges::compute::compute_function(index, function, &liveness)
                     .map_err(RecoveryReanalysisError::Ranges)?;
-                (Arc::new(liveness), false, Arc::new(ranges))
+                (
+                    Arc::new(liveness),
+                    detail == LivenessDetail::Complete,
+                    Arc::new(ranges),
+                )
             };
             let legality = if function_unchanged && availability_unchanged {
                 Arc::clone(&self.legality_functions[index])
@@ -1054,6 +1171,60 @@ impl UnsealedRecoveryFacts {
         )?;
         Ok((validated_liveness, validated_ranges, validated_legality))
     }
+}
+
+/// How much liveness `UnsealedRecoveryFacts` computes for a changed function.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LivenessDetail {
+    /// Only what live ranges read; `seal` adds per-instruction live sets.
+    RangesOnly,
+    /// The full liveness `analyze_liveness` publishes, so `seal` adds nothing.
+    Complete,
+}
+
+/// Liveness, live ranges and allocation legality for `selected`, a rewrite of
+/// `previous`, given `previous`'s validated facts. Only the functions whose
+/// selected body changed are recomputed; every other function keeps its rows,
+/// digests and counts. The result equals a fresh `analyze_liveness`,
+/// `analyze_live_ranges` and `analyze_allocation_legality` over `selected`.
+///
+/// A rewrite pass that commits one change at a time and needs sealed facts
+/// after each commit uses this instead of reanalyzing the whole program.
+pub fn reanalyze_rewritten_functions(
+    previous: &impl SelectedProgramView,
+    liveness: &ValidatedLiveness,
+    ranges: &ValidatedLiveRanges,
+    legality: &ValidatedAllocationLegality,
+    selected: &impl SelectedProgramView,
+    availability: &ValidatedAllocatorAvailability,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+) -> Result<
+    (
+        ValidatedLiveness,
+        ValidatedLiveRanges,
+        ValidatedAllocationLegality,
+    ),
+    RecoveryReanalysisError,
+> {
+    UnsealedRecoveryFacts::from_validated(liveness, ranges, legality)
+        .reanalyze_functions(
+            previous,
+            selected,
+            availability,
+            environment.physical(),
+            environment.reservations(),
+            LivenessDetail::Complete,
+        )?
+        .seal(
+            previous,
+            liveness,
+            ranges,
+            legality,
+            selected,
+            availability,
+            environment.identity(),
+        )
+        .map_err(RecoveryReanalysisError::Legality)
 }
 
 #[cfg(test)]
@@ -1305,6 +1476,129 @@ mod recovery_tests {
         assert_eq!(recovered.0.plan(), liveness.plan());
         assert_eq!(recovered.1.plan(), ranges.plan());
         assert_eq!(recovered.2.plan(), legality.plan());
+    }
+
+    #[test]
+    fn rewritten_function_reanalysis_equals_a_fresh_analysis_and_carries_the_rest() {
+        use register_environment::baseline_target_register_environment;
+        use register_homes::AllocatorAvailabilityPolicy;
+        use selected_instructions::selected_instruction_plan_identity;
+        use semantic_vocabulary::MachineId;
+        use target::NativeTarget;
+        use target_vocabulary::NativeCallTarget;
+
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        let availability = materialize_allocator_availability(
+            environment.identity(),
+            target,
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            &keys,
+            AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
+        )
+        .unwrap();
+        let analyze = |selected: &selected_instructions::SelectedProgram| {
+            let liveness = analyze_liveness(selected).unwrap();
+            let ranges = analyze_live_ranges(selected, &liveness).unwrap();
+            let legality = analyze_allocation_legality(
+                &ranges,
+                &availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+            )
+            .unwrap();
+            (liveness, ranges, legality)
+        };
+
+        // Two functions; the rewrite inserts a fence into the second only.
+        let mut original = machine_effects::indirect_call_tests::selected_call(
+            &environment,
+            target,
+            NativeCallTarget::Machine(MachineId::new(1).unwrap()),
+        );
+        let plan = Arc::make_mut(&mut original.plan);
+        let mut helper = plan.functions[0].clone();
+        helper.machine = MachineId::new(2).unwrap();
+        plan.functions.push(helper);
+        original.identity = selected_instruction_plan_identity(plan);
+        let mut rewritten = original.clone();
+        let plan = Arc::make_mut(&mut rewritten.plan);
+        let fence_constraint = register_model::find_register_constraint(
+            &environment.constraints().catalog().constraints,
+            keys.atomic_fence.unwrap(),
+        )
+        .unwrap();
+        let block = &mut plan.functions[1].blocks[0];
+        block.instructions.insert(
+            0,
+            selected_instructions::SelectedInstruction {
+                id: selected_instructions::SelectedInstructionId(2),
+                kind: selected_instructions::SelectedInstructionKind::AtomicFence,
+                constraint: fence_constraint.key,
+                operands: Vec::new(),
+                implicit_uses: fence_constraint.implicit_uses.clone(),
+                implicit_defs: fence_constraint.implicit_defs.clone(),
+                clobbers: fence_constraint.clobbers.clone(),
+                provenance: block.instructions[0].provenance.clone(),
+            },
+        );
+        rewritten.identity = selected_instruction_plan_identity(plan);
+        assert!(
+            original
+                .plan
+                .functions
+                .shares_function_storage(&rewritten.plan.functions, 0)
+        );
+
+        let (liveness, ranges, legality) = analyze(&original);
+        let reanalyzed = reanalyze_rewritten_functions(
+            &original,
+            &liveness,
+            &ranges,
+            &legality,
+            &rewritten,
+            &availability,
+            &environment,
+        )
+        .unwrap();
+        let fresh = analyze(&rewritten);
+        assert_eq!(reanalyzed.0, fresh.0);
+        assert_eq!(reanalyzed.1, fresh.1);
+        assert_eq!(reanalyzed.2, fresh.2);
+        assert_ne!(
+            reanalyzed.0.plan().functions[1],
+            liveness.plan().functions[1]
+        );
+        assert!(Arc::ptr_eq(
+            &reanalyzed.0.plan().functions[0],
+            &liveness.plan().functions[0]
+        ));
+        assert!(Arc::ptr_eq(
+            &reanalyzed.2.plan().functions[0],
+            &legality.plan().functions[0]
+        ));
+
+        // Facts that do not describe `previous` are refused, not reused.
+        assert!(matches!(
+            reanalyze_rewritten_functions(
+                &rewritten,
+                &liveness,
+                &ranges,
+                &legality,
+                &original,
+                &availability,
+                &environment,
+            ),
+            Err(RecoveryReanalysisError::Legality(
+                AllocationLegalityError::RootMismatch
+            ))
+        ));
     }
 }
 

@@ -1,7 +1,10 @@
 //! Ground arithmetic that can be checked once the selected scalar values exist.
 
 mod calls;
-pub use calls::{array_extent_literal_conditions, layout_call_conditions};
+pub use calls::{
+    array_extent_literal_conditions, array_extent_literal_conditions_in, layout_call_conditions,
+    layout_call_conditions_in,
+};
 mod guards;
 mod storage;
 
@@ -12,6 +15,8 @@ use semantic_vocabulary::{
     ValueId,
 };
 use std::cell::OnceCell;
+
+use crate::descriptors::row_source::DescriptorRowSource;
 use terminal_psi::{
     Block, Operation, OperationKind, ProofDeclarationId, ScalarConditionSubject, ScalarConditions,
     ScalarRangeCondition, ScalarRangeObservation, ScalarRangeRequirement, TargetMachineCallable,
@@ -58,6 +63,26 @@ pub fn target_scalar_ranges(
     machine: &TerminalMachine,
     types: &dyn ValueTypes,
 ) -> Result<Vec<TargetScalarRange>, &'static str> {
+    target_scalar_ranges_from(&DescriptorRowSource::new(module), machine, types)
+}
+
+/// `target_scalar_ranges`, reading the machine's borrowed-storage rows from
+/// the module's shared analyses, so ranging every machine adapts each body
+/// once.
+pub fn target_scalar_ranges_in(
+    analyses: &crate::ModuleAnalyses<'_>,
+    machine: &TerminalMachine,
+    types: &dyn ValueTypes,
+) -> Result<Vec<TargetScalarRange>, &'static str> {
+    target_scalar_ranges_from(&DescriptorRowSource::of(analyses), machine, types)
+}
+
+fn target_scalar_ranges_from(
+    rows: &DescriptorRowSource<'_, '_>,
+    machine: &TerminalMachine,
+    types: &dyn ValueTypes,
+) -> Result<Vec<TargetScalarRange>, &'static str> {
+    let module = rows.module();
     if module.scalars.scalar_applications.declarations().is_empty() {
         return Ok(Vec::new());
     }
@@ -113,6 +138,7 @@ pub fn target_scalar_ranges(
             };
             let mut ground = GroundRange {
                 module,
+                rows,
                 index: &index,
                 storage: &storage,
                 dominators: &dominators,
@@ -160,17 +186,20 @@ pub fn target_scalar_ranges(
 
 type Point = (BlockId, usize);
 
-struct GroundRange<'a, 'machine> {
+struct GroundRange<'a, 'machine, 'm> {
     module: &'machine TerminalModule,
+    /// Where the machine's borrowed-storage rows come from when a read
+    /// needs them.
+    rows: &'a DescriptorRowSource<'a, 'm>,
     index: &'a MachineScalarIndex<'machine>,
-    storage: &'a OnceCell<Option<storage::StorageValues>>,
+    storage: &'a OnceCell<Option<storage::StorageValues<'a>>>,
     dominators: &'a OnceCell<Option<crate::control_graph::DominatorTree>>,
     active: Vec<ValueId>,
     steps: Vec<Step>,
     remaining: usize,
 }
 
-impl<'machine> GroundRange<'_, 'machine> {
+impl<'machine> GroundRange<'_, 'machine, '_> {
     fn visit(&mut self, depth: usize) -> Option<()> {
         self.remaining = self.remaining.checked_sub(1)?;
         (depth < 64).then_some(())
@@ -331,7 +360,7 @@ impl<'machine> GroundRange<'_, 'machine> {
                 let machine = self.index.machine();
                 let storage = self
                     .storage
-                    .get_or_init(|| storage::StorageValues::new(self.module, machine))
+                    .get_or_init(|| storage::StorageValues::new(self.rows, machine))
                     .as_ref()?;
                 let at = (block.id, u32::try_from(position).ok()?);
                 let sources = storage.sources(

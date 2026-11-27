@@ -16,15 +16,15 @@ use register_model::{
 };
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
-    SelectedCallTarget, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedLocalStorageSlot,
-    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
-    terminator_instruction, terminator_instruction_mut, terminator_successors,
-    terminator_successors_mut,
+    SelectedBlocks, SelectedCallTarget, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedLocalStorageSlot, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
+    SelectedOperand, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
+    VirtualRegisterId, VirtualRegisterOrigin, terminator_instruction, terminator_instruction_mut,
+    terminator_successors, terminator_successors_mut,
 };
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap};
 use target_vocabulary::CallSiteOwner;
 
 const MAX_INLINED_CALLEE_INSTRUCTIONS: usize = 16384;
@@ -48,7 +48,10 @@ pub(crate) fn inline_and_simplify(
     let copy_class = validate_copy_row(copy_row, keys.copy_i64)?;
     validate_jump_row(jump_row, keys.jump)?;
 
-    let (order, in_cycle) = compute_bottom_up_order(functions);
+    // Inlining rewrites caller bodies but never a function's `machine`, so one
+    // index built here answers every call site's callee lookup.
+    let machines = MachineIndex::new(functions);
+    let (order, in_cycle) = compute_bottom_up_order(functions, &machines);
 
     for caller_idx in order {
         let mut next_call_site: u32 = 0;
@@ -62,8 +65,7 @@ pub(crate) fn inline_and_simplify(
                 else {
                     continue;
                 };
-                let Some(callee_idx) = functions.iter().position(|f| f.machine == callee_machine)
-                else {
+                let Some(callee_idx) = machines.function(callee_machine) else {
                     continue;
                 };
                 if callee_idx == caller_idx || in_cycle[callee_idx] {
@@ -143,21 +145,38 @@ fn borrow_caller_and_callee(
     }
 }
 
+/// Finds a function's position by its `MachineId` with a binary search over
+/// `(machine, position)` pairs sorted once. When two functions share a machine,
+/// the lookup returns the first position, as a linear scan would.
+struct MachineIndex(Vec<(MachineId, usize)>);
+
+impl MachineIndex {
+    fn new(functions: &[SelectedFunction]) -> Self {
+        let mut positions: Vec<(MachineId, usize)> = functions
+            .iter()
+            .enumerate()
+            .map(|(idx, function)| (function.machine, idx))
+            .collect();
+        positions.sort_unstable();
+        Self(positions)
+    }
+
+    fn function(&self, machine: MachineId) -> Option<usize> {
+        let first = self.0.partition_point(|&(entry, _)| entry < machine);
+        self.0
+            .get(first)
+            .filter(|&&(entry, _)| entry == machine)
+            .map(|&(_, idx)| idx)
+    }
+}
+
 /// Computes a bottom-up topological order of SCCs (callees before callers) via
 /// Tarjan's algorithm and marks every function belonging to a cycle or self-loop.
-fn compute_bottom_up_order(functions: &[SelectedFunction]) -> (Vec<usize>, Vec<bool>) {
-    let mut index_by_machine: Vec<(MachineId, usize)> = functions
-        .iter()
-        .enumerate()
-        .map(|(idx, function)| (function.machine, idx))
-        .collect();
-    index_by_machine.sort_by_key(|&(machine, _)| machine);
-    let lookup_machine = |machine: MachineId| -> Option<usize> {
-        index_by_machine
-            .binary_search_by_key(&machine, |&(entry, _)| entry)
-            .ok()
-            .map(|pos| index_by_machine[pos].1)
-    };
+fn compute_bottom_up_order(
+    functions: &[SelectedFunction],
+    machines: &MachineIndex,
+) -> (Vec<usize>, Vec<bool>) {
+    let lookup_machine = |machine: MachineId| machines.function(machine);
     let n = functions.len();
     let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
     let mut has_self_loop = vec![false; n];
@@ -1199,7 +1218,7 @@ fn fold_edge_transfer_chains(
             }
             _ => unreachable!("checked above"),
         };
-        let e_instructions = function.blocks[e_idx].instructions.clone();
+        let e_instructions = std::mem::take(&mut function.blocks[e_idx].instructions);
         let mut copies = Vec::with_capacity(bindings.len());
         let mut pending_work = Some(a_work);
         for (id, binding) in (first_id..).zip(&bindings) {
@@ -1239,24 +1258,57 @@ fn fold_edge_transfer_chains(
         let a_len = (function.blocks[a_idx].instructions.len()
             + e_instructions.len()
             + copies.len()) as u32;
-        let b_block = function.blocks[b_idx].clone();
+        let b_instructions = std::mem::take(&mut function.blocks[b_idx].instructions);
+        let b_terminator = function.blocks[b_idx].terminator.clone();
         let a_block = &mut function.blocks[a_idx];
         a_block.instructions.extend(e_instructions);
         a_block.instructions.extend(copies);
-        a_block.instructions.extend(b_block.instructions);
-        a_block.terminator = b_block.terminator;
+        a_block.instructions.extend(b_instructions);
+        a_block.terminator = b_terminator;
         for settlement in &mut function.boundary_settlements {
             if settlement.block == b_id {
                 settlement.block = a_id;
                 settlement.instruction_index += a_len;
             }
         }
-        let mut blocks: Vec<SelectedBlock> = function.blocks.iter().cloned().collect();
-        blocks.retain(|block| block.id != e_id && block.id != b_id);
-        function.blocks = blocks.into();
+        let removed: Vec<bool> = function
+            .blocks
+            .iter()
+            .map(|block| block.id == e_id || block.id == b_id)
+            .collect();
+        remove_blocks(&mut function.blocks, &removed);
     }
 }
 
+/// Drops the blocks `removed` marks and keeps the rest in order. Survivors
+/// move down in place, so contracting a block no longer clones every other
+/// block of the function into a new list.
+fn remove_blocks(blocks: &mut SelectedBlocks, removed: &[bool]) {
+    let mut rows: Vec<&mut SelectedBlock> = blocks.iter_mut().collect();
+    let mut kept = 0;
+    for (index, &gone) in removed.iter().enumerate() {
+        if gone {
+            continue;
+        }
+        if kept != index {
+            let (front, back) = rows.split_at_mut(index);
+            std::mem::swap(&mut *front[kept], &mut *back[0]);
+        }
+        kept += 1;
+    }
+    blocks.truncate(kept);
+}
+
+/// Contracts each block into its single predecessor when the jump between them
+/// carries nothing.
+///
+/// One forward scan suffices. Merging `b2` into `b1` hands `b2`'s outgoing
+/// edges to `b1` and deletes the edge `b1 -> b2`, `b2`'s only predecessor, so
+/// every other block keeps its predecessor count. A block before `b1` that did
+/// not merge cannot start to: its own terminator is unchanged, and if it jumps
+/// to `b1` then `b1`'s new terminator can only add a reason to refuse. After a
+/// merge the scan therefore re-examines `b1` against its new successor and then
+/// moves on, giving the same merges as restarting from the first block.
 fn merge_single_predecessor_blocks(function: &mut SelectedFunction) {
     if function.blocks.len() <= 1 {
         return;
@@ -1270,31 +1322,26 @@ fn merge_single_predecessor_blocks(function: &mut SelectedFunction) {
     }
 
     let mut removed = vec![false; function.blocks.len()];
-    let mut index_by_id: HashMap<SelectedBlockId, usize> = function
+    let index_by_id: HashMap<SelectedBlockId, usize> = function
         .blocks
         .iter()
         .enumerate()
         .map(|(i, b)| (b.id, i))
         .collect();
-
-    loop {
-        let mut pred_counts = vec![0usize; function.blocks.len()];
-        for (i, block) in function.blocks.iter().enumerate() {
-            if removed[i] {
-                continue;
-            }
-            for succ in terminator_successors(&block.terminator) {
-                if let Some(&dst) = index_by_id.get(&succ.block) {
-                    pred_counts[dst] += 1;
-                }
+    let mut pred_counts = vec![0usize; function.blocks.len()];
+    for block in function.blocks.iter() {
+        for succ in terminator_successors(&block.terminator) {
+            if let Some(&dst) = index_by_id.get(&succ.block) {
+                pred_counts[dst] += 1;
             }
         }
+    }
 
-        let mut merged_any = false;
-        for b1_idx in 0..function.blocks.len() {
-            if removed[b1_idx] {
-                continue;
-            }
+    for b1_idx in 0..function.blocks.len() {
+        if removed[b1_idx] {
+            continue;
+        }
+        loop {
             let (b2_idx, b1_id, b2_id) = {
                 let b1 = &function.blocks[b1_idx];
                 if matches!(
@@ -1302,14 +1349,14 @@ fn merge_single_predecessor_blocks(function: &mut SelectedFunction) {
                     SelectedBlockOrigin::EdgeTransfer { .. }
                         | SelectedBlockOrigin::CaseDispatch { .. }
                 ) {
-                    continue;
+                    break;
                 }
                 let SelectedTerminator::Jump {
                     instruction: jump_inst,
                     successor,
                 } = &b1.terminator
                 else {
-                    continue;
+                    break;
                 };
                 if !jump_inst.provenance.work.is_empty()
                     || !successor.bindings.is_empty()
@@ -1317,13 +1364,13 @@ fn merge_single_predecessor_blocks(function: &mut SelectedFunction) {
                     || !successor.work.is_empty()
                     || successor.structural_case.is_some()
                 {
-                    continue;
+                    break;
                 }
                 let Some(&b2_idx) = index_by_id.get(&successor.block) else {
-                    continue;
+                    break;
                 };
                 if b1_idx == b2_idx || removed[b2_idx] {
-                    continue;
+                    break;
                 }
                 let b2 = &function.blocks[b2_idx];
                 if b2.id == function.entry_block
@@ -1347,16 +1394,17 @@ fn merge_single_predecessor_blocks(function: &mut SelectedFunction) {
                         )
                     })
                 {
-                    continue;
+                    break;
                 }
                 (b2_idx, b1.id, b2.id)
             };
 
-            let b2_taken = function.blocks[b2_idx].clone();
+            let b2_instructions = std::mem::take(&mut function.blocks[b2_idx].instructions);
+            let b2_terminator = function.blocks[b2_idx].terminator.clone();
             let b1_orig_len = function.blocks[b1_idx].instructions.len() as u32;
             let b1_mut = &mut function.blocks[b1_idx];
-            b1_mut.instructions.extend(b2_taken.instructions);
-            b1_mut.terminator = b2_taken.terminator;
+            b1_mut.instructions.extend(b2_instructions);
+            b1_mut.terminator = b2_terminator;
 
             for settlement in &mut function.boundary_settlements {
                 if settlement.block == b2_id {
@@ -1365,60 +1413,48 @@ fn merge_single_predecessor_blocks(function: &mut SelectedFunction) {
                 }
             }
             removed[b2_idx] = true;
-            // Recompute predecessors carefully after contraction so chains collapse
-            // safely without dropping any multi-predecessor guard.
-            merged_any = true;
-            break;
-        }
-        if !merged_any {
-            break;
         }
     }
 
     if removed.iter().any(|&r| r) {
-        let kept: Vec<SelectedBlock> = function
-            .blocks
-            .iter()
-            .enumerate()
-            .filter(|&(i, _)| !removed[i])
-            .map(|(_, b)| b.clone())
-            .collect();
-        function.blocks = kept.into();
+        remove_blocks(&mut function.blocks, &removed);
     }
-    let _ = &mut index_by_id;
 }
 
 pub(crate) fn renumber_function(function: &mut SelectedFunction) {
-    let block_map: BTreeMap<SelectedBlockId, SelectedBlockId> = function
-        .blocks
-        .iter()
-        .enumerate()
-        .map(|(idx, block)| (block.id, SelectedBlockId(idx as u32)))
-        .collect();
+    let mut block_numbers = DenseRenumbering::sized(function.blocks.iter().map(|block| block.id.0));
+    for (idx, block) in function.blocks.iter().enumerate() {
+        block_numbers.assign(block.id.0, idx as u32);
+    }
+    let block_map = |old: &SelectedBlockId| SelectedBlockId(block_numbers.get(old.0));
 
-    function.entry_block = block_map[&function.entry_block];
+    function.entry_block = block_map(&function.entry_block);
 
-    let mut inst_map: HashMap<SelectedInstructionId, SelectedInstructionId> = HashMap::new();
+    let mut instruction_numbers = DenseRenumbering::sized(
+        function
+            .instructions_and_terminators()
+            .map(|instruction| instruction.id.0),
+    );
     let mut next_inst_id = 0u32;
 
     for (idx, block) in function.blocks.iter_mut().enumerate() {
         block.id = SelectedBlockId(idx as u32);
         for inst in &mut block.instructions {
-            let new_id = SelectedInstructionId(next_inst_id);
+            instruction_numbers.assign(inst.id.0, next_inst_id);
+            inst.id = SelectedInstructionId(next_inst_id);
             next_inst_id += 1;
-            inst_map.insert(inst.id, new_id);
-            inst.id = new_id;
         }
         let term_inst = terminator_instruction_mut(&mut block.terminator);
-        let new_term_id = SelectedInstructionId(next_inst_id);
+        instruction_numbers.assign(term_inst.id.0, next_inst_id);
+        term_inst.id = SelectedInstructionId(next_inst_id);
         next_inst_id += 1;
-        inst_map.insert(term_inst.id, new_term_id);
-        term_inst.id = new_term_id;
 
         for succ in terminator_successors_mut(&mut block.terminator) {
-            succ.block = block_map[&succ.block];
+            succ.block = block_map(&succ.block);
         }
     }
+    let inst_map =
+        |old: &SelectedInstructionId| SelectedInstructionId(instruction_numbers.get(old.0));
 
     for reg in &mut function.virtual_registers {
         match &mut reg.origin {
@@ -1428,10 +1464,10 @@ pub(crate) fn renumber_function(function: &mut SelectedFunction) {
             | VirtualRegisterOrigin::SpillAddress { instruction, .. }
             | VirtualRegisterOrigin::AbiTransport { instruction, .. }
             | VirtualRegisterOrigin::InstructionResult { instruction, .. } => {
-                *instruction = inst_map[instruction];
+                *instruction = inst_map(instruction);
             }
             VirtualRegisterOrigin::BlockParameter { block, .. } => {
-                *block = block_map[block];
+                *block = block_map(block);
             }
             VirtualRegisterOrigin::EntryParameter { .. }
             | VirtualRegisterOrigin::StructuralParameter { .. } => {}
@@ -1439,19 +1475,43 @@ pub(crate) fn renumber_function(function: &mut SelectedFunction) {
     }
 
     for call in &mut function.calls {
-        call.instruction = inst_map[&call.instruction];
+        call.instruction = inst_map(&call.instruction);
     }
     for foreign in &mut function.normalized_foreign_calls {
-        foreign.instruction = inst_map[&foreign.instruction];
+        foreign.instruction = inst_map(&foreign.instruction);
     }
     for access in &mut function.memory_accesses {
-        access.instruction = inst_map[&access.instruction];
+        access.instruction = inst_map(&access.instruction);
     }
     for settlement in &mut function.boundary_settlements {
-        settlement.block = block_map[&settlement.block];
+        settlement.block = block_map(&settlement.block);
     }
 
     debug_assert!(function.ids_are_positions());
+}
+
+/// New numbers for old block or instruction ids, indexed by the old id. A
+/// reference to an id the function no longer defines is a broken function, so
+/// `get` panics on it as the map lookup it replaces did.
+struct DenseRenumbering(Vec<Option<u32>>);
+
+impl DenseRenumbering {
+    fn sized(old_ids: impl Iterator<Item = u32>) -> Self {
+        let length = old_ids.max().map_or(0, |largest| largest as usize + 1);
+        Self(vec![None; length])
+    }
+
+    fn assign(&mut self, old: u32, new: u32) {
+        self.0[old as usize] = Some(new);
+    }
+
+    fn get(&self, old: u32) -> u32 {
+        self.0
+            .get(old as usize)
+            .copied()
+            .flatten()
+            .expect("renumbering reaches an id the function defines")
+    }
 }
 
 #[cfg(test)]

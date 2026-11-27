@@ -836,32 +836,258 @@ const STORED: &str = include_str!(concat!(
     "/../../../../../../samples/cli/facts/quotient_closed_literal/parameter/main.omg"
 ));
 
-#[test]
-fn a_law_over_classes_of_stored_data_is_refused_by_name() {
-    // `related_representatives_have_one_class` proves this law of a
-    // quotient of mathematical data. Over data that stores an `i32` the
-    // mathematical signature has no quotient to state it with, so it is
-    // refused as that, not proved and not dropped.
+/// The carrier, relation and quotient of `STORED`, and a law `one_class`
+/// that `requires` and `ensures` as given.
+fn stored(requires: &str, ensures: &str) -> String {
     let start = STORED
         .find("data Representative")
         .expect("the sample's carrier");
     let end = STORED
         .find("machine representative(")
         .expect("the sample's operation");
-    let source = format!(
+    format!(
         "use {{omega}}/language/core/relation.omg;\n\
          use {{omega}}/language/core/foundation.omg as proof;\n{}\n\
          machine one_class(a: Representative, b: Representative)\n\
-         requires equivalent(a, b)\n\
-         ensures |proof|::Identity::<EquivalenceClass>(a as EquivalenceClass, b as EquivalenceClass)\n\
-         {{\n}}\n",
+         {requires}ensures {ensures}\n{{\n}}\n",
         &STORED[start..end]
-    );
-    let verdicts = judged(&source);
+    )
+}
+
+const ONE_CLASS: &str =
+    "|proof|::Identity::<EquivalenceClass>(a as EquivalenceClass, b as EquivalenceClass)";
+
+/// The unproved obligations of a rejected closure, by their account.
+fn rejected(verdicts: &[RouteVerdict]) -> Vec<String> {
+    verdicts
+        .iter()
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::Rejected { unproved, .. } => Some(unproved),
+            _ => None,
+        })
+        .flatten()
+        .map(|obligation| format!("{}: {}", obligation.statement, obligation.detail))
+        .collect()
+}
+
+#[test]
+fn related_stored_representatives_have_one_class() {
+    // `related_representatives_have_one_class` for a quotient of data that
+    // stores an `i32`: its relation is the Identity of the two records, and
+    // the quotient's soundness at them gives the Identity of the classes.
+    let verdicts = judged(&stored("requires equivalent(a, b)\n", ONE_CLASS));
     assert!(
-        matches!(refusals(&verdicts).as_slice(), [detail]
-            if detail.contains("quotient of data that has storage")),
-        "{:?}",
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_))),
+        "{:?} {:?}",
+        refusals(&verdicts),
+        rejected(&verdicts)
+    );
+}
+
+#[test]
+fn unrelated_stored_representatives_are_not_given_one_class() {
+    // With nothing relating them, two records have two classes as far as
+    // the checker knows; so too when only `a` is related to itself.
+    for requires in ["", "requires equivalent(a, a)\n"] {
+        let verdicts = judged(&stored(requires, ONE_CLASS));
+        let rejected = rejected(&verdicts);
+        assert!(
+            matches!(rejected.as_slice(), [statement] if statement.contains("one_class")),
+            "{requires:?}: {rejected:?} {:?}",
+            refusals(&verdicts)
+        );
+    }
+}
+
+/// A quotient of records that store two numbers, by equality of the first
+/// alone, so two records with one class may differ.
+const TAGGED: &str = r"use {omega}/language/core/relation.omg;
+use {omega}/language/core/foundation.omg as proof;
+
+data Key [copy] { value: i32; }
+data Tagged [copy] { key: Key; tag: i32; }
+
+proposition same_value(a: Tagged, b: Tagged) = |proof|::Identity::<Key>(a.key, b.key);
+
+SameValue satisfies |relation|::Equivalence<Tagged, same_value> {
+    machine reflexive(value: Tagged) ensures same_value(value, value) { }
+    machine symmetric(left: Tagged, right: Tagged) requires same_value(left, right) ensures same_value(right, left) { }
+    machine transitive(left: Tagged, middle: Tagged, right: Tagged) requires same_value(left, middle), same_value(middle, right) ensures same_value(left, right) { }
+}
+
+data Value [copy] = Tagged % same_value
+requires same_value satisfies
+    |relation|::Equivalence<Tagged, same_value>
+    as SameValue;
+";
+
+fn tagged(requires: &str) -> String {
+    format!(
+        "{TAGGED}\nmachine one_class(a: Tagged, b: Tagged)\n{requires}\
+         ensures |proof|::Identity::<Value>(a as Value, b as Value)\n{{\n}}\n"
+    )
+}
+
+#[test]
+fn stored_representatives_related_but_unequal_have_one_class() {
+    // `a` and `b` may differ in `tag`: only the quotient's soundness at
+    // them, from `same_value(a, b)`, makes their classes one.
+    let verdicts = judged(&tagged("requires same_value(a, b)\n"));
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_))),
+        "{:?} {:?}",
+        refusals(&verdicts),
+        rejected(&verdicts)
+    );
+    // The twin relates `a` to itself only.
+    let verdicts = judged(&tagged("requires same_value(a, a)\n"));
+    let rejected = rejected(&verdicts);
+    assert!(
+        matches!(rejected.as_slice(), [statement] if statement.contains("one_class")),
+        "{rejected:?} {:?}",
         refusals(&verdicts)
+    );
+}
+
+/// A quotient declared once for every element type, as the owner ruling
+/// writes one (OWNER_QUESTIONS.md, "Generic quotients name the applied
+/// relation and its proof"): lists of `T` with one class per length.
+/// `quotient` is the declaration, `law` the program's claim about it.
+fn counted(quotient: &str, law: &str) -> String {
+    format!(
+        r"use {{omega}}/language/core/relation.omg;
+use {{omega}}/language/core/foundation.omg as proof;
+
+data Count {{
+    case Zero;
+    case Next(previous: Count);
+}}
+
+data Tagged<T> {{
+    case Nil;
+    case More(item: T, rest: Tagged<T>);
+}}
+
+machine count<T>(t: Tagged<T>) -> Count
+terminates by t
+{{
+    transition t {{
+        Tagged::Nil -> Count::Zero,
+        Tagged::More {{ item, rest }} -> Count::Next {{ previous: count::<T>(rest) }}
+    }}
+}}
+
+proposition same_count<T>(a: Tagged<T>, b: Tagged<T>) =
+    |proof|::Identity::<Count>(count::<T>(a), count::<T>(b));
+
+SameCount<T> satisfies |relation|::MereEquivalence<Tagged<T>, same_count<T> > {{
+    machine reflexive(value: Tagged<T>) ensures same_count::<T>(value, value) {{ }}
+    machine symmetric(left: Tagged<T>, right: Tagged<T>) requires same_count::<T>(left, right) ensures same_count::<T>(right, left) {{ }}
+    machine transitive(left: Tagged<T>, middle: Tagged<T>, right: Tagged<T>) requires same_count::<T>(left, middle), same_count::<T>(middle, right) ensures same_count::<T>(left, right) {{ }}
+    machine proofs_agree(a: Tagged<T>, b: Tagged<T>) ensures |relation|::IsMere(same_count::<T>(a, b)) {{ }}
+}}
+
+{quotient}
+
+{law}
+"
+    )
+}
+
+const COUNTED: &str = "data Counted<T> = Tagged<T> % same_count<T>
+requires same_count<T> satisfies |relation|::MereEquivalence<Tagged<T>, same_count<T>>
+    as SameCount<T>;";
+
+const SAME_COUNT_ONE_CLASS: &str = "machine one_class_per_count(a: Tagged<u64>, b: Tagged<u64>)
+requires same_count::<u64>(a, b)
+ensures |proof|::Identity::<Counted<u64> >(a as Counted<u64>, b as Counted<u64>)
+{
+}";
+
+#[test]
+fn related_representatives_have_one_class_in_an_application_of_a_generic_quotient() {
+    // `Counted<u64>` is the quotient of `Tagged<u64>` by `same_count` at
+    // `u64`, whose equivalence is `SameCount` at `u64`: four rows generated
+    // from `SameCount`'s, each judged, and the class law beside them.
+    let verdicts = judged(&counted(COUNTED, SAME_COUNT_ONE_CLASS));
+    let judgment = signature(&verdicts);
+    for machine in [
+        "one_class_per_count",
+        "reflexive",
+        "symmetric",
+        "transitive",
+    ] {
+        assert!(
+            judgment.laws.iter().any(|law| law.machine.contains(machine)
+                && matches!(law.decision, MathematicalCoreDecision::Judged(_))),
+            "{machine}: {judgment:?}"
+        );
+    }
+}
+
+#[test]
+fn unrelated_representatives_have_no_one_class_in_an_application_of_a_generic_quotient() {
+    let law = SAME_COUNT_ONE_CLASS.replace("requires same_count::<u64>(a, b)\n", "");
+    assert_ne!(law, SAME_COUNT_ONE_CLASS);
+    let verdicts = judged(&counted(COUNTED, &law));
+    assert_eq!(unproved(&verdicts).machine, "one_class_per_count");
+}
+
+/// The refusals of `Counted<u64>` declared as `quotient`.
+fn counted_refusals(quotient: &str) -> Vec<String> {
+    let verdicts = judged(&counted(quotient, SAME_COUNT_ONE_CLASS));
+    refusals(&verdicts).into_iter().map(str::to_owned).collect()
+}
+
+#[test]
+fn a_generic_quotient_whose_conformance_does_not_close_is_refused() {
+    for conformance in ["as SameCount;", "as SameCount<T, T>;"] {
+        let refused = counted_refusals(&COUNTED.replace("as SameCount<T>;", conformance));
+        assert!(
+            refused
+                .iter()
+                .any(|detail| detail.contains("does not close at its arguments")),
+            "{conformance}: {refused:?}"
+        );
+    }
+}
+
+#[test]
+fn a_generic_quotient_whose_conformance_is_for_another_carrier_is_refused() {
+    let refused = counted_refusals(&COUNTED.replace("as SameCount<T>;", "as SameCount<u8>;"));
+    assert!(
+        refused
+            .iter()
+            .any(|detail| detail.contains("proved for a different carrier")),
+        "{refused:?}"
+    );
+}
+
+#[test]
+fn a_generic_quotient_whose_conformance_is_for_another_relation_is_refused() {
+    let other = "proposition any_count<T>(a: Tagged<T>, b: Tagged<T>) =
+    |proof|::Identity::<Count>(Count::Zero, Count::Zero);
+
+AnyCount<T> satisfies |relation|::MereEquivalence<Tagged<T>, any_count<T> > {
+    machine reflexive(value: Tagged<T>) ensures any_count::<T>(value, value) { }
+    machine symmetric(left: Tagged<T>, right: Tagged<T>) requires any_count::<T>(left, right) ensures any_count::<T>(right, left) { }
+    machine transitive(left: Tagged<T>, middle: Tagged<T>, right: Tagged<T>) requires any_count::<T>(left, middle), any_count::<T>(middle, right) ensures any_count::<T>(left, right) { }
+    machine proofs_agree(a: Tagged<T>, b: Tagged<T>) ensures |relation|::IsMere(any_count::<T>(a, b)) { }
+}
+";
+    let quotient = format!(
+        "{other}\n{}",
+        COUNTED.replace("as SameCount<T>;", "as AnyCount<T>;")
+    );
+    let refused = counted_refusals(&quotient);
+    assert!(
+        refused
+            .iter()
+            .any(|detail| detail.contains("proved for a different relation")),
+        "{refused:?}"
     );
 }

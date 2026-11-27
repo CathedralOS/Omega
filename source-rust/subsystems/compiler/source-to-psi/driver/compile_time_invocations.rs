@@ -26,6 +26,8 @@ pub(crate) use constants::validate_constant_evaluations;
 
 mod calls;
 mod typed_invocation;
-pub(crate) use calls::{InvocationTarget, PreparedBuildMachineEntry, PreparedBuildMachineProgram};
+pub(crate) use calls::{
+    InvocationTarget, PlannedCall, PreparedBuildMachineEntry, PreparedBuildMachineProgram,
+};
 
 pub(crate) use calls::invocation_error;

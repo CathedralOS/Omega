@@ -364,6 +364,16 @@ pub enum OperationKind {    ActivateTaskRegister {
         length: ValueId,
         obligation: ObligationId,
     },
+    /// A reference to the elements of a view as one fixed array. `extent` is
+    /// the result type's array extent, and `obligation` proves the view's
+    /// whole `length` equal to it. The reference borrows the view's backing with the view's
+    /// access; nothing is copied.
+    ElementViewFixedArray {
+        source: StructuralArgument,
+        length: ValueId,
+        extent: u64,
+        obligation: ObligationId,
+    },
     ElementViewWrite {
         destination: StructuralArgument,
         path: Vec<StructuralPathSegment>,

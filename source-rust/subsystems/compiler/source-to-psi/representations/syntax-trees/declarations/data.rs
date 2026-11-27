@@ -32,6 +32,8 @@ pub struct DataDefinition {
 pub struct QuotientDefinition {
     pub carrier: crate::types::TypeReferenceHandle,
     pub relation: HandleSpan<Identifier>,
+    /// `same_length<T>` after `%`: the relation's generic arguments.
+    pub relation_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub equivalence: Option<QuotientEquivalenceSelection>,
 }
 
@@ -44,9 +46,12 @@ pub struct QuotientDefinition {
 )]
 pub struct QuotientEquivalenceSelection {
     pub relation: HandleSpan<Identifier>,
+    pub relation_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub trait_name: Identifier,
     pub trait_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub conformance_name: Identifier,
+    /// `SameLength<T>` after `as`: the conformance's generic arguments.
+    pub conformance_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
 }
 
 #[derive(

@@ -24,8 +24,7 @@ use semantic_vocabulary::{
 
 use crate::codec_bytes::{domain_identity, length, list, option, push_encoded};
 use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlanIdentity,
-    FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSplitRequirementPlanIdentity,
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity,
     encode_fixed_constraint_site_identity,
 };
 
@@ -48,7 +47,7 @@ pub mod spill_choice {
 pub mod fixed_view_copy {
     pub use super::{
         FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
-        FixedViewCopySourceEvidence, fixed_view_copy_identity,
+        fixed_view_copy_identity,
     };
 }
 
@@ -435,15 +434,6 @@ pub enum PressureRematerializationPolicy {
     SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FixedViewCopySourceEvidence {
-    // Recovery consumes these three admitted plans together. There is no
-    // alternate source contract based only on historical legality transitions.
-    pub fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
-    pub split_requirements: FixedPrecoloredSplitRequirementPlanIdentity,
-    pub segment_homes: FixedPrecoloredSegmentHomePlanIdentity,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedViewCopyPlan {
     pub source_selected: SelectedInstructionPlanIdentity,
@@ -451,7 +441,6 @@ pub struct FixedViewCopyPlan {
     pub source_legality: AllocationLegalityIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
-    pub source_evidence: FixedViewCopySourceEvidence,
     pub policy: FixedViewCopyPolicy,
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
@@ -490,9 +479,6 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
     bytes.extend_from_slice(&plan.source_legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    bytes.extend_from_slice(&plan.source_evidence.fixed_intervals.bytes());
-    bytes.extend_from_slice(&plan.source_evidence.split_requirements.bytes());
-    bytes.extend_from_slice(&plan.source_evidence.segment_homes.bytes());
     bytes.push(match plan.policy {
         FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => 0,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => 1,
@@ -529,7 +515,7 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
     }
     bytes.extend_from_slice(&selected_instruction_plan_identity(&plan.transformed).bytes());
     FixedViewCopyIdentity::from_bytes(crate::codec_bytes::domain_identity(
-        b"omega.terminal-fixed-view-copies.v10\0",
+        b"omega.terminal-fixed-view-copies.v11\0",
         &bytes,
     ))
 }
@@ -538,11 +524,11 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
 mod tests {
     use super::{
         FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
-        FixedViewCopySourceEvidence, FunctionRecoveryClassification, NoAdmittedRecoveryReason,
-        PressureRecoveryClassification, RecoveryClassification, RecoveryClassificationPlan,
-        RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoiceIdentity,
-        SpillChoicePlan, SpillChoicePolicy, fixed_view_copy_identity,
-        recovery_classification_identity, spill_choice_identity,
+        FunctionRecoveryClassification, NoAdmittedRecoveryReason, PressureRecoveryClassification,
+        RecoveryClassification, RecoveryClassificationPlan, RecoveryClassificationPolicy,
+        RecoveryFutureUse, RecoveryVictimRole, SpillChoiceIdentity, SpillChoicePlan,
+        SpillChoicePolicy, fixed_view_copy_identity, recovery_classification_identity,
+        spill_choice_identity,
     };
     use crate::AllocationLegalityIdentity;
     use ::selected_instructions::{
@@ -776,13 +762,6 @@ mod tests {
             source_legality: AllocationLegalityIdentity::from_bytes([3; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
             allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([5; 32]),
-            source_evidence: FixedViewCopySourceEvidence {
-                fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([6; 32]),
-                split_requirements: crate::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes(
-                    [7; 32],
-                ),
-                segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([8; 32]),
-            },
             policy: FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
             budget: OptimizationWorkBudget::new(10, 10, 10, 10, 10).unwrap(),
             usage: OptimizationWorkUsage {
@@ -865,18 +844,6 @@ mod tests {
             |plan| {
                 plan.allocator_availability =
                     crate::AllocatorAvailabilityIdentity::from_bytes([16; 32])
-            },
-            |plan| {
-                plan.source_evidence.fixed_intervals =
-                    crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([17; 32])
-            },
-            |plan| {
-                plan.source_evidence.split_requirements =
-                    crate::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes([18; 32])
-            },
-            |plan| {
-                plan.source_evidence.segment_homes =
-                    crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([19; 32])
             },
             |plan| plan.budget = OptimizationWorkBudget::new(11, 10, 10, 10, 10).unwrap(),
             |plan| plan.usage.commits += 1,

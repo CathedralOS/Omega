@@ -100,6 +100,9 @@ pub(super) fn settle_compiler_builtins<'request>(
         return Err(refusals);
     }
     admit_x86_fma_features(request, &resolved)?;
+    // Every placed scalar access reads the same access-origin rows of the
+    // whole module, so they are built on the first such access only.
+    let access_origin_rows = std::cell::OnceCell::new();
     let mut admitted = Vec::with_capacity(resolved.len());
     let mut mechanisms = Vec::with_capacity(resolved.len());
     for ResolvedBuiltin {
@@ -256,7 +259,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                     &demand,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                require_access_backing_origins(input, boundary.id)
+                require_access_backing_origins(input, &access_origin_rows, boundary.id)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let compiler_operation = access_operation(operation);
                 if demand.placement_commitment != placement_commitment
@@ -629,8 +632,13 @@ fn primitive_access_carrier(scalar: ClosedScalarType) -> Result<(String, u64), S
     Ok((format!("named(name({name}))"), bits))
 }
 
+/// `access_origin_rows` holds the module's access-origin rows once a
+/// placed access has built them, or `None` when any row failed.
 fn require_access_backing_origins(
     input: &AdmissionSource,
+    access_origin_rows: &std::cell::OnceCell<
+        Option<Vec<terminal_semantics::descriptor_results::DescriptorMachine>>,
+    >,
     boundary: semantic_vocabulary::BoundaryMachineId,
 ) -> Result<(), String> {
     use std::collections::BTreeSet;
@@ -641,11 +649,15 @@ fn require_access_backing_origins(
         .iter()
         .map(|function| function.machine)
         .collect::<BTreeSet<_>>();
-    let graph = terminal_semantics::descriptor_results::terminal_access_origin_graph(module, &[])
+    let graph = access_origin_rows
+        .get_or_init(|| {
+            terminal_semantics::descriptor_results::terminal_access_origin_graph(module, &[])
+        })
+        .as_deref()
         .ok_or_else(|| "placed RAM origin graph is incomplete".to_owned())?;
     let mut origins = terminal_semantics::AccessRamOriginAnalysis::new(
         module,
-        &graph,
+        graph,
         &reachable,
         input.plan().entry,
     )

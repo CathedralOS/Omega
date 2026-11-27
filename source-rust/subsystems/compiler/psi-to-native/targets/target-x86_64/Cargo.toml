@@ -7,7 +7,6 @@ version.workspace = true
 [dependencies]
 optimization-selections = { path = "../../../foundation/optimization-selections" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-normalized-foreign-call-plan = { path = "../../representations/selected-instructions/foreign-calls" }
 layout-plans = { path = "../../../psi/layouts/geometry" }
 calling-conventions = { path = "../calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }

@@ -57,8 +57,11 @@ impl<'a> AuthorityGraph<'a> {
         self.calls.dynamic_callees(interface, slot, finite_family)
     }
 
+    /// `analyses` are the admitted program's shared analyses, or `None` when
+    /// they could not be built.
     pub(crate) fn new(
         input: &'a crate::AdmissionSource<'a>,
+        analyses: Option<&'a terminal_semantics::ModuleAnalyses<'_>>,
         target_profile: target::TargetProfile,
     ) -> Result<Self, String> {
         let plan = input.plan();
@@ -80,7 +83,8 @@ impl<'a> AuthorityGraph<'a> {
         let bridge = input
             .selected_program_entry_call()
             .map(|entry| (entry.boundary(), entry.entry()));
-        let calls = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(input.module(), bridge)?;
+        let calls =
+            crate::adapters::admission_call_graph(input.module(), analyses, bridge, Vec::new())?;
         Ok(Self {
             input,
             functions,

@@ -8,7 +8,6 @@ version.workspace = true
 name = "image_macho"
 
 [dependencies]
-machine-code = { path = "../../../representations/machine-code" }
 wire = { path = "../../../../../../foundation/wire" }
 arena = { path = "../../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }

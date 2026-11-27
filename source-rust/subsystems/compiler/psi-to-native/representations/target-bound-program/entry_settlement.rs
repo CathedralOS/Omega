@@ -523,7 +523,6 @@ mod model {
         CallingPlanPairingDrift,
         SourceSignatureSubstitution,
         SourceMachineSubstitution,
-        CanonicalArtifactReplay(String),
         TerminalPsiSubstitution,
         PhysicalEntrySubstitution,
         TerminalEntrySubstitution,
@@ -860,10 +859,9 @@ pub fn validate_native_program_entry_settlement(
     {
         return Err(NativeProgramEntrySettlementError::SourceMachineSubstitution);
     }
-    let psi = terminal_codec::terminal_psi_identity(module).map_err(|error| {
-        NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
-    })?;
-    if psi != checked_entry.terminal_psi_identity()
+    // The closed module seals its identity when the artifact is built, so
+    // compare that seal instead of hashing the module again.
+    if artifact.view().identity() != checked_entry.terminal_psi_identity()
         || artifact.manifest().semantic() != checked_entry.terminal_psi_identity()
     {
         return Err(NativeProgramEntrySettlementError::TerminalPsiSubstitution);

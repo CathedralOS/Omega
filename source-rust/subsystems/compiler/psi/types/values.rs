@@ -304,7 +304,8 @@ pub(crate) mod places {
                     *source = map(*source, StructuralAccess::MutableBorrow);
                 }
                 Self::ByteSequenceSubslice { source, .. }
-                | Self::ElementViewSubslice { source, .. } => {
+                | Self::ElementViewSubslice { source, .. }
+                | Self::ElementViewFixedArray { source, .. } => {
                     source.place = map(source.place, source.access);
                 }
                 Self::PrimitiveScalarRead { source, .. }
@@ -511,7 +512,8 @@ pub(crate) mod places {
                 Self::ElementViewLength { source }
                 | Self::ByteSequenceLength { source }
                 | Self::ByteSequenceSubslice { source, .. }
-                | Self::ElementViewSubslice { source, .. } => {
+                | Self::ElementViewSubslice { source, .. }
+                | Self::ElementViewFixedArray { source, .. } => {
                     push(argument_projection(source).into(), Some(Read));
                 }
                 Self::EstablishElementView {
@@ -857,7 +859,8 @@ pub(crate) mod places {
                 | Self::ElementViewRead { source, .. }
                 | Self::ByteSequenceLength { source }
                 | Self::ByteSequenceSubslice { source, .. }
-                | Self::ElementViewSubslice { source, .. } => {
+                | Self::ElementViewSubslice { source, .. }
+                | Self::ElementViewFixedArray { source, .. } => {
                     paths.push(&mut source.path);
                 }
                 Self::MergeActivationClaim { lower, upper, .. }

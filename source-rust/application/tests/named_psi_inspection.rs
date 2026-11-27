@@ -66,17 +66,36 @@ machine require_nonempty(bytes: @[u8]) {
 }
 "#).unwrap();
 
-    let file = project.path().join("status.psi");
-    let emitted = omega(project.path())
-        .arg("--emit-psi")
-        .arg(&file)
-        .args(["--target", "linux_x86_64", "build.omg"])
-        .output()
-        .unwrap();
+    let destination = TemporaryDirectory::create("saved-process-output", false).unwrap();
+    let file = destination.path().join("status.psi");
+    let emit = |quota: Option<usize>| {
+        let mut command = omega(project.path());
+        command.arg("--emit-psi").arg(&file);
+        if let Some(bytes) = quota {
+            command.arg("--max-psi-output-bytes").arg(bytes.to_string());
+        }
+        command
+            .args(["--target", "linux_x86_64", "build.omg"])
+            .output()
+            .unwrap()
+    };
+    let emitted = emit(None);
     assert!(emitted.status.success(), "{emitted:?}");
     let bytes = std::fs::read(&file).unwrap();
     let artifact = CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
     assert_eq!(artifact.to_bytes(), bytes);
+
+    std::fs::write(&file, b"previous artifact").unwrap();
+    let refused = emit(Some(bytes.len() - 1));
+    assert!(!refused.status.success());
+    assert!(
+        String::from_utf8_lossy(&refused.stderr).contains("byte output quota"),
+        "{refused:?}"
+    );
+    assert_eq!(std::fs::read(&file).unwrap(), b"previous artifact");
+    let exact = emit(Some(bytes.len()));
+    assert!(exact.status.success(), "{exact:?}");
+    assert_eq!(std::fs::read(&file).unwrap(), bytes);
 }
 
 #[test]
@@ -371,35 +390,59 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
             .unwrap_err(),
         "source declaration custody belongs to another program or invocation"
     );
-    let command = |args: &[&str]| {
+    let command = |args: &[&str], limit: usize| {
         omega(consumer.path())
             .env("OMEGA_LIBRARY_ROOT", consumer.path().join("absent-library"))
             .args(args)
             .arg(&program)
+            .arg("--max-psi-input-bytes")
+            .arg(limit.to_string())
             .output()
             .unwrap()
     };
-    let inspected = command(&["psi", "inspect", "--artifact"]);
+    let length = bytes.len();
+    let short = length - 1;
+    for args in [
+        vec!["psi", "inspect", "--artifact"],
+        vec!["run", "--engine", "psi", "--trusted-artifact", &manifest],
+        vec!["run", "--engine", "native", "--trusted-artifact", &manifest],
+        vec!["--trusted-artifact", &manifest],
+    ] {
+        let refused = command(&args, short);
+        assert!(!refused.status.success());
+        assert!(
+            String::from_utf8_lossy(&refused.stderr)
+                .contains(&format!("host input limit of {short} bytes")),
+            "{refused:?}"
+        );
+    }
+    let inspected = command(&["psi", "inspect", "--artifact"], length);
     assert!(inspected.status.success(), "{inspected:?}");
-    let withheld = command(&["run", "--engine", "psi"]);
+    let withheld = command(&["run", "--engine", "psi"], length);
     assert!(!withheld.status.success());
     assert!(String::from_utf8_lossy(&withheld.stderr).contains("requires --trusted-artifact"));
     let mut wrong = manifest.clone();
     wrong.replace_range(..1, if manifest.starts_with('0') { "1" } else { "0" });
-    let refused = command(&["run", "--engine", "native", "--trusted-artifact", &wrong]);
+    let refused = command(
+        &["run", "--engine", "native", "--trusted-artifact", &wrong],
+        length,
+    );
     assert!(!refused.status.success());
     assert!(
         String::from_utf8_lossy(&refused.stderr).contains("differs from the artifact authorized")
     );
     for target in targets {
-        let compiled = command(&[
-            "--trusted-artifact",
-            &manifest,
-            "--target",
-            target,
-            "--build-dir",
-            target,
-        ]);
+        let compiled = command(
+            &[
+                "--trusted-artifact",
+                &manifest,
+                "--target",
+                target,
+                "--build-dir",
+                target,
+            ],
+            length,
+        );
         assert!(compiled.status.success(), "{target}: {compiled:?}");
         let executable = if target == "windows_x86_64" {
             "omega-program.exe"
@@ -409,7 +452,10 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
         assert_hosted_image(target, &consumer.path().join(target).join(executable));
     }
     for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let observed = command(&["run", "--engine", engine, "--trusted-artifact", &manifest]);
+        let observed = command(
+            &["run", "--engine", engine, "--trusted-artifact", &manifest],
+            length,
+        );
         assert!(observed.status.success(), "{observed:?}");
         assert!(observed.stdout.is_empty(), "{observed:?}");
         assert!(

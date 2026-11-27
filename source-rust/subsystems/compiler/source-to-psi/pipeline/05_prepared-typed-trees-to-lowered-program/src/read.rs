@@ -307,6 +307,10 @@ pub(crate) struct Program<'t> {
     pub(crate) quotients: Vec<quotients::QuotientRecord>,
     /// Each executable quotient of custody-free copyable data read so far (`quotients`).
     pub(crate) executable_quotients: Vec<quotients::ExecutableQuotient>,
+    /// Each Identity of two classes of an executable quotient a contract
+    /// states, with its relation read at their representatives, by the
+    /// machine whose contract states it (`contracts::identity_clause`).
+    pub(crate) quotient_soundness: Vec<(MachineId, terminal_check_tables::QuotientSoundness)>,
     /// Each data declaration indexed by values read so far (`families`).
     pub(crate) families: Vec<families::FamilyRecord>,
     /// Each theorem over such data read so far (`families`).
@@ -641,6 +645,7 @@ impl<'t> Program<'t> {
             template_bodies: Vec::new(),
             quotients: Vec::new(),
             executable_quotients: Vec::new(),
+            quotient_soundness: Vec::new(),
             families: Vec::new(),
             family_theorems: Vec::new(),
             evidence_uses: Vec::new(),
@@ -1426,9 +1431,7 @@ mod tests {
     #[test]
     fn targetless_runtime_calls_keep_their_actual_authored_caller() {
         use crate::source_state::callable_values::{RuntimeCallBinding, RuntimeCallableContract};
-        use crate::source_state::expression::{
-            Expression as TypedExpression, NamePath, TableCallExpression,
-        };
+        use crate::source_state::expression::{NamePath, TableCallExpression};
         use crate::source_state::name::Identifier;
         use crate::source_state::signature::{StateParameter, StateSignature};
         use crate::source_state::statement::{StatementNode, TableCall};
@@ -1476,14 +1479,11 @@ mod tests {
                 type_reference: carrier,
                 ..Default::default()
             }]);
-            let callee =
-                typed
-                    .expression_table
-                    .insert_tree(&TypedExpression::Name(NamePath::resolved(
-                        vec![Identifier::generated("callback")],
-                        parameter,
-                        parameter,
-                    )));
+            let callee = typed.expression_table.insert_name_path(&NamePath::resolved(
+                vec![Identifier::generated("callback")],
+                parameter,
+                parameter,
+            ));
             let runtime_call = Some(RuntimeCallBinding { callee, contract });
             let (body, node) = if statement {
                 let body = typed

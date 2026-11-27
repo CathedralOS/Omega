@@ -9,7 +9,6 @@ name = "optimization_unit_semantics"
 path = "src/lib.rs"
 
 [dependencies]
-arena = { path = "../../../../../../foundation/arena" }
 structural-storage-queries = { path = "../../structural-storage/queries" }
 optimization-core = { path = "../../optimization-records" }
 optimization-unit = { path = "../optimization-unit" }
@@ -17,5 +16,4 @@ abstract-operations = { path = ".." }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
 psi-declaration-encoding = { path = "../../../../psi/artifact/declaration-encoding" }
-terminal-work = { path = "../../../../psi/semantics/work" }
 terminal-semantics = { path = "../../../../psi/semantics" }

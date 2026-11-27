@@ -572,10 +572,11 @@ fn closed_integer_relation(proposition: &Proposition) -> Option<Proposition> {
     ) {
         return None;
     }
-    let integer = left.scalar_type().as_integer()?;
-    if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed {
-        return None;
-    }
+    // Two literals of one closed carrier compare by value, a fixed integer's
+    // or an address's alike: no address model changes the order of two
+    // address literals. This closes `0 < 0` where an address's lower bound
+    // meets `n < 0` (integer_certificates.md, "Elementary certificate rules").
+    left.scalar_type().as_integer()?.bits()?;
     let ordering = crate::kernel::compare_integer_literals(left, right)?;
     let holds = match proposition {
         Proposition::Equal(..) => ordering.is_eq(),

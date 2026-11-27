@@ -454,7 +454,16 @@ impl CompletedProduct {
 
     /// Publish one file after every target produces the same portable bytes.
     pub fn save_shared_psi(products: &mut [&mut Self], path: &Path) -> Result<(), String> {
-        use platform_custody::record_file::{RecordFileLimits, RecordFileRoot};
+        Self::save_shared_psi_with_quota(products, path, None)
+    }
+
+    /// Apply the caller's output quota to the encoded artifact before touching the destination.
+    pub fn save_shared_psi_with_quota(
+        products: &mut [&mut Self],
+        path: &Path,
+        maximum_bytes: Option<u64>,
+    ) -> Result<(), String> {
+        use platform_custody::record_file::RecordFileRoot;
         let (first, rest) = products
             .split_first()
             .ok_or("saving requires a portable program")?;
@@ -466,6 +475,14 @@ impl CompletedProduct {
             return Err("saving requires an unpublished program and a .psi output file".into());
         }
         let bytes = artifact.to_bytes();
+        if let Some(limit) = maximum_bytes
+            && bytes.len() as u64 > limit
+        {
+            return Err(format!(
+                "Psi artifact requires {} bytes, exceeding the {limit}-byte output quota",
+                bytes.len()
+            ));
+        }
         for other in rest {
             let other = other.unpublished_psi()?;
             if !std::sync::Arc::ptr_eq(artifact, other) && other.to_bytes() != bytes {
@@ -482,14 +499,7 @@ impl CompletedProduct {
         })?;
         let refuse = |error| format!("cannot save {}: {error:?}", path.display());
         let directory = RecordFileRoot::open_directory(parent).map_err(refuse)?;
-        let limits = RecordFileLimits {
-            maximum_bytes: 64 * 1024 * 1024,
-        };
-        match directory.read_optional(file, limits).map_err(refuse)? {
-            Some(existing) => existing.replace(&bytes, limits),
-            None => directory.write_new(file, &bytes, limits),
-        }
-        .map_err(refuse)?;
+        directory.publish_output(file, &bytes).map_err(refuse)?;
         for product in products {
             product.wrote_output = true;
         }

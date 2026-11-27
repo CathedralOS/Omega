@@ -687,6 +687,10 @@ pub mod data {
         pub carrier: TypeReferenceHandle,
         pub relation: Vec<Identifier>,
         pub relation_symbol: SymbolHandle,
+        /// The relation's generic arguments (`same_length<T>`); empty once
+        /// typed preparation selects the proposition a closed application
+        /// names.
+        pub relation_arguments: HandleSpan<TypeReferenceHandle>,
         pub equivalence: Option<QuotientEquivalenceSelection>,
     }
 
@@ -694,11 +698,16 @@ pub mod data {
     pub struct QuotientEquivalenceSelection {
         pub relation: Vec<Identifier>,
         pub relation_symbol: SymbolHandle,
+        pub relation_arguments: HandleSpan<TypeReferenceHandle>,
         pub trait_name: Identifier,
         pub trait_symbol: SymbolHandle,
         pub trait_arguments: HandleSpan<TypeReferenceHandle>,
         pub conformance_name: Identifier,
         pub conformance_symbol: SymbolHandle,
+        /// The conformance's generic arguments (`SameLength<T>`); empty once
+        /// typed preparation selects the closed conformance an application
+        /// names.
+        pub conformance_arguments: HandleSpan<TypeReferenceHandle>,
     }
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
@@ -1683,13 +1692,23 @@ pub mod domain {
                 "indexed-domain const argument `{name}` has no resolved declaration"
             )));
         }
-        let declared_type = match program.data_type_parameter_by_symbol(*symbol).map(|parameter| &parameter.kind) {
-            Some(crate::source_state::data::TypeParameterKind::Const { type_reference }) => Some(*type_reference),
+        let declared_type = match program
+            .data_type_parameter_by_symbol(*symbol)
+            .map(|parameter| &parameter.kind)
+        {
+            Some(crate::source_state::data::TypeParameterKind::Const { type_reference }) => {
+                Some(*type_reference)
+            }
             Some(_) => None,
-            None => program.const_declaration_by_symbol(*symbol).map(|declaration| declaration.declared_type),
-        }.ok_or_else(|| Diagnostic::error(format!(
-            "indexed-domain const argument `{name}` must name a constant or a const parameter"
-        )))?;
+            None => program
+                .const_declaration_by_symbol(*symbol)
+                .map(|declaration| declaration.declared_type),
+        }
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "indexed-domain const argument `{name}` must name a constant or a const parameter"
+            ))
+        })?;
         let actual = const_index_type_name(program, declared_type)?;
         if actual != expected {
             return Err(Diagnostic::error(format!(
@@ -1721,10 +1740,15 @@ pub mod domain {
             .insert(crate::source_state::types::TypeReferenceNode::Unit);
         trees.data_type_parameters.insert(TypeParameter {
             symbol: binder,
-            kind: TypeParameterKind::Const { type_reference: carrier },
+            kind: TypeParameterKind::Const {
+                type_reference: carrier,
+            },
             ..Default::default()
         });
-        let argument = trees.type_reference_table.insert(Named { symbol: binder, name: Identifier::from("K") });
+        let argument = trees.type_reference_table.insert(Named {
+            symbol: binder,
+            name: Identifier::from("K"),
+        });
         assert!(closed_domain_argument_identity(&trees, argument, "()", &[]).is_ok());
         let wrong = closed_domain_argument_identity(&trees, argument, "u8", &[]).unwrap_err();
         assert!(wrong.message.contains("has type `()`, expected `u8`"));
@@ -1733,7 +1757,11 @@ pub mod domain {
             name: Identifier::from("bool"),
         });
         let wrong = closed_domain_argument_identity(&trees, argument, "u8", &[]).unwrap_err();
-        assert!(wrong.message.contains("must name a constant or a const parameter"));
+        assert!(
+            wrong
+                .message
+                .contains("must name a constant or a const parameter")
+        );
     }
 
     #[cfg(test)]
@@ -1745,7 +1773,11 @@ pub mod domain {
             name: Identifier::from("Missing"),
         });
         let refusal = closed_domain_argument_identity(&trees, argument, "Unit", &[]).unwrap_err();
-        assert!(refusal.message.contains("`Missing` has no resolved declaration"));
+        assert!(
+            refusal
+                .message
+                .contains("`Missing` has no resolved declaration")
+        );
     }
 
     #[cfg(test)]
@@ -1907,7 +1939,8 @@ pub mod domain {
     ) -> Option<&'a ProofMembershipFact> {
         let (parent, _) = domain.name.as_str().rsplit_once("::")?;
         subject_membership_facts(program, domain).find(|membership| {
-            program.domain_definition(membership.domain_symbol)
+            program
+                .domain_definition(membership.domain_symbol)
                 .is_some_and(|declaration| declaration.name.as_str() == parent)
         })
     }
@@ -2483,7 +2516,8 @@ pub mod invocations {
     };
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum InvocationTarget {        /// Position among the callable's entry parameters after the receiver.
+    pub enum InvocationTarget {
+        /// Position among the callable's entry parameters after the receiver.
         Parameter(u32),
         /// A statically selected boundary service.
         Service(symbols::SymbolHandle),
@@ -2554,7 +2588,10 @@ pub mod invocations {
                     .get(ordinal as usize)
                     .filter(|parameter| parameter.symbol == symbol)
                     .map(|_| InvocationTarget::Parameter(ordinal)),
-                AuthoredInvocationTarget::AppliedService(id) => program.service_reaches.definition(id).map(|_| InvocationTarget::AppliedService(id)),
+                AuthoredInvocationTarget::AppliedService(id) => program
+                    .service_reaches
+                    .definition(id)
+                    .map(|_| InvocationTarget::AppliedService(id)),
                 AuthoredInvocationTarget::Service(symbol) => program
                     .trait_definition_by_symbol(symbol)
                     .map(|_| InvocationTarget::Service(symbol)),
@@ -2705,8 +2742,7 @@ pub mod layout_storage {
                 && self
                     .data_definition_by_symbol(symbol)
                     .is_some_and(|definition| {
-                        definition.supply_mode
-                            == language_core::DataSupplyMode::BoundaryOpaque
+                        definition.supply_mode == language_core::DataSupplyMode::BoundaryOpaque
                     })
         }
 
@@ -2806,7 +2842,7 @@ pub mod layout_storage {
                 .iter()
                 .find_map(|(_, demand)| {
                     (program.normalized_type_identity(demand.source_application) == application)
-                    .then_some(demand.lexical_owner)
+                        .then_some(demand.lexical_owner)
                 })
                 .unwrap_or_else(|| {
                     program
@@ -3005,7 +3041,7 @@ pub mod numeric_intrinsics {
                 Some(primitive) => primitive_numeric_type(primitive).map(NumericResult::Primitive),
                 None => (self.core_vocabulary(self.type_reference_symbol(return_type))
                     == Some(language_core::core_vocabulary::CoreVocabulary::FloatClass))
-                    .then_some(NumericResult::FloatClass),
+                .then_some(NumericResult::FloatClass),
             };
             intrinsic
                 .accepts(

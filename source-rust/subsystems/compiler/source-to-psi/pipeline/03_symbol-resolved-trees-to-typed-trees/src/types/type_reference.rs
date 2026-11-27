@@ -2049,9 +2049,7 @@ pub(crate) mod const_arguments {
             use crate::source_state::{
                 constant::ConstDeclaration,
                 data::TypeParameter,
-                expression::{
-                    BinaryOperator, Expression, ExpressionNode, NamePath, TableBinaryExpression,
-                },
+                expression::{BinaryOperator, ExpressionNode, NamePath, TableBinaryExpression},
                 trait_definition::Conformance,
                 type_aliases::TypeAliasDefinition,
             };
@@ -2342,9 +2340,13 @@ pub(crate) mod const_arguments {
                             )),
                             ..Default::default()
                         });
-                        let left = program.expression_table.insert_tree(&Expression::Name(
-                            NamePath::resolved(vec![Identifier::generated("ZERO")], zero, zero),
-                        ));
+                        let left = program
+                            .expression_table
+                            .insert_name_path(&NamePath::resolved(
+                                vec![Identifier::generated("ZERO")],
+                                zero,
+                                zero,
+                            ));
                         program.expression_table.insert(ExpressionNode::Binary(
                             TableBinaryExpression {
                                 policy: numerics::arithmetic::ArithmeticDomain::Exact,

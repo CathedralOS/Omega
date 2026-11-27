@@ -98,11 +98,6 @@ implementation and all its arguments agree. The lowered-form checker also
 checks the original method against its public contract with the value
 parameter still free.
 
-The record-pattern pass resolves a subject that names a parameter or a typed
-local whose declared type is a plain, non-generic record. A field path, a call
-result, an applied generic record, a quotient and a sum stay unresolved, and
-the checker refuses the pattern where a program reaches it.
-
 ## What is not here yet
 
 The deleted preparation ran about forty passes of five kinds. Three kinds

@@ -6,10 +6,10 @@ use calling_conventions::{
     MachineRegister as Register, MachineState, MachineStateSet, RegisterSet, StateEffectsEvidence,
 };
 use machine_code::import_code::{
-    EncodedImport, EncodedImportBody, EncodedImportProgram, ImportBodyResources,
-    ImportCodeIdentity, ImportOperand, ImportOperandKind as Kind, ImportOperandTarget as Target,
+    EncodedImport, EncodedImportBody, EncodedImportProgram, ImportBodyResources, ImportOperand,
+    ImportOperandKind as Kind, ImportOperandTarget as Target,
 };
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::{Architecture, NativeTarget, NormalizedImportLocator, ObjectFormat};
 
 struct Body {
     bytes: &'static [u8],
@@ -153,7 +153,7 @@ impl Body {
 
 pub(crate) fn import_program(
     target: NativeTarget,
-    identities: Vec<ImportCodeIdentity>,
+    identities: Vec<NormalizedImportLocator>,
 ) -> EncodedImportProgram {
     if identities.is_empty() {
         return EncodedImportProgram::empty(target);
@@ -182,16 +182,11 @@ pub(crate) fn import_program(
 pub fn install_imports(image: &mut FinalImage) {
     let mut identities = Vec::new();
     for (_, row) in image.symbol_table.imports.iter() {
-        let Ok(identity) = image.import_code_identity(row.symbol_handle) else {
+        let Ok(locator) = image.import_locator(row.symbol_handle) else {
             continue;
         };
-        if let ImportCodeIdentity::Normalized(locator) = &identity
-            && locator.target().native_target() != image.target
-        {
-            continue;
-        }
-        if !identities.contains(&identity) {
-            identities.push(identity);
+        if locator.target().native_target() == image.target && !identities.contains(locator) {
+            identities.push(locator.clone());
         }
     }
     image.import_program = import_program(image.target, identities);

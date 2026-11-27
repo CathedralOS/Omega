@@ -2738,6 +2738,7 @@ pub(crate) mod proposition {
                     typed::expression::EvidenceProjection {
                         term: lower_name(&projection.term),
                         member: lower_name(&projection.member),
+                        term_symbol: projection.term_symbol,
                     }
                 }),
                 symbol,

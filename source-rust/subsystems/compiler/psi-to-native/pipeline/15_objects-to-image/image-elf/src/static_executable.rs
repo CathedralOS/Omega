@@ -191,10 +191,6 @@ pub fn emit_elf_executable(mut image: FinalImage) -> Result<ExecutableImageOutpu
     let imports = canonical_referenced_imports(&image)?;
     if let Some(import) = imports.first() {
         let message = match &import.locator {
-            ElfImportLocator::StringBackedBootstrap { library, symbol } => format!(
-                "ELF direct image relocation references unknown symbol `{symbol}`; canonical dynamic import request names library `{library}` at {} relocation site(s), but ELF loader binding is not implemented",
-                import.relocations.len(),
-            ),
             ElfImportLocator::Component { locator, .. } => format!(
                 "component ELF image {} requires the selected loader and separate-image publication; static emission cannot resolve this slot",
                 locator.image_filename(),
@@ -244,16 +240,19 @@ pub fn emit_elf_executable(mut image: FinalImage) -> Result<ExecutableImageOutpu
     bytes.resize(sections.data_offset, 0);
     bytes.extend(&image.memory.data);
 
+    // The writer owns the image, so the output takes its final section bytes.
+    let text_bytes = image.memory.text.len();
+    let data_bytes = image.memory.data.len();
     Ok(ExecutableImageOutput {
         final_image_layout: layout,
-        final_text_bytes: image.memory.text.clone(),
-        final_data_bytes: image.memory.data.clone(),
+        final_text_bytes: std::mem::take(&mut image.memory.text),
+        final_data_bytes: std::mem::take(&mut image.memory.data),
         final_import_data_bytes: Vec::new(),
         bytes,
         file_name: "omega-program".to_owned(),
         format: format.to_owned(),
-        text_bytes: image.memory.text.len(),
-        data_bytes: image.memory.data.len(),
+        text_bytes,
+        data_bytes,
         bss_bytes: image.memory.bss_size,
         symbols: image.symbol_table.symbols.len(),
         imports: image.symbol_table.imports.len(),

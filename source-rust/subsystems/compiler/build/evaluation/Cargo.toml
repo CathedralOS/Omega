@@ -29,7 +29,6 @@ terminal-interpreter = { path = "../../../interpreter" }
 terminal-semantics = { path = "../../psi/semantics" }
 terminal-work = { path = "../../psi/semantics/work" }
 terminal-codec = { path = "../../psi/artifact/codec" }
-syntax-trees = { path = "../../source-to-psi/representations/syntax-trees" }
 source-compiler = { path = "../../source-to-psi" }
 filesystem-authority = { path = "authority/filesystem" }
 artifacts = { path = "../../foundation/measurements" }
@@ -44,5 +43,6 @@ symbols = { path = "../../foundation/declaration-identity" }
 build-declarations = { path = "../inputs/declarations" }
 
 [dev-dependencies]
+syntax-trees = { path = "../../source-to-psi/representations/syntax-trees" }
 tokens = { path = "../../source-to-psi/representations/tokens" }
 source-compiler = { path = "../../source-to-psi", features = ["test-support"] }

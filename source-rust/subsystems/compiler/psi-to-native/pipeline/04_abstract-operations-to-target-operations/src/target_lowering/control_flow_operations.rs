@@ -815,6 +815,9 @@ pub(crate) mod operations {
             AbstractOperation::ReleaseReference { .. } => {
                 super::references::release(operation, site)
             }
+            AbstractOperation::ElementViewFixedArray { .. } => {
+                super::references::establish_fixed_array_view(operation, site)
+            }
             AbstractOperation::SelectMachine {
                 psi_operation,
                 result,

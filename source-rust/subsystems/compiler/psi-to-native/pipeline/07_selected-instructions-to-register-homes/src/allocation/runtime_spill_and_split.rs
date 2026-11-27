@@ -8,6 +8,10 @@ splitting around fixed-register pins (`runtime_split`).
 #[allow(unused_imports)]
 pub(crate) use crate::allocation::rewrites::*;
 
+#[cfg(test)]
+#[path = "runtime_spill_and_split_tests.rs"]
+mod tests;
+
 pub(crate) mod runtime_rematerialization {
     pub(crate) mod admission {
         use operation_evidence::provenance::ValueDefinitionSite;
@@ -15,29 +19,41 @@ pub(crate) mod runtime_rematerialization {
         use register_environment::ValidatedTargetRegisterEnvironment;
         use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
         use selected_instructions::{
-            SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
-            SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-            SelectedStructuralTransport, SelectedValueTransport, VirtualRegister,
-            VirtualRegisterId, VirtualRegisterOrigin,
+            FrameStorageSlotId, LocalStorageSlotId, SelectedCasePayloadTransport, SelectedFunction,
+            SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+            SelectedInstructionProvenance, SelectedStructuralTransport, SelectedValueTransport,
+            VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
         };
-        use semantic_vocabulary::{IntegerValue, ScalarType, ValueId};
+        use semantic_vocabulary::{ScalarType, ValueId};
 
         use super::RuntimeRematerializationError;
         use crate::allocation::ValidatedSelectedAnalysis;
         use crate::allocation::rewrites::runtime_spill::{
-            control, next_instruction_id, next_register_id, require_dominated_uses,
+            BlockDominance, control, next_instruction_id, next_register_id, require_dominated_uses,
+            slot::BlockUsePositions, unit_effects,
         };
         use crate::allocation::rewrites::selected_operands::selected_operand;
+
+        /// What each regenerated register restates. A `MaterializeI64` result
+        /// names the Psi value it carries; a `FrameAddress` result may instead be
+        /// selection scratch that names only its defining instruction.
+        #[derive(Clone, Copy)]
+        pub(crate) enum Lineage {
+            Value(ValueId),
+            Scratch,
+        }
 
         pub(crate) struct Admission<'source> {
             pub function: &'source SelectedFunction,
             pub use_blocks: Vec<usize>,
             pub victim: &'source VirtualRegister,
-            pub source_value: ValueId,
-            pub value: IntegerValue,
+            pub lineage: Lineage,
+            /// The definition each use regenerates: `MaterializeI64` or `FrameAddress`.
+            pub kind: SelectedInstructionKind,
+            pub provenance: SelectedInstructionProvenance,
             pub first_instruction: u32,
             pub first_register: u32,
-            pub materialize: &'source RegisterInstructionConstraint,
+            pub row: &'source RegisterInstructionConstraint,
         }
 
         pub(crate) fn admit<'source>(
@@ -46,6 +62,7 @@ pub(crate) mod runtime_rematerialization {
             register: VirtualRegisterId,
             environment: &'source ValidatedTargetRegisterEnvironment,
             budget: OptimizationWorkBudget,
+            dominance: &BlockDominance,
         ) -> Result<Admission<'source>, RuntimeRematerializationError> {
             let (plan, function) = crate::allocation::rewrites::plan_function(
                 source,
@@ -56,65 +73,17 @@ pub(crate) mod runtime_rematerialization {
             let victim = function
                 .virtual_register(register)
                 .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
-            let VirtualRegisterOrigin::InstructionResult {
-                instruction: definition,
-                source_value,
-            } = victim.origin
-            else {
-                return Err(RuntimeRematerializationError::UnsupportedValue);
-            };
-            let scalar_payload = match victim.scalar_type {
-                ScalarType::Callable(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_) => true,
-                ScalarType::Integer(integer) => {
-                    !integer.is_address() && matches!(integer.bits(), Some(8 | 16 | 32 | 64))
+            let (definition, lineage) = match victim.origin {
+                VirtualRegisterOrigin::InstructionResult {
+                    instruction,
+                    source_value,
+                } => (instruction, Lineage::Value(source_value)),
+                VirtualRegisterOrigin::InstructionScratch { instruction, .. } => {
+                    (instruction, Lineage::Scratch)
                 }
+                _ => return Err(RuntimeRematerializationError::UnsupportedValue),
             };
-            if !scalar_payload
-                || victim.entry_fixed_view.is_some()
-                || !matches!(
-                    victim.definition_site,
-                    Some(ValueDefinitionSite::FunctionParameter(_))
-                        | Some(ValueDefinitionSite::BlockParameter { .. })
-                        | Some(ValueDefinitionSite::Node { .. })
-                )
-            {
-                return Err(RuntimeRematerializationError::UnsupportedValue);
-            }
-            let check_materialize =
-                || -> Result<&RegisterInstructionConstraint, RuntimeRematerializationError> {
-                    let materialize = environment
-                        .constraint(environment.selected_keys().materialize_i64)
-                        .ok_or(RuntimeRematerializationError::ConstraintMismatch)?;
-                    if materialize.operands.len() != 1
-                        || !materialize.implicit_uses.is_empty()
-                        || !materialize.implicit_defs.is_empty()
-                        || !materialize.clobbers.is_empty()
-                    {
-                        return Err(RuntimeRematerializationError::ConstraintMismatch);
-                    }
-                    let row_operand = &materialize.operands[0];
-                    if row_operand.access != RegisterOperandAccess::Def
-                        || row_operand.class != victim.class
-                        || row_operand.fixed_view.is_some()
-                        || row_operand.tied_to.is_some()
-                        || row_operand.early_clobber
-                    {
-                        return Err(RuntimeRematerializationError::ConstraintMismatch);
-                    }
-                    Ok(materialize)
-                };
-            let materialize = match check_materialize() {
-                Ok(m) => m,
-                Err(err) => {
-                    function
-                        .blocks
-                        .instruction_block(definition)
-                        .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
-                    return Err(err);
-                }
-            };
-            let row_operand = &materialize.operands[0];
-            if !function.blocks.has_materialize_definition(register) {
+            if victim.entry_fixed_view.is_some() {
                 return Err(RuntimeRematerializationError::UnsupportedValue);
             }
             let block_index = function
@@ -126,14 +95,89 @@ pub(crate) mod runtime_rematerialization {
                 .instruction_index_in_block(block_index, definition)
                 .and_then(|idx| function.blocks[block_index].instructions.get(idx))
                 .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
-            let SelectedInstructionKind::MaterializeI64 { value } = defined_instruction.kind else {
-                return Err(RuntimeRematerializationError::UnsupportedValue);
+            let keys = environment.selected_keys();
+            let row_key = match defined_instruction.kind {
+                SelectedInstructionKind::MaterializeI64 { .. } => {
+                    let scalar_payload = match victim.scalar_type {
+                        ScalarType::Callable(_)
+                        | ScalarType::Boolean
+                        | ScalarType::IeeeFloat(_) => true,
+                        ScalarType::Integer(integer) => {
+                            !integer.is_address()
+                                && matches!(integer.bits(), Some(8 | 16 | 32 | 64))
+                        }
+                    };
+                    if !matches!(lineage, Lineage::Value(_))
+                        || !scalar_payload
+                        || !matches!(
+                            victim.definition_site,
+                            Some(ValueDefinitionSite::FunctionParameter(_))
+                                | Some(ValueDefinitionSite::BlockParameter { .. })
+                                | Some(ValueDefinitionSite::Node { .. })
+                        )
+                        || !function.blocks.has_materialize_definition(register)
+                    {
+                        return Err(RuntimeRematerializationError::UnsupportedValue);
+                    }
+                    keys.materialize_i64
+                }
+                SelectedInstructionKind::FrameAddress {
+                    slot: FrameStorageSlotId::Local(slot),
+                    ..
+                } if !matches!(slot, LocalStorageSlotId::Spill { .. }) => {
+                    // A frame address is the frame base plus a constant, and the
+                    // frame is fixed for the whole body: encoding admission resolves
+                    // every `FrameAddress` of a slot to one displacement, wherever
+                    // it sits (`frame_address::resolve`). A copy placed before a
+                    // use therefore yields the same pointer. Memory-access rows
+                    // name instructions by identity, so a definition that rows
+                    // describe keeps its single instruction instead.
+                    if !matches!(victim.scalar_type, ScalarType::Integer(integer)
+                        if integer.bits() == Some(64))
+                        || function
+                            .memory_accesses
+                            .iter()
+                            .any(|access| access.instruction == definition)
+                    {
+                        return Err(RuntimeRematerializationError::UnsupportedValue);
+                    }
+                    keys.frame_address
+                        .ok_or(RuntimeRematerializationError::ConstraintMismatch)?
+                }
+                _ => return Err(RuntimeRematerializationError::UnsupportedValue),
             };
-            if defined_instruction.constraint != materialize.key
+            let row = environment
+                .constraint(row_key)
+                .ok_or(RuntimeRematerializationError::ConstraintMismatch)?;
+            let [row_operand] = row.operands.as_slice() else {
+                return Err(RuntimeRematerializationError::ConstraintMismatch);
+            };
+            // No allocated value may live in a unit the definition reads, so every
+            // copy reads what the original read (the stack pointer).
+            let physical = environment.physical().model();
+            let reads_only_fixed_units = row.implicit_uses.iter().all(|unit| {
+                !physical.views.iter().any(|view| {
+                    view.allocatable
+                        && (view.units.contains(unit) || view.write_units.contains(unit))
+                })
+            });
+            if !row.implicit_defs.is_empty()
+                || !reads_only_fixed_units
+                || (row_key == keys.materialize_i64
+                    && (!row.implicit_uses.is_empty() || !row.clobbers.is_empty()))
+                || row_operand.access != RegisterOperandAccess::Def
+                || row_operand.class != victim.class
+                || row_operand.fixed_view.is_some()
+                || row_operand.tied_to.is_some()
+                || row_operand.early_clobber
+            {
+                return Err(RuntimeRematerializationError::ConstraintMismatch);
+            }
+            if defined_instruction.constraint != row.key
                 || defined_instruction.operands.len() != 1
-                || defined_instruction.implicit_uses != materialize.implicit_uses
-                || defined_instruction.implicit_defs != materialize.implicit_defs
-                || defined_instruction.clobbers != materialize.clobbers
+                || defined_instruction.implicit_uses != row.implicit_uses
+                || defined_instruction.implicit_defs != row.implicit_defs
+                || defined_instruction.clobbers != row.clobbers
             {
                 return Err(RuntimeRematerializationError::UnsupportedValue);
             }
@@ -145,12 +189,21 @@ pub(crate) mod runtime_rematerialization {
                 || def_operand.fixed_view.is_some()
                 || def_operand.tied_to.is_some()
                 || def_operand.early_clobber
+                || matches!(victim.origin, VirtualRegisterOrigin::InstructionScratch { operand, .. }
+                    if operand != def_operand.operand)
             {
                 return Err(RuntimeRematerializationError::UnsupportedValue);
             }
             let mut defined = false;
             let mut uses = 0usize;
             let mut use_blocks = Vec::new();
+            // Where copies go, for the clobber check: before each using
+            // instruction and before a using terminator.
+            let track_positions = !row.clobbers.is_empty();
+            let mut use_positions: Vec<BlockUsePositions> = Vec::new();
+            if track_positions {
+                use_positions.resize_with(function.blocks.len(), BlockUsePositions::default);
+            }
             for (current_block_index, block) in function.blocks.iter().enumerate() {
                 if !function
                     .blocks
@@ -176,6 +229,9 @@ pub(crate) mod runtime_rematerialization {
                                 .any(|other| other.tied_to == Some(operand.operand))
                             {
                                 return Err(RuntimeRematerializationError::UnsupportedUse);
+                            }
+                            if track_positions {
+                                use_positions[current_block_index].end_of_block = true;
                             }
                             uses = uses
                                 .checked_add(1)
@@ -219,7 +275,9 @@ pub(crate) mod runtime_rematerialization {
                     .blocks
                     .block_register_instruction_span(current_block_index, register)
                 {
-                    for instruction in &block.instructions[start_idx..=end_idx] {
+                    for (offset, instruction) in
+                        block.instructions[start_idx..=end_idx].iter().enumerate()
+                    {
                         for operand in &instruction.operands {
                             if operand.virtual_register != register {
                                 continue;
@@ -246,6 +304,13 @@ pub(crate) mod runtime_rematerialization {
                                         .any(|other| other.tied_to == Some(operand.operand))
                                     {
                                         return Err(RuntimeRematerializationError::UnsupportedUse);
+                                    }
+                                    if track_positions {
+                                        let unpinned =
+                                            &mut use_positions[current_block_index].unpinned;
+                                        if unpinned.last() != Some(&(start_idx + offset)) {
+                                            unpinned.push(start_idx + offset);
+                                        }
                                     }
                                     uses = uses
                                         .checked_add(1)
@@ -274,14 +339,33 @@ pub(crate) mod runtime_rematerialization {
                 || RuntimeRematerializationError::IdentityOverflow,
                 || RuntimeRematerializationError::WorkBudgetExceeded,
             )?;
-            require_dominated_uses(function, block_index, &use_blocks).map_err(
-                |error| match error {
-                    crate::allocation::RuntimeSpillError::SourceMismatch => {
-                        RuntimeRematerializationError::SourceMismatch
-                    }
-                    _ => RuntimeRematerializationError::UnsupportedUse,
-                },
-            )?;
+            let spill_error = |error| match error {
+                crate::allocation::RuntimeSpillError::SourceMismatch => {
+                    RuntimeRematerializationError::SourceMismatch
+                }
+                _ => RuntimeRematerializationError::UnsupportedUse,
+            };
+            require_dominated_uses(
+                dominance,
+                function_index,
+                function,
+                block_index,
+                &use_blocks,
+            )
+            .map_err(spill_error)?;
+            if track_positions {
+                // x86-64 `FrameAddress` clobbers the condition flags, so no copy
+                // may land where a flag value is still live.
+                unit_effects::preserve_live_units(
+                    function_index,
+                    function,
+                    &[],
+                    &use_positions,
+                    &row.clobbers,
+                    &[],
+                )
+                .map_err(spill_error)?;
+            }
             let first_instruction = next_instruction_id(function)
                 .ok_or(RuntimeRematerializationError::IdentityOverflow)?;
             let first_register = next_register_id(function)
@@ -290,11 +374,20 @@ pub(crate) mod runtime_rematerialization {
                 function,
                 use_blocks,
                 victim,
-                source_value,
-                value,
+                lineage,
+                kind: defined_instruction.kind,
+                provenance: match lineage {
+                    Lineage::Value(source_value) if row_key == keys.materialize_i64 => {
+                        SelectedInstructionProvenance {
+                            values: vec![source_value],
+                            ..Default::default()
+                        }
+                    }
+                    _ => defined_instruction.provenance.clone(),
+                },
                 first_instruction,
                 first_register,
-                materialize,
+                row,
             })
         }
 
@@ -318,35 +411,34 @@ pub(crate) mod runtime_rematerialization {
         ) -> Result<Materialization, RuntimeRematerializationError> {
             let instruction = SelectedInstructionId(fresh(next_instruction)?);
             let register = VirtualRegisterId(fresh(next_register)?);
+            let row_operand = &admitted.row.operands[0];
             Ok(Materialization {
                 register: VirtualRegister {
                     id: register,
                     scalar_type: admitted.victim.scalar_type,
                     class: admitted.victim.class,
-                    origin: VirtualRegisterOrigin::InstructionResult {
-                        instruction,
-                        source_value: admitted.source_value,
+                    origin: match admitted.lineage {
+                        Lineage::Value(source_value) => VirtualRegisterOrigin::InstructionResult {
+                            instruction,
+                            source_value,
+                        },
+                        Lineage::Scratch => VirtualRegisterOrigin::InstructionScratch {
+                            instruction,
+                            operand: row_operand.operand,
+                        },
                     },
                     definition_site: admitted.victim.definition_site,
                     entry_fixed_view: None,
                 },
                 instruction: SelectedInstruction {
                     id: instruction,
-                    kind: SelectedInstructionKind::MaterializeI64 {
-                        value: admitted.value,
-                    },
-                    constraint: admitted.materialize.key,
-                    operands: vec![selected_operand(
-                        &admitted.materialize.operands[0],
-                        register,
-                    )],
-                    implicit_uses: admitted.materialize.implicit_uses.clone(),
-                    implicit_defs: admitted.materialize.implicit_defs.clone(),
-                    clobbers: admitted.materialize.clobbers.clone(),
-                    provenance: SelectedInstructionProvenance {
-                        values: vec![admitted.source_value],
-                        ..Default::default()
-                    },
+                    kind: admitted.kind,
+                    constraint: admitted.row.key,
+                    operands: vec![selected_operand(row_operand, register)],
+                    implicit_uses: admitted.row.implicit_uses.clone(),
+                    implicit_defs: admitted.row.implicit_defs.clone(),
+                    clobbers: admitted.row.clobbers.clone(),
+                    provenance: admitted.provenance.clone(),
                 },
             })
         }
@@ -362,7 +454,7 @@ pub(crate) mod runtime_rematerialization {
             ValidatedRuntimeRematerialization, admission,
         };
         use crate::allocation::ValidatedSelectedAnalysis;
-        use crate::allocation::rewrites::runtime_spill::control_mut;
+        use crate::allocation::rewrites::runtime_spill::{BlockDominance, control_mut};
         use crate::allocation::rewrites::settlement_gaps::{gap_tables, push_position, remap};
 
         pub fn rematerialize_selected_runtime_value(
@@ -371,8 +463,16 @@ pub(crate) mod runtime_rematerialization {
             register: VirtualRegisterId,
             environment: &ValidatedTargetRegisterEnvironment,
             budget: OptimizationWorkBudget,
+            dominance: &BlockDominance,
         ) -> Result<ValidatedRuntimeRematerialization, RuntimeRematerializationError> {
-            let admitted = admission::admit(source, function_index, register, environment, budget)?;
+            let admitted = admission::admit(
+                source,
+                function_index,
+                register,
+                environment,
+                budget,
+                dominance,
+            )?;
             let mut transformed = source.selected_plan().clone();
             transformed.functions.mutate_preserving_register_prefix(
                 function_index,
@@ -530,7 +630,34 @@ pub(crate) mod runtime_spill {
             SelectedInstructionKind, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
         };
 
-        use super::{RuntimeSpillDerivation, RuntimeSpillError, VictimLineage};
+        use super::{RuntimeSpillDerivation, RuntimeSpillError, SpillWidth, VictimLineage};
+
+        /// The origin of a register a spill sequence defines at `instruction`,
+        /// operand `operand`: it restates the victim's Psi value or place, or, for
+        /// selection scratch, names only the instruction that defines it.
+        fn restated_origin(
+            lineage: VictimLineage,
+            instruction: SelectedInstructionId,
+            operand: u16,
+        ) -> VirtualRegisterOrigin {
+            match lineage {
+                VictimLineage::Scalar(source_value) => VirtualRegisterOrigin::InstructionResult {
+                    instruction,
+                    source_value,
+                },
+                VictimLineage::Structural { place, byte_offset } => {
+                    VirtualRegisterOrigin::StructuralObservation {
+                        instruction,
+                        place,
+                        byte_offset,
+                    }
+                }
+                VictimLineage::Scratch => VirtualRegisterOrigin::InstructionScratch {
+                    instruction,
+                    operand,
+                },
+            }
+        }
 
         pub(crate) fn fresh(next: &mut u32) -> Result<u32, RuntimeSpillError> {
             let result = *next;
@@ -592,6 +719,11 @@ pub(crate) mod runtime_spill {
             let reload_register = VirtualRegisterId(fresh(next_register)?);
             let loaded = carrier_id.unwrap_or(reload_register);
             let restating = convert_instruction.unwrap_or(load_instruction);
+            // Both load rows define their result as operand 1.
+            let loaded_operand = admitted.load.operands[1].operand;
+            let restated_operand = conversion.map_or(loaded_operand, |conversion| {
+                conversion.from_bits.operands[1].operand
+            });
             Ok(Reload {
                 address_register: VirtualRegister {
                     id: address_register,
@@ -608,21 +740,7 @@ pub(crate) mod runtime_spill {
                     id,
                     scalar_type: admitted.address_scalar_type,
                     class: admitted.carrier_class,
-                    origin: match admitted.lineage {
-                        VictimLineage::Scalar(source_value) => {
-                            VirtualRegisterOrigin::InstructionResult {
-                                instruction: load_instruction,
-                                source_value,
-                            }
-                        }
-                        VictimLineage::Structural { place, byte_offset } => {
-                            VirtualRegisterOrigin::StructuralObservation {
-                                instruction: load_instruction,
-                                place,
-                                byte_offset,
-                            }
-                        }
-                    },
+                    origin: restated_origin(admitted.lineage, load_instruction, loaded_operand),
                     definition_site: admitted.victim.definition_site,
                     entry_fixed_view: None,
                 }),
@@ -630,21 +748,7 @@ pub(crate) mod runtime_spill {
                     id: reload_register,
                     scalar_type: admitted.victim.scalar_type,
                     class: admitted.victim.class,
-                    origin: match admitted.lineage {
-                        VictimLineage::Scalar(source_value) => {
-                            VirtualRegisterOrigin::InstructionResult {
-                                instruction: restating,
-                                source_value,
-                            }
-                        }
-                        VictimLineage::Structural { place, byte_offset } => {
-                            VirtualRegisterOrigin::StructuralObservation {
-                                instruction: restating,
-                                place,
-                                byte_offset,
-                            }
-                        }
-                    },
+                    origin: restated_origin(admitted.lineage, restating, restated_operand),
                     definition_site: admitted.victim.definition_site,
                     entry_fixed_view: None,
                 },
@@ -659,7 +763,12 @@ pub(crate) mod runtime_spill {
                 ),
                 load: crate::allocation::rewrites::instruction(
                     load_instruction,
-                    SelectedInstructionKind::Load64 { byte_offset: 0 },
+                    match admitted.width {
+                        SpillWidth::Word => SelectedInstructionKind::Load64 { byte_offset: 0 },
+                        SpillWidth::Packed128 => {
+                            SelectedInstructionKind::PackedLoad128 { byte_offset: 0 }
+                        }
+                    },
                     admitted.load,
                     &[address_register, loaded],
                 ),
@@ -677,7 +786,11 @@ pub(crate) mod runtime_spill {
         pub(crate) struct Store {
             pub carrier_register: Option<VirtualRegister>,
             address_scratch: Option<VirtualRegister>,
+            /// A packed store writes through a pointer, so it first takes the
+            /// slot's address; a word store names the slot itself.
+            address_register: Option<VirtualRegister>,
             pub convert: Option<SelectedInstruction>,
+            address: Option<SelectedInstruction>,
             pub store: SelectedInstruction,
         }
 
@@ -687,8 +800,9 @@ pub(crate) mod runtime_spill {
                     self.carrier_register
                         .into_iter()
                         .chain(self.address_scratch)
+                        .chain(self.address_register)
                         .collect(),
-                    [self.convert, Some(self.store)]
+                    [self.convert, self.address, Some(self.store)]
                         .into_iter()
                         .flatten()
                         .collect(),
@@ -703,6 +817,42 @@ pub(crate) mod runtime_spill {
             next_instruction: &mut u32,
             next_register: &mut u32,
         ) -> Result<Store, RuntimeSpillError> {
+            if admitted.width == SpillWidth::Packed128 {
+                let address_instruction = SelectedInstructionId(fresh(next_instruction)?);
+                let store_instruction = SelectedInstructionId(fresh(next_instruction)?);
+                let address_register = VirtualRegisterId(fresh(next_register)?);
+                return Ok(Store {
+                    carrier_register: None,
+                    address_scratch: None,
+                    address_register: Some(VirtualRegister {
+                        id: address_register,
+                        scalar_type: admitted.address_scalar_type,
+                        class: admitted.carrier_class,
+                        origin: VirtualRegisterOrigin::SpillAddress {
+                            instruction: address_instruction,
+                            register: admitted.victim.id,
+                        },
+                        definition_site: None,
+                        entry_fixed_view: None,
+                    }),
+                    convert: None,
+                    address: Some(crate::allocation::rewrites::instruction(
+                        address_instruction,
+                        SelectedInstructionKind::FrameAddress {
+                            slot: frame(slot),
+                            byte_offset: 0,
+                        },
+                        admitted.address,
+                        &[address_register],
+                    )),
+                    store: crate::allocation::rewrites::instruction(
+                        store_instruction,
+                        SelectedInstructionKind::PackedStore128 { byte_offset: 0 },
+                        admitted.store,
+                        &[address_register, stored],
+                    ),
+                });
+            }
             let conversion = admitted.bits_conversion;
             let convert_instruction = if conversion.is_some() {
                 Some(SelectedInstructionId(fresh(next_instruction)?))
@@ -742,25 +892,17 @@ pub(crate) mod runtime_spill {
                     id,
                     scalar_type: admitted.address_scalar_type,
                     class: admitted.carrier_class,
-                    origin: match admitted.lineage {
-                        VictimLineage::Scalar(source_value) => {
-                            VirtualRegisterOrigin::InstructionResult {
-                                instruction: convert_instruction.unwrap_or(store_instruction),
-                                source_value,
-                            }
-                        }
-                        VictimLineage::Structural { place, byte_offset } => {
-                            VirtualRegisterOrigin::StructuralObservation {
-                                instruction: convert_instruction.unwrap_or(store_instruction),
-                                place,
-                                byte_offset,
-                            }
-                        }
-                    },
+                    origin: restated_origin(
+                        admitted.lineage,
+                        convert_instruction.unwrap_or(store_instruction),
+                        conversion.map_or(0, |conversion| conversion.to_bits.operands[1].operand),
+                    ),
                     definition_site: admitted.victim.definition_site,
                     entry_fixed_view: None,
                 }),
                 address_scratch,
+                address_register: None,
+                address: None,
                 convert: conversion.map(|conversion| {
                     crate::allocation::rewrites::instruction(
                         convert_instruction.unwrap_or(store_instruction),
@@ -936,8 +1078,8 @@ pub(crate) mod runtime_spill {
         };
 
         use super::{
-            RuntimeSpillDerivation, RuntimeSpillError, RuntimeSpillReceipt, RuntimeSpillSpanPolicy,
-            ValidatedRuntimeSpill, admission, derive_runtime_spill,
+            BlockDominance, RuntimeSpillDerivation, RuntimeSpillError, RuntimeSpillReceipt,
+            RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, admission, derive_runtime_spill,
         };
         use crate::allocation::ValidatedSelectedAnalysis;
         use crate::allocation::rewrites::settlement_gaps::{gap_tables, push_position, remap};
@@ -974,24 +1116,7 @@ pub(crate) mod runtime_spill {
             register: VirtualRegisterId,
             environment: &ValidatedTargetRegisterEnvironment,
             budget: OptimizationWorkBudget,
-        ) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
-            spill_selected_runtime_value_with_span_policy(
-                source,
-                function_index,
-                register,
-                environment,
-                budget,
-                RuntimeSpillSpanPolicy::UnitWriteBounded,
-            )
-        }
-
-        pub fn spill_selected_runtime_value_with_span_policy(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            register: VirtualRegisterId,
-            environment: &ValidatedTargetRegisterEnvironment,
-            budget: OptimizationWorkBudget,
-            span_policy: RuntimeSpillSpanPolicy,
+            dominance: &BlockDominance,
         ) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
             spill_selected_runtime_value_with_crossing_status(
                 source,
@@ -999,7 +1124,8 @@ pub(crate) mod runtime_spill {
                 register,
                 environment,
                 budget,
-                span_policy,
+                RuntimeSpillSpanPolicy::UnitWriteBounded,
+                dominance,
             )
             .map(|(spill, _)| spill)
         }
@@ -1011,6 +1137,7 @@ pub(crate) mod runtime_spill {
             environment: &ValidatedTargetRegisterEnvironment,
             budget: OptimizationWorkBudget,
             span_policy: RuntimeSpillSpanPolicy,
+            dominance: &BlockDominance,
         ) -> Result<(ValidatedRuntimeSpill, bool), RuntimeSpillError> {
             let admitted = derive_runtime_spill(
                 source,
@@ -1019,6 +1146,7 @@ pub(crate) mod runtime_spill {
                 environment,
                 span_policy,
                 budget,
+                dominance,
             )?;
             let crossed_unit_write = admitted.crossed_unit_write;
             let transformed = (|| -> Result<_, RuntimeSpillError> {
@@ -1029,10 +1157,11 @@ pub(crate) mod runtime_spill {
                         function_index,
                         |local_storage_slots, virtual_registers, boundary_settlements, blocks| -> Result<(), RuntimeSpillError> {
                         if admitted.assignment.declares_private {
+                            let (byte_size, alignment) = admitted.width.slot_shape();
                             local_storage_slots.push(SelectedLocalStorageSlot {
                                 id: admitted.assignment.private,
-                                byte_size: 8,
-                                alignment: 8,
+                                byte_size,
+                                alignment,
                             });
                         }
                         let mut next_instruction = admitted.first_instruction;
@@ -2992,31 +3121,27 @@ pub(crate) mod runtime_spill {
         }
     }
     pub(crate) mod unit_effects {
-        use register_model::RegisterInstructionConstraint;
+        use register_model::RegisterUnitId;
         use selected_instructions::SelectedFunction;
 
         use super::{
             RuntimeSpillError, StorageDefinition, StoragePosition, slot::BlockUsePositions,
         };
 
+        /// Refuse a rewrite whose inserted code would overwrite a live unit:
+        /// `reload_clobbers` are the units written by what goes before each use,
+        /// `store_clobbers` by what goes after each definition.
         pub(crate) fn preserve_live_units(
             function_index: usize,
             function: &SelectedFunction,
             definitions: &[StorageDefinition],
             uses: &[BlockUsePositions],
-            address: &RegisterInstructionConstraint,
-            load: &RegisterInstructionConstraint,
-            store: &RegisterInstructionConstraint,
+            reload_clobbers: &[RegisterUnitId],
+            store_clobbers: &[RegisterUnitId],
         ) -> Result<(), RuntimeSpillError> {
-            let reload_clobbers: Vec<_> = address
-                .clobbers
-                .iter()
-                .chain(&load.clobbers)
-                .copied()
-                .collect();
             let all_clobbers: Vec<_> = reload_clobbers
                 .iter()
-                .chain(&store.clobbers)
+                .chain(store_clobbers)
                 .copied()
                 .collect();
             if all_clobbers.is_empty()
@@ -3097,7 +3222,7 @@ pub(crate) mod runtime_spill {
                             .unit_live_out
                     }
                 };
-                if store.clobbers.iter().any(|unit| live.contains(unit)) {
+                if store_clobbers.iter().any(|unit| live.contains(unit)) {
                     return Err(RuntimeSpillError::UnsupportedUse);
                 }
             }
@@ -3201,7 +3326,35 @@ pub(crate) mod runtime_spill {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum VictimLineage {
         Scalar(ValueId),
-        Structural { place: PlaceId, byte_offset: u32 },
+        Structural {
+            place: PlaceId,
+            byte_offset: u32,
+        },
+        /// Selection scratch with no Psi value or place, such as a `VECTOR128`
+        /// register that vector promotion created.
+        Scratch,
+    }
+
+    /// How a spill moves its value between its register and its stack slot.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum SpillWidth {
+        /// An 8-byte `Store64`/`Load64` pair, through a general-purpose carrier
+        /// when the value lives in another class.
+        Word,
+        /// A 16-byte `PackedStore128`/`PackedLoad128` pair through a `FrameAddress`
+        /// pointer, for a 128-bit value that fills its vector register.
+        Packed128,
+    }
+
+    impl SpillWidth {
+        /// The private slot's size and alignment: one naturally aligned word or
+        /// one naturally aligned 16-byte vector.
+        pub(crate) fn slot_shape(self) -> (u32, u16) {
+            match self {
+                SpillWidth::Word => (8, 8),
+                SpillWidth::Packed128 => (16, 16),
+            }
+        }
     }
 
     pub(crate) struct StorageDefinition {
@@ -3361,73 +3514,192 @@ pub(crate) mod runtime_spill {
         }
     }
 
-    pub(crate) fn require_dominated_uses(
-        function: &selected_instructions::SelectedFunction,
-        anchor: usize,
-        use_blocks: &[usize],
-    ) -> Result<(), RuntimeSpillError> {
-        let entry_id = function.entry_block;
-        let entry = if function
-            .blocks
-            .get(entry_id.0 as usize)
-            .is_some_and(|b| b.id == entry_id)
-        {
-            entry_id.0 as usize
-        } else {
-            function
-                .block_index(entry_id)
-                .ok_or(RuntimeSpillError::SourceMismatch)?
-        };
-        let only_anchor_uses = use_blocks.iter().all(|&b| b == anchor);
-        if only_anchor_uses && anchor == entry {
-            return Ok(());
-        }
-        let mut reached = vec![false; function.blocks.len()];
-        let mut pending = Vec::with_capacity(function.blocks.len());
-        for bypass_anchor in [false, true] {
-            if bypass_anchor && only_anchor_uses {
-                break;
-            }
-            reached.fill(false);
-            pending.clear();
-            pending.push(entry);
-            while let Some(block_index) = pending.pop() {
-                if reached[block_index] || (bypass_anchor && block_index == anchor) {
-                    continue;
-                }
-                reached[block_index] = true;
-                if !bypass_anchor && only_anchor_uses && block_index == anchor {
-                    break;
-                }
-                for successor in control(&function.blocks[block_index].terminator)
-                    .1
-                    .into_iter()
-                    .flatten()
+    /// Which blocks of one function dominate which. The recovery loop builds one
+    /// per selected program and passes it to every spill, split and
+    /// rematerialization it tries there, so each attempt answers its dominance
+    /// question by lookup instead of walking the whole graph twice. Those
+    /// rewrites change instructions inside blocks, never blocks or edges.
+    pub(crate) struct BlockDominance {
+        function: usize,
+        // Preorder entry and exit counters of each block in the dominator tree.
+        // `UNREACHED` marks a block the entry cannot reach.
+        enter: Vec<u32>,
+        exit: Vec<u32>,
+    }
+
+    impl BlockDominance {
+        const UNREACHED: u32 = u32::MAX;
+
+        /// Builds the dominator tree (Cooper, Harvey and Kennedy's iterative
+        /// algorithm over reverse postorder) and numbers it once for O(1) queries.
+        pub(crate) fn of_function(
+            function_index: usize,
+            function: &SelectedFunction,
+        ) -> Result<Self, RuntimeSpillError> {
+            let block_count = function.blocks.len();
+            let position = |id: selected_instructions::SelectedBlockId| {
+                if function
+                    .blocks
+                    .get(id.0 as usize)
+                    .is_some_and(|block| block.id == id)
                 {
-                    let succ_id = successor.block;
-                    let destination = if function
-                        .blocks
-                        .get(succ_id.0 as usize)
-                        .is_some_and(|b| b.id == succ_id)
+                    Ok(id.0 as usize)
+                } else {
+                    function
+                        .block_index(id)
+                        .ok_or(RuntimeSpillError::SourceMismatch)
+                }
+            };
+            let entry = position(function.entry_block)?;
+            // Successors are resolved only for blocks the entry reaches.
+            let mut successors: Vec<Vec<usize>> = vec![Vec::new(); block_count];
+            let resolve =
+                |block: usize, successors: &mut Vec<Vec<usize>>| -> Result<(), RuntimeSpillError> {
+                    for successor in control(&function.blocks[block].terminator)
+                        .1
+                        .into_iter()
+                        .flatten()
                     {
-                        succ_id.0 as usize
-                    } else {
-                        function
-                            .block_index(succ_id)
-                            .ok_or(RuntimeSpillError::SourceMismatch)?
-                    };
-                    if !reached[destination] && !(bypass_anchor && destination == anchor) {
-                        pending.push(destination);
+                        successors[block].push(position(successor.block)?);
+                    }
+                    Ok(())
+                };
+            let mut visited = vec![false; block_count];
+            let mut postorder = Vec::with_capacity(block_count);
+            let mut walk: Vec<(usize, usize)> = vec![(entry, 0)];
+            visited[entry] = true;
+            resolve(entry, &mut successors)?;
+            while let Some(&(block, next)) = walk.last() {
+                if let Some(&successor) = successors[block].get(next) {
+                    if let Some(top) = walk.last_mut() {
+                        top.1 += 1;
+                    }
+                    if !visited[successor] {
+                        visited[successor] = true;
+                        resolve(successor, &mut successors)?;
+                        walk.push((successor, 0));
+                    }
+                } else {
+                    postorder.push(block);
+                    walk.pop();
+                }
+            }
+            let mut rank = vec![u32::MAX; block_count];
+            for (order, &block) in postorder.iter().rev().enumerate() {
+                rank[block] = order as u32;
+            }
+            let mut predecessors: Vec<Vec<usize>> = vec![Vec::new(); block_count];
+            for &block in &postorder {
+                for &successor in &successors[block] {
+                    predecessors[successor].push(block);
+                }
+            }
+            let mut immediate = vec![usize::MAX; block_count];
+            immediate[entry] = entry;
+            let intersect = |immediate: &[usize], mut left: usize, mut right: usize| {
+                while left != right {
+                    while rank[left] > rank[right] {
+                        left = immediate[left];
+                    }
+                    while rank[right] > rank[left] {
+                        right = immediate[right];
+                    }
+                }
+                left
+            };
+            let mut changed = true;
+            while changed {
+                changed = false;
+                for &block in postorder.iter().rev() {
+                    if block == entry {
+                        continue;
+                    }
+                    let mut chosen = usize::MAX;
+                    for &predecessor in &predecessors[block] {
+                        if immediate[predecessor] == usize::MAX {
+                            continue;
+                        }
+                        chosen = if chosen == usize::MAX {
+                            predecessor
+                        } else {
+                            intersect(&immediate, predecessor, chosen)
+                        };
+                    }
+                    if chosen != immediate[block] {
+                        immediate[block] = chosen;
+                        changed = true;
                     }
                 }
             }
-            if (!bypass_anchor && !reached[anchor])
-                || use_blocks
-                    .iter()
-                    .any(|block_index| reached[*block_index] == bypass_anchor)
-            {
-                return Err(RuntimeSpillError::UnsupportedUse);
+            let mut children: Vec<Vec<usize>> = vec![Vec::new(); block_count];
+            for &block in &postorder {
+                if block != entry {
+                    children[immediate[block]].push(block);
+                }
             }
+            let mut enter = vec![Self::UNREACHED; block_count];
+            let mut exit = vec![Self::UNREACHED; block_count];
+            let mut counter = 0u32;
+            let mut walk: Vec<(usize, usize)> = vec![(entry, 0)];
+            enter[entry] = counter;
+            while let Some(&(block, next)) = walk.last() {
+                if let Some(&child) = children[block].get(next) {
+                    if let Some(top) = walk.last_mut() {
+                        top.1 += 1;
+                    }
+                    counter += 1;
+                    enter[child] = counter;
+                    walk.push((child, 0));
+                } else {
+                    counter += 1;
+                    exit[block] = counter;
+                    walk.pop();
+                }
+            }
+            Ok(Self {
+                function: function_index,
+                enter,
+                exit,
+            })
+        }
+
+        pub(crate) fn function(&self) -> usize {
+            self.function
+        }
+
+        /// Whether every path from the entry to `block` passes through `anchor`.
+        /// A block the entry cannot reach is dominated by nothing.
+        pub(crate) fn dominates(&self, anchor: usize, block: usize) -> bool {
+            let (Some(&anchor_enter), Some(&block_enter)) =
+                (self.enter.get(anchor), self.enter.get(block))
+            else {
+                return false;
+            };
+            anchor_enter != Self::UNREACHED
+                && block_enter != Self::UNREACHED
+                && anchor_enter <= block_enter
+                && self.exit[block] <= self.exit[anchor]
+        }
+    }
+
+    /// Refuse a rewrite unless the entry reaches `anchor` and `anchor` dominates
+    /// every block in `use_blocks`.
+    pub(crate) fn require_dominated_uses(
+        dominance: &BlockDominance,
+        function_index: usize,
+        function: &SelectedFunction,
+        anchor: usize,
+        use_blocks: &[usize],
+    ) -> Result<(), RuntimeSpillError> {
+        if dominance.function != function_index || dominance.enter.len() != function.blocks.len() {
+            return Err(RuntimeSpillError::SourceMismatch);
+        }
+        if !dominance.dominates(anchor, anchor)
+            || use_blocks
+                .iter()
+                .any(|&block| !dominance.dominates(anchor, block))
+        {
+            return Err(RuntimeSpillError::UnsupportedUse);
         }
         Ok(())
     }
@@ -3453,6 +3725,7 @@ pub(crate) mod runtime_spill {
         pub store: &'source RegisterInstructionConstraint,
         pub carrier_class: RegisterClassId,
         pub bits_conversion: Option<BitsConversion<'source>>,
+        pub width: SpillWidth,
     }
 
     pub(crate) fn derive_runtime_spill<'source>(
@@ -3462,6 +3735,7 @@ pub(crate) mod runtime_spill {
         environment: &'source ValidatedTargetRegisterEnvironment,
         span_policy: RuntimeSpillSpanPolicy,
         budget: optimization_core::OptimizationWorkBudget,
+        dominance: &BlockDominance,
     ) -> Result<RuntimeSpillDerivation<'source>, RuntimeSpillError> {
         use operation_evidence::provenance::ValueDefinitionSite;
         use register_model::RegisterOperandAccess;
@@ -3588,13 +3862,32 @@ pub(crate) mod runtime_spill {
                     block_index,
                 )
             }
+            VirtualRegisterOrigin::InstructionScratch { instruction, .. } => {
+                let block_index = slot::instruction_block(function, instruction)
+                    .ok_or(RuntimeSpillError::UnsupportedValue)?;
+                (VictimLineage::Scratch, Some(instruction), block_index)
+            }
             _ => return Err(RuntimeSpillError::UnsupportedValue),
         };
-        let scalar_payload = match victim.scalar_type {
-            ScalarType::Callable(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_) => true,
-            ScalarType::Integer(integer) => matches!(integer.bits(), Some(8 | 16 | 32 | 64)),
+        // The spill width comes from the value's scalar type, never from its
+        // register class: an `f64` in a vector register spills 8 bytes, a 128-bit
+        // packed vector spills all 16. Scratch is admitted only as a whole packed
+        // vector, the one scratch shape whose width the type states.
+        let width = match victim.scalar_type {
+            ScalarType::Callable(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
+                Some(SpillWidth::Word)
+            }
+            ScalarType::Integer(integer) => match integer.bits() {
+                Some(8 | 16 | 32 | 64) => Some(SpillWidth::Word),
+                Some(128) => Some(SpillWidth::Packed128),
+                _ => None,
+            },
         };
-        if !scalar_payload
+        let Some(width) = width else {
+            return Err(RuntimeSpillError::UnsupportedValue);
+        };
+        let packed = width == SpillWidth::Packed128;
+        if (lineage == VictimLineage::Scratch && !packed)
             || (victim.entry_fixed_view.is_some() && !entry_boundary)
             || !(matches!(
                 victim.definition_site,
@@ -3607,6 +3900,7 @@ pub(crate) mod runtime_spill {
                     VirtualRegisterOrigin::StructuralParameter { .. }
                         | VirtualRegisterOrigin::AbiTransport { .. }
                         | VirtualRegisterOrigin::StructuralObservation { .. }
+                        | VirtualRegisterOrigin::InstructionScratch { .. }
                 )))
         {
             return Err(RuntimeSpillError::UnsupportedValue);
@@ -3734,6 +4028,13 @@ pub(crate) mod runtime_spill {
                 }
             }
             for successor in successors.into_iter().flatten() {
+                if packed
+                    && crate::allocation::rewrites::runtime_split::admission::names_structurally(
+                        successor, register,
+                    )
+                {
+                    return Err(RuntimeSpillError::UnsupportedUse);
+                }
                 for binding in &successor.bindings {
                     let SelectedValueTransport::Registers {
                         argument,
@@ -3835,8 +4136,9 @@ pub(crate) mod runtime_spill {
                                 if argument != register {
                                     continue;
                                 }
-                                if payload.semantic.parameter.scalar_type.as_checking()
-                                    != victim.scalar_type
+                                if packed
+                                    || payload.semantic.parameter.scalar_type.as_checking()
+                                        != victim.scalar_type
                                 {
                                     return Err(RuntimeSpillError::UnsupportedUse);
                                 }
@@ -4035,14 +4337,35 @@ pub(crate) mod runtime_spill {
                     .ok_or(RuntimeSpillError::ConstraintMismatch)?,
             )
             .ok_or(RuntimeSpillError::ConstraintMismatch)?;
+        let (load_key, store_key) = match width {
+            SpillWidth::Word => (
+                keys.load64.ok_or(RuntimeSpillError::ConstraintMismatch)?,
+                keys.store64.ok_or(RuntimeSpillError::ConstraintMismatch)?,
+            ),
+            // A target without 128-bit packed moves (aarch64 today) cannot spill
+            // a packed vector; it never creates one either.
+            SpillWidth::Packed128 => match (keys.packed_load_128, keys.packed_store_128) {
+                (Some(load), Some(store)) => (load, store),
+                _ => return Err(RuntimeSpillError::UnsupportedValue),
+            },
+        };
         let load = environment
-            .constraint(keys.load64.ok_or(RuntimeSpillError::ConstraintMismatch)?)
+            .constraint(load_key)
             .ok_or(RuntimeSpillError::ConstraintMismatch)?;
         let store = environment
-            .constraint(keys.store64.ok_or(RuntimeSpillError::ConstraintMismatch)?)
+            .constraint(store_key)
             .ok_or(RuntimeSpillError::ConstraintMismatch)?;
         if !load.implicit_uses.is_empty() {
             return Err(RuntimeSpillError::ConstraintMismatch);
+        }
+        let carrier_class = address
+            .operands
+            .first()
+            .map_or(Err(RuntimeSpillError::ConstraintMismatch), |operand| {
+                Ok(operand.class)
+            })?;
+        if packed {
+            packed_rows_fit(environment, victim, address, load, store, carrier_class)?;
         }
         for (row, accesses) in [
             (address, &[RegisterOperandAccess::Def][..]),
@@ -4059,6 +4382,9 @@ pub(crate) mod runtime_spill {
                 },
             ),
         ] {
+            if packed {
+                break;
+            }
             if row.operands.len() != accesses.len() || !row.implicit_defs.is_empty() {
                 return Err(RuntimeSpillError::ConstraintMismatch);
             }
@@ -4073,11 +4399,11 @@ pub(crate) mod runtime_spill {
                 }
             }
         }
-        let carrier_class = address.operands[0].class;
-        if [address, load, store]
-            .iter()
-            .flat_map(|row| row.operands.iter())
-            .any(|operand| operand.class != carrier_class)
+        if !packed
+            && [address, load, store]
+                .iter()
+                .flat_map(|row| row.operands.iter())
+                .any(|operand| operand.class != carrier_class)
         {
             return Err(RuntimeSpillError::ConstraintMismatch);
         }
@@ -4091,10 +4417,33 @@ pub(crate) mod runtime_spill {
         }) {
             return Err(RuntimeSpillError::ConstraintMismatch);
         }
-        let bits_conversion = if victim.class == carrier_class {
+        let bits_conversion = if packed || victim.class == carrier_class {
             None
         } else {
             Some(bits_transport(environment, victim, carrier_class)?)
+        };
+        // A packed store takes the slot address first, so it writes what
+        // `FrameAddress` writes too.
+        let reload_clobbers: Vec<RegisterUnitId> = address
+            .clobbers
+            .iter()
+            .chain(&load.clobbers)
+            .copied()
+            .collect();
+        let store_clobbers: Vec<RegisterUnitId> = if packed {
+            address
+                .clobbers
+                .iter()
+                .chain(&store.clobbers)
+                .copied()
+                .collect()
+        } else {
+            store.clobbers.clone()
+        };
+        let store_cost = if packed {
+            3
+        } else {
+            (if bits_conversion.is_some() { 3 } else { 1 }) + store.operands.len() - 1
         };
         let function_scan = crate::allocation::rewrites::function_scan(function)
             .ok_or(RuntimeSpillError::IdentityOverflow)?;
@@ -4113,11 +4462,7 @@ pub(crate) mod runtime_spill {
                         .checked_mul(if bits_conversion.is_some() { 6 } else { 4 })?,
                 )
             })
-            .and_then(|total| {
-                total.checked_add(definitions.len().checked_mul(
-                    (if bits_conversion.is_some() { 3 } else { 1 }) + store.operands.len() - 1,
-                )?)
-            })
+            .and_then(|total| total.checked_add(definitions.len().checked_mul(store_cost)?))
             .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
             .and_then(|total| total.checked_add(function_scan))
             .and_then(|total| {
@@ -4137,7 +4482,13 @@ pub(crate) mod runtime_spill {
         if charged(steps)? > ceiling {
             return Err(RuntimeSpillError::WorkBudgetExceeded);
         }
-        require_dominated_uses(function, block_index, &use_blocks)?;
+        require_dominated_uses(
+            dominance,
+            function_index,
+            function,
+            block_index,
+            &use_blocks,
+        )?;
         let first_instruction =
             next_instruction_id(function).ok_or(RuntimeSpillError::IdentityOverflow)?;
         let first_register =
@@ -4645,18 +4996,19 @@ pub(crate) mod runtime_spill {
             function,
             &definitions,
             &use_positions,
-            address,
-            load,
-            store,
+            &reload_clobbers,
+            &store_clobbers,
         )?;
-        let reuse_slots = function
-            .local_storage_slots
-            .len()
-            .checked_mul(function_scan)
-            .and_then(|slot_scan| steps.checked_add(slot_scan))
-            .map(charged)
-            .transpose()?
-            .is_some_and(|total| total <= ceiling);
+        // Shared slots hold 8 bytes, so a packed vector keeps a private slot.
+        let reuse_slots = !packed
+            && function
+                .local_storage_slots
+                .len()
+                .checked_mul(function_scan)
+                .and_then(|slot_scan| steps.checked_add(slot_scan))
+                .map(charged)
+                .transpose()?
+                .is_some_and(|total| total <= ceiling);
         let assignment = slot::assign(
             function,
             register,
@@ -4687,7 +5039,63 @@ pub(crate) mod runtime_spill {
             store,
             carrier_class,
             bits_conversion,
+            width,
         })
+    }
+
+    /// Check the rows a 16-byte spill uses: `FrameAddress` defines a pointer,
+    /// `PackedLoad128` reads 16 bytes through it into the victim's class and
+    /// `PackedStore128` writes 16 bytes from it. Every allocatable view of the
+    /// victim's class must be exactly 128 bits, so those 16 bytes are the whole
+    /// register: nothing is truncated and nothing wider is left behind.
+    fn packed_rows_fit(
+        environment: &ValidatedTargetRegisterEnvironment,
+        victim: &VirtualRegister,
+        address: &RegisterInstructionConstraint,
+        load: &RegisterInstructionConstraint,
+        store: &RegisterInstructionConstraint,
+        pointer_class: RegisterClassId,
+    ) -> Result<(), RuntimeSpillError> {
+        use register_model::RegisterOperandAccess::{Def, Use};
+        let physical = environment.physical().model();
+        let class_views = physical
+            .classes
+            .iter()
+            .find(|row| row.id == victim.class)
+            .map(|row| row.views.as_slice())
+            .unwrap_or_default();
+        let whole_register = !class_views.is_empty()
+            && class_views.iter().all(|view_id| {
+                physical
+                    .views
+                    .get(usize::from(view_id.0))
+                    .is_some_and(|view| view.id == *view_id && view.bits == 128)
+            });
+        if !whole_register {
+            return Err(RuntimeSpillError::UnsupportedValue);
+        }
+        for (row, shape) in [
+            (address, &[(Def, pointer_class)][..]),
+            (load, &[(Use, pointer_class), (Def, victim.class)][..]),
+            (store, &[(Use, pointer_class), (Use, victim.class)][..]),
+        ] {
+            if row.operands.len() != shape.len() || !row.implicit_defs.is_empty() {
+                return Err(RuntimeSpillError::ConstraintMismatch);
+            }
+            for (ordinal, (operand, (access, class))) in row.operands.iter().zip(shape).enumerate()
+            {
+                if usize::from(operand.operand) != ordinal
+                    || operand.access != *access
+                    || operand.class != *class
+                    || operand.fixed_view.is_some()
+                    || operand.tied_to.is_some()
+                    || operand.early_clobber
+                {
+                    return Err(RuntimeSpillError::ConstraintMismatch);
+                }
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn parameter_definitions(
@@ -4881,7 +5289,7 @@ pub(crate) mod runtime_split {
         use super::RuntimeSplitError;
         use crate::allocation::ValidatedSelectedAnalysis;
         use crate::allocation::rewrites::runtime_spill::{
-            control, next_instruction_id, next_register_id, require_dominated_uses,
+            BlockDominance, control, next_instruction_id, next_register_id, require_dominated_uses,
         };
         use crate::allocation::rewrites::selected_operands::copy_shaped;
 
@@ -4899,6 +5307,7 @@ pub(crate) mod runtime_split {
             register: VirtualRegisterId,
             environment: &ValidatedTargetRegisterEnvironment,
             budget: OptimizationWorkBudget,
+            dominance: &BlockDominance,
         ) -> Result<Admission, RuntimeSplitError> {
             let (plan, function) = crate::allocation::rewrites::plan_function(
                 source,
@@ -5057,14 +5466,19 @@ pub(crate) mod runtime_split {
                 return Err(RuntimeSplitError::UnsupportedValue);
             }
             charge(plan, function, uses, budget)?;
-            require_dominated_uses(function, block_index, &use_blocks).map_err(
-                |error| match error {
-                    crate::allocation::RuntimeSpillError::SourceMismatch => {
-                        RuntimeSplitError::SourceMismatch
-                    }
-                    _ => RuntimeSplitError::UnsupportedUse,
-                },
-            )?;
+            require_dominated_uses(
+                dominance,
+                function_index,
+                function,
+                block_index,
+                &use_blocks,
+            )
+            .map_err(|error| match error {
+                crate::allocation::RuntimeSpillError::SourceMismatch => {
+                    RuntimeSplitError::SourceMismatch
+                }
+                _ => RuntimeSplitError::UnsupportedUse,
+            })?;
             let instruction = SelectedInstructionId(next_instruction(function)?);
             let fresh = VirtualRegisterId(next_register(function)?);
             Ok(Admission {
@@ -5338,7 +5752,9 @@ pub(crate) mod runtime_split {
             shifted_position,
         };
         use crate::allocation::ValidatedSelectedAnalysis;
-        use crate::allocation::rewrites::runtime_spill::{control_mut, control_successors_mut};
+        use crate::allocation::rewrites::runtime_spill::{
+            BlockDominance, control_mut, control_successors_mut,
+        };
 
         pub fn split_selected_runtime_value(
             source: &impl ValidatedSelectedAnalysis,
@@ -5346,8 +5762,16 @@ pub(crate) mod runtime_split {
             register: VirtualRegisterId,
             environment: &ValidatedTargetRegisterEnvironment,
             budget: OptimizationWorkBudget,
+            dominance: &BlockDominance,
         ) -> Result<ValidatedRuntimeSplit, RuntimeSplitError> {
-            let admitted = admission::admit(source, function_index, register, environment, budget)?;
+            let admitted = admission::admit(
+                source,
+                function_index,
+                register,
+                environment,
+                budget,
+                dominance,
+            )?;
             let fresh = admitted.register.id;
             let definition_index = u32::try_from(admitted.definition_index)
                 .map_err(|_| RuntimeSplitError::IdentityOverflow)?;

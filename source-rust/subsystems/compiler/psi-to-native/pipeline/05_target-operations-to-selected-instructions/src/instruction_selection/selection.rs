@@ -656,15 +656,11 @@ pub(crate) mod constraints {
     }
 }
 pub(crate) mod construction {
-    #[allow(unused_imports)]
     pub(crate) use crate::input::BoundExecutionPlan;
-    #[allow(unused_imports)]
     pub(crate) use crate::instruction_selection::selection::model::SelectedInstructionError;
     pub(in crate::instruction_selection) use crate::instruction_selection::selection_scalar_graph as scalar_graph;
-    #[allow(unused_imports)]
     pub(crate) use selected_instructions::{SelectedInstructionPlan, SelectedSelectionConstraints};
 
-    #[allow(unused_imports)]
     pub(crate) use crate::instruction_selection::selection::constraints::require_key_rows;
 
     pub(crate) fn build_plan(
@@ -984,7 +980,6 @@ pub(crate) mod field_bytes {
                     }),
                     entry_block: BlockId::new(1).unwrap(),
                     blocks: Vec::new(),
-                    ownership_frontier_facts: Vec::new(),
                 };
                 let source = StructuralArgument {
                     place,
@@ -1370,30 +1365,11 @@ pub(crate) mod identity {
         plan: &SelectedInstructionPlan,
         legalized: &BoundExecutionPlan<'_>,
     ) -> SelectedInstructionValidationReceipt {
-        let function_count = plan.functions.len();
-        let block_count = plan
-            .functions
-            .iter()
-            .map(|function| function.blocks.len())
-            .sum::<usize>();
-        let virtual_register_count = plan
-            .functions
-            .iter()
-            .map(|function| function.virtual_registers.len())
-            .sum();
-        let instruction_count = plan
-            .blocks()
-            .map(|block| block.instructions.len() + 1)
-            .sum::<usize>();
+        let preparation = legalized.receipt();
         SelectedInstructionValidationReceipt {
             identity: selected_instruction_plan_identity(plan),
-            legalization_validator: legalized.receipt().validator(),
-            optimization_unit: legalized.receipt().optimization_unit(),
-            work_schedule: legalized.receipt().work_schedule(),
-            function_count,
-            block_count,
-            virtual_register_count,
-            instruction_count,
+            optimization_unit: preparation.optimization_unit(),
+            work_schedule: preparation.work_schedule(),
         }
     }
 }
@@ -1467,7 +1443,6 @@ pub(crate) mod integer_conversion {
 }
 pub(in crate::instruction_selection) use crate::instruction_selection::selection_inputs::literal_compare_input;
 pub(crate) mod model {
-    use optimization_core::OptimizationValidatorIdentity;
     use register_model::RegisterConstraintKey;
     use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 
@@ -1482,6 +1457,7 @@ pub(crate) mod model {
             std::sync::Arc::clone(&self.plan)
         }
 
+        #[cfg(feature = "test-support")]
         pub fn plan(&self) -> &SelectedInstructionPlan {
             &self.plan
         }
@@ -1494,23 +1470,13 @@ pub(crate) mod model {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct SelectedInstructionValidationReceipt {
         pub(crate) identity: SelectedInstructionPlanIdentity,
-        pub(crate) legalization_validator: OptimizationValidatorIdentity,
         pub(crate) optimization_unit: optimization_core::OptimizationUnitIdentity,
         pub(crate) work_schedule: semantic_vocabulary::WorkScheduleIdentity,
-        pub(crate) function_count: usize,
-        pub(crate) block_count: usize,
-        pub(crate) virtual_register_count: usize,
-        pub(crate) instruction_count: usize,
     }
 
     impl SelectedInstructionValidationReceipt {
         pub const fn identity(self) -> SelectedInstructionPlanIdentity {
             self.identity
-        }
-
-        #[cfg(feature = "test-support")]
-        pub const fn legalization_validator(self) -> OptimizationValidatorIdentity {
-            self.legalization_validator
         }
 
         pub const fn optimization_unit(self) -> optimization_core::OptimizationUnitIdentity {
@@ -1519,26 +1485,6 @@ pub(crate) mod model {
 
         pub const fn work_schedule(self) -> semantic_vocabulary::WorkScheduleIdentity {
             self.work_schedule
-        }
-
-        #[cfg(feature = "test-support")]
-        pub const fn function_count(self) -> usize {
-            self.function_count
-        }
-
-        #[cfg(feature = "test-support")]
-        pub const fn block_count(self) -> usize {
-            self.block_count
-        }
-
-        #[cfg(feature = "test-support")]
-        pub const fn virtual_register_count(self) -> usize {
-            self.virtual_register_count
-        }
-
-        #[cfg(feature = "test-support")]
-        pub const fn instruction_count(self) -> usize {
-            self.instruction_count
         }
     }
 
@@ -1973,12 +1919,7 @@ pub(in crate::instruction_selection) use crate::instruction_selection::selection
 pub(crate) use model::SelectedInstructionError;
 pub use model::ValidatedSelectedInstructions;
 
-#[allow(unused_imports)]
-pub(crate) use selected_instructions::SelectedSelectionConstraints;
-
-#[allow(unused_imports)]
 pub(crate) use crate::input::BoundExecutionPlan;
-#[allow(unused_imports)]
 pub(crate) use construction::build_plan;
 
 /// Selection reads the prepared plan and the target's register environment.

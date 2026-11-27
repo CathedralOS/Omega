@@ -1,5 +1,5 @@
 /*
-Places and the forward write log. A place is one dense identity whose row
+Places and what a write leaves in them. A place is one dense identity whose row
 names its origin (a root, or a parent plus one typed segment), so "this place"
 has exactly one representation. Elaboration mints at most one row per root and
 per (parent, segment) pair, so two occurrences of the same path are the same
@@ -12,19 +12,18 @@ one storage cell. Overlap is a question the checker answers from parent links
 and knowledge about selector values. Nothing may treat unequal identities as
 disjoint.
 
-The write log records, in program order, what each place holds after each
-write. The binding at a point is the last reaching write to the place or to
-any place that overlaps it, which the checker derives from the log.
+The checker derives its own write log from the lowered operations: in program
+order, what each place holds after each write (`Content`). The binding at a
+point is the last reaching write to the place or to any place that overlaps it.
 
 Elaboration indexes roots by `PlaceId` (`MachineTables::roots`) and children
-by their projection segment (`PlaceRow::children`). The forward log owns each
-write in program order.
+by their projection segment (`PlaceRow::children`).
 */
 
 use arena::IdTable;
 use semantic_vocabulary::{MachineId, PlaceId, ValueId};
 
-use crate::{ExactPlaceId, ProgramPoint, WriteId};
+use crate::ExactPlaceId;
 
 /// One exact place. `AGENTS.md` framing rule 3: "Track facts, loans, and
 /// restoration obligations at the exact projected place (`root.field` or case
@@ -116,20 +115,6 @@ pub fn entry_snapshot_segment(
         )
 }
 
-/// One write, in program order: within a block, `WriteId`s increase in
-/// operation order.
-///
-/// `wiki/spec/language/dependent_values.md`: "Invalidate flow refinements atom
-/// by atom on overlapping written places". Knowledge about the old value stays
-/// true; the write changes which value `place` and every overlapping place
-/// holds from `at` on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WriteRow {
-    pub place: ExactPlaceId,
-    pub at: ProgramPoint,
-    pub content: Content,
-}
-
 /// What a place holds after a write.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Content {
@@ -181,22 +166,6 @@ pub fn intern_projection(
             Ok(child)
         }
     }
-}
-
-pub fn record_write(
-    machine: MachineId,
-    places: &IdTable<ExactPlaceId, PlaceRow>,
-    writes: &mut IdTable<WriteId, WriteRow>,
-    row: WriteRow,
-) -> crate::Checked<()> {
-    places.get(row.place).ok_or_else(|| crate::Refusal {
-        reason: crate::RefusalReason::ForeignIdentity,
-        site: crate::RefusalSite::Machine(machine, crate::Construct::Place(row.place)),
-        source_span: None,
-        detail: "place is past the end of this machine".to_owned(),
-    })?;
-    writes.push(row);
-    Ok(())
 }
 
 #[cfg(test)]

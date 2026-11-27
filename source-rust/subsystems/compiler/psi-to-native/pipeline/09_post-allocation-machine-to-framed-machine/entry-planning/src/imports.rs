@@ -1,9 +1,8 @@
 //! Select every import body and its resource contract before encoding.
-use machine_code::import_code::ImportCodeIdentity;
 use physical_recipes::imports as recipes;
 use recipes::ImportInstructions;
 pub use recipes::ImportRecipe;
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::{Architecture, NativeTarget, NormalizedImportLocator, ObjectFormat};
 pub type PhysicalImportProgram = recipes::PhysicalImportProgram<crate::PhysicalRecipeOrigin>;
 pub type PlannedFunctionBody = physical_recipes::frame_protocol::PlannedFunctionBody<
     frame_planning::FrameRecipeOrigin,
@@ -89,7 +88,7 @@ pub fn plan_function_body(
         frame.instructions.target,
         import_locators
             .into_iter()
-            .map(|locator| ImportCodeIdentity::Normalized(locator.to_owned())),
+            .map(|locator| locator.to_owned()),
     )?;
     let (semantic, installations) =
         std::sync::Arc::unwrap_or_clone(facts).into_framed_body_facts(&private_references)?;
@@ -113,13 +112,11 @@ pub fn plan_function_body(
 
 pub fn plan_import_program(
     target: NativeTarget,
-    imports: impl IntoIterator<Item = ImportCodeIdentity>,
+    imports: impl IntoIterator<Item = NormalizedImportLocator>,
 ) -> Result<PhysicalImportProgram, &'static str> {
     let mut retained = Vec::new();
     for import in imports {
-        if let ImportCodeIdentity::Normalized(locator) = &import
-            && locator.as_ref().target().native_target() != target
-        {
+        if import.target().native_target() != target {
             return Err("physical import locator belongs to another target");
         }
         if !retained.contains(&import) {

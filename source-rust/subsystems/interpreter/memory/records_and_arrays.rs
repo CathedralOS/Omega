@@ -3595,6 +3595,35 @@ pub(crate) mod scalar_array {
                     if projected.view_tip.is_some() {
                         return Ok(None);
                     }
+                    // A fixed-array window of a byte view is backed by the
+                    // view's bytes, which no structural home can name, so the
+                    // callee borrows that window itself.
+                    if let Some(window) = projected
+                        .array_loan
+                        .as_ref()
+                        .filter(|loan| loan.is_representation())
+                    {
+                        let referent = &projected.value;
+                        if referent.structural_type != collection_type
+                            || !preserves_membership_carrier(
+                                &referent.qualifications,
+                                &referent.projected_qualifications,
+                            )
+                            || window.len() != length
+                        {
+                            return Err(malformed());
+                        }
+                        let mut presented = referent.clone();
+                        presented.structural_type = structural_type;
+                        let companion = window
+                            .subslice(0, length, argument.access)
+                            .ok_or(malformed())?
+                            .with_descriptor_home(presented.clone());
+                        return Ok(Some(CapturedArrayLoan {
+                            value: presented,
+                            companion,
+                        }));
+                    }
                     (projected.value, projected.collection_home)
                 };
                 if referent.structural_type != collection_type

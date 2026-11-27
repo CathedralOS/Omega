@@ -3,6 +3,7 @@ use target_provider_admission::{SelectedCheckedInvocationRow, selected_checked_i
 use build_providers::plans::ProviderPlan;
 use std::sync::Arc;
 use terminal_codec::{CanonicalTerminalArtifact, EvidenceSeals};
+use terminal_semantics::ModuleAnalyses;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FoldedTargetProgram {
@@ -98,8 +99,11 @@ pub(crate) struct FoldedEntryReach {
 }
 
 impl FoldedEntryReach {
+    /// `analyses` are the call analyses of `artifact`'s module, or the
+    /// refusal that building them produced.
     pub(crate) fn capture(
         artifact: terminal_codec::TerminalArtifactView<'_>,
+        analyses: Result<&ModuleAnalyses<'_>, &String>,
         target: &str,
         bindings: &[terminal_semantics::callable_values::CallableBoundaryImplementation],
         has_applications: bool,
@@ -115,7 +119,8 @@ impl FoldedEntryReach {
                 .collect();
             selected.sort_unstable();
             selected.dedup();
-            reached = scalar_boundaries(module, target, &[root], &selected)?;
+            reached =
+                scalar_boundaries(analyses.map_err(Clone::clone)?, target, &[root], &selected)?;
         }
         Ok(Self {
             program: artifact.identity(),
@@ -154,7 +159,7 @@ impl FoldedEntryReach {
 }
 
 fn scalar_boundaries(
-    module: &terminal_psi::TerminalModule,
+    analyses: &ModuleAnalyses<'_>,
     target: &str,
     roots: &[semantic_vocabulary::MachineId],
     selected: &[(
@@ -162,8 +167,7 @@ fn scalar_boundaries(
         semantic_vocabulary::MachineId,
     )],
 ) -> Result<Vec<semantic_vocabulary::BoundaryMachineId>, String> {
-    let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)?
-        .with_boundary_calls(selected.to_vec())?;
+    let graph = analyses.calls().with_boundary_calls(selected.to_vec())?;
     Ok(graph
         .from_callables(graph.scalar_evaluation_roots(roots, Some(target))?)?
         .boundaries
@@ -203,7 +207,8 @@ pub(crate) fn folded_constant_dependencies(
         return Ok(Default::default());
     }
     let rows = selected_checked_invocation_rows(plans, module)?;
-    let reached = scalar_boundaries(module, target, roots, &selected_bodies(&rows))?;
+    let analyses = terminal_semantics::synchronous_calls::call_analyses(module)?;
+    let reached = scalar_boundaries(&analyses, target, roots, &selected_bodies(&rows))?;
     folded_dependencies_for_rows(module, target, rows, &reached)
 }
 
@@ -259,7 +264,12 @@ mod tests {
         let record = build_identity_optimization_execution_record(&module).unwrap();
         let program = CanonicalTerminalArtifact::from_parts(module, record, None).unwrap();
         let target = "linux_x86_64";
-        assert!(FoldedEntryReach::capture(program.view(), target, &[], false).is_err());
+        let analyses =
+            terminal_semantics::synchronous_calls::call_analyses(program.view().module());
+        assert!(
+            FoldedEntryReach::capture(program.view(), analyses.as_ref(), target, &[], false)
+                .is_err()
+        );
         let roots = [];
         let closure =
             folded_constant_dependencies(program.semantic_module(), target, &[], &roots).unwrap();

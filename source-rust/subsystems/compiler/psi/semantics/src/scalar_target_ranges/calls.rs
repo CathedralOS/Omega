@@ -8,6 +8,23 @@ pub fn layout_call_conditions(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<Vec<(ObligationId, ScalarPredicateCondition)>, &'static str> {
+    layout_call_conditions_from(&DescriptorRowSource::new(module), machine)
+}
+
+/// `layout_call_conditions`, reading borrowed-storage rows from the module's
+/// shared analyses.
+pub fn layout_call_conditions_in(
+    analyses: &crate::ModuleAnalyses<'_>,
+    machine: &TerminalMachine,
+) -> Result<Vec<(ObligationId, ScalarPredicateCondition)>, &'static str> {
+    layout_call_conditions_from(&DescriptorRowSource::of(analyses), machine)
+}
+
+fn layout_call_conditions_from(
+    rows: &DescriptorRowSource<'_, '_>,
+    machine: &TerminalMachine,
+) -> Result<Vec<(ObligationId, ScalarPredicateCondition)>, &'static str> {
+    let module = rows.module();
     let applications = &module.scalars.scalar_applications;
     if applications.declarations().is_empty() {
         return Ok(Vec::new());
@@ -58,6 +75,7 @@ pub fn layout_call_conditions(
                             .get_or_init(|| {
                                 let mut trace = GroundRange {
                                     module,
+                                    rows,
                                     index: index.get_or_init(|| MachineScalarIndex::new(machine)),
                                     storage: &storage,
                                     dominators: &dominators,
@@ -92,6 +110,23 @@ pub fn array_extent_literal_conditions(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<Vec<ScalarPredicateCondition>, &'static str> {
+    array_extent_literal_conditions_from(&DescriptorRowSource::new(module), machine)
+}
+
+/// `array_extent_literal_conditions`, reading borrowed-storage rows from the
+/// module's shared analyses.
+pub fn array_extent_literal_conditions_in(
+    analyses: &crate::ModuleAnalyses<'_>,
+    machine: &TerminalMachine,
+) -> Result<Vec<ScalarPredicateCondition>, &'static str> {
+    array_extent_literal_conditions_from(&DescriptorRowSource::of(analyses), machine)
+}
+
+fn array_extent_literal_conditions_from(
+    rows: &DescriptorRowSource<'_, '_>,
+    machine: &TerminalMachine,
+) -> Result<Vec<ScalarPredicateCondition>, &'static str> {
+    let module = rows.module();
     let applications = &module.scalars.scalar_applications;
     if applications.declarations().is_empty() {
         return Ok(Vec::new());
@@ -158,6 +193,7 @@ pub fn array_extent_literal_conditions(
                         .get_or_init(|| {
                             let mut trace = GroundRange {
                                 module,
+                                rows,
                                 index: index.get_or_init(|| MachineScalarIndex::new(machine)),
                                 storage: &storage,
                                 dominators: &dominators,

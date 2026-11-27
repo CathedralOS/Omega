@@ -242,28 +242,59 @@ fn static_claim_read_sets(module: &TerminalModule) -> Vec<Option<Vec<MachineId>>
     closures
 }
 
-struct ClaimsSnapshot {
-    loan_completions: Vec<terminal_psi::LoanCompletion>,
-    operation_results: Vec<Vec<terminal_psi::StructuralResultClaimBinding>>,
-    call_transfers: Vec<Vec<terminal_psi::ClaimTransfer>>,
-    completion_receipts: Vec<Vec<terminal_psi::CompletionReceipt>>,
-    cleanup_transfers: Vec<Vec<terminal_psi::ClaimTransfer>>,
-    invoke_no_normal_transfers: Vec<Vec<terminal_psi::ClaimTransfer>>,
-    returned_claims: Vec<Vec<terminal_psi::StructuralResultClaimBinding>>,
+/// One claim list in a machine's blocks that `ClaimsPlan::install`
+/// overwrites. Installing never changes the blocks' operations or
+/// terminators, so the walk visits the same slots, in the same order, before
+/// and after an install.
+enum ClaimSlot<'m> {
+    Results(&'m mut Vec<terminal_psi::StructuralResultClaimBinding>),
+    Transfers(&'m mut Vec<terminal_psi::ClaimTransfer>),
+    Receipts(&'m mut Vec<terminal_psi::CompletionReceipt>),
 }
 
-fn machine_has_installed_block_claims(machine: &TerminalMachine) -> bool {
-    if !machine.loan_completions.is_empty() {
-        return true;
+/// A claim list moved out of its slot before an install.
+enum PriorClaims {
+    Results(Vec<terminal_psi::StructuralResultClaimBinding>),
+    Transfers(Vec<terminal_psi::ClaimTransfer>),
+    Receipts(Vec<terminal_psi::CompletionReceipt>),
+}
+
+impl ClaimSlot<'_> {
+    fn is_empty(&self) -> bool {
+        match self {
+            Self::Results(claims) => claims.is_empty(),
+            Self::Transfers(claims) => claims.is_empty(),
+            Self::Receipts(claims) => claims.is_empty(),
+        }
     }
-    for block in &machine.blocks {
-        for operation in &block.operations {
-            if let terminal_psi::OperationResult::Structural(result) = &operation.result
-                && !result.claims.is_empty()
-            {
-                return true;
+
+    fn take(self) -> PriorClaims {
+        match self {
+            Self::Results(claims) => PriorClaims::Results(std::mem::take(claims)),
+            Self::Transfers(claims) => PriorClaims::Transfers(std::mem::take(claims)),
+            Self::Receipts(claims) => PriorClaims::Receipts(std::mem::take(claims)),
+        }
+    }
+
+    fn holds(&self, prior: &PriorClaims) -> bool {
+        match (self, prior) {
+            (Self::Results(claims), PriorClaims::Results(prior)) => **claims == *prior,
+            (Self::Transfers(claims), PriorClaims::Transfers(prior)) => **claims == *prior,
+            (Self::Receipts(claims), PriorClaims::Receipts(prior)) => **claims == *prior,
+            _ => false,
+        }
+    }
+}
+
+/// Visit every claim list of `machine`'s blocks that `ClaimsPlan::install`
+/// overwrites, in block order.
+fn for_each_claim_slot(machine: &mut TerminalMachine, mut visit: impl FnMut(ClaimSlot<'_>)) {
+    for block in &mut machine.blocks {
+        for operation in &mut block.operations {
+            if let terminal_psi::OperationResult::Structural(result) = &mut operation.result {
+                visit(ClaimSlot::Results(&mut result.claims));
             }
-            match &operation.kind {
+            match &mut operation.kind {
                 OperationKind::CallUnit {
                     claim_transfers, ..
                 }
@@ -281,251 +312,82 @@ fn machine_has_installed_block_claims(machine: &TerminalMachine) -> bool {
                 }
                 | OperationKind::CallDynamic {
                     claim_transfers, ..
-                } if !claim_transfers.is_empty() => return true,
+                } => visit(ClaimSlot::Transfers(claim_transfers)),
                 OperationKind::BoundaryCall {
                     completion_receipts,
                     ..
-                } if !completion_receipts.is_empty() => return true,
+                } => visit(ClaimSlot::Receipts(completion_receipts)),
                 _ => {}
             }
         }
-        for (_, actions) in block.terminator.cleanup_rosters() {
-            for action in actions {
-                if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
-                    && !cleanup.claim_transfers.is_empty()
-                {
-                    return true;
-                }
-            }
-        }
-        if let Terminator::InvokeNoNormal {
-            claim_transfers, ..
-        } = &block.terminator
-            && !claim_transfers.is_empty()
-        {
-            return true;
-        }
-        if let Terminator::ReturnStructural {
-            returned_claims, ..
-        } = &block.terminator
-            && !returned_claims.is_empty()
-        {
-            return true;
-        }
-    }
-    false
-}
-
-fn snapshot_block_claims(machine: &TerminalMachine) -> ClaimsSnapshot {
-    let mut snapshot = ClaimsSnapshot {
-        loan_completions: machine.loan_completions.clone(),
-        operation_results: Vec::new(),
-        call_transfers: Vec::new(),
-        completion_receipts: Vec::new(),
-        cleanup_transfers: Vec::new(),
-        invoke_no_normal_transfers: Vec::new(),
-        returned_claims: Vec::new(),
-    };
-    for block in &machine.blocks {
-        for operation in &block.operations {
-            if let terminal_psi::OperationResult::Structural(result) = &operation.result {
-                snapshot.operation_results.push(result.claims.clone());
-            }
-            match &operation.kind {
-                OperationKind::CallUnit {
-                    claim_transfers, ..
-                }
-                | OperationKind::CallStructuralScalar {
-                    claim_transfers, ..
-                }
-                | OperationKind::CallStructural {
-                    claim_transfers, ..
-                }
-                | OperationKind::CallStructuralWithScalarArguments {
-                    claim_transfers, ..
-                }
-                | OperationKind::CallMachine {
-                    claim_transfers, ..
-                }
-                | OperationKind::CallDynamic {
-                    claim_transfers, ..
-                } => snapshot.call_transfers.push(claim_transfers.clone()),
-                OperationKind::BoundaryCall {
-                    completion_receipts,
-                    ..
-                } => snapshot
-                    .completion_receipts
-                    .push(completion_receipts.clone()),
-                _ => {}
-            }
-        }
-        for (_, actions) in block.terminator.cleanup_rosters() {
+        for (_, actions) in block.terminator.cleanup_rosters_mut() {
             for action in actions {
                 if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
-                    snapshot
-                        .cleanup_transfers
-                        .push(cleanup.claim_transfers.clone());
+                    visit(ClaimSlot::Transfers(&mut cleanup.claim_transfers));
                 }
             }
         }
-        if let Terminator::InvokeNoNormal {
-            claim_transfers, ..
-        } = &block.terminator
-        {
-            snapshot
-                .invoke_no_normal_transfers
-                .push(claim_transfers.clone());
-        }
-        if let Terminator::ReturnStructural {
-            returned_claims, ..
-        } = &block.terminator
-        {
-            snapshot.returned_claims.push(returned_claims.clone());
+        match &mut block.terminator {
+            Terminator::InvokeNoNormal {
+                claim_transfers, ..
+            } => visit(ClaimSlot::Transfers(claim_transfers)),
+            Terminator::ReturnStructural {
+                returned_claims, ..
+            } => visit(ClaimSlot::Results(returned_claims)),
+            _ => {}
         }
     }
-    snapshot
 }
 
-fn block_claims_match_snapshot(machine: &TerminalMachine, snapshot: &ClaimsSnapshot) -> bool {
-    if snapshot.loan_completions != machine.loan_completions {
-        return false;
-    }
-    let mut op_res_idx = 0;
-    let mut call_idx = 0;
-    let mut receipt_idx = 0;
-    let mut cleanup_idx = 0;
-    let mut invoke_idx = 0;
-    let mut return_idx = 0;
-    for block in &machine.blocks {
-        for operation in &block.operations {
-            if let terminal_psi::OperationResult::Structural(result) = &operation.result {
-                if snapshot.operation_results[op_res_idx] != result.claims {
-                    return false;
-                }
-                op_res_idx += 1;
-            }
-            match &operation.kind {
-                OperationKind::CallUnit {
-                    claim_transfers, ..
-                }
-                | OperationKind::CallStructuralScalar {
-                    claim_transfers, ..
-                }
-                | OperationKind::CallStructural {
-                    claim_transfers, ..
-                }
-                | OperationKind::CallStructuralWithScalarArguments {
-                    claim_transfers, ..
-                }
-                | OperationKind::CallMachine {
-                    claim_transfers, ..
-                }
-                | OperationKind::CallDynamic {
-                    claim_transfers, ..
-                } => {
-                    if snapshot.call_transfers[call_idx] != *claim_transfers {
-                        return false;
-                    }
-                    call_idx += 1;
-                }
-                OperationKind::BoundaryCall {
-                    completion_receipts,
-                    ..
-                } => {
-                    if snapshot.completion_receipts[receipt_idx] != *completion_receipts {
-                        return false;
-                    }
-                    receipt_idx += 1;
-                }
-                _ => {}
-            }
-        }
-        for (_, actions) in block.terminator.cleanup_rosters() {
-            for action in actions {
-                if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
-                    if snapshot.cleanup_transfers[cleanup_idx] != cleanup.claim_transfers {
-                        return false;
-                    }
-                    cleanup_idx += 1;
-                }
-            }
-        }
-        if let Terminator::InvokeNoNormal {
-            claim_transfers, ..
-        } = &block.terminator
-        {
-            if snapshot.invoke_no_normal_transfers[invoke_idx] != *claim_transfers {
-                return false;
-            }
-            invoke_idx += 1;
-        }
-        if let Terminator::ReturnStructural {
-            returned_claims, ..
-        } = &block.terminator
-        {
-            if snapshot.returned_claims[return_idx] != *returned_claims {
-                return false;
-            }
-            return_idx += 1;
-        }
-    }
-    true
-}
-
+/// Install `plan` and report whether it changed `machine`, which tells
+/// `plan_then_apply` to plan again any machine whose walk read this one.
+/// The old non-empty claim lists are moved out rather than copied: the
+/// install overwrites every slot, and an unchanged machine is the common
+/// case, so the comparison costs no clone of any claim list.
 fn install_claims_plan(
     machine: &mut TerminalMachine,
     plan: terminal_semantics::plain_affine::ClaimsPlan,
 ) -> Result<bool, terminal_semantics::plain_affine::Error> {
     let header_same = machine.contract.entry_claims == plan.entry_claims
         && machine.block_entry_claims == plan.block_entry_claims;
-    let prior_snapshot = if header_same && machine_has_installed_block_claims(machine) {
-        Some(snapshot_block_claims(machine))
-    } else {
-        None
-    };
-    plan.install(machine)?;
     if !header_same {
+        plan.install(machine)?;
         return Ok(true);
     }
-    Ok(match prior_snapshot {
-        Some(snapshot) => !block_claims_match_snapshot(machine, &snapshot),
-        None => machine_has_installed_block_claims(machine),
-    })
+    let prior_loan_completions = std::mem::take(&mut machine.loan_completions);
+    let mut prior: Vec<(usize, PriorClaims)> = Vec::new();
+    let mut slot_index = 0;
+    for_each_claim_slot(machine, |slot| {
+        if !slot.is_empty() {
+            prior.push((slot_index, slot.take()));
+        }
+        slot_index += 1;
+    });
+    plan.install(machine)?;
+    let mut changed = machine.loan_completions != prior_loan_completions;
+    let mut prior = prior.into_iter().peekable();
+    let mut slot_index = 0;
+    for_each_claim_slot(machine, |slot| {
+        let unchanged = match prior.next_if(|(index, _)| *index == slot_index) {
+            Some((_, old)) => slot.holds(&old),
+            None => slot.is_empty(),
+        };
+        changed |= !unchanged;
+        slot_index += 1;
+    });
+    Ok(changed)
 }
 
 fn preparation_error(
     machine: MachineId,
     error: terminal_semantics::plain_affine::Error,
 ) -> Refusal {
-    let concerns = match error.site() {
-        Some(terminal_semantics::plain_affine::Site::Operation(at)) => Construct::Operation(at),
-        Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
-        None => Construct::Machine,
-    };
-    let (reason, detail) = match error {
-        terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
-            (RefusalReason::Unestablished, unavailable.message())
-        }
-        terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
-            RefusalReason::Violation,
-            terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
-        ),
-        terminal_semantics::plain_affine::Error::MissingActiveCase { .. } => (
-            RefusalReason::Unsupported,
-            terminal_semantics::plain_affine::Error::missing_active_case_message(),
-        ),
-        terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-            (RefusalReason::Unsupported, detail)
-        }
-        terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
-            (RefusalReason::ForeignIdentity, detail)
-        }
-    };
+    let refusal = crate::lower::machine_order::WalkRefusal::new(&error);
     Refusal {
-        reason,
-        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
+        reason: refusal.reason,
+        site: terminal_check_tables::RefusalSite::Machine(machine, refusal.concerns),
         source_span: None,
-        detail: format!("preparing logical claim transport: {detail}"),
+        detail: format!("preparing logical claim transport: {}", refusal.detail),
     }
 }
 
@@ -584,18 +446,15 @@ pub(crate) fn publish(
     crate::lower::machine_order::plan_then_apply_with(
         module,
         parallel,
-        |module, summaries, machine| {
+        |walks, machine| {
             let reads = machine_ordinals
                 .as_deref()
                 .and_then(|ordinals| lookup_ordinal(ordinals, machine.id))
                 .and_then(|slot| read_sets.get(slot))
                 .and_then(Option::as_deref);
-            let plan = terminal_semantics::plain_affine::MachineAffine::new(
-                module,
-                machine.id,
-                Some(summaries),
-            )
-            .and_then(|walks| walks.plan_claims());
+            let plan = walks
+                .affine(machine.id)
+                .and_then(|walks| walks.plan_claims());
             PlannedClaims { reads, plan }
         },
         |planned| planned.reads,
@@ -856,5 +715,48 @@ mod tests {
         });
         assert!(install_claims_plan(&mut mutating, non_empty.clone()).unwrap());
         assert!(!install_claims_plan(&mut mutating, non_empty).unwrap());
+    }
+
+    /// A call's claim transfers sit in the machine's blocks, not its header:
+    /// installing them changes the machine, installing them again does not,
+    /// and installing a plan without them changes it back.
+    #[test]
+    fn install_claims_plan_compares_block_claims_it_overwrites() {
+        let call = Operation::unsuspended(
+            id::<OperationId>(1),
+            OperationResult::Unit,
+            OperationKind::CallUnit {
+                callee: id(2),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        );
+        let mut machine = unit_machine(1, vec![call]);
+        let mut transferring = terminal_semantics::plain_affine::ClaimsPlan::default();
+        transferring.call_transfers.insert(
+            semantic_vocabulary::InvocationSite::Operation(id(1)),
+            vec![terminal_psi::ClaimTransfer {
+                claim: id(1),
+                argument_index: 0,
+                path: Vec::new(),
+            }],
+        );
+        let empty = terminal_semantics::plain_affine::ClaimsPlan::default();
+        assert!(!install_claims_plan(&mut machine, empty.clone()).unwrap());
+        assert!(install_claims_plan(&mut machine, transferring.clone()).unwrap());
+        assert!(!install_claims_plan(&mut machine, transferring).unwrap());
+        assert!(install_claims_plan(&mut machine, empty).unwrap());
+        let OperationKind::CallUnit {
+            claim_transfers, ..
+        } = &machine.blocks[0].operations[0].kind
+        else {
+            unreachable!()
+        };
+        assert!(claim_transfers.is_empty());
     }
 }

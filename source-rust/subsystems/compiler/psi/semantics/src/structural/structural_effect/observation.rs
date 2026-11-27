@@ -179,6 +179,13 @@ pub enum StructuralEffectObservation {    NativeCodeLayoutEstablished {
         destination: PlaceId,
         obligation: ObligationId,
     },
+    ElementViewFixedArray {
+        source: StructuralArgument,
+        length: ValueId,
+        extent: u64,
+        destination: PlaceId,
+        obligation: ObligationId,
+    },
     BooleanFieldEquation(Proposition),
     ScalarFieldEquation(Proposition),
     PortWrite {
@@ -459,6 +466,27 @@ pub fn structural_effect_leaf_observation_in(
                 .result
                 .structural()
                 .expect("validated structural result")
+                .place,
+            obligation: *obligation,
+        },
+        (
+            StructuralEffectAction::EstablishElementViewFixedArray,
+            OperationKind::ElementViewFixedArray {
+                source,
+                length,
+                extent,
+                obligation,
+            },
+        ) => StructuralEffectObservation::ElementViewFixedArray {
+            source: source.clone(),
+            length: *length,
+            extent: *extent,
+            destination: operation
+                .result
+                .structural()
+                .ok_or(OperationSemanticError::StructuralEffectResultShapeMismatch(
+                    tag,
+                ))?
                 .place,
             obligation: *obligation,
         },

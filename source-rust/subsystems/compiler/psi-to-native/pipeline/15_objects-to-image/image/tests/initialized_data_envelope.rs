@@ -2,17 +2,13 @@
 //! except the slots its relocations name. The public check is
 //! `EmittedImageOutput::validate_final_initialized_data_relocation_envelope`:
 //! only the exact eight-byte slots named by checked Absolute64 data relocations
-//! may differ. Image emission's `final_image_validation` also reaches it, and
-//! the `output.rs` unit tests cover the compact-versus-strong evidence property
-//! named in the crate header (`compact_collision_cannot_substitute_strong_
-//! compiler_text_evidence`).
+//! may differ. Image emission's `final_image_validation` also reaches it.
 //!
 //! The x86-64 patcher applies a real relocation plan, and the placed
 //! executable/data inventories and the wrapped `EmittedImageOutput` replay the
 //! result. A byte changed outside a declared slot is rejected, as are malformed
 //! or overlapping data-slot declarations; text records stay out of data custody,
-//! and a substituted strong digest cannot hide behind an identical compact
-//! report fingerprint. PE's import data (`.rdata` IAT slots outside `.data`),
+//! and the emitted final text replays through the text envelope. PE's import data (`.rdata` IAT slots outside `.data`),
 //! whose extent the writer owns, replays through the same byte comparison on the
 //! `final_import_data_bytes`/`import_data_regions` pair.
 
@@ -21,8 +17,8 @@ mod common;
 use common::{TEXT_ADDRESS, layout};
 
 use image::{
-    EmittedImageOutput, EncodedCompilerTextDigest, ExecutableImageOutput, FinalImageInput,
-    apply_relocations, build_final_image, emitted_direct_executable_output, place_data_regions,
+    EmittedImageOutput, ExecutableImageOutput, FinalImageInput, apply_relocations,
+    build_final_image, emitted_direct_executable_output, place_data_regions,
     place_executable_regions, validate_final_text_relocation_envelope,
     validate_placed_data_region_inventory, validate_placed_executable_region_inventory,
 };
@@ -87,7 +83,6 @@ fn object_plan(target: NativeTarget) -> (ObjectPlan, ObjectSymbolHandle) {
         offset: 0,
         size: TEXT_BYTES.len(),
         kind: SymbolKind::Function,
-        import_library: String::new(),
     });
     object.layout.entry_symbol = entry;
     object.layout.symbols.insert(SymbolPlan {
@@ -96,7 +91,6 @@ fn object_plan(target: NativeTarget) -> (ObjectPlan, ObjectSymbolHandle) {
         offset: 0,
         size: 8,
         kind: SymbolKind::Object,
-        import_library: String::new(),
     });
     (object, entry)
 }
@@ -338,63 +332,16 @@ fn placed_inventories_reject_substituted_rows_and_bytes() {
 }
 
 #[test]
-fn compact_fingerprint_cannot_substitute_strong_text_evidence_at_the_output() {
+fn emitted_final_text_replays_through_the_text_envelope() {
     let target = NativeTarget::linux_x64();
     let (output, _encoded, relocations, _entry) = emitted_output(target);
 
-    let evidence = validate_final_text_relocation_envelope(
-        &TEXT_BYTES,
-        &output.final_text_bytes,
-        &relocations,
-    )
-    .expect("the emitted final text replays against its plan");
-    assert!(evidence.has_valid_derivation_digest());
-
-    // Independent replay derives identical evidence.
-    let replayed = validate_final_text_relocation_envelope(
-        &TEXT_BYTES,
-        &output.final_text_bytes,
-        &relocations,
-    )
-    .expect("independent replay succeeds again");
-    assert_eq!(replayed, evidence);
-
-    // A foreign encoded text produces a different strong digest under the
-    // same domain: substitute it while keeping every compact report field.
-    let foreign = validate_final_text_relocation_envelope(
-        &[0xc3],
-        &[0xc3],
-        &RelocationPlan::with_target(target),
-    )
-    .expect("a foreign encoded text replays");
-    assert_ne!(foreign.encoded_text_digest, evidence.encoded_text_digest);
-
-    let mut substituted = evidence;
-    substituted.encoded_text_digest = foreign.encoded_text_digest;
-    // The compact lane cannot separate the substitution: the report
-    // fingerprints are unchanged because they were never commitments to the
-    // digest fields.
-    assert_eq!(
-        substituted.encoded_text_report_fingerprint,
-        evidence.encoded_text_report_fingerprint,
+    validate_final_text_relocation_envelope(&TEXT_BYTES, &output.final_text_bytes, &relocations)
+        .expect("the emitted final text replays against its plan");
+    let mut drifted = output.final_text_bytes.clone();
+    drifted[0] ^= 1;
+    assert!(
+        validate_final_text_relocation_envelope(&TEXT_BYTES, &drifted, &relocations).is_err(),
+        "a final text byte changed outside every relocation field is rejected",
     );
-    assert_eq!(
-        substituted.derivation_report_fingerprint,
-        evidence.derivation_report_fingerprint,
-    );
-    // The strong lane catches it twice: the retained derivation no longer
-    // covers the substituted digest, and even a freshly recomputed derivation
-    // keeps the evidence distinct from the replayed original.
-    assert!(!substituted.has_valid_derivation_digest());
-    substituted.derivation_digest = substituted.recomputed_derivation_digest();
-    assert!(substituted.has_valid_derivation_digest());
-    assert_ne!(substituted, evidence);
-    assert_ne!(substituted.derivation_digest, evidence.derivation_digest);
-    // A bare substituted digest value that names nothing replayable rejects
-    // the same way — the compact lane still cannot authorize it.
-    let mut forged = evidence;
-    forged.encoded_text_digest = EncodedCompilerTextDigest::from_digest([0xa5; 32]);
-    forged.derivation_digest = forged.recomputed_derivation_digest();
-    assert!(forged.has_valid_derivation_digest());
-    assert_ne!(forged, evidence);
 }

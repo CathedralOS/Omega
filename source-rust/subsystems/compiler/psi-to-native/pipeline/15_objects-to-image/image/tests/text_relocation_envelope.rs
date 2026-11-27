@@ -4,9 +4,8 @@
 //! Image-emission's `final_image_validation` also calls it. These tests pin
 //! that relocations applied through the shared patcher replay through the
 //! envelope, each relocation kind masks only its declared field bits, a
-//! suffix the emitter appends stays outside the envelope, malformed or
-//! overlapping fields are rejected, and the returned evidence digests bind
-//! the exact relocation plan rather than its presentation order.
+//! suffix the emitter appends stays outside the envelope, and malformed or
+//! overlapping fields are rejected.
 
 mod common;
 
@@ -68,33 +67,19 @@ fn object_symbol(
         offset,
         size,
         kind,
-        import_library: String::new(),
     })
 }
 
 #[test]
-fn declared_fields_may_change_and_the_evidence_replays_deterministically() {
+fn declared_fields_may_change() {
     let encoded = [0xe8, 0, 0, 0, 0, 0xc3, 0x90, 0x90];
     let mut final_text = encoded.to_vec();
     final_text[1..5].copy_from_slice(&3i32.to_le_bytes());
     let mut relocations = RelocationPlan::with_target(NativeTarget::linux_x64());
     relocations.push_record(invalid_relocation(1, 4, RelocationKind::X86_64Relative32));
 
-    let evidence = validate_final_text_relocation_envelope(&encoded, &final_text, &relocations)
+    validate_final_text_relocation_envelope(&encoded, &final_text, &relocations)
         .expect("a relocation writing inside its declared field replays");
-    assert_eq!(evidence.text_relocation_count, 1);
-    assert_eq!(evidence.checked_instruction_validation_count, 0);
-    assert!(
-        evidence.has_valid_derivation_digest(),
-        "the returned derivation digest commits every reported field",
-    );
-
-    let replayed = validate_final_text_relocation_envelope(&encoded, &final_text, &relocations)
-        .expect("independent replay succeeds again");
-    assert_eq!(
-        evidence, replayed,
-        "independent replay derives identical evidence",
-    );
 }
 
 #[test]
@@ -160,11 +145,8 @@ fn applied_x86_64_relocations_replay_through_the_text_envelope() {
         "absolute64 = callee(0x400008) + addend 7",
     );
 
-    let evidence =
-        validate_final_text_relocation_envelope(&encoded, &image.memory.text, &relocations)
-            .expect("applied relocations replay through the envelope");
-    assert_eq!(evidence.text_relocation_count, 2);
-    assert!(evidence.has_valid_derivation_digest());
+    validate_final_text_relocation_envelope(&encoded, &image.memory.text, &relocations)
+        .expect("applied relocations replay through the envelope");
 
     // The same patched bytes do not replay against a plan that forgot its
     // records: every changed byte is then unexplained mutation.
@@ -281,11 +263,8 @@ fn applied_aarch64_relocations_replay_through_the_text_envelope() {
         0x1400_0001,
     );
 
-    let evidence =
-        validate_final_text_relocation_envelope(&encoded, &image.memory.text, &relocations)
-            .expect("applied relocations replay through the envelope");
-    assert_eq!(evidence.text_relocation_count, 3);
-    assert!(evidence.has_valid_derivation_digest());
+    validate_final_text_relocation_envelope(&encoded, &image.memory.text, &relocations)
+        .expect("applied relocations replay through the envelope");
 
     // The ADRP mask does not cover the opcode bits: a patched text whose
     // low bit drifted outside the declared field fails closed.
@@ -407,82 +386,14 @@ fn malformed_relocation_fields_fail_closed() {
 fn emitter_appended_suffix_stays_outside_text_custody() {
     // PE and Mach-O emitters append import thunks after the compiler's own
     // code, so a longer final text is admitted and only the encoded-length
-    // prefix is validated or committed.
+    // prefix is validated.
     let encoded = vec![0xcc; 8];
     let relocations = RelocationPlan::with_target(NativeTarget::windows_x64());
     let mut suffixed = encoded.clone();
     suffixed.extend_from_slice(&[0xde, 0xad, 0xbe, 0xef]);
 
-    let unpadded = validate_final_text_relocation_envelope(&encoded, &encoded, &relocations)
+    validate_final_text_relocation_envelope(&encoded, &encoded, &relocations)
         .expect("the exact final text replays");
-    let padded = validate_final_text_relocation_envelope(&encoded, &suffixed, &relocations)
+    validate_final_text_relocation_envelope(&encoded, &suffixed, &relocations)
         .expect("an emitter-appended suffix is admitted");
-    assert_eq!(
-        padded, unpadded,
-        "the appended suffix enters no custody commitment",
-    );
-}
-
-#[test]
-fn envelope_digest_binds_the_exact_plan_not_its_presentation_order() {
-    let encoded = vec![0u8; 24];
-    let unchanged = encoded.clone();
-
-    let mut base = RelocationPlan::with_target(NativeTarget::linux_x64());
-    base.push_record(invalid_relocation(0, 4, RelocationKind::X86_64Relative32));
-    let base_evidence = validate_final_text_relocation_envelope(&encoded, &unchanged, &base)
-        .expect("base plan replays");
-
-    // Kind, offset and addend are each committed: changing any one produces
-    // a different envelope, so substituted plans cannot share custody.
-    for drifted_record in [
-        invalid_relocation(0, 8, RelocationKind::Absolute64),
-        invalid_relocation(4, 4, RelocationKind::X86_64Relative32),
-        text!(0 => 4 => ObjectSymbolHandle::invalid() => 8 => RelocationKind::X86_64Relative32),
-    ] {
-        let mut drifted_plan = RelocationPlan::with_target(NativeTarget::linux_x64());
-        drifted_plan.push_record(drifted_record);
-        let drifted_evidence =
-            validate_final_text_relocation_envelope(&encoded, &unchanged, &drifted_plan)
-                .expect("a different declared field still replays");
-        assert_ne!(
-            drifted_evidence.relocation_envelope_digest, base_evidence.relocation_envelope_digest,
-            "the envelope digest binds kind, offset and addend",
-        );
-        assert_ne!(
-            drifted_evidence.derivation_digest, base_evidence.derivation_digest,
-            "the derivation digest cannot be reused across plans",
-        );
-    }
-
-    // Record insertion order is presentation, not custody: the canonical
-    // ordering makes the two plans interchangeable.
-    let mut reordered = RelocationPlan::with_target(NativeTarget::linux_x64());
-    reordered.push_record(invalid_relocation(8, 8, RelocationKind::Absolute64));
-    reordered.push_record(invalid_relocation(0, 4, RelocationKind::X86_64Relative32));
-    let reordered_evidence =
-        validate_final_text_relocation_envelope(&encoded, &unchanged, &reordered)
-            .expect("the reordered plan replays");
-
-    let mut ordered = RelocationPlan::with_target(NativeTarget::linux_x64());
-    ordered.push_record(invalid_relocation(0, 4, RelocationKind::X86_64Relative32));
-    ordered.push_record(invalid_relocation(8, 8, RelocationKind::Absolute64));
-    let ordered_evidence = validate_final_text_relocation_envelope(&encoded, &unchanged, &ordered)
-        .expect("the ordered plan replays");
-    assert_eq!(
-        reordered_evidence.relocation_envelope_digest, ordered_evidence.relocation_envelope_digest,
-        "the canonical envelope is independent of record insertion order",
-    );
-
-    // The encoded digest commits the encoded input even where no field ever
-    // declared it: identical byte equality cannot launder a different source.
-    let mut substituted = encoded.clone();
-    substituted[20] = 0x5a;
-    let substituted_evidence =
-        validate_final_text_relocation_envelope(&substituted, &substituted, &base)
-            .expect("an unchanged substitution still replays byte equality");
-    assert_ne!(
-        substituted_evidence.encoded_text_digest, base_evidence.encoded_text_digest,
-        "the encoded digest distinguishes the substituted input",
-    );
 }

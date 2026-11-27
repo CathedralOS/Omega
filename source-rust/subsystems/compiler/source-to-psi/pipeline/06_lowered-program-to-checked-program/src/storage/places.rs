@@ -1233,7 +1233,7 @@ pub(crate) struct Storage<'a> {
     types: &'a [StructuralTypeDeclaration],
     /// The same declarations by identity. Path walks read a declaration at
     /// every step, and a scan of the list costs its whole length each time.
-    type_index: terminal_semantics::descriptor_lifetimes::StructuralTypeIndex<'a>,
+    type_index: &'a terminal_semantics::descriptor_lifetimes::StructuralTypeIndex<'a>,
     graph: &'a Graph,
     initial_contents: Vec<Option<ValueId>>,
     returned_contents: Vec<Vec<(ExactPlaceId, ValueId)>>,
@@ -1292,6 +1292,7 @@ impl<'a> Storage<'a> {
         graph: &'a Graph,
         tables: &MachineTables,
         value_types: &IdTable<ValueId, ScalarType>,
+        type_index: &'a terminal_semantics::descriptor_lifetimes::StructuralTypeIndex<'a>,
         references: &mut DescriptorAnalysis<'a>,
     ) -> Checked<Self> {
         // First, because every lineage below is read through the place
@@ -1386,9 +1387,7 @@ impl<'a> Storage<'a> {
             module,
             float_meanings: std::cell::OnceCell::new(),
             types: &module.types.structural_types,
-            type_index: terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
-                &module.types.structural_types,
-            ),
+            type_index,
             graph,
             initial_contents: contents.entry,
             returned_contents: contents.calls,
@@ -2750,7 +2749,7 @@ impl<'a> Storage<'a> {
             Vec::with_capacity(beneath.len())
         } else {
             terminal_semantics::resolved_structural_path(
-                &self.type_index,
+                self.type_index,
                 self.root_type(root, concerns)?,
                 path,
             )
@@ -2927,6 +2926,16 @@ impl<'a> Storage<'a> {
                     }
                     return self.subslice_goal(operation, types);
                 }
+                if let OperationKind::ElementViewFixedArray {
+                    obligation: owned, ..
+                } = &operation.kind
+                {
+                    if *owned != obligation {
+                        return Err(self
+                            .foreign(concerns, "a fixed-array reference owns another obligation"));
+                    }
+                    return self.fixed_array_goal(operation, types);
+                }
                 if let OperationKind::ByteSequenceRead {
                     obligation: owned, ..
                 }
@@ -3005,12 +3014,8 @@ impl<'a> Storage<'a> {
                         preceding,
                         projection.root,
                         prefix,
-                        terminal_semantics::runtime_structural_field(
-                            &self.type_index,
-                            root,
-                            prefix,
-                        )
-                        .map(|field| field.id),
+                        terminal_semantics::runtime_structural_field(self.type_index, root, prefix)
+                            .map(|field| field.id),
                     )
                 },
                 |owned, goal| {
@@ -3140,7 +3145,7 @@ impl<'a> Storage<'a> {
                 let root = self.root_type(source.place, concerns)?;
                 let Some(terminal_psi::StructuralTypeShape::ElementView { element, .. }) =
                     terminal_semantics::runtime_structural_path_tip(
-                        &self.type_index,
+                        self.type_index,
                         root,
                         &source.path,
                     )
@@ -4196,6 +4201,39 @@ impl<'a> Storage<'a> {
                 }
             }
         };
+        // A borrowed view's payload is established by whoever lent it. A
+        // fixed-array reference to an incoming view's window reads that
+        // payload, so its contents are established here too.
+        if matches!(asked, Asked::Contents(_))
+            && resolved.place == *original
+            && let Some(crossing) = original
+                .segments
+                .iter()
+                .position(|segment| *segment == Segment::Referent)
+            && let Some(sources) = resolved.captured_argument_sources()
+        {
+            let mut incoming_views = true;
+            for source in sources {
+                incoming_views &= matches!(
+                    self.root_kind(source, concerns)?,
+                    StructuralPlaceKind::Parameter { .. }
+                ) && matches!(
+                    self.byte_shape(source, &[], concerns)?,
+                    StructuralTypeShape::ElementView { .. }
+                        | StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        )
+                );
+            }
+            if incoming_views {
+                let address = budget.add_equation();
+                budget.add_supply(
+                    address,
+                    Supply::Direct(Reached::Established(original.segments.len() - crossing)),
+                );
+                return Ok(Supply::transfer(address));
+            }
+        }
         self.reaching_backing_supply(
             references,
             tables,
@@ -7703,7 +7741,34 @@ impl crate::Bindings for TheoremSubjects<'_, '_, '_> {
                 root,
                 path,
                 ..
-            } => crate::Bindings::field(&mut self.held, *version, *root, path, scalar_type),
+            } if self
+                .held
+                .callee_formals
+                .iter()
+                .any(|formal| formal.place == *root) =>
+            {
+                crate::Bindings::field(&mut self.held, *version, *root, path, scalar_type)
+            }
+            // A record this machine establishes is read in place: its
+            // contents reaching the edge are the subject's value.
+            ScalarTerm::IntegerField { root, path, .. }
+            | ScalarTerm::BooleanField { root, path, .. }
+            | ScalarTerm::IeeeFloatField { root, path, .. } => {
+                let storage = self.held.storage;
+                let concerns = self.held.concerns;
+                let base = Lineage {
+                    root: *root,
+                    segments: Vec::new(),
+                };
+                let established =
+                    storage
+                        .projection_type(&base, concerns)
+                        .ok_or(crate::Unbound::Unsupported(
+                            "logical data subject's record has no type",
+                        ))?;
+                let place = storage.actual_projection(&base, established, path, concerns)?;
+                self.held.held_at(&place).observation(&place, scalar_type)
+            }
             other => Ok(other.clone()),
         }
     }
@@ -9604,6 +9669,9 @@ mod observation_tests {
             &module.types.structural_types,
             &descriptors,
         );
+        let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &module.types.structural_types,
+        );
         let mut storage = Storage::new(
             machine.id,
             machine,
@@ -9611,6 +9679,7 @@ mod observation_tests {
             &graph,
             tables,
             &types,
+            &type_index,
             &mut references,
         )
         .unwrap();
@@ -9838,6 +9907,9 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             &module.types.structural_types,
             &descriptor_graph,
         );
+        let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &module.types.structural_types,
+        );
         let storage = Storage::new(
             machine.id,
             machine,
@@ -9845,6 +9917,7 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             &graph,
             tables,
             &types,
+            &type_index,
             &mut references,
         )
         .unwrap();
@@ -9985,6 +10058,9 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
                 &module.types.structural_types,
                 &descriptor_graph,
             );
+            let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+                &module.types.structural_types,
+            );
             let storage = Storage::new(
                 machine.id,
                 machine,
@@ -9992,6 +10068,7 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
                 &graph,
                 tables,
                 &types,
+                &type_index,
                 &mut references,
             )
             .unwrap();
@@ -10134,6 +10211,9 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             &module.types.structural_types,
             &descriptor_graph,
         );
+        let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &module.types.structural_types,
+        );
         let mut storage = Storage::new(
             machine.id,
             machine,
@@ -10141,6 +10221,7 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             &graph,
             tables,
             &types,
+            &type_index,
             &mut references,
         )
         .unwrap();
@@ -10274,6 +10355,9 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             }
         }
         let cyclic_graph = Graph::new(machine.id, machine, &unseeded).unwrap();
+        let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &module.types.structural_types,
+        );
         let storage = Storage::new(
             machine.id,
             machine,
@@ -10281,6 +10365,7 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             &cyclic_graph,
             &unseeded,
             &types,
+            &type_index,
             &mut references,
         )
         .expect("the unseeded graph has its own incoming bindings");
@@ -10349,6 +10434,9 @@ machine entry() {
             &module.types.structural_types,
             &descriptor_graph,
         );
+        let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &module.types.structural_types,
+        );
         let storage = Storage::new(
             machine.id,
             machine,
@@ -10356,6 +10444,7 @@ machine entry() {
             &graph,
             tables,
             &types,
+            &type_index,
             &mut references,
         )
         .unwrap();
@@ -10503,6 +10592,9 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
                 &module.types.structural_types,
                 &descriptor_graph,
             );
+            let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+                &module.types.structural_types,
+            );
             let mut storage = Storage::new(
                 machine.id,
                 machine,
@@ -10510,6 +10602,7 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
                 &graph,
                 tables,
                 &types,
+                &type_index,
                 &mut references,
             )
             .unwrap();
@@ -10652,6 +10745,9 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
                 &module.types.structural_types,
                 &descriptor_graph,
             );
+            let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+                &module.types.structural_types,
+            );
             let mut storage = Storage::new(
                 machine.id,
                 machine,
@@ -10659,6 +10755,7 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
                 &graph,
                 tables,
                 &types,
+                &type_index,
                 &mut references,
             )
             .unwrap();

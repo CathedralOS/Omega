@@ -5,12 +5,11 @@ one row per stage through `record_result`/`add_completed`, collected into the
 ladder the CLI prints under `--timings`. A disabled accumulator does the
 same work without keeping rows. The CLI decides presentation.
 
-[Activity counters](src/compile_timings/counters.rs) count process-wide checked
-requests, source assemblies, frontend reuse, and settled check totals.
-Compilation and Build evaluation record events; package review reads the
-counters directly. These diagnostic counters are not per-request custody,
-successful-check evidence, or atomic snapshots. Psi's repeated-check owner
-separately counts checks that actually ran, not requests its memo answered.
+[Activity counters](src/compile_timings/counters.rs) count process-wide Build
+activations by purpose: the original program's Build and separate
+provider-default companions. Build evaluation records each activation; tests
+read the counters to prove a Build ran once. These diagnostic counters are not
+per-request custody, successful-check evidence, or atomic snapshots.
 
 Trust report records and validation are in
 [realization admission](../../compilation/realization/trust-model/README.md).

@@ -116,7 +116,7 @@ pub fn theorem_citation_actual(
             let theorem = terminal_semantics::theorems::denote_citation(
                 module,
                 &context.parameter.contract,
-                &supplied.contract,
+                supplied,
                 &formals,
                 citation.instantiation.len(),
                 &citation.derivations,
@@ -388,7 +388,7 @@ pub(crate) fn validate_received_theorems(module: &TerminalModule) -> Result<(), 
                 let goals = terminal_semantics::theorems::recorded_citation_goals(
                     module,
                     &context.parameter.contract,
-                    &supplied.contract,
+                    supplied,
                     &formals,
                     citation.instantiation.len(),
                 )?;
@@ -660,7 +660,7 @@ fn named_supply(
     let theorem = terminal_semantics::theorems::denote_citation(
         module,
         expected,
-        &machine.contract,
+        machine,
         &formals,
         0,
         &supply.derivations,
@@ -689,11 +689,7 @@ fn recorded_supply(
         .ok_or("instantiating theorem has no source machine")?;
     let formals = terminal_semantics::theorems::proof_formal_contracts(module, inner)?;
     let goals = terminal_semantics::theorems::recorded_citation_goals(
-        module,
-        expected,
-        &machine.contract,
-        &formals,
-        0,
+        module, expected, machine, &formals, 0,
     )?;
     recorded_roles(&supply.derivations, goals)
 }

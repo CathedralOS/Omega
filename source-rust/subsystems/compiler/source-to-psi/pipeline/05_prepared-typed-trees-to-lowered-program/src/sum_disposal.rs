@@ -3,6 +3,7 @@
 //! case before component cleanup runs (ownership.md: "only the active sum
 //! payload").
 
+use crate::lower::machine_order::ModuleWalks;
 use arena::IdTable;
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, PlaceId, StructuralTypeId};
 use terminal_check_tables::edges::{Destination, EdgeRow};
@@ -12,7 +13,7 @@ use terminal_psi::{
     Block, StructuralCaseSuccessorEdge, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalMachine, TerminalModule, TerminalRankedScc, Terminator,
 };
-use terminal_semantics::plain_affine::{AffineSummaries, Error, MachineAffine, Site};
+use terminal_semantics::plain_affine::{Error, Site};
 
 /// Bound per-machine expansions so a malformed cyclic graph cannot spin.
 const MAX_EXPANSIONS_PER_MACHINE: usize = 64;
@@ -33,37 +34,42 @@ pub(crate) fn expand_unmatched_sums(
     if !has_case_cleanup {
         return Ok(());
     }
+    // Machines are walked in order, each up to `MAX_EXPANSIONS_PER_MACHINE`
+    // times, until a walk finds no edge to expand. Walks over the unchanged
+    // module share one `ModuleWalks` round; only an expansion changes the
+    // module, so only an expansion ends that round (`machine_order`).
     let machine_count = module.machines.len();
-    for machine_index in 0..machine_count {
-        if module.machines[machine_index].structural_places.is_empty() {
-            continue;
-        }
-        let machine_id = module.machines[machine_index].id;
-        for _ in 0..MAX_EXPANSIONS_PER_MACHINE {
-            let missing = {
-                let summaries = AffineSummaries::new(module);
-                match MachineAffine::new(module, machine_id, Some(&summaries))
-                    .and_then(|walks| walks.plan())
+    let mut machine_index = 0;
+    let mut walks_of_machine = 0;
+    while machine_index < machine_count {
+        let missing = {
+            let module = &*module;
+            let walks = ModuleWalks::new(module);
+            loop {
+                let Some(machine) = module.machines.get(machine_index) else {
+                    break None;
+                };
+                if !machine.structural_places.is_empty()
+                    && walks_of_machine < MAX_EXPANSIONS_PER_MACHINE
                 {
-                    Err(Error::MissingActiveCase {
-                        place,
-                        path,
-                        structural_type,
-                        site: Some(Site::Edge(edge)),
-                    }) => Some((edge, place, path, structural_type)),
-                    _ => None,
+                    walks_of_machine += 1;
+                    if let Some(missing) = missing_active_case(&walks, machine.id) {
+                        break Some(missing);
+                    }
                 }
-            };
-            let Some((edge, place, path, structural_type)) = missing else {
-                break;
-            };
-            let Some(machine_tables) = tables.machines.get_mut(machine_id) else {
-                break;
-            };
-            let Some(machine_sources) = sources.get_mut(machine_id) else {
-                break;
-            };
-            if !expand_edge(
+                machine_index += 1;
+                walks_of_machine = 0;
+            }
+        };
+        let Some((edge, place, path, structural_type)) = missing else {
+            break;
+        };
+        let machine_id = module.machines[machine_index].id;
+        let expanded = match (
+            tables.machines.get_mut(machine_id),
+            sources.get_mut(machine_id),
+        ) {
+            (Some(machine_tables), Some(machine_sources)) => expand_edge(
                 &module.types.structural_types,
                 &mut module.machines[machine_index],
                 machine_tables,
@@ -72,12 +78,39 @@ pub(crate) fn expand_unmatched_sums(
                 place,
                 path,
                 structural_type,
-            ) {
-                break;
-            }
+            ),
+            _ => false,
+        };
+        if !expanded {
+            machine_index += 1;
+            walks_of_machine = 0;
         }
     }
     Ok(())
+}
+
+/// An edge whose disposal needs an active sum case, with the place, path
+/// and sum type it disposes.
+type MissingCase = (
+    EdgeId,
+    PlaceId,
+    Vec<StructuralPathSegment>,
+    StructuralTypeId,
+);
+
+/// The edge of `machine` whose disposal needs an active sum case, or `None`
+/// when its ownership walk finds no such edge (or refuses for any other
+/// reason, which planning reports later).
+fn missing_active_case(walks: &ModuleWalks<'_>, machine: MachineId) -> Option<MissingCase> {
+    match walks.affine(machine).and_then(|walks| walks.plan()) {
+        Err(Error::MissingActiveCase {
+            place,
+            path,
+            structural_type,
+            site: Some(Site::Edge(edge)),
+        }) => Some((edge, place, path, structural_type)),
+        _ => None,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

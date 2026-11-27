@@ -1745,22 +1745,70 @@ same_sign> as SameSign;` is read into the mathematical signature when
     [select a closed `MereEquivalence`](../../spec/proofs/quotients.md#formation-and-representation).
     The reader still needs to consume that conformance.
     The compiler uses soundness only, which holds for any relation.
-  - A generic quotient, and a quotient of data that has storage in the
-    mathematical signature. The signature now declares generic data that
+  - A generic quotient. The signature now declares generic data that
     contains itself, with payloads (#6295), but a quotient's reader still
-    refuses generic quotient data. It states a record only of mathematical
-    data, never one with an `i32` field, so a law equating classes of
-    stored data is refused as "Identity of classes of a quotient of data
-    that has storage"
-    (`a_law_over_classes_of_stored_data_is_refused_by_name`). Ordinary
-    programs run a quotient of copyable,
-    custody-free data stored as its representative: all nineteen programs
-    under `samples/cli/facts/quotient_closed_literal/` pass the sample gate
-    on Linux x86-64 (2026-11-27), each invalid twin refused because its
-    `4i32` misses `representative`'s `amount == 3i32`. The reader names
-    the selected trait by its declaration, so `|relation|::Equivalence`
-    selects it, and package review reads the stored representative's type
-    from the declaration's carrier.
+    refuses generic quotient data. The parser has yet to accept
+    `% same_length<T>` and `as SameLength<T>` as specified in the
+    [quotient formation rule](../../../wiki/spec/proofs/quotients.md#formation-and-representation).
+- **Classes of stored data (2026-11-27).** A contract of an ordinary
+  program may state `Identity::<Value>(a as Value, b as Value)` for a
+  quotient of data that has storage. Stage 05 reads each class as the
+  quotient's declaration applied to its representative, an opaque value of
+  the quotient, and records the quotient's relation read at the two
+  representatives beside the Identity (`QuotientSoundness` in the machine's
+  tables). Stage 06 proves the Identity as before, and failing that, from a
+  proof of the relation by the soundness assumption `related → classes` at
+  those representatives, which the certificate declares and its receipt
+  counts. A relation that reads as neither one Identity nor one equality is
+  refused by name. A named proposition's parameter now projects to the
+  argument written for it, so a relation may read a field of a record
+  (`|proof|::Identity::<Key>(a.key, b.key)`). Tests:
+  `related_stored_representatives_have_one_class`,
+  `stored_representatives_related_but_unequal_have_one_class` (two records
+  that differ in `tag` have one class only by soundness), and
+  `unrelated_stored_representatives_are_not_given_one_class`. Ordinary
+  programs run a quotient of copyable,
+  custody-free data stored as its representative: all nineteen programs
+  under `samples/cli/facts/quotient_closed_literal/` pass the sample gate
+  on Linux x86-64 (2026-11-27), each invalid twin refused because its
+  `4i32` misses `representative`'s `amount == 3i32`. The reader names
+  the selected trait by its declaration, so `|relation|::Equivalence`
+  selects it, and package review reads the stored representative's type
+  from the declaration's carrier.
+- **Machines and propositions generic over types (2026-11-27).** The
+  first half of what a generic quotient needs: its relation is a
+  proposition generic over the carrier's element type, and that relation
+  calls machines generic over it. Neither is a declaration of the
+  signature. Typed preparation already generates the machine a closed
+  application selects (`count::<u64>`); it now also serves the calls a
+  contract clause writes, of machines generic over types only, and
+  generates the proposition a clause applies at closed types
+  (`same_count::<u64>(a, b)`): the formula copied with each binder replaced
+  by its type and each parameter renamed, once per application, its own
+  calls then served in turn (`specialization/propositions.rs`). The
+  signature reads each generated machine and proposition like an authored
+  one and skips their templates. A machine generic over machines is still
+  read as one term, so its clause calls keep naming the template. Tests in
+  `seq_laws`: `a_machine_generic_over_types_is_judged_at_each_closed_application`,
+  `a_proposition_generic_over_types_is_read_at_each_closed_application`, and
+  a false law of each refused as unproved.
+- **Generic quotients (2026-11-27).** A quotient may be declared once for
+  every type, with the relation's and the named conformance's arguments
+  written after `%` and `as` as
+  [quotient formation](../../spec/proofs/quotients.md#formation-and-representation)
+  asks. The parser, name resolution and typed trees carry the argument
+  lists; a closed application's typed view instantiates its carrier and
+  arguments. Typed preparation closes the relation (the generated
+  proposition of the previous entry) and generates a closed copy of the
+  named conformance with its rows at the application
+  (`specialization/quotients.rs`). Stage 05 reads the closed application
+  like an authored quotient, skips the template and its generic rows, and
+  refuses an application whose relation or conformance does not close, or
+  whose conformance proves its laws for another carrier or relation.
+  Tests in `quotient`: classes of related representatives of a generic
+  quotient are judged equal and the unrelated twin is unproved; a missing
+  or extra conformance argument, a conformance for another carrier and one
+  for another relation are each refused by name.
 
 **Step 6 as built (2026-11-24): data indexed by values, theorems over it and
 the machines that run with its evidence.** The three `source_indexed_*`

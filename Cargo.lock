@@ -16,28 +16,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "abstract-operations-to-abstract-operations"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "arena",
- "optimization",
- "optimization-core",
- "optimization-unit",
- "optimization-unit-semantics",
- "psi-authorization",
- "semantic-vocabulary",
- "source-compiler",
- "target-bound-program-to-abstract-operations",
- "terminal-codec",
- "terminal-psi",
- "terminal-semantics",
- "terminal-work",
- "verified-optimization-input",
- "wire",
-]
-
-[[package]]
 name = "abstract-operations-to-target-operations"
 version = "0.1.0"
 dependencies = [
@@ -68,6 +46,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-work",
  "verified-optimization-input",
 ]
 
@@ -509,7 +488,6 @@ version = "0.1.0"
 dependencies = [
  "checked-program-issuer",
  "optimization",
- "psi-publication-records",
  "semantic-vocabulary",
  "terminal-check-tables",
  "terminal-codec",
@@ -761,11 +739,13 @@ name = "entry-planning"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "bound-framed-machine",
  "calling-conventions",
  "diagnostics",
  "frame-admission",
  "function-identity",
  "installation-admission",
+ "installation-binding-issuer",
  "installation-conditions",
  "machine-code",
  "operation-operands",
@@ -881,7 +861,6 @@ dependencies = [
  "target-vocabulary",
  "target-x86_64",
  "terminal-psi",
- "wire",
 ]
 
 [[package]]
@@ -943,13 +922,11 @@ name = "image-elf"
 version = "0.1.0"
 dependencies = [
  "arena",
- "calling-conventions",
  "diagnostics",
  "image",
  "machine-code",
  "object-file",
  "target",
- "wire",
 ]
 
 [[package]]
@@ -965,21 +942,16 @@ dependencies = [
  "iced-x86",
  "image",
  "image-elf",
- "image-emission",
  "image-macho",
  "image-pe",
  "installation-admission",
  "installation-conditions",
  "isa-x86_64",
- "language-core",
- "layout-plans",
  "legalized-operations",
  "machine-code",
  "native-encoding",
  "native-execution-reach",
  "object-file",
- "optimization-core",
- "optimization-unit",
  "optimization-unit-semantics",
  "physical-program",
  "physical-recipes",
@@ -989,13 +961,11 @@ dependencies = [
  "provider-admission",
  "psi-entry-memory",
  "psi-publication-records",
- "register-homes",
  "register-model",
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
- "structural-storage-queries",
  "target",
  "target-aarch64",
  "target-operations",
@@ -1015,7 +985,6 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "image",
- "machine-code",
  "object-file",
  "sha2",
  "target",
@@ -1038,8 +1007,6 @@ dependencies = [
  "object-file",
  "runtime-abi",
  "target",
- "target-aarch64",
- "target-x86_64",
 ]
 
 [[package]]
@@ -1062,27 +1029,6 @@ dependencies = [
  "target",
  "target-vocabulary",
  "target-x86_64",
- "terminal-psi",
-]
-
-[[package]]
-name = "installation-binding"
-version = "0.1.0"
-dependencies = [
- "bound-framed-machine",
- "entry-planning",
- "function-identity",
- "installation-admission",
- "installation-binding-issuer",
- "installation-conditions",
- "machine-code",
- "physical-program",
- "physical-recipes",
- "post-allocation-machine-to-framed-machine",
- "runtime-abi",
- "selected-instructions",
- "semantic-vocabulary",
- "target",
  "terminal-psi",
 ]
 
@@ -1216,7 +1162,6 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "calling-conventions",
- "diagnostics",
  "layout-plans",
  "runtime-abi",
  "semantic-vocabulary",
@@ -1302,7 +1247,6 @@ dependencies = [
  "optimization",
  "prepared-typed-trees-to-lowered-program",
  "proof-admission",
- "psi-publication-records",
  "rayon",
  "semantic-vocabulary",
  "service-surface",
@@ -1340,7 +1284,6 @@ dependencies = [
  "numerics",
  "prepared-source",
  "semantic-vocabulary",
- "source-admission",
  "source-declarations",
  "source-provenance",
  "symbols",
@@ -1365,7 +1308,6 @@ dependencies = [
  "operation-operands",
  "optimization-core",
  "post-allocation-machine",
- "provider-stack-contribution",
  "record-storage",
  "register-environment",
  "register-homes",
@@ -1429,7 +1371,6 @@ dependencies = [
  "native-execution-reach",
  "native-intrinsics",
  "object-file",
- "operation-evidence",
  "operation-operands",
  "optimization-core",
  "platform-custody",
@@ -1492,7 +1433,6 @@ name = "native-compiler"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
  "admitted-native-inputs-to-target-bound-program",
  "arena",
@@ -1514,7 +1454,6 @@ dependencies = [
  "iced-x86",
  "image-emission",
  "installation-admission",
- "installation-binding",
  "installation-conditions",
  "isa-aarch64",
  "isa-x86_64",
@@ -1772,7 +1711,6 @@ dependencies = [
  "function-identity",
  "function-layout",
  "installation-admission",
- "layout-plans",
  "machine-code",
  "optimization-core",
  "physical-program",
@@ -1802,7 +1740,6 @@ dependencies = [
  "libc",
  "mimalloc",
  "native-provider-sponsor",
- "normalized-build-settings",
  "omega-source",
  "optimization-requests",
  "package-compilation",
@@ -1854,7 +1791,6 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 name = "operation-evidence"
 version = "0.1.0"
 dependencies = [
- "optimization-core",
  "semantic-vocabulary",
  "terminal-psi",
  "wire",
@@ -1920,7 +1856,6 @@ name = "optimization-unit-semantics"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "arena",
  "optimization-core",
  "optimization-unit",
  "psi-declaration-encoding",
@@ -1928,7 +1863,6 @@ dependencies = [
  "structural-storage-queries",
  "terminal-psi",
  "terminal-semantics",
- "terminal-work",
 ]
 
 [[package]]
@@ -2053,6 +1987,7 @@ dependencies = [
  "cap-fs-ext",
  "cap-primitives",
  "cap-std",
+ "sha2",
 ]
 
 [[package]]
@@ -2112,7 +2047,6 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "diagnostics",
- "layout-plans",
  "prepared-source-issuer",
  "semantic-vocabulary",
  "symbols",
@@ -2210,7 +2144,6 @@ dependencies = [
  "build-declarations",
  "build-evaluation-result",
  "build-execution",
- "build-model",
  "build-providers",
  "calling-conventions",
  "compiler",
@@ -2265,7 +2198,6 @@ dependencies = [
  "closed-predicates",
  "mathematical-kernel",
  "numerics",
- "record-storage",
  "semantic-vocabulary",
  "terminal-psi",
 ]
@@ -2301,7 +2233,6 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "operation-evidence",
- "optimization-unit-semantics",
  "provider-correspondence",
  "provider-stack-contribution",
  "psi-entry-memory",
@@ -3070,10 +3001,8 @@ dependencies = [
  "build-time-evaluation",
  "checked-program-to-psi",
  "diagnostics",
- "record-storage",
  "semantic-vocabulary",
  "symbols",
- "terminal-psi",
  "terminal-work",
  "typed-trees",
 ]
@@ -3353,7 +3282,6 @@ dependencies = [
  "isa-aarch64",
  "isa-conformance",
  "layout-plans",
- "normalized-foreign-call-plan",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
@@ -3397,7 +3325,6 @@ dependencies = [
  "diagnostics",
  "installation-conditions",
  "native-behavior-exclusions",
- "operation-evidence",
  "optimization-selections",
  "provider-admission",
  "provider-correspondence",
@@ -3442,7 +3369,6 @@ dependencies = [
  "bound-installations",
  "calling-conventions",
  "compiler-check-site",
- "diagnostics",
  "installation-admission",
  "installation-conditions",
  "language-core",
@@ -3512,7 +3438,6 @@ dependencies = [
  "isa-conformance",
  "isa-x86_64",
  "layout-plans",
- "normalized-foreign-call-plan",
  "optimization-selections",
  "register-model",
  "selected-instructions",
@@ -3669,7 +3594,6 @@ dependencies = [
  "semantic-vocabulary",
  "service-surface",
  "source-provenance",
- "source-text",
  "terminal-psi",
  "wire",
  "worker-budget",
@@ -3798,7 +3722,6 @@ dependencies = [
  "source-text",
  "symbols",
  "typed-trees",
- "wire",
 ]
 
 [[package]]

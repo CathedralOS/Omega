@@ -609,13 +609,21 @@ impl SyntaxCopy<'_> {
             quotient: data.quotient.as_ref().map(|quotient| QuotientDefinition {
                 carrier: self.copy_type_reference_handle(other, quotient.carrier),
                 relation: self.copy_item_identifier_span(other, quotient.relation),
+                relation_arguments: self
+                    .copy_type_reference_handle_span(other, quotient.relation_arguments),
                 equivalence: quotient.equivalence.as_ref().map(|selection| {
                     QuotientEquivalenceSelection {
                         relation: self.copy_item_identifier_span(other, selection.relation),
+                        relation_arguments: self
+                            .copy_type_reference_handle_span(other, selection.relation_arguments),
                         trait_name: selection.trait_name.clone(),
                         trait_arguments: self
                             .copy_type_reference_handle_span(other, selection.trait_arguments),
                         conformance_name: selection.conformance_name.clone(),
+                        conformance_arguments: self.copy_type_reference_handle_span(
+                            other,
+                            selection.conformance_arguments,
+                        ),
                     }
                 }),
             }),

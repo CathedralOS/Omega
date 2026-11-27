@@ -436,9 +436,8 @@ impl Lowering<'_> {
             .collect();
         call_operations.sort_unstable();
         let mut overwrites: Vec<_> = self
-            .tables
             .writes
-            .values()
+            .iter()
             .filter_map(|write| {
                 let (Content::Overwritten, ProgramPoint::AfterOperation(call)) =
                     (write.content, write.at)

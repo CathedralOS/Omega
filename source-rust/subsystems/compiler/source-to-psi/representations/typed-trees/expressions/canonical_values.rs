@@ -49,8 +49,7 @@ pub(crate) fn declared_domain_qualifications(
             let TypeConstraintNode::Domain(domain) = constraint else {
                 return None;
             };
-            if domain.subject != DomainConstraintSubject::Declared || !domain.symbol.is_valid()
-            {
+            if domain.subject != DomainConstraintSubject::Declared || !domain.symbol.is_valid() {
                 return None;
             }
             outermost_first.push(domain);
@@ -118,12 +117,68 @@ fn added(first: bool) -> CastForm {
     })
 }
 
+/// A named machine selection is the one source machine whose canonical
+/// callable identity is the evaluated one. The selection is materialized
+/// under the declared carrier, whose reader checks its callable refinement.
+fn materialize_static_callable(
+    program: &TypedTrees,
+    declared_type: TypeReferenceHandle,
+    declaration: &str,
+) -> Option<ExpressionNode> {
+    let sources = source_admission::source_identity::toolchain_source_identities(
+        program.symbols.source_files(),
+    )
+    .ok()?;
+    let mut selected = program
+        .machines()
+        .iter()
+        .filter(|machine| declaration.contains(program.symbols.name(machine.symbol)))
+        .filter_map(|machine| {
+            let argument = crate::source_state::expression::StaticMachineArgument {
+                symbol: machine.symbol,
+                ..Default::default()
+            };
+            (program
+                .canonical_callable_selection_value(
+                    &argument,
+                    crate::source_state::static_applications::StaticMachineApplicationHandle::invalid(),
+                    None,
+                    &sources,
+                )
+                .ok()?
+                == DecodedCanonicalConstValue::StaticCallable {
+                    declaration: declaration.to_owned(),
+                    application: None,
+                    requirement: None,
+                })
+            .then_some(argument)
+        });
+    let (Some(selected), None) = (selected.next(), selected.next()) else {
+        return None;
+    };
+    Some(ExpressionNode::MachineValue(
+        crate::source_state::callable_values::MachineValue {
+            type_reference: declared_type,
+            selected,
+            application:
+                crate::source_state::static_applications::StaticMachineApplicationHandle::invalid(),
+            conformance: symbols::SymbolHandle::invalid(),
+            requirement: symbols::SymbolHandle::invalid(),
+        },
+    ))
+}
+
 fn materialize_carrier(
     program: &mut TypedTrees,
     declared_type: TypeReferenceHandle,
     value: &DecodedCanonicalConstValue,
 ) -> Option<ExpressionNode> {
     match value {
+        DecodedCanonicalConstValue::StaticCallable {
+            declaration,
+            application: None,
+            requirement: None,
+        } => materialize_static_callable(program, declared_type, declaration),
         DecodedCanonicalConstValue::StaticCallable { .. } => None,
         DecodedCanonicalConstValue::Float { format, bits } => {
             (float_format(program, declared_type)? == *format).then_some(())?;
@@ -156,10 +211,8 @@ fn materialize_carrier(
                 return None;
             }
             let declared_type = program.unwrapped_type_reference(declared_type)?;
-            let TypeReferenceNode::FixedArray {
-                element_type,
-                ..
-            } = program.type_reference_node(declared_type).clone()
+            let TypeReferenceNode::FixedArray { element_type, .. } =
+                program.type_reference_node(declared_type).clone()
             else {
                 return None;
             };
@@ -311,8 +364,7 @@ fn integer_value(
 
 // Callable fields share the source files for this check; hash them once,
 // only when a field needs them.
-type ToolchainSources =
-    std::cell::OnceCell<Result<Vec<(source_text::SourceId, [u8; 32])>, String>>;
+type ToolchainSources = std::cell::OnceCell<Result<Vec<(source_text::SourceId, [u8; 32])>, String>>;
 
 fn matches_materialized(
     program: &TypedTrees,
@@ -333,8 +385,7 @@ fn matches_materialized(
             if !program.expression_table.expression_is_valid(expression) {
                 return false;
             }
-            let ExpressionNode::Cast(cast) = program.expression_table.expression(expression)
-            else {
+            let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
                 return false;
             };
             if cast.form != added(position == 0)
@@ -400,10 +451,8 @@ fn matches_materialized(
             let Some(underlying) = program.unwrapped_type_reference(carrier) else {
                 return false;
             };
-            let TypeReferenceNode::FixedArray {
-                element_type,
-                ..
-            } = program.type_reference_node(underlying)
+            let TypeReferenceNode::FixedArray { element_type, .. } =
+                program.type_reference_node(underlying)
             else {
                 return false;
             };

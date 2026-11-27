@@ -166,6 +166,10 @@ struct Questions<'source> {
     exact_toolchain_sources:
         std::cell::OnceCell<Result<Vec<(source_text::SourceId, [u8; 32])>, String>>,
     output: SelectionQuestions,
+    /// The source correspondence of every emitted invocation, ordered by its
+    /// `(machine, site)` so each lookup is a binary search over the calls
+    /// instead of a scan of all of them.
+    calls_by_site: Vec<&'source crate::source_state::SourceCallCorrespondence>,
     build_sites: HashMap<
         (
             SymbolHandle,
@@ -200,12 +204,15 @@ impl<'source> Questions<'source> {
                 ));
             }
         }
+        let mut calls_by_site: Vec<_> = source.correspondence().calls.iter().collect();
+        calls_by_site.sort_unstable_by_key(|call| (call.machine, call.site));
         Ok(Self {
             source,
             module,
             declarations: Declarations::new(source, module)?,
             exact_toolchain_sources: Default::default(),
             output: SelectionQuestions::default(),
+            calls_by_site,
             build_sites: HashMap::default(),
             requirements,
         })
@@ -302,17 +309,27 @@ impl<'source> Questions<'source> {
         Ok(questions)
     }
 
+    /// Every source correspondence recorded for this emitted invocation.
+    fn origins_at(
+        &self,
+        machine: MachineId,
+        site: InvocationSite,
+    ) -> &[&'source crate::source_state::SourceCallCorrespondence] {
+        let key = (machine, site);
+        let start = self
+            .calls_by_site
+            .partition_point(|call| (call.machine, call.site) < key);
+        let count =
+            self.calls_by_site[start..].partition_point(|call| (call.machine, call.site) == key);
+        &self.calls_by_site[start..start + count]
+    }
+
     fn typed_origin(
         &self,
         machine: MachineId,
         site: InvocationSite,
     ) -> Result<crate::source_state::SourceCallCorrespondence, Diagnostic> {
-        let mut calls = self
-            .source
-            .correspondence()
-            .calls
-            .iter()
-            .filter(|call| call.machine == machine && call.site == site);
+        let mut calls = self.origins_at(machine, site).iter();
         let call = calls.next().ok_or_else(|| {
             let declaration = self
                 .source
@@ -330,7 +347,7 @@ impl<'source> Questions<'source> {
                 "source invocation has competing authored correspondences",
             ));
         }
-        Ok(*call)
+        Ok(**call)
     }
 
     fn toolchain_sources(&self) -> Result<&[(source_text::SourceId, [u8; 32])], Diagnostic> {
@@ -1071,17 +1088,15 @@ impl<'source> Questions<'source> {
                 let InvocationSite::Operation(operation) = call.site else {
                     continue;
                 };
-                let mut origins = self.source.correspondence().calls.iter().filter(|call| {
-                    call.machine == machine.id && call.site == InvocationSite::Operation(operation)
-                });
-                let Some(origin) = origins.next() else {
-                    continue;
+                let origin = match self.origins_at(machine.id, call.site) {
+                    [] => continue,
+                    [origin] => *origin,
+                    _ => {
+                        return Err(refused(
+                            "one Build input occurrence has competing source sites",
+                        ));
+                    }
                 };
-                if origins.next().is_some() {
-                    return Err(refused(
-                        "one Build input occurrence has competing source sites",
-                    ));
-                }
                 let (owner, crate::source_state::SourceNode::Expression(expression)) =
                     (origin.owner, origin.source)
                 else {

@@ -3,8 +3,8 @@ Terminal production retains the new checker's actual accepted closure, its froze
 typed owner and the exact artifact/evidence pair. AcceptedTerminalSource is the
 production entrance; invocation identity is fixed before lowering and judgment.
 
-Retained Build companions and application receipts
-describe the data a producer must provide; none manufactures checking authority.
+Retained Build companions describe the data a producer must provide; none
+manufactures checking authority.
 The obsolete checked-source production request interfaces have been removed.
 */
 
@@ -140,21 +140,17 @@ fn judge_entry(
 pub(crate) use production::accepted::DeclaredRequirementApplication;
 
 pub use crate::source_state::trait_definition::Supply as TerminalSourceSupply;
+pub use lowered_source_publication::CallingPolicySelections as TerminalCallingPolicySelections;
 pub use lowered_source_publication::Compilation as TerminalSourceCompilation;
 pub use lowered_source_publication::provider_selections::{
     ProviderSelectionInput as TerminalProviderSelectionInput,
     ProviderSelections as TerminalProviderSelections,
-};
-pub use lowered_source_publication::{
-    CallingPolicySelections as TerminalCallingPolicySelections,
-    ProgramEntryContractSelection as TerminalProgramEntryContractSelection,
 };
 pub use production::accepted::{
     AcceptedTerminalSource, ConstantRead, DeclaredBoundaryRequirement, PreparedTerminalPublication,
     boundary_requirements_declared_for,
 };
 pub use production::invocation_site::{CheckedSourceCall, SourceInvocationSite};
-pub use terminal_check_tables::program::SuppliedRequirement as TerminalSuppliedRequirement;
 pub use terminal_semantics::callable_values::CallableBoundaryImplementation;
 
 pub(crate) use build::bindings::{build_filesystem, build_provider, build_queries, build_requests};
@@ -177,11 +173,4 @@ pub use build_queries::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 pub use build_requests::{
     BuildCallSite, TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
 };
-pub use production::application::ProducedTerminalApplication;
 pub use production::custody::{ProducedTerminalProgram, TerminalProductionCustody};
-pub use production::errors::{ProgramEntryTerminalReceiptError, TerminalArtifactProductionError};
-pub use production::selections::{TerminalMachineSelection, TerminalProgramRoots};
-pub use terminal_codec::entry_receipt::application::{
-    TerminalAdmissionRoot, TerminalApplicationCustody, TerminalCompositionRoots,
-};
-pub use terminal_psi::PreparedTerminalRoots;

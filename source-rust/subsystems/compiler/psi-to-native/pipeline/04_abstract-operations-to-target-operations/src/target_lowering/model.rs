@@ -74,6 +74,12 @@ pub enum LoweringError {
     },
     UnconsumedOptimizationPhase(optimization_core::OptimizationExecutionPhase),
     UnsupportedIeeeFloatFmaRealization(OperationId),
+    /// `view as @[T; N]` is checked and interpreted, but native code cannot
+    /// yet form a reference into a runtime view's payload.
+    UnsupportedFixedArrayViewReference {
+        machine: MachineId,
+        operation: OperationId,
+    },
     AccessViewInput(AccessViewInputTranslationError),
     AccessCallCustody {
         caller: MachineId,

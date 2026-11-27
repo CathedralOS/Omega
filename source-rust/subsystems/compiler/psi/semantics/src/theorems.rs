@@ -152,11 +152,60 @@ pub fn parameter(
     Ok(parameter)
 }
 
+/// Whether every path through the body returns without running anything:
+/// no block has operations, each jump goes forward from the entry, and no
+/// cleanup invokes code. A jump may carry a fact-only application of a
+/// proof formal. Only then do the machine's `ensures` hold wherever its
+/// `requires` do; a body that runs code establishes them only once it
+/// returns, and may not return at all.
+fn returns_without_running(machine: &terminal_psi::TerminalMachine) -> bool {
+    use terminal_psi::TerminalAffineCleanupAction as Cleanup;
+    let passive = |actions: &[Cleanup]| {
+        actions
+            .iter()
+            .all(|action| !matches!(action, Cleanup::InvokeOwned(_)))
+    };
+    let position = |id| machine.blocks.iter().position(|block| block.id == id);
+    machine
+        .blocks
+        .first()
+        .is_some_and(|block| block.id == machine.entry)
+        && machine.blocks.iter().enumerate().all(|(at, block)| {
+            block.operations.is_empty()
+                && match &block.terminator {
+                    Terminator::Jump {
+                        target,
+                        cleanup_actions,
+                        ..
+                    } => {
+                        position(*target).is_some_and(|target| target > at)
+                            && passive(cleanup_actions)
+                    }
+                    Terminator::ReturnUnit {
+                        cleanup_actions, ..
+                    } => passive(cleanup_actions),
+                    _ => false,
+                }
+        })
+}
+
+/// One block with no operations that returns: the body does nothing and
+/// terminates, whatever termination the contract publishes.
+fn does_no_work(machine: &terminal_psi::TerminalMachine) -> bool {
+    matches!(machine.blocks.as_slice(), [block]
+        if block.id == machine.entry
+            && block.operations.is_empty()
+            && matches!(block.terminator, Terminator::ReturnUnit { ref cleanup_actions, .. }
+                if cleanup_actions.is_empty()))
+}
+
 /// The implication a named machine states, when the machine does no work:
 /// a citation of it is a fact-only invocation, which emits no call
 /// (contracts.md, "Citation and induction": "erase the call if fact-only").
 /// Its subjects are its scalar formals and then its erased scalar formals,
-/// numbered from one, and its implication is its `requires` and `ensures`.
+/// numbered from one, or, when it has a record formal, its formals in header
+/// order with each record's scalar fields in its place (`data_subjects`).
+/// Its implication is its `requires` and `ensures`.
 /// The named machine is checked as any machine is, so its `ensures` hold
 /// wherever its `requires` do.
 pub fn named_contract(
@@ -173,8 +222,10 @@ pub fn named_contract(
     let contract = &machine.contract;
     let refusal = if !matches!(contract.result, terminal_psi::TerminalMachineResult::Unit) {
         Some("named theorem application names a machine with a result")
-    } else if !contract.structural_parameters.is_empty() {
-        Some("named theorem application names a machine with a structural formal")
+    } else if !contract.structural_parameters.is_empty()
+        && !contract.erased_scalar_formals.is_empty()
+    {
+        Some("named theorem application names a machine with a record formal and an erased formal")
     } else if !contract.erased_proof_formals.is_empty() {
         Some("named theorem application names a machine with a proof formal")
     } else if !contract.crash_routes.is_empty() {
@@ -189,14 +240,11 @@ pub fn named_contract(
         || !contract.membership_ensures.is_empty()
     {
         Some("named theorem application names a machine with a guarantee about its outcome")
-    } else if !matches!(machine.blocks.as_slice(), [block]
-        // One block with no operations that returns: the body does nothing
-        // and terminates, whatever termination the contract publishes.
-        if block.id == machine.entry
-            && block.operations.is_empty()
-            && matches!(block.terminator, Terminator::ReturnUnit { ref cleanup_actions, .. }
-                if cleanup_actions.is_empty()))
+    } else if !does_no_work(machine)
+        && (contract.structural_parameters.is_empty() || !returns_without_running(machine))
     {
+        // A record formal's root is discarded as the body returns, which
+        // runs nothing.
         Some("named theorem application names a machine whose body does work")
     } else {
         None
@@ -204,21 +252,35 @@ pub fn named_contract(
     if let Some(refusal) = refusal {
         return Err(refusal);
     }
-    let parameters: Vec<_> = contract
-        .parameters
+    let ensures: Vec<_> = contract
+        .ensures
         .iter()
-        .chain(&contract.erased_scalar_formals)
-        .cloned()
+        .map(|clause| clause.proposition.clone())
         .collect();
-    let named = TheoremContract {
-        parameters,
-        requires: contract.requires.clone(),
-        ensures: contract
-            .ensures
-            .iter()
-            .map(|clause| clause.proposition.clone())
-            .collect(),
-        proof_parameters: Vec::new(),
+    let named = if contract.structural_parameters.is_empty() {
+        TheoremContract {
+            parameters: contract
+                .parameters
+                .iter()
+                .chain(&contract.erased_scalar_formals)
+                .cloned()
+                .collect(),
+            requires: contract.requires.clone(),
+            ensures,
+            proof_parameters: Vec::new(),
+        }
+    } else {
+        // A record formal is one subject for each of its scalar fields, as
+        // in a citation (`data_subjects`).
+        let subjects = data_subjects::machine_subjects(module, contract)?;
+        let (parameters, requires, ensures) =
+            data_subjects::flatten(&subjects, &contract.requires, &ensures)?;
+        TheoremContract {
+            parameters,
+            requires,
+            ensures,
+            proof_parameters: Vec::new(),
+        }
     };
     contract_subjects(&named)?;
     Ok(named)
@@ -383,7 +445,7 @@ pub fn substitute(
 pub fn citation_goals(
     module: &TerminalModule,
     expected: &TheoremContract,
-    supplied: &terminal_psi::MachineContract,
+    supplied: &terminal_psi::TerminalMachine,
     formals: &[&TheoremContract],
     instantiated: usize,
 ) -> Result<[Proposition; 3], &'static str> {
@@ -402,7 +464,7 @@ pub fn citation_goals(
 pub fn recorded_citation_goals(
     module: &TerminalModule,
     expected: &TheoremContract,
-    supplied: &terminal_psi::MachineContract,
+    supplied: &terminal_psi::TerminalMachine,
     formals: &[&TheoremContract],
     instantiated: usize,
 ) -> Result<[Proposition; 3], &'static str> {
@@ -419,11 +481,18 @@ pub fn recorded_citation_goals(
 fn citation_goals_with(
     module: &TerminalModule,
     expected: &TheoremContract,
-    supplied: &terminal_psi::MachineContract,
+    supplied: &terminal_psi::TerminalMachine,
     formals: &[&TheoremContract],
     instantiated: usize,
     check: impl Fn(&TheoremContract) -> Result<(), &'static str>,
 ) -> Result<[Proposition; 3], &'static str> {
+    // A citation runs nothing, so it may use the cited guarantee only where
+    // that guarantee holds without the body returning
+    // (OWNER_QUESTIONS.md#bundle-evidence-field-type).
+    if !returns_without_running(supplied) {
+        return Err("cited theorem's body does work, so its guarantee holds only after it returns");
+    }
+    let supplied = &supplied.contract;
     if supplied.erased_proof_formals.len() != formals.len()
         || supplied
             .erased_proof_formals
@@ -667,7 +736,7 @@ fn weaken_closed_proof(
 pub fn denote_citation(
     module: &TerminalModule,
     expected: &TheoremContract,
-    supplied: &terminal_psi::MachineContract,
+    supplied: &terminal_psi::TerminalMachine,
     formals: &[&TheoremContract],
     instantiated: usize,
     derivations: &[terminal_psi::CertificateEnvelope],

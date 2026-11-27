@@ -692,8 +692,8 @@ fn retain_installation_reach(
     if requirements.is_empty() {
         return Ok(());
     }
-    let reach = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
-        .and_then(|graph| graph.service_reach_from(entry, &requirements))
+    let reach = terminal_semantics::synchronous_calls::call_analyses(module)
+        .and_then(|analyses| analyses.calls().service_reach_from(entry, &requirements))
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     if !reach.installation_dependencies.is_empty() {
         module.interfaces.root_service_reach = reach;

@@ -25,9 +25,8 @@ Every evidence carrier pairs a strong 32-byte SHA-256 digest over a versioned
 domain string with a compact 64-bit FNV-1a reporting fingerprint. Because compact
 fingerprints can collide, we enforce a strict `*_report_fingerprint` naming
 discipline so compact coordinates never stand in for strong digests during
-artifact admission or equivalence checks. When an import symbol carries both a
-normalized foreign locator and a legacy `import_library` string, the normalized
-locator wins unconditionally so object-local symbol spellings never override
+artifact admission or equivalence checks. An import's identity comes only from
+its normalized locator, so object-local symbol spellings never override
 target-validated import identity.
 */
 
@@ -35,10 +34,7 @@ target-validated import identity.
 `image-elf`, `image-pe`, `image-macho`, and `image-emission` consume
 `FinalImage`, `apply_relocations`, `place_executable_regions`, and
 `place_data_regions` to produce and verify executable and shared-component
-containers. Notice that `CompilerEntryRegionBindingEvidence` and
-`CompilerEntryFootprintBindingEvidence` are destructured through field access
-in `native-artifact` without naming their types directly, so both carriers
-remain load-bearing across crate boundaries.
+containers.
 */
 
 macro_rules! image_digest {
@@ -299,13 +295,7 @@ pub use final_image::{
     place_executable_extent, place_executable_regions, validate_placed_data_region_inventory,
     validate_placed_executable_region_inventory,
 };
-pub use output::{
-    CompilerEntryFootprintBindingDigest, CompilerEntryRegionBindingDigest,
-    CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
-    CompilerTextValidationEvidence, EmittedImageOutput, EncodedCompilerTextDigest,
-    ExecutableImageOutput, FinalCompilerTextDigest, ImageOutputKind,
-    emitted_direct_executable_output,
-};
+pub use output::{EmittedImageOutput, ExecutableImageOutput, emitted_direct_executable_output};
 pub use relocation_envelope::validate_final_text_relocation_envelope;
 pub use relocations::{apply_relocations, validate_relative_relocation_target};
 pub use slot_thunk::SlotThunkIsa;
@@ -350,7 +340,6 @@ mod tests {
             offset: 0,
             size: 0,
             kind: SymbolKind::Import,
-            import_library: "must-not-win.dll".into(),
         });
         object.layout.normalized_imports.push(NormalizedImportPlan {
             symbol,
@@ -362,9 +351,7 @@ mod tests {
             target,
             import_program: &crate::test_support::import_program(
                 target,
-                vec![machine_code::import_code::ImportCodeIdentity::Normalized(
-                    locator.clone().into(),
-                )],
+                vec![locator.clone().into()],
             ),
             object: &object,
             relocations: &relocations,
@@ -375,7 +362,7 @@ mod tests {
         assert_eq!(
             &import.import,
             &FinalImageImportPlan::Normalized((locator).into()),
-            "normalized coordinates must win atomically over legacy symbol fields"
+            "normalized coordinates must win atomically over the symbol spelling"
         );
     }
 
@@ -395,7 +382,6 @@ mod tests {
                 offset,
                 size,
                 kind,
-                import_library: String::new(),
             });
         }
         let relocations = RelocationPlan::with_target(target);

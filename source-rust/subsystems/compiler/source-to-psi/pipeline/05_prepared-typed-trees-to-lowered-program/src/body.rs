@@ -1392,6 +1392,13 @@ pub enum ExpressionKind {
         start: Option<Box<Expression>>,
         end: Option<Box<Expression>>,
     },
+    /// A shared reference to the whole of the view `base` as `[T; extent]`.
+    /// The view's length must equal `extent`; the reference borrows the
+    /// view's backing and copies nothing.
+    CollectionFixedArray {
+        base: Box<Expression>,
+        extent: u64,
+    },
     /// A view of the captured collection, preserving its elements or presenting
     /// their complete representation. Formation borrows that exact backing and
     /// owns a separate loan occurrence.

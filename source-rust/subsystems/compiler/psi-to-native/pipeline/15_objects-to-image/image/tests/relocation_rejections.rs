@@ -92,7 +92,6 @@ fn object_symbol(
         offset,
         size,
         kind,
-        import_library: String::new(),
     })
 }
 
@@ -411,7 +410,7 @@ fn x86_64_rejects_patches_to_sections_without_backing_bytes() {
         .expect_err("a field past the text end cannot be patched");
     unexpected!(
         diagnostic,
-        "x86_64 relocation offset 6 is outside text section"
+        "x86_64 relocation spans bytes 6..10 in a section of 8 bytes"
     );
     assert_eq!(image.memory.text, encoded);
 }
@@ -437,7 +436,6 @@ fn aarch64_distinguishes_imports_from_sectionless_symbols() {
         0,
         SymbolKind::Import,
     );
-    object.layout.symbols.get_mut(import).import_library = "libhost.so".into();
     // A sectionless symbol that is not an import: still no address, but the
     // plain unknown-symbol arm owns it.
     let loose = object_symbol(
@@ -750,7 +748,7 @@ fn aarch64_field_relocations_pin_their_range_and_alignment_boundaries() {
         .expect_err("a field past the text end cannot be patched");
     unexpected!(
         diagnostic,
-        "AArch64 relocation offset 14 is outside text section"
+        "AArch64 relocation spans bytes 14..18 in a section of 16 bytes"
     );
     assert_eq!(image.memory.text, encoded);
 }

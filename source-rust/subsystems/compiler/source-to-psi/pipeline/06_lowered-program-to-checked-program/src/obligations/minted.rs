@@ -450,8 +450,8 @@ struct Minted<'a> {
     machine: MachineId,
     module: &'a terminal_psi::TerminalModule,
     lowered: &'a TerminalMachine,
-    cleanup_catalog: crate::owned_cleanup::Catalog<'a>,
-    claims: terminal_semantics::plain_affine::ClaimsPlan,
+    cleanup_catalog: &'a crate::owned_cleanup::Catalog<'a>,
+    claims: &'a terminal_semantics::plain_affine::ClaimsPlan,
     tables: &'a MachineTables,
     /// Whether the lowered form has claimed each obligation row, by position.
     obligations: Vec<bool>,
@@ -790,6 +790,36 @@ impl Minted<'_> {
     }
 }
 
+/// What the claim receiver reads for one machine: the claim rows
+/// `MachineAffine::verify_claims` reconstructs, or the refusal it states.
+pub(crate) type ReceivedClaims = Result<terminal_semantics::plain_affine::ClaimsPlan, Refusal>;
+
+/// The refusal of `machine` that an affine-check error states.
+pub(crate) fn affine_refusal(
+    machine: MachineId,
+    error: terminal_semantics::plain_affine::Error,
+) -> Refusal {
+    use terminal_semantics::plain_affine::{Error, Site};
+    let concerns = match error.site() {
+        Some(Site::Operation(operation)) => Construct::Operation(operation),
+        Some(Site::Edge(edge)) => Construct::Edge(edge),
+        None => Construct::Machine,
+    };
+    let (reason, detail) = match error {
+        Error::Unavailable(unavailable) => (RefusalReason::Unestablished, unavailable.message()),
+        Error::Unconsumed { at_join, .. } => {
+            (RefusalReason::Violation, Error::unconsumed_message(at_join))
+        }
+        Error::MissingActiveCase { .. } => (
+            RefusalReason::Unsupported,
+            Error::missing_active_case_message(),
+        ),
+        Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, detail),
+        Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
+    };
+    refusal(reason, machine, concerns, detail)
+}
+
 /// Refuses `tables` unless its obligation rows, invocation rows and edge
 /// rows are the ones `lowered` itself owes and states.
 pub(crate) fn follow_the_lowered_form(
@@ -799,7 +829,7 @@ pub(crate) fn follow_the_lowered_form(
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-    affine: Option<&terminal_semantics::plain_affine::AffineSummaries<'_>>,
+    replays: Option<&crate::ModuleReplays<'_>>,
 ) -> Checked<()> {
     values_are_declared(id, lowered, tables)?;
     let returned =
@@ -832,43 +862,44 @@ pub(crate) fn follow_the_lowered_form(
         .collect::<Vec<_>>();
     owed_index.sort_by_key(|(key, _)| *key);
     owed_index.dedup_by_key(|(key, _)| *key);
+    // The module's machine check shares one catalog and the claim rows its
+    // affine check already received; any other caller builds its own.
+    let own_catalog;
+    let cleanup_catalog = match replays.and_then(|replays| replays.cleanup_catalog(module)) {
+        Some(shared) => shared.as_ref(),
+        None => {
+            own_catalog = crate::owned_cleanup::Catalog::new(module);
+            own_catalog.as_ref()
+        }
+    }
+    .map_err(|detail| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Machine,
+            detail,
+        )
+    })?;
+    let own_claims;
+    let claims = match replays.and_then(|replays| replays.received_claims(module, id)) {
+        Some(received) => received.as_ref().map_err(Clone::clone)?,
+        None => {
+            own_claims = terminal_semantics::plain_affine::MachineAffine::new(
+                module,
+                id,
+                replays.map(|replays| replays.affine),
+            )
+            .and_then(|walks| walks.verify_claims())
+            .map_err(|error| affine_refusal(id, error))?;
+            &own_claims
+        }
+    };
     let mut minted = Minted {
         machine: id,
         module,
         lowered,
-        cleanup_catalog: crate::owned_cleanup::Catalog::new(module).map_err(|detail| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                id,
-                Construct::Machine,
-                detail,
-            )
-        })?,
-        claims: terminal_semantics::plain_affine::MachineAffine::new(module, id, affine)
-            .and_then(|walks| walks.verify_claims())
-            .map_err(|error| {
-                use terminal_semantics::plain_affine::{Error, Site};
-                let concerns = match error.site() {
-                    Some(Site::Operation(operation)) => Construct::Operation(operation),
-                    Some(Site::Edge(edge)) => Construct::Edge(edge),
-                    None => Construct::Machine,
-                };
-                let (reason, detail) = match error {
-                    Error::Unavailable(unavailable) => {
-                        (RefusalReason::Unestablished, unavailable.message())
-                    }
-                    Error::Unconsumed { at_join, .. } => {
-                        (RefusalReason::Violation, Error::unconsumed_message(at_join))
-                    }
-                    Error::MissingActiveCase { .. } => (
-                        RefusalReason::Unsupported,
-                        Error::missing_active_case_message(),
-                    ),
-                    Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, detail),
-                    Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
-                };
-                refusal(reason, id, concerns, detail)
-            })?,
+        cleanup_catalog,
+        claims,
         tables,
         obligations: vec![false; tables.obligations.len()],
         invocations,
@@ -1037,6 +1068,7 @@ pub(crate) fn follow_the_lowered_form(
             | terminal_psi::OperationKind::ElementViewRead { obligation, .. }
             | terminal_psi::OperationKind::ByteSequenceSubslice { obligation, .. }
             | terminal_psi::OperationKind::ElementViewSubslice { obligation, .. }
+            | terminal_psi::OperationKind::ElementViewFixedArray { obligation, .. }
             | terminal_psi::OperationKind::EstablishElementView {
                 region: terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. },
                 ..

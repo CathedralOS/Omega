@@ -206,8 +206,11 @@ pub(crate) mod capabilities {
     use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind};
     use std::collections::BTreeSet;
     use terminal_psi::{BoundaryCompletion, OperationKind, Terminator};
-    use terminal_semantics::AccessRamOriginAnalysis;
+    use terminal_semantics::callable_values::{
+        BoundCallableValues, CallableValuePreparationError, CallableValueView,
+    };
     use terminal_semantics::descriptor_results::terminal_access_origin_graph;
+    use terminal_semantics::{AccessRamOriginAnalysis, ModuleAnalyses};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum TerminalUnsupportedCapability {
@@ -238,37 +241,27 @@ pub(crate) mod capabilities {
         pub kind: ExternalCompletionKind,
     }
 
-    /// The whole-module callable projection for one provider selection.
+    /// The whole-module analyses a capability check reads, for one provider
+    /// selection.
     ///
-    /// Building it walks the storage flow of every machine in the module,
-    /// which dominates a capability check on a large program. A caller that
-    /// checks or starts several entries of one program under the same
-    /// providers, such as native preparation evaluating calling policies,
-    /// builds it once and passes it to each check. The projection keeps the
-    /// result it reached, failures included, so a check that reuses it
-    /// refuses the same programs with the same errors as one that rebuilds it.
+    /// Projecting the module's callable values walks the storage flow of
+    /// every machine, which dominates a capability check on a large program.
+    /// A caller that checks or starts several entries of one program under
+    /// the same providers, such as native preparation evaluating calling
+    /// policies, builds this once and passes it to each check. The bundle
+    /// projects the callable values on first use and keeps the result,
+    /// failures included, so a check that reuses it refuses the same
+    /// programs with the same errors as one that builds its own.
     pub struct TerminalCallableAnalysis<'program, 'artifact> {
         pub(crate) program: &'program crate::TerminalProgram<'artifact>,
         module: &'program terminal_psi::TerminalModule,
-        selection: CallableSelection<'program>,
-    }
-
-    /// The projection result, split at the points where a check that builds
-    /// its own projection could fail. Only the provider step depends on the
-    /// installation, so a reusing check recomputes that step, which raises
-    /// its own error, and confirms that it matches before relying on the
-    /// projection.
-    enum CallableSelection<'program> {
-        Unprojected(TerminalInterpretError),
-        UnselectedProviders,
-        Selected {
-            implementations:
-                Vec<terminal_semantics::callable_values::CallableBoundaryImplementation>,
-            values: Result<
-                terminal_semantics::callable_values::CallableValueProgram<'program>,
-                TerminalInterpretError,
-            >,
-        },
+        analyses: Box<dyn PreparedAnalyses + 'program>,
+        /// The installation's provider bodies, or `None` when they could not
+        /// be read. Only this step depends on the installation, so a reusing
+        /// check reads the providers again, which raises its own error, and
+        /// confirms that they match before relying on the analyses.
+        implementations:
+            Option<Vec<terminal_semantics::callable_values::CallableBoundaryImplementation>>,
     }
 
     impl<'program, 'artifact> TerminalCallableAnalysis<'program, 'artifact> {
@@ -277,23 +270,11 @@ pub(crate) mod capabilities {
             installation: Option<&TerminalRuntimeSupplies>,
         ) -> Self {
             let module = program.program.catalogs.as_ref().as_ref();
-            let selection = match project_callable_values(module) {
-                Err(error) => CallableSelection::Unprojected(error),
-                Ok(values) => match boundary_implementations(&program.program, installation) {
-                    Err(_) => CallableSelection::UnselectedProviders,
-                    Ok(implementations) => {
-                        let values = select_implementations(values, &implementations);
-                        CallableSelection::Selected {
-                            implementations,
-                            values,
-                        }
-                    }
-                },
-            };
             Self {
                 program,
                 module,
-                selection,
+                analyses: Box::new(module_analyses(module)),
+                implementations: boundary_implementations(&program.program, installation).ok(),
             }
         }
 
@@ -303,18 +284,51 @@ pub(crate) mod capabilities {
         }
     }
 
-    fn project_callable_values(
+    type CheckResult = Result<TerminalExecutionRequirements, TerminalInterpretError>;
+
+    /// A module's analyses, or the refusal of a module that has none.
+    type PreparedBundle<'module> = Result<ModuleAnalyses<'module>, TerminalInterpretError>;
+
+    /// Lends a prepared `ModuleAnalyses` to one check without naming the
+    /// bundle's module lifetime. The bundle is invariant in that lifetime,
+    /// and callers rely on `TerminalCallableAnalysis` shortening its
+    /// `'program` lifetime as the projection it replaced allowed.
+    trait PreparedAnalyses: Send + Sync {
+        fn check(&self, check: &mut dyn FnMut(&PreparedBundle<'_>) -> CheckResult) -> CheckResult;
+    }
+
+    impl PreparedAnalyses for PreparedBundle<'_> {
+        fn check(&self, check: &mut dyn FnMut(&PreparedBundle<'_>) -> CheckResult) -> CheckResult {
+            check(self)
+        }
+    }
+
+    /// The analyses every check of `module` reads. A module that repeats a
+    /// machine identity has no rows to project, so it is refused as the
+    /// callable projection refuses it.
+    fn module_analyses(module: &terminal_psi::TerminalModule) -> PreparedBundle<'_> {
+        ModuleAnalyses::new(module).map_err(|error| {
+            projection_error(module, CallableValuePreparationError::StorageFlow(error))
+        })
+    }
+
+    fn project_callable_values<'analyses>(
+        analyses: &'analyses ModuleAnalyses<'_>,
+    ) -> Result<CallableValueView<'analyses>, TerminalInterpretError> {
+        analyses
+            .callable_values()
+            .map_err(|error| projection_error(analyses.module(), error.clone()))
+    }
+
+    fn projection_error(
         module: &terminal_psi::TerminalModule,
-    ) -> Result<terminal_semantics::callable_values::CallableValueProgram<'_>, TerminalInterpretError>
-    {
-        terminal_semantics::callable_values::terminal_callable_values_with_error_context(module)
-            .map_err(|error| {
-                if let Some(boundary) = error.missing_boundary(module) {
-                    TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary)
-                } else {
-                    TerminalInterpretError::ScalarApplicationEvaluation(error.in_module(module))
-                }
-            })
+        error: CallableValuePreparationError,
+    ) -> TerminalInterpretError {
+        if let Some(boundary) = error.missing_boundary(module) {
+            TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary)
+        } else {
+            TerminalInterpretError::ScalarApplicationEvaluation(error.in_module(module))
+        }
     }
 
     fn boundary_implementations(
@@ -342,15 +356,13 @@ pub(crate) mod capabilities {
         Ok(implementations)
     }
 
-    fn select_implementations<'module>(
-        values: terminal_semantics::callable_values::CallableValueProgram<'module>,
+    /// The callable values with the installation's provider bodies applied
+    /// as an overlay, refused as `with_boundary_implementations` refuses them.
+    fn select_implementations<'values>(
+        values: CallableValueView<'values>,
         implementations: &[terminal_semantics::callable_values::CallableBoundaryImplementation],
-    ) -> Result<
-        terminal_semantics::callable_values::CallableValueProgram<'module>,
-        TerminalInterpretError,
-    > {
-        values
-            .with_boundary_implementations(implementations)
+    ) -> Result<BoundCallableValues<'values>, TerminalInterpretError> {
+        BoundCallableValues::new(values, implementations)
             .map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))
     }
 
@@ -387,6 +399,50 @@ pub(crate) mod capabilities {
         }) {
             return Err(malformed());
         }
+        let module = program.catalogs.as_ref().as_ref();
+        match analysis {
+            None => check_reach(
+                program,
+                installation,
+                private_entry_ram,
+                scalar_scope,
+                entry,
+                &module_analyses(module),
+                None,
+            ),
+            Some(analysis) => {
+                if !std::ptr::eq(analysis.module, module) {
+                    return Err(malformed());
+                }
+                analysis.analyses.check(&mut |analyses| {
+                    check_reach(
+                        program,
+                        installation,
+                        private_entry_ram,
+                        scalar_scope,
+                        entry,
+                        analyses,
+                        Some(&analysis.implementations),
+                    )
+                })
+            }
+        }
+    }
+
+    /// The requirements of everything `entry` reaches, read from the module's
+    /// analyses. `prepared` holds the provider bodies a reused
+    /// `TerminalCallableAnalysis` read for its own installation.
+    fn check_reach(
+        program: &AdmittedTerminalProgram,
+        installation: Option<&TerminalRuntimeSupplies>,
+        private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
+        scalar_scope: Option<&psi_scalar_applications::ScalarScopeInputs>,
+        entry: semantic_vocabulary::MachineId,
+        analyses: &PreparedBundle<'_>,
+        prepared: Option<
+            &Option<Vec<terminal_semantics::callable_values::CallableBoundaryImplementation>>,
+        >,
+    ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
         let mut imports = BTreeSet::new();
         let mut missing_providers = BTreeSet::new();
         let mut installation_bound_call = false;
@@ -400,39 +456,17 @@ pub(crate) mod capabilities {
             .map(|declaration| (declaration.id, declaration))
             .collect::<std::collections::BTreeMap<_, _>>();
         let mut storage_roots = BTreeSet::new();
-        let module = program.catalogs.as_ref().as_ref();
-        let projected;
-        let callable_values = match analysis {
-            None => {
-                let values = project_callable_values(module)?;
-                let implementations = boundary_implementations(program, installation)?;
-                projected = select_implementations(values, &implementations)?;
-                &projected
-            }
-            // Replay the prepared result in the order a fresh projection
-            // fails: the module projection, this installation's providers,
-            // then their application to the projection.
-            Some(analysis) => {
-                if !std::ptr::eq(analysis.module, module) {
-                    return Err(malformed());
-                }
-                if let CallableSelection::Unprojected(error) = &analysis.selection {
-                    return Err(error.clone());
-                }
-                let implementations = boundary_implementations(program, installation)?;
-                let CallableSelection::Selected {
-                    implementations: prepared,
-                    values,
-                } = &analysis.selection
-                else {
-                    return Err(malformed());
-                };
-                if *prepared != implementations {
-                    return Err(malformed());
-                }
-                values.as_ref().map_err(Clone::clone)?
-            }
-        };
+        // Refuse in the order a fresh projection fails: the module
+        // projection, this installation's providers, then their application
+        // to the projection.
+        let analyses = analyses.as_ref().map_err(Clone::clone)?;
+        let values = project_callable_values(analyses)?;
+        let implementations = boundary_implementations(program, installation)?;
+        if prepared.is_some_and(|prepared| prepared.as_ref() != Some(&implementations)) {
+            return Err(malformed());
+        }
+        let bound = select_implementations(values, &implementations)?;
+        let callable_values = bound.view();
         let mut callable_roots = BTreeSet::from([entry]);
         let mut callable_invocations = None;
         let mut pending = vec![entry];
@@ -835,8 +869,9 @@ pub(crate) mod capabilities {
                     AdmittedBoundarySupply::CheckedProvider(machine) => Some((boundary, *machine)),
                     _ => None,
                 });
-            terminal_semantics::synchronous_calls::SynchronousCallGraph::new(&program.catalogs, None)
-                .and_then(|graph| graph.with_boundary_calls(calls))
+            analyses
+                .calls()
+                .with_boundary_calls(calls)
                 .and_then(|graph| graph.validate_installed_service_reach(entry))
                 .map_err(TerminalInterpretError::InstallationServiceReach)?;
         }
@@ -2451,9 +2486,7 @@ pub(crate) mod execution {
     use crate::boundary::values::{
         StructuralByteSequenceRuntimeField, StructuralRuntimePlace, StructuralScalarRuntimeField,
     };
-    use crate::boundary::values::{
-        TerminalScalarValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
-    };
+    use crate::boundary::values::{TerminalScalarValue, TerminalStructuralValue};
     use crate::embedding::instance::{ComponentBindings, TerminalProcessExitAdmission};
     use crate::embedding::program::ProgramDeclarations;
     use crate::engine::custody::{
@@ -3479,27 +3512,6 @@ pub(crate) mod execution {
                 .collect()
         }
 
-        pub fn structural_primitive_values(
-            &self,
-        ) -> Result<Vec<TerminalStructuralPrimitiveValue>, TerminalInterpretError> {
-            self.final_structural_primitive_values()
-        }
-
-        pub(crate) fn final_structural_primitive_values(
-            &self,
-        ) -> Result<Vec<TerminalStructuralPrimitiveValue>, TerminalInterpretError> {
-            let mut values = Vec::with_capacity(self.structural_primitive_entry_places.len());
-            for (argument_index, place) in &self.structural_primitive_entry_places {
-                if let Some(cell) = self.primitive_cell(place)? {
-                    values.push(TerminalStructuralPrimitiveValue {
-                        argument_index: *argument_index,
-                        value: cell.read()?,
-                    });
-                }
-            }
-            Ok(values)
-        }
-
         pub fn live_affine_frontier(&self) -> impl Iterator<Item = &StructuralAffineDiscard> + '_ {
             self.live_affine_frontier.iter()
         }
@@ -3872,6 +3884,7 @@ pub(crate) mod execution {
                                         ElementViewRead => flow execute_element_view_read,
                                         ElementViewWrite => flow execute_element_view_write,
                                         ElementViewSubslice => advance execute_element_view_subslice,
+                                        ElementViewFixedArray => advance execute_element_view_fixed_array,
                                         ByteSequenceSubslice => advance execute_byte_sequence_subslice,
                                         ByteSequenceWrite => advance execute_byte_sequence_write,
                                         ByteSequencePredicate => flow execute_byte_sequence_predicate,

@@ -794,13 +794,6 @@ impl Projection {
         }
     }
 
-    pub fn reference_origin_path(
-        &self,
-        ordering: &ScalarOrdering,
-    ) -> Option<Vec<terminal_psi::ReferenceOriginProjection>> {
-        self.origin_path_with(|at, value| ordering.known_unsigned(at, value))
-    }
-
     /// The coordinate-free origin of a projection whose runtime
     /// coordinates were stripped: each erased element selector becomes
     /// `Element`, and the storage named after it stays exact. `None` for

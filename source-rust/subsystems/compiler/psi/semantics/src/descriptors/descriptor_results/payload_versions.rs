@@ -278,20 +278,22 @@ pub fn require_unchanged_produced_payload(
 
 /// Reuse the caller's prepared storage history. A missing or changed
 /// version is an error, including an unresolved write on any arrival.
-pub fn require_unchanged_produced_payload_in(
+pub fn require_unchanged_produced_payload_in<'rows>(
     types: &[StructuralTypeDeclaration],
-    graph: &[DescriptorMachine],
+    graph: impl Into<crate::module_analyses::DescriptorRowView<'rows>>,
     analysis: &mut DescriptorAnalysis<'_>,
     identity: MachineId,
     producer: DescriptorPosition,
     observation: DescriptorPosition,
     payload: &DescriptorLocation,
 ) -> Result<(), &'static str> {
+    let graph = graph.into();
     if !analysis.uses_source_graph(types, graph) {
         return Err("produced storage analysis belongs to another immutable source graph");
     }
-    let machine =
-        descriptor_machine(graph, identity).ok_or("produced payload machine is absent")?;
+    let machine = graph
+        .find(identity)
+        .ok_or("produced payload machine is absent")?;
     require_version(machine, analysis, producer, observation, payload)
 }
 
@@ -382,7 +384,7 @@ pub fn require_unchanged_entry_storage(
 
 pub(crate) fn require_unchanged_entry_storage_with_incoming(
     types: &[StructuralTypeDeclaration],
-    graph: &[DescriptorMachine],
+    graph: crate::module_analyses::DescriptorRowView<'_>,
     analysis: &mut DescriptorAnalysis<'_>,
     identity: MachineId,
     observation: DescriptorPosition,
@@ -392,8 +394,9 @@ pub(crate) fn require_unchanged_entry_storage_with_incoming(
     if !analysis.uses_source_graph(types, graph) {
         return Err("entry storage analysis belongs to another immutable source graph");
     }
-    let machine =
-        descriptor_machine(graph, identity).ok_or("entry payload machine is absent")?;
+    let machine = graph
+        .find(identity)
+        .ok_or("entry payload machine is absent")?;
     require_unchanged_from(
         machine,
         analysis,
@@ -681,9 +684,9 @@ pub fn unchanged_stored_projection_sources_in<Source: Ord>(
     )
 }
 
-pub fn projected_stored_sources_in<Source: Ord>(
+pub fn projected_stored_sources_in<'rows, Source: Ord>(
     types: &[StructuralTypeDeclaration],
-    graph: &[DescriptorMachine],
+    graph: impl Into<crate::module_analyses::DescriptorRowView<'rows>>,
     analysis: &mut DescriptorAnalysis<'_>,
     identity: MachineId,
     observation: DescriptorPosition,
@@ -694,10 +697,11 @@ pub fn projected_stored_sources_in<Source: Ord>(
         &[crate::descriptors::descriptor_lifetimes::DescriptorPathSegment],
     ) -> Option<Source>,
 ) -> Option<Vec<Source>> {
+    let graph = graph.into();
     if !analysis.uses_source_graph(types, graph) {
         return None;
     }
-    let machine = descriptor_machine(graph, identity)?;
+    let machine = graph.find(identity)?;
     if !machine.flow.contains_key(&observation) {
         return None;
     }

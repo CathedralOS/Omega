@@ -65,6 +65,15 @@ fn selected_memory_rules(
     ]
     .into_iter()
     .flat_map(|(key, semantic)| key.map(|key| (key, semantic)))
+    .chain(keys.scaled_indexed_load.into_iter().flat_map(|key| {
+        [
+            MachineSemanticKind::Load16Indexed,
+            MachineSemanticKind::Load32Indexed,
+            MachineSemanticKind::Load64Indexed,
+        ]
+        .into_iter()
+        .map(move |semantic| (key, semantic))
+    }))
     .chain(keys.load_packed.into_iter().flat_map(|key| {
         [
             MachineSemanticKind::LoadPacked3,
@@ -278,7 +287,7 @@ fn memory_contract(semantic: MachineSemanticKind) -> MemoryContract {
             faulting: false,
             uses_stack_pointer: false,
         },
-        Load8Indexed => MemoryContract {
+        Load8Indexed | Load16Indexed | Load32Indexed | Load64Indexed => MemoryContract {
             accesses: &[Use, Use, Def],
             early_clobbers: &[],
             reads: &[0, 1],
@@ -332,6 +341,15 @@ fn row_clobbers_flags(semantic: MachineSemanticKind, architecture: Architecture)
     }
 }
 
+const fn scaled_index_width(semantic: MachineSemanticKind) -> u16 {
+    match semantic {
+        MachineSemanticKind::Load16Indexed => 2,
+        MachineSemanticKind::Load32Indexed => 4,
+        MachineSemanticKind::Load64Indexed => 8,
+        _ => 0,
+    }
+}
+
 const fn packed_load_width(semantic: MachineSemanticKind) -> u16 {
     match semantic {
         MachineSemanticKind::LoadPacked3 => 3,
@@ -369,6 +387,13 @@ fn expected_encoded_memory(
             index_operand: 1,
             byte_count: 1,
         },
+        Load16Indexed | Load32Indexed | Load64Indexed => {
+            MachineEncodedMemoryEffect::ReadScaledIndexV1 {
+                pointer_operand: 0,
+                index_operand: 1,
+                element_bytes: scaled_index_width(semantic),
+            }
+        }
         Load8 | Load16 | Load32 | Load64 => MachineEncodedMemoryEffect::ReadPointerV1 {
             pointer_operand: 0,
             byte_count: match semantic {
@@ -409,6 +434,10 @@ fn expected_size(
             AddressOffset | Load32 | Load64 => resolved(7, 8),
             Load8 | Load16 => resolved(8, 9),
             Load8Indexed => MachineSizeKnowledge::ExactBytes(9),
+            // REX, opcode, ModRM and SIB, plus a zero disp8 for an rbp or r13
+            // base; the 16-bit form adds the 0F escape byte.
+            Load16Indexed => resolved(5, 6),
+            Load32Indexed | Load64Indexed => resolved(4, 5),
             Store64 => resolved(15, 31),
             FrameAddress => resolved(8, 23),
             other => panic!("{other:?} is not a selected memory rule"),
@@ -437,9 +466,14 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let (model, convention, catalog, keys) = abi_case_context(&environment, case);
         let memory_rules = selected_memory_rules(&environment);
+        // Only x86-64 selects the scaled indexed loads, one rule for three widths.
+        let scaled_indexed_loads = match case.target.architecture {
+            Architecture::X86_64 => 3,
+            Architecture::Aarch64 => 0,
+        };
         assert_eq!(
             memory_rules.len(),
-            16,
+            16 + scaled_indexed_loads,
             "{} selects an unexpected memory roster",
             case.convention
         );
@@ -643,6 +677,15 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                     pointer_operand,
                     index_operand,
                     byte_count: 2,
+                }),
+                MachineEncodedMemoryEffect::ReadScaledIndexV1 {
+                    pointer_operand,
+                    index_operand,
+                    element_bytes,
+                } => Some(MachineEncodedMemoryEffect::ReadScaledIndexV1 {
+                    pointer_operand,
+                    index_operand,
+                    element_bytes: element_bytes / 2,
                 }),
                 MachineEncodedMemoryEffect::WritePointerV1 { .. } => {
                     Some(MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 1 })

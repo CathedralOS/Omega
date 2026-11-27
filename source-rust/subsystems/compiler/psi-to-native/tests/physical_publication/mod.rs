@@ -84,10 +84,8 @@ fn emit_body_inspecting_physical<'execution>(
         true, // This fixture independently inspects the optimized input.
     )
     .unwrap_or_else(|error| match error {
-        crate::driver::compile_body::NativeBodyPlanningError::AbstractOptimization(
-            error,
-        ) => {
-            panic!("constant optimization: {error:?}")
+        crate::driver::compile_body::NativeBodyPlanningError::AbstractInput(error) => {
+            panic!("constant abstract input: {error:?}")
         }
         crate::driver::compile_body::NativeBodyPlanningError::Target(error) => {
             panic!("constant target lowering: {error:?}")
@@ -137,7 +135,7 @@ fn emit_body_inspecting_physical<'execution>(
     );
     let bound = physical
         .bind(
-            &installation_binding::RetainedHandlerMeasurements::default(),
+            &entry_planning::installation_binding::RetainedHandlerMeasurements::default(),
             None,
         )
         .unwrap();
@@ -496,35 +494,6 @@ fn check_published_plan(body: &target_lowering::NativeBodyPlan, entry: MachineId
                 if machine == entry
         ),
         "a resolved width the module does not retain is refused"
-    );
-
-    // Proof evidence stays with the function it was accepted for. This small
-    // program records none, so the corruption is a record the sources lack;
-    // a program that has some loses one instead. Either way the plan then
-    // claims evidence its sources do not.
-    let mut forged = published.plan().clone();
-    let index = entry_function(&mut forged);
-    let facts = &mut forged.scalar_functions[index].ownership_frontier_facts;
-    if facts.pop().is_none() {
-        facts.push(optimization_unit::OwnershipFrontierFact::new(
-            published.plan().psi,
-            entry,
-            optimization_unit::OwnershipFrontierSite::BlockEntry(BlockId::new(1).unwrap()),
-            optimization_unit::OwnershipFrontierSnapshot {
-                claims: Vec::new(),
-                owned_places: Vec::new(),
-                partial_custody: Vec::new(),
-                nominal_partitions: Vec::new(),
-            },
-        ));
-    }
-    assert!(
-        matches!(
-            verify(&reseal(forged)),
-            Err(PublishedPlanMismatch { machine: Some(machine), part: "ownership-frontier facts" })
-                if machine == entry
-        ),
-        "a changed proof record is refused"
     );
 
     // The plan lists the installations that survived lowering; one the target
@@ -1094,14 +1063,13 @@ fn check_canonical_publication(
     let native_artifact::RequestedNativeArtifact::Direct(native) = requested else {
         panic!("Windows image is direct");
     };
-    assert!(
-        native.physical_evidence().is_some(),
-        "retained staged source establishes complete physical scope"
-    );
-    assert_eq!(
-        native.physical_evidence().unwrap().children().len(),
-        usize::from(through_boundary)
-    );
+    let derivation = native
+        .physical_evidence()
+        .expect("an audit derives physical evidence from the emitted bytes");
+    let native_artifact::NativePhysicalEvidenceDerivation::Complete(physical) = &derivation else {
+        panic!("retained staged source establishes complete physical scope: {derivation:?}");
+    };
+    assert_eq!(physical.children().len(), usize::from(through_boundary));
     let receipt = native_artifact::PreparedExecutablePublication::new(&native)
         .expect("fresh emission can be published without replay reports")
         .into_receipt(std::path::PathBuf::from("published-program"))
@@ -1123,11 +1091,14 @@ fn check_canonical_publication(
         "absent replay reports do not exempt changed bytes from receiver replay"
     );
     let identity = native.identity();
-    let mut parts = native.into_parts();
-    parts.physical_evidence = None;
-    assert!(
-        native_artifact::NativeArtifact::from_replayed_parts(parts).is_err(),
-        "receiver must reject stripped complete physical evidence"
+    // Emission published the bytes without deriving evidence. A receiver that
+    // re-derives it from the same parts must reach the same identity.
+    let replayed = native_artifact::NativeArtifact::from_replayed_parts(native.into_parts())
+        .expect("receiver replays the published parts");
+    assert_eq!(
+        replayed.identity(),
+        identity,
+        "artifact identity is independent of the receiver's evidence pass"
     );
     (identity, originals, archive)
 }

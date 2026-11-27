@@ -6,38 +6,27 @@ operations alongside the view/byte (`selection_views_and_bytes`), access-lifecyc
 (`selection_access_lifecycles`), and interrupt (`selection_interrupts`) modules.
 */
 
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::SelectedInstructionError;
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::byte_view_homes::ByteViewHomes;
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::construction::scalar_graph::call_arguments::{
     invocation_memory_origin, invocation_provenance,
 };
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::construction::scalar_graph::{
     Builder, IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedBlockId,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance, ValueLocation,
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::element_view_homes::ElementViewHomes;
-#[allow(unused_imports)]
 pub(crate) use calling_conventions::IndirectPointerLocation;
-#[allow(unused_imports)]
 pub(crate) use legalized_operations::LegalizedScalarInstruction;
-#[allow(unused_imports)]
 pub(crate) use optimization_core::AcceptedObligationFactIdentity;
-#[allow(unused_imports)]
 pub(crate) use selected_instructions::{
     SelectedBoundarySettlement, SelectedCallContract, SelectedMemoryAccess,
     SelectedMemoryAccessRole, SelectedOutgoingArgumentSlot,
 };
-#[allow(unused_imports)]
 pub(crate) use semantic_vocabulary::{
     IntegerType, IntegerValue, ObligationId, OperationId, PlaceId, ValueId,
 };
-#[allow(unused_imports)]
 pub(crate) use terminal_psi::StructuralAccess;
 
 pub(crate) mod block_views {
@@ -3592,6 +3581,74 @@ pub(crate) mod reference {
         Ok(())
     }
 
+    /// `view as @[T; N]`: the reference holds the address of the view's
+    /// first element. An established view offsets into its backing; an
+    /// incoming view's backing already starts at its first element.
+    pub(crate) fn establish_view_window(
+        source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
+        row: &LegalizedScalarInstruction,
+        builder: &mut Builder<'_>,
+    ) -> Result<(), SelectedInstructionError> {
+        let LegalizedScalarInstructionKind::ElementViewFixedArray {
+            result,
+            source: view,
+            indices,
+            ..
+        } = &row.kind
+        else {
+            return Err(invalid());
+        };
+        if row.result.is_some()
+            || builder
+                .transport
+                .pointers
+                .iter()
+                .any(|(place, _)| *place == result.place)
+            || builder
+                .transport
+                .local_slots
+                .iter()
+                .any(|slot| slot.id.structural_place() == Some(result.place))
+        {
+            return Err(invalid());
+        }
+        let parent = if !view.path.is_empty() {
+            None
+        } else if let Some(parent) = builder.transport.element_view(view.place) {
+            Some((parent.backing_pointer, parent.byte_offset))
+        } else {
+            builder
+                .transport
+                .views
+                .iter()
+                .find(|parent| parent.place == view.place)
+                .map(|parent| (parent.backing_pointer, parent.byte_offset))
+        };
+        let address = match parent {
+            Some((backing, byte_offset)) => {
+                let address = transport_register(builder, result.place, 0)?;
+                builder.emit_byte_view_address(backing, byte_offset, address, provenance(row))?;
+                address
+            }
+            None => super::descriptor_operands::backing(source, builder, row, view, indices)?,
+        };
+        let slot = builder
+            .transport
+            .push_structural_local_slot(row.operation, result.place, 8, 8);
+        let home = super::local_storage::address(builder, row, slot, 0, 8, true)?;
+        memory(
+            builder,
+            row,
+            result.place,
+            0,
+            8,
+            SelectedMemoryAccessRole::WritePlace,
+        )?;
+        builder.emit_store(0, 8, home, address, provenance(row))?;
+        builder.transport.pointers.push((result.place, home));
+        Ok(())
+    }
+
     pub(crate) fn load(
         builder: &mut Builder<'_>,
         row: &impl crate::instruction_selection::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
@@ -6391,6 +6448,11 @@ pub(crate) fn operation(
         row,
         Kind::EstablishReference { .. } | Kind::EstablishAccessReference { .. },
         reference::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::ElementViewFixedArray { .. },
+        reference::establish_view_window(source, row, builder)
     );
     if matches!(
         row.kind,

@@ -747,14 +747,10 @@ pub mod expression {
     use symbols::SymbolHandle;
 
     pub(crate) mod display {
-        use diagnostics::{bracketed_display_names, comma_join_display};
-
-        use crate::source_state::expression::OwnedMatchPattern;
         use crate::source_state::expression::{
-            BinaryExpression, BinaryOperator, CallExpression, CastExpression, Expression,
-            ExpressionHandle, ExpressionNode, ExpressionTable, RangeExpression,
+            BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
             StaticMachineArgument, TableBinaryExpression, TableCallExpression, TableCastExpression,
-            TableUnaryExpression, UnaryExpression, UnaryOperator,
+            TableUnaryExpression, UnaryOperator,
         };
         use crate::source_state::name::Identifier;
 
@@ -793,75 +789,6 @@ pub mod expression {
                     rendered
                 }
             };
-        }
-
-        impl Expression {
-            pub fn display_name(&self) -> String {
-                match self {
-                    Expression::Match(dispatch) => {
-                        let arms = dispatch
-                            .arms
-                            .iter()
-                            .map(|arm| {
-                                let pattern = match &arm.pattern {
-                                    OwnedMatchPattern::Value(value) => value.display_name(),
-                                    OwnedMatchPattern::Wildcard => "_".to_owned(),
-                                };
-                                format!("{pattern} -> {}", arm.value.display_name())
-                            })
-                            .collect::<Vec<_>>()
-                            .join(", ");
-                        format!("match {} {{ {arms} }}", dispatch.subject.display_name())
-                    }
-                    Expression::ArrayLiteral(values) => {
-                        bracketed_display_names(values.iter(), Expression::display_name)
-                    }
-                    Expression::Atomic(atomic) => format!(
-                        "atomic[{:?}]({})",
-                        atomic.ordering,
-                        atomic.value.display_name()
-                    ),
-                    Expression::Binary(binary) => binary.display_name(),
-                    Expression::Boolean(value) => value.to_string(),
-                    Expression::Cast(cast) => cast.display_name(),
-                    Expression::Call(call) => call.display_name(),
-                    Expression::Float(value) => value.to_string(),
-                    Expression::UndeterminedNaN(format) => {
-                        format!("<undetermined NaN {}>", format.name())
-                    }
-                    Expression::Indexed(indexed) => {
-                        format!(
-                            "{}[{}]",
-                            indexed.collection.display_name(),
-                            indexed.index.display_name()
-                        )
-                    }
-                    Expression::Integer(value) => value.to_string(),
-                    Expression::Member(member) => format!(
-                        "{}{}{}",
-                        member.receiver.display_name(),
-                        language_core::PLACE_MEMBER_SEPARATOR,
-                        member.member
-                    ),
-                    Expression::Borrow(expression) => format!(
-                        "{}{}",
-                        expression.access.borrow_prefix(),
-                        expression.target.display_name()
-                    ),
-                    Expression::Name(path) => display_name_path(path, "::"),
-                    Expression::MachineValue(value) => {
-                        display_name_path(&value.selected.path, "::")
-                    }
-                    Expression::Range(range) => range.display_name(),
-                    Expression::StructLiteral(struct_literal) => {
-                        struct_literal.type_name.to_string()
-                    }
-                    Expression::String(value) => source_text::display_literal_bytes(value),
-                    Expression::Unary(unary) => unary.display_name(),
-                    Expression::TypeExpression(_) => "type".to_owned(),
-                    Expression::ZeroValue(_) => "zero_value::<type>()".to_owned(),
-                }
-            }
         }
 
         impl ExpressionNode {
@@ -1078,25 +1005,6 @@ pub mod expression {
             )
         }
 
-        impl RangeExpression {
-            pub fn display_name(&self) -> String {
-                let separator = if self.end_inclusive { "..=" } else { ".." };
-                match (&self.start, &self.end) {
-                    (Some(start), Some(end)) => {
-                        format!(
-                            "{}{}{}",
-                            start.display_name(),
-                            separator,
-                            end.display_name()
-                        )
-                    }
-                    (Some(start), None) => format!("{}{}", start.display_name(), separator),
-                    (None, Some(end)) => format!("{}{}", separator, end.display_name()),
-                    (None, None) => separator.to_string(),
-                }
-            }
-        }
-
         pub fn display_name_path(path: &[Identifier], separator: &str) -> String {
             let byte_count = path.iter().map(|name| name.as_str().len()).sum::<usize>()
                 + separator.len().saturating_mul(path.len().saturating_sub(1));
@@ -1136,17 +1044,6 @@ pub mod expression {
             }
         }
 
-        impl BinaryExpression {
-            pub fn display_name(&self) -> String {
-                format!(
-                    "{} {} {}",
-                    self.left.display_name(),
-                    self.operator.display_name(),
-                    self.right.display_name()
-                )
-            }
-        }
-
         impl TableBinaryExpression {
             display_name_via_writer!();
 
@@ -1168,26 +1065,6 @@ pub mod expression {
             }
         }
 
-        impl UnaryExpression {
-            pub fn display_name(&self) -> String {
-                format!(
-                    "{}{}",
-                    self.operator.display_name(),
-                    self.operand.display_name()
-                )
-            }
-        }
-
-        impl CastExpression {
-            pub fn display_name(&self) -> String {
-                format!(
-                    "{} as {}",
-                    self.value.display_name(),
-                    display_name_path(&self.target_label, "::")
-                )
-            }
-        }
-
         impl TableCastExpression {
             display_name_via_writer!();
 
@@ -1195,20 +1072,6 @@ pub mod expression {
                 table.write_display_name(self.value, out);
                 out.push_str(" as ");
                 write_display_name_path(table.name_path_members(self.target_label), "::", out);
-            }
-        }
-
-        impl CallExpression {
-            pub fn display_name(&self) -> String {
-                let arguments = comma_join_display(&*self.arguments, Expression::display_name);
-
-                if let Some(binding) = &self.runtime_call {
-                    format!("({})({arguments})", binding.callee.display_name())
-                } else if let Some(receiver) = &self.receiver {
-                    format!("{}.{}({arguments})", receiver.display_name(), self.target)
-                } else {
-                    format!("{}({arguments})", self.target)
-                }
             }
         }
 
@@ -3081,18 +2944,17 @@ pub mod expression {
             }
 
             /// A contract's reserved `result` is known by its owner identity,
-            /// not its spelling, so a name rebuilt from an owned tree must
-            /// keep that owner; an edited path is a different name and
-            /// loses it.
+            /// not its spelling, so a stored name path must keep that owner;
+            /// an edited path is a different name and loses it.
             #[test]
-            fn inserting_a_tree_keeps_the_reserved_result_owner() {
-                use crate::source_state::expression::{Expression, NamePath};
+            fn inserting_a_name_path_keeps_the_reserved_result_owner() {
+                use crate::source_state::expression::NamePath;
                 let owner = SymbolHandle::from_arena_index(7);
                 let name = |text: &str| Identifier::from(text);
                 let result =
                     NamePath::unresolved(vec![name("result")]).denoting_reserved_result_of(owner);
                 let mut table = ExpressionTable::default();
-                let stored = table.insert_tree(&Expression::Name(result.clone()));
+                let stored = table.insert_name_path(&result);
                 let ExpressionNode::Name(path) = table.expression(stored) else {
                     panic!("a name is stored as a name")
                 };
@@ -3112,9 +2974,7 @@ pub mod expression {
                     owner
                 );
 
-                let plain = table.insert_tree(&Expression::Name(NamePath::unresolved(vec![name(
-                    "result",
-                )])));
+                let plain = table.insert_name_path(&NamePath::unresolved(vec![name("result")]));
                 let ExpressionNode::Name(path) = table.expression(plain) else {
                     panic!("a name is stored as a name")
                 };
@@ -3309,300 +3169,34 @@ pub mod expression {
             }
         }
     }
-    pub(crate) mod tree_conversion {
-        use crate::source_state::name::Identifier;
+    pub(crate) mod name_path_insertion {
         use crate::source_state::values::expression::{
-            Expression, ExpressionHandle, ExpressionNode, ExpressionTable, MatchPattern, NamePath,
-            OwnedMatchPattern, StructLiteralField, TableAtomicExpression, TableBinaryExpression,
-            TableBorrowExpression, TableCallExpression, TableCastExpression,
-            TableIndexedExpression, TableMatchArm, TableMatchExpression, TableMemberExpression,
-            TableNamePath, TableRangeExpression, TableStructLiteral, TableStructLiteralField,
-            TableUnaryExpression,
+            ExpressionHandle, ExpressionNode, ExpressionTable, NamePath, TableNamePath,
         };
         use arena::HandleSpan;
-        use symbols::SymbolHandle;
 
         impl ExpressionTable {
-            fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<Identifier> {
+            /// Stores `path` as a name node, keeping its resolved symbols and
+            /// the reserved `result` owner it denotes.
+            pub fn insert_name_path(&mut self, path: &NamePath) -> ExpressionHandle {
                 let mut members = HandleSpan::empty();
-
                 for member in path.members() {
                     self.name_path_members
                         .append_to_span(&mut members, member.clone());
                 }
-
-                members
-            }
-
-            fn insert_name_path_member_symbols(
-                &mut self,
-                path: &NamePath,
-            ) -> HandleSpan<SymbolHandle> {
                 let mut member_symbols = HandleSpan::empty();
-
                 for member_symbol in path.member_symbols() {
                     self.name_path_member_symbols
                         .append_to_span(&mut member_symbols, *member_symbol);
                 }
-
-                member_symbols
-            }
-
-            fn insert_expression_handle_span_from_trees(
-                &mut self,
-                expressions: &[Expression],
-            ) -> HandleSpan<ExpressionHandle> {
-                let handles = self.reserve_expression_handles(
-                    expressions
-                        .len()
-                        .try_into()
-                        .expect("expression handle span count overflow"),
-                );
-
-                for (offset, expression) in expressions.iter().enumerate() {
-                    let expression = self.insert_tree(expression);
-                    self.set_expression_handle_at_offset(
-                        handles,
-                        offset
-                            .try_into()
-                            .expect("expression handle span count overflow"),
-                        expression,
-                    );
-                }
-
-                handles
-            }
-
-            fn insert_struct_field_span_from_tree(
-                &mut self,
-                fields: &[StructLiteralField],
-            ) -> HandleSpan<TableStructLiteralField> {
-                let field_span = self.reserve_struct_fields(
-                    fields
-                        .len()
-                        .try_into()
-                        .expect("struct literal field span count overflow"),
-                );
-
-                for (offset, field) in fields.iter().enumerate() {
-                    let value = self.insert_tree(&field.value);
-                    self.set_struct_field_at_offset(
-                        field_span,
-                        offset
-                            .try_into()
-                            .expect("struct literal field span count overflow"),
-                        TableStructLiteralField {
-                            name: field.name.clone(),
-                            field_symbol: SymbolHandle::invalid(),
-                            value,
-                        },
-                    );
-                }
-
-                field_span
-            }
-
-            pub fn insert_tree(&mut self, expression: &Expression) -> ExpressionHandle {
-                match expression {
-                    Expression::Match(dispatch) => {
-                        let subject = self.insert_tree(&dispatch.subject);
-                        let mut arms = Vec::with_capacity(dispatch.arms.len());
-                        for arm in dispatch.arms.iter() {
-                            let pattern = match &arm.pattern {
-                                OwnedMatchPattern::Value(value) => {
-                                    MatchPattern::Value(self.insert_tree(value))
-                                }
-                                OwnedMatchPattern::Wildcard => MatchPattern::Wildcard,
-                            };
-                            let value = self.insert_tree(&arm.value);
-                            arms.push(TableMatchArm {
-                                pattern,
-                                value,
-                                source_span: arm.source_span,
-                            });
-                        }
-                        let arms = self.insert_match_arms(arms);
-                        self.insert(ExpressionNode::Match(TableMatchExpression {
-                            subject,
-                            arms,
-                            ..Default::default()
-                        }))
-                    }
-                    Expression::ArrayLiteral(values) => {
-                        let values = self.insert_expression_handle_span_from_trees(values);
-                        self.insert(ExpressionNode::ArrayLiteral(values))
-                    }
-                    Expression::Atomic(atomic) => {
-                        let value = self.insert_tree(&atomic.value);
-                        let result = atomic
-                            .result
-                            .as_ref()
-                            .map(|result| self.insert_tree(result))
-                            .unwrap_or_else(ExpressionHandle::invalid);
-                        self.insert(ExpressionNode::Atomic(TableAtomicExpression {
-                            value,
-                            result,
-                            ordering: atomic.ordering,
-                            result_custody: atomic.result_custody,
-                        }))
-                    }
-                    Expression::Binary(binary) => {
-                        let left = self.insert_tree(&binary.left);
-                        let right = self.insert_tree(&binary.right);
-                        self.insert(ExpressionNode::Binary(TableBinaryExpression {
-                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                            negation: false,
-                            left,
-                            operator: binary.operator,
-                            right,
-                        }))
-                    }
-                    Expression::Boolean(value) => self.insert(ExpressionNode::Boolean(*value)),
-                    Expression::Cast(cast) => {
-                        let value = self.insert_tree(&cast.value);
-                        let target_label = self.insert_name_path_members(&cast.target_label);
-                        self.insert(ExpressionNode::Cast(TableCastExpression {
-                            value,
-                            target_type: cast.target_type,
-                            result_type: crate::source_state::types::TypeReferenceHandle::invalid(),
-                            target_label,
-                            domain: cast.domain,
-                            semantic_domain: HandleSpan::empty(),
-                            semantic_domain_arguments: HandleSpan::empty(),
-                            semantic_domain_symbol: SymbolHandle::invalid(),
-                            semantic_domain_id: semantic_vocabulary::SemanticDomainId::NULL,
-                            form: cast.form,
-                        }))
-                    }
-                    Expression::MachineValue(value) => {
-                        self.insert(ExpressionNode::MachineValue(value.clone()))
-                    }
-                    Expression::Call(call) => {
-                        let runtime_call = call.runtime_call.as_ref().map(|binding| {
-                            crate::source_state::callable_values::RuntimeCallBinding {
-                                callee: self.insert_tree(&binding.callee),
-                                contract: binding.contract,
-                            }
-                        });
-                        let receiver = call
-                            .receiver
-                            .as_ref()
-                            .map(|receiver| self.insert_tree(receiver))
-                            .unwrap_or_else(ExpressionHandle::invalid);
-                        let arguments =
-                            self.insert_expression_handle_span_from_trees(&call.arguments);
-                        self.insert(ExpressionNode::Call(TableCallExpression {
-                            runtime_call,
-                            authored_call_selection: call.authored_call_selection,
-                            authored_call_binding: call.authored_call_binding,
-                            authored_machine_application: Default::default(),
-                            requirement_application: call.requirement_application,
-                            exact_coercion_target: call.exact_coercion_target,
-                            receiver,
-                            target_symbol: call.target_symbol,
-                            target: call.target.clone(),
-                            static_requirement_dispatch: None,
-                            static_machine_parameter: SymbolHandle::invalid(),
-                            machine_arguments: Box::default(),
-                            quotient_operation: None,
-                            private_layout_operation: None,
-                            installed_interrupt_operation: None,
-                            layout_query: None,
-                            native_code_layout: None,
-                            build_selection: Default::default(),
-                            arguments,
-                            evidence_arguments: call.evidence_arguments.to_vec().into_boxed_slice(),
-                            operational_acknowledgement: call.operational_acknowledgement,
-                        }))
-                    }
-                    Expression::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
-                    Expression::UndeterminedNaN(format) => {
-                        self.insert(ExpressionNode::UndeterminedNaN(*format))
-                    }
-                    Expression::Indexed(indexed) => {
-                        let collection = self.insert_tree(&indexed.collection);
-                        let index = self.insert_tree(&indexed.index);
-                        self.insert(ExpressionNode::Indexed(TableIndexedExpression {
-                            collection,
-                            index,
-                        }))
-                    }
-                    Expression::Integer(value) => {
-                        self.insert(ExpressionNode::Integer(value.clone()))
-                    }
-                    Expression::Member(member) => {
-                        let receiver = self.insert_tree(&member.receiver);
-                        self.insert(ExpressionNode::Member(TableMemberExpression {
-                            receiver,
-                            selection: member.selection,
-                            member: member.member.clone(),
-                            case_variant: member.case_variant.clone(),
-                        }))
-                    }
-                    Expression::Borrow(inner_expression) => {
-                        let target = self.insert_tree(&inner_expression.target);
-                        self.insert(ExpressionNode::Borrow(TableBorrowExpression {
-                            target,
-                            access: inner_expression.access,
-                        }))
-                    }
-                    Expression::Name(path) => {
-                        let members = self.insert_name_path_members(path);
-                        let member_symbols = self.insert_name_path_member_symbols(path);
-                        self.insert(ExpressionNode::Name(TableNamePath {
-                            members,
-                            member_symbols,
-                            head_symbol: path.head_symbol(),
-                            symbol: path.symbol(),
-                            static_application: arena::Handle::invalid(),
-                            reserved_result_of: path.reserved_result_of(),
-                        }))
-                    }
-                    Expression::Range(range) => {
-                        let start = range
-                            .start
-                            .as_ref()
-                            .map(|start| self.insert_tree(start))
-                            .unwrap_or_else(ExpressionHandle::invalid);
-                        let end = range
-                            .end
-                            .as_ref()
-                            .map(|end| self.insert_tree(end))
-                            .unwrap_or_else(ExpressionHandle::invalid);
-                        self.insert(ExpressionNode::Range(TableRangeExpression {
-                            start,
-                            end,
-                            end_inclusive: range.end_inclusive,
-                        }))
-                    }
-                    Expression::StructLiteral(struct_literal) => {
-                        let fields =
-                            self.insert_struct_field_span_from_tree(&struct_literal.fields);
-                        self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
-                            zero_omitted_fields: struct_literal.zero_omitted_fields,
-                            application_type: Default::default(),
-                            type_name: struct_literal.type_name.clone(),
-                            type_symbol: SymbolHandle::invalid(),
-                            case_name: struct_literal.case_name.clone(),
-                            case_symbol: None,
-                            fields,
-                        }))
-                    }
-                    Expression::String(value) => self.insert(ExpressionNode::String(value.clone())),
-                    Expression::Unary(unary) => {
-                        let operand = self.insert_tree(&unary.operand);
-                        self.insert(ExpressionNode::Unary(TableUnaryExpression {
-                            operator: unary.operator,
-                            operand,
-                        }))
-                    }
-                    Expression::TypeExpression(type_reference) => {
-                        self.insert(ExpressionNode::TypeExpression(*type_reference))
-                    }
-                    Expression::ZeroValue(type_reference) => {
-                        self.insert(ExpressionNode::ZeroValue(*type_reference))
-                    }
-                }
+                self.insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    member_symbols,
+                    head_symbol: path.head_symbol(),
+                    symbol: path.symbol(),
+                    static_application: arena::Handle::invalid(),
+                    reserved_result_of: path.reserved_result_of(),
+                }))
             }
         }
     }
@@ -3624,45 +3218,6 @@ pub mod expression {
             self.0
                 .expect("expression occurrence spans cannot contain the arena dummy sentinel")
         }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum Expression {
-        MachineValue(crate::source_state::callable_values::MachineValue),
-        TypeExpression(crate::source_state::types::TypeReferenceHandle),
-        Match(Box<MatchExpression>),
-        ArrayLiteral(Arc<[Expression]>),
-        Atomic(Box<AtomicExpression>),
-        Binary(Box<BinaryExpression>),
-        Boolean(bool),
-        Cast(Box<CastExpression>),
-        Call(Box<CallExpression>),
-        Float(FloatLiteral),
-        UndeterminedNaN(numeric_literals::FloatFormat),
-        Indexed(Box<IndexedExpression>),
-        Integer(IntegerLiteral),
-        Member(Box<MemberExpression>),
-        Borrow(Box<BorrowExpression>),
-        Name(NamePath),
-        Range(Box<RangeExpression>),
-        StructLiteral(StructLiteral),
-        String(source_text::SourceBytes),
-        Unary(Box<UnaryExpression>),
-        ZeroValue(crate::source_state::types::TypeReferenceHandle),
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct BorrowExpression {
-        pub target: Expression,
-        pub access: language_core::ReferenceAccess,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct AtomicExpression {
-        pub value: Expression,
-        pub result: Option<Expression>,
-        pub ordering: language_core::atomic::AtomicOrderingPlan,
-        pub result_custody: language_core::atomic::AtomicExpressionResultCustody,
     }
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
@@ -5342,12 +4897,6 @@ pub mod expression {
         pub negation: bool,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct UnaryExpression {
-        pub operator: UnaryOperator,
-        pub operand: Expression,
-    }
-
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
     pub struct TableUnaryExpression {
         pub operator: UnaryOperator,
@@ -5381,13 +4930,6 @@ pub mod expression {
     pub struct TableRangeExpression {
         pub start: ExpressionHandle,
         pub end: ExpressionHandle,
-        pub end_inclusive: bool,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct RangeExpression {
-        pub start: Option<Box<Expression>>,
-        pub end: Option<Box<Expression>>,
         pub end_inclusive: bool,
     }
 
@@ -5469,37 +5011,12 @@ pub mod expression {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct MemberExpression {
-        pub receiver: Expression,
-        pub selection: MemberSelection,
-        pub member: Identifier,
-        pub case_variant: Option<Identifier>,
-    }
-
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct TableMemberExpression {
         pub receiver: ExpressionHandle,
         pub selection: MemberSelection,
         pub member: Identifier,
         pub case_variant: Option<Identifier>,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct CallExpression {
-        pub runtime_call: Option<crate::source_state::callable_values::RuntimeCallExpression>,
-        pub authored_call_selection:
-            Option<crate::source_selections::AuthoredDeclarationSelectionOccurrenceId>,
-        pub authored_call_binding:
-            Option<crate::declaration_selection::ResolvedAuthoredCallBinding>,
-        pub exact_coercion_target: crate::source_state::types::TypeReferenceHandle,
-        pub requirement_application: crate::source_state::types::TypeReferenceHandle,
-        pub receiver: Option<Box<Expression>>,
-        pub target_symbol: SymbolHandle,
-        pub target: Identifier,
-        pub arguments: Arc<[Expression]>,
-        pub evidence_arguments: Arc<[Identifier]>,
-        pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
@@ -5696,6 +5213,9 @@ pub mod expression {
     pub struct EvidenceProjection {
         pub term: Identifier,
         pub member: Identifier,
+        /// The constant the term names, or invalid when it names none.
+        /// A proof argument reads a constant's stored selection through it.
+        pub term_symbol: symbols::SymbolHandle,
     }
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
@@ -5763,12 +5283,6 @@ pub mod expression {
         pub value: ExpressionHandle,
     }
 
-    impl Default for Expression {
-        fn default() -> Self {
-            Self::Integer(IntegerLiteral::zero())
-        }
-    }
-
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub struct NamePath {
         members: Arc<[Identifier]>,
@@ -5777,7 +5291,7 @@ pub mod expression {
         symbol: SymbolHandle,
         /// The contract owner whose reserved `result` this name denotes, as
         /// `TableNamePath::reserved_result_of`; invalid for every other name.
-        /// Held here so `ExpressionTable::insert_tree` stores the identity
+        /// Held here so `ExpressionTable::insert_name_path` stores the identity
         /// instead of leaving a name that only spells `result`.
         reserved_result_of: SymbolHandle,
     }
@@ -5947,13 +5461,6 @@ pub mod expression {
                 .all(|(left, right)| left.as_str() == right.as_str())
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct BinaryExpression {
-        pub left: Expression,
-        pub operator: BinaryOperator,
-        pub right: Expression,
-    }
-
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
     pub enum BinaryOperator {
         Add,
@@ -6085,35 +5592,6 @@ pub mod expression {
         Dereference,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct CastExpression {
-        pub value: Expression,
-        pub target_type: crate::source_state::types::TypeReferenceHandle,
-        pub target_label: NamePath,
-        pub domain: numerics::arithmetic::ArithmeticDomain,
-        pub form: language_core::cast_form::CastForm,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct IndexedExpression {
-        pub collection: Expression,
-        pub index: Expression,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct StructLiteral {
-        pub zero_omitted_fields: bool,
-        pub type_name: Identifier,
-        pub case_name: Option<Identifier>,
-        pub fields: Arc<[StructLiteralField]>,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct StructLiteralField {
-        pub name: Identifier,
-        pub value: Expression,
-    }
-
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
     pub struct TableMatchExpression {
         pub subject: ExpressionHandle,
@@ -6207,19 +5685,6 @@ pub mod expression {
         Waive,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct MatchExpression {
-        pub subject: Expression,
-        pub arms: Arc<[MatchArm]>,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct MatchArm {
-        pub pattern: OwnedMatchPattern,
-        pub value: Expression,
-        pub source_span: SourceSpan,
-    }
-
     #[macro_export]
     macro_rules! executable_leaf_expression_pattern {
         () => {
@@ -6255,12 +5720,6 @@ pub mod expression {
                 | $crate::source_state::expression::ExpressionNode::String(_)
                 | $crate::source_state::expression::ExpressionNode::ZeroValue(_)
         };
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum OwnedMatchPattern {
-        Value(Expression),
-        Wildcard,
     }
 }
 mod pattern_components {

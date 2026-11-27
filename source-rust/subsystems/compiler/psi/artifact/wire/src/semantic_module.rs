@@ -4109,10 +4109,16 @@ pub fn decode_closed_parts(
     let opaque_storage = module
         .take_opaque_storage_shapes()
         .map_err(CodecError::MalformedStructuralFoundation)?;
-    validate_structural_foundation(&module)?;
+    // Every semantic check below reads descriptor rows, affine walks and
+    // callable values from this one bundle, so each body is adapted once per
+    // artifact rather than once per check. `validate_canonical_order` has
+    // already refused a repeated machine identity, the bundle's only refusal.
+    let analyses = terminal_semantics::ModuleAnalyses::new(&module)
+        .map_err(|_| CodecError::NonCanonicalOrder("machines by MachineId"))?;
+    validate_structural_foundation(&analyses)?;
     // Artifact ingress judges structural memberships exactly as the lowered
     // checker does; an artifact cannot carry a domain the checker would refuse.
-    terminal_semantics::structural_qualifications::validate(&module)
+    terminal_semantics::structural_qualifications::validate_in(&analyses)
         .map_err(|error| CodecError::MalformedStructuralFoundation(error.detail))?;
     // A stored provider of a requirement that ends the process gets the
     // lowered-form checker's judgment too.
@@ -4127,6 +4133,7 @@ pub fn decode_closed_parts(
     crate::theorem_citations::validate_received_theorems(&module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
+    drop(analyses);
     opaque_storage
         .restore(&mut module)
         .map_err(CodecError::MalformedStructuralFoundation)?;

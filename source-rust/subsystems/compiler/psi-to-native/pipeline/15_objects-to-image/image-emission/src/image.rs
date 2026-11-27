@@ -1376,7 +1376,7 @@ pub(crate) mod final_image_validation {
     mod tests {
         use super::{decode_aarch64_page_target, decode_x86_relative_target};
         use image::{
-            EmittedImageOutput, FinalExecutableTextDigest, FinalImageLayout, ImageOutputKind,
+            EmittedImageOutput, FinalExecutableTextDigest, FinalImageLayout,
             PlacedDataRegionInventory, PlacedExecutableRegionInventory,
             PlacedExecutableRegionInventoryDigest,
         };
@@ -1395,7 +1395,6 @@ pub(crate) mod final_image_validation {
                 callback_placement_identity_report_fingerprint: 0,
                 file_name: String::new(),
                 format: String::new(),
-                kind: ImageOutputKind::DirectExecutable,
                 text_bytes: 0,
                 data_bytes: 0,
                 bss_bytes: 0,
@@ -1418,8 +1417,6 @@ pub(crate) mod final_image_validation {
                 },
                 data_regions: PlacedDataRegionInventory::empty(),
                 import_data_regions: PlacedDataRegionInventory::empty(),
-                compiler_entry_region_binding: None,
-                compiler_entry_footprint_binding: None,
             }
         }
 

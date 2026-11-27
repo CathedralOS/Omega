@@ -29,14 +29,6 @@ impl Clone for DeferredProductSources {
 }
 
 impl DeferredProductSources {
-    pub fn admit_inputs(
-        &self,
-        package_inputs: Option<&PackageCompilationInputs>,
-    ) -> Result<(), Vec<Diagnostic>> {
-        let mut checkpoint = self.checkpoint.clone_shared();
-        checkpoint.admit_product_inputs(package_inputs)
-    }
-
     pub fn assemble(
         self,
         package_inputs: Option<&PackageCompilationInputs>,
@@ -221,28 +213,6 @@ fn seed_described_entries(
 }
 
 impl ImmutableSourceParseCheckpoint {
-    pub fn admit_root(&self, root: &Path) -> Result<(), Vec<Diagnostic>> {
-        if root == self.root_path {
-            return Ok(());
-        }
-        let resolve = |path: &Path| {
-            self.source_storage
-                .filesystem
-                .canonicalize(path)
-                .map_err(|reason| {
-                    vec![Diagnostic::error(format!(
-                        "cannot resolve prepared source entry: {reason}"
-                    ))]
-                })
-        };
-        if resolve(root)? != resolve(&self.root_path)? {
-            return Err(vec![Diagnostic::error(
-                "checked child compilation root does not match its prepared source checkpoint",
-            )]);
-        }
-        Ok(())
-    }
-
     fn admit_product_inputs(
         &mut self,
         package_inputs: Option<&PackageCompilationInputs>,
@@ -340,10 +310,6 @@ impl ImmutableSourceParseCheckpoint {
             package_source_inputs: self.package_source_inputs.clone(),
             product_roots: self.product_roots.clone(),
         }
-    }
-
-    pub fn toolchain_capture(&self) -> Option<&crate::CapturedLocalSource> {
-        self.source_storage.core_capture()
     }
 
     pub fn root_path(&self) -> &Path {

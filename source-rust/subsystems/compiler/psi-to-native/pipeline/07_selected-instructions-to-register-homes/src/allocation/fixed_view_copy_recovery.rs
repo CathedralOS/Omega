@@ -11,7 +11,6 @@ fields to associate one transformation with its inputs and result.
 
 pub(crate) mod fixed_view_copy {
     use crate::allocation::ValidatedAllocationLegality;
-    use crate::allocation::ValidatedFixedPrecoloredIntervals;
     use crate::allocation::ValidatedFixedPrecoloredSegmentHomes;
 
     use crate::allocation::ValidatedLiveRanges;
@@ -606,8 +605,7 @@ pub(crate) mod fixed_view_copy {
 
         use crate::allocation::{
             FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError, FixedViewCopyPlan,
-            FixedViewCopyPolicy, FixedViewCopySourceEvidence, ValidatedAllocationLegality,
-            ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSegmentHomes,
+            FixedViewCopyPolicy, ValidatedAllocationLegality, ValidatedFixedPrecoloredSegmentHomes,
             ValidatedFixedPrecoloredSplitRequirements, ValidatedLiveRanges,
         };
         use selected_instructions::VirtualFixedConstraintSite;
@@ -622,7 +620,6 @@ pub(crate) mod fixed_view_copy {
             selected: &SelectedProgram,
             ranges: &ValidatedLiveRanges,
             legality: &ValidatedAllocationLegality,
-            fixed: &ValidatedFixedPrecoloredIntervals,
             requirements: &ValidatedFixedPrecoloredSplitRequirements,
             homes: &ValidatedFixedPrecoloredSegmentHomes,
             register_environment: TargetRegisterEnvironmentIdentity,
@@ -644,7 +641,7 @@ pub(crate) mod fixed_view_copy {
                 selected_keys,
             )?;
             let evidence =
-                super::evidence::derive_positionally(ranges, legality, fixed, requirements, homes)?;
+                super::evidence::derive_positionally(ranges, legality, requirements, homes)?;
             let copy_row = copy_row(constraints, selected_keys)?;
             let usage = super::work::combined_usage(
                 evidence.usage,
@@ -702,11 +699,6 @@ pub(crate) mod fixed_view_copy {
                 source_legality: legality.receipt().identity(),
                 register_environment,
                 allocator_availability: legality.receipt().allocator_availability(),
-                source_evidence: FixedViewCopySourceEvidence {
-                    fixed_intervals: fixed.receipt().identity(),
-                    split_requirements: requirements.receipt().identity(),
-                    segment_homes: homes.receipt().identity(),
-                },
                 policy,
                 budget,
                 usage,
@@ -800,15 +792,14 @@ pub(crate) mod fixed_view_copy {
             use optimization_core::OptimizationWorkUsage;
 
             use crate::allocation::{
-                FixedViewCopyError, ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
+                FixedViewCopyError, ValidatedAllocationLegality,
                 ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
                 ValidatedLiveRanges,
             };
             use register_homes::{
-                FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePolicy,
-                FixedPrecoloredSourceSegmentHome, FixedPrecoloredSourceSegmentOpening,
-                FixedPrecoloredSplitRequirementPolicy, FunctionFixedPrecoloredSegmentHomes,
-                FunctionFixedPrecoloredSplitRequirements,
+                FixedPrecoloredSegmentHomePolicy, FixedPrecoloredSourceSegmentHome,
+                FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPolicy,
+                FunctionFixedPrecoloredSegmentHomes, FunctionFixedPrecoloredSplitRequirements,
             };
 
             use super::{AuthenticatedFixedViewBoundary, FixedViewBoundaryEvidence};
@@ -816,11 +807,10 @@ pub(crate) mod fixed_view_copy {
             pub(crate) fn derive(
                 ranges: &ValidatedLiveRanges,
                 legality: &ValidatedAllocationLegality,
-                fixed: &ValidatedFixedPrecoloredIntervals,
                 requirements: &ValidatedFixedPrecoloredSplitRequirements,
                 homes: &ValidatedFixedPrecoloredSegmentHomes,
             ) -> Result<FixedViewBoundaryEvidence, FixedViewCopyError> {
-                validate_roots(ranges, legality, fixed, requirements, homes)?;
+                validate_roots(ranges, legality, requirements, homes)?;
                 let mut work = Work::new();
                 let mut boundaries = derive_roster(
                     requirements.plan().functions.as_slice(),
@@ -837,31 +827,24 @@ pub(crate) mod fixed_view_copy {
             fn validate_roots(
                 ranges: &ValidatedLiveRanges,
                 legality: &ValidatedAllocationLegality,
-                fixed: &ValidatedFixedPrecoloredIntervals,
                 requirements: &ValidatedFixedPrecoloredSplitRequirements,
                 homes: &ValidatedFixedPrecoloredSegmentHomes,
             ) -> Result<(), FixedViewCopyError> {
-                if fixed.receipt().ranges() != ranges.receipt().identity()
-                    || fixed.receipt().legality() != legality.receipt().identity()
-                    || fixed.receipt().policy()
-                        != FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1
-                    || requirements.receipt().fixed_intervals() != fixed.receipt().identity()
-                    || requirements.receipt().ranges() != ranges.receipt().identity()
-                    || requirements.receipt().legality() != legality.receipt().identity()
-                    || requirements.receipt().policy()
+                let split = requirements.plan();
+                let assigned = homes.plan();
+                if split.ranges != ranges.receipt().identity()
+                    || split.legality != legality.receipt().identity()
+                    || split.policy
                         != FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1
-                    || homes.receipt().fixed_intervals() != fixed.receipt().identity()
-                    || homes.receipt().split_requirements() != requirements.receipt().identity()
-                    || homes.receipt().ranges() != ranges.receipt().identity()
-                    || homes.receipt().legality() != legality.receipt().identity()
-                    || homes.receipt().register_environment()
-                        != legality.receipt().register_environment()
-                    || homes.receipt().allocator_availability()
+                    || assigned.ranges != ranges.receipt().identity()
+                    || assigned.legality != legality.receipt().identity()
+                    || assigned.register_environment != legality.receipt().register_environment()
+                    || assigned.allocator_availability
                         != legality.receipt().allocator_availability()
-                    || homes.receipt().optimization_unit() != ranges.receipt().optimization_unit()
-                    || homes.receipt().work_schedule() != ranges.receipt().work_schedule()
-                    || homes.receipt().target() != ranges.plan().target
-                    || homes.receipt().policy()
+                    || assigned.optimization_unit != ranges.receipt().optimization_unit()
+                    || assigned.work_schedule != ranges.receipt().work_schedule()
+                    || assigned.target != ranges.plan().target
+                    || assigned.policy
                         != FixedPrecoloredSegmentHomePolicy::MostConstrainedLowestCompatibleViewV1
                 {
                     return Err(FixedViewCopyError::SegmentEvidenceMismatch);
@@ -1107,7 +1090,6 @@ pub(crate) mod fixed_view_copy {
                     source_legality: plan.source_legality,
                     register_environment: plan.register_environment,
                     allocator_availability: plan.allocator_availability,
-                    source_evidence: plan.source_evidence,
                     transformed_selected: selected_instruction_plan_identity(&plan.transformed),
                     optimization_unit: selected.optimization_unit(),
                     work_schedule: selected.work_schedule(),
@@ -1288,7 +1270,7 @@ pub(crate) mod fixed_view_copy {
     use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
     pub use register_homes::{
         FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
-        FixedViewCopySourceEvidence, fixed_view_copy_identity,
+        fixed_view_copy_identity,
     };
 
     use crate::allocation::ValidatedFixedPrecoloredSplitRequirements;
@@ -1300,7 +1282,6 @@ pub(crate) mod fixed_view_copy {
         selected: &SelectedProgram,
         ranges: &ValidatedLiveRanges,
         legality: &ValidatedAllocationLegality,
-        fixed: &ValidatedFixedPrecoloredIntervals,
         requirements: &ValidatedFixedPrecoloredSplitRequirements,
         homes: &ValidatedFixedPrecoloredSegmentHomes,
         register_environment: TargetRegisterEnvironmentIdentity,
@@ -1315,7 +1296,6 @@ pub(crate) mod fixed_view_copy {
             selected,
             ranges,
             legality,
-            fixed,
             requirements,
             homes,
             register_environment,
@@ -1337,7 +1317,6 @@ pub(crate) mod fixed_view_copy {
         pub(crate) source_legality: AllocationLegalityIdentity,
         pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
         pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
-        pub(crate) source_evidence: FixedViewCopySourceEvidence,
         pub(crate) transformed_selected: SelectedInstructionPlanIdentity,
         pub(crate) optimization_unit: optimization_core::OptimizationUnitIdentity,
         pub(crate) work_schedule: semantic_vocabulary::WorkScheduleIdentity,
@@ -1386,7 +1365,6 @@ pub(crate) mod fixed_view_copy {
             function: usize,
         },
         UnsupportedPolicy,
-        LegacySourceEvidence,
         SegmentEvidenceMismatch,
         UnsupportedSegmentBoundarySet {
             function: usize,
@@ -1446,7 +1424,7 @@ pub(super) use crate::allocation::pressure_rematerialization_recovery as pressur
 pub(crate) use fixed_view_copy::materialize_fixed_view_copies;
 pub use fixed_view_copy::{
     FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
-    FixedViewCopySourceEvidence, MaterializedFixedViewCopies, fixed_view_copy_identity,
+    MaterializedFixedViewCopies, fixed_view_copy_identity,
 };
 pub(crate) use fixed_view_copy::{FixedViewCopyError, FixedViewCopyReceipt};
 pub(crate) use pressure_rematerialization::{

@@ -371,13 +371,27 @@ impl Program<'_> {
         let typed = self.typed;
         let mut machines = Vec::new();
         for machine in typed.machines() {
+            let instantiation = typed
+                .machine_instantiation(machine.symbol)
+                .map_err(|reason| refuse_at(entry, Unserved::Machine(reason)))?;
+            // A closed application of a machine generic over types is the
+            // machine typed preparation generated for it, read like any
+            // other; the template itself is never a declaration.
+            let type_instance = instantiation.is_some_and(|instantiation| {
+                matches!(
+                    instantiation,
+                    crate::source_state::MachineInstantiation::Specialization(_)
+                ) && typed
+                    .machine_by_symbol(instantiation.template())
+                    .is_some_and(|template| self.type_template(template))
+            });
             if machine.purpose.is_active_case_visitor()
                 || !self.proof_machine(machine)
-                || typed
-                    .machine_instantiation(machine.symbol)
-                    .map_err(|reason| refuse_at(entry, Unserved::Machine(reason)))?
-                    .is_some()
-                || self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject
+                || (instantiation.is_some() && !type_instance)
+                || self.type_template(machine)
+                || self.conformance_template_row(machine)
+                || (!type_instance
+                    && self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject)
             {
                 continue;
             }
@@ -712,17 +726,21 @@ impl Program<'_> {
             (symbols_of(typed.operators(), |row| row.symbol), "operator"),
             // A proposition declared as one formula is read where a clause
             // applies it (`contracts::named_proposition`); its declaration
-            // states nothing by itself.
+            // states nothing by itself. One generic over types only is read
+            // at each closed application, as the proposition typed
+            // preparation generated for it.
             (
                 typed
                     .propositions()
                     .iter()
                     .filter(|row| {
-                        !row.binders.is_empty()
-                            || !matches!(
-                                row.body,
-                                crate::source_state::proposition::PropositionBody::Transparent { .. }
-                            )
+                        !typed.proposition_binders(row).iter().all(|binder| {
+                            binder.kind
+                                == crate::source_state::proposition::PropositionBinderKind::Type
+                        }) || !matches!(
+                            row.body,
+                            crate::source_state::proposition::PropositionBody::Transparent { .. }
+                        )
                     })
                     .map(|row| row.symbol)
                     .collect(),

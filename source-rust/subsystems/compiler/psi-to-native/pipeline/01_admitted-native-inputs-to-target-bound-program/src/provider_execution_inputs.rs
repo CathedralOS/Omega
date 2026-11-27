@@ -9,14 +9,6 @@ use semantic_vocabulary::BoundaryMachineId;
 use declaration_scope::DeclarationSelectionAuthority;
 use std::sync::Arc;
 
-pub fn plan_provider_execution_inputs(
-    origins: ProviderExecutionOrigins,
-    profile: target::TargetProfile,
-    reached: &[BoundaryMachineId],
-) -> Result<TargetSupplyExecutionInputs, Vec<Diagnostic>> {
-    plan_inputs_and_review(origins, profile, reached, None).map(|(inputs, _)| inputs)
-}
-
 pub(crate) fn plan_inputs_and_review(
     origins: ProviderExecutionOrigins,
     profile: target::TargetProfile,

@@ -129,8 +129,7 @@ fn stage_batch_validates_page_directory_coordinates_and_parallel_order() {
     assert_eq!(pages.len(), 1);
     assert_eq!(sources.sources.span_or_empty(sources.batch).len(), 1);
 
-    let overflow =
-        parse(loaded(&["data First {}", "data Second {}"]), u32::MAX, true).unwrap_err();
+    let overflow = parse(loaded(&["data First {}", "data Second {}"]), u32::MAX, true).unwrap_err();
     assert_eq!(
         overflow[0].message,
         "parser exhausted its source-page directory"
@@ -155,7 +154,12 @@ fn stage_batch_validates_page_directory_coordinates_and_parallel_order() {
     let budget = worker_budget::ExecutionBudget::with_workers(4).unwrap();
     let (pages, sources) = budget.run(|| {
         parse(
-            loaded(&parallel_texts.iter().map(String::as_str).collect::<Vec<_>>()),
+            loaded(
+                &parallel_texts
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>(),
+            ),
             1,
             true,
         )
@@ -175,5 +179,85 @@ fn stage_batch_validates_page_directory_coordinates_and_parallel_order() {
             panic!("data root")
         };
         assert_eq!(data.name.as_str(syntax), format!("Item{position}"));
+    }
+}
+
+// One retained file used to put every fresh file of its batch on a page of
+// its own, so a batch of 259 bundled files became 259 pages. Fresh files now
+// share pages as an all-fresh batch would; only the retained file sits alone,
+// and pages and records stay in capture order wherever it falls.
+#[test]
+fn retained_file_keeps_fresh_files_on_shared_pages_in_capture_order() {
+    let files: Vec<LoadedSource> = (0..13)
+        .map(|index| LoadedSource {
+            source_id: SourceId(index),
+            path: format!("File{index}.omg").into(),
+            source: Arc::from(format!("data File{index} {{}}")),
+            ..Default::default()
+        })
+        .collect();
+    let retained = SourceInput(files.iter().cloned().collect())
+        .into_parsed_units(&mut CompileTimings::default())
+        .unwrap();
+    // One worker allows four fresh pages, so the twelve fresh files share
+    // pages three at a time.
+    let budget = worker_budget::ExecutionBudget::with_workers(1).unwrap();
+    let append_fresh = |forest: &mut SourceSyntax, range: std::ops::Range<usize>| {
+        budget.run(|| {
+            SourceInput(files[range].iter().cloned().collect())
+                .append(forest, &mut CompileTimings::default())
+                .unwrap()
+        });
+    };
+    for (retained_index, expected_pages) in [
+        (0, [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4]),
+        (6, [0, 0, 0, 1, 1, 1, 2, 3, 3, 3, 4, 4, 4]),
+        (12, [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4]),
+    ] {
+        let mut forest = SourceSyntax::default();
+        let pages_before = forest.trees.page_count();
+        let batch = budget.run(|| {
+            SourceInput(files.iter().cloned().collect())
+                .append_reusing(&mut forest, &mut CompileTimings::default(), |file| {
+                    (file.source_id.0 == retained_index).then(|| &retained[retained_index])
+                })
+                .unwrap()
+        });
+        assert_eq!(
+            forest.trees.page_count() - pages_before,
+            5,
+            "retained file {retained_index}"
+        );
+        let records = batch.sources.span_or_empty(batch.batch);
+        assert_eq!(records.len(), files.len());
+        let first_page = records[0].root_items.handles[0].generation();
+        for (index, record) in records.iter().enumerate() {
+            assert_eq!(record.source_id, SourceId(index));
+            let [root] = record.root_items.handles.as_slice() else {
+                panic!("expected one root in {}", record.path.display());
+            };
+            assert_eq!(
+                root.generation() - first_page,
+                expected_pages[index],
+                "page of file {index} with retained file {retained_index}"
+            );
+            let syntax_trees::item::Item::Data(data) = forest.trees.root_item(*root) else {
+                panic!("expected data in {}", record.path.display());
+            };
+            assert_eq!(data.name.as_str(&forest.trees), format!("File{index}"));
+        }
+        // When the fresh files form one run, their pages are exactly the
+        // pages a fresh parse of that run would append.
+        if retained_index != 6 {
+            let mut expected = SourceSyntax::default();
+            if retained_index == 0 {
+                append_fresh(&mut expected, 0..1);
+                append_fresh(&mut expected, 1..13);
+            } else {
+                append_fresh(&mut expected, 0..12);
+                append_fresh(&mut expected, 12..13);
+            }
+            assert_eq!(forest, expected, "retained file {retained_index}");
+        }
     }
 }

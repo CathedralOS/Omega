@@ -2,48 +2,27 @@
 //! Releases precede the operation, or the dispatch, after the last use;
 //! handles the complement. Both are planned by the same owned-region walk.
 
+use crate::lower::machine_order::{ModuleWalks, WalkRefusal};
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 use arena::IdTable;
 use semantic_vocabulary::{CanonicalStructuralPathSegment, MachineId};
-use terminal_check_tables::bindings::{self, Content, Segment, WriteRow};
+use terminal_check_tables::bindings::{self, Segment};
 use terminal_check_tables::program::MachineSources;
 use terminal_check_tables::{
     CheckTables, Checked, Construct, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{Operation, OperationKind, OperationResult, TerminalModule};
-use terminal_semantics::plain_affine::{AffineSummaries, Error, MachineAffine, Site};
+use terminal_semantics::plain_affine::Error;
 
 fn planning_refusal(machine: MachineId, error: Error, sources: Option<&MachineSources>) -> Refusal {
-    let (concerns, origin) = match error.site() {
-        Some(Site::Operation(at)) => (
-            Construct::Operation(at),
-            sources.and_then(|sources| sources.operations.get(at)),
-        ),
-        Some(Site::Edge(at)) => (
-            Construct::Edge(at),
-            sources.and_then(|sources| sources.edges.get(at)),
-        ),
-        None => (Construct::Machine, None),
-    };
-    let (reason, detail) = match error {
-        Error::Unavailable(unavailable) => (RefusalReason::Unestablished, unavailable.message()),
-        Error::Unconsumed { at_join, .. } => {
-            (RefusalReason::Violation, Error::unconsumed_message(at_join))
-        }
-        Error::MissingActiveCase { .. } => (
-            RefusalReason::Unsupported,
-            Error::missing_active_case_message(),
-        ),
-        Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, detail),
-        Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
-    };
+    let refusal = WalkRefusal::new(&error);
     Refusal {
-        source_span: origin
-            .copied()
+        source_span: refusal
+            .origin(sources)
             .and_then(terminal_check_tables::program::SourceOrigin::authored_span),
-        reason,
-        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
-        detail: detail.to_owned(),
+        reason: refusal.reason,
+        site: terminal_check_tables::RefusalSite::Machine(machine, refusal.concerns),
+        detail: refusal.detail.to_owned(),
     }
 }
 
@@ -71,10 +50,9 @@ fn candidates_refusal(
     }
 }
 
-/// Plan the reference ends of one machine against `module` and `summaries`.
+/// Plan the reference ends of one machine against the module of `walks`.
 fn plan_machine_reference_ends(
-    module: &TerminalModule,
-    summaries: &AffineSummaries<'_>,
+    walks: &ModuleWalks<'_>,
     machine: &terminal_psi::TerminalMachine,
     candidates: &IdTable<MachineId, terminal_semantics::reference_ends::Candidates>,
     sources: &IdTable<MachineId, MachineSources>,
@@ -90,7 +68,8 @@ fn plan_machine_reference_ends(
     if candidates.is_empty() {
         return Ok(None);
     }
-    let plan = MachineAffine::new(module, owner, Some(summaries))
+    let plan = walks
+        .affine(owner)
         .and_then(|walks| walks.plan_reference_ends(candidates))
         .map_err(|error| planning_refusal(owner, error, sources.get(owner)))?;
     Ok(Some(plan))
@@ -109,8 +88,9 @@ pub(crate) fn install(
     let mut unsupported: Vec<terminal_check_tables::Refusal> = Vec::new();
     let (candidates, advance) = {
         let module = &*module;
-        let summaries = AffineSummaries::new(module);
-        let candidates = terminal_semantics::reference_ends::candidates_sharing(module, &summaries)
+        let walks = ModuleWalks::new(module);
+        let candidates = walks
+            .reference_end_candidates()
             .map_err(|error| candidates_refusal(error, sources))?;
         let active_count = module
             .machines
@@ -130,8 +110,7 @@ pub(crate) fn install(
                     .with_max_len(1)
                     .map(|machine| {
                         Some(plan_machine_reference_ends(
-                            module,
-                            &summaries,
+                            &walks,
                             machine,
                             &candidates,
                             sources,
@@ -144,8 +123,7 @@ pub(crate) fn install(
                     .iter()
                     .map(|machine| {
                         Some(plan_machine_reference_ends(
-                            module,
-                            &summaries,
+                            &walks,
                             machine,
                             &candidates,
                             sources,
@@ -164,9 +142,7 @@ pub(crate) fn install(
     crate::lower::machine_order::plan_then_apply_from_advance(
         module,
         advance,
-        |module, summaries, machine| {
-            plan_machine_reference_ends(module, summaries, machine, &candidates, sources_ref)
-        },
+        |walks, machine| plan_machine_reference_ends(walks, machine, &candidates, sources_ref),
         |planned| match planned {
             Ok(Some(plan)) => Some(plan.graphed_machines.as_slice()),
             Ok(None) => Some(&[]),
@@ -244,6 +220,10 @@ pub(crate) fn install(
                                 Unserved::Machine("reference end has no exact owned path"),
                             )
                         })?;
+                        // Intern the released region like every other
+                        // region an operation names, so the place table the
+                        // checker receives covers it. The path walk also
+                        // refuses a release that crosses borrowed storage.
                         let mut place =
                             *machine_tables.roots.get(argument.place).ok_or_else(|| {
                                 refuse(
@@ -276,16 +256,6 @@ pub(crate) fn install(
                                 segment,
                             )?;
                         }
-                        bindings::record_write(
-                            owner,
-                            &machine_tables.places,
-                            &mut machine_tables.writes,
-                            WriteRow {
-                                place,
-                                at: ProgramPoint::AfterOperation(id),
-                                content: Content::Vacated,
-                            },
-                        )?;
                         operations.push(Operation::unsuspended(
                             id,
                             OperationResult::Unit,
@@ -374,6 +344,7 @@ pub(crate) fn install(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use terminal_semantics::plain_affine::Site;
 
     #[test]
     fn planning_refusals_use_the_exact_authored_operation_or_edge() {

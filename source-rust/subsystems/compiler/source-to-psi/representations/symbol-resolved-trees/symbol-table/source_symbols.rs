@@ -33,6 +33,33 @@ pub fn recognize_bundled_core_file(
 }
 
 /*
+    Authenticate a single source file against the installed Build companions.
+    The installed Build library supplies the sandbox streams and launcher
+    outside any package graph; the installed system package supplies its
+    filesystem file as a package. A user file that copies a companion's path
+    and bytes from another supplier is not recognized.
+*/
+pub fn recognize_build_companion_file(
+    file: &source_admission::SourceFile,
+) -> Option<language_core::bundled_files::BuildCompanionFile> {
+    use language_core::bundled_files::BuildCompanionFile;
+    let relative = file.path.strip_prefix(&file.package_root).ok()?;
+    let companion =
+        BuildCompanionFile::from_package_path(file.package_root.file_name()?, relative)?;
+    let supplied = match companion {
+        BuildCompanionFile::SandboxStreams | BuildCompanionFile::BuildProgram => {
+            file.origin == source_admission::SourceOrigin::ToolchainLibrary
+                && file.package_identity.is_none()
+        }
+        BuildCompanionFile::SystemFilesystem => {
+            file.origin == source_admission::SourceOrigin::User && file.package_identity.is_some()
+        }
+    };
+    (supplied && bundled_declarations::build_companion_bytes(companion) == file.source.as_bytes())
+        .then_some(companion)
+}
+
+/*
     The custody gate in front of the sealed intrinsic catalog: only a file the
     core supplied, outside any admitted package graph, can be classified,
     and its package-relative path, declaration path and exact source bytes

@@ -58,8 +58,6 @@ mod read;
 mod references;
 mod sum_disposal;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use canonical::substituted_routes as substituted_call_routes;
 pub use compilation::{lower_for_publication, source_roster};
 pub use declare::provider_selections;
 pub use lowered_source_publication::LoweredSourcePublication;
@@ -171,31 +169,25 @@ pub use body::outcome::Outcome;
 #[cfg(any(test, feature = "test-support"))]
 pub use body::{
     ArmGuard, Axis, Body, Borrowed, BorrowedReferent, CaseSelector, CaseType, Ceiling,
-    CrashCeiling, DomainInstance, DomainSet, ErasedField, Expression, ExpressionKind, Policy,
-    Qualification, Ranking, RecordField, RecordType, Selector, Signature, Statement, StorageShape,
-    Strict, Target, Termination, ValueType, self_place,
+    CrashCeiling, DomainInstance, Expression, ExpressionKind, Policy, Qualification, Ranking,
+    RecordField, RecordType, Selector, Signature, Statement, StorageShape, Strict, Target,
+    Termination, ValueType, self_place,
 };
 #[cfg(not(any(test, feature = "test-support")))]
 pub use body::{
-    ArmGuard, Body, Borrowed, Ceiling, DomainSet, Expression, ExpressionKind, RecordType,
-    Signature, Statement, StorageShape, Target, Termination, ValueType,
+    ArmGuard, Body, Borrowed, Ceiling, Expression, ExpressionKind, RecordType, Signature,
+    Statement, StorageShape, Target, Termination, ValueType,
 };
-pub use callables::formations::check_bound_callable_shapes;
+use callables::formations::check_bound_callable_shapes;
 #[cfg(any(test, feature = "test-support"))]
 pub use callables::headers::{CallableCrashPolicy, CallableHeader};
 #[cfg(any(test, feature = "test-support"))]
 pub use callables::static_contracts::{
     StaticCallableEnvelope, StaticConformanceQuestion, StaticImplementation,
-    StaticProviderCandidate, StaticRequirementSchema, StaticSchemaQuestion, StaticServiceCeiling,
+    StaticRequirementSchema, StaticSchemaQuestion, StaticServiceCeiling,
 };
-#[cfg(not(any(test, feature = "test-support")))]
 pub use compilation::prepare_compilation;
-#[cfg(any(test, feature = "test-support"))]
-pub use compilation::{LoweredCompilationWithSource, prepare_compilation};
-#[cfg(not(any(test, feature = "test-support")))]
 pub use declare::external_providers::ExternalProviderCandidate;
-#[cfg(any(test, feature = "test-support"))]
-pub use declare::external_providers::{ExternalProviderCandidate, ProviderContractHeader};
 pub use publication::reach::ServiceReach;
 pub use read::calling::{CallingPolicySelections, ProgramEntryContractSelection};
 // Installed logical calls share source preparation with ordinary refinement;
@@ -831,7 +823,7 @@ pub(crate) fn is_generic_template(
 
 /// The declaration a machine was generated from, when stage 04 generated it
 /// to close a static application: the generic machine it specializes.
-pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHandle> {
+pub(crate) fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHandle> {
     typed
         .executable_application_template(machine)
         .ok()
@@ -2164,6 +2156,7 @@ fn lower_program_with_parallel<'source>(
     for lowered in lowered_machines {
         let mut lowered = lowered?;
         lower::apply_machine_qualifications(&mut lowered, &mut qualifications)?;
+        let lowered_id = lowered.machine.id;
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
         // block order, which is the order the module's roster requires.
@@ -2175,6 +2168,15 @@ fn lower_program_with_parallel<'source>(
             .proofs
             .theorem_applications
             .extend(lowered.theorem_applications);
+        if let Some(source) = declarations {
+            lowered.tables.quotient_soundness.extend(
+                source
+                    .quotient_soundness
+                    .iter()
+                    .filter(|(machine, _)| *machine == lowered_id)
+                    .map(|(_, row)| row.clone()),
+            );
+        }
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);
@@ -2394,7 +2396,7 @@ fn finish_storage(
     lower::machine_order::plan_then_apply_with(
         module,
         parallel,
-        |module, summaries, machine| storage_plan(module, summaries, machine, names, sources),
+        |walks, machine| storage_plan(walks, machine, names, sources),
         |plan| match plan {
             Ok(Ok(plan)) => Some(plan.graphed_machines.as_slice()),
             _ => None,
@@ -2415,7 +2417,7 @@ fn finish_storage(
         further.append(&mut unsupported);
         return Err(first);
     }
-    lower::publish_write_frames_with(module, tables, parallel)?;
+    lower::publish_write_frames(module)?;
     publication::claims::publish(diagnostic, module, parallel)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
@@ -2431,39 +2433,25 @@ fn finish_storage(
 /// refuses, which `finish_storage` may report beside other refusals, and
 /// `Err(_)` when the stores it plans cannot be validated, which ends storage.
 fn storage_plan(
-    module: &terminal_psi::TerminalModule,
-    summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
+    walks: &lower::machine_order::ModuleWalks<'_>,
     machine: &terminal_psi::TerminalMachine,
     names: &IdTable<MachineId, MachineNames>,
     sources: &IdTable<MachineId, MachineSources>,
 ) -> Checked<Checked<terminal_semantics::plain_affine::Plan>> {
-    let walks =
-        terminal_semantics::plain_affine::MachineAffine::new(module, machine.id, Some(summaries));
+    let module = walks.module();
+    let walks = walks.affine(machine.id);
     let plan = walks.and_then(|walks| walks.plan()).map_err(|error| {
-        let (concerns, operation, origin) = match error.site() {
-            Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
-                Construct::Operation(at),
-                machine
-                    .operations()
-                    .find(|operation| operation.id == at)
-                    .map(|operation| {
-                        terminal_semantics::OperationSemanticTag::for_operation(&operation.kind)
-                            .name()
-                    }),
-                sources
-                    .get(machine.id)
-                    .and_then(|source| source.operations.get(at))
-                    .copied(),
-            ),
-            Some(terminal_semantics::plain_affine::Site::Edge(at)) => (
-                Construct::Edge(at),
-                Some("control-flow edge"),
-                sources
-                    .get(machine.id)
-                    .and_then(|source| source.edges.get(at))
-                    .copied(),
-            ),
-            None => (Construct::Machine, None, None),
+        let refusal = lower::machine_order::WalkRefusal::new(&error);
+        let origin = refusal.origin(sources.get(machine.id));
+        let operation = match refusal.concerns {
+            Construct::Operation(at) => machine
+                .operations()
+                .find(|operation| operation.id == at)
+                .map(|operation| {
+                    terminal_semantics::OperationSemanticTag::for_operation(&operation.kind).name()
+                }),
+            Construct::Edge(_) => Some("control-flow edge"),
+            _ => None,
         };
         // A linear value lost on an edge with no written position (the
         // end of a body) is reported where the value was made: the call
@@ -2480,30 +2468,10 @@ fn storage_plan(
             }
             _ => None,
         };
-        let (reason, detail) = match error {
-            terminal_semantics::plain_affine::Error::Unavailable(unavailable) => (
-                terminal_check_tables::RefusalReason::Unestablished,
-                unavailable.message(),
-            ),
-            terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
-                terminal_check_tables::RefusalReason::Violation,
-                terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
-            ),
-            terminal_semantics::plain_affine::Error::MissingActiveCase { .. } => (
-                terminal_check_tables::RefusalReason::Unsupported,
-                terminal_semantics::plain_affine::Error::missing_active_case_message(),
-            ),
-            terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-                (terminal_check_tables::RefusalReason::Unsupported, detail)
-            }
-            terminal_semantics::plain_affine::Error::Malformed { detail, .. } => (
-                terminal_check_tables::RefusalReason::ForeignIdentity,
-                detail,
-            ),
-        };
+        let detail = refusal.detail;
         terminal_check_tables::Refusal {
-            reason,
-            site: terminal_check_tables::RefusalSite::Machine(machine.id, concerns),
+            reason: refusal.reason,
+            site: terminal_check_tables::RefusalSite::Machine(machine.id, refusal.concerns),
             source_span: lost_at,
             detail: {
                 let detail = match (operation, origin.and_then(|origin| origin.span())) {

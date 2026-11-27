@@ -37,9 +37,7 @@ impl AuthoredCompletions {
             .accounting
             .validate_charges()
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let mut source = completion.source.clone();
-        source.accounting.mark_reused();
-        Ok(Some(source))
+        Ok(Some(completion.source.clone()))
     }
 
     pub(super) fn retain(

@@ -22,11 +22,20 @@ use selected_instructions::{
     VirtualRegisterOrigin, terminator_instruction, terminator_instruction_mut,
     terminator_successors, terminator_successors_mut,
 };
-use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, ScalarType};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use std::collections::{HashMap, HashSet};
 
 const MAX_TRACKED_SLOT_BYTES: usize = 512;
 const MAX_EXTERNAL_COALESCE_WINDOW: usize = 24;
+
+/// The scalar type of every `VECTOR128` register this pass creates. A promoted
+/// register holds 16 raw bytes of lanes, so it carries an unsigned 128-bit type:
+/// Stage 07 reads the width from this type when it spills the register, and a
+/// 128-bit width selects a 16-byte packed store and reload. An 8-byte type here
+/// would let a spill keep only the low half of the vector.
+fn packed_vector_scalar_type() -> ScalarType {
+    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 128).expect("u128 integer type"))
+}
 
 pub(crate) fn promote_and_simplify(
     functions: &mut [SelectedFunction],
@@ -785,7 +794,7 @@ impl<'a> BlockCtx<'a> {
     ) -> VirtualRegisterId {
         self.alloc_vreg(
             self.vec128_class,
-            ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+            packed_vector_scalar_type(),
             inst_id,
             operand,
         )
@@ -1892,7 +1901,7 @@ impl<'a> BlockCtx<'a> {
         // CopyI64 chains don't leak to terminator (check conservatively: disallow CopyI64 unless
         // single-use? Actually check every instruction against tracked!).
         let mut copy_origin_local = HashMap::new();
-        for inst in rest {
+        for (at, inst) in rest.iter().enumerate() {
             match &inst.kind {
                 SelectedInstructionKind::CopyI64
                     if inst.operands.len() == 2
@@ -1919,7 +1928,13 @@ impl<'a> BlockCtx<'a> {
                 SelectedInstructionKind::Store64 {
                     slot: FrameStorageSlotId::Local(s),
                     ..
-                } if self.local_slots.contains(s) => {}
+                } if self.local_slots.contains(s) => {
+                    if tracked.contains(&inst.operands[0].virtual_register)
+                        && slot_read_later(&rest[(at + 1)..], block_local_ptrs, *s)
+                    {
+                        return false;
+                    }
+                }
                 SelectedInstructionKind::Store { byte_size, .. } => {
                     if inst.operands[0].virtual_register != loaded_vreg
                         && tracked.contains(&inst.operands[0].virtual_register)
@@ -1933,7 +1948,11 @@ impl<'a> BlockCtx<'a> {
                             .copied()
                             .or_else(|| self.resolve_ptr(ptr))
                         {
-                            Some(PtrOrigin::Local { .. }) => {}
+                            Some(PtrOrigin::Local { slot, .. }) => {
+                                if slot_read_later(&rest[(at + 1)..], block_local_ptrs, slot) {
+                                    return false;
+                                }
+                            }
                             Some(PtrOrigin::External { .. }) => {
                                 if (*byte_size == 4 && loaded_slice.len() == 4 && is_low_vec)
                                     || (*byte_size == 8 && loaded_slice.len() == 8 && is_low_vec)
@@ -1995,7 +2014,7 @@ impl<'a> BlockCtx<'a> {
                 return false;
             }
         }
-        for inst in rest {
+        for (at, inst) in rest.iter().enumerate() {
             for (pos, op) in inst.operands.iter().enumerate() {
                 if op.virtual_register != vreg || matches!(op.access, RegisterOperandAccess::Def) {
                     continue;
@@ -2004,7 +2023,11 @@ impl<'a> BlockCtx<'a> {
                     SelectedInstructionKind::Store64 {
                         slot: FrameStorageSlotId::Local(s),
                         ..
-                    } if self.local_slots.contains(s) && pos == 0 => {}
+                    } if self.local_slots.contains(s) && pos == 0 => {
+                        if slot_read_later(&rest[(at + 1)..], block_local_ptrs, *s) {
+                            return false;
+                        }
+                    }
                     SelectedInstructionKind::Store { byte_size, .. } if pos == 1 => {
                         let ptr = inst.operands[0].virtual_register;
                         match block_local_ptrs
@@ -2012,7 +2035,11 @@ impl<'a> BlockCtx<'a> {
                             .copied()
                             .or_else(|| self.resolve_ptr(ptr))
                         {
-                            Some(PtrOrigin::Local { .. }) => {}
+                            Some(PtrOrigin::Local { slot, .. }) => {
+                                if slot_read_later(&rest[(at + 1)..], block_local_ptrs, slot) {
+                                    return false;
+                                }
+                            }
                             Some(PtrOrigin::External { .. }) => {
                                 let ok = (*byte_size == 4 || *byte_size == 8) && is_low_vec;
                                 let _ = (is_high_vec, is_const);
@@ -2398,7 +2425,7 @@ fn coalesce_external_stores(
                         *next_vreg_id += 1;
                         added_vregs.push(VirtualRegister {
                             id: z_reg,
-                            scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+                            scalar_type: packed_vector_scalar_type(),
                             class: vec128_class,
                             origin: VirtualRegisterOrigin::InstructionScratch {
                                 instruction: z_id,
@@ -2462,6 +2489,43 @@ fn coalesce_external_stores(
         });
     }
     Ok(())
+}
+
+/// Whether any of `later` may read `slot`'s memory. A load whose flush is
+/// elided leaves its destination register without the slot's bytes, so a copy
+/// of it stored to another local slot leaves that slot's memory stale too; the
+/// elision is sound only while nothing reads that slot's memory afterwards.
+/// Writing through a pointer and deriving a pointer are not reads; every other
+/// use of a pointer into the slot counts as one.
+fn slot_read_later(
+    later: &[SelectedInstruction],
+    block_local_ptrs: &HashMap<VirtualRegisterId, PtrOrigin>,
+    slot: LocalStorageSlotId,
+) -> bool {
+    later.iter().any(|inst| {
+        inst.operands.iter().enumerate().any(|(pos, op)| {
+            if matches!(op.access, RegisterOperandAccess::Def) {
+                return false;
+            }
+            let Some(&PtrOrigin::Local { slot: s, .. }) =
+                block_local_ptrs.get(&op.virtual_register)
+            else {
+                return false;
+            };
+            if s != slot {
+                return false;
+            }
+            let writes_through =
+                pos == 0 && pointer_access(&inst.kind).is_some_and(|(writes, ..)| writes);
+            let derives = pos == 0
+                && matches!(
+                    inst.kind,
+                    SelectedInstructionKind::CopyI64
+                        | SelectedInstructionKind::AddressOffset { .. }
+                );
+            !(writes_through || derives)
+        })
+    })
 }
 
 fn collect_block_local_ptrs(
@@ -3704,6 +3768,23 @@ mod tests {
             k,
             SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::Store { .. }
         )));
+        // Each vector register the pass creates states its whole 128-bit width;
+        // a Stage 07 spill reads that width to choose a 16-byte slot.
+        let vector_class = env
+            .constraint(keys.packed_add_i16x8_reg.unwrap())
+            .unwrap()
+            .operands[2]
+            .class;
+        let promoted: Vec<_> = func
+            .virtual_registers
+            .iter()
+            .filter(|register| register.class == vector_class)
+            .collect();
+        assert!(!promoted.is_empty());
+        assert!(promoted.iter().all(|register| {
+            register.scalar_type
+                == ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 128).unwrap())
+        }));
     }
 
     #[test]

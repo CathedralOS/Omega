@@ -7,6 +7,9 @@ autotests = false
 autoexamples = false
 autobenches = false
 
+[features]
+test-support = ["prepared-source/test-support"]
+
 [dependencies]
 prepared-source = { path = "../../representations/prepared-source" }
 prepared-source-issuer = { path = "../../representations/prepared-source/issuer" }
@@ -14,7 +17,6 @@ source-declarations = { path = "../../representations/symbol-resolved-trees/decl
 typed-trees = { path = "../../representations/typed-trees" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-text = { path = "../../../../../foundation/source-text" }
-wire = { path = "../../../../../foundation/wire" }
 arena = { path = "../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }

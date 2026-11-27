@@ -1,6 +1,6 @@
 # Native pipeline representations
 
-The numbered transformations exchange the program families described here. The native [body driver](../driver/compile_body.rs) runs the stages for each selected body. Stage 06 computes [allocation analyses](../pipeline/06_selected-instructions-to-selected-instructions/analyses) and hands [the selected program and its results](selected-instructions/allocation_input.rs) to stage 07.
+The numbered transformations exchange the program families described here. The native [body driver](../driver/compile_body.rs) runs the stages for each selected body. Stage 06 computes [allocation analyses](../pipeline/06_selected-instructions-to-selected-instructions/analyses) and hands [the selected program and its results](../pipeline/06_selected-instructions-to-selected-instructions/analyses/src/allocation_input.rs) to stage 07.
 
 ## Program families and pipeline boundaries
 
@@ -10,7 +10,7 @@ tokens or replay evidence a stage keeps beside it.
 
 | Family | Current program root | Producing and consuming operations |
 | --- | --- | --- |
-| `abstract-operations/` | [`AbstractOperationPlan`](abstract-operations/src/lib.rs) | [stage 02](../pipeline/02_target-bound-program-to-abstract-operations/src/selected_input.rs) lowers the target-bound Psi program; [stage 03](../pipeline/03_abstract-operations-to-abstract-operations/src/lib.rs) optimizes the abstract program without changing its public form; stage 04 consumes it. |
+| `abstract-operations/` | [`AbstractOperationPlan`](abstract-operations/src/lib.rs) | [stage 02](../pipeline/02_target-bound-program-to-abstract-operations/src/selected_input.rs) lowers the target-bound Psi program; [stage 04](../pipeline/04_abstract-operations-to-target-operations/src/abstract_input.rs) consumes it unchanged. |
 | `target-operations/` | [`TargetOperationPlan`](target-operations/src/lib.rs) | [stage 04](../pipeline/04_abstract-operations-to-target-operations/src/lib.rs) lowers abstract operations with target and provider settlements; stage 05 consumes the resulting target program. |
 | `selected-instructions/` | [`SelectedInstructionPlan`](selected-instructions/src/lib.rs) | [stage 05](../pipeline/05_target-operations-to-selected-instructions/src/lib.rs) legalizes target operations and selects instructions; [stage 06](../pipeline/06_selected-instructions-to-selected-instructions/src/selected_rewrites/selected_optimization.rs) rewrites that same program form and hands stage 07 one [`SelectedAllocationInput`](../pipeline/06_selected-instructions-to-selected-instructions/analyses/src/lib.rs): the current program, the analyses it established, and its `SelectedOptimizationRecord`; stage 07 assigns register homes. stage 06's completed run is kept only as validator replay evidence. |
 | `register-homes/` | [`AllocatedProgram`](register-homes/src/lib.rs), including [`RegisterHomePlan`](register-homes/src/lib.rs) | [stage 07](../pipeline/07_selected-instructions-to-register-homes/src/allocation/register_allocation.rs) consumes the selected program stage 06 hands it and publishes its current allocation; stage 08 consumes that current allocation's facts. |
@@ -21,27 +21,30 @@ Other packages separate shared records and preparation from program roots:
 
 - [Target-bound program reach](target-bound-program/bound_reach.rs) records which machines, boundaries, callbacks and scalar applications stage 01 selected for an entry. Stage 02 reads it to lower that body. Direct provider matching and object publication need only the [reached IDs](target-bound-program/execution-reach/reach.rs), so their crates can read those without compiling artifact decoding or layout admission.
 - [Operation evidence](operation-evidence/src/lib.rs) identifies where a row came
-  from and preserves its charged work, claim sources and ownership frontier.
-  The optimizer and later forms can name this evidence without opening a function.
+  from and preserves its charged work and claim sources.
+  Later forms can name this evidence without opening a function.
 - [Program entry contracts](program-entry-contracts/program_entry.rs) carry the selected source signature, physical arrival and storage plan from stage 01 through emission and requested verification.
 - [Operation operands](operation-operands/src/lib.rs) hold the call targets,
   value bindings, integer operation policies and structural storage operands first produced during abstract lowering.
   Target and machine representations carry the same operands through later stages.
 - [`abstract-operations/verified-optimization-input/`](abstract-operations/verified-optimization-input/src/lib.rs)
-  owns `VerifiedPsiOptimizationInput`, what stage 02 passes to stage 03: the
+  owns `VerifiedPsiOptimizationInput`, what stage 02 passes to stage 04: the
   lowered `AbstractOperationPlan`, its Terminal module, and the target,
   provider, callback, interrupt and evidence selections admitted with it.
-  stage 02 produces it; stage 03 and realization read it, so stage 03 does not
+  stage 02 produces it; stage 04 and realization read it, so stage 04 does not
   depend on stage 02.
 - [`abstract-operations/optimization-unit/`](abstract-operations/optimization-unit/src/lib.rs)
   owns `PsiOptimizationUnit`, a rebuildable form of control flow, values,
-  ownership and facts used to rewrite and replay abstract programs.
-  [stage 03 builds it](../pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/verified_unit.rs)
-  from the verified input, [publishes an `AbstractOperationPlan`](../pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/publication.rs)
-  and keeps the unit for replay. It is derived from abstract operations, not
-  another numbered stage after them. Its
-  [independent semantic checker](abstract-operations/optimization-unit-semantics/src/lib.rs)
-  has its own manifest; neither representation package depends on it.
+  ownership and facts derived from abstract operations.
+  [Stage 04 builds it](../pipeline/04_abstract-operations-to-target-operations/src/abstract_input.rs)
+  once from the verified input, checking the artifact's evidence seals as it
+  attaches accepted obligation facts, and pairs it with the unchanged plan in an
+  [`OptimizedAbstractProgram`](abstract-operations/optimization-unit/src/unoptimized.rs).
+  It is derived from abstract operations, not another numbered stage after
+  them. Stage 04 and image emission query it through
+  [optimization-unit-semantics](abstract-operations/optimization-unit-semantics/src/lib.rs)
+  (descriptor and reference graphs, callable values, borrowed storage); neither
+  representation package depends on that crate.
 - [`target-operations/legalized-operations/`](target-operations/legalized-operations/src/lib.rs)
   owns `LegalizedOperationPlan` and its sealed form, `PreparedExecutionPlan`:
   the execution plan stage 04 publishes. stage 04
@@ -79,7 +82,7 @@ Follow the root type for each program form.
 | Program form | Root and operation |
 | --- | --- |
 | Planned framed machine | [Stage 09](../pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/imports.rs) prepares the [function body](selected-instructions/physical-recipes/src/frame_protocol.rs) with its checked frame layout, private references and selected import recipes. |
-| Bound framed machine | [Stage 10](../pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs) checks the installation resources and issues the [bound function body](bound-framed-machine/bound_framed_machine.rs) and [bound entry recipes](bound-framed-machine/entries.rs). [Stage 11](../pipeline/11_bound-framed-machine-to-selected-form-encoding/src/lib.rs) consumes them. The body keeps its publication opaque during encoding. |
+| Bound framed machine | [Stage 09's installation binding](../pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/installation_binding.rs) checks the installation resources against the measured handlers and issues the [bound function body](bound-framed-machine/bound_framed_machine.rs) and [bound entry recipes](bound-framed-machine/entries.rs). [Stage 11](../pipeline/11_bound-framed-machine-to-selected-form-encoding/src/lib.rs) consumes them. The body keeps its publication opaque during encoding. |
 | Layout-independent selected-form encoding | [`EncodedMachineProgram`](machine-code/src/layout.rs), produced by [stage 11](../pipeline/11_bound-framed-machine-to-selected-form-encoding/src/lib.rs), adds actual encoded rows while retaining the current instruction and frame columns. |
 | Function-relative resolved layout | [`ResolvedMachineProgram`](machine-code/src/layout.rs), produced by [stage 12](../pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs), assigns instruction offsets and settles eligible branches under the selected relaxation policy. Final assembly reads the resolved form and checked publication receipts; original stage artifacts remain only in named independent replay custody. |
 | Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/fragments.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/layout/text_section.rs), containing target fragments and their executable bytes. [Stage 13](../pipeline/13_resolved-layout-to-placed-functions/src/function_realization.rs) produces the placed functions. [Stage 14](../pipeline/14_placed-functions-to-objects/) constructs their objects, which stage 15 consumes for image emission. The [body driver](../driver/compile_body.rs) carries stage 04’s [emission facts](../pipeline/04_abstract-operations-to-target-operations/src/emission_facts.rs) with the lowered program. Callable reach and the pre-physical root come from the current form's execution contracts. |

@@ -7,10 +7,7 @@ boundary/structural replay checks.
 */
 
 mod carriers {
-    use machine_code::{
-        BoundarySettlementRecord, PortEffectRecord, ScalarControlAffineCleanupRecord,
-        SemanticCodeAttribution, StructuralReturnRecord,
-    };
+    use machine_code::{BoundarySettlementRecord, PortEffectRecord, SemanticCodeAttribution};
     use object_file::{ObjectByteLiteralPool, ObjectForeignCall};
     use object_file::{ObjectPlan, ObjectSymbolHandle, RelocationPlan};
     use semantic_vocabulary::MachineId;
@@ -58,11 +55,6 @@ mod carriers {
     }
 
     impl ObjectArtifact {
-        /// Settled allocation decisions are data; inspecting them does not retain a compiler stage.
-        pub fn allocation_manifest(&self) -> &register_homes::PostAllocationOptimizationManifest {
-            self.emission_input.readback().allocation.record()
-        }
-
         pub fn publication(&self) -> &object_file::ObjectPublication {
             self.emission_input.publication()
         }
@@ -150,18 +142,6 @@ mod carriers {
                 .map(crate::FragmentReplay::fragment_source)
         }
 
-        /// Stage 02's output for the root object, present only when the
-        /// compile retained native stage inputs for a correspondence audit.
-        pub fn retained_target_operations(
-            &self,
-        ) -> Option<
-            &verified_optimization_input::publication::target_replay::TargetOperationsForReplay,
-        > {
-            self.retained_body_replay()?
-                .target_source()
-                .map(crate::RetainedTargetOperations::target_for_correspondence)
-        }
-
         pub fn native_instruction_source_rows(&self) -> Option<NativeInstructionSourceRows<'_>> {
             let physical = &self.retained_body_replay()?.original_encoding()?.physical;
             Some(NativeInstructionSourceRows {
@@ -242,13 +222,6 @@ mod carriers {
         /// Returns the retained deployment, never inferred from machine geometry.
         pub const fn profile(&self) -> Option<target::TargetProfile> {
             self.profile
-        }
-
-        pub fn verify_private_entry_origin(
-            &self,
-            candidate: &ObjectCompilerPrivateFunction,
-        ) -> Result<(), crate::FunctionFragmentObjectArtifactError> {
-            crate::entries::private_entry_origin::EntryOrigins::new(self)?.verify(candidate)
         }
 
         pub const fn entry(&self) -> MachineId {
@@ -367,36 +340,17 @@ mod carriers {
         pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
         pub mixed_structural_scalar_abi:
             Option<target_operations::MixedStructuralScalarFunctionAbi>,
-        pub structural_call_scalar_return: Option<machine_code::StructuralCallScalarReturnEvidence>,
         pub parameter_abi: Option<machine_code::ParameterFunctionAbiRecord>,
         pub provenance: TerminalPsiProvenance,
-        pub x86_floating_control: Option<machine_code::X86FloatingControlRecord>,
         pub unit_stack: Option<ObjectUnitStack>,
         pub scalar_stack: Option<ObjectScalarStack>,
         pub unit_call_stacks: Vec<ObjectUnitCallStack>,
         pub scalar_call_stacks: Vec<ObjectScalarCallStack>,
         pub internal_unit_calls: Vec<machine_code::InternalUnitCallRecord>,
-        pub internal_unit_scalar_calls: Vec<machine_code::InternalUnitScalarCallRecord>,
-        pub installed_provider_unit_scalar_calls:
-            Vec<machine_code::InstalledProviderUnitScalarCallRecord>,
-        pub unit_scalar_homes: Vec<machine_code::UnitScalarHomeRecord>,
-        pub unit_integer_constants: Vec<machine_code::UnitIntegerConstantRecord>,
-        pub unit_affine_scalar_records:
-            Vec<machine_code::UnitAffineScalarRecordEstablishmentRecord>,
-        pub unit_structural_scalar_field_stores:
-            Vec<machine_code::UnitStructuralScalarFieldStoreRecord>,
-        pub unit_write_only_primitive_stores: Vec<machine_code::UnitWriteOnlyPrimitiveStoreRecord>,
-        pub scalar_structural_scalar_field_stores:
-            Vec<machine_code::ScalarStructuralScalarFieldStoreRecord>,
         pub unit_parameters: Vec<machine_code::UnitParameterRecord>,
         pub unit_parameter_homes: Vec<machine_code::UnitParameterHomeRecord>,
-        pub unit_continuations: Vec<machine_code::UnitContinuationRecord>,
-        pub unit_affine_cleanup: Option<machine_code::UnitAffineCleanupRecord>,
-        pub scalar_affine_cleanup: Option<machine_code::UnitAffineCleanupRecord>,
-        pub scalar_control_affine_cleanups: Vec<ScalarControlAffineCleanupRecord>,
         pub scalar_structural_parameters: Vec<machine_code::UnitParameterRecord>,
         pub scalar_structural_parameter_homes: Vec<machine_code::UnitParameterHomeRecord>,
-        pub structural_return: Option<StructuralReturnRecord>,
     }
 
     impl std::ops::Deref for ObjectFunction {
@@ -494,12 +448,6 @@ mod carriers {
     }
 
     impl ObjectCompilerPrivateFunction {
-        pub fn verify_entry_transport(
-            &self,
-        ) -> Result<(), crate::FunctionFragmentObjectArtifactError> {
-            crate::entries::callable_entry_transport::validate_entry_transport(self)
-        }
-
         pub fn bytes<'artifact>(&self, artifact: &'artifact ObjectArtifact) -> &'artifact [u8] {
             self.function.bytes(artifact)
         }

@@ -787,7 +787,6 @@ pub(crate) mod private_object_composition {
                 offset: bytes.len(),
                 size: padding,
                 kind: SymbolKind::Object,
-                import_library: String::new(),
             });
             bytes.resize(bytes.len().checked_add(padding).ok_or(Error::Overflow)?, 0);
         }

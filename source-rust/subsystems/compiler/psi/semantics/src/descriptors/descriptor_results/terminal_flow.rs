@@ -182,7 +182,7 @@ pub(crate) fn adapt(
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     selector_graph: Option<&[DescriptorMachine]>,
     generic_calls: super::GenericCallInputs<'_>,
-    zeroed_cases: &mut super::ZeroedCaseTable<'_>,
+    zeroed_cases: &crate::module_analyses::ZeroedCases<'_>,
 ) -> Result<DescriptorMachine, super::DescriptorGraphError> {
     // Setup failures have no operation. Reuse the same typed error
     // as the reader advances, so a later failure keeps its real site.
@@ -215,7 +215,7 @@ fn adapt_flow(
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     selector_graph: Option<&[DescriptorMachine]>,
     generic_calls: super::GenericCallInputs<'_>,
-    zeroed_cases: &mut super::ZeroedCaseTable<'_>,
+    zeroed_cases: &crate::module_analyses::ZeroedCases<'_>,
     failure: &mut super::DescriptorGraphError,
 ) -> Option<DescriptorMachine> {
     let super::DescriptorGraphError::IncompleteMachine {
@@ -1101,6 +1101,27 @@ fn adapt_flow(
                         (position, source, destination),
                         Projection::window(*start, *end, position),
                     );
+                }
+                // The fixed-array reference presents the source view's whole
+                // window, so its payload is the view's own.
+                OperationKind::ElementViewFixedArray { source, .. } => {
+                    let query = descriptor_contents_query(
+                        &module.types.structural_types,
+                        source.place,
+                        *graph.place_types.get(&source.place)?,
+                        &source.path,
+                        None,
+                    )?;
+                    let source = query.observation();
+                    step.replace_value_inputs([source.clone()]);
+                    let destination = DescriptorLocation::whole(result?.place);
+                    step.derivations.push((source.clone(), destination.clone()));
+                    graph
+                        .contents_queries
+                        .insert((position, source.clone(), destination.clone()), query);
+                    graph
+                        .projections
+                        .insert((position, source, destination), Projection::new(&[]));
                 }
                 terminal_psi::structural_leaf_copy_pair_pattern!()
                 | OperationKind::MoveStructuralValue { .. }

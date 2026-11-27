@@ -14,10 +14,12 @@ physical program. Allocation carries its settled preservation requirements and
 publication facts forward; frame planning adds storage, geometry and protocol
 rows. Stages 07–09 retain those rows with the current encoding and layout.
 Assembly reads stage 12's output alone to publish the whole-function exit
-contract and manifest.
+contract and manifest. It checks once that the publication roots agree; the
+manifest keeps only the roots that fragment emission, text placement and
+the published-object audit read.
 
-Current-artifact validation checks bytes, frame geometry, exit effects and
-publication roots without retaining allocation or earlier layout graphs.
+Current-artifact validation checks bytes, frame geometry and exit effects
+without retaining allocation or earlier layout graphs.
 `FixedFrameCorrespondence` additionally compares the result with original
 inputs, retained only when requested. Missing originals refuse that audit;
 they never suppress the mandatory final-artifact checks. The same retained

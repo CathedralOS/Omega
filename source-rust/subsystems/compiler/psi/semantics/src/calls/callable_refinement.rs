@@ -1,6 +1,7 @@
 //! Contract refinement is implication in one positional formal namespace.
 //! The constructor and receiving verifier derive the same ordered goals.
 
+use crate::descriptors::row_source::DescriptorRowSource;
 use semantic_vocabulary::{
     CallableContractId, CrashCause, MachineId, Proposition, PropositionId, ScalarTerm,
 };
@@ -187,6 +188,21 @@ pub struct CallableResultRefinementError {
 pub fn validate_callable_result_refinements(
     module: &TerminalModule,
 ) -> Result<(), CallableResultRefinementError> {
+    callable_result_refinements(&DescriptorRowSource::new(module))
+}
+
+/// `validate_callable_result_refinements`, reading the selected bodies'
+/// borrowed-storage rows from the module's shared analyses.
+pub fn validate_callable_result_refinements_in(
+    analyses: &crate::ModuleAnalyses<'_>,
+) -> Result<(), CallableResultRefinementError> {
+    callable_result_refinements(&DescriptorRowSource::of(analyses))
+}
+
+fn callable_result_refinements(
+    rows: &DescriptorRowSource<'_, '_>,
+) -> Result<(), CallableResultRefinementError> {
+    let module = rows.module();
     let refuse = |machine, detail: &str| CallableResultRefinementError {
         machine,
         detail: detail.to_owned(),
@@ -220,12 +236,12 @@ pub fn validate_callable_result_refinements(
     if roots.is_empty() {
         return Ok(());
     }
-    let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(
-        module,
-        roots.iter().copied(),
-        &[],
-    )
-    .map_err(|error| CallableResultRefinementError {
+    let graph = rows
+        .closure(
+            crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+            roots.iter().copied(),
+        )
+        .map_err(|error| CallableResultRefinementError {
         machine: Some(error.machine()),
         detail: error.in_module(module),
     })?;

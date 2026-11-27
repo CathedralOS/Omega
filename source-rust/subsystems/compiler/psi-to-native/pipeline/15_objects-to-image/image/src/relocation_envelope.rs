@@ -7,14 +7,9 @@ so the patcher and the envelope verifier share a single source of truth; for
 eight-byte-aligned `Absolute64` slots.
 */
 
-use crate::final_image::{FNV_OFFSET, byte_report_fingerprint, fingerprint_bytes};
 use crate::relocations::relocation_field_geometry;
-use crate::{
-    CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
-    CompilerTextValidationEvidence, EncodedCompilerTextDigest, FinalCompilerTextDigest,
-};
 use diagnostics::Diagnostic;
-use object_file::{RelocationKind, RelocationPlan, SectionKind, relocation_kind_tag};
+use object_file::{RelocationKind, RelocationPlan, SectionKind};
 
 pub fn validate_final_initialized_data_relocation_envelope(
     encoded_data_bytes: &[u8],
@@ -87,7 +82,7 @@ pub fn validate_final_text_relocation_envelope(
     encoded_text_bytes: &[u8],
     final_text_bytes: &[u8],
     relocations: &RelocationPlan,
-) -> Result<CompilerTextValidationEvidence, Diagnostic> {
+) -> Result<(), Diagnostic> {
     if final_text_bytes.len() < encoded_text_bytes.len() {
         return Err(Diagnostic::error(format!(
             "relocated .text truncated compiler code from {} to {} byte(s)",
@@ -97,7 +92,6 @@ pub fn validate_final_text_relocation_envelope(
     }
     let final_compiler_text = &final_text_bytes[..encoded_text_bytes.len()];
     let mut mutable_bits = vec![0u8; encoded_text_bytes.len()];
-    let mut text_relocations = Vec::new();
     for (_, relocation) in relocations.records() {
         if relocation.section != SectionKind::Text {
             continue;
@@ -131,12 +125,6 @@ pub fn validate_final_text_relocation_envelope(
             )));
         }
         mutable_bits[relocation.offset..end].copy_from_slice(masks);
-        text_relocations.push((
-            relocation.offset,
-            relocation.byte_width,
-            relocation_kind_tag(relocation.kind),
-            relocation.addend,
-        ));
     }
 
     for (offset, ((encoded, final_byte), mutable_mask)) in encoded_text_bytes
@@ -153,78 +141,7 @@ pub fn validate_final_text_relocation_envelope(
         }
     }
 
-    text_relocations.sort_unstable();
-    let encoded_text_digest =
-        EncodedCompilerTextDigest::from_digest(crate::final_image::digest_bytes(
-            b"omega.encoded-compiler-text.sha256.v1\0",
-            encoded_text_bytes,
-        ));
-    let final_compiler_text_digest =
-        FinalCompilerTextDigest::from_digest(crate::final_image::digest_bytes(
-            b"omega.final-compiler-text.sha256.v1\0",
-            final_compiler_text,
-        ));
-    let encoded_text_report_fingerprint = byte_report_fingerprint(encoded_text_bytes);
-    let final_compiler_text_report_fingerprint = byte_report_fingerprint(final_compiler_text);
-    let mut relocation_digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.compiler-text-relocation-envelope.sha256.v1\0",
-    );
-    relocation_digest.u64(text_relocations.len() as u64);
-    let mut relocation_envelope_report_fingerprint = FNV_OFFSET;
-    for (offset, width, kind, addend) in &text_relocations {
-        relocation_digest.u64(*offset as u64);
-        relocation_digest.u64(*width as u64);
-        relocation_digest.byte(*kind);
-        relocation_digest.raw(&addend.to_le_bytes());
-        fingerprint_bytes(
-            &mut relocation_envelope_report_fingerprint,
-            &(*offset as u64).to_le_bytes(),
-        );
-        fingerprint_bytes(
-            &mut relocation_envelope_report_fingerprint,
-            &(*width as u64).to_le_bytes(),
-        );
-        fingerprint_bytes(&mut relocation_envelope_report_fingerprint, &[*kind]);
-        fingerprint_bytes(
-            &mut relocation_envelope_report_fingerprint,
-            &addend.to_le_bytes(),
-        );
-    }
-    let mut derivation_report_fingerprint = FNV_OFFSET;
-    fingerprint_bytes(
-        &mut derivation_report_fingerprint,
-        &encoded_text_report_fingerprint.to_le_bytes(),
-    );
-    fingerprint_bytes(
-        &mut derivation_report_fingerprint,
-        &final_compiler_text_report_fingerprint.to_le_bytes(),
-    );
-    fingerprint_bytes(
-        &mut derivation_report_fingerprint,
-        &relocation_envelope_report_fingerprint.to_le_bytes(),
-    );
-    fingerprint_bytes(
-        &mut derivation_report_fingerprint,
-        &(text_relocations.len() as u64).to_le_bytes(),
-    );
-    let mut evidence = CompilerTextValidationEvidence {
-        encoded_text_digest,
-        final_compiler_text_digest,
-        relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest::from_digest(
-            relocation_digest.finish(),
-        ),
-        derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
-        encoded_text_report_fingerprint,
-        final_compiler_text_report_fingerprint,
-        relocation_envelope_report_fingerprint,
-        checked_instruction_validation_report_fingerprint: 0,
-        checked_instruction_footprint_report_fingerprint: 0,
-        derivation_report_fingerprint,
-        text_relocation_count: text_relocations.len(),
-        checked_instruction_validation_count: 0,
-    };
-    evidence.derivation_digest = evidence.recomputed_derivation_digest();
-    Ok(evidence)
+    Ok(())
 }
 
 #[cfg(test)]

@@ -14,7 +14,8 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 use crate::compile_time_invocations::{
-    FixedLayoutTargetScope, PureEvaluationRecord, SourceCompletionAccounting, invocation_error,
+    FixedLayoutTargetScope, PlannedCall, PureEvaluationRecord, SourceCompletionAccounting,
+    invocation_error,
 };
 
 use super::super::demanded_values::{DemandedValues, RoundProgram};
@@ -298,7 +299,7 @@ impl<'scope> Initializers<'scope> {
             return Ok(());
         }
         let first_receipt = accounting.receipts().len();
-        let (outcomes, target_inputs) = invocation
+        let outcomes = invocation
             .invoke_recorded_in_targets(&targets, accounting)
             .map_err(invocation_error)?;
         // The final receipt join compares what the invocation read with the
@@ -316,7 +317,7 @@ impl<'scope> Initializers<'scope> {
                 ));
             }
         }
-        self.values[job.inputs].targets = target_inputs;
+        self.values[job.inputs].targets = TargetInputs::None;
         let carrier = program.tables.const_declarations.get(handle).declared_type;
         // A constant is one value for every deployment that reads it. Each
         // target's layout decides only where the bytes go, so the
@@ -378,6 +379,26 @@ impl DemandedValues for Initializers<'_> {
 
     fn reaches(&mut self, _program: &TypedTrees, value: usize, reached: &[SymbolHandle]) {
         self.jobs[value].reached = reached.to_vec();
+    }
+
+    /// Each initializer calls its constant's evaluation entry directly,
+    /// whatever deployments later run it.
+    fn plan_round(
+        &mut self,
+        values: &[usize],
+        round: &RoundProgram,
+        _program: &TypedTrees,
+    ) -> Vec<PlannedCall> {
+        values
+            .iter()
+            .filter_map(|&value| {
+                let job = &self.jobs[value];
+                round
+                    .calls()
+                    .plan_entry(job.symbol[0], job.entry[0], &[])
+                    .ok()
+            })
+            .collect()
     }
 
     fn description(&self, program: &TypedTrees, value: usize) -> String {

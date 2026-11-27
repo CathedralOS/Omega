@@ -20,8 +20,12 @@ Because rewriting an instruction onto an optimizer form only adds clobbers, it
 can only shorten unit liveness; a single `UnitLivenessTable` computed per
 function and unit set remains conservatively sound across all candidates in
 that function. After all selected rules finish and work usage is checked
-against the phase budget, we recompute the plan's canonical digest so rewritten
-plans bind their new contents while identity runs preserve the source digest.
+against the phase budget, we recompute the plan's canonical digest only when a
+rule committed a rewrite; identity runs keep the source digest unchanged.
+
+When the build selects no post-allocation rule, the phase reports one iteration
+and no work. That always fits, because every budget axis is nonzero, so we skip
+the successor table, the budget walk and the rehash entirely.
 */
 
 use optimization_core::{
@@ -41,6 +45,8 @@ use selected_instructions::{
 use semantic_vocabulary::IntegerValue;
 use target::Architecture;
 
+/// `plan.identity` must already be the digest of `plan`; the baseline
+/// constructor seals it so, and a run that commits no rewrite keeps it.
 pub(crate) fn execute_post_allocation_machine_optimizations(
     plan: &mut PostAllocationMachinePlan,
     selected: &SelectedInstructionPlan,
@@ -50,14 +56,42 @@ pub(crate) fn execute_post_allocation_machine_optimizations(
 ) -> Result<PostAllocationMachineOptimizationRun, PostAllocationMachineOptimizationError> {
     let phase = OptimizationExecutionPhase::PostAllocationMachine;
     let projection = selections.project_phase(phase);
+    let rules = projection.selections().as_slice();
     let source = plan.identity;
-    let successors = successor_table(selected)?;
     let mut usage = OptimizationWorkUsage {
         iterations: 1,
         ..OptimizationWorkUsage::default()
     };
-    let mut executions = Vec::new();
-    for optimization in projection.selections().as_slice().iter().copied() {
+    let executions = if rules.is_empty() {
+        Vec::new()
+    } else {
+        execute_rules(plan, selected, effects, rules, budget, &mut usage)?
+    };
+    if usage.commits != 0 {
+        plan.identity = post_allocation_machine_identity(plan);
+    }
+    Ok(PostAllocationMachineOptimizationRun {
+        complete_selection: projection.complete_selection(),
+        phase_selections: projection.selections().identity(),
+        source,
+        result: plan.identity,
+        executions,
+        usage,
+    })
+}
+
+fn execute_rules(
+    plan: &mut PostAllocationMachinePlan,
+    selected: &SelectedInstructionPlan,
+    effects: &PreAllocationMachineEffectPlan,
+    rules: &[Optimization],
+    budget: OptimizationWorkBudget,
+    usage: &mut OptimizationWorkUsage,
+) -> Result<Vec<PostAllocationMachineRuleExecution>, PostAllocationMachineOptimizationError> {
+    let phase = OptimizationExecutionPhase::PostAllocationMachine;
+    let successors = successor_table(selected)?;
+    let mut executions = Vec::with_capacity(rules.len());
+    for optimization in rules.iter().copied() {
         let rule = executor(optimization)
             .ok_or(PostAllocationMachineOptimizationError::NoExecutor { optimization })?;
         if plan.target.architecture != rule.required_architecture {
@@ -72,7 +106,7 @@ pub(crate) fn execute_post_allocation_machine_optimizations(
             plan,
             effects,
             successors: &successors,
-            usage: &mut usage,
+            usage,
         };
         executions.push((rule.run)(optimization, &mut context)?);
     }
@@ -83,15 +117,7 @@ pub(crate) fn execute_post_allocation_machine_optimizations(
     if !usage.within(budget.for_extent(extent)) {
         return Err(PostAllocationMachineOptimizationError::BudgetExhausted { phase });
     }
-    plan.identity = post_allocation_machine_identity(plan);
-    Ok(PostAllocationMachineOptimizationRun {
-        complete_selection: projection.complete_selection(),
-        phase_selections: projection.selections().identity(),
-        source,
-        result: plan.identity,
-        executions,
-        usage,
-    })
+    Ok(executions)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

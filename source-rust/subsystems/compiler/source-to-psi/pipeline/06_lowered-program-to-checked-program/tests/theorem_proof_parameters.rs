@@ -790,20 +790,30 @@ fn an_address_theorem_from_another_equality_cannot_supply_the_alias() {
     assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
 }
 
-/// An address has no scalar carrier bound, so `n != 0` does not give `n > 0`.
+/// Every numeric address is zero or positive, so `n != 0` gives `n > 0`.
 #[test]
-fn an_address_theorem_cannot_use_a_carrier_bound_it_does_not_have() {
+fn a_nonzero_address_theorem_concludes_strict_positivity() {
     let source = at_an_address(ONE_IS_NONZERO)
         .replace("requires n == 1", "requires n != 0")
         .replace("ensures n != 0", "ensures n > 0")
         .replace("(1)", "(7)");
     assert!(source.contains("ensures n > 0"), "{source}");
     let verdict = Program::of(&source).judged(|_| {});
-    assert!(
-        format!("{verdict:?}").contains("value has no bound"),
-        "{verdict:?}"
-    );
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
 }
+
+/// Zero is an address, so a premise that admits it gives no strict positivity.
+#[test]
+fn an_address_theorem_cannot_conclude_strict_positivity_without_excluding_zero() {
+    let source = at_an_address(ONE_IS_NONZERO)
+        .replace("requires n == 1", "requires n <= 5")
+        .replace("ensures n != 0", "ensures n > 0")
+        .replace("(1)", "(3)");
+    assert!(source.contains("requires n <= 5"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
 /// A record input is one subject for each of its scalar fields.
 const FIRST_IS_NONZERO: &str = "data Pair { x: u8; y: u8; }
 
@@ -865,19 +875,484 @@ fn an_applied_record_theorem_concludes_nothing_about_another_field() {
     assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
 }
 
-/// A data invariant is a premise the contract does not state, so a record
-/// with one is refused by name.
+/// A field that is itself a plain record is one subject for each of its
+/// own scalar fields, in place.
+fn nested(source: &str) -> String {
+    source
+        .replace(
+            "data Pair { x: u8; y: u8; }",
+            "data Inner { x: u8; z: u8; }\n\ndata Pair { inner: Inner; y: u8; }",
+        )
+        .replace("p.x", "p.inner.x")
+        .replace(
+            "Pair { x: 1u8, y: 2u8 }",
+            "Pair { inner: Inner { x: 1u8, z: 3u8 }, y: 2u8 }",
+        )
+}
+
 #[test]
-fn a_record_with_a_data_invariant_is_not_a_logical_subject() {
-    let source = FIRST_IS_NONZERO.replacen(
-        "data Pair { x: u8; y: u8; }",
-        "data Pair requires self.x < 9u8 { x: u8; y: u8; }",
+fn a_theorem_over_a_nested_record_field_supplies_its_alias() {
+    let source = nested(FIRST_IS_NONZERO);
+    assert!(source.contains("requires p.inner.x == 1u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_over_another_nested_field_cannot_supply_its_alias() {
+    let source = nested(FIRST_IS_NONZERO).replacen(
+        "machine first_is_nonzero(p: Pair)\nrequires p.inner.x == 1u8\nensures p.inner.x != 0u8",
+        "machine first_is_nonzero(p: Pair)\nrequires p.inner.z == 1u8\nensures p.inner.z != 0u8",
         1,
     );
-    assert_ne!(source, FIRST_IS_NONZERO);
-    let verdict = Program::try_of(&[("product/main.omg", &source)]).map(|p| p.judged(|_| {}));
+    assert!(source.contains("requires p.inner.z == 1u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// The application's conclusion is about the nested field the actual
+/// record holds at that path, not about the outer record's other field.
+#[test]
+fn an_applied_nested_record_theorem_concludes_nothing_about_another_field() {
+    let source = nested(FIRST_IS_NONZERO).replacen(
+        "requires p.inner.x == 1u8\nensures p.inner.x != 0u8\n{\n    Step(p);",
+        "requires p.inner.x == 1u8\nensures p.y != 0u8\n{\n    Step(p);",
+        1,
+    );
     assert!(
-        format!("{verdict:?}").contains("logical data subject has a data invariant"),
+        source.contains("ensures p.y != 0u8\n{\n    Step(p);"),
+        "{source}"
+    );
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// A record's data invariant holds for every value of its type, so it is a
+/// premise of a contract over that record: `x != 0` gives `x > 0` with no
+/// stated `requires`.
+const NONZERO_FIRST: &str = "data Pair requires self.x != 0u8 { x: u8; y: u8; }
+
+data FirstIsPositive = machine(p: Pair)
+    ensures p.x > 0u8;
+
+machine first_is_positive(p: Pair)
+ensures p.x > 0u8
+{
+}
+
+machine use_step<Step: FirstIsPositive>(p: Pair)
+ensures p.x > 0u8
+{
+    Step(p);
+}
+
+machine entry() -> u8 {
+    use_step::<first_is_positive>(Pair { x: 1u8, y: 2u8 });
+    0u8
+}
+";
+
+#[test]
+fn a_record_data_invariant_is_a_premise_of_its_logical_subject() {
+    let verdict = stored(NONZERO_FIRST);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+#[test]
+fn an_invariant_on_another_field_does_not_establish_the_conclusion() {
+    let source = NONZERO_FIRST.replace("requires self.x != 0u8", "requires self.y != 0u8");
+    assert_ne!(source, NONZERO_FIRST);
+    let verdict = stored(&source);
+    assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+/// A nested record's invariant is a premise over the outer record's subjects.
+#[test]
+fn a_nested_record_data_invariant_is_a_premise_of_its_logical_subject() {
+    let source = NONZERO_FIRST
+        .replace(
+            "data Pair requires self.x != 0u8 { x: u8; y: u8; }",
+            "data Inner requires self.x != 0u8 { x: u8; z: u8; }\n\ndata Pair { inner: Inner; y: u8; }",
+        )
+        .replace("p.x", "p.inner.x")
+        .replace(
+            "Pair { x: 1u8, y: 2u8 }",
+            "Pair { inner: Inner { x: 1u8, z: 3u8 }, y: 2u8 }",
+        );
+    assert!(source.contains("ensures p.inner.x > 0u8"), "{source}");
+    let verdict = stored(&source);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+    let other = source.replace("requires self.x != 0u8", "requires self.z != 0u8");
+    assert_ne!(other, source);
+    let verdict = stored(&other);
+    assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+/// A constant record stores a machine in an ordinary callable field. The
+/// same field is invoked under its callable contract and cited as a theorem
+/// (OWNER_QUESTIONS.md#bundle-evidence-field-type).
+/// A theorem over the inner record applied to `p.inner`, a field of the
+/// applying machine's record formal.
+const INNER_FIELD: &str = "data Inner { x: u8; z: u8; }
+
+data Pair { inner: Inner; y: u8; }
+
+data InnerIsNonzero = machine(i: Inner)
+    requires i.x == 1u8
+    ensures i.x != 0u8;
+
+machine inner_is_nonzero(i: Inner)
+requires i.x == 1u8
+ensures i.x != 0u8
+{
+}
+
+machine use_inner<Step: InnerIsNonzero>(p: Pair)
+requires p.inner.x == 1u8
+ensures p.inner.x != 0u8
+{
+    Step(p.inner);
+}
+
+machine entry() -> u8 {
+    use_inner::<inner_is_nonzero>(Pair { inner: Inner { x: 1u8, z: 3u8 }, y: 2u8 });
+    0u8
+}
+";
+
+#[test]
+fn a_theorem_applied_to_a_record_field_of_a_formal_concludes_about_that_field() {
+    let verdict = Program::of(INNER_FIELD).judged(|elaboration| {
+        let application = &elaboration.module.proofs.theorem_applications[0];
+        assert!(
+            application.arguments.iter().all(|argument| matches!(
+                argument,
+                semantic_vocabulary::ScalarTerm::IntegerField { path, .. } if path.len() == 2
+            )),
+            "each subject is read beneath the projected field: {application:?}"
+        );
+    });
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_applied_to_a_record_field_concludes_nothing_about_the_outer_record() {
+    let source = INNER_FIELD.replacen(
+        "requires p.inner.x == 1u8\nensures p.inner.x != 0u8\n{\n    Step(p.inner);",
+        "requires p.inner.x == 1u8\nensures p.y != 0u8\n{\n    Step(p.inner);",
+        1,
+    );
+    assert!(source.contains("ensures p.y != 0u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_applied_to_a_record_field_owes_its_premise_for_that_field() {
+    let source = INNER_FIELD.replacen(
+        "requires p.inner.x == 1u8\nensures p.inner.x != 0u8\n{\n    Step(p.inner);",
+        "requires p.inner.z == 1u8\nensures p.inner.x != 0u8\n{\n    Step(p.inner);",
+        1,
+    );
+    assert!(source.contains("requires p.inner.z == 1u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// A record the applying machine establishes itself is a subject too: its
+/// contents reaching the application are the subjects' values.
+fn local(x: &str, ensures: &str) -> String {
+    INNER_FIELD.replacen(
+        "requires p.inner.x == 1u8\nensures p.inner.x != 0u8\n{\n    Step(p.inner);",
+        &format!("{ensures}{{\n    let i: Inner = Inner {{ x: {x}, z: 3u8 }};\n    Step(i);"),
+        1,
+    )
+}
+
+#[test]
+fn a_theorem_applied_to_a_record_the_machine_establishes_owes_its_premise_there() {
+    let source = local("1u8", "");
+    assert!(source.contains("Step(i);"), "{source}");
+    let verdict = Program::of(&source).judged(|elaboration| {
+        let application = &elaboration.module.proofs.theorem_applications[0];
+        let machine = elaboration.module.machine(application.machine).unwrap();
+        assert!(
+            application.arguments.iter().all(|argument| matches!(
+                argument,
+                semantic_vocabulary::ScalarTerm::IntegerField { root, .. }
+                    if terminal_psi::StructuralParameterDeclaration::find_by_place(
+                        &machine.contract.structural_parameters,
+                        *root,
+                    )
+                    .is_none()
+            )),
+            "each subject reads the established record: {application:?}"
+        );
+    });
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_record_the_machine_establishes_must_meet_the_premise() {
+    let source = local("0u8", "");
+    assert!(source.contains("Inner { x: 0u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// The conclusion is about the established record, not the formal.
+#[test]
+fn a_theorem_applied_to_an_established_record_concludes_nothing_about_a_formal() {
+    let source = local("1u8", "ensures p.inner.x != 0u8\n");
+    assert!(
+        source.contains("ensures p.inner.x != 0u8\n{\n    let i"),
+        "{source}"
+    );
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// Terminal Psi may name a theorem over a record directly in an
+/// application. Its subjects are the record's scalar fields, as in a
+/// citation, and its body must return without running anything.
+fn named_over_record() -> String {
+    FIRST_IS_NONZERO.replacen(
+        "machine use_step",
+        "machine touch(n: u8) {\n}\n\nmachine busy(p: Pair)\nrequires p.x == 1u8\nensures p.x != 0u8\n{\n    touch(p.x);\n}\n\nmachine second_is_nonzero(p: Pair)\nrequires p.y == 1u8\nensures p.y != 0u8\n{\n}\n\nmachine use_step",
+        1,
+    )
+}
+
+fn applied_named(program: &Program, path: &str) -> Verdict {
+    let named = program.machine(path).id;
+    program.judged(|elaboration| {
+        let application = &mut elaboration.module.proofs.theorem_applications[0];
+        assert!(matches!(
+            application.source,
+            terminal_psi::TheoremSource::Formal(_)
+        ));
+        application.source = terminal_psi::TheoremSource::Named(named);
+    })
+}
+
+#[test]
+fn a_named_theorem_applied_to_a_record_supplies_its_conclusion() {
+    let program = Program::of(&named_over_record());
+    let verdict = applied_named(&program, "first_is_nonzero");
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_named_theorem_over_another_field_does_not_supply_the_conclusion() {
+    let program = Program::of(&named_over_record());
+    let verdict = applied_named(&program, "second_is_nonzero");
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_named_theorem_over_a_record_whose_body_does_work_is_refused() {
+    let program = Program::of(&named_over_record());
+    let verdict = applied_named(&program, "busy");
+    assert!(
+        format!("{verdict:?}")
+            .contains("named theorem application names a machine whose body does work"),
+        "{verdict:?}"
+    );
+}
+
+const CALLABLE_FIELD: &str = "data NonzeroIsPositive = machine(n: u8)
+    requires n != 0u8
+    ensures n > 0u8
+    reaches none crashes none;
+
+machine nonzero_is_positive(n: u8)
+requires n != 0u8
+ensures n > 0u8
+{
+}
+
+data Laws [copy] { step: NonzeroIsPositive; }
+
+const U8_LAWS: Laws = Laws { step: nonzero_is_positive };
+
+machine use_step<Step: NonzeroIsPositive>(n: u8)
+requires n != 0u8
+ensures n > 0u8
+{
+    Step(n);
+}
+
+machine entry() -> u8 {
+    let laws: Laws = U8_LAWS;
+    laws.step(7u8);
+    use_step::<U8_LAWS.step>(7u8);
+    0u8
+}
+";
+
+fn stored(source: &str) -> Result<Verdict, String> {
+    Program::try_of(&[("product/main.omg", source)])
+        .map(|program| program.judged(|_| {}))
+        .map_err(|refusal| format!("{refusal:?}"))
+}
+
+#[test]
+fn a_theorem_stored_in_a_constant_callable_field_is_invoked_and_cited() {
+    let program = Program::of(CALLABLE_FIELD);
+    let verdict = program.judged(|elaboration| {
+        let module = &elaboration.module;
+        let cited = module
+            .proofs
+            .theorem_citations
+            .iter()
+            .filter_map(|row| match row.source {
+                terminal_psi::TheoremSource::Named(source) => Some(source),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(!cited.is_empty(), "the field's selection is cited by name");
+        assert!(
+            !module.execution.callables.descriptors.is_empty(),
+            "the stored selection remains an ordinary callable value"
+        );
+        for source in cited {
+            assert!(
+                module
+                    .machines
+                    .iter()
+                    .flat_map(|machine| machine.module_invocations())
+                    .all(|invocation| invocation.inputs.callee != source),
+                "citing the field executes no callback"
+            );
+        }
+    });
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// The field's type admits only selections proved for seven, so its
+/// evidence does not cover the complete aliased implication.
+#[test]
+fn a_field_whose_selections_are_proved_only_for_seven_cannot_be_cited() {
+    let source = CALLABLE_FIELD
+        .replace(
+            "data Laws [copy] { step: NonzeroIsPositive; }",
+            "data OnlySeven = machine(n: u8)
+    requires n == 7u8
+    ensures n > 0u8
+    reaches none crashes none;
+
+machine only_seven(n: u8)
+requires n == 7u8
+ensures n > 0u8
+{
+}
+
+data Laws [copy] { step: OnlySeven; }",
+        )
+        .replace(
+            "Laws { step: nonzero_is_positive }",
+            "Laws { step: only_seven }",
+        );
+    assert!(source.contains("Laws { step: only_seven }"), "{source}");
+    let verdict = stored(&source);
+    assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+    assert!(
+        format!("{verdict:?}")
+            .contains("explicit proof argument does not establish the complete aliased contract"),
+        "{verdict:?}"
+    );
+}
+
+/// The selected machine recurs until `n` is nonzero, so its guarantee
+/// holds only after it returns. It stays an ordinary callable value.
+const RETURNING: &str = "machine positive_after_return(n: u8)
+requires n != 0u8
+ensures n > 0u8
+{
+    transition n == 0u8 {
+        true -> positive_after_return(n),
+        _ -> finish(n)
+    }
+}
+
+machine finish(n: u8)
+{
+}
+
+data Laws [copy]";
+
+#[test]
+fn a_field_whose_selection_proves_its_claim_only_after_returning_cannot_be_cited() {
+    let source = CALLABLE_FIELD
+        .replace("data Laws [copy]", RETURNING)
+        .replace(
+            "Laws { step: nonzero_is_positive }",
+            "Laws { step: positive_after_return }",
+        );
+    assert!(
+        source.contains("Laws { step: positive_after_return }"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+    assert!(
+        format!("{verdict:?}").contains("its guarantee holds only after it returns"),
+        "{verdict:?}"
+    );
+}
+
+/// Naming such a machine directly is refused the same way: a citation runs
+/// nothing, so it cannot rely on the body returning.
+#[test]
+fn a_named_theorem_that_proves_its_claim_only_after_returning_cannot_be_cited() {
+    let source = CALLABLE_FIELD
+        .replace("data Laws [copy]", RETURNING)
+        .replace(
+            "use_step::<U8_LAWS.step>(7u8)",
+            "use_step::<positive_after_return>(7u8)",
+        );
+    assert!(
+        source.contains("use_step::<positive_after_return>"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    assert!(
+        format!("{verdict:?}").contains("its guarantee holds only after it returns"),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn a_field_whose_selection_cannot_be_cited_is_still_invoked() {
+    let source = CALLABLE_FIELD
+        .replace("data Laws [copy]", RETURNING)
+        .replace(
+            "Laws { step: nonzero_is_positive }",
+            "Laws { step: positive_after_return }",
+        )
+        .replace("    use_step::<U8_LAWS.step>(7u8);\n", "");
+    assert!(!source.contains("use_step::<U8_LAWS.step>"), "{source}");
+    let verdict = stored(&source);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+/// A runtime record may hold any selection its type allows, so its field
+/// has no one selection whose evidence covers the citation.
+#[test]
+fn a_runtime_record_field_cannot_be_cited() {
+    let source = CALLABLE_FIELD.replace(
+        "machine entry() -> u8 {",
+        "machine use_laws(laws: Laws) {
+    use_step::<laws.step>(7u8);
+}
+
+machine entry() -> u8 {
+    use_laws(U8_LAWS);",
+    );
+    assert!(source.contains("use_step::<laws.step>"), "{source}");
+    let verdict = stored(&source);
+    assert!(
+        format!("{verdict:?}").contains("only a constant has one possible selection"),
         "{verdict:?}"
     );
 }

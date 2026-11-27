@@ -32,7 +32,6 @@ selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 calling-conventions = { path = "../../targets/calling-conventions" }
-diagnostics = { path = "../../../../../foundation/diagnostics" }
 terminal-psi = { path = "../../../psi" }
 structural-storage = { path = "../../representations/structural-storage" }
 structural-storage-queries = { path = "../../representations/structural-storage/queries" }

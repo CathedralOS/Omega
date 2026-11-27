@@ -153,7 +153,22 @@ rematerialization policies.
 
 The selected rewrite code admits ordinary non-address fixed 8/16/32/64-bit
 integer, Boolean and GPR-resident IEEE payloads whose single defining
-instruction dominates their uses, cyclic functions included. Uses in the same
+instruction dominates their uses, cyclic functions included. It also spills a
+128-bit packed vector that vector promotion created in a `VECTOR128` register:
+the register's `u128` type selects a 16-byte private slot written by
+`FrameAddress` plus `PackedStore128` and read back by `PackedLoad128`. The
+spill reads the width from the value's type, never from its class, so an
+`f64` in a vector register still spills 8 bytes and scratch that does not
+state 128 bits is refused rather than spilled by halves. Every allocatable
+view of the class must be exactly 128 bits, and a target without 16-byte
+packed moves (aarch64 today, which never promotes vectors) refuses the spill.
+Runtime rematerialization regenerates a `MaterializeI64` constant, or a
+`FrameAddress` of a non-spill local slot, right before each use. A frame
+address is the frame base plus a constant, which encoding admission resolves to
+one displacement wherever the instruction sits; copies are refused when a
+memory-access row names the defining instruction, and on x86-64, where
+`FrameAddress` clobbers the condition flags, wherever a flag value is live.
+One dominator tree per recovery step answers every attempt's dominance check. Uses in the same
 block must follow the definition. An edge-copy snapshot can keep a semantic
 block-parameter identity without being a physical entry parameter. A real
 block parameter needs a complete join over incoming edges: every predecessor is
@@ -173,9 +188,9 @@ their surviving pinned segment. Each cumulative rewrite gets fresh liveness,
 ranges, legality and homes, each checked as it is produced; the finished
 recovery is not replayed, and later stages see the same allocation view. The
 manifest records the exact transformed identities and selected storage, not
-final frame authority. These private eight-byte slots hold full GPR payloads;
-they do not widen source reads, change scalar signedness or normalize
-floating-point bits.
+final frame authority. These private slots hold full payloads, eight bytes for
+a GPR word and sixteen for a packed vector; they do not widen source reads,
+change scalar signedness or normalize floating-point bits.
 
 The [assignment group](assignment.rs) holds the procedures the entrance runs.
 Runtime-spill recovery rewrites physical victims directly; there is no logical

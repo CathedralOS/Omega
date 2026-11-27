@@ -11,18 +11,16 @@ fn recycled(root: &str, path: &str) -> bool {
         .is_ok_and(|relative| relative.iter().any(|component| component == "_recycling"))
 }
 
-pub(super) const NATIVE_STAGES: [&str; 16] = [
+pub(super) const NATIVE_STAGES: [&str; 14] = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/07_selected-instructions-to-register-homes",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/08_register-homes-to-post-allocation-machine",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions",
@@ -63,6 +61,46 @@ pub(super) const PSI_STAGES: [&str; 8] = [
     "source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi",
 ];
+
+/// A representation is the record one stage hands the next, so it may not link
+/// a numbered stage, directly or through a helper: every reader of the record
+/// would then compile that stage's code, and the pipeline order would no longer
+/// say which stage made a decision. Move the type the representation needs into
+/// `representations/` instead.
+///
+/// Each row is a link that existed when this check landed. Never add a row.
+/// The PR that removes a link deletes its row; `stale_allowance_violations`
+/// refuses a row whose link is gone, so the list only shrinks.
+pub(super) const LEGACY_REPRESENTATION_STAGE_LINKS: [(&str, &str); 3] = [
+    // Encoding admission calls each target encoder's selected-form validators.
+    (
+        "source-rust/subsystems/compiler/psi-to-native/representations/machine-code/encoding-admission",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64",
+    ),
+    (
+        "source-rust/subsystems/compiler/psi-to-native/representations/machine-code/encoding-admission",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64",
+    ),
+    // Evaluation receipts name Psi publication's call-site and program records.
+    (
+        "source-rust/subsystems/compiler/source-to-psi/representations/evaluation-receipts",
+        "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi",
+    ),
+];
+
+/// The legacy links whose stage lies under `stages`, as rule allowances.
+pub(super) fn legacy_representation_links_into(
+    stages: &[&str],
+) -> impl Iterator<Item = (&'static str, &'static str)> {
+    LEGACY_REPRESENTATION_STAGE_LINKS
+        .into_iter()
+        .filter(move |(_, stage)| under(stage, stages))
+}
+
+/// Whether `dependency` belongs to a numbered source or native stage.
+fn numbered_stage(dependency: &str) -> bool {
+    under(dependency, &PSI_STAGES) || under(dependency, &NATIVE_STAGES)
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Phase {
@@ -319,6 +357,19 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
                     .get(next)
                     .ok_or_else(|| format!("undeclared workspace dependency: {next}"))?;
                 let chain = format!("{chain} -> {name}");
+                // A representation's walk ends at the first numbered stage it
+                // reaches. Only the representation's own legacy link may name one.
+                if representation && numbered_stage(next) {
+                    let legacy = here == start
+                        && LEGACY_REPRESENTATION_STAGE_LINKS
+                            .contains(&(start.as_str(), next.as_str()));
+                    if !legacy {
+                        errors.push(format!(
+                            "representation links a numbered stage: {chain} ({next}); move the type it needs into representations/"
+                        ));
+                    }
+                    continue;
+                }
                 let dependency_phase = stage(next);
                 let later = dependency_phase
                     .is_some_and(|number| phase.is_some_and(|start| number > start));
@@ -409,6 +460,105 @@ mod tests {
         assert!(!errors.iter().any(|row| row.starts_with("forbidden production dependency: image-host -> image ")));
     }
 
+    /// A new representation-to-stage link is refused, directly or through a
+    /// helper or another representation's legacy link, while stages may still
+    /// read representations. A legacy row whose link is gone is refused too.
+    #[test]
+    fn a_representation_cannot_link_a_numbered_stage() {
+        const RECORDS: &str =
+            "source-rust/subsystems/compiler/psi-to-native/representations/new-records";
+        const SOURCE_RECORDS: &str =
+            "source-rust/subsystems/compiler/source-to-psi/representations/new-records";
+        let [(encoding, aarch64), (_, x86), (receipts, publication)] =
+            LEGACY_REPRESENTATION_STAGE_LINKS;
+        let metadata = Metadata {
+            workspace_root: "/repo".into(),
+            packages: vec![
+                pkg(
+                    "records",
+                    RECORDS,
+                    &[
+                        ("allocation", NATIVE_STAGES[7], None),
+                        ("helper", "helper", None),
+                        ("encoding", encoding, None),
+                    ],
+                ),
+                pkg(
+                    "source-records",
+                    SOURCE_RECORDS,
+                    &[("typing", PSI_STAGES[3], None)],
+                ),
+                pkg("helper", "helper", &[("selection", NATIVE_STAGES[5], None)]),
+                pkg(
+                    "encoding",
+                    encoding,
+                    &[("aarch64", aarch64, None), ("x86", x86, None)],
+                ),
+                pkg("receipts", receipts, &[("publication", publication, None)]),
+                pkg(
+                    "allocation",
+                    NATIVE_STAGES[7],
+                    &[("records", RECORDS, None)],
+                ),
+                pkg("selection", NATIVE_STAGES[5], &[]),
+                pkg(
+                    "typing",
+                    PSI_STAGES[3],
+                    &[("source-records", SOURCE_RECORDS, None)],
+                ),
+                pkg("aarch64", aarch64, &[]),
+                pkg("x86", x86, &[]),
+                pkg("publication", publication, &[]),
+            ],
+        };
+        let errors: Vec<_> = violations(&metadata)
+            .unwrap()
+            .into_iter()
+            .filter(|error| error.starts_with("representation links a numbered stage"))
+            .collect();
+        for chain in [
+            ": records -> allocation (",
+            ": records -> helper -> selection (",
+            ": records -> encoding -> aarch64 (",
+            ": records -> encoding -> x86 (",
+            ": source-records -> typing (",
+        ] {
+            assert!(
+                errors.iter().any(|error| error.contains(chain)),
+                "{chain}: {errors:?}"
+            );
+        }
+        assert_eq!(errors.len(), 5, "{errors:?}");
+
+        // Dropping a legacy link leaves its row behind, which the shared
+        // allowance check refuses so the row is deleted with the link.
+        let mut without_receipts = metadata.clone();
+        let receipts_package = without_receipts
+            .packages
+            .iter_mut()
+            .find(|package| package.name == "receipts")
+            .unwrap();
+        receipts_package.dependencies.clear();
+        let stale = crate::boundary::stale_allowance_violations(
+            &without_receipts,
+            &crate::boundary::forbidden_rules(),
+        )
+        .unwrap();
+        assert!(
+            stale.iter().any(|error| error
+                == &format!(
+                    "{receipts} -> {publication}: edge removed; remove the obsolete allowance"
+                )),
+            "{stale:?}"
+        );
+        assert!(
+            !stale
+                .iter()
+                .any(|error| error.starts_with(&format!("{encoding} -> "))),
+            "{stale:?}"
+        );
+    }
+
     #[test]
     fn loose_packages_and_loose_driver_modules_cannot_reenter_the_pipeline() {
         let temp = std::env::temp_dir().join(format!(
@@ -468,7 +618,7 @@ mod tests {
             workspace_root: "/repo".into(),
             packages: vec![
                 pkg(
-                    "optimizer",
+                    "lowering",
                     NATIVE_STAGES[3],
                     &[("encoding", allowed.owner, None), ("helper", "other", None)],
                 ),
@@ -495,14 +645,13 @@ mod tests {
         assert!(
             !errors
                 .iter()
-                .any(|message| message.contains("optimizer -> encoding -> encoder"))
+                .any(|message| message.contains("lowering -> encoding -> encoder"))
         );
         for destination in ["encoder", "driver", "replay"] {
             assert!(
-                errors
-                    .iter()
-                    .any(|message| message
-                        .contains(&format!("optimizer -> helper -> {destination}")))
+                errors.iter().any(
+                    |message| message.contains(&format!("lowering -> helper -> {destination}"))
+                )
             );
         }
     }
@@ -633,9 +782,9 @@ mod tests {
         edge(PSI_STAGES[6], SHARED, None);
         edge(PSI_STAGES[6], PSI_STAGES[5], Some("dev"));
         edge(NATIVE_STAGES[2], SHARED, None);
-        edge(NATIVE_STAGES[7], SHARED, None);
+        edge(NATIVE_STAGES[6], SHARED, None);
         edge(SHARED, NATIVE_STAGES[1], None);
-        edge(NATIVE_STAGES[6], NATIVE_STAGES[8], None);
+        edge(NATIVE_STAGES[5], NATIVE_STAGES[7], None);
         edge(FRONTEND[0], FRONTEND[1], Some("dev"));
         edge(FRONTEND[1], SHARED, Some("build"));
         edge(SHARED, ENCODER, None);

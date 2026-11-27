@@ -3420,6 +3420,19 @@ pub(crate) mod element_views {
             >,
             path: &[StructuralPathSegment],
         ) -> Result<Option<ElementViewHome>, TerminalInterpretError> {
+            if let ElementViewBacking::Representation(_) = &self.backing {
+                // A representation window lives in byte storage, not in a
+                // structural home; only its bounds are checked here.
+                return match path {
+                    [] => Ok(None),
+                    [StructuralPathSegment::FixedIndex(index)]
+                        if usize::try_from(*index).is_ok_and(|index| index < self.len()) =>
+                    {
+                        Ok(None)
+                    }
+                    _ => Err(malformed()),
+                };
+            }
             if path.is_empty() {
                 self.structural_projection(
                     types,
@@ -3575,6 +3588,10 @@ pub(crate) mod element_views {
             ));
             path.extend_from_slice(suffix);
             Ok((collection.clone(), path))
+        }
+
+        pub(crate) fn is_representation(&self) -> bool {
+            matches!(self.backing, ElementViewBacking::Representation(_))
         }
 
         pub(crate) fn with_descriptor_home(mut self, home: TerminalStructuralValue) -> Self {
@@ -3912,6 +3929,20 @@ pub(crate) mod element_views {
                 )
                 .ok_or(malformed())?;
                 return execution.primitive_view_access(element, &path, scalar, true);
+            }
+            if let ElementViewBacking::Representation(representation) = &self.backing {
+                if !suffix.is_empty() {
+                    return Err(malformed());
+                }
+                let (endpoint, scalar) = representation.byte_endpoint(position)?;
+                return Ok((
+                    crate::storage::primitive_storage::PrimitiveStorage {
+                        endpoint,
+                        encoding: None,
+                    },
+                    scalar,
+                    !writing,
+                ));
             }
             if let Some(home) = &self.home {
                 let path = home.selected_path(position, suffix)?;
@@ -4983,6 +5014,118 @@ pub(crate) mod element_views {
             Ok(OperationFlow::Advance)
         }
 
+        /// A shared reference to a view's whole window as `[T; extent]`. The
+        /// reference reads the view's own elements through its collection
+        /// loan; nothing is copied.
+        pub(crate) fn execute_element_view_fixed_array(
+            &mut self,
+            operation: &Operation,
+        ) -> Result<(), TerminalInterpretError> {
+            operation_kind!(operation => ElementViewFixedArray { source, length, extent, .. });
+            let result = operation.result.structural().ok_or(malformed())?;
+            let length = count(length, &self.values)?;
+            let (referent_type, access) = self.reference_contract(result.structural_type)?;
+            self.validate_descriptor_borrow(source, access)?;
+            let source_value = self.resolve_live_projection(source.place, &source.path, access)?;
+            let types = self.structural_types();
+            let (
+                Some(source_row),
+                Some(StructuralTypeShape::FixedArray {
+                    element,
+                    length: declared,
+                }),
+            ) = (
+                types.get(&source_value.structural_type),
+                types.get(&referent_type).map(|row| &row.shape),
+            )
+            else {
+                return Err(malformed());
+            };
+            let element = *element;
+            let mut matches_view = declared.literal() == Some(*extent);
+            let view = match &source_row.shape {
+                StructuralTypeShape::ElementView {
+                    element: viewed, ..
+                } => {
+                    matches_view &= *viewed == element;
+                    self.element_view_argument(source, &source_value)?.clone()
+                }
+                shape if shape.is_borrowed_byte_view() => {
+                    let layout =
+                        terminal_semantics::representation_element_layout(types.values(), element)
+                            .ok_or(malformed())?;
+                    let binding = self.byte_descriptor_binding(source, &source_value)?;
+                    let bytes =
+                        usize::try_from(self.byte_descriptor_length(&binding, &source_value)?)
+                            .map_err(|_| malformed())?;
+                    match &binding {
+                        crate::storage::byte_sequences::binding::ByteSequenceBinding::Representation(view) => (**view).clone(),
+                        _ => ElementView {
+                            diagnostic_source: source.place,
+                            backing: ElementViewBacking::Representation(Arc::new(
+                                representation::RepresentationView::of_byte_binding(
+                                    &binding, bytes, layout,
+                                )?,
+                            )),
+                            window: 0..bytes,
+                            home: None,
+                            descriptor_home: None,
+                            access: binding.access(),
+                        },
+                    }
+                }
+                _ => return Err(malformed()),
+            };
+            if access != StructuralAccess::SharedBorrow
+                || result.multiplicity != StructuralMultiplicity::Affine
+                || !matches_view
+                || view.len() != length
+                || u64::try_from(length).ok() != Some(*extent)
+                || !crate::storage::reference::access_covers(view.access, access)
+                || !source_value.qualifications.is_empty()
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.qualification_establishments.is_empty()
+                || !result.claims.is_empty()
+                || self.structural_values.contains_key(&result.place)
+                || self.live_affine_discard_at(result.place).is_some()
+            {
+                return Err(malformed());
+            }
+            let mut identity_cursor = self.local_structural_identities.cursor();
+            let referent = self.mint_staged(&mut identity_cursor, referent_type)?;
+            let loan = view
+                .subslice(0, length, access)
+                .ok_or(malformed())?
+                .with_descriptor_home(referent.clone());
+            self.local_structural_identities
+                .commit_cursor(identity_cursor);
+            let carrier = crate::boundary::values::TerminalStructuralValue::minted(
+                self.local_structural_identities.allocate()?,
+                result.structural_type,
+                Vec::new(),
+            );
+            self.reference_referents.insert(
+                crate::boundary::values::StructuralRuntimePlace::from(&carrier),
+                crate::storage::reference::ReferenceReferent {
+                    placed: None,
+                    view: referent,
+                    primitive_loan: None,
+                    collection_loan: Some(loan),
+                    byte_owner: None,
+                    byte_region: None,
+                    aggregate_view: None,
+                },
+            )?;
+            self.structural_values.insert(result.place, carrier)?;
+            self.live_affine_frontier
+                .insert(crate::engine::custody::whole_path_discard(
+                    result.place,
+                    result.structural_type,
+                ));
+            Ok(())
+        }
+
         pub(crate) fn execute_element_view_subslice(
             &mut self,
             operation: &Operation,
@@ -5115,6 +5258,83 @@ pub(crate) mod element_views {
         }
 
         impl RepresentationView {
+            /// The `u8` elements of a byte view's whole window, over its
+            /// original array or its immutable bytes. A byte view whose
+            /// storage is an owner or a field has no such window here.
+            pub(crate) fn of_byte_binding(
+                binding: &ByteSequenceBinding,
+                length: usize,
+                layout: RepresentationElementLayout,
+            ) -> Result<Self, TerminalInterpretError> {
+                let storage = match binding {
+                    ByteSequenceBinding::MutableArray { array, offset, .. } => ByteStorage::Array {
+                        storage: array.clone(),
+                        offset: usize::try_from(*offset).map_err(|_| malformed())?,
+                    },
+                    ByteSequenceBinding::Immutable(bytes) => ByteStorage::Immutable(bytes.clone()),
+                    ByteSequenceBinding::Representation(_)
+                    | ByteSequenceBinding::MutableField { .. }
+                    | ByteSequenceBinding::MutableOwner { .. } => {
+                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "fixed-array reference to a byte view of an owner or a field",
+                        ));
+                    }
+                };
+                if layout.size != 1 {
+                    return Err(malformed());
+                }
+                Ok(Self {
+                    storage,
+                    start: 0,
+                    length,
+                    layout,
+                })
+            }
+
+            /// The storage of one byte element, for a view of single-byte
+            /// elements over an array or immutable bytes.
+            pub(crate) fn byte_endpoint(
+                &self,
+                element: usize,
+            ) -> Result<
+                (
+                    crate::storage::primitive_storage::PrimitiveStorageEndpoint,
+                    ScalarType,
+                ),
+                TerminalInterpretError,
+            > {
+                let [leaf] = self.layout.leaves.as_slice() else {
+                    return Err(malformed());
+                };
+                if self.layout.size != 1 || leaf.offset != 0 || !leaf.path.is_empty() {
+                    return Err(malformed());
+                }
+                if element >= self.length {
+                    return Err(malformed());
+                }
+                let index = self.start.checked_add(element).ok_or(malformed())?;
+                let endpoint = match &self.storage {
+                    ByteStorage::Array { storage, offset } => {
+                        crate::storage::primitive_storage::PrimitiveStorageEndpoint::ArrayElement {
+                            array: storage.clone(),
+                            index: offset.checked_add(index).ok_or(malformed())?,
+                        }
+                    }
+                    ByteStorage::Immutable(bytes) => {
+                        crate::storage::primitive_storage::PrimitiveStorageEndpoint::ViewByte {
+                            bytes: bytes.clone(),
+                            index,
+                        }
+                    }
+                    ByteStorage::Typed { .. } => {
+                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "byte element storage of a typed representation view",
+                        ));
+                    }
+                };
+                Ok((endpoint, leaf.scalar_type))
+            }
+
             pub(crate) fn retain_storage(
                 &self,
                 retained: &mut crate::storage::structural_storage::RetainedStorage,

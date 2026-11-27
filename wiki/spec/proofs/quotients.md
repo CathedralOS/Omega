@@ -217,7 +217,7 @@ scope, erasure, and trust rules follow [proof contracts](contracts.md).
 
 ## Formation and representation
 
-A quotient declaration selects one closed `MereEquivalence<C, R>` conformance.
+Each closed quotient application selects one closed `MereEquivalence<C, R>` conformance.
 Its four laws apply to the same carrier and relation. For example, if `sign`
 classifies representatives, the quotient author selects its laws on the declaration.
 
@@ -228,6 +228,24 @@ let same_sign(a: Representative, b: Representative): |core|::Type<0> =
 data Sign = Representative % same_sign
 requires same_sign satisfies MereEquivalence<Representative, same_sign> as SameSign;
 ```
+
+<a id="generic-quotient-selection"></a>
+
+A generic quotient names the applied relation after `%` and the applied
+proof conformance after `as`. For example, a single declaration identifies
+sequences of each admitted element type by their length:
+
+```omega
+data SequenceLength<T> = Seq<T> % same_length<T>
+    requires same_length<T> satisfies MereEquivalence<Seq<T>, same_length<T>>
+    as SameLength<T>;
+```
+
+For `SequenceLength<u8>`, the carrier is `Seq<u8>`, the relation is
+`same_length<u8>`, and `SameLength<u8>` must supply all four laws for that
+carrier and relation. Reject an application when the named conformance
+fails to close at the supplied arguments or establishes laws for a different
+carrier or relation.
 
 The core library defines the fourth law using a
 [named mathematical definition](mathematical_bindings.md#named-mathematical-definitions).

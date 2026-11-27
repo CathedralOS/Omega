@@ -57,12 +57,8 @@ pub fn plan_foreign_adapter(
     }
     let bridge = plan_native_foreign_bridge(request)
         .map_err(|reason| format!("foreign runtime adapter physical transport: {reason:?}"))?;
-    let imports = crate::imports::plan_import_program(
-        bridge.request().target,
-        [machine_code::import_code::ImportCodeIdentity::Normalized(
-            locator.clone().into(),
-        )],
-    )?;
+    let imports =
+        crate::imports::plan_import_program(bridge.request().target, [locator.clone().into()])?;
     Ok(PlannedForeignAdapter::from_planner(
         crate::PhysicalRecipeOrigin(()),
         recipes::ForeignAdapterParts {

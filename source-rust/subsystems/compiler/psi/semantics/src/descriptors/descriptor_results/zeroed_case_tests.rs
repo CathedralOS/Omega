@@ -158,9 +158,9 @@ fn a_duplicated_declaration_selects_no_case() {
 }
 
 #[test]
-fn zeroed_case_table_reuses_paths_for_different_roots() {
+fn zeroed_cases_reuse_paths_for_different_roots() {
     let types = types();
-    let mut table = ZeroedCaseTable::new(&types);
+    let table = crate::module_analyses::ZeroedCases::new(&types);
     for root_id in [7, 19, 42] {
         let root = PlaceId::new(root_id).unwrap();
         for structural_type in [SCALAR, CHOICE, HOLDER, HOLDERS, PLAIN, PLAINS] {

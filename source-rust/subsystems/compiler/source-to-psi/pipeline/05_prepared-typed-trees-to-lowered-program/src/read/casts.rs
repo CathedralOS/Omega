@@ -85,6 +85,9 @@ impl Program<'_> {
                 return self.collection_recast(id, slots, cast, reference, view, source);
             }
             let expected = self.value_type(id, reference)?;
+            if let Some(fixed) = self.view_fixed_array(id, slots, cast, expected, source)? {
+                return Ok(fixed);
+            }
             return self.borrow_value(id, slots, handle, expected, source);
         }
         if cast.semantic_domain_symbol.is_valid() || !cast.semantic_domain.is_empty() {

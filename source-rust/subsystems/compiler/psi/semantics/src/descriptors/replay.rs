@@ -300,28 +300,12 @@ pub(crate) fn result_origins(
     replay
         .summary(identity, 0)?
         .result
-        .into_slots()?
-        .into_iter()
+        .slots_without_contents()?
+        .iter()
         .find(|slot| slot.path.is_empty())?
         .origins
-        .into_iter()
-        .map(|origin| result_origin(types, machine, origin))
-        .collect()
-}
-pub(crate) fn return_origins(
-    types: &[StructuralTypeDeclaration],
-    machines: &[DescriptorMachine],
-    identity: MachineId,
-    position: DescriptorPosition,
-    location: &DescriptorLocation,
-) -> Option<Vec<DescriptorResultOrigin>> {
-    let mut replay = Replay::new(types, machines);
-    let machine = replay.machine(identity)?;
-    let states = replay.states(identity, 0)?;
-    replay
-        .read(machine, states.get(&position)?, location)?
         .iter()
-        .map(|origin| result_origin(types, machine, replay.exported(machine, origin)?))
+        .map(|origin| result_origin(types, machine, origin.clone()))
         .collect()
 }
 pub(crate) fn return_slots_have_external_backing(

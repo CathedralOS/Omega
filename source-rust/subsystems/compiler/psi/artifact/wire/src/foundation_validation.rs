@@ -574,10 +574,11 @@ pub(crate) mod call_foundations {
     }
 
     pub(crate) fn validate_call_structural(
-        module: &TerminalModule,
+        analyses: &terminal_semantics::ModuleAnalyses<'_>,
         machine: &TerminalMachine,
         operation: &Operation,
     ) -> Result<(), CodecError> {
+        let module = analyses.module();
         let (call_structural_pair_pattern!(
             callee,
             structural_arguments,
@@ -671,7 +672,7 @@ pub(crate) mod call_foundations {
             .iter()
             .any(|row| !expected_result.projected_qualifications.contains(row))
         {
-            let preserved = terminal_semantics::ReferenceResultMemberships::new(module)
+            let preserved = terminal_semantics::ReferenceResultMemberships::new_in(analyses)
                 .for_operation(machine, operation)
                 .map_err(CodecError::MalformedStructuralFoundation)?;
             let unpreserved = actual_result
@@ -3164,17 +3165,17 @@ pub(crate) mod installed_interrupts {
 /// enclosing selected case from the same shared mechanisms checking uses.
 mod empty_elimination_foundations {
     use super::*;
+    use terminal_semantics::DescriptorRows;
     use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
-    use terminal_semantics::descriptor_results::{
-        DescriptorAnalysis, DescriptorCasePredicate, terminal_graph_from,
-    };
+    use terminal_semantics::descriptor_results::{DescriptorCasePredicate, DescriptorSlotKind};
     use terminal_semantics::inhabitation::{Inhabitation, Status, TerminalContracts};
 
     pub(super) fn validate(
-        module: &TerminalModule,
+        analyses: &terminal_semantics::ModuleAnalyses<'_>,
         contracts: &TerminalContracts<'_>,
         inhabitation: &Inhabitation,
     ) -> Result<(), CodecError> {
+        let module = analyses.module();
         let machines = module
             .machines
             .iter()
@@ -3188,18 +3189,21 @@ mod empty_elimination_foundations {
         if machines.is_empty() {
             return Ok(());
         }
-        let graph = terminal_graph_from(module, machines.iter().map(|machine| machine.id));
-        let mut analysis = DescriptorAnalysis::new(&module.types.structural_types, &graph);
+        // A closure with an incomplete row gets an empty analysis, which
+        // establishes no enclosing case.
+        let rows = analyses
+            .descriptor_closure(
+                DescriptorSlotKind::Views,
+                machines.iter().map(|machine| machine.id),
+            )
+            .unwrap_or(DescriptorRows::Owned(Vec::new()));
+        let mut analysis = analyses.analysis(DescriptorSlotKind::Views, &rows);
         // The same module-aware walk stage 06 judges with: a call made while
         // borrowed storage is vacant is judged by its callee in this module.
-        let summaries = terminal_semantics::plain_affine::AffineSummaries::new(module);
         for machine in machines {
-            let availability = terminal_semantics::plain_affine::MachineAffine::new(
-                module,
-                machine.id,
-                Some(&summaries),
-            )
-            .and_then(|walk| walk.verify())
+            let availability = analyses
+                .affine(machine.id)
+                .and_then(|walk| walk.verify())
             .map_err(|_| {
                 CodecError::MalformedStructuralFoundation(
                     "empty elimination has no complete value-availability judgment",
@@ -3336,7 +3340,8 @@ mod empty_elimination_foundations {
         fn admitted(module: &TerminalModule) -> Result<(), CodecError> {
             let contracts = TerminalContracts::new(&module.types.structural_types);
             let query = Inhabitation::prepare(&contracts).unwrap();
-            validate(module, &contracts, &query)
+            let analyses = terminal_semantics::ModuleAnalyses::new(module).unwrap();
+            validate(&analyses, &contracts, &query)
         }
 
         #[test]
@@ -3555,10 +3560,11 @@ pub(crate) mod machine_foundations {
     };
 
     pub(crate) fn validate_machine(
-        module: &TerminalModule,
+        analyses: &terminal_semantics::ModuleAnalyses<'_>,
         machine: &TerminalMachine,
         inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     ) -> Result<(), CodecError> {
+        let module = analyses.module();
         if let Err(reason) = machine.validate_parameter_order() {
             return malformed(reason);
         }
@@ -3603,8 +3609,14 @@ pub(crate) mod machine_foundations {
         for block in &machine.blocks {
             let mut previous = None;
             for operation in &block.operations {
-                validate_operation_foundation(module, machine, operation, previous, &scalar_index)
-                    .map_err(|error| {
+                validate_operation_foundation(
+                    analyses,
+                    machine,
+                    operation,
+                    previous,
+                    &scalar_index,
+                )
+                .map_err(|error| {
                         super::operation_foundation_error(
                             module, machine, block.id, operation, error,
                         )
@@ -4839,7 +4851,10 @@ pub(crate) mod scalar_applications {
         ScalarRangeObservation, TargetMachineCallable, TerminalModule,
     };
 
-    pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
+    pub(crate) fn validate(
+        analyses: &terminal_semantics::ModuleAnalyses<'_>,
+    ) -> Result<(), CodecError> {
+        let module = analyses.module();
         super::proof_scope::validate(
             &module.scalars.scalar_applications.proof_scope,
             &module.identities,
@@ -4996,7 +5011,7 @@ pub(crate) mod scalar_applications {
             .map(|(_, owner)| *owner)
             .collect::<std::collections::BTreeSet<_>>();
         for machine in &module.machines {
-            for (_, expected) in terminal_semantics::layout_call_conditions(module, machine)
+            for (_, expected) in terminal_semantics::layout_call_conditions_in(analyses, machine)
                 .map_err(CodecError::MalformedStructuralFoundation)?
             {
                 let ScalarConditionSubject::Declaration(owner) = expected.subject else {
@@ -5015,8 +5030,9 @@ pub(crate) mod scalar_applications {
                     );
                 }
             }
-            for expected in terminal_semantics::array_extent_literal_conditions(module, machine)
-                .map_err(CodecError::MalformedStructuralFoundation)?
+            for expected in
+                terminal_semantics::array_extent_literal_conditions_in(analyses, machine)
+                    .map_err(CodecError::MalformedStructuralFoundation)?
             {
                 let ScalarConditionSubject::Declaration(owner) = expected.subject else {
                     return malformed(
@@ -5038,8 +5054,9 @@ pub(crate) mod scalar_applications {
                 .ok_or(CodecError::MalformedStructuralFoundation(
                     "target arithmetic has repeated scalar values",
                 ))?;
-                for expected in terminal_semantics::target_scalar_ranges(module, machine, &types)
-                    .map_err(CodecError::MalformedStructuralFoundation)?
+                for expected in
+                    terminal_semantics::target_scalar_ranges_in(analyses, machine, &types)
+                        .map_err(CodecError::MalformedStructuralFoundation)?
                 {
                     if !pending.contains(&expected.owner)
                         || !conditions
@@ -5171,6 +5188,11 @@ pub(crate) mod scalar_applications {
             ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration,
             TerminalIdentityIndex,
         };
+
+        /// Ingress validates against one shared bundle per module.
+        fn validate(module: &TerminalModule) -> Result<(), CodecError> {
+            super::validate(&terminal_semantics::ModuleAnalyses::new(module).unwrap())
+        }
 
         #[test]
         fn ground_layout_call_replays_its_exact_pending_condition() {
@@ -6714,9 +6736,9 @@ pub(crate) mod storage_foundations {
         use super::*;
         use semantic_vocabulary::ValueId;
         use terminal_psi::StructuralArgument;
+        use terminal_semantics::DescriptorRows;
         use terminal_semantics::descriptor_results::{
-            DescriptorAnalysis, ElementPayloadMemberships, element_payload_memberships,
-            terminal_graph_from,
+            DescriptorSlotKind, ElementPayloadMemberships, element_payload_memberships,
         };
         use terminal_semantics::{
             collection_backing, collection_view_descriptor, element_view_read_scalar,
@@ -6796,10 +6818,11 @@ pub(crate) mod storage_foundations {
         }
 
         pub(crate) fn validate_establish_element_view(
-            module: &TerminalModule,
+            analyses: &terminal_semantics::ModuleAnalyses<'_>,
             machine: &TerminalMachine,
             operation: &Operation,
         ) -> Result<(), CodecError> {
+            let module = analyses.module();
             let OperationKind::EstablishElementView { .. } = &operation.kind else {
                 unreachable!("dispatched validate_establish_element_view")
             };
@@ -6817,15 +6840,16 @@ pub(crate) mod storage_foundations {
                     "element-view establishment requires its exact borrowed result place",
                 );
             }
-            validate_element_memberships(module, machine, operation)?;
+            validate_element_memberships(analyses, machine, operation)?;
             Ok(())
         }
 
         pub(crate) fn validate_establish_mutable_element_view(
-            module: &TerminalModule,
+            analyses: &terminal_semantics::ModuleAnalyses<'_>,
             machine: &TerminalMachine,
             operation: &Operation,
         ) -> Result<(), CodecError> {
+            let module = analyses.module();
             let OperationKind::EstablishMutableElementView { .. } = &operation.kind else {
                 unreachable!("dispatched validate_establish_mutable_element_view")
             };
@@ -6845,7 +6869,7 @@ pub(crate) mod storage_foundations {
                     "mutable element-view establishment requires its exact borrowed result place",
                 );
             }
-            validate_element_memberships(module, machine, operation)?;
+            validate_element_memberships(analyses, machine, operation)?;
             Ok(())
         }
 
@@ -6868,11 +6892,12 @@ pub(crate) mod storage_foundations {
         }
 
         pub(crate) fn validate_element_view_subslice(
-            module: &TerminalModule,
+            analyses: &terminal_semantics::ModuleAnalyses<'_>,
             machine: &TerminalMachine,
             operation: &Operation,
             previous: Option<&Operation>,
         ) -> Result<(), CodecError> {
+            let module = analyses.module();
             let OperationKind::ElementViewSubslice { source, length, .. } = &operation.kind else {
                 unreachable!("dispatched validate_element_view_subslice")
             };
@@ -6923,7 +6948,113 @@ pub(crate) mod storage_foundations {
                     "element-view subslice length does not measure its exact descriptor",
                 );
             }
-            validate_element_memberships(module, machine, operation)?;
+            validate_element_memberships(analyses, machine, operation)?;
+            Ok(())
+        }
+
+        /// A fixed-array reference to a whole view: a shared reference to
+        /// `[T; extent]` whose element is the view's, measured from its exact
+        /// descriptor just before.
+        pub(crate) fn validate_element_view_fixed_array(
+            module: &TerminalModule,
+            machine: &TerminalMachine,
+            operation: &Operation,
+            previous: Option<&Operation>,
+        ) -> Result<(), CodecError> {
+            let OperationKind::ElementViewFixedArray {
+                source,
+                length,
+                extent,
+                ..
+            } = &operation.kind
+            else {
+                unreachable!("dispatched validate_element_view_fixed_array")
+            };
+            let Some(result) = operation.result.structural() else {
+                return malformed("element-view fixed array requires a structural result");
+            };
+            if result.multiplicity != StructuralMultiplicity::Affine
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+            {
+                return malformed(
+                    "element-view fixed array requires one affine unqualified reference carrier",
+                );
+            }
+            if source.access != terminal_psi::StructuralAccess::SharedBorrow {
+                return malformed("element-view fixed array requires shared descriptor access");
+            }
+            let Some(root) = structural_place_type(machine, source.place) else {
+                return malformed("element-view fixed array has no source declaration");
+            };
+            let selected = validate_structural_path(module, root, &source.path)?;
+            let byte = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid");
+            let (element, measured) = match module.structural_type(selected).map(|row| &row.shape)
+            {
+                Some(StructuralTypeShape::ElementView { element, .. }) => (
+                    Some(*element),
+                    is_element_view_measurement(previous, source, *length),
+                ),
+                Some(shape) if shape.is_borrowed_byte_view() => (
+                    None,
+                    previous.is_some_and(|measurement| {
+                        measurement
+                            .result
+                            .scalar_ref()
+                            .is_some_and(|result| result.id == *length)
+                            && matches!(
+                                &measurement.kind,
+                                OperationKind::ByteSequenceLength { source: observed }
+                                    if terminal_semantics::same_descriptor_coordinate(observed, source)
+                            )
+                    }),
+                ),
+                _ => {
+                    return malformed(
+                        "element-view fixed array requires an element or byte view source",
+                    );
+                }
+            };
+            let Some(StructuralTypeShape::Reference {
+                referent,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            }) = module
+                .structural_type(result.structural_type)
+                .map(|row| &row.shape)
+            else {
+                return malformed("element-view fixed array requires a shared reference result");
+            };
+            if !module
+                .structural_type(*referent)
+                .is_some_and(|row| match &row.shape {
+                    StructuralTypeShape::FixedArray {
+                        element: array_element,
+                        length: array_length,
+                    } => {
+                        array_length.literal() == Some(*extent)
+                            && match element {
+                                Some(element) => *array_element == element,
+                                None => module.structural_type(*array_element).is_some_and(|row| {
+                                    row.shape
+                                        == StructuralTypeShape::PrimitiveScalar(
+                                            ScalarType::Integer(byte),
+                                        )
+                                }),
+                            }
+                    }
+                    _ => false,
+                })
+            {
+                return malformed(
+                    "element-view fixed array requires the view's element at its stated extent",
+                );
+            }
+            if !measured {
+                return malformed(
+                    "element-view fixed array length does not measure its exact descriptor",
+                );
+            }
             Ok(())
         }
 
@@ -7007,10 +7138,11 @@ pub(crate) mod storage_foundations {
         }
 
         fn validate_element_memberships(
-            module: &TerminalModule,
+            analyses: &terminal_semantics::ModuleAnalyses<'_>,
             machine: &TerminalMachine,
             operation: &Operation,
         ) -> Result<(), CodecError> {
+            let module = analyses.module();
             let Some(result) = operation.result.structural() else {
                 return malformed("element membership result is absent");
             };
@@ -7046,8 +7178,12 @@ pub(crate) mod storage_foundations {
                 .ok_or(CodecError::MalformedStructuralFoundation(
                     "view introduction position is absent",
                 ))?;
-            let graph = terminal_graph_from(module, [machine.id]);
-            let mut analysis = DescriptorAnalysis::new(&module.types.structural_types, &graph);
+            // A body whose closure has an incomplete row gets an empty
+            // analysis, which proves no source payload.
+            let rows = analyses
+                .descriptor_closure(DescriptorSlotKind::Views, [machine.id])
+                .unwrap_or(DescriptorRows::Owned(Vec::new()));
+            let mut analysis = analyses.analysis(DescriptorSlotKind::Views, &rows);
             let evidence = element_payload_memberships(
                 &module.types.structural_types,
                 &module.types.structural_domains,
@@ -11049,7 +11185,6 @@ use terminal_semantics::{
     scalar_array_leaf_shape, shared_boundary_buffer_capacity, stored_view_field_presentation,
     structural_memberships_disjoint_from_write, validate_access_lifecycle_plans,
     validate_access_view_plans, validate_dynamic_reference_regions,
-    validate_runtime_evidence_inputs,
 };
 
 pub(crate) fn declared_scalar_type(
@@ -11718,15 +11853,20 @@ pub(crate) fn validate_storage_foundation(module: &TerminalModule) -> Result<(),
     Ok(())
 }
 
-pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
+pub(crate) fn validate_structural_foundation(
+    analyses: &terminal_semantics::ModuleAnalyses<'_>,
+) -> Result<(), CodecError> {
+    let module = analyses.module();
     validate_callable_scalar_types(module)?;
     terminal_semantics::calls::callable_refinement::validate_descriptor_refinement_evidence(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     terminal_semantics::callable_envelopes::validate_callable_operational_refinements(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     validate_callable_contracts(module)?;
-    terminal_semantics::calls::callable_refinement::validate_callable_result_refinements(module)
-        .map_err(|error| CodecError::MalformedCallableResult {
+    terminal_semantics::calls::callable_refinement::validate_callable_result_refinements_in(
+        analyses,
+    )
+    .map_err(|error| CodecError::MalformedCallableResult {
             machine: error.machine,
             reason: error.detail,
         })?;
@@ -11768,7 +11908,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             .validate(body)
             .map_err(CodecError::MalformedProposition)?;
     }
-    scalar_applications::validate(module)?;
+    scalar_applications::validate(analyses)?;
     task_activation::validate(module)?;
     module
         .scalars
@@ -11859,7 +11999,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     for candidate in &module.interfaces.provider_candidates {
         declaration_foundations::validate_provider_candidate(module, candidate)?;
     }
-    terminal_semantics::references::validate_provider_reference_outputs(module)
+    terminal_semantics::references::validate_provider_reference_outputs_in(analyses)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     for row in &module.interfaces.provider_instance_requirements {
         if std::iter::once(row.template)
@@ -11946,20 +12086,25 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             module,
         );
     for machine in &module.machines {
-        machine_foundations::validate_machine(module, machine, &inhabitation)?;
-        terminal_semantics::content_transformations::forwarding::checked_returns(module, machine)
-            .map_err(CodecError::MalformedStructuralFoundation)?;
+        machine_foundations::validate_machine(analyses, machine, &inhabitation)?;
+        terminal_semantics::content_transformations::forwarding::checked_returns_in(
+            analyses, machine,
+        )
+        .map_err(CodecError::MalformedStructuralFoundation)?;
         if has_boundary_content || !machine.content_partition_compositions.is_empty() {
-            terminal_semantics::content_transformations::boundary_calls::verify_machine(
-                module, machine,
+            terminal_semantics::content_transformations::boundary_calls::verify_machine_in(
+                analyses, machine,
             )
             .map_err(CodecError::MalformedStructuralFoundation)?;
         }
     }
-    empty_elimination_foundations::validate(module, &contracts, &inhabitation)?;
+    empty_elimination_foundations::validate(analyses, &contracts, &inhabitation)?;
     terminal_semantics::activation_storage::validate_module(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
-    validate_runtime_evidence_inputs(module).map_err(CodecError::MalformedStructuralFoundation)?;
+    terminal_semantics::calls::evidence_calls::validate_runtime_evidence_inputs_with_analyses(
+        analyses,
+    )
+    .map_err(CodecError::MalformedStructuralFoundation)?;
     Ok(())
 }
 
@@ -12305,12 +12450,13 @@ pub(crate) fn operation_foundation_error(
 }
 
 fn validate_operation_foundation(
-    module: &TerminalModule,
+    analyses: &terminal_semantics::ModuleAnalyses<'_>,
     machine: &TerminalMachine,
     operation: &Operation,
     previous: Option<&Operation>,
     scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
 ) -> Result<(), CodecError> {
+    let module = analyses.module();
     if let OperationKind::SelectMachine { descriptor } = operation.kind {
         let selected = module.execution.callables.descriptor(descriptor).ok_or(
             CodecError::MalformedStructuralFoundation(
@@ -12411,7 +12557,7 @@ fn validate_operation_foundation(
             storage_foundations::validate_byte_sequence_subslice(module, machine, operation)?
         }
         OperationKind::EstablishElementView { .. } => {
-            storage_foundations::validate_establish_element_view(module, machine, operation)?
+            storage_foundations::validate_establish_element_view(analyses, machine, operation)?
         }
         OperationKind::EstablishActivationClaim { committed, .. } => {
             if !is_fixed_u64(declared_scalar_type(machine, *committed)) {
@@ -12454,7 +12600,7 @@ fn validate_operation_foundation(
         }
         OperationKind::EstablishMutableElementView { .. } => {
             storage_foundations::validate_establish_mutable_element_view(
-                module, machine, operation,
+                analyses, machine, operation,
             )?
         }
         OperationKind::ElementViewLength { .. } => {
@@ -12465,6 +12611,11 @@ fn validate_operation_foundation(
         }
         OperationKind::ElementViewSubslice { .. } => {
             storage_foundations::validate_element_view_subslice(
+                analyses, machine, operation, previous,
+            )?
+        }
+        OperationKind::ElementViewFixedArray { .. } => {
+            storage_foundations::validate_element_view_fixed_array(
                 module, machine, operation, previous,
             )?
         }
@@ -12569,7 +12720,9 @@ fn validate_operation_foundation(
         OperationKind::CallStructuralScalar { .. } => {
             validate_call_structural_scalar(module, operation)?
         }
-        call_structural_pair_pattern!(..) => validate_call_structural(module, machine, operation)?,
+        call_structural_pair_pattern!(..) => {
+            validate_call_structural(analyses, machine, operation)?
+        }
         OperationKind::BoundaryCall { .. } => validate_boundary_call(module, machine, operation)?,
         OperationKind::PortWrite { .. } => validate_port_write(module, operation)?,
         OperationKind::ActivateTaskRegister { .. }

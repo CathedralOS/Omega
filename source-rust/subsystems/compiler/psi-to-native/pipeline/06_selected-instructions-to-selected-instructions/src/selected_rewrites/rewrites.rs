@@ -789,6 +789,9 @@ pub(crate) mod pre_allocation {
         use std::collections::BTreeSet;
 
         use crate::selected_rewrites::analyses::prepared_machine_effect_catalog;
+        use crate::selected_rewrites::analyses::{
+            RecoveryReanalysisError, reanalyze_rewritten_functions,
+        };
         use crate::selected_rewrites::rewrites::condition_state::adjacency;
         use crate::selected_rewrites::rewrites::{
             SelectedFunction, address_fold_measured_steps, constant_boolean_measured_steps,
@@ -813,7 +816,7 @@ pub(crate) mod pre_allocation {
             ValidatedPreAllocationTransformation,
         };
         use crate::selected_rewrites::{
-            analyze_allocation_legality, analyze_live_ranges, analyze_liveness,
+            ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
             resolve_pre_allocation_rules,
         };
         use optimization_core::{
@@ -1606,27 +1609,65 @@ pub(crate) mod pre_allocation {
             })
         }
 
+        /// The program a rewrite started from and its validated analyses.
+        /// The rewritten program's analyses are these with only the
+        /// functions the rewrite changed recomputed.
+        struct RewriteBase<'facts> {
+            selected: SelectedProgramRef<'facts>,
+            liveness: &'facts ValidatedLiveness,
+            ranges: &'facts ValidatedLiveRanges,
+            legality: &'facts ValidatedAllocationLegality,
+        }
+
+        impl<'facts> RewriteBase<'facts> {
+            fn of(
+                source: &'facts StagedOptimizedAllocationLegality,
+                steps: &'facts [StagedOptimizedPreAllocationStep],
+            ) -> Self {
+                match steps.last() {
+                    Some(step) => Self {
+                        selected: SelectedProgramRef::new(&step.transformation),
+                        liveness: &step.liveness,
+                        ranges: &step.ranges,
+                        legality: &step.legality,
+                    },
+                    None => Self {
+                        selected: SelectedProgramRef::new(source.selected()),
+                        liveness: source.liveness(),
+                        ranges: source.ranges(),
+                        legality: source.legality(),
+                    },
+                }
+            }
+        }
+
         fn complete_transformation(
             transformation: ValidatedPreAllocationTransformation,
             declined: usize,
             evaluated: usize,
+            base: RewriteBase<'_>,
             source: &StagedOptimizedAllocationLegality,
         ) -> Result<StagedOptimizedPreAllocationStep, OptimizedPreAllocationCustodyError> {
-            let environment = source.register_environment();
-            let liveness = analyze_liveness(&transformation)
-                .map_err(OptimizedPreAllocationCustodyError::Liveness)?;
-            let ranges = analyze_live_ranges(&transformation, &liveness)
-                .map_err(OptimizedPreAllocationCustodyError::LiveRanges)?;
-            let legality = analyze_allocation_legality(
-                &ranges,
+            let (liveness, ranges, legality) = reanalyze_rewritten_functions(
+                &base.selected,
+                base.liveness,
+                base.ranges,
+                base.legality,
+                &transformation,
                 source.allocator_availability(),
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &environment.allocation_constraint_keys(),
+                source.register_environment(),
             )
-            .map_err(OptimizedPreAllocationCustodyError::AllocationLegality)?;
+            .map_err(|error| match error {
+                RecoveryReanalysisError::Liveness(error) => {
+                    OptimizedPreAllocationCustodyError::Liveness(error)
+                }
+                RecoveryReanalysisError::Ranges(error) => {
+                    OptimizedPreAllocationCustodyError::LiveRanges(error)
+                }
+                RecoveryReanalysisError::Legality(error) => {
+                    OptimizedPreAllocationCustodyError::AllocationLegality(error)
+                }
+            })?;
             let transition_count = legality.receipt().entry_transition_count();
             if transition_count != 0 {
                 return Err(OptimizedPreAllocationCustodyError::RemainingTransitions {
@@ -1835,8 +1876,13 @@ pub(crate) mod pre_allocation {
                         }
                         usage = add_usage(usage, pass_usage(evaluated, validation_steps, 1)?)?;
                         ensure_pre_allocation_budget(usage, budget)?;
-                        let step =
-                            complete_transformation(transformation, declined, evaluated, source)?;
+                        let step = complete_transformation(
+                            transformation,
+                            declined,
+                            evaluated,
+                            RewriteBase::of(source, &steps),
+                            source,
+                        )?;
                         let current_measure = measure(
                             step.transformation.transformed(),
                             step.legality.receipt().virtual_register_count(),

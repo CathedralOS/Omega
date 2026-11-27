@@ -335,7 +335,6 @@ mod tests {
                 .produce(
                     crate::TerminalProductionCustody {
                         invocation_sources: consent,
-                        ..Default::default()
                     },
                     &mut artifacts::compile_timings::CompileTimings::default(),
                 )

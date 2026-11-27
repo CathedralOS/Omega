@@ -2722,23 +2722,31 @@ impl<'t> Program<'t> {
                 }
                 TheoremInput::Record { record, leaves } => {
                     let expression = self.expression(id, slots, *argument, None)?;
-                    let ExpressionKind::Slot(slot) = expression.kind else {
+                    if !matches!(expression.result, Some(ValueType::Record(own, Qualification::NONE, _)) if own == record)
+                    {
+                        return Err(unavailable(
+                            "logical data subject is not a named record formal",
+                        ));
+                    }
+                    // `p.inner` names the record stored at that path of the
+                    // record formal `p`: each subject is read beneath it.
+                    let (root, prefix) = self.record_formal_path(id, expression)?;
+                    let ExpressionKind::Slot(slot) = root.kind else {
                         return Err(unavailable(
                             "logical data subject is not a named record formal",
                         ));
                     };
-                    if !matches!(expression.result, Some(ValueType::Record(own, Qualification::NONE, _)) if own == record)
-                        || slots
-                            .get(slot)
-                            .is_none_or(|held| held.erased || held.borrowed.is_some())
+                    if slots
+                        .get(slot)
+                        .is_none_or(|held| held.erased || held.borrowed.is_some())
                     {
                         return Err(unavailable(
                             "logical data subject is not a named record formal",
                         ));
                     }
                     for (path, _) in leaves {
-                        arguments.push(expression.clone());
-                        fields.push(path);
+                        arguments.push(root.clone());
+                        fields.push(prefix.iter().copied().chain(path).collect());
                     }
                 }
             }
@@ -2754,6 +2762,46 @@ impl<'t> Program<'t> {
             result: None,
             source,
         }))
+    }
+
+    /// The named record beneath a chain of field projections of plain
+    /// records, and the path of those fields from it, outermost first.
+    fn record_formal_path(
+        &self,
+        id: MachineId,
+        mut expression: Expression,
+    ) -> Checked<(
+        Expression,
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    )> {
+        let mut path = Vec::new();
+        while let ExpressionKind::Field { base, field } = expression.kind {
+            let Some(ValueType::Record(record, Qualification::NONE, _)) = base.result else {
+                return Err(refuse_at(
+                    id,
+                    Unserved::Expression("logical data subject is a field of another carrier"),
+                ));
+            };
+            let declared = self.data_type(id, record)?;
+            let crate::StorageShape::Record(declared) = &declared.shape else {
+                return Err(refuse_at(
+                    id,
+                    Unserved::Expression("logical data subject is a field of another carrier"),
+                ));
+            };
+            let field = declared.get(field).ok_or_else(|| {
+                refuse_at(
+                    id,
+                    Unserved::Expression("logical data subject names no declared field"),
+                )
+            })?;
+            path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                field.id,
+            ));
+            expression = *base;
+        }
+        path.reverse();
+        Ok((expression, path))
     }
 
     /// Both source call forms expose one retained static application and the
@@ -4814,6 +4862,7 @@ impl Touches<'_> {
             | ExpressionKind::Requalify(operand)
             | ExpressionKind::Establish { operand, .. }
             | ExpressionKind::CollectionView { base: operand, .. }
+            | ExpressionKind::CollectionFixedArray { base: operand, .. }
             | ExpressionKind::StorageLocation { place: operand, .. }
             | ExpressionKind::CollectionMeasure { base: operand, .. }
             | ExpressionKind::ByteSequencePredicate { base: operand, .. }

@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[features]
-test-support = []
-
 [dependencies]
 build-time-evaluation = { path = "../../../build/build-time" }
 build-providers = { path = "../../../build/providers" }

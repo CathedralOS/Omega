@@ -200,14 +200,6 @@ impl NativeProviderProcess {
         })
     }
 
-    pub fn install_published(
-        &mut self,
-        adapter: &PublishedForeignAdapterIdentity,
-        storage: &[NativeParameterStorage],
-    ) -> Result<NativeAdapterId, NativeProviderError> {
-        self.install_published_with_result(adapter, storage, NativeResultStorage::Value)
-    }
-
     /// Result storage comes from the host's complete admitted boundary
     /// contract. An adapter's pointer-shaped ABI alone grants no referent.
     pub fn install_published_with_result(

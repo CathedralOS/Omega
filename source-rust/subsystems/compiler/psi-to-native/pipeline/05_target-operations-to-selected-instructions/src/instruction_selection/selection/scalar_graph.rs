@@ -6,43 +6,32 @@ atomic accesses, and control-flow terminators while delegating structural
 place-backed operations to `selection_structural`.
 */
 
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::constraints::{
     fixed_input_constraint, row,
 };
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::construction::scalar_graph::structural::operation_provenance;
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::literal_compare_input::{
     folded_immediate, folded_zero,
 };
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::model::SelectedInstructionError;
-#[allow(unused_imports)]
 pub(crate) use crate::instruction_selection::selection::scalar_call_abi::{
     incoming_float_transfer, integer_carrier_normalization, scalar_stack_placement,
 };
-#[allow(unused_imports)]
 pub(crate) use calling_conventions::ValueLocation;
-#[allow(unused_imports)]
 pub(crate) use legalized_operations::{
     LegalizedScalarInstructionKind, SaturatingCarrier, TrappingForm, TrappingOperation,
 };
-#[allow(unused_imports)]
 pub(crate) use operation_evidence::provenance::ValueDefinitionSite;
-#[allow(unused_imports)]
 pub(crate) use register_model::{
     PreparedRegisterConstraintCatalog, RegisterClassId, RegisterConstraintKey,
     RegisterOperandAccess,
 };
-#[allow(unused_imports)]
 pub(crate) use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, MachineSemanticKind, SelectedBlock, SelectedBlockId,
     SelectedConstraintKeys, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedSelectionConstraints,
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-#[allow(unused_imports)]
 pub(crate) use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType, ValueId};
 
 pub(crate) fn value_provenance(value: ValueId) -> SelectedInstructionProvenance {
@@ -7703,6 +7692,7 @@ pub(crate) fn select_function(
                     | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { .. }
+                    | LegalizedScalarInstructionKind::ElementViewFixedArray { .. }
                     | LegalizedScalarInstructionKind::ReleaseReference { .. }
                     | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }

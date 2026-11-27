@@ -37,7 +37,6 @@ pub fn declare_symbol(object: &mut ObjectPlan) -> Result<ObjectSymbolHandle, Err
         offset: 0,
         size: 0,
         kind: SymbolKind::Object,
-        import_library: String::new(),
     }))
 }
 

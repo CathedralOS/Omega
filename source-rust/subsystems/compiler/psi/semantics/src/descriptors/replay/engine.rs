@@ -204,11 +204,12 @@ impl ResultObservations {
             Self::NoNormalBodyObservation => None,
         }
     }
-    pub(crate) fn into_slots(self) -> Option<Vec<DescriptorResultSlot>> {
+    /// The result slots when the result carries no contents.
+    pub(crate) fn slots_without_contents(&self) -> Option<&Vec<DescriptorResultSlot>> {
         match self {
             Self::Observed {
                 slots, contents, ..
-            } => contents.is_empty().then_some(slots)?,
+            } => contents.is_empty().then_some(slots.as_ref())?,
             Self::NoNormalBodyObservation => None,
         }
     }
@@ -250,12 +251,6 @@ impl EffectObservations {
     }
 
     pub(crate) fn observed(&self) -> Option<&Vec<DescriptorStoredEffect>> {
-        match self {
-            Self::Observed(effects) => Some(effects),
-            Self::Incomplete { .. } => None,
-        }
-    }
-    pub(crate) fn into_observed(self) -> Option<Vec<DescriptorStoredEffect>> {
         match self {
             Self::Observed(effects) => Some(effects),
             Self::Incomplete { .. } => None,
@@ -353,12 +348,67 @@ fn carries_backing(shape: &StructuralTypeShape) -> bool {
         )
 }
 
+/// The type index a replay reads. A replay over a `ModuleAnalyses` bundle
+/// borrows the bundle's index; any other replay builds its own.
+pub(crate) enum ReplayTypeIndex<'a> {
+    Built(descriptor_lifetimes::locations::StructuralTypeIndex<'a>),
+    Borrowed(&'a descriptor_lifetimes::locations::StructuralTypeIndex<'a>),
+}
+
+impl<'a> std::ops::Deref for ReplayTypeIndex<'a> {
+    type Target = descriptor_lifetimes::locations::StructuralTypeIndex<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Built(index) => index,
+            Self::Borrowed(index) => index,
+        }
+    }
+}
+
+/// Rows a caller passed as a slice, sorted by machine identity so
+/// `Replay::machine` binary-searches instead of scanning every row. Rows a
+/// bundle shares already resolve through its sorted machine lookup and get
+/// no copy here.
+struct SliceRowsById<'a> {
+    /// Sorted by identity. A repeated identity keeps every row, so a lookup
+    /// sees the repeat and refuses it as the linear scan did.
+    rows: Box<[(MachineId, &'a DescriptorMachine)]>,
+}
+
+impl<'a> SliceRowsById<'a> {
+    fn new(rows: &'a [DescriptorMachine]) -> Self {
+        let mut rows: Box<[_]> = rows.iter().map(|row| (row.id, row)).collect();
+        rows.sort_unstable_by_key(|(identity, _)| *identity);
+        Self { rows }
+    }
+
+    /// The row with this identity when exactly one row has it.
+    fn unique(&self, identity: MachineId) -> Option<&'a DescriptorMachine> {
+        let start = self.rows.partition_point(|(row, _)| *row < identity);
+        match self.rows.get(start..)? {
+            [(first, row), rest @ ..]
+                if *first == identity && rest.first().is_none_or(|(next, _)| *next != identity) =>
+            {
+                Some(*row)
+            }
+            _ => None,
+        }
+    }
+}
+
 pub(crate) struct Replay<'a> {
     pub(crate) types: &'a [StructuralTypeDeclaration],
-    pub(crate) type_index: descriptor_lifetimes::locations::StructuralTypeIndex<'a>,
+    pub(crate) type_index: ReplayTypeIndex<'a>,
     pub(crate) slot_kind: DescriptorSlotKind,
-    pub(crate) machines: &'a [DescriptorMachine],
-    pub(crate) summaries: BTreeMap<MachineId, Option<Summary>>,
+    pub(crate) machines: crate::module_analyses::DescriptorRowView<'a>,
+    /// Present when `machines` is a caller's slice.
+    slice_rows: Option<SliceRowsById<'a>>,
+    /// Summaries are shared, not copied: a summary hit, an adoption from
+    /// `ModuleSummaries` and a publication each clone only the `Arc`. Adding
+    /// a storage frame later copies the summary first if anything else
+    /// still holds it (`Arc::make_mut`).
+    pub(crate) summaries: BTreeMap<MachineId, Option<Arc<Summary>>>,
     pub(crate) snapshots: BTreeMap<MachineId, PreparedStateCache>,
     /// Completed summaries this module's other analyses may already hold.
     pub(crate) shared: Option<&'a super::module_summaries::ModuleSummaries<'a>>,
@@ -439,19 +489,52 @@ impl Drop for DescriptorReadGuard<'_> {
 impl<'a> Replay<'a> {
     pub(crate) fn new(
         types: &'a [StructuralTypeDeclaration],
-        machines: &'a [DescriptorMachine],
+        machines: impl Into<crate::module_analyses::DescriptorRowView<'a>>,
     ) -> Self {
         Self::with_slot_kind(types, machines, DescriptorSlotKind::Views)
     }
     pub(crate) fn with_slot_kind(
         types: &'a [StructuralTypeDeclaration],
-        machines: &'a [DescriptorMachine],
+        machines: impl Into<crate::module_analyses::DescriptorRowView<'a>>,
+        slot_kind: DescriptorSlotKind,
+    ) -> Self {
+        Self::over(
+            types,
+            ReplayTypeIndex::Built(descriptor_lifetimes::locations::StructuralTypeIndex::new(
+                types,
+            )),
+            machines.into(),
+            slot_kind,
+        )
+    }
+
+    /// A replay that reads a type index built elsewhere over `types`, such
+    /// as a `ModuleAnalyses` bundle's.
+    pub(crate) fn with_type_index(
+        types: &'a [StructuralTypeDeclaration],
+        type_index: &'a descriptor_lifetimes::locations::StructuralTypeIndex<'a>,
+        machines: crate::module_analyses::DescriptorRowView<'a>,
+        slot_kind: DescriptorSlotKind,
+    ) -> Self {
+        Self::over(
+            types,
+            ReplayTypeIndex::Borrowed(type_index),
+            machines,
+            slot_kind,
+        )
+    }
+
+    fn over(
+        types: &'a [StructuralTypeDeclaration],
+        type_index: ReplayTypeIndex<'a>,
+        machines: crate::module_analyses::DescriptorRowView<'a>,
         slot_kind: DescriptorSlotKind,
     ) -> Self {
         Self {
             types,
-            type_index: descriptor_lifetimes::locations::StructuralTypeIndex::new(types),
+            type_index,
             slot_kind,
+            slice_rows: machines.as_slice().map(SliceRowsById::new),
             machines,
             summaries: BTreeMap::new(),
             snapshots: BTreeMap::new(),
@@ -633,6 +716,7 @@ impl<'a> Replay<'a> {
             .summaries
             .get_mut(&identity)
             .and_then(Option::as_mut)
+            .map(Arc::make_mut)
             .ok_or("write frame has no prepared body summary")?;
         if summary.storage_frame.writes.is_some() {
             return Ok(());
@@ -644,6 +728,7 @@ impl<'a> Replay<'a> {
         self.summaries
             .get_mut(&identity)
             .and_then(Option::as_mut)
+            .map(Arc::make_mut)
             .ok_or("write frame body summary disappeared")?
             .storage_frame
             .writes = Some(Arc::new(writes));
@@ -664,6 +749,7 @@ impl<'a> Replay<'a> {
             .summaries
             .get_mut(&identity)
             .and_then(Option::as_mut)
+            .map(Arc::make_mut)
             .ok_or("access frame has no prepared body summary")?;
         if summary.storage_frame.accesses.is_some() {
             return Ok(());
@@ -673,6 +759,7 @@ impl<'a> Replay<'a> {
         self.summaries
             .get_mut(&identity)
             .and_then(Option::as_mut)
+            .map(Arc::make_mut)
             .ok_or("access frame body summary disappeared")?
             .storage_frame
             .accesses = Some(Arc::new(accesses));
@@ -811,13 +898,13 @@ impl<'a> Replay<'a> {
         Ok(Some(normalized))
     }
 
+    /// The row for this machine, or `None` when no row or more than one row
+    /// has its identity.
     pub(crate) fn machine(&self, identity: MachineId) -> Option<&'a DescriptorMachine> {
-        let mut rows = self
-            .machines
-            .iter()
-            .filter(|machine| machine.id == identity);
-        let row = rows.next()?;
-        rows.next().is_none().then_some(row)
+        match &self.slice_rows {
+            Some(rows) => rows.unique(identity),
+            None => self.machines.unique(identity),
+        }
     }
     pub(crate) fn parameter(
         &self,
@@ -902,9 +989,9 @@ impl<'a> Replay<'a> {
             if let Some(path) = path {
                 // A byte view's selected element has a stored address
                 // without a separate structural declaration.
-                let tip = crate::runtime_read_projection_tip(&self.type_index, ty, &path);
+                let tip = crate::runtime_read_projection_tip(&*self.type_index, ty, &path);
                 if tip.is_none()
-                    && crate::runtime_structural_field(&self.type_index, ty, &path).is_none()
+                    && crate::runtime_structural_field(&*self.type_index, ty, &path).is_none()
                 {
                     return Err("captured storage source has no exact declared path");
                 }
@@ -1509,6 +1596,27 @@ impl<'a> Replay<'a> {
                             }
                             let suffix = &full[prefix_path.len() + 1..];
                             let root_type = *machine.place_types.get(source)?;
+                            // A fixed-array reference to an incoming view's window
+                            // names that window of the view's payload, which
+                            // has no storage path in this machine.
+                            if crate::descriptor_results::is_descriptor(
+                                self.types.iter(),
+                                root_type,
+                            ) && self.parameter(machine, *source).is_some()
+                            {
+                                projected.push(self.append_storage_capture(
+                                    machine,
+                                    state,
+                                    &StorageResolution::Projected(DescriptorCallOrigin::Argument {
+                                        source: *source,
+                                        projection: projection.clone(),
+                                    }),
+                                    suffix,
+                                    depth,
+                                    expansions.clone(),
+                                )?);
+                                continue;
+                            }
                             let candidates = match projection.captured_address_path() {
                                 Ok(path) if path.contains(&StructuralPathSegment::Referent) => {
                                     unavailable.get_or_insert(
@@ -3469,7 +3577,7 @@ impl<'a> Replay<'a> {
         &mut self,
         call: &DescriptorInvocation,
         depth: usize,
-    ) -> Option<Summary> {
+    ) -> Option<Arc<Summary>> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summary(*machine, depth),
             target @ DescriptorInvocationTarget::Public {
@@ -3478,9 +3586,9 @@ impl<'a> Replay<'a> {
             } => {
                 let effects = self.summary(*machine, depth)?;
                 let mut summary = direct_target_summary(target)?;
-                summary.effects = effects.effects;
+                summary.effects = effects.effects.clone();
                 summary.invalidates_contents |= effects.invalidates_contents;
-                Some(summary)
+                Some(Arc::new(summary))
             }
             DescriptorInvocationTarget::Public { realizations, .. }
                 if !realizations.is_empty() =>
@@ -3489,16 +3597,19 @@ impl<'a> Replay<'a> {
                     .iter()
                     .map(|machine| self.summary(*machine, depth))
                     .collect::<Option<Vec<_>>>()?;
-                Some(join(direct_target_summary(&call.target)?, &summaries))
+                Some(Arc::new(join(
+                    direct_target_summary(&call.target)?,
+                    &summaries,
+                )))
             }
-            target => direct_target_summary(target),
+            target => direct_target_summary(target).map(Arc::new),
         }
     }
 
     pub(crate) fn cached_invocation_summary(
         &self,
         call: &DescriptorInvocation,
-    ) -> Option<Summary> {
+    ) -> Option<Arc<Summary>> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => {
                 self.summaries.get(machine)?.clone()
@@ -3511,7 +3622,7 @@ impl<'a> Replay<'a> {
                 let mut summary = direct_target_summary(target)?;
                 summary.effects = effects.effects.clone();
                 summary.invalidates_contents |= effects.invalidates_contents;
-                Some(summary)
+                Some(Arc::new(summary))
             }
             DescriptorInvocationTarget::Public { realizations, .. }
                 if !realizations.is_empty() =>
@@ -3520,9 +3631,12 @@ impl<'a> Replay<'a> {
                     .iter()
                     .map(|machine| self.summaries.get(machine)?.clone())
                     .collect::<Option<Vec<_>>>()?;
-                Some(join(direct_target_summary(&call.target)?, &summaries))
+                Some(Arc::new(join(
+                    direct_target_summary(&call.target)?,
+                    &summaries,
+                )))
             }
-            target => direct_target_summary(target),
+            target => direct_target_summary(target).map(Arc::new),
         }
     }
 
@@ -4040,7 +4154,7 @@ impl<'a> Replay<'a> {
             }
         }
     }
-    pub(crate) fn summary(&mut self, identity: MachineId, depth: usize) -> Option<Summary> {
+    pub(crate) fn summary(&mut self, identity: MachineId, depth: usize) -> Option<Arc<Summary>> {
         if let Some(requests) = self.requested.last_mut() {
             requests.push(identity);
         }
@@ -4061,7 +4175,7 @@ impl<'a> Replay<'a> {
     /// could differ: a callee whose summary or states failed or are in
     /// progress in this analysis, or a call chain deep enough to reach the
     /// depth bound from this depth. That replay then runs here instead.
-    fn adopted_summary(&mut self, identity: MachineId, depth: usize) -> Option<Summary> {
+    fn adopted_summary(&mut self, identity: MachineId, depth: usize) -> Option<Arc<Summary>> {
         let shared = self.shared?;
         let entry = shared.get(identity)?;
         if entry
@@ -4100,7 +4214,7 @@ impl<'a> Replay<'a> {
         Some(entry.summary.clone())
     }
 
-    fn publish_summary(&self, identity: MachineId, summary: &Summary, replayed_states: bool) {
+    fn publish_summary(&self, identity: MachineId, summary: &Arc<Summary>, replayed_states: bool) {
         let Some(shared) = self.shared else {
             return;
         };
@@ -4138,9 +4252,14 @@ impl<'a> Replay<'a> {
     }
 
     /// The summary and whether finding it replayed this machine's states.
-    fn replayed_summary(&mut self, identity: MachineId, depth: usize) -> Option<(Summary, bool)> {
+    fn replayed_summary(
+        &mut self,
+        identity: MachineId,
+        depth: usize,
+    ) -> Option<(Arc<Summary>, bool)> {
         let machine = self.machine(identity)?;
         if let Some(summary) = self.empty_interface_summary(machine) {
+            let summary = Arc::new(summary);
             self.summaries.insert(identity, Some(summary.clone()));
             return Some((summary, false));
         }
@@ -4199,6 +4318,7 @@ impl<'a> Replay<'a> {
                 invalidates_contents: states.values().any(|state| state.contents_invalidated),
                 storage_frame: StorageFrame::default(),
             };
+            let summary = Arc::new(summary);
             self.summaries.insert(identity, Some(summary.clone()));
             return Some((summary, true));
         }
@@ -4478,6 +4598,7 @@ impl<'a> Replay<'a> {
             invalidates_contents,
             storage_frame: StorageFrame::default(),
         };
+        let summary = Arc::new(summary);
         self.summaries.insert(identity, Some(summary.clone()));
         Some((summary, true))
     }

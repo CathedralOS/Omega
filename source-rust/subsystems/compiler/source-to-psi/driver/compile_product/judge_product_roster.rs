@@ -80,19 +80,9 @@ pub(super) fn prepare_roster(
     let source_admission = prepare_typed_source::SourceAdmission {
         invocation_sources: None,
         entry_applications: pass.roots.applications(),
-        // Roots belong to structural judgment below, rather than to a deleted
-        // source-checking admission or projection.
-        external_roots: &[],
         layout_scopes: &layout_scopes,
         layout_selection_authority: build.declaration_scope.clone(),
-        representations: prepare_typed_source::ProductRepresentationInput {
-            activation: pass.activation,
-            declared: build.policy.declared,
-            executed: build.policy.executed,
-            retained: &pass.representations,
-        },
-        wire_demands: &pass.declarations.wire_demands,
-        declarations: None,
+        representations: &pass.representations,
     };
 
     let inspection_root = match pass.entry {

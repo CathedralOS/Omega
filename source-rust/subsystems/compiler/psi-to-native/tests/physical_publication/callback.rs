@@ -604,17 +604,15 @@ fn check_callback_publication(retain_body_source: bool) {
     );
     let mut changed_import = bindings.clone();
     let mut exchanged = import;
-    exchanged.identity = machine_code::import_code::ImportCodeIdentity::Normalized(
-        target::normalize_foreign_locator(
-            target::ForeignLocatorCandidate::PeByName {
-                library: b"other.dll".to_vec(),
-                export: b"same_registrar".to_vec(),
-            },
-            target::TargetProfile::WindowsX64,
-        )
-        .unwrap()
-        .into(),
-    );
+    exchanged.identity = target::normalize_foreign_locator(
+        target::ForeignLocatorCandidate::PeByName {
+            library: b"other.dll".to_vec(),
+            export: b"same_registrar".to_vec(),
+        },
+        target::TargetProfile::WindowsX64,
+    )
+    .unwrap()
+    .into();
     *Arc::make_mut(&mut changed_import.imports)
         .imports
         .last_mut()
@@ -782,7 +780,7 @@ fn check_callback_publication(retain_body_source: bool) {
     };
     let physical_originals = native_artifact::NativePhysicalOriginals::new(originals).unwrap();
     let entry = native_encoding::callable_entry::encode_private_function_entry(
-        installation_binding::entries::bind_private_entry(
+        entry_planning::installation_binding::entries::bind_private_entry(
             planned_entry.expect("complete callback entry plan"),
         ),
     )
@@ -851,20 +849,25 @@ fn check_callback_publication(retain_body_source: bool) {
     let native_artifact::RequestedNativeArtifact::Direct(native) = requested else {
         panic!("PE image")
     };
+    let derivation = native
+        .physical_evidence()
+        .expect("an audit derives physical evidence from the emitted bytes");
     if !retain_body_source {
-        assert!(native.physical_evidence().is_none());
         assert!(
-            native.physical_evidence_gap().is_some(),
+            matches!(
+                derivation,
+                native_artifact::NativePhysicalEvidenceDerivation::Blocked(_)
+            ),
             "uncovered private body must remain explicit"
         );
         native
             .validate()
-            .expect("receiver retains the same missing-body gap");
+            .expect("receiver accepts the artifact despite the missing-body gap");
         return;
     }
-    let physical = native
-        .physical_evidence()
-        .expect("complete composed physical evidence");
+    let native_artifact::NativePhysicalEvidenceDerivation::Complete(physical) = derivation else {
+        panic!("complete composed physical evidence");
+    };
     // This raw admission input requests full-module emission. Each namespace
     // therefore retains both the registrar and the callback's checked call.
     assert_eq!(physical.children().len(), 2);
@@ -884,10 +887,12 @@ fn check_callback_publication(retain_body_source: bool) {
     native
         .validate()
         .expect("receiver independently rejoins both namespaces and image spans");
-    let mut parts = native.into_parts();
-    parts.physical_evidence = None;
-    assert!(
-        native_artifact::NativeArtifact::from_replayed_parts(parts).is_err(),
-        "cannot strip composed custody"
+    let identity = native.identity();
+    let replayed = native_artifact::NativeArtifact::from_replayed_parts(native.into_parts())
+        .expect("receiver replays the composed parts");
+    assert_eq!(
+        replayed.identity(),
+        identity,
+        "artifact identity is independent of the receiver's evidence pass"
     );
 }

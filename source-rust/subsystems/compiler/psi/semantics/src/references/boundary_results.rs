@@ -12,6 +12,7 @@ use crate::descriptor_results::{
     DescriptorLifetimeDebt, DescriptorProviderOrigin, DescriptorProviderOutput,
     DescriptorResultSlot, DescriptorSlotKind, DescriptorStoredOrigin,
 };
+use crate::descriptors::row_source::DescriptorRowSource;
 
 /// Resolve a declared stored lifetime to the descriptor locations that carry it.
 /// An array family keeps every matching element's loan; the array's own
@@ -108,10 +109,23 @@ pub(crate) fn provider_lifetime_debts(
 pub fn validate_provider_reference_outputs(
     module: &terminal_psi::TerminalModule,
 ) -> Result<(), &'static str> {
+    provider_reference_outputs(&DescriptorRowSource::new(module))
+}
+
+/// `validate_provider_reference_outputs`, reading the realizations'
+/// borrowed-storage rows from the module's shared analyses.
+pub fn validate_provider_reference_outputs_in(
+    analyses: &crate::ModuleAnalyses<'_>,
+) -> Result<(), &'static str> {
+    provider_reference_outputs(&DescriptorRowSource::of(analyses))
+}
+
+fn provider_reference_outputs(rows: &DescriptorRowSource<'_, '_>) -> Result<(), &'static str> {
     use crate::descriptor_lifetimes::descriptor_location;
-    use crate::descriptor_results::{DescriptorAnalysis, terminal_borrowed_storage_graph_from};
+    use crate::descriptor_results::DescriptorAnalysis;
     use terminal_psi::{BoundaryReferenceDestination, StructuralAccess};
 
+    let module = rows.module();
     let candidates = module
         .interfaces.provider_candidates
         .iter()
@@ -124,14 +138,16 @@ pub fn validate_provider_reference_outputs(
         return Ok(());
     }
     let types = &module.types.structural_types;
-    let graph =
-        terminal_borrowed_storage_graph_from(module, candidates.iter().map(|(body, _)| *body), &[])
-            .map_err(|_| "checked provider output has no complete descriptor graph")?;
+    let graph = rows
+        .closure(
+            DescriptorSlotKind::BorrowedStorage,
+            candidates.iter().map(|(body, _)| *body),
+        )
+        .map_err(|_| "checked provider output has no complete descriptor graph")?;
     let mut analysis = DescriptorAnalysis::new(types, &graph);
     for (body, boundary) in candidates {
         let implementation = graph
-            .iter()
-            .find(|machine| machine.id == body)
+            .machine(body)
             .ok_or("checked provider output has no exact implementation")?;
         if implementation.normal_exits.is_empty() {
             continue;

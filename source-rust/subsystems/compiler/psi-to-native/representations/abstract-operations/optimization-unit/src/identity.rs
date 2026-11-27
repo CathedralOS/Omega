@@ -34,21 +34,11 @@ use terminal_psi::{
 
 use crate::{
     AcceptedObligationFact, EffectLink, OptimizationEdge, OptimizationFact, OptimizationNode,
-    OwnershipEvent, OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
+    OwnershipEvent, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
     ValueDefinitionSite, ValueUse, WorkSettlement,
 };
 
 use unit_encoding::CanonicalBytes;
-
-pub fn scalar_refinement_identity_bytes(
-    refinement: &semantic_vocabulary::ScalarRefinement,
-) -> Vec<u8> {
-    let mut bytes = CanonicalBytes::collect();
-    carrier_encoding::encode_scalar_type(&mut bytes, refinement.carrier());
-    proposition_encoding::encode_proposition(&mut bytes, refinement.predicate());
-    bytes.finish()
-}
 
 pub(crate) fn scalar_receiving_identity_bytes(
     receiving: &crate::SourceCheckedScalarReceiving,
@@ -59,9 +49,7 @@ pub(crate) fn scalar_receiving_identity_bytes(
     bytes.finish()
 }
 
-pub use unit_encoding::{
-    access_view_catalog_identity_bytes, recompute_psi_optimization_unit_identity,
-};
+pub use unit_encoding::recompute_psi_optimization_unit_identity;
 
 pub(crate) mod carrier_encoding {
     use super::{
@@ -2656,8 +2644,6 @@ pub(crate) mod structural_encoding {
                 dynamic_dispatch: Default::default(),
                 callables: Default::default(),
                 accepted_obligation_facts: Vec::new(),
-                ownership_frontier_facts: Vec::new(),
-                pruned_machines: Vec::new(),
                 identities: identities.build(),
                 runtime_evidence: None,
                 functions: Vec::new(),
@@ -2772,13 +2758,12 @@ pub(crate) mod unit_encoding {
     use super::{
         AbstractFunctionResult, AcceptedObligationFact, EffectLink, NumericId, OptimizationEdge,
         OptimizationFact, OptimizationNode, OptimizationUnitIdentity, OwnershipEvent,
-        OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
         PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ServiceDeclaration,
         StructuralResultDeclaration, TerminalRootServiceReach, ValueDefinition,
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
-    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v61\0";
+    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v62\0";
     pub fn recompute_psi_optimization_unit_identity(
         unit: &PsiOptimizationUnit,
     ) -> OptimizationUnitIdentity {
@@ -2815,14 +2800,6 @@ pub(crate) mod unit_encoding {
         bytes.slice(&unit.boundary_machines, encode_boundary_machine);
         bytes.slice(&unit.provider_candidates, encode_provider_candidate);
         bytes.slice(&unit.accepted_obligation_facts, encode_accepted_fact);
-        bytes.slice(
-            &unit.ownership_frontier_facts,
-            encode_ownership_frontier_fact,
-        );
-        bytes.slice(&unit.pruned_machines, |bytes, custody| {
-            bytes.id(custody.machine);
-            bytes.u32(custody.source_ordinal);
-        });
         encode_optional(
             bytes,
             unit.runtime_evidence.as_deref(),
@@ -3170,63 +3147,6 @@ pub(crate) mod unit_encoding {
         }
     }
 
-    fn encode_ownership_frontier_fact(bytes: &mut CanonicalBytes, fact: &OwnershipFrontierFact) {
-        bytes.bytes(&fact.identity.bytes());
-        bytes.u16(fact.psi.vocabulary_marker.get());
-        bytes.bytes(fact.psi.program_fingerprint.as_bytes());
-        bytes.id(fact.machine);
-        match fact.site {
-            OwnershipFrontierSite::BlockEntry(id) => {
-                bytes.u8(1);
-                bytes.id(id);
-            }
-            OwnershipFrontierSite::OperationEntry(id) => {
-                bytes.u8(2);
-                bytes.id(id);
-            }
-            OwnershipFrontierSite::OperationExit(id) => {
-                bytes.u8(3);
-                bytes.id(id);
-            }
-            OwnershipFrontierSite::EdgeEntry(id) => {
-                bytes.u8(4);
-                bytes.id(id);
-            }
-            OwnershipFrontierSite::EdgeExit(id) => {
-                bytes.u8(5);
-                bytes.id(id);
-            }
-        }
-        encode_ownership_frontier_snapshot(bytes, &fact.snapshot);
-    }
-
-    fn encode_ownership_frontier_snapshot(
-        bytes: &mut CanonicalBytes,
-        snapshot: &OwnershipFrontierSnapshot,
-    ) {
-        bytes.slice(&snapshot.claims, |bytes, claim| {
-            bytes.id(claim.claim);
-            encode_optional(bytes, claim.input.as_ref(), |bytes, input| bytes.id(*input));
-            bytes.slice(&claim.path, encode_structural_path_segment);
-            encode_optional(bytes, claim.multiplicity.as_ref(), |bytes, multiplicity| {
-                encode_multiplicity(bytes, *multiplicity)
-            });
-        });
-        bytes.slice(&snapshot.owned_places, |bytes, place| {
-            bytes.id(place.place);
-            encode_multiplicity(bytes, place.multiplicity);
-        });
-        bytes.slice(&snapshot.partial_custody, |bytes, partial| {
-            bytes.id(partial.place);
-            bytes.slice(&partial.moved_paths, |bytes, path| {
-                bytes.slice(path, encode_structural_path_segment)
-            });
-        });
-        bytes.slice(&snapshot.nominal_partitions, |bytes, partition| {
-            super::structural_encoding::encode_residual_cleanup(bytes, partition);
-        });
-    }
-
     fn encode_function(bytes: &mut CanonicalBytes, function: &PsiOptimizationFunction) {
         bytes.id(function.machine);
         encode_optional(bytes, function.attachment.as_ref(), |bytes, attachment| {
@@ -3533,14 +3453,6 @@ pub(crate) mod unit_encoding {
             });
         }
     }
-
-    pub fn access_view_catalog_identity_bytes(
-        catalog: &abstract_operations::StructuralTypeCatalog,
-    ) -> Vec<u8> {
-        let mut bytes = CanonicalBytes::collect();
-        encode_access_view_catalog(&mut bytes, catalog);
-        bytes.finish()
-    }
 }
 
 pub(crate) mod operation_encoding {
@@ -3567,6 +3479,7 @@ pub(crate) mod operation_encoding {
             | O::ByteSequenceSubslice { .. }
             | O::EstablishElementView { .. }
             | O::ElementViewSubslice { .. }
+            | O::ElementViewFixedArray { .. }
             | O::EstablishPrimitiveLocal { .. }
             | O::PrimitiveLocalStore { .. }
             | abstract_operations::primitive_storage_observation_pattern!(..)
@@ -5295,6 +5208,21 @@ pub(crate) mod operation_encoding {
                     bytes.id(*length);
                     bytes.id(*obligation);
                 }
+                O::ElementViewFixedArray {
+                    psi_operation,
+                    result,
+                    source,
+                    length,
+                    extent,
+                    obligation,
+                } => {
+                    tag!(bytes, 139, psi_operation);
+                    encode_structural_operation_result(bytes, result);
+                    encode_structural_argument(bytes, source);
+                    bytes.id(*length);
+                    bytes.u64(*extent);
+                    bytes.id(*obligation);
+                }
                 O::EstablishElementView {
                     psi_operation,
                     result,
@@ -5726,7 +5654,7 @@ mod width_identity_tests {
 
     fn range_identity(integer: IntegerType) -> Vec<u8> {
         let mut bytes = Vec::new();
-        crate::range::encode_integer_type(&mut bytes, integer);
+        semantic_vocabulary::identity_encoding::encode_integer_type(&mut bytes, integer);
         bytes
     }
 

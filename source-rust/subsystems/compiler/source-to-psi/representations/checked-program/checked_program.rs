@@ -46,22 +46,12 @@ impl CheckedProgram {
         self.optimization.as_ref()
     }
 
-    pub fn seals(&self) -> &[ObligationEvidenceSeal] {
-        &self.seals
-    }
-
     pub fn prepare_publication(&self) -> Result<CheckedPublicationModule, PublicationError> {
         prepare(&self.elaboration, &self.seals, self.optimization.as_ref())
     }
 
     pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
         self.prepare_publication()?.publish()
-    }
-
-    pub fn publish_invocation(
-        &self,
-    ) -> Result<RoutePublication<terminal_codec::InvocationTerminalCode>, PublicationError> {
-        self.prepare_publication()?.publish_invocation()
     }
 }
 
@@ -121,25 +111,6 @@ impl<Input: CompilationForPublication> CheckedPublication<Input> {
 pub struct RoutePublication<Artifact = terminal_codec::CanonicalTerminalArtifact> {
     pub artifact: Artifact,
     pub seals: terminal_codec::EvidenceSeals,
-}
-
-impl RoutePublication {
-    /// Uses the same nominal-entry receipt as every other Terminal producer.
-    /// A same-spelled machine from another owner cannot satisfy this root.
-    pub fn entry_receipt(
-        &self,
-        declaration: &terminal_psi::PreparedNominalRoot,
-        source_signature_identity: [u8; 32],
-    ) -> Result<
-        psi_publication_records::CheckedProgramEntryTerminalReceipt,
-        terminal_codec::entry_receipt::ProgramEntryTerminalReceiptError,
-    > {
-        terminal_codec::entry_receipt::prepare_program_entry_receipt(
-            declaration,
-            source_signature_identity,
-            &self.artifact,
-        )
-    }
 }
 
 /// Why an accepted closure could not be published.

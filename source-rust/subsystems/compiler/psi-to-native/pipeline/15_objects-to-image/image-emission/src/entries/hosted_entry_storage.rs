@@ -144,7 +144,6 @@ pub(crate) fn provision(
             offset: usize::try_from(offset).map_err(|_| invalid())?,
             size: usize::try_from(size).map_err(|_| invalid())?,
             kind: SymbolKind::Object,
-            import_library: String::new(),
         }))
     };
     let scratch = symbol_at(

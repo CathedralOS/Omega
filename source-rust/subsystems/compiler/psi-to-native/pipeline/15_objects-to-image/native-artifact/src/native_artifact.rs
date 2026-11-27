@@ -35,17 +35,16 @@ pub(crate) mod provider_execution;
 #[path = "native_artifact_tests.rs"]
 mod tests;
 
+pub use crate::physical::NativePhysicalEvidenceDerivation;
 use crate::physical::{
-    self, NativePhysicalEvidence, NativePhysicalEvidenceDerivation, NativePhysicalEvidenceGap,
-    PhysicalEvidencePass, ValidatedOptimizedNativePhysicalEvidenceScope, derive_physical_evidence,
+    self, ValidatedOptimizedNativePhysicalEvidenceScope, derive_physical_evidence,
 };
 use crate::publication::publication_digest;
 pub use dynamic_elf::{
     DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity, RetainedDynamicElfArtifact,
 };
 use identity::{
-    NativeArtifactIdentityFields, compiler_identity_evidence, derive_native_artifact_identity,
-    foreign_call_custody_digest,
+    NativeArtifactIdentityFields, derive_native_artifact_identity, foreign_call_custody_digest,
 };
 
 const CUSTODY_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.d29-custody.sha256.v3\0";
@@ -352,7 +351,7 @@ impl RequestedNativeArtifact {
         let physical_evidence_scope =
             NativePhysicalEvidenceScope::from_fragment_publication(coverage, &object)
                 .map_err(|reason| crate::native_artifact_error("physical publication", reason))?;
-        Self::emit(NativeArtifactEmissionParts {
+        Self::emit(NativeArtifactParts {
             target,
             psi_artifact: terminal,
             object,
@@ -375,55 +374,24 @@ impl RequestedNativeArtifact {
     }
 
     fn emit(
-        parts: NativeArtifactEmissionParts<ExecutableImageEmissionRequest>,
+        parts: NativeArtifactParts<ExecutableImageEmissionRequest>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let image = image_emission::emit_executable_image(&parts.object, parts.image.clone())
             .map_err(|error| vec![error.diagnostic().clone()])?;
         match image {
             RequestedExecutableImage::Direct(image) => {
-                NativeArtifact::from_emitted_parts(with_emitted_image(parts, image))
+                NativeArtifact::from_emitted_parts(parts.with_image(image))
                     .map(Self::Direct)
                     .map_err(|error| {
                         vec![Diagnostic::error(format!(
-                            "native artifact native artifact replay failed: {error}"
+                            "native artifact publication failed: {error}"
                         ))]
                     })
             }
-            RequestedExecutableImage::DynamicElf(image) => {
-                DynamicElfNativeArtifact::from_emitted_parts(with_emitted_image(parts, image))
-                    .map(Self::DynamicElf)
-                    .map_err(|error| {
-                        vec![Diagnostic::error(format!(
-                            "native artifact dynamic ELF native artifact replay failed: {error}"
-                        ))]
-                    })
-            }
+            RequestedExecutableImage::DynamicElf(image) => Ok(Self::DynamicElf(
+                DynamicElfNativeArtifact::from_emitted_parts(parts.with_image(image)),
+            )),
         }
-    }
-}
-
-fn with_emitted_image<Image, EmittedImage>(
-    parts: NativeArtifactEmissionParts<Image>,
-    image: EmittedImage,
-) -> NativeArtifactEmissionParts<EmittedImage> {
-    NativeArtifactEmissionParts {
-        target: parts.target,
-        psi_artifact: parts.psi_artifact,
-        object: parts.object,
-        image,
-        selected_provider_closure_report_identity: parts.selected_provider_closure_report_identity,
-        selected_provider_closure_digest: parts.selected_provider_closure_digest,
-        selected_provider_plans: parts.selected_provider_plans,
-        provider_executions: parts.provider_executions,
-        native_bindings: parts.native_bindings,
-        native_calling: parts.native_calling,
-        terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
-        terminal_authority_permission_policy_identity: parts
-            .terminal_authority_permission_policy_identity,
-        terminal_authority_closure_review: parts.terminal_authority_closure_review,
-        boundary_application_coverage: parts.boundary_application_coverage,
-        physical_evidence_scope: parts.physical_evidence_scope,
-        physical_originals: parts.physical_originals,
     }
 }
 
@@ -431,14 +399,17 @@ fn with_emitted_image<Image, EmittedImage>(
 #[must_use = "a native artifact owns the canonical semantic and target artifact join"]
 pub struct NativeArtifact(RetainedNativeArtifact);
 
-/// The sealed image, its replay evidence, and its read-only inspection operations.
+/// The sealed image and its read-only inspection operations. Physical evidence
+/// is not part of it: an audit derives that evidence from these parts on
+/// request, so publication and identity never depend on a second pass.
 #[derive(Debug)]
 pub struct RetainedNativeArtifact {
     parts: NativeArtifactParts,
-    physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
     identity: NativeArtifactIdentity,
 }
 
+/// One compile's realization inputs and the image it emitted, or the request
+/// to emit that image.
 #[derive(Debug)]
 pub struct NativeArtifactParts<Image = image_emission::ExecutableImage> {
     pub target: target::NativeTarget,
@@ -458,89 +429,32 @@ pub struct NativeArtifactParts<Image = image_emission::ExecutableImage> {
     pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
     pub physical_originals: crate::NativePhysicalOriginals,
-    pub physical_evidence: Option<NativePhysicalEvidence>,
-}
-
-#[derive(Debug)]
-pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> {
-    pub target: target::NativeTarget,
-    pub psi_artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    pub object: image_emission::ObjectArtifact,
-    pub image: Image,
-    pub selected_provider_closure_report_identity: u64,
-    pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
-    pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
-    pub provider_executions: Vec<NativeProviderExecution>,
-    pub native_bindings: native_binding_admission::RetainedNativeBindings,
-    pub native_calling: Vec<calling_conventions::BoundaryCallingApplication>,
-    pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
-    pub terminal_authority_permission_policy_identity:
-        Option<TerminalAuthorityPermissionPolicyIdentity>,
-    pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
-    pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
-    pub physical_evidence_scope: NativePhysicalEvidenceScope,
-    pub physical_originals: crate::NativePhysicalOriginals,
-}
-
-impl<Image> NativeArtifactEmissionParts<Image> {
-    fn publication_derivation(
-        &self,
-        image_output: &image::EmittedImageOutput,
-        final_image_symbol_digest: [u8; 32],
-    ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
-        derive_physical_evidence(
-            PhysicalEvidencePass::Publication,
-            &self.physical_evidence_scope,
-            self.psi_artifact.view().into(),
-            self.target,
-            &self.object,
-            &image_output.final_text_bytes,
-            final_image_symbol_digest,
-            &self.selected_provider_plans,
-            &self.provider_executions,
-            &self.native_bindings,
-            &self.native_calling,
-            self.boundary_application_coverage.as_ref(),
-            &self.physical_originals,
-        )
-    }
-
-    fn into_parts(
-        self,
-        derivation: NativePhysicalEvidenceDerivation,
-    ) -> (
-        NativeArtifactParts<Image>,
-        Option<NativePhysicalEvidenceGap>,
-    ) {
-        let (physical_evidence, physical_evidence_gap) = derivation.split();
-        (
-            NativeArtifactParts {
-                target: self.target,
-                psi_artifact: self.psi_artifact,
-                object: self.object,
-                image: self.image,
-                selected_provider_closure_report_identity: self
-                    .selected_provider_closure_report_identity,
-                selected_provider_closure_digest: self.selected_provider_closure_digest,
-                selected_provider_plans: self.selected_provider_plans,
-                provider_executions: self.provider_executions,
-                native_bindings: self.native_bindings,
-                native_calling: self.native_calling,
-                terminal_authority_policy_identity: self.terminal_authority_policy_identity,
-                terminal_authority_permission_policy_identity: self
-                    .terminal_authority_permission_policy_identity,
-                terminal_authority_closure_review: self.terminal_authority_closure_review,
-                boundary_application_coverage: self.boundary_application_coverage,
-                physical_evidence_scope: self.physical_evidence_scope,
-                physical_originals: self.physical_originals,
-                physical_evidence,
-            },
-            physical_evidence_gap,
-        )
-    }
 }
 
 impl<Image> NativeArtifactParts<Image> {
+    fn with_image<EmittedImage>(self, image: EmittedImage) -> NativeArtifactParts<EmittedImage> {
+        NativeArtifactParts {
+            target: self.target,
+            psi_artifact: self.psi_artifact,
+            object: self.object,
+            image,
+            selected_provider_closure_report_identity: self
+                .selected_provider_closure_report_identity,
+            selected_provider_closure_digest: self.selected_provider_closure_digest,
+            selected_provider_plans: self.selected_provider_plans,
+            provider_executions: self.provider_executions,
+            native_bindings: self.native_bindings,
+            native_calling: self.native_calling,
+            terminal_authority_policy_identity: self.terminal_authority_policy_identity,
+            terminal_authority_permission_policy_identity: self
+                .terminal_authority_permission_policy_identity,
+            terminal_authority_closure_review: self.terminal_authority_closure_review,
+            boundary_application_coverage: self.boundary_application_coverage,
+            physical_evidence_scope: self.physical_evidence_scope,
+            physical_originals: self.physical_originals,
+        }
+    }
+
     /// Checks the object against the Terminal Psi module it claims to realize:
     /// structural scalars, boundary application coverage, fused multiply-add
     /// occurrences and the terminal entry.
@@ -585,10 +499,7 @@ impl<Image> NativeArtifactParts<Image> {
         final_image_symbol_digest: [u8; 32],
         foreign_calls: &[image_emission::ObjectForeignCall],
         image_subsystem: Option<u16>,
-        physical_evidence_gap: Option<&NativePhysicalEvidenceGap>,
     ) -> NativeArtifactIdentityFields<'a> {
-        let (compiler_entry_region_binding, compiler_entry_footprint_binding) =
-            compiler_identity_evidence(output);
         NativeArtifactIdentityFields {
             installation_assumptions: self.object.installation_environment_assumptions(),
             physical_entry_requirements: self
@@ -623,8 +534,6 @@ impl<Image> NativeArtifactParts<Image> {
             executable_region_inventory_report_fingerprint: output
                 .executable_regions
                 .inventory_report_fingerprint,
-            compiler_entry_region_binding,
-            compiler_entry_footprint_binding,
             selected_provider_closure_digest: *self.selected_provider_closure_digest.as_bytes(),
             foreign_call_custody_digest: foreign_call_custody_digest(foreign_calls),
             selected_provider_plans: &self.selected_provider_plans,
@@ -643,37 +552,17 @@ impl<Image> NativeArtifactParts<Image> {
                 self.boundary_application_coverage.as_ref(),
             ),
             physical_evidence_scope: &self.physical_evidence_scope,
-            physical_evidence_identity: self
-                .physical_evidence
-                .as_ref()
-                .map(|evidence| *evidence.identity()),
-            physical_evidence_gap_identity: physical_evidence_gap.map(|gap| *gap.identity()),
         }
     }
 
-    fn replayed_evidence(
-        &self,
-        output: &image::EmittedImageOutput,
-        final_image_symbol_digest: [u8; 32],
-    ) -> Result<
-        (
-            Option<NativePhysicalEvidence>,
-            Option<NativePhysicalEvidenceGap>,
-        ),
-        &'static str,
-    > {
-        Ok(self
-            .evidence_derivation(output, final_image_symbol_digest)?
-            .split())
-    }
-
-    fn evidence_derivation(
+    /// Re-derive physical evidence from the emitted bytes. Only receivers and
+    /// explicit audits call this; emission publishes its bytes without it.
+    fn audit_physical_evidence(
         &self,
         image_output: &image::EmittedImageOutput,
         final_image_symbol_digest: [u8; 32],
     ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
         derive_physical_evidence(
-            PhysicalEvidencePass::Receiver,
             &self.physical_evidence_scope,
             self.psi_artifact.view().into(),
             self.target,
@@ -699,37 +588,27 @@ impl std::ops::Deref for NativeArtifact {
 }
 
 impl NativeArtifact {
-    pub fn from_emitted_parts(parts: NativeArtifactEmissionParts) -> Result<Self, &'static str> {
+    /// Seal the bytes this compile emitted. The machine-state evidence spec
+    /// requires ordinary builds to publish those bytes directly, so sealing
+    /// derives no physical evidence and replays nothing.
+    pub fn from_emitted_parts(parts: NativeArtifactParts) -> Result<Self, &'static str> {
         if parts.image.foreign_calls() != parts.object.foreign_calls() {
             return Err("native artifact image differs from fragment foreign call custody");
         }
-        let derivation = parts.publication_derivation(
-            parts.image.output(),
-            *parts.image.final_image_symbol_digest().as_bytes(),
-        )?;
-        let (parts, physical_evidence_gap) = parts.into_parts(derivation);
-        Ok(Self::seal(parts, physical_evidence_gap))
+        Ok(Self::seal(parts))
     }
 
     pub fn from_replayed_parts(
         parts: NativeArtifactParts,
     ) -> Result<Self, NativeArtifactValidationError> {
-        let (_, physical_evidence_gap) = parts.replayed_evidence(
-            parts.image.output(),
-            *parts.image.final_image_symbol_digest().as_bytes(),
-        )?;
-        let artifact = Self::seal(parts, physical_evidence_gap);
+        let artifact = Self::seal(parts);
         artifact.validate()?;
         Ok(artifact)
     }
 
-    fn seal(
-        parts: NativeArtifactParts,
-        physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
-    ) -> Self {
+    fn seal(parts: NativeArtifactParts) -> Self {
         let mut artifact = RetainedNativeArtifact {
             parts,
-            physical_evidence_gap,
             identity: NativeArtifactIdentity([0; 32]),
         };
         artifact.identity = artifact.recomputed_identity();
@@ -781,22 +660,10 @@ impl RetainedNativeArtifact {
             &self.parts.native_calling,
         )
         .map_err(provider_execution::ProviderExecutionReplayError::direct_message)?;
-        let final_image_symbol_digest = *self.parts.image.final_image_symbol_digest().as_bytes();
-        let (expected_physical_evidence, expected_physical_evidence_gap) = self
-            .parts
-            .replayed_evidence(self.parts.image.output(), final_image_symbol_digest)?;
-        if self.parts.physical_evidence != expected_physical_evidence {
-            return Err(
-                "native artifact physical children disagree with its validated identity projection"
-                    .into(),
-            );
-        }
-        if self.physical_evidence_gap != expected_physical_evidence_gap {
-            return Err(
-                "native artifact physical evidence gap disagrees with exact derivation replay"
-                    .into(),
-            );
-        }
+        // A receiver re-derives physical evidence to check that the retained
+        // custody rejoins the emitted bytes; a contradiction rejects. The result
+        // is not part of the artifact or its identity.
+        self.physical_evidence()?;
         if self.identity != self.recomputed_identity() {
             return Err("native artifact identity disagrees with its retained authority".into());
         }
@@ -809,7 +676,6 @@ impl RetainedNativeArtifact {
             *self.parts.image.final_image_symbol_digest().as_bytes(),
             self.parts.image.foreign_calls(),
             self.parts.image.subsystem(),
-            self.physical_evidence_gap.as_ref(),
         ))
     }
 
@@ -887,12 +753,13 @@ impl RetainedNativeArtifact {
         self.parts.physical_evidence_scope.clone()
     }
 
-    pub const fn physical_evidence(&self) -> Option<&NativePhysicalEvidence> {
-        self.parts.physical_evidence.as_ref()
-    }
-
-    pub const fn physical_evidence_gap(&self) -> Option<&NativePhysicalEvidenceGap> {
-        self.physical_evidence_gap.as_ref()
+    /// Derive this artifact's physical evidence, or the gap that blocks it,
+    /// for an explicit audit. Each call re-reads the emitted bytes.
+    pub fn physical_evidence(&self) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
+        self.parts.audit_physical_evidence(
+            self.parts.image.output(),
+            *self.parts.image.final_image_symbol_digest().as_bytes(),
+        )
     }
 }
 

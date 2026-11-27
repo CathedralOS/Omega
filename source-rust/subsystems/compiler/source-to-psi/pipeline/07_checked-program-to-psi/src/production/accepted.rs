@@ -37,7 +37,6 @@ impl PreparedTerminalPublication {
 
     pub fn publish(
         self,
-        applications: &[crate::TerminalApplicationCustody<'_>],
         timings: &mut artifacts::compile_timings::CompileTimings,
     ) -> Result<crate::ProducedTerminalProgram, Vec<Diagnostic>> {
         let (program, evidence) =
@@ -79,18 +78,6 @@ impl PreparedTerminalPublication {
         );
         let provenance = self.provenance;
         let companions = self.companions;
-        let applications = applications
-            .iter()
-            .map(|application| {
-                crate::production::application::attach(
-                    application,
-                    program.view(),
-                    program.portable(),
-                    &provenance,
-                    timings,
-                )
-            })
-            .collect();
         crate::build::bindings::validate_companions(
             program.view(),
             &companions.bindings,
@@ -115,7 +102,6 @@ impl PreparedTerminalPublication {
             build_bindings,
             build_requests,
             build_filesystem,
-            applications,
             provenance,
             source_records: self.source_records,
             source_selections: Some(Arc::new(source_selections)),
@@ -511,18 +497,13 @@ impl AcceptedTerminalSource {
         timings: &mut artifacts::compile_timings::CompileTimings,
     ) -> Result<crate::ProducedTerminalProgram, Vec<Diagnostic>> {
         self.prepare_publication(custody.invocation_sources)?
-            .publish(custody.applications, timings)
+            .publish(timings)
     }
 
     /// Constant inputs of this judged preparation, including the expressions that
     /// became type arguments or array extents before lowering.
     pub fn constants_read(&self) -> Vec<ConstantRead> {
         ConstantRead::from_preparation(self.prepared())
-    }
-
-    /// Exact lowered boundary declarations whose source owns an installation bound.
-    pub fn installation_reach_requirements(&self) -> Vec<semantic_vocabulary::BoundaryMachineId> {
-        self.module().installation_reach_requirements()
     }
 
     /// The boundary requirements this accepted module declares, in the
@@ -1016,39 +997,15 @@ mod tests {
         let prepared = accepted.prepare_publication(None).unwrap();
         drop(accepted);
         assert!(owner.upgrade().is_none());
-        let missing = terminal_psi::PreparedNominalRoot::new("absent", "absent", None).unwrap();
-        let application = crate::TerminalApplicationCustody::prepare(
-            Ok(missing),
-            Some([7; 32]),
-            Some(Default::default()),
-        );
-        let (published, applications) = prepared
-            .publish(
-                &[application],
-                &mut artifacts::compile_timings::CompileTimings::default(),
-            )
+        let published = prepared
+            .publish(&mut artifacts::compile_timings::CompileTimings::default())
             .unwrap()
             .into_portable_publication()
             .unwrap();
-        let [Ok(application)] = applications.as_slice() else {
-            panic!("expected one application judgment");
-        };
-        let [Err(root)] = application.roots.as_slice() else {
-            panic!("an absent composition root must fail its application check");
-        };
-        let receipt = application.receipt.as_ref().unwrap_err();
-        assert!(root[0].message.contains("TerminalEntryMultiplicity(0)"));
-        assert!(receipt[0].message.contains("TerminalEntryMultiplicity(0)"));
 
         let reopened =
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&published.to_bytes()).unwrap();
         assert_eq!(reopened.view().identity(), expected);
-        assert!(
-            reopened
-                .publication_metadata()
-                .unwrap()
-                .has_bound_applications()
-        );
         assert_eq!(
             reopened.publication_metadata(),
             published.publication_metadata()

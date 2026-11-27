@@ -84,16 +84,34 @@ selects must have proved exactly the law an equivalence owes for this
 relation, so the signature records that sealed statement on the row's law
 for stage 06 to compare. A conformance whose every row is proved by a
 machine over mathematical data states laws only, and the ordinary reader
-skips it. A quotient of data that has storage is still refused.
+skips it. A quotient of data that has storage is run by the ordinary
+reader. A contract's class of such data, `value as Quotient`, is the
+quotient's declaration applied to `value`; an Identity of two classes also
+records the quotient's relation read at their representatives
+(`QuotientSoundness`), from which stage 06 may prove it by soundness.
+A generic quotient (`data Counted<T> = Tagged<T> % same_count<T> requires
+same_count<T> satisfies MereEquivalence<Tagged<T>, same_count<T>> as
+SameCount<T>;`) is read only at a closed application, as
+[quotient formation](../../../../../../wiki/spec/proofs/quotients.md#formation-and-representation)
+asks. Typed preparation
+closes the application's relation and named conformance at its arguments
+(`specialization/quotients.rs` in stage 04), and the reader takes them
+like a closed quotient's. An application whose relation or conformance
+does not close, or whose conformance proves its laws for another carrier
+or relation, is refused by name; the template itself is not a declaration
+of the signature.
 
 An operation on a quotient is a machine whose whole body is
 `Quotient::lift::<op, respects>(..)`, `Quotient::lift::<op, respects,
 transports>(..)` or `Quotient::define::<op, respects>(..)`, with the
-machine's own formals as arguments. Its body is not lowered
-(`lifted_operation` in `read/quotients.rs`), and the signature defines
-nothing for it: a clause that applies it is refused. The signature instead
-states what makes the operation well defined and records each statement on
-the law that must have proved it (`lifted` in `read/signature.rs`):
+machine's formals, or values computed from them, as arguments. Its body is
+not lowered (`lifted_operation` in `read/quotients.rs`). Where the kernel's
+`lift` gives a definition (one class in, a class or plain data out, and an
+operation on representatives that requires nothing) the signature defines
+the machine as that `lift`, so a clause may apply it; any other application
+is refused by name. The signature also states what makes the operation well
+defined and records each statement on the law that must have proved it
+(`lifted` in `read/signature.rs`):
 
 - **Congruence.** The theorem's formals are two representatives of every
   argument that is a class and one value of every other argument, in the
@@ -107,8 +125,9 @@ the law that must have proved it (`lifted` in `read/signature.rs`):
   citation; `Quotient::define` owes the converse as well.
 
 `Quotient::define` passes its formals in order. `Quotient::lift` may reorder
-them. A formal passed twice, a formal left out and an argument that is not a
-formal are refused.
+them, leave one out, pass one twice or pass a value it computes. Only a formal
+is a class, and a lift that does not pass each formal once as it is selects
+no transport theorem: it owes that statement itself, over its formals.
 
 Data that contains itself may hold other values beside itself, and may take
 types (`data Seq<T> { case Empty; case Cons(head: T, tail: Seq<T>); }`). The
@@ -1499,9 +1518,9 @@ empty cycle metadata; its private measure does not become a caller guarantee.
 
 ## Places, roots and the write log
 
-A record value is storage, so lowering a record fills three tables in step
-with the Terminal Psi operations that create the storage
-([lower/places.rs](src/lower/places.rs)).
+A record value is storage, so lowering a record fills the `places` and
+`roots` tables and lowering's own write log in step with the Terminal Psi
+operations that create the storage ([lower/places.rs](src/lower/places.rs)).
 
 **Roots.** One Terminal `PlaceId`, one `PlaceRow { origin: Root }` and one
 `roots` entry for each record formal (`StructuralPlaceKind::Parameter`), each
@@ -1534,7 +1553,11 @@ test exercises its control-flow walk without claiming such loops are accepted.
 **Writes.** Each row says what one operation stored and where, at
 `ProgramPoint::AfterOperation` of that operation. Lowering never asks what a
 place holds: answering that needs the graph, and the checker is the one that
-walks it.
+walks it. The log is lowering scratch (`Lowering::writes`, rows of
+`lower::places::WriteRow`): join reads and the naming of call-overwritten
+contents read it while the machine is lowered, and it is dropped with the
+machine. It is not part of `MachineTables`; the checker derives its own log
+from the operations.
 
 | Operation | What is logged |
 | --- | --- |

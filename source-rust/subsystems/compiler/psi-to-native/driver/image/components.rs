@@ -221,7 +221,7 @@ pub(crate) fn emit<'a>(
             &inbound,
         )
         .map_err(|reason| realization_error("component entry ABI", reason))?;
-        let entry = installation_binding::entries::bind_callable_entry(entry);
+        let entry = entry_planning::installation_binding::entries::bind_callable_entry(entry);
         let entry = native_encoding::callable_entry::encode_callable_entry_transport(entry)
             .map_err(|reason| realization_error("component entry encoding", reason))?;
         let entry = placement::entry_layout::resolve_callable_entry(entry)

@@ -856,12 +856,17 @@ fn a_unit_machine_completes_after_its_last_statement() {
             value: integer(4),
         }],
     };
-    let (machine, tables) = lower(body, vec![signature(vec![u32_type()], None)]);
+    let lowered = try_lower(
+        body,
+        vec![signature(vec![u32_type()], None)],
+        vec![returns_normally()],
+    )
+    .unwrap();
     assert!(matches!(
-        block(&machine, 1).terminator,
+        block(&lowered.machine, 1).terminator,
         Terminator::ReturnUnit { .. }
     ));
-    assert!(tables.places.is_empty() && tables.writes.is_empty());
+    assert!(lowered.tables.places.is_empty() && lowered.writes.is_empty());
 }
 
 #[test]
@@ -2637,16 +2642,40 @@ fn shaped(parameters: Vec<ValueType>, result: Option<ValueType>) -> Signature {
 
 /// Lowers machine 1 over `Point` and `Line`, every machine returning
 /// normally with no crash route.
-fn lower_places(body: Body, signatures: Vec<Signature>) -> (TerminalMachine, MachineTables) {
+/// A lowered machine's tables, with the write log lowering kept beside them
+/// (`lower::places::WriteRow`). The log is lowering scratch and not part of
+/// `MachineTables`, so only these tests see it.
+struct LoweredTables {
+    tables: MachineTables,
+    writes: Vec<crate::lower::places::WriteRow>,
+}
+
+impl std::ops::Deref for LoweredTables {
+    type Target = MachineTables;
+
+    fn deref(&self) -> &MachineTables {
+        &self.tables
+    }
+}
+
+/// The machine and its tables with the write log, once they agree.
+fn with_writes(lowered: crate::lower::Lowered) -> (TerminalMachine, LoweredTables) {
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    let tables = LoweredTables {
+        tables: lowered.tables,
+        writes: lowered.writes,
+    };
+    (lowered.machine, tables)
+}
+
+fn lower_places(body: Body, signatures: Vec<Signature>) -> (TerminalMachine, LoweredTables) {
     let mut signature_table: IdTable<MachineId, Signature> = IdTable::default();
     let mut outcome_table: IdTable<MachineId, Outcome> = IdTable::default();
     for signature in signatures {
         signature_table.push(signature);
         outcome_table.push(returns_normally());
     }
-    let lowered = lower_records(body, &signature_table, &outcome_table, &records()).unwrap();
-    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
-    (lowered.machine, lowered.tables)
+    with_writes(lower_records(body, &signature_table, &outcome_table, &records()).unwrap())
 }
 
 /// The place reached from root `root` by `fields`, which must be interned.
@@ -2665,10 +2694,10 @@ fn projected(tables: &MachineTables, root: PlaceId, fields: &[u64]) -> ExactPlac
 }
 
 /// Every write to `place`, as its content and the operation it follows.
-fn written(tables: &MachineTables, place: ExactPlaceId) -> Vec<(Content, ProgramPoint)> {
+fn written(tables: &LoweredTables, place: ExactPlaceId) -> Vec<(Content, ProgramPoint)> {
     tables
         .writes
-        .values()
+        .iter()
         .filter(|write| write.place == place)
         .map(|write| (write.content, write.at))
         .collect()
@@ -3515,6 +3544,9 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
     let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
     let machine = &elaboration.module.machines[0];
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    // The write log is lowering scratch, so read it from the same machine
+    // lowered on its own.
+    let (_, log) = lower_places(body(), vec![shaped(Vec::new(), Some(u32_type().into()))]);
     let operations = &block(machine, 1).operations;
     let kinds: Vec<_> = operations
         .iter()
@@ -3556,7 +3588,7 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
     let three = operations[3].result.scalar().unwrap().id;
     let x_root = *tables.roots.get(x).unwrap();
     assert_eq!(
-        written(tables, x_root),
+        written(&log, x_root),
         [
             (
                 Content::Value(x_zero),
@@ -3572,7 +3604,7 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
     // later operations that actually select a leaf intern that projection.
     let zeroed = ProgramPoint::AfterOperation(operations[2].id);
     assert_eq!(
-        written(tables, *tables.roots.get(p).unwrap()),
+        written(&log, *tables.roots.get(p).unwrap()),
         [(Content::Overwritten, zeroed)]
     );
     let p_root = *tables.roots.get(p).unwrap();
@@ -3592,14 +3624,14 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
         OperationKind::PrimitiveScalarRead { source, path } if *source == x && path.is_empty()
     ));
     assert_eq!(
-        written(tables, projected(tables, p, &[1])),
+        written(&log, projected(tables, p, &[1])),
         [(
             Content::Value(read),
             ProgramPoint::AfterOperation(operations[6].id)
         )]
     );
     // Two rows on the scalar home, one on the record and one on its written leaf.
-    assert_eq!(tables.writes.len(), 4);
+    assert_eq!(log.writes.len(), 4);
     // `Point` has no `requires`, so its zero establishment owes nothing.
     assert!(tables.obligations.is_empty());
     // A scalar home with no type identity cannot be declared.
@@ -3720,10 +3752,8 @@ fn try_lower_sums(
     lower_records(body, &signature_table, &outcome_table, &sums())
 }
 
-fn lower_sums(body: Body, signatures: Vec<Signature>) -> (TerminalMachine, MachineTables) {
-    let lowered = try_lower_sums(body, signatures).unwrap();
-    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
-    (lowered.machine, lowered.tables)
+fn lower_sums(body: Body, signatures: Vec<Signature>) -> (TerminalMachine, LoweredTables) {
+    with_writes(try_lower_sums(body, signatures).unwrap())
 }
 
 /// The place reached from root `root` by `segments`, which must be interned.
@@ -4739,11 +4769,11 @@ fn machines_planned_on_workers_apply_what_planning_in_order_yields() {
         let result = budget.run(|| {
             crate::lower::machine_order::plan_then_apply(
                 &mut module,
-                |module, _, machine| {
+                |walks, machine| {
                     let copied = COPIES[machine.id.get() as usize - 1];
                     Copied {
                         read: vec![id(copied)],
-                        value: module.machines[copied as usize - 1].attachment,
+                        value: walks.module().machines[copied as usize - 1].attachment,
                     }
                 },
                 |plan| (plan.read != [id::<MachineId>(2)]).then_some(plan.read.as_slice()),

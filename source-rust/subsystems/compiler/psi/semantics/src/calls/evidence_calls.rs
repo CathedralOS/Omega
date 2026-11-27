@@ -3,6 +3,7 @@ use crate::descriptors::descriptor_results::{
     self, DescriptorAnalysis, DescriptorCasePredicate, DescriptorMachine,
     PayloadMembershipHistory, PayloadScalarObservation,
 };
+use crate::descriptors::row_source::DescriptorRowSource;
 pub(crate) mod inputs;
 pub use inputs::{
     RuntimeEvidenceBody, RuntimeEvidenceCallParts, RuntimeEvidenceCallable,
@@ -23,7 +24,15 @@ enum ArgumentValue {
 }
 
 pub fn validate_runtime_evidence_inputs(module: &TerminalModule) -> Result<(), &'static str> {
-    terminal_inputs::validate(module)
+    terminal_inputs::validate(&DescriptorRowSource::new(module))
+}
+
+/// `validate_runtime_evidence_inputs`, building the module's view rows with
+/// its shared analyses' machine lookup and type index.
+pub fn validate_runtime_evidence_inputs_with_analyses(
+    analyses: &crate::ModuleAnalyses<'_>,
+) -> Result<(), &'static str> {
+    terminal_inputs::validate(&DescriptorRowSource::of(analyses))
 }
 pub(crate) mod terminal_inputs;
 

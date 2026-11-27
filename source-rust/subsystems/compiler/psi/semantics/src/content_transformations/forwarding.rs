@@ -16,8 +16,26 @@ pub fn checked_returns(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<Vec<(usize, Vec<ClaimId>)>, &'static str> {
+    checked_returns_with(module, None, machine)
+}
+
+/// `checked_returns` over the bundle's module. The ownership walks that
+/// authenticate the machine's and its callees' claims reuse the bundle's
+/// descriptor rows instead of adapting each closure again.
+pub fn checked_returns_in(
+    analyses: &crate::module_analyses::ModuleAnalyses<'_>,
+    machine: &TerminalMachine,
+) -> Result<Vec<(usize, Vec<ClaimId>)>, &'static str> {
+    checked_returns_with(analyses.module(), Some(analyses), machine)
+}
+
+fn checked_returns_with(
+    module: &TerminalModule,
+    analyses: Option<&crate::module_analyses::ModuleAnalyses<'_>>,
+    machine: &TerminalMachine,
+) -> Result<Vec<(usize, Vec<ClaimId>)>, &'static str> {
     let mut proved = Vec::new();
-    let mut origins = ancestry::OriginTraversal::unchanged_content();
+    let mut origins = ancestry::OriginTraversal::unchanged_content().with_analyses(analyses);
     for (ordinal, clause) in machine.ensures.iter().enumerate() {
         if let Proposition::ContentConservation(law) = &clause.proposition {
             let input = if super::partition::is_interval_partition(law) {
@@ -29,12 +47,18 @@ pub fn checked_returns(
         }
     }
     if !proved.is_empty() {
-        validate_claims(module, machine)?;
+        validate_claims(module, analyses, machine)?;
     }
     Ok(proved)
 }
 
-pub(super) fn validate_claims(module: &TerminalModule, machine: &TerminalMachine) -> Result<(), &'static str> {
+/// `analyses`, when given, must be a bundle over `module`; a bundle over any
+/// other module is ignored and the walk builds its own closure.
+pub(crate) fn validate_claims(
+    module: &TerminalModule,
+    analyses: Option<&crate::module_analyses::ModuleAnalyses<'_>>,
+    machine: &TerminalMachine,
+) -> Result<(), &'static str> {
     declarations::contract(module, &machine.contract)?;
     entry_claims::validate_declared_entry_contents(
         &module.types.structural_types,
@@ -42,9 +66,14 @@ pub(super) fn validate_claims(module: &TerminalModule, machine: &TerminalMachine
         &module.identities,
         &machine.contract,
     )?;
-    crate::plain_affine::verify_claims_in(module, machine.id)
-        .map(|_| ())
-        .map_err(|_| "content return differs from its checked ownership flow")
+    match analyses.filter(|analyses| std::ptr::eq(analyses.module(), module)) {
+        Some(analyses) => analyses
+            .affine(machine.id)
+            .and_then(|walks| walks.verify_claims()),
+        None => crate::plain_affine::verify_claims_in(module, machine.id),
+    }
+    .map(|_| ())
+    .map_err(|_| "content return differs from its checked ownership flow")
 }
 
 fn projection_subjects(
@@ -227,7 +256,7 @@ pub(super) fn call_input(
     projection: ContentProjectionIdentity,
     origins: &mut ancestry::OriginTraversal,
 ) -> Result<ClaimId, &'static str> {
-    validate_claims(module, callee)?;
+    validate_claims(module, origins.analyses(), callee)?;
     let mut input = None;
     for clause in &callee.ensures {
         let Proposition::ContentConservation(law) = &clause.proposition else {

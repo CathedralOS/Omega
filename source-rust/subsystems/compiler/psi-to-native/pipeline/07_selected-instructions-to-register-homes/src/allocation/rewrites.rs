@@ -1306,9 +1306,9 @@ pub(crate) mod fixed_view {
     pub(crate) mod fixed_precolored_segment_homes {
         pub(crate) mod compute {
             use crate::allocation::{
-                ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSegmentHomes,
-                ValidatedFixedPrecoloredSplitRequirements, analyze_fixed_precolored_intervals,
-                analyze_fixed_precolored_split_requirements, assign_fixed_precolored_segment_homes,
+                ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
+                analyze_fixed_precolored_intervals, analyze_fixed_precolored_split_requirements,
+                assign_fixed_precolored_segment_homes,
             };
             use optimization_core::OptimizationWorkBudget;
             use register_homes::{
@@ -1325,7 +1325,6 @@ pub(crate) mod fixed_view {
                 budget: OptimizationWorkBudget,
             ) -> Result<
                 (
-                    ValidatedFixedPrecoloredIntervals,
                     ValidatedFixedPrecoloredSplitRequirements,
                     ValidatedFixedPrecoloredSegmentHomes,
                 ),
@@ -1351,7 +1350,6 @@ pub(crate) mod fixed_view {
                 let homes = assign_fixed_precolored_segment_homes(
                     ranges,
                     source.legality(),
-                    &fixed,
                     &requirements,
                     environment.identity(),
                     environment.physical(),
@@ -1362,45 +1360,18 @@ pub(crate) mod fixed_view {
                     budget,
                 )
                 .map_err(OptimizedFixedPrecoloredSegmentHomeCustodyError::SegmentHomes)?;
-                Ok((fixed, requirements, homes))
-            }
-        }
-        pub(crate) mod custody {
-            use crate::allocation::{
-                FixedPrecoloredIntervalValidationReceipt,
-                FixedPrecoloredSegmentHomeValidationReceipt,
-                FixedPrecoloredSplitRequirementValidationReceipt,
-            };
-
-            use crate::allocation::StagedOptimizedAllocationLegalityCustodyReceipt;
-
-            use super::StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt;
-
-            pub(crate) const fn seal(
-                upstream: StagedOptimizedAllocationLegalityCustodyReceipt,
-                fixed: FixedPrecoloredIntervalValidationReceipt,
-                requirements: FixedPrecoloredSplitRequirementValidationReceipt,
-                homes: FixedPrecoloredSegmentHomeValidationReceipt,
-            ) -> StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
-                StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
-                    upstream,
-                    fixed,
-                    requirements,
-                    homes,
-                }
+                Ok((requirements, homes))
             }
         }
 
         use optimization_core::OptimizationWorkBudget;
 
         use crate::allocation::{
-            FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
-            FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
-            FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
-            StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
+            FixedPrecoloredIntervalError, FixedPrecoloredSegmentHomeError,
+            FixedPrecoloredSplitRequirementError, StagedOptimizedAllocationLegality,
             ValidatedAllocationLegality, ValidatedAllocatorAvailability,
-            ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSegmentHomes,
-            ValidatedFixedPrecoloredSplitRequirements, ValidatedLiveRanges, WorkDefect,
+            ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
+            ValidatedLiveRanges, WorkDefect,
         };
         use optimization_core::OptimizationSelections;
         use register_environment::ValidatedTargetRegisterEnvironment;
@@ -1421,29 +1392,19 @@ pub(crate) mod fixed_view {
             StagedOptimizedFixedPrecoloredSegmentHomes,
             OptimizedFixedPrecoloredSegmentHomeCustodyError,
         > {
-            let (fixed, requirements, homes) = compute::derive(&source, budget)?;
-            let custody = custody::seal(
-                source.custody(),
-                fixed.receipt(),
-                requirements.receipt(),
-                homes.receipt(),
-            );
+            let (requirements, homes) = compute::derive(&source, budget)?;
             Ok(StagedOptimizedFixedPrecoloredSegmentHomes {
                 source,
-                fixed,
                 requirements,
                 homes,
-                custody,
             })
         }
 
         #[derive(Debug)]
         pub struct StagedOptimizedFixedPrecoloredSegmentHomes {
             source: StagedOptimizedAllocationLegality,
-            fixed: ValidatedFixedPrecoloredIntervals,
             requirements: ValidatedFixedPrecoloredSplitRequirements,
             homes: ValidatedFixedPrecoloredSegmentHomes,
-            custody: StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
         }
 
         impl StagedOptimizedFixedPrecoloredSegmentHomes {
@@ -1479,27 +1440,11 @@ pub(crate) mod fixed_view {
                 self.source.budget_per_pass()
             }
 
-            pub const fn fixed_intervals(&self) -> &ValidatedFixedPrecoloredIntervals {
-                &self.fixed
-            }
             pub const fn split_requirements(&self) -> &ValidatedFixedPrecoloredSplitRequirements {
                 &self.requirements
             }
             pub const fn segment_homes(&self) -> &ValidatedFixedPrecoloredSegmentHomes {
                 &self.homes
-            }
-            receipt_accessor_rows!(ref StagedOptimizedFixedPrecoloredSegmentHomes {
-                custody: StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
-            });
-        }
-
-        copy_receipt! {
-            #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-            pub struct StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
-                upstream: StagedOptimizedAllocationLegalityCustodyReceipt,
-                fixed: FixedPrecoloredIntervalValidationReceipt,
-                requirements: FixedPrecoloredSplitRequirementValidationReceipt,
-                homes: FixedPrecoloredSegmentHomeValidationReceipt,
             }
         }
 
@@ -1508,7 +1453,6 @@ pub(crate) mod fixed_view {
             FixedIntervals(FixedPrecoloredIntervalError),
             SplitRequirements(FixedPrecoloredSplitRequirementError),
             SegmentHomes(FixedPrecoloredSegmentHomeError),
-            ReceiptMismatch,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1563,7 +1507,6 @@ pub(crate) mod fixed_view {
                     source.selected(),
                     source.ranges(),
                     source.legality(),
-                    source.fixed_intervals(),
                     source.split_requirements(),
                     source.segment_homes(),
                     environment.identity(),
@@ -1580,24 +1523,21 @@ pub(crate) mod fixed_view {
         pub(crate) mod custody {
             use crate::allocation::FixedViewCopyReceipt;
 
-            use crate::allocation::StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt;
+            use crate::allocation::StagedOptimizedAllocationLegalityCustodyReceipt;
 
             use super::StagedOptimizedFixedViewCopyCustodyReceipt;
 
             pub(crate) fn fixed_view_copy_custody_receipt(
-                segment_homes: StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
+                upstream: StagedOptimizedAllocationLegalityCustodyReceipt,
                 copies: FixedViewCopyReceipt,
             ) -> StagedOptimizedFixedViewCopyCustodyReceipt {
                 StagedOptimizedFixedViewCopyCustodyReceipt {
-                    core: segment_homes.upstream().core(),
-                    allocator_availability: segment_homes.upstream().allocator_availability(),
-                    source_selected: segment_homes.upstream().selected(),
-                    source_liveness: segment_homes.upstream().liveness(),
-                    source_ranges: segment_homes.upstream().ranges(),
-                    source_legality: segment_homes.upstream().legality(),
-                    fixed_intervals: segment_homes.fixed().identity(),
-                    split_requirements: segment_homes.requirements().identity(),
-                    segment_homes: segment_homes.homes().identity(),
+                    core: upstream.core(),
+                    allocator_availability: upstream.allocator_availability(),
+                    source_selected: upstream.selected(),
+                    source_liveness: upstream.liveness(),
+                    source_ranges: upstream.ranges(),
+                    source_legality: upstream.legality(),
                     transformation: copies.identity(),
                     transformed_selected: copies.transformed_selected(),
                     policy: copies.policy(),
@@ -1633,8 +1573,10 @@ pub(crate) mod fixed_view {
             budget: OptimizationWorkBudget,
         ) -> Result<StagedOptimizedFixedViewCopies, OptimizedFixedViewCopyCustodyError> {
             let copies = compute::compute_fixed_view_copies(&source, policy, budget)?;
-            let custody =
-                custody::fixed_view_copy_custody_receipt(source.custody(), copies.receipt());
+            let custody = custody::fixed_view_copy_custody_receipt(
+                source.source_legality_stage().custody(),
+                copies.receipt(),
+            );
             Ok(StagedOptimizedFixedViewCopies {
                 source,
                 copies,
@@ -1671,9 +1613,6 @@ pub(crate) mod fixed_view {
             source_liveness: selected_instructions::LivenessIdentity,
             source_ranges: selected_instructions::LiveRangeIdentity,
             source_legality: register_homes::AllocationLegalityIdentity,
-            fixed_intervals: register_homes::FixedPrecoloredIntervalPlanIdentity,
-            split_requirements: register_homes::FixedPrecoloredSplitRequirementPlanIdentity,
-            segment_homes: register_homes::FixedPrecoloredSegmentHomePlanIdentity,
             transformation: FixedViewCopyIdentity,
             transformed_selected: SelectedInstructionPlanIdentity,
             policy: FixedViewCopyPolicy,
@@ -1692,19 +1631,12 @@ pub(crate) mod fixed_view {
                 source_ranges: selected_instructions::LiveRangeIdentity,
                 source_legality: register_homes::AllocationLegalityIdentity,
                 transformed_selected: SelectedInstructionPlanIdentity,
-                fixed_intervals: register_homes::FixedPrecoloredIntervalPlanIdentity,
-                segment_homes: register_homes::FixedPrecoloredSegmentHomePlanIdentity,
                 transformation: FixedViewCopyIdentity,
                 policy: FixedViewCopyPolicy,
                 usage: OptimizationWorkUsage,
                 function_count: usize,
                 copy_count: usize,
             });
-            pub const fn split_requirements(
-                self,
-            ) -> register_homes::FixedPrecoloredSplitRequirementPlanIdentity {
-                self.split_requirements
-            }
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1712,7 +1644,6 @@ pub(crate) mod fixed_view {
             UpstreamSegmentHomes(OptimizedFixedPrecoloredSegmentHomeCustodyError),
             Materialization(FixedViewCopyError),
             Revalidation(FixedViewCopyError),
-            ReceiptMismatch,
         }
 
         failed_display!(
@@ -1721,14 +1652,11 @@ pub(crate) mod fixed_view {
         );
     }
 
+    pub(crate) use fixed_precolored_segment_homes::StagedOptimizedFixedPrecoloredSegmentHomes;
     pub use fixed_precolored_segment_homes::{
         OptimizedFixedPrecoloredSegmentHomeCustodyError,
         probe_optimized_fixed_precolored_segment_homes,
         stage_optimized_fixed_precolored_segment_homes,
-    };
-    pub(crate) use fixed_precolored_segment_homes::{
-        StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
-        StagedOptimizedFixedPrecoloredSegmentHomes,
     };
     pub use fixed_view_copies::{
         OptimizedFixedViewCopyCustodyError, stage_optimized_fixed_view_copies,
@@ -1780,8 +1708,8 @@ pub(crate) mod settlement_gaps {
 
 pub(crate) use allocation_recovery::FixedViewCopyDestination;
 pub use allocation_recovery::{
-    FixedViewCopy, FixedViewCopyPlan, FixedViewCopyPolicy, FixedViewCopySourceEvidence,
-    MaterializedFixedViewCopies, PressureRematerializationError, PressureRematerializationPolicy,
+    FixedViewCopy, FixedViewCopyPlan, FixedViewCopyPolicy, MaterializedFixedViewCopies,
+    PressureRematerializationError, PressureRematerializationPolicy,
     ValidatedPressureRematerialization, fixed_view_copy_identity,
     rematerialize_selected_active_resident,
 };
@@ -1800,7 +1728,6 @@ pub use fixed_view::{
     stage_optimized_fixed_view_copies,
 };
 pub(crate) use fixed_view::{
-    StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
     StagedOptimizedFixedPrecoloredSegmentHomes, StagedOptimizedFixedViewCopies,
     StagedOptimizedFixedViewCopyCustodyReceipt,
 };
@@ -1808,6 +1735,7 @@ pub use runtime_rematerialization::{
     RuntimeRematerializationError, ValidatedRuntimeRematerialization,
     rematerialize_selected_runtime_value,
 };
+pub(crate) use runtime_spill::BlockDominance;
 pub use runtime_spill::{
     RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, spill_selected_runtime_value,
     spill_selected_runtime_value_with_crossing_status,
