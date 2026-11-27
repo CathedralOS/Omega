@@ -59,7 +59,7 @@ macro_rules! continuing {
 }
 
 mod calls;
-pub(crate) use calls::publish_write_frames_with;
+pub(crate) use calls::publish_write_frames;
 mod content_equations;
 mod control;
 mod join_reads;
