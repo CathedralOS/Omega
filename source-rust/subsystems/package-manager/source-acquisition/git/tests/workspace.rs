@@ -3,52 +3,14 @@
 // unrelated repository payloads.
 
 use super::{
-    GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionPlanner,
-    GitWorkspaceSelection, LocalSourceLimits, SourceRelativePath, create_git_source,
-    create_private_dir_all, fixture_storage, local_git_request, remove_fixture,
-    resolve_git_workspace_member, run_test_git, temp_root,
+    GitWorkspaceDeclarationLimits, GitWorkspaceSession, LocalSourceLimits, SourceRelativePath,
+    create_git_source, create_private_dir_all, fixture_storage, local_git_request, remove_fixture,
+    run_test_git, temp_root,
 };
-struct FixedWorkspacePlanner {
-    member: SourceRelativePath,
-}
-
-impl GitWorkspaceProjectionPlanner for FixedWorkspacePlanner {
-    type Error = &'static str;
-    type Evidence = String;
-
-    fn discover_members(
-        &mut self,
-        root_declaration: &GitWorkspaceDeclaration,
-    ) -> Result<Vec<SourceRelativePath>, Self::Error> {
-        if root_declaration.bytes() != b"workspace declaration\n" {
-            return Err("unexpected root declaration");
-        }
-        Ok(vec![self.member.clone()])
-    }
-
-    fn select_member(
-        &mut self,
-        _root_declaration: &GitWorkspaceDeclaration,
-        member_declarations: &[GitWorkspaceDeclaration],
-    ) -> Result<GitWorkspaceSelection<Self::Evidence>, Self::Error> {
-        let [declaration] = member_declarations else {
-            return Err("unexpected member declarations");
-        };
-        if declaration.member_path() != Some(&self.member)
-            || declaration.bytes() != b"member declaration\n"
-        {
-            return Err("unexpected member declaration");
-        }
-        Ok(GitWorkspaceSelection::new(
-            self.member.clone(),
-            "manager evidence".to_owned(),
-        ))
-    }
-}
 
 #[test]
 fn selected_workspace_member_never_materializes_unrelated_repository_payloads() {
-    let (repository, _) = create_git_source("workspace-projection-resolution");
+    let (repository, _) = create_git_source("workspace-member");
     std::fs::create_dir_all(repository.join("packages/member/source"))
         .expect("create member source");
     std::fs::write(repository.join("build.omg"), b"workspace declaration\n")
@@ -71,29 +33,39 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
         ["commit", "--quiet", "-m", "add projected workspace"],
     );
 
-    let storage_base = temp_root("workspace-projection-resolution-storage");
+    let storage_base = temp_root("workspace-member-storage");
     create_private_dir_all(&storage_base).expect("create storage base");
     let request = local_git_request(&repository, "HEAD");
     let storage = fixture_storage(&storage_base, &request);
     let member = SourceRelativePath::parse("packages/member").expect("member path");
-    let mut planner = FixedWorkspacePlanner {
-        member: member.clone(),
-    };
-    let result = resolve_git_workspace_member(
-        &request,
+    let session = GitWorkspaceSession::open(
         &storage,
+        &request,
+        None,
         LocalSourceLimits {
             max_entries: 32,
             max_bytes: 1024,
             max_depth: 8,
         },
         GitWorkspaceDeclarationLimits::new(8, 256, 512),
-        &mut planner,
     )
-    .expect("resolve selected workspace member");
-    let (source, evidence) = result.into_parts();
+    .expect("open workspace session");
+    assert_eq!(
+        session.root_declaration().bytes(),
+        b"workspace declaration\n"
+    );
+    let catalog = session
+        .open_members(&storage, std::slice::from_ref(&member))
+        .expect("read member declaration");
+    let [declaration] = catalog.member_declarations() else {
+        panic!("one requested member declaration");
+    };
+    assert_eq!(declaration.member_path(), Some(&member));
+    assert_eq!(declaration.bytes(), b"member declaration\n");
+    let source = catalog
+        .materialize(&storage, &member)
+        .expect("resolve selected workspace member");
 
-    assert_eq!(evidence, "manager evidence");
     assert_eq!(
         std::fs::read(source.snapshot_root().join("build.omg")).expect("read selected declaration"),
         b"member declaration\n"
@@ -123,6 +95,7 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
     assert_eq!(source.lineage(), request.lineage());
     assert_eq!(source.selected_member(), Some(&member));
 
+    drop(catalog);
     drop(storage);
     remove_fixture(&repository, &storage_base);
 }

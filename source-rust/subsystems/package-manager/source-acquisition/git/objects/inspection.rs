@@ -48,10 +48,6 @@ impl AuthenticatedGitTreeInspection {
         Ok(entries)
     }
 
-    pub(crate) fn root_tree_oid(&self) -> &str {
-        self.graph.root_tree_oid()
-    }
-
     pub(crate) fn open_regular_files(
         &self,
         executor: &GitExecutor,

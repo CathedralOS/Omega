@@ -1,97 +1,71 @@
-// Exact-revision Git workspace projection tests verifying that recorded root
+// Exact-revision Git workspace session tests verifying that recorded root
 // objects select authenticated member trees without materializing unrelated
 // payloads or bypassing declaration limits on warm recovery.
 
 use super::{
-    GitCommitId, GitExactRevisionAcquisition, GitSourceRequest, GitTreeId, GitWorkspaceDeclaration,
-    GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError, GitWorkspaceProjectionPlanner,
-    GitWorkspaceProjectionResult, GitWorkspaceSelection, LocalSourceLimits, PathBuf,
+    GitCommitId, GitExactRevisionAcquisition, GitSourceRequest, GitTreeId,
+    GitWorkspaceDeclarationLimits, GitWorkspaceSession, LocalSourceLimits, PathBuf,
     SourceRelativePath, SourceResolveError, SourceResolver, create_git_source, fixture_storage,
-    local_git_request, remove_fixture, resolve_git_workspace_member_at_revision_in_lanes,
-    run_test_git, run_test_git_with_input, temp_root,
+    local_git_request, remove_fixture, run_test_git, run_test_git_with_input, temp_root,
 };
+use crate::ResolvedGitSource;
 
 #[test]
 fn exact_old_workspace_declarations_survive_branch_drift_and_offline_recovery() {
     let mut fixture = Fixture::new("exact-workspace-drift");
     fixture.advance();
-    let mut planner = Planner::default();
     let first = fixture
-        .resolve(GitExactRevisionAcquisition::AllowFetch, &mut planner)
+        .resolve(GitExactRevisionAcquisition::AllowFetch, &member())
         .unwrap();
     fixture.assert_original(&first);
-    assert_eq!((planner.discoveries, planner.selections), (1, 1));
-    assert_eq!(
-        *first.evidence(),
-        "selected from exact authenticated declarations"
-    );
     fixture.disconnect();
     for mode in [
         GitExactRevisionAcquisition::Offline,
         GitExactRevisionAcquisition::AllowFetch,
     ] {
-        let recovered = fixture.resolve(mode, &mut planner).unwrap();
+        let recovered = fixture.resolve(mode, &member()).unwrap();
         fixture.assert_original(&recovered);
-        assert_eq!(
-            recovered.source().content_identity(),
-            first.source().content_identity()
-        );
+        assert_eq!(recovered.content_identity(), first.content_identity());
     }
-    assert_eq!((planner.discoveries, planner.selections), (3, 3));
 }
 
 #[test]
-fn exact_workspace_rejects_selection_outside_authenticated_discovered_members() {
-    let fixture = Fixture::new("exact-workspace-undiscovered");
-    let mut planner = Planner {
-        select_undiscovered: true,
-        ..Planner::default()
-    };
+fn exact_workspace_rejects_selection_outside_authenticated_declared_members() {
+    let fixture = Fixture::new("exact-workspace-undeclared");
+    let other = SourceRelativePath::parse("packages/other").unwrap();
     let error = fixture
-        .resolve(GitExactRevisionAcquisition::AllowFetch, &mut planner)
+        .resolve(GitExactRevisionAcquisition::AllowFetch, &other)
         .unwrap_err();
-    assert_eq!((planner.discoveries, planner.selections), (1, 1));
     assert_eq!(
         error,
-        GitWorkspaceProjectionError::Source(SourceResolveError::GitTreeInvalid {
+        SourceResolveError::GitTreeInvalid {
             path: b"packages/other".to_vec(),
-            message: "workspace planner selected a member absent from its discovered set".into(),
-        })
+            message: "selected member is absent from the acquired declaration roster".into(),
+        }
     );
 }
 
 #[test]
-fn warm_exact_workspace_reapplies_declaration_limits_before_planning() {
-    let mut fixture = Fixture::new("exact-workspace-declaration-limit");
+fn warm_exact_workspace_reapplies_declaration_limits_before_member_requests() {
+    let mut fixture = Fixture::new("exact-workspace-limit");
     fixture
-        .resolve(
-            GitExactRevisionAcquisition::AllowFetch,
-            &mut Planner::default(),
-        )
+        .resolve(GitExactRevisionAcquisition::AllowFetch, &member())
         .unwrap();
     fixture.disconnect();
-    let mut planner = Planner::default();
-    let error = resolve_git_workspace_member_at_revision_in_lanes(
-        fixture.storage.primary_git().unwrap(),
+    let error = GitWorkspaceSession::open_at_revision(
+        &fixture.storage,
         &fixture.request,
         &fixture.commit,
-        &fixture.root_tree,
+        Some(&fixture.root_tree),
         GitExactRevisionAcquisition::Offline,
-        fixture.storage.git_sources(),
-        fixture.storage.workspace_members(),
         limits(),
         GitWorkspaceDeclarationLimits::new(8, 8, 8),
-        &mut planner,
     )
     .unwrap_err();
     assert!(
-        matches!(
-            error,
-            GitWorkspaceProjectionError::Source(SourceResolveError::TooManyBytes { limit: 8 })
-        ),
+        matches!(error, SourceResolveError::TooManyBytes { limit: 8 }),
         "{error:?}"
     );
-    assert_eq!((planner.discoveries, planner.selections), (0, 0));
 }
 
 // Test fixture harness for exact-revision Git workspace member resolution,
@@ -116,6 +90,9 @@ fn limits() -> LocalSourceLimits {
 }
 fn declaration_limits() -> GitWorkspaceDeclarationLimits {
     GitWorkspaceDeclarationLimits::new(8, 256, 512)
+}
+fn member() -> SourceRelativePath {
+    SourceRelativePath::parse("packages/member").unwrap()
 }
 
 impl Fixture {
@@ -156,24 +133,28 @@ impl Fixture {
         }
     }
 
+    // Open the recorded root, request the one declared member, and materialize `selected`.
     pub(super) fn resolve(
         &self,
         mode: GitExactRevisionAcquisition,
-        planner: &mut Planner,
-    ) -> Result<GitWorkspaceProjectionResult<&'static str>, GitWorkspaceProjectionError<&'static str>>
-    {
-        resolve_git_workspace_member_at_revision_in_lanes(
-            self.storage.primary_git().unwrap(),
+        selected: &SourceRelativePath,
+    ) -> Result<ResolvedGitSource, SourceResolveError> {
+        let session = GitWorkspaceSession::open_at_revision(
+            &self.storage,
             &self.request,
             &self.commit,
-            &self.root_tree,
+            Some(&self.root_tree),
             mode,
-            self.storage.git_sources(),
-            self.storage.workspace_members(),
             limits(),
             declaration_limits(),
-            planner,
-        )
+        )?;
+        assert_eq!(
+            session.root_declaration().bytes(),
+            b"old workspace declaration\n"
+        );
+        session
+            .open_members(&self.storage, &[member()])?
+            .materialize(&self.storage, selected)
     }
 
     pub(super) fn advance(&self) {
@@ -201,8 +182,7 @@ impl Fixture {
         self.repository = offline;
     }
 
-    pub(super) fn assert_original(&self, result: &GitWorkspaceProjectionResult<&str>) {
-        let source = result.source();
+    pub(super) fn assert_original(&self, source: &ResolvedGitSource) {
         assert_eq!(source.commit(), self.commit.to_hex());
         assert_eq!(source.tree(), self.root_tree.to_hex());
         assert_eq!(source.materialized_tree(), self.member_tree.to_hex());
@@ -240,58 +220,6 @@ impl Fixture {
 impl Drop for Fixture {
     fn drop(&mut self) {
         remove_fixture(&self.repository, &self.storage_base);
-    }
-}
-
-// Deterministic workspace projection planner used by exact-workspace tests to
-// verify that discovery and selection see exact historical declarations.
-
-#[derive(Default)]
-struct Planner {
-    pub(super) discoveries: usize,
-    pub(super) selections: usize,
-    pub(super) select_undiscovered: bool,
-}
-
-impl GitWorkspaceProjectionPlanner for Planner {
-    type Error = &'static str;
-    type Evidence = &'static str;
-
-    fn discover_members(
-        &mut self,
-        root: &GitWorkspaceDeclaration,
-    ) -> Result<Vec<SourceRelativePath>, Self::Error> {
-        self.discoveries += 1;
-        if root.bytes() != b"old workspace declaration\n" {
-            return Err("root declaration drifted from exact old tree");
-        }
-        Ok(vec![SourceRelativePath::parse("packages/member").unwrap()])
-    }
-
-    fn select_member(
-        &mut self,
-        root: &GitWorkspaceDeclaration,
-        members: &[GitWorkspaceDeclaration],
-    ) -> Result<GitWorkspaceSelection<Self::Evidence>, Self::Error> {
-        self.selections += 1;
-        let [member] = members else {
-            return Err("one authenticated member expected");
-        };
-        if root.bytes() != b"old workspace declaration\n"
-            || member.bytes() != b"old member declaration\n"
-            || member.member_path().map(SourceRelativePath::as_str) != Some("packages/member")
-        {
-            return Err("member declaration drifted from exact old tree");
-        }
-        Ok(GitWorkspaceSelection::new(
-            SourceRelativePath::parse(if self.select_undiscovered {
-                "packages/other"
-            } else {
-                "packages/member"
-            })
-            .unwrap(),
-            "selected from exact authenticated declarations",
-        ))
     }
 }
 
@@ -357,15 +285,10 @@ pub(in crate::git::tests::exact_workspace) fn selected_member_submodule_metadata
     ] {
         let mut fixture = Fixture::new("workspace-selected-submodule");
         add_submodule(&mut fixture, manifest, link);
-        let result = fixture.resolve(
-            GitExactRevisionAcquisition::AllowFetch,
-            &mut Planner::default(),
-        );
+        let result = fixture.resolve(GitExactRevisionAcquisition::AllowFetch, &member());
         assert!(matches!(
             result,
-            Err(GitWorkspaceProjectionError::Source(
-                SourceResolveError::GitSubmodulesUnsupported { .. }
-            ))
+            Err(SourceResolveError::GitSubmodulesUnsupported { .. })
         ));
     }
 }

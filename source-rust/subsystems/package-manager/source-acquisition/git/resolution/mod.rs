@@ -6,9 +6,9 @@ We coordinate Git acquisition across four stages: `acquisition` opens or creates
 the retained bare-repository cache entry under an entry lock and verifies lane
 path identities around the entire resolution; `repository` selects or fetches
 the target commit and authenticates the commit and root tree objects; a
-materializer (`materialization` for whole repositories, `workspace_member` for
-projected workspace packages, or `tree_session` for staged multi-step catalog
-discovery) authenticates and publishes the selected snapshot; and `issuance`
+materializer (`materialize_whole_git_source` for whole repositories, or
+`tree_session` for staged workspace catalog discovery that publishes one member
+through `workspace_member`) authenticates and publishes the selected snapshot; and `issuance`
 re-verifies snapshot bytes and retained storage custody before returning
 `ResolvedGitSource`.
 */
@@ -34,7 +34,7 @@ use crate::git::executable::GitExecutor;
 use crate::git::executable::selection::PrimaryGitSelection;
 use crate::git::objects::inspect_git_tree;
 use crate::git::snapshot::resolve_git_snapshot;
-use crate::git::workspace::{GitWorkspaceProjectionCustody, GitWorkspaceProjectionError};
+use crate::git::workspace::GitWorkspaceProjectionCustody;
 use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::ResolvedGitSource;
 use crate::storage::RetainedStorageLane;
@@ -46,10 +46,6 @@ use selection::GitRevisionSelection;
 use std::ffi::OsString;
 use std::path::PathBuf;
 pub use tree_session::{GitWorkspaceCatalog, GitWorkspaceSession};
-pub use workspace_member::{
-    resolve_git_workspace_member_at_revision_in_lanes,
-    resolve_git_workspace_member_from_pin_in_lanes,
-};
 
 mod acquisition;
 mod exact_objects;
@@ -60,9 +56,6 @@ mod repository;
 mod selection;
 mod tree_session;
 mod workspace_member;
-
-#[cfg(test)]
-pub(crate) use workspace_member::resolve_git_workspace_member;
 
 #[cfg(test)]
 mod tests;
@@ -101,14 +94,13 @@ pub(crate) fn resolve_git_source(
 
 // Internal materialization result (`GitMaterializedSource`) shared by
 // whole-repository (`materialize_whole_git_source`) and workspace-member
-// materializers.
+// (`workspace_member::materialize_member`) materializers.
 
-struct GitMaterializedSource<Evidence> {
+struct GitMaterializedSource {
     pub(super) materialized_tree: String,
     pub(super) snapshot_root: PathBuf,
     pub(super) local: ResolvedLocalSource,
     pub(super) workspace_projection: Option<GitWorkspaceProjectionCustody>,
-    pub(super) evidence: Evidence,
 }
 
 fn materialize_whole_git_source(
@@ -116,7 +108,7 @@ fn materialize_whole_git_source(
     repository: &VerifiedGitRepository,
     tree: &str,
     limits: LocalSourceLimits,
-) -> Result<GitMaterializedSource<()>, GitWorkspaceProjectionError<std::convert::Infallible>> {
+) -> Result<GitMaterializedSource, SourceResolveError> {
     let entries = inspect_git_tree(executor, repository, tree, limits)?;
     let (snapshot_root, local) = resolve_git_snapshot(executor, repository, tree, entries, limits)?;
     Ok(GitMaterializedSource {
@@ -124,7 +116,6 @@ fn materialize_whole_git_source(
         snapshot_root,
         local,
         workspace_projection: None,
-        evidence: (),
     })
 }
 

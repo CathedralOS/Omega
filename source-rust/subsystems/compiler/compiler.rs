@@ -2,8 +2,6 @@
 
 #![forbid(unsafe_code)]
 
-pub use compiler_identity::compiler_identity;
-
 mod request_outcome;
 mod runtime_consent;
 pub use provider_correspondence::trust::selected_provider_grants;
@@ -21,8 +19,7 @@ pub use native_compiler::{
 };
 use source_compiler as source_to_psi;
 pub use source_compiler::{
-    DeclarationUsageAdvisories, PublishedPsi, StageSource, check, check_with_declaration_usage,
-    inspect,
+    DeclarationUsageAdvisories, PublishedPsi, StageSource, check_with_declaration_usage, inspect,
 };
 
 /// Declaration and deployment findings from the same checked Product.

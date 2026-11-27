@@ -16,14 +16,11 @@ use super::workspace_member::{declarations, materialize_member};
 use crate::git::executable::selection::resolver_package_controlled_roots;
 use crate::git::objects::{AuthenticatedGitTreeInspection, inspect_git_tree_graph};
 use crate::git::request::GitSourceRequest;
-use crate::git::workspace::{
-    GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
-};
+use crate::git::workspace::{GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits};
 use crate::{
     GitCommitId, GitTreeId, LocalSourceLimits, ResolvedGitSource, SourceRelativePath,
     SourceResolveError, SourceResolver,
 };
-use std::convert::Infallible;
 
 #[path = "tree_session_inventory.rs"]
 mod inventory;
@@ -122,7 +119,7 @@ impl GitWorkspaceSession {
             |evidence, _lock, _root| Ok(evidence),
         );
         storage.verify_path_identity()?;
-        result.map_err(source_error)
+        result
     }
 
     pub fn acquisition_pin(&self) -> crate::GitAcquisitionPin {
@@ -176,12 +173,11 @@ impl GitWorkspaceSession {
                     limits,
                     self.declaration_limits,
                 )
-                .map_err(GitWorkspaceProjectionError::Source)
             },
             |evidence, _lock, _root| Ok(evidence),
         );
         storage.verify_path_identity()?;
-        let members = result.map_err(source_error)?;
+        let members = result?;
         Ok(GitWorkspaceCatalog {
             session: self,
             members,
@@ -254,18 +250,10 @@ impl GitWorkspaceCatalog {
                     self.session.root.clone(),
                     self.members.clone(),
                     selected.clone(),
-                    (),
                 )
             },
         );
         storage.verify_path_identity()?;
-        result.map(|(source, ())| source).map_err(source_error)
-    }
-}
-
-fn source_error(error: GitWorkspaceProjectionError<Infallible>) -> SourceResolveError {
-    match error {
-        GitWorkspaceProjectionError::Source(error) => error,
-        GitWorkspaceProjectionError::Planner(never) => match never {},
+        result
     }
 }

@@ -11,7 +11,6 @@ use super::{
 };
 use crate::git::resolution::materialize_whole_git_source;
 use crate::git::resolution::selection::GitRevisionSelection;
-use crate::git::workspace::GitWorkspaceProjectionError;
 use crate::test_support::create_private_dir_all;
 
 #[test]
@@ -78,8 +77,7 @@ fn git_fetch_omits_a_blob_above_the_source_byte_ceiling_and_rejects() {
         },
     ) {
         Ok(_) => panic!("a required blob above the source ceiling must not be acquired"),
-        Err(GitWorkspaceProjectionError::Source(error)) => error,
-        Err(GitWorkspaceProjectionError::Planner(never)) => match never {},
+        Err(error) => error,
     };
 
     assert!(matches!(error, SourceResolveError::GitTreeInvalid { .. }));

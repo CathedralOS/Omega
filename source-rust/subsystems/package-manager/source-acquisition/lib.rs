@@ -46,10 +46,7 @@ pub mod tree;
 
 pub use error::SourceResolveError;
 pub use git::request::{GitSourceRequest, GitSourceRequestError, GitTransportProfile};
-pub use git::workspace::{
-    GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
-    GitWorkspaceProjectionPlanner, GitWorkspaceProjectionResult, GitWorkspaceSelection,
-};
+pub use git::workspace::{GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits};
 pub use identity::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitObjectIdAlgorithm, GitTransport,
     GitTreeId, IdentityError, ImmutableSourceResolution, SourceContentDigest, SourceLineage,

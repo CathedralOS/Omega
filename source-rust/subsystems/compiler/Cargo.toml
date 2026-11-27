@@ -9,7 +9,6 @@ path = "compiler.rs"
 
 [dependencies]
 build-providers = { path = "build/providers" }
-compiler-identity = { path = "foundation/compiler-identity" }
 review-evidence = { path = "../package-manager/review/evidence" }
 provider-correspondence = { path = "psi-to-native/verification/provider-correspondence" }
 psi-entry-memory = { path = "psi/execution-inputs/entry-memory" }
@@ -19,9 +18,9 @@ native-compiler = { path = "psi-to-native" }
 package-compilation = { path = "build/inputs" }
 product-publication = { path = "build/publication" }
 semantic-vocabulary = { path = "foundation/semantic-records" }
-source-admission = { path = "source-to-psi/representations/source-files/custody" }
 source-compiler = { path = "source-to-psi" }
-source-text = { path = "../../foundation/source-text" }
 target = { path = "psi-to-native/targets/target" }
-terminal-codec = { path = "psi/artifact/codec" }
 psi-authorization = { path = "psi/artifact/authorization" }
+
+[dev-dependencies]
+terminal-codec = { path = "psi/artifact/codec" }

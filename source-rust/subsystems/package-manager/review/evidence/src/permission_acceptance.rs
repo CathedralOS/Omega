@@ -1,6 +1,6 @@
-//! Compare a retained lock decision with a complete proposed policy. This comparison
-//! describes agreement between records; runtime admission also needs a checked issuer.
-use crate::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyBaseline, PackagePolicyRowKind};
+//! Compare a retained lock decision with the runtime permissions a program selects. This
+//! comparison describes agreement between records; runtime admission also needs a checked issuer.
+use crate::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRowKind};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
@@ -33,18 +33,6 @@ impl TerminalPermissionAcceptance {
         let rows =
             crate::encoding::runtime_permission_rows(package, target, permissions, assumptions)
                 .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
-        self.compare_rows(rows)
-    }
-
-    pub fn compare_policy(&self, policy: &PackagePolicyBaseline) -> Result<(), Vec<Diagnostic>> {
-        self.check_subject(policy.package(), policy.target())?;
-        let (rows, _) = policy
-            .acceptance_rows_with_limits(Default::default())
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "cannot encode the runtime permission policy: {error:?}"
-                ))]
-            })?;
         self.compare_rows(rows)
     }
 
