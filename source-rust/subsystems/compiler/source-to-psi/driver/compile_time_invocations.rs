@@ -19,7 +19,7 @@ mod frontier;
 pub(crate) use frontier::PreCheckEvaluation;
 
 mod demands;
-pub(crate) use demands::demanded_declarations;
+pub(crate) use demands::{demanded_declarations, from_supplied_roots};
 
 mod constants;
 pub(crate) use constants::validate_constant_evaluations;
