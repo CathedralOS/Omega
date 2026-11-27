@@ -305,3 +305,49 @@ rules" becomes "`Two` rules and native inductive blocks", and "W eta" becomes
 "eta for inductive types". The alternative keeps the text as a record of the
 earlier encoding.
 Should the specification drop it?
+
+<a id="fixed-extent-view-of-a-slice"></a>
+### 8. How does code borrow a fixed-length run of a slice as `@[T; N]`?
+
+The SIMD library loads and stores fixed arrays: `u8x16::load(source: @[u8; 16])`
+and `u8x16::store(destination: @mutable [u8; 16], ..)`
+([u8x16](source/library/system/simd/u8x16.omg)). An image or video codec holds
+a row as a slice whose length is known only at run time, and its filter steps
+through that row 16 bytes at a time. omega-prism's PNG decoder is one such
+customer. It cannot pass `@row[i..i + 16]` to `load`, because a range access
+gives a view `@[u8]`. An array becomes a view only through an explicit range
+or `ArrayAccess::as_slice`, and no rule goes the other way
+([views of a fixed array](wiki/spec/language/expressions.md#views-of-a-fixed-array) ·
+[borrowed range access](wiki/spec/language/expressions.md#borrowed-range-access)).
+Range access also adds "no result-type-directed operator selection", so an
+expected `@[u8; 16]` cannot change what `row[i..i + 16]` means
+([indexing and ranges](wiki/spec/language/expressions.md#indexing-and-ranges)).
+The [core slice surface](source/library/core/slice.omg) offers only element
+reads and `slice_range`, and [SIMD memory](wiki/spec/language/simd.md#memory-and-realization)
+says each operation accesses its declared extent but not how a slice supplies
+one.
+
+Ordinary Omega can already copy the bytes: 16 checked reads into a local
+`[u8; 16]`, then `load`, and 16 checked writes back after `store`. That costs
+two copies per vector and leaves the native compiler to rediscover one 16-byte
+access. It cannot hand an `@mutable [u8; 16]` into the row to a machine that
+writes in place.
+
+**Recommend a sealed core primitive beside `slice_range`:**
+
+```omega
+public machine slice_array<'backing, Element, const N: u64>(
+    items: @'backing [Element], start: u64
+) -> @'backing [Element; N]
+requires start <= items.length && N <= items.length - start
+```
+
+There would be a matching `slice_array_mut` over `@mutable [Element]`. The
+result borrows elements `start..start + N` of the same backing, with no copy,
+under the range access rules for backing, lifetime and loans. A caller writes
+`|u8x16|::load(slice_array::<u8, 16>(row, i))`. This is a named adapter, as
+`as_slice` is in the other direction, so no syntax changes. Alternatively,
+range access could produce `@[T; N]` when both endpoints differ by a constant,
+as in `row[i..i + 16]`. That reads naturally but makes a range's type depend
+on proving its width, which the current rules avoid. Which form should a
+fixed-length view of a slice take?
