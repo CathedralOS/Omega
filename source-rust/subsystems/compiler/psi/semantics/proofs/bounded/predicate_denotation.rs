@@ -575,8 +575,7 @@ fn closed_integer_relation(proposition: &Proposition) -> Option<Proposition> {
     // Two literals of one closed carrier compare by value, a fixed integer's
     // or an address's alike: no address model changes the order of two
     // address literals. This closes `0 < 0` where an address's lower bound
-    // meets `n < 0` (OWNER_QUESTIONS.md, "Numeric addresses have a lower
-    // bound of zero on every target").
+    // meets `n < 0` (integer_certificates.md, "Elementary certificate rules").
     left.scalar_type().as_integer()?.bits()?;
     let ordering = crate::kernel::compare_integer_literals(left, right)?;
     let holds = match proposition {

@@ -29,6 +29,8 @@ receiver permissions; see [locks](locks.md). A malformed, obsolete or stale lock
 is rejected, never treated as missing.
 See [ordinary compilation](acceptance.md#ordinary-compilation).
 
+<a id="package-review-empty-policy-sections"></a>
+
 ## Complete checked findings
 
 In an explicit review workflow, after successful checking derive a complete
@@ -38,6 +40,12 @@ reachable implementation authority, selected providers, opaque executable
 supplies, accepted assumptions, and relevant build/generated-source facts.
 An unused dangerous public API remains reviewable independently of actual
 selected-program reach.
+
+By default `omega packages audit` shows the boundary trait that declares an
+API's promise, the promise itself, and the selected provider or external
+implementation on which the consumer relies. Report external supplies and
+which opaque representations are available, selected and required from the
+checked findings.
 
 The report lists each reviewed domain's effective issuance, with aliases and
 inherited restrictions expanded, and where the domain is used: parameter
@@ -151,9 +159,14 @@ ordinary service exclusions; registration is not required to use those exclusion
 
 Install, update and explicit review prominently surface core-critical and
 root-registered reach with exact callable/package ownership, transitive call
-context, target/purpose and accepted-versus-candidate state. New or widened
-critical findings require project acceptance under the existing comparison
-rules; unchanged accepted findings remain visible without recurring approval.
+context, target/purpose and accepted-versus-candidate state. For example,
+if the root marks `MotorControl` critical, the default audit highlights each
+API exposing it. If `read_status()` gains that reach within its dependency's
+`max_reach`, highlight the change when previous findings are available.
+With no baseline, report current reach and mark the change unknown.
+In the version 4 lock workflow, new or widened critical findings require
+project acceptance under the existing comparison rules. Unchanged accepted
+findings remain visible without recurring approval.
 Unregistered custom reach stays in the full report. Checked-body reach and a
 conservative public ceiling remain distinguishable, including overdeclaration.
 
@@ -258,12 +271,21 @@ come from admitted compiler-owned metadata on exact identities, never
 package-controlled names. Custom critical-service additions come only from the
 root audit selections above and do not reclassify physical mechanisms.
 
+<a id="review-unused-generic-native-binding"></a>
+
 Each evaluated package-owned native binding intent, including a private or
 runtime-unselected row, has a separate executable-supply trust row. Its
-self-contained key binds the exact requirement application and signature,
-target, immutable supplying package, pinned calling policy, normalized locator,
-and authored selection/evaluation provenance; its value retains the exact
-mechanism and admitted foreign promise. It needs no synthetic forwarding
+self-contained key records the target, immutable supplying package, pinned
+calling policy, normalized locator and authored selection/evaluation provenance.
+For a concrete binding, the key also includes its exact requirement application
+and signature, including when it is unused.
+The row retains the mechanism and admitted foreign promise. When Build binds
+a generic native import with no concrete application on the audited target,
+report its generic declaration, signature and unbound parameters as unused.
+An otherwise valid package completes the audit. For example, an unused
+`WideCharToMultiByte` binding can retain its generic buffer capacities. Each
+distinct tuple that a caller uses requires a checked calling plan and review
+of its concrete supply before execution. It needs no synthetic forwarding
 machine identity or `via` token. Untaken Build calls create no evaluated binding
 row, and unresolved product references must close before product admission.
 Ordinary trait implementation, boundary-trait

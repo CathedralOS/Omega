@@ -1,5 +1,7 @@
 # Counts, indices, and addresses
 
+<a id="address-subject-lower-bound"></a>
+
 ## Separate roles
 
 | Role | Contract |
@@ -7,6 +9,11 @@
 | Count | A nonnegative magnitude. General lengths, sizes, and compiler-facing policy geometry use `u64`. |
 | Index | Any integer operand whose use proves the collection's bounds; no privileged index carrier. |
 | Address | `address`, interpreted under the selected target's address model. Address data grants no storage or access authority. |
+
+Zero is a valid numeric `address` on every target. The proof checker can
+use `0 <= n` for any `n: address` before target selection. A premise
+`n != 0` therefore implies `n > 0`. The address model determines the upper
+bound. Numeric bounds grant no access to storage.
 
 `usize` and `isize` are not Omega carriers. No global width equality or ordering
 relates counts to addresses. A count can exceed one target's address space;

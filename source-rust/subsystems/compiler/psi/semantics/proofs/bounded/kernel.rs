@@ -160,8 +160,8 @@ fn integer_carrier_bound(left: &ScalarTerm, right: &ScalarTerm) -> bool {
     // A parameter width has no literal endpoint, so no literal is one. Every
     // numeric address is zero or positive on every target, so an address
     // has the lower endpoint zero; its upper endpoint is the selected
-    // target's and is never assumed here
-    // (OWNER_QUESTIONS.md, "Numeric addresses have a lower bound of zero").
+    // target's and is never assumed here (integer_certificates.md,
+    // "Elementary certificate rules").
     match integer_type.carrier() {
         IntegerCarrier::Fixed => {
             Some(literal_value)
