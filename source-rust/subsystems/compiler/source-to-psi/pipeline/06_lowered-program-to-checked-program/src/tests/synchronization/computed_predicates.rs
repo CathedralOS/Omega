@@ -89,3 +89,61 @@ fn a_shared_cell_cannot_fix_a_computed_retry_across_iterations() {
         }}"
     ));
 }
+
+#[test]
+fn moving_a_retry_comparison_into_a_scalar_helper_preserves_its_private_wait() {
+    for call in ["blocked(observed,key)", "forward(key,observed)"] {
+        let source = |initial| {
+            format!(
+                "{} machine blocked(value:u32, mask:u32) -> bool {{
+                let selected:u32=value | mask;
+                selected == 3
+            }}
+            machine forward(mask:u32, value:u32) -> bool {{ blocked(value,mask) }}",
+                one_cell(call, initial)
+            )
+        };
+        reject_deadlock(&source("1"));
+        execute_unit(&source("0"));
+    }
+}
+
+#[test]
+fn a_helper_that_does_not_use_its_atomic_argument_cannot_imply_a_wait() {
+    let source = format!(
+        "{} machine ignores(value:u32, mask:u32) -> bool {{ mask == 2 }}",
+        one_cell("ignores(observed,key)", "1")
+    );
+    assert!(matches!(
+        judge_build(&source).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+}
+
+#[test]
+fn a_helper_with_a_write_cannot_certify_a_deadlock_from_its_return_value() {
+    let source = format!(
+        "{} machine clears(flag:@Flag, value:u32) -> bool {{
+        flag.word.store(0,Publish);
+        value == 1
+    }}",
+        one_cell("clears(flag,observed)", "1")
+    );
+    expect_unproved_progress(&source);
+}
+
+#[test]
+fn a_possible_trap_in_a_helper_may_prevent_the_next_retry() {
+    let source = |initial| {
+        format!(
+            "{} machine blocked(value:u32, mask:u32) -> bool {{
+            let limit:u32=4294967295;
+            let result:u32=limit +! value;
+            (value | mask) == 3
+        }}",
+            one_cell("blocked(observed,key)", initial)
+        )
+    };
+    expect_unproved_progress(&source("1"));
+    execute_unit(&source("0"));
+}

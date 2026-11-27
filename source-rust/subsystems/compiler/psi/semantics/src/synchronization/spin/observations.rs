@@ -23,6 +23,27 @@ enum Word {
     Computed(usize),
 }
 
+impl Word {
+    fn input(&self) -> Option<scalars::Input> {
+        Some(match self {
+            Self::Computed(index) => scalars::Input::Previous(*index),
+            Self::Argument(value) => scalars::Input::Supplied(*value),
+            Self::Literal(value) => scalars::Input::Supplied(Operand::Literal(*value)),
+            _ => return None,
+        })
+    }
+}
+
+impl From<scalars::Input> for Word {
+    fn from(input: scalars::Input) -> Self {
+        match input {
+            scalars::Input::Previous(index) => Self::Computed(index),
+            scalars::Input::Supplied(Operand::Literal(value)) => Self::Literal(value),
+            scalars::Input::Supplied(value) => Self::Argument(value),
+        }
+    }
+}
+
 struct Analysis<'a> {
     module: &'a terminal_psi::TerminalModule,
     machine: &'a TerminalMachine,
@@ -71,8 +92,19 @@ impl Analysis<'_> {
     }
 
     fn operation(&mut self, operation: &Operation) -> Option<()> {
-        if operation.declared_invocation().is_some() {
-            return super::inert_unit_call(self.module, operation).then_some(());
+        if let Some(call) = operation.declared_invocation() {
+            if super::inert_unit_call(self.module, operation) {
+                return Some(());
+            }
+            self.scalar_types.as_ref()?;
+            let result = operation.result.scalar()?;
+            let args = call
+                .arguments
+                .iter()
+                .map(|id| self.words.get(id)?.input())
+                .collect::<Option<_>>()?;
+            let value = self.predicate.expressions.helper(self.module, call, args);
+            return bind(&mut self.words, result.id, Word::from(value));
         }
         let target = operation.result.scalar()?.id;
         let word = if let Some(value) = constant(operation) {
@@ -94,14 +126,11 @@ impl Analysis<'_> {
                 )
             } else {
                 let words = &self.words;
-                Word::Computed(self.predicate.expressions.apply(operation, types, |id| {
-                    Some(match words.get(&id)? {
-                        Word::Computed(index) => scalars::Input::Previous(*index),
-                        Word::Argument(value) => scalars::Input::Supplied(*value),
-                        Word::Literal(value) => scalars::Input::Supplied(Operand::Literal(*value)),
-                        _ => return None,
-                    })
-                })?)
+                Word::Computed(
+                    self.predicate
+                        .expressions
+                        .apply(operation, types, |id| words.get(&id)?.input())?,
+                )
             }
         } else {
             match &operation.kind {
