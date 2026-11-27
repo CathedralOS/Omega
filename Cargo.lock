@@ -890,15 +890,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "extents"
-version = "0.1.0"
-dependencies = [
- "arena",
- "extent-contracts",
- "resource-bounds",
-]
-
-[[package]]
 name = "filesystem-authority"
 version = "0.1.0"
 dependencies = [
@@ -1056,7 +1047,6 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "entry-planning",
- "extents",
  "function-identity",
  "iced-x86",
  "image",
@@ -3354,25 +3344,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "storage-access"
-version = "0.1.0"
-dependencies = [
- "access-admission",
- "access-vocabulary",
- "extent-contracts",
- "extents",
- "language-core",
- "layout-plans",
-]
-
-[[package]]
-name = "storage-materialization"
-version = "0.1.0"
-dependencies = [
- "layout-plans",
-]
-
-[[package]]
 name = "structural-storage"
 version = "0.1.0"
 dependencies = [
@@ -3767,7 +3738,6 @@ dependencies = [
  "evaluation-contracts",
  "evaluation-work",
  "extent-contracts",
- "extents",
  "language-core",
  "layout-plans",
  "numerics",
@@ -3778,8 +3748,6 @@ dependencies = [
  "record-storage",
  "resource-bounds",
  "semantic-vocabulary",
- "storage-access",
- "storage-materialization",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
@@ -3819,7 +3787,6 @@ dependencies = [
  "application-identity",
  "calling-conventions",
  "extent-contracts",
- "extents",
  "interpreter-numeric-imports",
  "language-core",
  "native-provider-runtime",
@@ -3833,7 +3800,6 @@ dependencies = [
  "runtime-abi",
  "semantic-vocabulary",
  "service-surface",
- "storage-access",
  "target",
  "target-provider-admission",
  "target-vocabulary",

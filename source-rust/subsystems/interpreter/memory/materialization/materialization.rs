@@ -44,7 +44,9 @@ pub(crate) mod field_codec {
             ));
         }
         for entry in entries {
-            crate::symbolic_materialization::apply_scalar_entry(staged, byte_order, entry, value)?;
+            crate::storage_materialization::symbolic_materialization::apply_scalar_entry(
+                staged, byte_order, entry, value,
+            )?;
         }
         Ok(())
     }
@@ -284,8 +286,12 @@ pub(crate) mod field_codec {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::test_support::{layout_field_entry, numbered_layout_field_entry};
-        use crate::{materialize_aggregate_layout_into, stage_aggregate_layout};
+        use crate::storage_materialization::test_support::{
+            layout_field_entry, numbered_layout_field_entry,
+        };
+        use crate::storage_materialization::{
+            materialize_aggregate_layout_into, stage_aggregate_layout,
+        };
         use layout_plans::{AggregateFieldValue, IntegerInterpretation};
 
         #[test]
@@ -662,11 +668,11 @@ pub(crate) mod stored_integer_writes {
 
 use layout_plans::{MaterializationDiagnostic, SymbolicMaterializationPlan};
 
-use crate::materialization::stored_integer_writes::{
+use crate::storage_materialization::materialization::stored_integer_writes::{
     apply_write, byte_sized_width, container_range, low_mask, read_container, scalar_fragment,
     validate_fragment, validate_write, validate_write_source_value,
 };
-use crate::symbolic_materialization::apply_scalar_entry;
+use crate::storage_materialization::symbolic_materialization::apply_scalar_entry;
 use layout_plans::field_identities::{
     index_supplied_fields, materialization_field_key, planned_entries_by_key,
     validate_materialization_field_identities, validate_supplied_field_coverage,

@@ -4,7 +4,7 @@ geometry (`LayoutPlanReport` and nested record/sum interiors) with symbolic
 field values under placement phase and address-range constraints.
 */
 
-use crate::materialization::stored_integer_writes::{
+use crate::storage_materialization::materialization::stored_integer_writes::{
     apply_fragment, materializer_scalar_window, scalar_fragment, validate_fragment,
     validate_stored_integer_value, validate_write, validate_write_source_value,
 };
@@ -50,8 +50,10 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
     context: MaterializationContext,
     mut resolve: impl FnMut(RelocationTarget) -> Option<u64>,
 ) -> Result<SymbolicMaterializationPlan, MaterializationDiagnostic> {
-    let byte_len =
-        crate::materialization::fixed_layout_byte_len(layout, "symbolic materialization")?;
+    let byte_len = crate::storage_materialization::materialization::fixed_layout_byte_len(
+        layout,
+        "symbolic materialization",
+    )?;
     let placement = context
         .placement
         .joined_with_layout(layout.align, byte_len)?;

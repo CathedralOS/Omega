@@ -67,6 +67,7 @@ pub(crate) mod activation_storage {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::values::{StructuralRuntimePlace, TerminalStructuralValue};
     use crate::engine::execution::{OperationFlow, TerminalExecution};
+    use crate::extents::{ActivationClaimId, ActivationClaimRequest};
     use crate::storage::byte_sequences::storage::ByteSequenceStorage;
     use crate::storage::byte_sequences::{
         ByteSequenceView,
@@ -75,15 +76,14 @@ pub(crate) mod activation_storage {
     use crate::storage::runtime_rows::RuntimeRows;
     use evaluation_accounting::EvaluationInvocationAccount;
     use extent_contracts::ActivationClaimSiteId;
-    use extents::{ActivationClaimId, ActivationClaimRequest};
     use resource_bounds::ActivationClaimBranch;
     use semantic_vocabulary::{MachineId, OperationId};
     use terminal_psi::{Operation, OperationKind, StructuralPathSegment};
 
     pub(crate) mod ledger {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
+        use crate::extents::{ActivationClaimId, ActivationClaimLedger, ActivationClaimRequest};
         use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-        use extents::{ActivationClaimId, ActivationClaimLedger, ActivationClaimRequest};
 
         pub(crate) struct RuntimeActivationLedger {
             ledger: ActivationClaimLedger,
