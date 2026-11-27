@@ -6,9 +6,9 @@ domain-separated identities.
 */
 
 use ::selected_instructions::{
-    FixedViewCopyIdentity, LiveRangeIdentity, LiveRangePoint, SelectedBlockId,
-    SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionProvenance,
-    VirtualFixedConstraintSite, VirtualRegisterId, VirtualRegisterOrigin,
+    FixedViewCopyIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionPlan, SelectedInstructionProvenance, VirtualFixedConstraintSite,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
 use operation_evidence::provenance::{
     PsiProvenance, ValueDefinitionSite, encode_value_definition_site_identity,
@@ -23,10 +23,7 @@ use semantic_vocabulary::{
 use std::sync::Arc;
 
 use crate::codec_bytes::{domain_identity, length, list, option, push_encoded};
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity,
-    encode_fixed_constraint_site_identity,
-};
+use crate::{AllocatorAvailabilityIdentity, encode_fixed_constraint_site_identity};
 
 pub mod classification {
     pub use super::{
@@ -63,8 +60,6 @@ pub enum RecoveryClassificationPolicy {
 pub struct RecoveryClassificationPlan {
     pub selected: Arc<SelectedInstructionPlan>,
     pub spill_choices: SpillChoiceIdentity,
-    pub ranges: LiveRangeIdentity,
-    pub legality: AllocationLegalityIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
@@ -140,7 +135,7 @@ pub fn recovery_classification_identity(
     plan: &RecoveryClassificationPlan,
 ) -> RecoveryClassificationIdentity {
     RecoveryClassificationIdentity(domain_identity(
-        b"omega.terminal-recovery-classification.v8\0",
+        b"omega.terminal-recovery-classification.v9\0",
         &encode_terminal_recovery_classification_content(plan),
     ))
 }
@@ -150,8 +145,6 @@ pub(crate) fn encode_terminal_recovery_classification_content(
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&plan.spill_choices.bytes());
-    bytes.extend_from_slice(&plan.ranges.bytes());
-    bytes.extend_from_slice(&plan.legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -313,8 +306,7 @@ pub enum SpillChoicePolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpillChoicePlan {
-    pub legality: AllocationLegalityIdentity,
-    pub ranges: LiveRangeIdentity,
+    pub selected: Arc<SelectedInstructionPlan>, // Program whose pressure points these choices cover
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub policy: SpillChoicePolicy,
@@ -359,15 +351,13 @@ pub struct PressureContender {
 
 pub fn spill_choice_identity(plan: &SpillChoicePlan) -> SpillChoiceIdentity {
     SpillChoiceIdentity(domain_identity(
-        b"omega.terminal-spill-choices.v2\0",
+        b"omega.terminal-spill-choices.v3\0",
         &encode_terminal_spill_choice_content(plan),
     ))
 }
 
 pub(crate) fn encode_terminal_spill_choice_content(plan: &SpillChoicePlan) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(&plan.legality.bytes());
-    bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.push(match plan.policy {
@@ -436,8 +426,6 @@ pub enum PressureRematerializationPolicy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedViewCopyPlan {
     pub source_selected: Arc<SelectedInstructionPlan>,
-    pub source_ranges: LiveRangeIdentity,
-    pub source_legality: AllocationLegalityIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub policy: FixedViewCopyPolicy,
@@ -473,8 +461,6 @@ pub struct FixedViewCopyDestination {
 
 pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(&plan.source_ranges.bytes());
-    bytes.extend_from_slice(&plan.source_legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.push(match plan.policy {
@@ -512,7 +498,7 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
         crate::codec_bytes::push_encoded(&mut bytes, copy.copy_constraint.variant.to_le_bytes());
     }
     FixedViewCopyIdentity::from_bytes(crate::codec_bytes::domain_identity(
-        b"omega.terminal-fixed-view-copies.v12\0",
+        b"omega.terminal-fixed-view-copies.v13\0",
         &bytes,
     ))
 }
@@ -527,12 +513,10 @@ mod tests {
         SpillChoicePolicy, fixed_view_copy_identity, recovery_classification_identity,
         spill_choice_identity,
     };
-    use crate::AllocationLegalityIdentity;
     use ::selected_instructions::{
-        LiveRangeIdentity, LiveRangePoint, LivenessPosition, SelectedBlockId,
-        SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionProvenance,
-        VirtualFixedConstraintSite, VirtualRegisterId, VirtualRegisterOrigin,
-        test_support::placeholder_plan,
+        LiveRangePoint, LivenessPosition, SelectedBlockId, SelectedInstructionId,
+        SelectedInstructionPlan, SelectedInstructionProvenance, VirtualFixedConstraintSite,
+        VirtualRegisterId, VirtualRegisterOrigin, test_support::placeholder_plan,
     };
     use operation_evidence::provenance::{PsiProvenance, ValueDefinitionSite, WorkSettlement};
     use optimization_core::{
@@ -554,8 +538,6 @@ mod tests {
         RecoveryClassificationPlan {
             selected: placeholder_plan(1),
             spill_choices: SpillChoiceIdentity::from_bytes([2; 32]),
-            ranges: LiveRangeIdentity::from_bytes([3; 32]),
-            legality: AllocationLegalityIdentity::from_bytes([4; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([5; 32]),
             allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([9; 32]),
             optimization_unit: OptimizationUnitIdentity::from_bytes([6; 32]),
@@ -723,8 +705,7 @@ mod tests {
     #[test]
     fn spill_choice_identity_binds_roots_policy_work_and_functions() {
         let plan = SpillChoicePlan {
-            legality: AllocationLegalityIdentity::from_bytes([1; 32]),
-            ranges: LiveRangeIdentity::from_bytes([2; 32]),
+            selected: placeholder_plan(1),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
             allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([5; 32]),
             policy: SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
@@ -743,9 +724,6 @@ mod tests {
         changed.usage.validation_steps += 1;
         assert_ne!(baseline, spill_choice_identity(&changed));
         changed = plan.clone();
-        changed.ranges = LiveRangeIdentity::from_bytes([4; 32]);
-        assert_ne!(baseline, spill_choice_identity(&changed));
-        changed = plan.clone();
         changed.allocator_availability = crate::AllocatorAvailabilityIdentity::from_bytes([6; 32]);
         assert_ne!(baseline, spill_choice_identity(&changed));
     }
@@ -755,8 +733,6 @@ mod tests {
     fn fixed_view_copy_plan() -> FixedViewCopyPlan {
         FixedViewCopyPlan {
             source_selected: placeholder_plan(1),
-            source_ranges: LiveRangeIdentity::from_bytes([2; 32]),
-            source_legality: AllocationLegalityIdentity::from_bytes([3; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
             allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([5; 32]),
             policy: FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
@@ -829,8 +805,6 @@ mod tests {
         let baseline = fixed_view_copy_identity(&fixed_view_copy_plan());
         assert_eq!(baseline, fixed_view_copy_identity(&fixed_view_copy_plan()));
         let mutations: Vec<FixedViewCopyMutation> = vec![
-            |plan| plan.source_ranges = LiveRangeIdentity::from_bytes([13; 32]),
-            |plan| plan.source_legality = AllocationLegalityIdentity::from_bytes([14; 32]),
             |plan| {
                 plan.register_environment = TargetRegisterEnvironmentIdentity::from_bytes([15; 32])
             },

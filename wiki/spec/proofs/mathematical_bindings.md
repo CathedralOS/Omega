@@ -201,6 +201,24 @@ The same elaboration must work outside traits, with no trait-proof-field
 conversion or automatic search. It neither runs the machine nor assumes the
 unfinished record's own constraint.
 
+### Pointwise theorem citations
+
+The same evidence rule applies when a theorem requirement's `ensures`
+unfolds to a dependent arrow. After the requirement's ordinary parameters,
+the cited theorem may take the arrow's binders as trailing explicit parameters,
+in order. Its body uses its own parameter names. For each arbitrary input at
+its dependent type, the checker establishes the cited theorem's premises from
+the available hypotheses and checks its guarantee against the instantiated
+codomain. This applies to theorem evidence in conformance rows and to
+congruence evidence for quotient lifts. Ordinary machine calls still supply
+all their arguments.
+
+For example, suppose `agree(x, z)` unfolds to `(n: Nat) -> close(x, z, n)`.
+A row requiring `agree(x, y)` and `agree(y, z)` and ensuring `agree(x, z)` can
+cite a theorem taking `x, y, z, n` that proves `close(x, z, n)` under those
+premises. A theorem that additionally requires `n > 0` leaves the case
+`n = 0` uncovered.
+
 Identity follows the evidence's actual sort under the
 [foundation](foundation.md#logical-proofs-and-mathematical-witnesses).
 Strict evidence does not retain a cited machine's selection identity; relevant

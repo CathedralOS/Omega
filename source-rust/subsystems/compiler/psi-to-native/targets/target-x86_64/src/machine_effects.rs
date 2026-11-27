@@ -1472,10 +1472,8 @@ mod tests {
     };
     use crate::{
         X86_64RegisterConstraintCatalogValidationError,
-        validate_x86_64_register_constraint_catalog, x86_64_physical_register_model,
-        x86_64_register_constraint_catalog,
+        validate_x86_64_register_constraint_catalog, x86_64_register_constraint_catalog,
     };
-    use register_model::validate_physical_register_model;
     use selected_instructions::{
         IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatToIntegerDomain,
         MachineAlternativeFamily, MachineEffectCatalogValidationError, SaturatingCarrier,
@@ -1535,10 +1533,10 @@ mod tests {
     }
 
     fn constraints() -> PreparedRegisterConstraintCatalog {
-        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let physical = crate::validated_x86_64_physical_register_model();
         validate_x86_64_register_constraint_catalog(
-            x86_64_register_constraint_catalog(&physical),
-            &physical,
+            x86_64_register_constraint_catalog(physical),
+            physical,
         )
         .unwrap_or_else(|error: X86_64RegisterConstraintCatalogValidationError| panic!("{error}"))
     }
@@ -1554,7 +1552,7 @@ mod tests {
         let constraints = constraints();
         let catalog =
             x86_64_machine_effect_catalog(NativeTarget::linux_x64(), &constraints).unwrap();
-        let physical = x86_64_physical_register_model();
+        let physical = crate::x86_64_physical_register_model_ref();
         let flags = &physical.view_named("condition_flags").unwrap().units;
         for format in [
             selected_instructions::IeeeFloatFormat::Binary32,
@@ -1591,7 +1589,7 @@ mod tests {
         use SaturatingCarrier::{I64, U64};
         use SaturatingOperation::{Add, Divide, Multiply, Remainder, Subtract};
         let constraints = constraints();
-        let physical = x86_64_physical_register_model();
+        let physical = crate::x86_64_physical_register_model_ref();
         let rflags = physical
             .view_named("condition_flags")
             .unwrap()
@@ -1757,7 +1755,7 @@ mod tests {
     #[test]
     fn trapping_catalog_binds_row_size_and_trap_effects_for_every_form() {
         let constraints = constraints();
-        let rflags = x86_64_physical_register_model()
+        let rflags = crate::x86_64_physical_register_model_ref()
             .view_named("condition_flags")
             .unwrap()
             .units
@@ -1857,7 +1855,7 @@ mod tests {
             assert_eq!(alternative.encoded.external_operand_writes, [2, 3]);
             assert_eq!(
                 alternative.encoded.implicit_unit_clobbers,
-                x86_64_physical_register_model()
+                crate::x86_64_physical_register_model_ref()
                     .view_named("condition_flags")
                     .unwrap()
                     .units

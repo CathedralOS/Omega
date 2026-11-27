@@ -15,16 +15,16 @@ use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
     AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity,
     CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
-    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
-    PressureRematerializationIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
-    SelectedInstructionPlan, StoredLoadForwardingIdentity,
+    FixedViewCopyIdentity, LiteralFoldIdentity, PressureRematerializationIdentity,
+    RedundantCompareIdentity, RedundantExtensionIdentity, SelectedInstructionPlan,
+    StoredLoadForwardingIdentity,
 };
 use std::sync::Arc;
 use target::NativeTarget;
 use wire::digest_encoder::hex;
 
 use crate::codec_bytes::push_encoded;
-use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RegisterHomeIdentity};
+use crate::{AllocatorAvailabilityIdentity, RegisterHomeIdentity};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAllocationManifestStage {
@@ -142,13 +142,10 @@ pub struct PostAllocationOptimizationManifest {
     pub selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>, // Optional selected-lowering completion
     pub pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>, // Optional pre-allocation completion
     pub selected_transformations: Vec<PostAllocationSelectedTransformation>, // Ordered physical-form rewrites
-    pub liveness: LivenessIdentity,                                          // Liveness digest
-    pub ranges: LiveRangeIdentity,                                           // Live-range digest
-    pub legality: AllocationLegalityIdentity, // Allocation-legality digest
     pub register_environment: TargetRegisterEnvironmentIdentity, // Register environment digest
-    pub allocator_availability: AllocatorAvailabilityIdentity, // Allocator availability digest
-    pub homes: RegisterHomeIdentity,          // Validated register-home digest
-    pub spills: PostAllocationSpillStatus,    // Spill realization status
+    pub allocator_availability: AllocatorAvailabilityIdentity,   // Allocator availability digest
+    pub homes: RegisterHomeIdentity,                             // Validated register-home digest
+    pub spills: PostAllocationSpillStatus,                       // Spill realization status
     pub frame: PostAllocationUnavailableData, // Frame status (unavailable at this stage)
     pub emission: PostAllocationUnavailableData, // Emission status (unavailable at this stage)
     pub publication: PostAllocationUnavailableData, // Publication status (unavailable at this stage)
@@ -158,7 +155,7 @@ pub struct PostAllocationOptimizationManifest {
 impl PostAllocationOptimizationManifest {
     pub fn recomputed_identity(&self) -> PostAllocationOptimizationManifestIdentity {
         let mut canonical = Vec::new();
-        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v8\0");
+        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v9\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         PostAllocationOptimizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -297,9 +294,6 @@ fn encode_manifest_content(manifest: &PostAllocationOptimizationManifest) -> Vec
             canonical.extend_from_slice(&identity);
         }
     }
-    canonical.extend_from_slice(&manifest.liveness.bytes());
-    canonical.extend_from_slice(&manifest.ranges.bytes());
-    canonical.extend_from_slice(&manifest.legality.bytes());
     canonical.extend_from_slice(&manifest.register_environment.bytes());
     canonical.extend_from_slice(&manifest.allocator_availability.bytes());
     canonical.extend_from_slice(&manifest.homes.bytes());
@@ -343,15 +337,15 @@ mod tests {
         PostAllocationSelectedTransformation, PostAllocationSpillStatus, PostAllocationStatistics,
         PostAllocationUnavailableData,
     };
-    use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RegisterHomeIdentity};
+    use crate::{AllocatorAvailabilityIdentity, RegisterHomeIdentity};
     use optimization_core::{
         PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
         PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
     };
     use register_model::TargetRegisterEnvironmentIdentity;
     use selected_instructions::{
-        CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity,
-        LivenessIdentity, PressureRematerializationIdentity, test_support::placeholder_plan,
+        CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
+        PressureRematerializationIdentity, test_support::placeholder_plan,
     };
     use target::NativeTarget;
 
@@ -367,9 +361,6 @@ mod tests {
             selected_lowering_completion: None,
             pre_allocation_completion: None,
             selected_transformations: Vec::new(),
-            liveness: LivenessIdentity::from_bytes([1; 32]),
-            ranges: LiveRangeIdentity::from_bytes([2; 32]),
-            legality: AllocationLegalityIdentity::from_bytes([3; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
             allocator_availability: AllocatorAvailabilityIdentity::from_bytes([6; 32]),
             homes: RegisterHomeIdentity::from_bytes([5; 32]),
@@ -479,9 +470,6 @@ mod tests {
                     ),
                 )
             },
-            |record| record.liveness = LivenessIdentity::from_bytes([7; 32]),
-            |record| record.ranges = LiveRangeIdentity::from_bytes([8; 32]),
-            |record| record.legality = AllocationLegalityIdentity::from_bytes([9; 32]),
             |record| {
                 record.register_environment =
                     TargetRegisterEnvironmentIdentity::from_bytes([10; 32])

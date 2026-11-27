@@ -34,8 +34,16 @@ fn alpha_service_defaults_are_returned_by_the_standard_library_build() {
     let console = "Build::select_provider::<|console|::Console, |console|::AlphaConsole>(builder, alpha_bootstrap);";
     assert_eq!(standard.matches(exit).count(), 1);
     assert_eq!(standard.matches(console).count(), 1);
-    let selected_console = ("Console", "AlphaConsole", "configure_console");
-    let selected_exit = ("ProcessExit", "NativeProcessExit", "configure_process_exit");
+    let selected_console = (
+        "|console|::Console",
+        "|console|::AlphaConsole",
+        "configure_console",
+    );
+    let selected_exit = (
+        "|process|::ProcessExit",
+        "|process_exit|::NativeProcessExit",
+        "configure_process_exit",
+    );
     for (source, expected) in [
         (standard.as_ref(), vec![selected_console, selected_exit]),
         (&standard.replace(exit, ""), vec![selected_console]),
@@ -82,7 +90,11 @@ fn alpha_service_defaults_are_returned_by_the_standard_library_build() {
                 let [service, provider] = event.request.operands.as_ref() else {
                     panic!("provider selection needs its service and provider");
                 };
-                if matches!(service.path.as_str(), "Console" | "ProcessExit") {
+                // Rows keep the authored, file-qualified service and provider names.
+                if matches!(
+                    service.path.as_str(),
+                    "|console|::Console" | "|process|::ProcessExit"
+                ) {
                     let span = event
                         .selecting_machine
                         .expect("provider selection author")
@@ -109,7 +121,7 @@ fn successor_runs_the_entry_and_helper_in_the_view_supplied_by_its_invoker() {
     std::fs::write(
         &entry,
         r#"machine build(builder: @mutable BuildPlan) {
-        Build::build_entry(builder, "generated/configure.omg");
+        builder.product = BuildProduct::InterpretedBuild { entry: "generated/configure.omg" };
     }"#,
     )
     .unwrap();
@@ -398,7 +410,7 @@ fn an_unbound_conditional_import_refuses_before_the_build_can_write() {
     let root = temporary.path();
     let entry = root.join("build.omg");
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
-    std::fs::write(&entry, r#"use main.omg as app;
+    let build = r#"use main.omg as app;
 use {scores}/value.omg as scores;
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {
@@ -421,7 +433,8 @@ machine build(builder: @mutable BuildPlan) suspends {
         Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     }
 }
-"#).unwrap();
+"#;
+    std::fs::write(&entry, build).unwrap();
     let profile = TargetProfile::host_if_supported().unwrap();
     let project = begin_local_project_preparation(&entry, &[profile], true).unwrap();
     let acquired = project.acquire_root().unwrap();
@@ -440,7 +453,9 @@ machine build(builder: @mutable BuildPlan) suspends {
         rows.iter().any(|row| {
             row.message
                 .contains("Build import `{scores}/value.omg as scores` has no supplied source")
-                && row.source_span.is_some_and(|span| span.span.start == 4)
+                && row
+                    .source_span
+                    .is_some_and(|span| Some(span.span.start) == build.find("{scores}"))
         }),
         "{rows:?}"
     );
@@ -600,6 +615,8 @@ machine build(builder: @mutable BuildPlan) {
         1
     );
     std::fs::write(&entry, source.replace("::visible()", "::secret()")).unwrap();
+    // Diagnostics name the captured file by its canonical path.
+    let canonical_entry = entry.canonicalize().unwrap();
     let diagnostics = compile()
         .err()
         .expect("supplying the library does not expose its private machine");
@@ -611,7 +628,7 @@ machine build(builder: @mutable BuildPlan) {
                 && diagnostic
                     .resolved_location
                     .as_ref()
-                    .is_some_and(|location| location.path == entry && location.line == 5)
+                    .is_some_and(|location| location.path == canonical_entry && location.line == 5)
         }),
         "{diagnostics:?}"
     );

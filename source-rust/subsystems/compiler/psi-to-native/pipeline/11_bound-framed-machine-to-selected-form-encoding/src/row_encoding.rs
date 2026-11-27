@@ -1012,7 +1012,6 @@ fn callback_destinations(
 
 #[cfg(test)]
 mod tests {
-    use isa_x86_64::x86_64_physical_register_model;
     use machine_code::{
         ResolvedPhysicalAddress, SelectedFormEncodedRowStore, SelectedFormEncodingRow,
         SelectedFormEncodingState, SelectedFormMachineDisposition,
@@ -1023,7 +1022,7 @@ mod tests {
     };
     use register_model::{
         RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess, RegisterUnitId,
-        ValidatedPhysicalRegisterModel, validate_physical_register_model,
+        ValidatedPhysicalRegisterModel,
     };
     use selected_instructions::{
         MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
@@ -1037,11 +1036,11 @@ mod tests {
     use super::{Error, encode_row};
 
     fn fixture() -> (
-        ValidatedPhysicalRegisterModel,
+        &'static ValidatedPhysicalRegisterModel,
         SelectedInstruction,
         PostAllocationMachineInstruction,
     ) {
-        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let physical = isa_x86_64::validated_x86_64_physical_register_model();
         let rax = physical.model().view_named("rax").unwrap();
         let instruction = SelectedInstructionId(1);
         let virtual_register = VirtualRegisterId(1);
@@ -1190,37 +1189,35 @@ mod tests {
         let (physical, selected, machine) = fixture();
         let target = NativeTarget::linux_x64();
         let row =
-            encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
+            encode_fixture_row(target, &selected, &machine, physical, None, &mut encoded).unwrap();
         assert!(matches!(row.state, SelectedFormEncodingState::Encoded));
         assert_eq!(
             encoded.bytes(row.code),
             &[0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0]
         );
-        replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded).unwrap();
+        replay_fixture_row(target, &selected, &machine, physical, &row, &encoded).unwrap();
         let mut changed = row.clone();
         changed.machine_disposition =
             SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 {
                 consumer: SelectedInstructionId(2),
             };
         assert!(
-            replay_fixture_row(target, &selected, &machine, &physical, &changed, &encoded).is_err()
+            replay_fixture_row(target, &selected, &machine, physical, &changed, &encoded).is_err()
         );
         let changed = row;
         encoded.bytes_mut(changed.code)[0] ^= 1;
         assert!(
-            replay_fixture_row(target, &selected, &machine, &physical, &changed, &encoded).is_err()
+            replay_fixture_row(target, &selected, &machine, physical, &changed, &encoded).is_err()
         );
     }
 
     #[test]
     fn callable_rows_use_indirect_encoding_and_reject_missing_pointer_or_changed_bytes() {
         let target = NativeTarget::macos_arm64();
-        let physical =
-            validate_physical_register_model(isa_aarch64::aarch64_physical_register_model())
-                .unwrap();
+        let physical = isa_aarch64::validated_aarch64_physical_register_model();
         let constraints = isa_aarch64::validate_aarch64_register_constraint_catalog(
-            isa_aarch64::aarch64_register_constraint_catalog(&physical),
-            &physical,
+            isa_aarch64::aarch64_register_constraint_catalog(physical),
+            physical,
         )
         .unwrap();
         let catalog = isa_aarch64::validate_aarch64_machine_effect_catalog(
@@ -1232,7 +1229,7 @@ mod tests {
         let key = isa_aarch64::aarch64_darwin_register_call_keys()[0];
         let base = constraints.constraint(key).unwrap();
         let constraint =
-            selected_instructions::calls::dynamic::instantiate_constraint(base, &physical).unwrap();
+            selected_instructions::calls::dynamic::instantiate_constraint(base, physical).unwrap();
         let declaration = catalog
             .catalog()
             .declarations
@@ -1242,7 +1239,7 @@ mod tests {
         let declaration = selected_instructions::calls::dynamic::instantiate_declaration(
             declaration,
             &constraint,
-            &physical,
+            physical,
         )
         .unwrap();
         let callable = selected_instructions::SelectedCallTarget::Callable {
@@ -1328,11 +1325,10 @@ mod tests {
                 target: call_target,
             };
             let mut encoded = SelectedFormEncodedRowStore::new();
-            let row =
-                encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded)
-                    .expect("the indirect target keeps its actual pointer operand");
+            let row = encode_fixture_row(target, &selected, &machine, physical, None, &mut encoded)
+                .expect("the indirect target keeps its actual pointer operand");
             assert!(matches!(row.state, SelectedFormEncodingState::Encoded));
-            replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded)
+            replay_fixture_row(target, &selected, &machine, physical, &row, &encoded)
                 .expect("independent admission receives the same indirect call");
             let bytes = encoded.bytes(row.code).to_vec();
             if let Some(baseline) = &baseline {
@@ -1349,7 +1345,7 @@ mod tests {
                     target,
                     &selected,
                     &missing,
-                    &physical,
+                    physical,
                     None,
                     &mut SelectedFormEncodedRowStore::new()
                 ),
@@ -1358,14 +1354,14 @@ mod tests {
                 ))
             ));
             assert!(matches!(
-                replay_fixture_row(target, &selected, &missing, &physical, &row, &encoded),
+                replay_fixture_row(target, &selected, &missing, physical, &row, &encoded),
                 Err(Error::Aarch64ScalarCall(
                     isa_aarch64::Aarch64ScalarCallTemplateError::OperandViewMismatch
                 ))
             ));
             encoded.bytes_mut(row.code)[0] ^= 1;
             assert!(matches!(
-                replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded),
+                replay_fixture_row(target, &selected, &machine, physical, &row, &encoded),
                 Err(Error::ArtifactMismatch)
             ));
         }
@@ -1377,18 +1373,17 @@ mod tests {
         let (physical, mut selected, machine) = fixture();
         let target = NativeTarget::linux_x64();
         let ordinary =
-            encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
+            encode_fixture_row(target, &selected, &machine, physical, None, &mut encoded).unwrap();
         selected.kind = SelectedInstructionKind::NormalizedForeignCall {
             boundary: semantic_vocabulary::BoundaryMachineId::new(3).unwrap(),
             ordinal: 0,
         };
         selected.constraint = isa_x86_64::x86_64_linux_system_call_keys()[0];
         assert!(
-            encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).is_err()
+            encode_fixture_row(target, &selected, &machine, physical, None, &mut encoded).is_err()
         );
         assert!(
-            replay_fixture_row(target, &selected, &machine, &physical, &ordinary, &encoded)
-                .is_err()
+            replay_fixture_row(target, &selected, &machine, physical, &ordinary, &encoded).is_err()
         );
     }
 
@@ -1398,7 +1393,7 @@ mod tests {
         let deferred = kind.is_some();
         if let Some(kind) = kind {
             assert_eq!(kind, SelectedInstructionKind::Jump);
-            make_jump_fixture(&mut selected, &mut machine, &physical);
+            make_jump_fixture(&mut selected, &mut machine, physical);
         }
         let target = NativeTarget::linux_x64();
         let unrouted = Some(ResolvedPhysicalAddress {
@@ -1414,25 +1409,25 @@ mod tests {
                 target,
                 &selected,
                 &machine,
-                &physical,
+                physical,
                 unrouted,
                 &mut encoded
             ),
             Err(Error::ArtifactMismatch)
         ));
         let row =
-            encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
+            encode_fixture_row(target, &selected, &machine, physical, None, &mut encoded).unwrap();
         if deferred {
             assert!(matches!(
                 row.state,
                 SelectedFormEncodingState::DeferredControl { .. }
             ));
-            replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded).unwrap();
+            replay_fixture_row(target, &selected, &machine, physical, &row, &encoded).unwrap();
         }
         let mut changed = row;
         changed.address = unrouted.map(Box::new);
         assert!(
-            replay_fixture_row(target, &selected, &machine, &physical, &changed, &encoded).is_err()
+            replay_fixture_row(target, &selected, &machine, physical, &changed, &encoded).is_err()
         );
     }
 
@@ -1455,22 +1450,21 @@ mod tests {
             NativeTarget::macos_arm64(),
         ] {
             let x86 = target.architecture == Architecture::X86_64;
-            let physical = validate_physical_register_model(if x86 {
-                isa_x86_64::x86_64_physical_register_model()
+            let physical = if x86 {
+                isa_x86_64::validated_x86_64_physical_register_model()
             } else {
-                isa_aarch64::aarch64_physical_register_model()
-            })
-            .unwrap();
+                isa_aarch64::validated_aarch64_physical_register_model()
+            };
             let constraints = if x86 {
                 isa_x86_64::validate_x86_64_register_constraint_catalog(
-                    isa_x86_64::x86_64_register_constraint_catalog(&physical),
-                    &physical,
+                    isa_x86_64::x86_64_register_constraint_catalog(physical),
+                    physical,
                 )
                 .unwrap()
             } else {
                 isa_aarch64::validate_aarch64_register_constraint_catalog(
-                    isa_aarch64::aarch64_register_constraint_catalog(&physical),
-                    &physical,
+                    isa_aarch64::aarch64_register_constraint_catalog(physical),
+                    physical,
                 )
                 .unwrap()
             };
@@ -1592,12 +1586,12 @@ mod tests {
                     target,
                     &selected,
                     &machine,
-                    &physical,
+                    physical,
                     resolved,
                     &mut encoded,
                 )
                 .unwrap();
-                replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded).unwrap();
+                replay_fixture_row(target, &selected, &machine, physical, &row, &encoded).unwrap();
                 assert_eq!(
                     machine.alternative.encoded.memory,
                     selected_instructions::MachineEncodedMemoryEffect::ReadPointerV1 {
@@ -1636,7 +1630,7 @@ mod tests {
                             target,
                             &selected,
                             &changed_machine,
-                            &physical,
+                            physical,
                             &changed_row,
                             &changed_encoded
                         )
@@ -1670,7 +1664,7 @@ mod tests {
                         target,
                         &selected,
                         &foreign_machine,
-                        &physical,
+                        physical,
                         foreign,
                         &mut encoded.clone()
                     ),
@@ -1683,7 +1677,7 @@ mod tests {
                         target,
                         &selected,
                         &foreign_machine,
-                        &physical,
+                        physical,
                         &changed_row,
                         &encoded
                     )
@@ -1703,7 +1697,7 @@ mod tests {
             .implicit_unit_defs
             .push(RegisterUnitId(0xdead));
         assert!(matches!(
-            encode_fixture_row(NativeTarget::linux_x64(), &selected, &machine, &physical, None, &mut encoded),
+            encode_fixture_row(NativeTarget::linux_x64(), &selected, &machine, physical, None, &mut encoded),
             Err(Error::ImplicitFootprintMismatch(
                 instruction
             )) if instruction == SelectedInstructionId(1)
@@ -1719,13 +1713,13 @@ mod tests {
             NativeTarget::linux_x64(),
             &selected,
             &machine,
-            &physical,
+            physical,
             None,
             &mut encoded,
         )
         .unwrap();
         assert!(matches!(
-            replay_fixture_row(NativeTarget::linux_x64(), &selected, &mutated, &physical, &row, &encoded),
+            replay_fixture_row(NativeTarget::linux_x64(), &selected, &mutated, physical, &row, &encoded),
             Err(Error::ImplicitFootprintMismatch(
                 instruction
             )) if instruction == SelectedInstructionId(1)
@@ -1738,7 +1732,7 @@ mod tests {
         let (physical, selected, mut machine) = fixture();
         machine.operands[0].operand = 9;
         assert!(matches!(
-            encode_fixture_row(NativeTarget::linux_x64(), &selected, &machine, &physical, None, &mut encoded),
+            encode_fixture_row(NativeTarget::linux_x64(), &selected, &machine, physical, None, &mut encoded),
             Err(Error::OperandFootprintMismatch(
                 instruction
             )) if instruction == SelectedInstructionId(1)
@@ -1750,13 +1744,13 @@ mod tests {
             NativeTarget::linux_x64(),
             &selected,
             &machine,
-            &physical,
+            physical,
             None,
             &mut encoded,
         )
         .unwrap();
         assert!(matches!(
-            replay_fixture_row(NativeTarget::linux_x64(), &selected, &mutated, &physical, &row, &encoded),
+            replay_fixture_row(NativeTarget::linux_x64(), &selected, &mutated, physical, &row, &encoded),
             Err(Error::OperandFootprintMismatch(
                 instruction
             )) if instruction == SelectedInstructionId(1)
@@ -1781,7 +1775,7 @@ mod tests {
             let (physical, selected, mut machine) = fixture();
             machine.alternative.size = knowledge;
             assert!(matches!(
-                encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded),
+                encode_fixture_row(target, &selected, &machine, physical, None, &mut encoded),
                 Err(Error::SizeDeclarationMismatch(
                     instruction
                 )) if instruction == SelectedInstructionId(1)
@@ -1789,11 +1783,10 @@ mod tests {
             let (physical, selected, machine) = fixture();
             let mut mutated = machine.clone();
             mutated.alternative.size = knowledge;
-            let row =
-                encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded)
-                    .unwrap();
+            let row = encode_fixture_row(target, &selected, &machine, physical, None, &mut encoded)
+                .unwrap();
             assert!(matches!(
-                replay_fixture_row(target, &selected, &mutated, &physical, &row, &encoded),
+                replay_fixture_row(target, &selected, &mutated, physical, &row, &encoded),
                 Err(Error::SizeDeclarationMismatch(
                     instruction
                 )) if instruction == SelectedInstructionId(1)
@@ -1805,8 +1798,8 @@ mod tests {
             maximum_bytes: Some(15),
         };
         let row =
-            encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
-        replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded).unwrap();
+            encode_fixture_row(target, &selected, &machine, physical, None, &mut encoded).unwrap();
+        replay_fixture_row(target, &selected, &machine, physical, &row, &encoded).unwrap();
     }
 
     #[test]
@@ -1815,12 +1808,12 @@ mod tests {
         let (physical, selected, machine) = fixture();
         let target = NativeTarget::linux_x64();
         let row =
-            encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
+            encode_fixture_row(target, &selected, &machine, physical, None, &mut encoded).unwrap();
         assert!(matches!(row.state, SelectedFormEncodingState::Encoded));
         let footprint = encoded.footprint_mut(row.footprint).unwrap();
         footprint.register_reads.push(footprint.register_writes[0]);
         assert!(matches!(
-            replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded),
+            replay_fixture_row(target, &selected, &machine, physical, &row, &encoded),
             Err(Error::ArtifactMismatch)
         ));
     }
@@ -1831,17 +1824,17 @@ mod tests {
         let (physical, selected, machine) = fixture();
         let target = NativeTarget::linux_x64();
         let row =
-            encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
+            encode_fixture_row(target, &selected, &machine, physical, None, &mut encoded).unwrap();
         let mut changed = row.clone();
         changed.instruction = SelectedInstructionId(77);
         assert!(matches!(
-            replay_fixture_row(target, &selected, &machine, &physical, &changed, &encoded),
+            replay_fixture_row(target, &selected, &machine, physical, &changed, &encoded),
             Err(Error::ArtifactMismatch)
         ));
         let mut changed = row.clone();
         changed.alternative.variant = 7;
         assert!(matches!(
-            replay_fixture_row(target, &selected, &machine, &physical, &changed, &encoded),
+            replay_fixture_row(target, &selected, &machine, physical, &changed, &encoded),
             Err(Error::ArtifactMismatch)
         ));
     }
@@ -1852,10 +1845,10 @@ mod tests {
         let (physical, mut selected, mut machine) = fixture();
         let target = NativeTarget::linux_x64();
         let ordinary_row =
-            encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
-        make_jump_fixture(&mut selected, &mut machine, &physical);
+            encode_fixture_row(target, &selected, &machine, physical, None, &mut encoded).unwrap();
+        make_jump_fixture(&mut selected, &mut machine, physical);
         let mut row =
-            encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
+            encode_fixture_row(target, &selected, &machine, physical, None, &mut encoded).unwrap();
         assert!(matches!(
             row.state,
             SelectedFormEncodingState::DeferredControl { .. }
@@ -1864,7 +1857,7 @@ mod tests {
         row.code = ordinary_row.code;
         row.footprint = ordinary_row.footprint;
         assert!(matches!(
-            replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded),
+            replay_fixture_row(target, &selected, &machine, physical, &row, &encoded),
             Err(Error::ArtifactMismatch)
         ));
     }

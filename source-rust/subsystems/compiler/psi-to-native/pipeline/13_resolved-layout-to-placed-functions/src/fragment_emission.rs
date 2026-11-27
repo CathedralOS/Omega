@@ -71,7 +71,7 @@ pub(crate) fn validate_optimized_function_fragment_emission(
 pub(super) struct FragmentFrameInput {
     pub controls: Arc<[machine_code::EncodedControlIndex]>,
     pub bindings: machine_code::import_code::EncodedBodyBindings,
-    pub physical: register_model::ValidatedPhysicalRegisterModel,
+    pub environment: register_environment::ValidatedTargetRegisterEnvironment,
     pub instruction_effects: Arc<[machine_code::placed_body::PlacedInstructionEffects]>,
     pub layout: Arc<ResolvedMachineLayout>,
     pub frame: Arc<machine_code::TargetFrameLayoutPlan>,
@@ -84,7 +84,7 @@ impl FragmentFrameInput {
         Self {
             controls: Arc::clone(&program.control_alternatives),
             bindings: program.bindings.clone(),
-            physical: program.context.physical().clone(),
+            environment: program.context.environment.clone(),
             instruction_effects: program.exit_requirements.placed_instruction_effects(),
             layout: Arc::clone(&program.layout),
             frame: Arc::clone(&program.frame),

@@ -2,6 +2,7 @@
 
 mod suspending_calls;
 mod borrowed_cells;
+mod threshold_waits;
 
 use super::build_purpose::{execute_unit, judge_build};
 use crate::RouteVerdict;
@@ -401,4 +402,37 @@ fn a_zero_initialized_sum_selects_only_its_first_case_and_zeroed_payload() {
         "Choice::Early { word } -> put(signal, word)",
         "Choice::Early { word } -> put(signal, 1)",
     ));
+}
+
+fn wait_after_unresolved_provider(
+    parameter: &str,
+    argument: &str,
+    termination: &str,
+    value: u32,
+) -> String {
+    format!(
+        "{AWAIT_CHANGE}
+        boundary trait Gate {{ machine receive({parameter}) reaches none crashes none {termination}; }}
+        machine build_entry() reaches Gate crashes none {{
+            let mutable signal: Signal;
+            signal.word.store({value}, Publish);
+            Gate::receive({argument});
+            await_change(@signal);
+        }}"
+    )
+}
+
+#[test]
+fn a_returning_provider_with_no_argument_cannot_release_a_private_cell() {
+    reject_deadlock(&wait_after_unresolved_provider("", "", "terminates", 1));
+    expect_unproved_progress(&wait_after_unresolved_provider("", "", "", 1));
+    for source in [
+        wait_after_unresolved_provider("", "", "", 0),
+        wait_after_unresolved_provider("signal: @Signal", "@signal", "terminates", 1),
+    ] {
+        // A supplier that receives the cell may change it. Its selection has
+        // to be known before the caller can conclude what that wait observes.
+        let verdict = judge_build(&source).unwrap();
+        assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    }
 }

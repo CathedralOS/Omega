@@ -145,7 +145,14 @@ mod tests {
         fs::write(member.join("omega.lock"), "local control").unwrap();
         fs::write(member.join("font.bin"), [0_u8, 127, 255]).unwrap();
         let catalog = capture_local_source_input(&root, LocalSourceLimits::default()).unwrap();
-        let standalone = capture_local_source_input(&member, LocalSourceLimits::default()).unwrap();
+        // A frozen member names itself under the catalog's canonical root, so
+        // the standalone capture must be requested at the canonical member too;
+        // Windows `temp_root` is not canonical (no `\\?\` prefix).
+        let standalone = capture_local_source_input(
+            member.canonicalize().unwrap(),
+            LocalSourceLimits::default(),
+        )
+        .unwrap();
         fs::remove_dir_all(&root).unwrap();
         let frozen = catalog
             .workspace_member(

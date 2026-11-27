@@ -998,7 +998,7 @@ pub mod compute {
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(AllocationLegalityPlan {
-            ranges: ranges.receipt().identity(),
+            selected: ranges.plan().selected.clone(),
             register_environment,
             allocator_availability: availability.receipt().identity(),
             functions,
@@ -1083,14 +1083,10 @@ pub(crate) mod validate {
     use crate::{
         AllocationLegalityError, AllocationLegalityValidationReceipt, ValidatedAllocationLegality,
     };
-    use register_homes::{
-        AllocationLegalityPlan, allocation_legality_function_digest,
-        allocation_legality_identity_from_digests,
-    };
+    use register_homes::AllocationLegalityPlan;
     pub fn admit(
         plan: AllocationLegalityPlan,
         carried: &[bool],
-        previous_digests: &[[u8; 32]],
         previous_counts: &[FunctionCounts],
     ) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
         let mut point_count = 0usize;
@@ -1112,14 +1108,7 @@ pub(crate) mod validate {
                 .ok_or_else(overflow)?;
             function_counts.push(counts);
         }
-        let function_digests =
-            crate::carried_digests(&plan.functions, carried, previous_digests, |function| {
-                allocation_legality_function_digest(function)
-            });
-        let identity = allocation_legality_identity_from_digests(&plan, &function_digests);
         let receipt = AllocationLegalityValidationReceipt {
-            identity,
-            ranges: plan.ranges,
             register_environment: plan.register_environment,
             allocator_availability: plan.allocator_availability,
             point_count,
@@ -1136,16 +1125,12 @@ pub(crate) mod validate {
         Ok(ValidatedAllocationLegality {
             plan: plan.into(),
             receipt,
-            function_digests,
             function_counts: function_counts.into(),
         })
     }
 }
 
-use register_homes::{
-    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
-};
-use selected_instructions::LiveRangeIdentity;
+use register_homes::{AllocationLegalityPlan, AllocatorAvailabilityIdentity};
 
 pub fn analyze_allocation_legality(
     ranges: &ValidatedLiveRanges,
@@ -1165,14 +1150,12 @@ pub fn analyze_allocation_legality(
         reservations,
         selected_keys,
     )?;
-    validate::admit(plan, &[], &[], &[])
+    validate::admit(plan, &[], &[])
 }
 
 copy_receipt! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct AllocationLegalityValidationReceipt {
-        pub(crate) identity: AllocationLegalityIdentity,
-        pub(crate) ranges: LiveRangeIdentity,
         pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
         pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
         pub(crate) virtual_register_count: usize,

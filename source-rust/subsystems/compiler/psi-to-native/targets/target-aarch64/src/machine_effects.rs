@@ -937,15 +937,14 @@ mod tests {
         aarch64_machine_effect_catalog, validate_aarch64_machine_effect_catalog,
     };
     use crate::{
-        Aarch64RegisterConstraintCatalogValidationError, aarch64_physical_register_model,
-        aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
+        Aarch64RegisterConstraintCatalogValidationError, aarch64_register_constraint_catalog,
+        validate_aarch64_register_constraint_catalog,
     };
-    use register_model::validate_physical_register_model;
     use selected_instructions::MachineEncodedStackEffect;
 
     #[test]
     fn effect_classification_keeps_operand_and_implicit_effects_together() {
-        let physical = aarch64_physical_register_model();
+        let physical = crate::aarch64_physical_register_model_ref();
         let flags = physical.view_named("nzcv").unwrap().units.clone();
         let comparison = super::encoded_effects(MachineSemanticKind::CompareI64).unwrap();
         assert_eq!(comparison.external_operand_reads, [0, 1]);
@@ -999,10 +998,10 @@ mod tests {
     }
 
     fn constraints() -> PreparedRegisterConstraintCatalog {
-        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let physical = crate::validated_aarch64_physical_register_model();
         validate_aarch64_register_constraint_catalog(
-            aarch64_register_constraint_catalog(&physical),
-            &physical,
+            aarch64_register_constraint_catalog(physical),
+            physical,
         )
         .unwrap_or_else(|error: Aarch64RegisterConstraintCatalogValidationError| panic!("{error}"))
     }
@@ -1017,7 +1016,7 @@ mod tests {
     fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
         use selected_instructions::{SaturatingCarrier, SaturatingOperation};
         let constraints = constraints();
-        let nzcv = crate::aarch64_physical_register_model()
+        let nzcv = crate::aarch64_physical_register_model_ref()
             .view_named("nzcv")
             .unwrap()
             .units

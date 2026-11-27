@@ -172,7 +172,7 @@ impl PlacedBodyEvidence {
             installed_branches,
             bindings: input.bindings.clone(),
             code: Arc::new(machine_code::placed_body::NativeBodyReadback {
-                physical: input.physical.clone(),
+                environment: input.environment.clone(),
                 instruction_effects: Arc::clone(&input.instruction_effects),
                 layout: Arc::clone(&input.layout),
                 frame: Arc::clone(&input.frame),
@@ -1318,10 +1318,7 @@ mod tests {
         FunctionFragmentBlockSpan, FunctionFragmentConditionalBranchPredicate,
         FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
     };
-    use register_model::{
-        PhysicalRegisterModelIdentity, TargetRegisterEnvironmentIdentity,
-        validate_physical_register_model,
-    };
+    use register_model::{PhysicalRegisterModelIdentity, TargetRegisterEnvironmentIdentity};
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, SelectedBlockId, SelectedInstructionId,
         SelectedInstructionProvenance,
@@ -1550,8 +1547,8 @@ mod tests {
         }
     }
 
-    fn physical() -> register_model::ValidatedPhysicalRegisterModel {
-        validate_physical_register_model(isa_x86_64::x86_64_physical_register_model()).unwrap()
+    fn physical() -> &'static register_model::ValidatedPhysicalRegisterModel {
+        isa_x86_64::validated_x86_64_physical_register_model()
     }
 
     #[test]
@@ -1559,7 +1556,7 @@ mod tests {
         let source = source_plan();
         let machine = source.entry;
         let application =
-            apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical()).unwrap();
+            apply_frame_protocol_to_fragments(&source, &protocol(machine), physical()).unwrap();
         let function = &application.fragments.functions[0];
         assert_eq!(function.bytes, vec![0xaa, 0xe8, 0, 0, 0, 0, 0xbb, 0xc3]);
         assert_eq!(function.byte_count, 8);
@@ -1594,8 +1591,7 @@ mod tests {
             };
             row.alternative.family = MachineAlternativeFamily::Crash;
             let application =
-                apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical())
-                    .unwrap();
+                apply_frame_protocol_to_fragments(&source, &protocol(machine), physical()).unwrap();
             assert!(application.functions[0].epilogues.is_empty());
             assert_eq!(
                 application.fragments.functions[0].bytes.len(),
@@ -1604,7 +1600,7 @@ mod tests {
             validate_frame_protocol_application(
                 &source,
                 &protocol(machine),
-                &physical(),
+                physical(),
                 &application,
             )
             .unwrap();
@@ -1617,7 +1613,7 @@ mod tests {
                 validate_frame_protocol_application(
                     &source,
                     &protocol(machine),
-                    &physical(),
+                    physical(),
                     &changed,
                 )
                 .is_err()
@@ -1628,8 +1624,7 @@ mod tests {
                     cause,
                 };
             assert!(
-                apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical())
-                    .is_err()
+                apply_frame_protocol_to_fragments(&source, &protocol(machine), physical()).is_err()
             );
         }
     }
@@ -1644,13 +1639,13 @@ mod tests {
         };
         row.alternative.family = MachineAlternativeFamily::HostedExitProcessI32;
         let application =
-            apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical()).unwrap();
+            apply_frame_protocol_to_fragments(&source, &protocol(machine), physical()).unwrap();
         assert!(application.functions[0].epilogues.is_empty());
         assert_eq!(
             application.fragments.functions[0].bytes,
             vec![0xaa, 0xe8, 0, 0, 0, 0, 0xc3]
         );
-        validate_frame_protocol_application(&source, &protocol(machine), &physical(), &application)
+        validate_frame_protocol_application(&source, &protocol(machine), physical(), &application)
             .unwrap();
         let mut changed = application.clone();
         changed.fragments.functions[0].blocks[0].instructions[1].control =
@@ -1658,20 +1653,15 @@ mod tests {
                 completion_edge: EdgeId::new(2).unwrap(),
             };
         assert!(
-            validate_frame_protocol_application(
-                &source,
-                &protocol(machine),
-                &physical(),
-                &changed,
-            )
-            .is_err()
+            validate_frame_protocol_application(&source, &protocol(machine), physical(), &changed,)
+                .is_err()
         );
         source.functions[0].blocks[0].instructions[0].control =
             FunctionFragmentControlProvenance::HostedExitProcess {
                 completion_edge: EdgeId::new(2).unwrap(),
             };
         assert!(
-            apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical()).is_err()
+            apply_frame_protocol_to_fragments(&source, &protocol(machine), physical()).is_err()
         );
     }
 
@@ -1682,7 +1672,7 @@ mod tests {
         let repeated = source.functions[0].blocks[0].clone();
         source.functions[0].blocks.push(repeated);
         assert_eq!(
-            apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical(),),
+            apply_frame_protocol_to_fragments(&source, &protocol(machine), physical(),),
             Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
                 machine
             ))
@@ -1700,7 +1690,7 @@ mod tests {
             ),
         };
         assert_eq!(
-            apply_frame_protocol_to_fragments(&source, &protocol(machine), &physical(),),
+            apply_frame_protocol_to_fragments(&source, &protocol(machine), physical(),),
             Err(FunctionFragmentFrameApplicationError::MissingFinalReturn(
                 machine
             ))
@@ -1746,21 +1736,21 @@ mod tests {
                 let encoded = match predicate {
                     FunctionFragmentConditionalBranchPredicate::NonZeroV1 => {
                         isa_x86_64::encode_x86_64_selected_short_nonzero_branch_form(
-                            &physical,
+                            physical,
                             alternative,
                             padding + 1,
                         )
                     }
                     FunctionFragmentConditionalBranchPredicate::U64LessThanV1 => {
                         isa_x86_64::encode_x86_64_selected_u64_less_than_branch_form(
-                            &physical,
+                            physical,
                             alternative,
                             padding + 1,
                         )
                     }
                     FunctionFragmentConditionalBranchPredicate::I64LessThanV1 => {
                         isa_x86_64::encode_x86_64_selected_i64_less_than_branch_form(
-                            &physical,
+                            physical,
                             alternative,
                             padding + 1,
                         )
@@ -1832,11 +1822,11 @@ mod tests {
                 function.byte_count = function.bytes.len() as u64;
                 let protocol = protocol(source.entry);
                 let application =
-                    apply_frame_protocol_to_fragments(&source, &protocol, &physical).unwrap();
+                    apply_frame_protocol_to_fragments(&source, &protocol, physical).unwrap();
                 let branch = &application.fragments.functions[0].blocks[0].instructions[0];
                 check_published_branch_bytes(
                     &application.fragments,
-                    &super::prepare_branch_origins(&source, &fixture_controls(&source, &physical))
+                    &super::prepare_branch_origins(&source, &fixture_controls(&source, physical))
                         .unwrap(),
                     source.entry,
                     branch,
@@ -1888,13 +1878,13 @@ mod tests {
                         .byte_displacement,
                     padding + 2
                 );
-                validate_frame_protocol_application(&source, &protocol, &physical, &application)
+                validate_frame_protocol_application(&source, &protocol, physical, &application)
                     .unwrap();
                 let mut corrupted = application.clone();
                 corrupted.fragments.functions[0].blocks[0].instructions[0].bytes[1] ^= 1;
                 corrupted.fragments.functions[0].bytes[2] ^= 1;
                 assert!(
-                    validate_frame_protocol_application(&source, &protocol, &physical, &corrupted,)
+                    validate_frame_protocol_application(&source, &protocol, physical, &corrupted,)
                         .is_err()
                 );
             }
