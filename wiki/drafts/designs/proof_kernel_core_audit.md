@@ -1748,7 +1748,7 @@ same_sign> as SameSign;` is read into the mathematical signature when
     contains itself, with payloads (#6295), but a quotient's reader still
     refuses generic quotient data. The parser has yet to accept
     `% same_length<T>` and `as SameLength<T>` as specified in the
-    [generic quotient ruling](../../../OWNER_QUESTIONS.md#generic-quotient-selection).
+    [quotient formation rule](../../../wiki/spec/proofs/quotients.md#formation-and-representation).
 - **Classes of stored data (2026-11-27).** A contract of an ordinary
   program may state `Identity::<Value>(a as Value, b as Value)` for a
   quotient of data that has storage. Stage 05 reads each class as the
