@@ -193,7 +193,8 @@ fn emit_dynamic_bytes(
     )?;
 
     let mut bytes = vec![0u8; plan.total_file_size];
-    let mut occupied = vec![false; plan.total_file_size];
+    // Header, text, data, each section and the section header table.
+    let mut fragments = Vec::with_capacity(plan.sections.len() + 4);
 
     let mut header_prefix =
         Vec::with_capacity(ELF_HEADER_SIZE + PROGRAM_HEADER_SIZE * DYNAMIC_PROGRAM_HEADER_COUNT);
@@ -222,17 +223,17 @@ fn emit_dynamic_bytes(
         write_u64(&mut header_prefix, phdr.memory_size);
         write_u64(&mut header_prefix, phdr.alignment);
     }
-    write_fragment(&mut bytes, &mut occupied, 0, &header_prefix)?;
+    write_fragment(&mut bytes, &mut fragments, 0, &header_prefix)?;
 
     write_fragment(
         &mut bytes,
-        &mut occupied,
+        &mut fragments,
         plan.text_file_offset,
         &resolved.text_bytes,
     )?;
     write_fragment(
         &mut bytes,
-        &mut occupied,
+        &mut fragments,
         plan.data_file_offset,
         &resolved.data_bytes,
     )?;
@@ -261,7 +262,7 @@ fn emit_dynamic_bytes(
             payload.len() as u64 == section.byte_size,
             "dynamic ELF section payload size drifted from layout plan",
         )?;
-        write_fragment(&mut bytes, &mut occupied, section.file_offset, payload)?;
+        write_fragment(&mut bytes, &mut fragments, section.file_offset, payload)?;
     }
 
     let mut shdr_table = Vec::with_capacity(SECTION_COUNT * ELF64_SECTION_HEADER_SIZE);
@@ -279,10 +280,11 @@ fn emit_dynamic_bytes(
     }
     write_fragment(
         &mut bytes,
-        &mut occupied,
+        &mut fragments,
         plan.section_header_table_file_offset,
         &shdr_table,
     )?;
+    require_disjoint_fragments(&mut fragments)?;
 
     Ok(ExecutableImageOutput {
         final_image_layout: plan.image_layout,
@@ -304,9 +306,11 @@ fn emit_dynamic_bytes(
     })
 }
 
+/// Copy one fragment into the file and record its file range for the overlap
+/// check. An empty fragment occupies no bytes, so it records nothing.
 fn write_fragment(
     file: &mut [u8],
-    occupied: &mut [bool],
+    fragments: &mut Vec<std::ops::Range<usize>>,
     file_offset: u64,
     bytes: &[u8],
 ) -> Result<(), Diagnostic> {
@@ -315,17 +319,26 @@ fn write_fragment(
     let end = start
         .checked_add(bytes.len())
         .ok_or_else(|| Diagnostic::error("dynamic ELF fragment end overflows usize"))?;
-    let dst = file
-        .get_mut(start..end)
-        .ok_or_else(|| Diagnostic::error("dynamic ELF fragment exceeds allocated file"))?;
-    let occ = &mut occupied[start..end];
-    require(
-        occ.iter().all(|flag| !*flag),
-        "dynamic ELF file fragments overlap",
-    )?;
-    dst.copy_from_slice(bytes);
-    occ.fill(true);
+    file.get_mut(start..end)
+        .ok_or_else(|| Diagnostic::error("dynamic ELF fragment exceeds allocated file"))?
+        .copy_from_slice(bytes);
+    if start < end {
+        fragments.push(start..end);
+    }
     Ok(())
+}
+
+/// Refuse the file when two written fragments share a byte. After sorting by
+/// start, any overlap also shows between two neighbors, so the check costs one
+/// sort over the fragments rather than a flag per file byte.
+fn require_disjoint_fragments(fragments: &mut [std::ops::Range<usize>]) -> Result<(), Diagnostic> {
+    fragments.sort_unstable_by_key(|fragment| fragment.start);
+    require(
+        fragments
+            .windows(2)
+            .all(|pair| pair[0].end <= pair[1].start),
+        "dynamic ELF file fragments overlap",
+    )
 }
 
 #[cfg(test)]
@@ -664,5 +677,15 @@ mod tests {
         assert_eq!(err.stage(), "layout-planning");
         let (_, returned_interp, _) = err.into_parts();
         assert_eq!(returned_interp, wrong_interp);
+    }
+
+    #[test]
+    fn file_fragments_may_abut_but_never_share_a_byte() {
+        use super::require_disjoint_fragments;
+        assert!(require_disjoint_fragments(&mut [64..128, 0..64, 128..130]).is_ok());
+        let overlap = require_disjoint_fragments(&mut [64..128, 0..65]).unwrap_err();
+        assert!(overlap.message.contains("fragments overlap"));
+        // A fragment inside a wider one overlaps even with nothing between them.
+        assert!(require_disjoint_fragments(&mut [0..100, 10..20, 100..101]).is_err());
     }
 }

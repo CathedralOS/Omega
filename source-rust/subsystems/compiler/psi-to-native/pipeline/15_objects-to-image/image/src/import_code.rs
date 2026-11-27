@@ -2,13 +2,14 @@
 
 use crate::{FinalImage, FinalImageImportPlan, FinalImageSymbolHandle};
 use diagnostics::Diagnostic;
-use machine_code::import_code::{EncodedImportBody, ImportCodeIdentity};
+use machine_code::import_code::EncodedImportBody;
+use target::NormalizedImportLocator;
 
 impl FinalImage {
-    pub fn import_code_identity(
+    pub fn import_locator(
         &self,
         symbol: FinalImageSymbolHandle,
-    ) -> Result<ImportCodeIdentity, Diagnostic> {
+    ) -> Result<&NormalizedImportLocator, Diagnostic> {
         if !self.symbol_table.symbols.is_valid(symbol) {
             return Err(Diagnostic::error(
                 "encoded import references an invalid image symbol",
@@ -31,9 +32,7 @@ impl FinalImage {
             FinalImageImportPlan::None => Err(Diagnostic::error(
                 "image import has no retained physical import plan",
             )),
-            FinalImageImportPlan::Normalized(locator) => {
-                Ok(ImportCodeIdentity::Normalized(locator.clone()))
-            }
+            FinalImageImportPlan::Normalized(locator) => Ok(locator),
         }
     }
 
@@ -47,7 +46,7 @@ impl FinalImage {
             ));
         }
         self.import_program
-            .body(&self.import_code_identity(symbol)?)
+            .body(self.import_locator(symbol)?)
             .ok_or_else(|| {
                 Diagnostic::error("image import lacks one exact previously encoded body")
             })

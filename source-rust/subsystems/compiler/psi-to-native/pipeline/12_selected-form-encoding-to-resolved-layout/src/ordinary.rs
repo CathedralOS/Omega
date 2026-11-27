@@ -16,7 +16,7 @@ use machine_code::{
 };
 
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{SelectedBlockId, SelectedInstructionId};
+use selected_instructions::SelectedBlockId;
 use target::Architecture;
 
 use crate::{
@@ -27,8 +27,8 @@ use crate::{
 };
 
 pub(crate) use encoding_admission::layout::geometry::{
-    ConditionalBranchDescriptor, byte_displacement, conditional_branch_descriptor,
-    conditional_branch_family, derive_plan, instructions, select, unexpected,
+    ConditionalBranchDescriptor, InstructionRows, byte_displacement, conditional_branch_descriptor,
+    conditional_branch_family, derive_plan, function_pre_rows, instructions, select, unexpected,
 };
 
 pub(crate) fn derive_order(
@@ -104,8 +104,8 @@ pub(crate) fn derive_order(
 pub(crate) fn layout(
     architecture: Architecture,
     function: &EncodedLayoutFunction,
-    pre_rows: &BTreeMap<SelectedInstructionId, &SelectedFormEncodingRow>,
-    machine_rows: &BTreeMap<SelectedInstructionId, &EncodedAlternativeRequirement>,
+    pre_rows: &InstructionRows<SelectedFormEncodingRow>,
+    machine_rows: &InstructionRows<EncodedAlternativeRequirement>,
     physical: &ValidatedPhysicalRegisterModel,
     policy: SelectedFunctionLayoutPolicy,
     encoded: &SelectedFormEncodedRowStore,
@@ -119,10 +119,10 @@ pub(crate) fn layout(
         let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
         for instruction in self::instructions(block) {
             let pre = pre_rows
-                .get(&instruction.id)
+                .get(instruction.id)
                 .ok_or(Error::MissingInstruction(instruction.id))?;
             let machine = machine_rows
-                .get(&instruction.id)
+                .get(instruction.id)
                 .ok_or(Error::MissingInstruction(instruction.id))?;
             if machine.alternative.key != pre.alternative {
                 return Err(Error::AlternativeMismatch(instruction.id));

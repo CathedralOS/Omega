@@ -604,17 +604,15 @@ fn check_callback_publication(retain_body_source: bool) {
     );
     let mut changed_import = bindings.clone();
     let mut exchanged = import;
-    exchanged.identity = machine_code::import_code::ImportCodeIdentity::Normalized(
-        target::normalize_foreign_locator(
-            target::ForeignLocatorCandidate::PeByName {
-                library: b"other.dll".to_vec(),
-                export: b"same_registrar".to_vec(),
-            },
-            target::TargetProfile::WindowsX64,
-        )
-        .unwrap()
-        .into(),
-    );
+    exchanged.identity = target::normalize_foreign_locator(
+        target::ForeignLocatorCandidate::PeByName {
+            library: b"other.dll".to_vec(),
+            export: b"same_registrar".to_vec(),
+        },
+        target::TargetProfile::WindowsX64,
+    )
+    .unwrap()
+    .into();
     *Arc::make_mut(&mut changed_import.imports)
         .imports
         .last_mut()

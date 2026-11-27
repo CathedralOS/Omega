@@ -1,11 +1,11 @@
 //! Target import recipes and their resources.
-use machine_code::import_code::{ImportBodyResources, ImportCodeIdentity};
-use target::NativeTarget;
+use machine_code::import_code::ImportBodyResources;
+use target::{NativeTarget, NormalizedImportLocator};
 pub type PhysicalImportProgram<Origin> = crate::PhysicalRecipe<Origin, ImportInstructions>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportInstructions {
     pub target: NativeTarget,
-    pub imports: Vec<ImportCodeIdentity>,
+    pub imports: Vec<NormalizedImportLocator>,
     pub recipe: ImportRecipe,
     pub entry_resources: machine_code::import_code::ImportBodyResources,
     pub resolver_resources: Option<machine_code::import_code::ImportBodyResources>,
@@ -33,7 +33,7 @@ impl<Origin> PhysicalImportProgram<Origin> {
     pub fn resolver_resources(&self) -> Option<&ImportBodyResources> {
         self.instructions.resolver_resources.as_ref()
     }
-    pub fn into_imports(self) -> Vec<ImportCodeIdentity> {
+    pub fn into_imports(self) -> Vec<NormalizedImportLocator> {
         self.instructions.imports
     }
 }

@@ -408,10 +408,7 @@ mod tests {
         assert!(missing.memory.text.is_empty());
 
         let mut substituted = complete.clone();
-        substituted.import_program.imports[0].identity =
-            machine_code::import_code::ImportCodeIdentity::Normalized(kernel32_locator(
-                "GetLastError",
-            ));
+        substituted.import_program.imports[0].identity = kernel32_locator("GetLastError");
         assert!(
             install_import_thunks(&mut substituted, 3)
                 .unwrap_err()
