@@ -1638,6 +1638,21 @@ fn forwarding_an_open_callback_keeps_the_callers_exact_projection() {
     let verdict = judge(Ok(form.clone())).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 
+    // `Read` omits `crashes`, so the forwarded callback may crash. A
+    // receiving requirement closed after lowering cannot bound its routes.
+    let mut closed = form.clone();
+    closed
+        .static_conformances
+        .iter_mut()
+        .find(|question| matches!(question.implementation, StaticImplementation::Parameter(_)))
+        .unwrap()
+        .required
+        .crash_policy = semantic_vocabulary::CallableCrashPolicy::Closed;
+    assert!(
+        judge(Ok(closed)).is_err(),
+        "an open forwarded callback cannot meet a closed crash requirement"
+    );
+
     let mut changed = form;
     let question = changed
         .static_conformances
