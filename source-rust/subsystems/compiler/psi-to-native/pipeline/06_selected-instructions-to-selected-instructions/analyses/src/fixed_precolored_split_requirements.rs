@@ -1,8 +1,7 @@
 /*
   Fixed-constraint live-range split requirement analysis
   (`analyze_fixed_precolored_split_requirements`,
-  `ValidatedFixedPrecoloredSplitRequirements`,
-  `FixedPrecoloredSplitRequirementValidationReceipt`).
+  `ValidatedFixedPrecoloredSplitRequirements`).
 
   Partitions authenticated source live points and records cut boundaries where
   incoming and fixed-use exact-view domains are incompatible.
@@ -680,7 +679,6 @@ mod compute {
         )?;
         let usage = work.finish(budget)?;
         Ok(FixedPrecoloredSplitRequirementPlan {
-            fixed_intervals: fixed.receipt().identity(),
             ranges: ranges.receipt().identity(),
             legality: legality.receipt().identity(),
             register_environment: legality.receipt().register_environment(),
@@ -701,15 +699,13 @@ mod compute {
         fixed: &ValidatedFixedPrecoloredIntervals,
     ) -> Result<(), FixedPrecoloredSplitRequirementError> {
         if legality.receipt().ranges() != ranges.receipt().identity()
-            || fixed.receipt().ranges() != ranges.receipt().identity()
-            || fixed.receipt().legality() != legality.receipt().identity()
-            || fixed.receipt().register_environment() != legality.receipt().register_environment()
-            || fixed.receipt().allocator_availability()
-                != legality.receipt().allocator_availability()
-            || fixed.receipt().optimization_unit() != ranges.receipt().optimization_unit()
-            || fixed.receipt().work_schedule() != ranges.receipt().work_schedule()
-            || fixed.receipt().policy()
-                != FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1
+            || fixed.plan().ranges != ranges.receipt().identity()
+            || fixed.plan().legality != legality.receipt().identity()
+            || fixed.plan().register_environment != legality.receipt().register_environment()
+            || fixed.plan().allocator_availability != legality.receipt().allocator_availability()
+            || fixed.plan().optimization_unit != ranges.receipt().optimization_unit()
+            || fixed.plan().work_schedule != ranges.receipt().work_schedule()
+            || fixed.plan().policy != FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1
         {
             return Err(FixedPrecoloredSplitRequirementError::RootMismatch);
         }
@@ -804,16 +800,7 @@ mod error {
 
 use crate::WorkDefect;
 pub use error::FixedPrecoloredSplitRequirementError;
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
-use register_homes::FixedPrecoloredSplitRequirementPolicy;
-use register_homes::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlanIdentity,
-    FixedPrecoloredSplitRequirementPlan, FixedPrecoloredSplitRequirementPlanIdentity,
-};
-use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::LiveRangeIdentity;
-use semantic_vocabulary::WorkScheduleIdentity;
-use target::NativeTarget;
+use register_homes::{FixedPrecoloredSplitRequirementPlan, FixedPrecoloredSplitRequirementPolicy};
 
 pub fn analyze_fixed_precolored_split_requirements(
     ranges: &crate::ValidatedLiveRanges,
@@ -823,57 +810,11 @@ pub fn analyze_fixed_precolored_split_requirements(
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedFixedPrecoloredSplitRequirements, FixedPrecoloredSplitRequirementError> {
     let plan = compute::compute(ranges, legality, fixed, policy, budget)?;
-    seal_fixed_precolored_split_requirements(plan)
-}
-
-seal_plan!(
-    seal_fixed_precolored_split_requirements(FixedPrecoloredSplitRequirementPlan)
-        -> ValidatedFixedPrecoloredSplitRequirements: FixedPrecoloredSplitRequirementValidationReceipt
-        = register_homes::fixed_precolored_split_requirement_plan_identity,
-        FixedPrecoloredSplitRequirementError
-    {
-        fixed_intervals,
-        ranges,
-        legality,
-        register_environment,
-        allocator_availability,
-        optimization_unit,
-        work_schedule,
-        target,
-        policy,
-        usage
-    }
-);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FixedPrecoloredSplitRequirementValidationReceipt {
-    pub(crate) identity: FixedPrecoloredSplitRequirementPlanIdentity,
-    pub(crate) fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
-    pub(crate) ranges: LiveRangeIdentity,
-    pub(crate) legality: AllocationLegalityIdentity,
-    pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
-    pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
-    pub(crate) optimization_unit: OptimizationUnitIdentity,
-    pub(crate) work_schedule: WorkScheduleIdentity,
-    pub(crate) target: NativeTarget,
-    pub(crate) policy: FixedPrecoloredSplitRequirementPolicy,
-    pub(crate) usage: OptimizationWorkUsage,
-}
-
-impl FixedPrecoloredSplitRequirementValidationReceipt {
-    receipt_accessor_rows!(FixedPrecoloredSplitRequirementValidationReceipt {
-        identity: FixedPrecoloredSplitRequirementPlanIdentity,
-        fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
-        target: NativeTarget,
-        policy: FixedPrecoloredSplitRequirementPolicy,
-        usage: OptimizationWorkUsage,
-    });
-    shared_analysis_identity_accessors!(pub);
+    Ok(ValidatedFixedPrecoloredSplitRequirements { plan })
 }
 
 validated_plan_carrier!(
-    ValidatedFixedPrecoloredSplitRequirements: FixedPrecoloredSplitRequirementPlan,
-    FixedPrecoloredSplitRequirementValidationReceipt
+    ValidatedFixedPrecoloredSplitRequirements: FixedPrecoloredSplitRequirementPlan
 );
 
 pub(super) type SiteKey = (u8, u32, u32, u32, u16, u8);

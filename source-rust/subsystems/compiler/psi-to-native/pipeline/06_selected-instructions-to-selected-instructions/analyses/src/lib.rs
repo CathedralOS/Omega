@@ -197,6 +197,18 @@ macro_rules! work_defect_conversion {
 
 #[macro_export]
 macro_rules! validated_plan_carrier {
+    ($carrier:ident : $plan:ty) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $carrier {
+            pub(crate) plan: $plan,
+        }
+
+        impl $carrier {
+            pub const fn plan(&self) -> &$plan {
+                &self.plan
+            }
+        }
+    };
     ($carrier:ident : $plan:ty, $receipt:ty) => {
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct $carrier {
@@ -844,16 +856,16 @@ pub use allocator_availability::AllocatorAvailabilityError;
 pub use allocator_availability::ValidatedAllocatorAvailability;
 pub use allocator_availability::materialize_allocator_availability;
 pub use fixed_precolored_intervals::{
-    FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
-    ValidatedFixedPrecoloredIntervals, analyze_fixed_precolored_intervals,
+    FixedPrecoloredIntervalError, ValidatedFixedPrecoloredIntervals,
+    analyze_fixed_precolored_intervals,
 };
 pub use fixed_precolored_segment_homes::{
-    FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
-    ValidatedFixedPrecoloredSegmentHomes, assign_fixed_precolored_segment_homes,
+    FixedPrecoloredSegmentHomeError, ValidatedFixedPrecoloredSegmentHomes,
+    assign_fixed_precolored_segment_homes,
 };
 pub use fixed_precolored_split_requirements::{
-    FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
-    ValidatedFixedPrecoloredSplitRequirements, analyze_fixed_precolored_split_requirements,
+    FixedPrecoloredSplitRequirementError, ValidatedFixedPrecoloredSplitRequirements,
+    analyze_fixed_precolored_split_requirements,
 };
 pub use recovery_classification::{
     RecoveryClassificationError, ValidatedRecoveryClassifications, classify_pressure_recovery,
