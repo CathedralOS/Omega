@@ -605,12 +605,6 @@ pub(crate) mod type_predicates {
             }
         }
     }
-
-    /// Nothing writes this table. `driver/compile_time_invocations/frontier.rs`
-    /// still refuses a program whose table differs from the default; delete
-    /// this type, its `TypedTreeTables` field and that refusal together.
-    #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
-    pub struct StaticTypeContexts {}
 }
 pub mod types {
     use arena::{Handle, HandleSpan, RetainedArena as Arena};

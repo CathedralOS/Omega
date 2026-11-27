@@ -27,7 +27,9 @@ use symbols::SymbolHandle;
 use super::super::demanded_values::{DemandedValues, RoundProgram};
 use super::super::typed_invocation::TypedInvocationDeclaration;
 use super::{decoded, insert};
-use crate::compile_time_invocations::{InvocationTarget, SourceCompletionAccounting};
+use crate::compile_time_invocations::{
+    InvocationTarget, PlannedCall, PreparedBuildMachineProgram, SourceCompletionAccounting,
+};
 
 /// One value required by a type and still written as an expression.
 struct Job {
@@ -258,6 +260,19 @@ fn entry(probe: &mut TypedTrees, job: &Job) -> Result<SymbolHandle, String> {
 pub(in super::super) struct Arguments {
     jobs: Vec<Job>,
     values: Vec<ValueInputs>,
+    /// The program the current round judges its arguments in, when it has
+    /// more than one.
+    round: Option<ArgumentRound>,
+}
+
+/// One copy of a round's program holding the generated entry of every
+/// argument the round evaluates (`entry`). The callers of their calls are
+/// frozen together in it.
+struct ArgumentRound {
+    number: usize,
+    program: PreparedBuildMachineProgram,
+    /// Each argument's generated entry, by its value number.
+    entries: Vec<(usize, SymbolHandle)>,
 }
 
 impl Arguments {
@@ -270,6 +285,7 @@ impl Arguments {
             return Self {
                 jobs: Vec::new(),
                 values: Vec::new(),
+                round: None,
             };
         }
         let owners = crate::source_state::references::collect_program_operand_owners(program);
@@ -320,7 +336,11 @@ impl Arguments {
                 )
             })
             .collect();
-        Self { jobs, values }
+        Self {
+            jobs,
+            values,
+            round: None,
+        }
     }
 
     pub(in super::super) fn into_inputs(self) -> Vec<ValueInputs> {
@@ -335,10 +355,27 @@ impl Arguments {
         accounting: &mut SourceCompletionAccounting,
     ) -> Result<(), String> {
         let job = &self.jobs[value];
-        let mut probe = TypedTrees::clone(round.source());
-        let entry = entry(&mut probe, job)?;
-        let prepared = round.calls().extended_to(Arc::new(probe));
-        let invocation = prepared.entry(job.owner, entry, &[])?;
+        let shared = self
+            .round
+            .as_ref()
+            .filter(|shared| shared.number == round.number())
+            .and_then(|shared| {
+                let (_, entry) = shared.entries.iter().find(|(owner, _)| *owner == value)?;
+                let plan = shared.program.plan_entry(job.owner, *entry, &[]).ok()?;
+                shared.program.judge_shared(&plan)
+            });
+        // Without a shared caller, or when the shared judgment fails, the
+        // argument is judged in a copy holding only its own entry, so its
+        // refusal is the one it gets alone.
+        let invocation = match shared {
+            Some(invocation) => invocation,
+            None => {
+                let mut probe = TypedTrees::clone(round.source());
+                let entry = entry(&mut probe, job)?;
+                let prepared = round.calls().extended_to(Arc::new(probe));
+                prepared.entry(job.owner, entry, &[])?
+            }
+        };
         let module = invocation.accepted().module();
         use crate::compile_time_invocations::PreparedBuildMachineEntry;
         if job.application.is_none()
@@ -402,6 +439,45 @@ impl DemandedValues for Arguments {
 
     fn roots(&self, value: usize) -> &[SymbolHandle] {
         &self.jobs[value].roots
+    }
+
+    /// Adds every argument of the round to one copy of its program and
+    /// freezes their callers together there. The calls are not judged in
+    /// the round's own program, so this kind names none to it.
+    fn plan_round(
+        &mut self,
+        values: &[usize],
+        round: &RoundProgram,
+        _program: &TypedTrees,
+    ) -> Vec<PlannedCall> {
+        self.round = None;
+        if values.len() < 2 {
+            return Vec::new();
+        }
+        let mut probe = TypedTrees::clone(round.source());
+        let mut entries = Vec::with_capacity(values.len());
+        for &value in values {
+            // A failed entry can leave part of a declaration in the copy, so
+            // every argument of the round is then judged alone.
+            let Ok(symbol) = entry(&mut probe, &self.jobs[value]) else {
+                return Vec::new();
+            };
+            entries.push((value, symbol));
+        }
+        let mut program = round.calls().extended_to(Arc::new(probe));
+        let plans = entries
+            .iter()
+            .filter_map(|&(value, symbol)| {
+                program.plan_entry(self.jobs[value].owner, symbol, &[]).ok()
+            })
+            .collect::<Vec<_>>();
+        program.share_round_calls(plans);
+        self.round = Some(ArgumentRound {
+            number: round.number(),
+            program,
+            entries,
+        });
+        Vec::new()
     }
 
     fn reaches(&mut self, program: &TypedTrees, value: usize, reached: &[SymbolHandle]) {

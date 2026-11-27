@@ -303,14 +303,17 @@ fn a_selected_access_plan_returns_its_declared_route_element_lifetimes() {
         let [row] = conformance.rows.as_slice() else {
             panic!("one exact plan requirement");
         };
-        let selected = prepared
-            .entry_selected(
+        let plan = prepared
+            .plan_selected(
                 domain.symbol,
                 domain.symbol,
                 &policy.selection,
                 row.requirement,
                 arguments,
             )
+            .expect("plan the domain's selected call");
+        let selected = prepared
+            .prepare_planned(&plan)
             .expect("prepare the domain's selected call")
             .invoke_recorded(target(&facts), &mut accounting)
             .expect("the selected plan publishes and executes with the declared lifetime family");
