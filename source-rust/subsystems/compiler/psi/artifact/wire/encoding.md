@@ -2,14 +2,21 @@
 
 [Portable product](../../../../../../wiki/spec/terminal-psi/product.md) | [Observations](../../../../../../wiki/spec/terminal-psi/observations.md)
 
-This page describes the compiler's file format for Psi programs. It sits beside
-the [wire codec](README.md) that implements it, and a codec change updates it
-in the same pull request ([changes to Psi](../../README.md#changes-to-psi)).
-The language specification in `wiki/spec/` owns what programs mean; a trust or
-admission rule stated here must stay intact when the layout changes.
+Psi producers and readers exchange a portable binary artifact. For a given
+format and vocabulary, they must agree on the canonical bytes of a semantic
+module and on which encodings are well formed. During development the format
+can change. The current reader checks both markers and rejects an unsupported
+one before interpreting the module body. To exchange a program across such a
+change, produce it again with a writer using the reader's format and vocabulary.
 
-This is the canonical encoding contract; it is not a complete byte-level decoder
-specification. The [documentation index](../../../../../../wiki/README.md) lists operation subjects.
+The [wire codec](README.md) and these tables change together
+([changes to Psi](../../README.md#changes-to-psi)). This page documents the
+current layout but does not yet specify every byte needed to write an independent
+decoder. The [portable product](../../../../../../wiki/spec/terminal-psi/product.md)
+defines program meaning. A reader that decodes a well-formed module must still
+check its obligations and obtain the authority required for execution.
+
+The [documentation index](../../../../../../wiki/README.md) lists operation subjects.
 [Proof values](../../../../../../wiki/spec/terminal-psi/mathematical_values.md) and [certificate rules](../../../../../../wiki/spec/terminal-psi/integer_certificates.md)
 define semantics; the tables below give the physical layout of every operation,
 terminator, scalar-term, and proposition form the codec accepts, plus the
