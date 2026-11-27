@@ -8,6 +8,7 @@ fn an_entryless_product_does_not_demand_every_library_layout() {
         &[],
         &package_compilation::source_imports::source_targets(None, &target::TargetProfile::ALL)
             .unwrap(),
+        &["linux_x86_64"],
     )
     .unwrap();
     assert!(
@@ -55,9 +56,11 @@ fn a_claimed_native_binding_is_a_layout_root_on_its_own_target() {
         &[&selection],
         &package_compilation::source_imports::source_targets(None, &target::TargetProfile::ALL)
             .unwrap(),
+        &["windows_x86_64"],
     )
     .unwrap();
     for scope in &scopes {
+        assert_eq!(scope.checks_subject, scope.target == "windows_x86_64");
         let roots = scope.entry_declarations.contains(&subject)
             && scope.entry_declarations.contains(&requirement);
         assert_eq!(roots, scope.target == "macos_arm64", "{scopes:?}");

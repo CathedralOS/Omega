@@ -19,6 +19,15 @@ fn evaluate(
     scopes: &[FixedLayoutTargetScope],
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<(), Vec<Diagnostic>> {
+    evaluate_selected(source, scopes, &[], accounting)
+}
+
+fn evaluate_selected(
+    source: &mut TypedTrees,
+    scopes: &[FixedLayoutTargetScope],
+    selected: &[SymbolHandle],
+    accounting: &mut SourceCompletionAccounting,
+) -> Result<(), Vec<Diagnostic>> {
     crate::compile_time_invocations::evaluate_demanded_values(
         source,
         &crate::compile_time_invocations::ValueDemand {
@@ -29,7 +38,7 @@ fn evaluate(
                 entries: &[],
                 subjects: &[],
                 purpose: source_provenance::DependencyScope::Product,
-                selected: &[],
+                selected,
                 bindings: &[],
                 supplies: &[],
             },
@@ -66,6 +75,7 @@ fn an_empty_layout_scope_preserves_the_unrequested_application() {
         little_endian: true,
     };
     let scope = FixedLayoutTargetScope {
+        checks_subject: false,
         target: facts.profile.clone(),
         facts: Some(facts),
         entry_declarations: Vec::new(),
@@ -89,6 +99,61 @@ fn an_empty_layout_scope_preserves_the_unrequested_application() {
     assert!(source.deferred_refusals_of(entry).any(|row| {
         row.request == crate::source_state::deferred_refusals::DeferredRequest::LayoutPolicyStorage
     }));
+}
+
+#[test]
+fn an_entryless_recast_demands_its_own_storage_only_on_checked_targets() {
+    let policy = AUTHORED.split("machine make()").next().unwrap();
+    let other = policy[policy.find("PairLayout satisfies").unwrap()..]
+        .replace("PairLayout", "UnusedLayout")
+        .replace("Layout<Pair>", "Layout<Unused>")
+        .replace("size_fixed: 16", "size_fixed: 1");
+    let source = format!(
+        r#"{policy}
+public data Unused {{ lo: u64; hi: u64; }}
+{other}
+public machine inspect(value: @|layout|::LayoutStorage<Pair, PairLayout>,
+    unused: @|layout|::LayoutStorage<Unused, UnusedLayout>) -> u8 {{
+    let bytes: @[u8; 16] = value as @[u8; 16];
+    bytes[8]
+}}
+public machine inspect_with<Policy satisfies |layout|::FixedLayout<Pair>>(
+    value: @|layout|::LayoutStorage<Pair, Policy>) -> u8 {{
+    let bytes: @[u8; 16] = value as @[u8; 16];
+    bytes[8]
+}}"#
+    );
+    let mut source = with_reflection(&source).unwrap();
+    let consumers = ["inspect", "inspect_with"].map(|name| query_machine(&source, name));
+    let scopes = ["linux_x86_64", "windows_x86_64"].map(|target| FixedLayoutTargetScope {
+        target: target.into(),
+        facts: Some(layout_plans::LayoutTargetFacts {
+            profile: target.into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        }),
+        checks_subject: target == "windows_x86_64",
+        entry_declarations: Vec::new(),
+        provider_declarations: Vec::new(),
+    });
+    let mut accounting = SourceCompletionAccounting::default();
+    evaluate_selected(&mut source, &scopes, &consumers, &mut accounting)
+        .unwrap_or_else(|diagnostics| panic!("{}", diagnostics::join_messages(&diagnostics)));
+    let [plan] = source.plan_laid_layouts.as_slice() else {
+        panic!("only the viewed layout is demanded")
+    };
+    let [realization] = plan.target_layouts(&source).as_array().unwrap();
+    assert_eq!(realization.target_facts.profile, "windows_x86_64");
+    assert_eq!(
+        realization.geometry.validated_layout.offsets.as_deref(),
+        Some([8, 0].as_slice())
+    );
+    assert_eq!(realization.geometry.validated_layout.size, Some(16));
+    assert_eq!(realization.geometry.validated_layout.align, 8);
+    assert_eq!(accounting.receipts().len(), 1);
 }
 
 #[test]
@@ -128,6 +193,7 @@ fn generic_layout_policy_retains_its_declared_machine_and_observed_geometry() {
     evaluate(
         &mut source,
         &[FixedLayoutTargetScope {
+            checks_subject: false,
             target: facts.profile.clone(),
             facts: Some(facts),
             entry_declarations: vec![root],
@@ -184,6 +250,7 @@ machine packet_size<'target>(target: @'target |layout|::LayoutTarget) -> u64 rea
     let mut source = with_reflection(&program).unwrap();
     let root = query_machine(&source, "main");
     let scopes = ["linux_x86_64", "windows_x86_64"].map(|name| FixedLayoutTargetScope {
+        checks_subject: false,
         target: name.into(),
         facts: Some(layout_plans::LayoutTargetFacts {
             profile: name.into(),
