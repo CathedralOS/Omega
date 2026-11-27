@@ -324,13 +324,20 @@ function stem(uri) {
 function provideDocumentFormattingEdits(document, options) {
   const original = document.getText();
   const formatted = formatter.formatDocument(original, options);
-  if (formatted === original) return [];
-  const lastLine = Math.max(0, document.lineCount - 1);
-  const fullRange = new vscode.Range(
-    new vscode.Position(0, 0),
-    document.lineAt(lastLine).range.end,
-  );
-  return [vscode.TextEdit.replace(fullRange, formatted)];
+  const edits = [];
+  if (document.eol !== vscode.EndOfLine.LF) {
+    edits.push(vscode.TextEdit.setEndOfLine(vscode.EndOfLine.LF));
+  }
+  const normalizedOriginal = original.replace(/\r\n/g, '\n');
+  if (formatted !== normalizedOriginal) {
+    const lastLine = Math.max(0, document.lineCount - 1);
+    const fullRange = new vscode.Range(
+      new vscode.Position(0, 0),
+      document.lineAt(lastLine).range.end,
+    );
+    edits.push(vscode.TextEdit.replace(fullRange, formatted));
+  }
+  return edits;
 }
 
 function provideDocumentRangeFormattingEdits(document, range, options) {

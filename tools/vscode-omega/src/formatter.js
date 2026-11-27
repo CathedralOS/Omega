@@ -21,7 +21,7 @@ const CONTROL_PAREN_KEYWORDS = new Set([
 ]);
 
 const SPACE_BEFORE_BRACKET_KEYWORDS = new Set([
-  'as', 'else', 'ensures', 'if', 'in', 'invariant', 'let', 'match', 'mutable',
+  'as', 'else', 'ensures', 'if', 'in', 'invariant', 'let', 'machine', 'match', 'mutable',
   'preserves', 'reaches', 'requires', 'return', 'satisfies', 'terminates',
   'transition', 'when', 'where', 'while', 'crashes',
 ]);
@@ -369,25 +369,32 @@ function classifyTokens(rawTokens) {
     i += 1;
   }
 
-  // Third pass: mark unary `-` and declaration attribute `[` (`data Name [linear]`).
+  // Third pass: mark unary `-`, declaration/generic parameter attributes (`[copy]`,
+  // `[linear]`), and postfix `as` cast entry signs (`+Wrapping`, `-Km`, `=Valid`).
   let prevCode = null;
   let prev2Code = null;
+  let genericDepth = 0;
   for (let k = 0; k < tokens.length; k += 1) {
     const tok = tokens[k];
     if (tok.kind === 'newline' || tok.kind === 'lineComment' || tok.kind === 'blockComment') {
       continue;
     }
-    if (tok.kind === 'punct' && tok.text === '-') {
+    if (tok.role === 'genericOpen') {
+      genericDepth += 1;
+    } else if (tok.role === 'genericClose') {
+      genericDepth = Math.max(0, genericDepth - 1);
+    } else if (tok.kind === 'punct' && tok.text === '-') {
       if (isUnaryContext(prevCode)) {
         tok.role = 'unary';
       }
     } else if (tok.kind === 'punct' && tok.text === '[') {
       if (
-        prevCode &&
-        prevCode.kind === 'word' &&
-        prev2Code &&
-        prev2Code.kind === 'word' &&
-        ATTRIBUTE_OWNER_KEYWORDS.has(prev2Code.text)
+        (genericDepth > 0 && prevCode && prevCode.kind === 'word') ||
+        (prevCode &&
+          prevCode.kind === 'word' &&
+          prev2Code &&
+          prev2Code.kind === 'word' &&
+          ATTRIBUTE_OWNER_KEYWORDS.has(prev2Code.text))
       ) {
         tok.role = 'attrOpen';
       }
@@ -396,7 +403,141 @@ function classifyTokens(rawTokens) {
     prevCode = tok;
   }
 
+  markCastEntrySigns(tokens);
+
   return tokens;
+}
+
+// Marks `+`, `-`, and `=` tokens that introduce domain entries in a postfix
+// `as` cast (wiki/spec/language/domains.md#grouping):
+//   `x as +Wrapping`
+//   `((left as -Km -Wrapping) +% (right as -Km -Wrapping)) as +Km +Wrapping`
+//   `x as u32 +Km -Old =Kept`
+//   `sum as + |units|::u64::Distance`
+function markCastEntrySigns(tokens) {
+  const codeIndices = [];
+  for (let i = 0; i < tokens.length; i += 1) {
+    const k = tokens[i].kind;
+    if (k !== 'newline' && k !== 'lineComment' && k !== 'blockComment') {
+      codeIndices.push(i);
+    }
+  }
+
+  const isCastSign = (tok) =>
+    tok && tok.kind === 'punct' && (tok.text === '+' || tok.text === '-' || tok.text === '=');
+
+  // Advances past one type or domain path starting at code position `ci`, returning
+  // the next code position, or `ci` if no path starts here.
+  const scanPath = (ci) => {
+    let cur = ci;
+    const at = (pos) => (pos < codeIndices.length ? tokens[codeIndices[pos]] : null);
+
+    // Optional borrow prefix: `@['a] [mutable|write]`
+    if (at(cur) && at(cur).kind === 'punct' && at(cur).text === '@') {
+      cur += 1;
+      if (at(cur) && at(cur).kind === 'lifetime') cur += 1;
+      if (at(cur) && at(cur).kind === 'word' && (at(cur).text === 'mutable' || at(cur).text === 'write')) {
+        cur += 1;
+      }
+    }
+
+    const head = at(cur);
+    if (!head) return ci;
+
+    // Bracketed carrier type `[u8]`, `[u8; 4]` (may be followed by `::Domain`)
+    if (head.kind === 'punct' && head.text === '[') {
+      let depth = 0;
+      while (cur < codeIndices.length) {
+        const t = at(cur);
+        if (t.kind === 'punct' && t.text === '[') depth += 1;
+        else if (t.kind === 'punct' && t.text === ']') {
+          depth -= 1;
+          cur += 1;
+          if (depth === 0) break;
+          continue;
+        }
+        cur += 1;
+      }
+    } else if (head.kind === 'alias' || head.kind === 'word') {
+      cur += 1;
+    } else {
+      return ci;
+    }
+
+    // Consume chained `::segment` and `<...>` generic arguments.
+    while (cur < codeIndices.length) {
+      const t = at(cur);
+      if (t.kind === 'punct' && t.text === '::') {
+        cur += 1;
+        if (at(cur) && (at(cur).kind === 'word' || at(cur).kind === 'alias')) {
+          cur += 1;
+        } else if (at(cur) && at(cur).role === 'genericOpen') {
+          let depth = 0;
+          while (cur < codeIndices.length) {
+            if (at(cur).role === 'genericOpen') depth += 1;
+            else if (at(cur).role === 'genericClose') {
+              depth -= 1;
+              cur += 1;
+              if (depth === 0) break;
+              continue;
+            }
+            cur += 1;
+          }
+        }
+      } else if (t.role === 'genericOpen') {
+        let depth = 0;
+        while (cur < codeIndices.length) {
+          if (at(cur).role === 'genericOpen') depth += 1;
+          else if (at(cur).role === 'genericClose') {
+            depth -= 1;
+            cur += 1;
+            if (depth === 0) break;
+            continue;
+          }
+          cur += 1;
+        }
+      } else {
+        break;
+      }
+    }
+    return cur;
+  };
+
+  for (let ci = 0; ci < codeIndices.length; ci += 1) {
+    const tok = tokens[codeIndices[ci]];
+    if (tok.kind !== 'word' || tok.text !== 'as') continue;
+
+    // Skip `use path as alias;`
+    const prev = ci > 0 ? tokens[codeIndices[ci - 1]] : null;
+    if (prev && prev.kind === 'usePath') continue;
+
+    let cur = ci + 1;
+    const at = (pos) => (pos < codeIndices.length ? tokens[codeIndices[pos]] : null);
+
+    // Optional carrier type (including optional `in Domain [& Domain]*`).
+    if (at(cur) && !isCastSign(at(cur))) {
+      const afterType = scanPath(cur);
+      if (afterType === cur) continue;
+      cur = afterType;
+      if (at(cur) && at(cur).kind === 'word' && at(cur).text === 'in') {
+        cur += 1;
+        cur = scanPath(cur);
+        while (at(cur) && at(cur).kind === 'punct' && at(cur).text === '&') {
+          cur += 1;
+          cur = scanPath(cur);
+        }
+      }
+    }
+
+    // Longest run of `+D`, `-D`, `=D` domain cast entries.
+    while (isCastSign(at(cur))) {
+      const signTok = at(cur);
+      const afterDomain = scanPath(cur + 1);
+      if (afterDomain === cur + 1) break;
+      signTok.role = 'castSign';
+      cur = afterDomain;
+    }
+  }
 }
 
 function expandGenericTrailingEquals(rawTokens) {
@@ -473,14 +614,13 @@ function couldOpenGeneric(prev, prev2, rawTokens, codeIndices, ci) {
   // Turbofish: `foo::<T>`
   if (prev.kind === 'punct' && prev.text === '::') return true;
   if (prev.kind !== 'word') return false;
-  // Declaration header: `machine foo<T>`, `data Bar<T>`, `trait Baz<T>`, etc.
-  if (prev2 && prev2.kind === 'word' && DECLARATION_HEADER_KEYWORDS.has(prev2.text)) return true;
-  // Qualified declaration header: `machine Foo::bar<T>`
-  if (prev2 && prev2.kind === 'punct' && prev2.text === '::') {
-    for (let back = ci - 3; back >= Math.max(0, ci - 12); back -= 1) {
-      const t = rawTokens[codeIndices[back]];
-      if (t.kind === 'word' && DECLARATION_HEADER_KEYWORDS.has(t.text)) return true;
-      if (t.kind === 'punct' && (t.text === ';' || t.text === '{' || t.text === '}')) break;
+  // Declaration header, including qualified names and operator tokens:
+  // `machine foo<T>`, `machine Foo::bar<T>`, `machine [] read<T>`, `machine + add<T>`.
+  for (let back = ci - 2; back >= Math.max(0, ci - 12); back -= 1) {
+    const t = rawTokens[codeIndices[back]];
+    if (t.kind === 'word' && DECLARATION_HEADER_KEYWORDS.has(t.text)) return true;
+    if (t.kind === 'punct' && (t.text === ';' || t.text === '{' || t.text === '}' || t.text === '(' || t.text === ')')) {
+      break;
     }
   }
   // PascalCase type name: `Vec<u32>`, `Source<'storage>`
@@ -573,6 +713,17 @@ function needsSpace(prev, curr) {
 
   // Borrow `@` attaches directly to its target (`@x`, `@mutable x`, `@'a T`, `@[u8]`, `@|a|::T`).
   if (p === '@') return false;
+
+  // Postfix `as` cast entry signs (`+Wrapping`, `-Km`, `=Valid`) attach to their
+  // domain path, except before `|alias|::...` where `+ |a|::D` and `- |a|::D`
+  // must keep a space so they do not lex as `+|` or `-|`.
+  if (prev.role === 'castSign') {
+    if (curr.kind === 'alias' || c.startsWith('|') || c.startsWith('%') || c.startsWith('!') || c.startsWith('=')) {
+      return true;
+    }
+    return false;
+  }
+  if (curr.role === 'castSign') return true;
 
   // Unary `!`, `~`, `-` attach directly to their operand, EXCEPT when joining
   // `-` with `|alias|::...` (or another punctuation token) would lex as `-|`.
@@ -837,10 +988,9 @@ function makeIndentUnit(options = {}) {
   return insertSpaces ? ' '.repeat(tabSize) : '\t';
 }
 
-// Formats a full Omega source document.
+// Formats a full Omega source document with canonical LF (`\n`) line endings.
 function formatDocument(text, options = {}) {
   if (text.trim().length === 0) return '';
-  const eol = detectEol(text);
   const indentUnit = makeIndentUnit(options);
   const lines = formatAllLines(text, indentUnit);
 
@@ -859,7 +1009,7 @@ function formatDocument(text, options = {}) {
     prevBlank = isBlank;
   }
 
-  return collapsed.join(eol) + eol;
+  return collapsed.join('\n') + '\n';
 }
 
 // Formats a 0-based inclusive line range `[startLine, endLine]` using full-document

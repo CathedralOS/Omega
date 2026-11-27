@@ -2,7 +2,7 @@
   "name": "omega-syntax",
   "displayName": "Omega",
   "description": "Syntax highlighting, formatting, and Go to Definition for the Omega systems language (.omg).",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "cathedralos",
   "license": "MIT",
   "engines": {
