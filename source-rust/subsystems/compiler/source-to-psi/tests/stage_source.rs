@@ -1079,7 +1079,7 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
         pending_imports: missing
             .iter()
             .map(|(name, span)| source_compiler::PendingBuildImport {
-                declarations: Vec::new(),
+                declarations: vec![span("build")],
                 source: root,
                 span: *span,
                 target: source_compiler::SourceImportTarget {
@@ -1103,7 +1103,7 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
     for (error, (name, span)) in errors.iter().zip(missing) {
         assert_eq!(
             error.message,
-            format!("Build import `{name}.omg as {name}` has no supplied source")
+            format!("no admitted logical file `{name}.omg`")
         );
         assert_eq!(error.source_span, Some(SourceSpan::new(root, span)));
     }
