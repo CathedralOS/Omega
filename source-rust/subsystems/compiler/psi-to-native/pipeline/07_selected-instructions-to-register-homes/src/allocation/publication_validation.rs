@@ -106,14 +106,13 @@ mod tests {
         SelectedLoweringOptimizationCompletionIdentity,
     };
     use register_homes::{
-        AllocationLegalityIdentity, AllocatorAvailabilityIdentity, PostAllocationManifestStage,
+        AllocatorAvailabilityIdentity, PostAllocationManifestStage,
         PostAllocationOptimizationManifest, PostAllocationSelectedTransformation,
         PostAllocationSpillStatus, PostAllocationStatistics, PostAllocationUnavailableData,
         RegisterHomeIdentity,
     };
     use register_model::TargetRegisterEnvironmentIdentity;
     use selected_instruction_analyses::SelectedOptimizationRecord;
-    use selected_instructions::{LiveRangeIdentity, LivenessIdentity};
 
     fn record() -> PostAllocationOptimizationManifest {
         let mut post = PostAllocationOptimizationManifest {
@@ -125,9 +124,6 @@ mod tests {
             selected_lowering_completion: None,
             pre_allocation_completion: None,
             selected_transformations: Vec::new(),
-            liveness: LivenessIdentity::from_bytes([1; 32]),
-            ranges: LiveRangeIdentity::from_bytes([2; 32]),
-            legality: AllocationLegalityIdentity::from_bytes([3; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
             allocator_availability: AllocatorAvailabilityIdentity::from_bytes([5; 32]),
             homes: RegisterHomeIdentity::from_bytes([6; 32]),

@@ -1,13 +1,10 @@
 //! Selected literal-fold records for in-process selected-instruction rewrites.
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
-    SpillChoiceIdentity,
-};
+use crate::{AllocatorAvailabilityIdentity, RecoveryClassificationIdentity, SpillChoiceIdentity};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterConstraintKey, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
-    LiteralFoldIdentity, LiveRangeIdentity, MachineEffectCatalogIdentity, SelectedBlockId,
-    SelectedInstructionId, SelectedInstructionPlan, VirtualRegisterId,
+    LiteralFoldIdentity, MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionPlan, VirtualRegisterId,
 };
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use std::sync::Arc;
@@ -170,8 +167,6 @@ pub struct LiteralFoldPlan {
     pub source_selected: Arc<SelectedInstructionPlan>,
     pub spill_choices: SpillChoiceIdentity,
     pub recovery_classifications: RecoveryClassificationIdentity,
-    pub ranges: LiveRangeIdentity,
-    pub legality: AllocationLegalityIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub machine_effect_catalog: MachineEffectCatalogIdentity,
@@ -204,7 +199,7 @@ pub struct LiteralFoldAction {
 
 pub fn literal_fold_identity(plan: &LiteralFoldPlan) -> LiteralFoldIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-literal-fold.v9\0");
+    bytes.extend_from_slice(b"omega.terminal-literal-fold.v10\0");
     bytes.extend_from_slice(&encode_terminal_literal_fold_content(plan));
     LiteralFoldIdentity::from_canonical_bytes(&bytes)
 }
@@ -213,8 +208,6 @@ fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Vec<u8> {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&plan.spill_choices.bytes());
     bytes.extend_from_slice(&plan.recovery_classifications.bytes());
-    bytes.extend_from_slice(&plan.ranges.bytes());
-    bytes.extend_from_slice(&plan.legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.machine_effect_catalog.bytes());

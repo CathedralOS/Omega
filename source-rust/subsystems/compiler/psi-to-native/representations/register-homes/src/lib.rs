@@ -108,17 +108,16 @@ pub use publication::AllocationPublicationFacts;
 pub mod recovery;
 
 pub use constraints::{
-    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
-    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, EntryFixedViewTransition,
-    FixedPrecoloredInterval, FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPolicy,
+    AllocationLegalityPlan, AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan,
+    AllocatorAvailabilityPolicy, EntryFixedViewTransition, FixedPrecoloredInterval,
+    FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPolicy,
     FixedPrecoloredRegisterSplitRequirements, FixedPrecoloredSourceFragmentRequirements,
     FixedPrecoloredSourceSegment, FixedPrecoloredSourceSegmentId,
     FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPlan,
     FixedPrecoloredSplitRequirementPolicy, FunctionAllocationLegality,
     FunctionFixedPrecoloredIntervals, FunctionFixedPrecoloredSplitRequirements,
     RegisterClassAvailability, VirtualEarlyClobberPointLegality, VirtualLegalitySpan,
-    VirtualRegisterAllocationLegality, allocation_legality, allocation_legality_function_digest,
-    allocation_legality_identity_from_digests, allocator_availability,
+    VirtualRegisterAllocationLegality, allocation_legality, allocator_availability,
     allocator_availability_identity, fixed_precolored_intervals,
     fixed_precolored_split_requirements,
 };
@@ -150,9 +149,8 @@ use register_model::{
     TargetRegisterEnvironmentIdentity, write_semantics_tag,
 };
 use selected_instructions::{
-    CurrentSelectedProgram, LiveRangeIdentity, LiveRangePlan, PreAllocationMachineEffectPlan,
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan, VirtualFixedConstraintSite,
-    VirtualRegisterId,
+    CurrentSelectedProgram, LiveRangePlan, PreAllocationMachineEffectPlan, SelectedBlockId,
+    SelectedInstructionId, SelectedInstructionPlan, VirtualFixedConstraintSite, VirtualRegisterId,
 };
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
@@ -188,9 +186,7 @@ pub struct AllocatedProgramFacts<'program> {
     pub selected: CurrentSelectedProgram<'program>, // Current selected program
     pub effects: &'program Arc<PreAllocationMachineEffectPlan>, // Pre-allocation machine effects
     pub ranges: &'program LiveRangePlan,            // Live-range plan
-    pub ranges_identity: LiveRangeIdentity,         // Live-range plan identity
     pub legality: &'program AllocationLegalityPlan, // Allocation-legality plan
-    pub legality_identity: AllocationLegalityIdentity, // Allocation-legality identity
     pub homes: &'program RegisterHomePlan,          // Register-home plan
     pub homes_identity: RegisterHomeIdentity,       // Register-home plan identity
 }
@@ -200,15 +196,13 @@ identity_newtype! { pub struct AbstractSpillAccessConstraintPlanIdentity([u8; 32
 
 pub fn register_home_identity(plan: &RegisterHomePlan) -> RegisterHomeIdentity {
     RegisterHomeIdentity(domain_identity(
-        b"omega.terminal-register-homes.v7\0",
+        b"omega.terminal-register-homes.v8\0",
         &encode_terminal_register_home_content(plan),
     ))
 }
 
 pub(crate) fn encode_terminal_register_home_content(plan: &RegisterHomePlan) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(&plan.legality.bytes());
-    bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     length(&mut bytes, plan.functions.len(), "register-home identity");
@@ -253,8 +247,7 @@ pub(crate) fn encode_fixed_constraint_site_identity(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegisterHomePlan {
-    pub legality: AllocationLegalityIdentity, // Allocation-legality digest
-    pub ranges: LiveRangeIdentity,            // Live-range digest
+    pub selected: Arc<SelectedInstructionPlan>, // Program whose virtual registers get these homes
     pub register_environment: TargetRegisterEnvironmentIdentity, // Target register environment digest
     pub allocator_availability: AllocatorAvailabilityIdentity,   // Allocator availability digest
     pub functions: Vec<FunctionRegisterHomes>,                   // Per-function home assignments
@@ -291,16 +284,15 @@ pub struct FixedPrecoloredHomeDomainId(pub u32);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedPrecoloredSegmentHomePlan {
-    pub ranges: LiveRangeIdentity,            // Live-range digest
-    pub legality: AllocationLegalityIdentity, // Allocation-legality digest
+    pub selected: Arc<SelectedInstructionPlan>, // Program the segment homes describe
     pub register_environment: TargetRegisterEnvironmentIdentity, // Register environment digest
     pub allocator_availability: AllocatorAvailabilityIdentity, // Allocator availability digest
     pub optimization_unit: OptimizationUnitIdentity, // Optimization unit digest
-    pub work_schedule: WorkScheduleIdentity,  // Work schedule identity
-    pub target: NativeTarget,                 // Target architecture and format
+    pub work_schedule: WorkScheduleIdentity,    // Work schedule identity
+    pub target: NativeTarget,                   // Target architecture and format
     pub policy: FixedPrecoloredSegmentHomePolicy, // Segment-home selection policy
-    pub budget: OptimizationWorkBudget,       // Optimization work budget
-    pub usage: OptimizationWorkUsage,         // Optimization work usage
+    pub budget: OptimizationWorkBudget,         // Optimization work budget
+    pub usage: OptimizationWorkUsage,           // Optimization work usage
     pub functions: Vec<FunctionFixedPrecoloredSegmentHomes>, // Per-function segment homes
 }
 
@@ -512,14 +504,14 @@ pub mod register_homes {
 mod tests {
     use super::register_home_identity;
     use crate::{
-        AllocationLegalityIdentity, AllocatorAvailabilityIdentity, CalleeSavedModificationWitness,
-        FunctionRegisterHomes, RegisterHomePlan, VirtualRegisterHome,
+        AllocatorAvailabilityIdentity, CalleeSavedModificationWitness, FunctionRegisterHomes,
+        RegisterHomePlan, VirtualRegisterHome,
     };
     use register_model::{
         RegisterClassId, RegisterViewId, RegisterWriteSemantics, TargetRegisterEnvironmentIdentity,
     };
     use selected_instructions::{
-        LiveRangeIdentity, SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
+        SelectedBlockId, SelectedInstructionId, VirtualRegisterId, test_support::placeholder_plan,
     };
     use semantic_vocabulary::MachineId;
     use sha2::Digest;
@@ -528,8 +520,7 @@ mod tests {
 
     fn plan() -> RegisterHomePlan {
         RegisterHomePlan {
-            legality: AllocationLegalityIdentity::from_bytes([1; 32]),
-            ranges: LiveRangeIdentity::from_bytes([2; 32]),
+            selected: placeholder_plan(1),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
             allocator_availability: AllocatorAvailabilityIdentity::from_bytes([4; 32]),
             functions: vec![
@@ -554,8 +545,6 @@ mod tests {
         let baseline = register_home_identity(&plan());
         assert_eq!(baseline, register_home_identity(&plan()));
         let mutations: Vec<Mutation> = vec![
-            |plan| plan.legality = AllocationLegalityIdentity::from_bytes([4; 32]),
-            |plan| plan.ranges = LiveRangeIdentity::from_bytes([5; 32]),
             |plan| {
                 plan.register_environment = TargetRegisterEnvironmentIdentity::from_bytes([6; 32])
             },

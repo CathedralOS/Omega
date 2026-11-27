@@ -91,8 +91,7 @@ pub mod compute {
         }
         let usage = work.finish(budget)?;
         Ok(SpillChoicePlan {
-            legality: legality.receipt().identity(),
-            ranges: ranges.receipt().identity(),
+            selected: ranges.plan().selected.clone(),
             register_environment,
             allocator_availability: legality.receipt().allocator_availability(),
             policy,
@@ -122,7 +121,7 @@ pub mod compute {
         reservations: &ValidatedRegisterReservationProfile,
         selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     ) -> Result<(), SpillChoiceError> {
-        if legality.receipt().ranges() != ranges.receipt().identity()
+        if legality.plan().selected != ranges.plan().selected
             || legality.receipt().register_environment() != register_environment
             || ranges.plan().target.architecture != physical.model().architecture
             || !infrastructure_environment_agrees(
@@ -500,10 +499,7 @@ pub mod compute {
 }
 
 use optimization_core::OptimizationWorkUsage;
-use register_homes::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, SpillChoiceIdentity, SpillChoicePlan,
-};
-use selected_instructions::LiveRangeIdentity;
+use register_homes::{AllocatorAvailabilityIdentity, SpillChoiceIdentity, SpillChoicePlan};
 
 use crate::WorkDefect;
 
@@ -537,8 +533,6 @@ seal_plan!(
         -> ValidatedSpillChoices: SpillChoiceValidationReceipt
         = register_homes::spill_choice_identity, SpillChoiceError
     {
-        legality,
-        ranges,
         register_environment,
         allocator_availability,
         policy,
@@ -550,8 +544,6 @@ copy_receipt! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct SpillChoiceValidationReceipt {
         pub(crate) identity: SpillChoiceIdentity,
-        pub(crate) legality: AllocationLegalityIdentity,
-        pub(crate) ranges: LiveRangeIdentity,
         pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
         pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
         pub(crate) policy: SpillChoicePolicy,

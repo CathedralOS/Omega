@@ -37,8 +37,7 @@ mod compute {
         )?;
         let usage = work.finish(budget)?;
         Ok(FixedPrecoloredIntervalPlan {
-            ranges: ranges.receipt().identity(),
-            legality: legality.receipt().identity(),
+            selected: ranges.plan().selected.clone(),
             register_environment: legality.receipt().register_environment(),
             allocator_availability: legality.receipt().allocator_availability(),
             optimization_unit: ranges.receipt().optimization_unit(),
@@ -54,7 +53,7 @@ mod compute {
         ranges: &ValidatedLiveRanges,
         legality: &ValidatedAllocationLegality,
     ) -> Result<(), FixedPrecoloredIntervalError> {
-        if legality.receipt().ranges() != ranges.receipt().identity()
+        if legality.plan().selected != ranges.plan().selected
             || ranges.plan().functions.len() != legality.plan().functions.len()
         {
             return Err(FixedPrecoloredIntervalError::RootMismatch);
