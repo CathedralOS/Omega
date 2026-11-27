@@ -1,5 +1,5 @@
 //! Authenticate PackageBinding values against the immutable inputs of one Build.
-use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use package_compilation::source_imports::SuppliedBuildLibrary;
 use semantic_vocabulary::StructuralTypeId;
 use std::sync::{Arc, Mutex};

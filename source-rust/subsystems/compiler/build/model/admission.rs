@@ -1,8 +1,6 @@
 //! Admit a published declaration for compiler evaluation using its exact artifact,
 //! target, provider selections, and the requester's package permissions.
 //! The interpreter consumes the receipt when it starts that invocation.
-#![forbid(unsafe_code)]
-
 use declaration_scope::DeclarationSelectionAuthority;
 use declaration_scope::require_declaration_selection as require_selection;
 use psi_provider_selections::AdmittedProviderSelections;
@@ -41,7 +39,8 @@ impl AdmittedCompilerEvaluation {
         let artifact = artifact.into();
         let declaration = artifact
             .module()
-            .scalars.scalar_applications
+            .scalars
+            .scalar_applications
             .proof_scope
             .callable_declaration(entry);
         if self.artifact != artifact.custody_identity()
@@ -118,12 +117,7 @@ pub fn admit_compiler_evaluation_with_source_consent<'code, 'target>(
         ));
     }
     terminal_semantics::evaluation_crashes::require_crash_free_evaluation(artifact.module(), root)?;
-    let invocation = compiler_invocation_scope(
-        scope,
-        target,
-        providers.providers(),
-        root,
-    )?;
+    let invocation = compiler_invocation_scope(scope, target, providers.providers(), root)?;
     let CompilerInvocationScope {
         selected,
         closure,
@@ -241,12 +235,7 @@ pub fn admit_declaration_selections(
         .plan
         .callable_for_target(root, target)
         .ok_or("declaration admission entry has no selected target body")?;
-    let invocation = compiler_invocation_scope(
-        scope,
-        target,
-        providers.providers(),
-        root,
-    )?;
+    let invocation = compiler_invocation_scope(scope, target, providers.providers(), root)?;
     let requester = match package {
         Some(key) => DeclarationCustody::Package(key),
         None => match declaration(scope, root)?.custody {

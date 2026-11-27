@@ -1,5 +1,5 @@
 //! Output retained by one Build across dependency waits and released on normal return.
-use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 
 #[derive(Default)]
 pub(crate) struct BuildRequestOutput {
@@ -50,7 +50,7 @@ impl BuildLog {
             .map(|account| {
                 let storage = account.reserve_site(0, 1, count)?;
                 account.charge_build_log_bytes(count)?;
-                Ok::<_, evaluation_contracts::EvaluationAccountingError>(storage)
+                Ok::<_, build_model::contracts::EvaluationAccountingError>(storage)
             })
             .transpose()
             .map_err(|error| format!("Build log accounting: {error}"))?;

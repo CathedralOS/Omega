@@ -1,8 +1,8 @@
 //! Source-free accounting falsifiers. These exercise counters/ownership only;
 //! no test here claims that an interpreter charges its actual storage sites.
 
-use evaluation_accounting::BuildEvaluationSponsor;
-use evaluation_contracts::{
+use build_model::accounting::BuildEvaluationSponsor;
+use build_model::contracts::{
     BuildEvaluationSponsorLimits, BuildEvaluationUsageError, EvaluationAccountingError,
     EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
 };

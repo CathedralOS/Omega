@@ -42,11 +42,13 @@ pub struct TerminalNativeRealizationProposal {
     imports: Vec<crate::ComponentImport>,
     application: target::NativeApplicationMetadata,
     scope_source: std::sync::Arc<target_bound_program::NativeScopeSource>,
-    post_terminal_optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
+    post_terminal_optimizations:
+        optimization_selections::PostTerminalOptimizationSelectionProjection,
     providers: TerminalNativeProviders,
     occurrences: TerminalNativeOccurrences,
     boundary_applications: TerminalNativeBoundaryApplications,
-    package_terminal_authority_permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
+    package_terminal_authority_permissions:
+        Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
     package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     behavior_exclusions: native_behavior_exclusions::BehaviorExclusions,
     target_provider: target_provider_admission::TerminalTargetProviderProposal,
@@ -180,7 +182,8 @@ mod proposal {
         pub application: target::NativeApplicationMetadata,
         pub optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
         pub external_bindings: &'input [calling_conventions::ExternalBindingRow],
-        pub behavior_exclusions: &'input [behavior_exclusion_requests::AuthoredBehaviorExclusion],
+        pub behavior_exclusions:
+            &'input [build_model::behavior_exclusions::AuthoredBehaviorExclusion],
         pub package_terminal_authority_permissions:
             Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
         pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
@@ -337,12 +340,11 @@ mod proposal {
             &selected,
             checked_adapters.rows(),
         )?;
-        let callback_arguments =
-            provider_admission::project_native_callback_arguments(
-                terminal_module,
-                &callback_placements,
-                &callback_occurrences,
-            )?;
+        let callback_arguments = provider_admission::project_native_callback_arguments(
+            terminal_module,
+            &callback_placements,
+            &callback_occurrences,
+        )?;
         let registrar_occurrences = callback_occurrences
             .iter()
             .map(|occurrence| {
@@ -405,8 +407,11 @@ mod proposal {
             });
             callback_occurrences.push(occurrence);
         }
-        provider_correspondence::callbacks::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
+        provider_correspondence::callbacks::validate_callback_thunk_joins(
+            artifact.view(),
+            &callback_occurrences,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
         Ok(TerminalNativeBodyProposal {
             providers: TerminalNativeProviders {
                 native_bindings: native_binding_admission::RetainedNativeBindings::retain(
@@ -471,7 +476,8 @@ mod proposal {
         application_indices.sort_unstable();
         let operations = crate::settlement::callback_settlement::CallbackTerminalOperations::new(
             module
-                .interfaces.callback_applications
+                .interfaces
+                .callback_applications
                 .iter()
                 .map(|application| (application.registrar_machine, application.registrar)),
             module.machines.iter().flat_map(|machine| {
@@ -521,8 +527,7 @@ mod proposal {
                 continue;
             };
             if let provider_plans::ProviderBinding::CheckedAdapter {
-                machine_identity,
-                ..
+                machine_identity, ..
             } = &row.binding
             {
                 let machine = selected

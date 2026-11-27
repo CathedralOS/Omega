@@ -25,11 +25,9 @@ atomically replays validated pure evaluation costs against a current sponsor
 without importing the producer's account authority.
 */
 
-#![forbid(unsafe_code)]
-
 mod invocation;
 
-use evaluation_contracts::{
+use crate::contracts::{
     BuildEvaluationSponsorLimits, BuildEvaluationUsage, EvaluationAccountingError,
     EvaluationMeasurementIdentity,
 };

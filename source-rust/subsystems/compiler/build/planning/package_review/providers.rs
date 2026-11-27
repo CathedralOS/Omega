@@ -1337,7 +1337,7 @@ impl PolicySource<'_> {
             check_requirement_result_lifetimes(
                 module,
                 boundary,
-                &groups,
+                groups,
                 count,
                 &types,
                 signature.return_type.is_valid().then_some(result.as_str()),
@@ -1580,7 +1580,7 @@ impl PolicySource<'_> {
             check_requirement_result_lifetimes(
                 declarations.accepted.module(),
                 boundary,
-                &groups,
+                groups,
                 metadata.lifetime_parameter_count,
                 &metadata.parameter_types,
                 metadata.result_type.as_deref(),

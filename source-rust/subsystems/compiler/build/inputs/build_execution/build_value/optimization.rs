@@ -5,7 +5,7 @@
 // pass/report disabled, `1` enables it, and `> 1` or `< 0` rejects so duplicate
 // or malformed enablement in `build.omg` fails closed.
 
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use optimization_selections::{Optimization, OptimizationSelections};
 
 pub(super) fn initial_value() -> BuildTimeValue {

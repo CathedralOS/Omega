@@ -1,6 +1,6 @@
 //! Recorded-cost replay tests; public Build execution is covered by build_charge.
-use evaluation_accounting::BuildEvaluationSponsor;
-use evaluation_contracts::{
+use build_model::accounting::BuildEvaluationSponsor;
+use build_model::contracts::{
     BuildEvaluationSponsorLimits, BuildEvaluationUsage, EvaluationMeasurementIdentity,
     TerminalStorageScheduleIdentity,
 };

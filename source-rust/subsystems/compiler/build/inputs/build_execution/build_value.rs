@@ -11,7 +11,7 @@ pub use normalized_build_settings::{EvaluatedBuildSettings, X86DeploymentClaim};
 pub(super) use vocabulary::is_exact_toolchain_build_prelude_data;
 
 use super::BuildMachineFilesystemScope;
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use diagnostics::Diagnostic;
 use source_compiler::representations::source_state::{TypedTrees, data::DataMember};
 

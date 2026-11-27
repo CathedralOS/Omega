@@ -11,12 +11,10 @@ fn program(byte: u8) -> psi_program_identity::TerminalPsiIdentity {
 }
 
 fn single_stage_receipt() -> NativeBuildEvaluation {
-    let measurement = evaluation_contracts::EvaluationMeasurementIdentity::current();
-    let sponsor = evaluation_accounting::BuildEvaluationSponsor::new_with_measurement(
-        evaluation_contracts::BuildEvaluationSponsorLimits::new(
-            100, 100, 100, 100, 100, 100, 100, 100,
-        )
-        .unwrap(),
+    let measurement = crate::contracts::EvaluationMeasurementIdentity::current();
+    let sponsor = crate::accounting::BuildEvaluationSponsor::new_with_measurement(
+        crate::contracts::BuildEvaluationSponsorLimits::new(100, 100, 100, 100, 100, 100, 100, 100)
+            .unwrap(),
         measurement,
     )
     .unwrap();

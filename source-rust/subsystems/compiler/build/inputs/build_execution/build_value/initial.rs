@@ -12,7 +12,7 @@ use super::BuildValueAdmission;
 use crate::build_execution::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
 };
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use filesystem_authority::FilesystemGrantRootIdentity;
 
 pub(super) fn initial_value(

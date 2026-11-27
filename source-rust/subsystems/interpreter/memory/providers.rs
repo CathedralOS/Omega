@@ -14,7 +14,7 @@ use crate::storage::record::owned_value::StagedOwnedValue;
 use crate::storage::runtime_rows::RuntimeRows;
 use crate::storage_access::AdmittedResourceProfile;
 use access_admission::InitializationResourceCompatibility;
-use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use terminal_psi::TerminalAccessLifecyclePlan;
 
 pub(crate) mod backing {
@@ -3184,7 +3184,7 @@ pub(crate) mod value_image {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::engine::execution::TerminalExecution;
     use crate::storage::byte_sequences::storage::ByteSequenceStorage;
-    use evaluation_accounting::EvaluationInvocationAccount;
+    use build_model::accounting::EvaluationInvocationAccount;
     use layout_plans::{
         AggregateFieldSchema, AggregateFieldValue, ByteOrder, IntegerInterpretation,
         LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,

@@ -1,6 +1,5 @@
 //! Immutable measurement, limit and usage contracts for accepted-code execution.
 //! No live sponsor, account, lock or storage lease crosses through these records.
-#![forbid(unsafe_code)]
 use semantic_vocabulary::WorkScheduleIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

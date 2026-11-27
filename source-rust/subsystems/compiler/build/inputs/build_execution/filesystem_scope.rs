@@ -313,8 +313,8 @@ impl BuildMachineFilesystemScope {
         self
     }
 
-    pub(crate) fn named_input_facet(&self) -> build_time_values::BuildTimeValue {
-        use build_time_values::BuildTimeValue;
+    pub(crate) fn named_input_facet(&self) -> build_model::values::BuildTimeValue {
+        use build_model::values::BuildTimeValue;
         BuildTimeValue::Struct {
             type_name: "$OmegaBuildInputSlots".to_owned(),
             fields: self

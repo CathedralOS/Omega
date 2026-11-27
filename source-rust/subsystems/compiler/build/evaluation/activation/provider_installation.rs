@@ -76,7 +76,7 @@ pub(super) fn prepare<'host, 'code>(
     request: &BuildProviderRequest,
     provider: &ProducedBuildProvider,
     profile: TargetProfile,
-    account: &evaluation_accounting::EvaluationInvocationAccount,
+    account: &build_model::accounting::EvaluationInvocationAccount,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<Vec<TerminalComponentBinding<'host, 'code>>, String> {
     let identities = &receiver.module().identities;

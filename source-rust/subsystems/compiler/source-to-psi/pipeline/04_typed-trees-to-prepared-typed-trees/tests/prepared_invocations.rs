@@ -17,7 +17,7 @@
 #[path = "support/prepared_package.rs"]
 mod package;
 
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use package::{Demand, integer, prepare};
 
 fn frozen(program: &str, constant: &str) -> Option<i64> {

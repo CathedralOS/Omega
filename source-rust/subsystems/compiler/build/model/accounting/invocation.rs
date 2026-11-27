@@ -7,8 +7,10 @@ sponsor before the invocation account so concurrent invocations never deadlock,
 and any failed charge leaves both counters untouched.
 */
 
-use crate::{BuildEvaluationSponsor, BuildEvaluationSponsorConsumption, BuildEvaluationUsage};
-use evaluation_contracts::{
+use crate::accounting::{
+    BuildEvaluationSponsor, BuildEvaluationSponsorConsumption, BuildEvaluationUsage,
+};
+use crate::contracts::{
     EvaluationAccountingError, EvaluationMeasurementIdentity, EvaluationResource,
 };
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -440,8 +442,7 @@ mod measurement_record {
     fn terminal_measurement_record_round_trips() {
         let limits = record_storage::RecordLimits::default();
         let identity = EvaluationMeasurementIdentity::current();
-        let bytes =
-            record_storage::encode(&identity, limits).expect("current measurement encodes");
+        let bytes = record_storage::encode(&identity, limits).expect("current measurement encodes");
         assert_eq!(
             record_storage::decode::<EvaluationMeasurementIdentity>(&bytes, limits).unwrap(),
             identity

@@ -54,7 +54,7 @@ pub struct CapturedBuildObservations<'scope> {
     output_obligations: Vec<BuildOutputObligation>,
     output_receipts: Vec<BuildOutputReceipt>,
     build_log: Vec<u8>,
-    filesystem_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
+    filesystem_storage: Vec<build_model::accounting::EvaluationStorageLease>,
     filesystem_effects_retained: bool,
 }
 

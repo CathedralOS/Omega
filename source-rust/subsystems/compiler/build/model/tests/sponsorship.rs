@@ -1,4 +1,4 @@
-use evaluation_work::sponsored_meter;
+use build_model::work::sponsored_meter;
 use semantic_vocabulary::{
     EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
 };
@@ -25,9 +25,9 @@ fn operation() -> Operation {
     }
 }
 
-fn terminal_sponsor(units: u64) -> evaluation_accounting::BuildEvaluationSponsor {
-    use evaluation_accounting::BuildEvaluationSponsor;
-    use evaluation_contracts::{
+fn terminal_sponsor(units: u64) -> build_model::accounting::BuildEvaluationSponsor {
+    use build_model::accounting::BuildEvaluationSponsor;
+    use build_model::contracts::{
         BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
         TerminalStorageScheduleIdentity,
     };
@@ -43,7 +43,7 @@ fn terminal_sponsor(units: u64) -> evaluation_accounting::BuildEvaluationSponsor
 
 #[test]
 fn invocation_payment_is_atomic_with_local_attribution_and_shared_between_meters() {
-    use evaluation_contracts::{EvaluationAccountingError, EvaluationResource};
+    use build_model::contracts::{EvaluationAccountingError, EvaluationResource};
     let sponsor = terminal_sponsor(2);
     let invocation = sponsor.begin_invocation(sponsor.measurement(), 3).unwrap();
     let mut meter = sponsored_meter(invocation.clone(), Some(0)).unwrap();

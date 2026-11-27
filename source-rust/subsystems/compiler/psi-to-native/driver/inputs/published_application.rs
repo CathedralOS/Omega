@@ -12,7 +12,7 @@ pub struct SavedProgramTarget<'a> {
     pub installation: host_provider_inputs::TargetProviderInstallation,
     pub application: target::NativeApplicationMetadata,
     pub optimizations: &'a optimization_core::OptimizationSelections,
-    pub behavior_exclusions: &'a [behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    pub behavior_exclusions: &'a [build_model::behavior_exclusions::AuthoredBehaviorExclusion],
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
@@ -31,7 +31,7 @@ pub struct SourceNativeTarget<'a> {
 pub fn prepare_source_program(
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     publication: provider_demand::PublishedTargetProviders,
-    exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    exclusions: &[build_model::behavior_exclusions::AuthoredBehaviorExclusion],
     publish: impl FnMut(
         semantic_vocabulary::PackageKeyIdentity,
         target::TargetProfile,
@@ -161,7 +161,7 @@ fn prepare_issued_program<Publisher>(
     issued: provider_demand::IssuedProviderDemand<Publisher>,
     components: super::components::VerifiedSuppliers,
     settings: NativeApplicationSettings<'_>,
-    behavior_exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    behavior_exclusions: &[build_model::behavior_exclusions::AuthoredBehaviorExclusion],
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
     isolated_execution_grant: Option<provider_admission::IsolatedExecutionGrant>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {

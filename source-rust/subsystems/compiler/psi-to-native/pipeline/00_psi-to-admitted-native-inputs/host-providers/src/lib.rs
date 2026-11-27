@@ -11,7 +11,7 @@ use declaration_scope::ProductDeclarationScope;
 use std::sync::Arc;
 
 pub type NativeBindingMaterializationResult =
-    Result<evaluation_receipts::NativeBindingMaterialization, String>;
+    Result<build_model::receipts::NativeBindingMaterialization, String>;
 
 pub struct ProviderExecutionOrigins {
     artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
@@ -32,7 +32,7 @@ pub struct ProviderInstallationInputs {
 #[derive(Clone)]
 pub struct InstalledPackageProviders {
     profile: target::TargetProfile,
-    bindings: Vec<evaluation_receipts::NativeBindingMaterialization>,
+    bindings: Vec<build_model::receipts::NativeBindingMaterialization>,
     package_permissions: ProductDeclarationScope,
     semantic_bindings: Arc<[AcceptedSemanticBinding]>,
 }
@@ -40,7 +40,7 @@ pub struct InstalledPackageProviders {
 impl InstalledPackageProviders {
     pub fn new(
         profile: target::TargetProfile,
-        bindings: Vec<evaluation_receipts::NativeBindingMaterialization>,
+        bindings: Vec<build_model::receipts::NativeBindingMaterialization>,
         package_permissions: ProductDeclarationScope,
         semantic_bindings: Arc<[AcceptedSemanticBinding]>,
     ) -> Self {

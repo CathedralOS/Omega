@@ -12,7 +12,7 @@ pub use build_consent::{
     RestrictedBuildOperation, RestrictedBuildRequest, RestrictedBuildSite, RestrictedBuildSubject,
     RestrictedProgramLaunch,
 };
-use evaluation_accounting::BuildEvaluationSponsor;
+use build_model::accounting::BuildEvaluationSponsor;
 use filesystem_authority::FilesystemGrantRoot;
 
 pub trait RestrictedBuildGrants: Send {

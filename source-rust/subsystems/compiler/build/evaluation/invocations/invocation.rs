@@ -6,10 +6,11 @@
 //! a compiler producer. Sharing code never shares an execution or its work account.
 #![forbid(unsafe_code)]
 
-pub use build_time_values::BuildTimeValue;
+pub use build_model::values::BuildTimeValue;
 
-use evaluation_accounting::EvaluationInvocationAccount;
-use evaluation_admission::AdmittedCompilerEvaluation;
+use build_model::accounting::EvaluationInvocationAccount;
+use build_model::admission::AdmittedCompilerEvaluation;
+use build_model::work::EvaluationWorkMeter;
 use psi_scalar_applications::AdmittedScalarApplications;
 use std::sync::Arc;
 use terminal_codec::TerminalExecutionView;
@@ -17,7 +18,6 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
     TerminalRuntimeSupplies,
 };
-use evaluation_work::EvaluationWorkMeter;
 use terminal_work::WorkUsage;
 
 /// Values and observations offered for one call. `bind` checks these against

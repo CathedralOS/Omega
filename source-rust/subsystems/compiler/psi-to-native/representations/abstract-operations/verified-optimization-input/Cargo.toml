@@ -9,12 +9,12 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
+build-model = { path = "../../../../build/model" }
 target-bound-program = { path = "../../target-bound-program" }
 native-execution-reach = { path = "../../target-bound-program/execution-reach" }
 psi-publication-records = { path = "../../../../psi/artifact/publication" }
 native-behavior-exclusions = { path = "../../../verification/behavior-exclusions" }
 provider-acceptance = { path = "../../../../build/providers/acceptance" }
-behavior-exclusion-requests = { path = "../../../../build/settings/behavior-exclusions" }
 native-binding-admission = { path = "../../../verification/native-bindings" }
 direct-boundary-bindings = { path = "../../../verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../../targets/intrinsics" }
