@@ -21,20 +21,15 @@ pub use build_evaluation_result::{
     BuildConfig, BuildConstants, BuildSubjectValidation, CompileFailure, ComputedBuildConfig,
     DependencyValidationSubject,
 };
+pub use build_filesystem::trees::BuildStagedOutputEntryKind;
 pub use build_model::behavior_exclusions::AuthoredBehaviorExclusion;
-pub use build_output::BuildStagedOutputEntryKind;
 pub use package_compilation::build_execution::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY,
     BuildActivation, BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,
-    BuildEvaluationUsage, BuildFilesystemAuthorizedPath, BuildFilesystemGrantAccess,
-    BuildFilesystemGrantRefusal, BuildFilesystemGrantRefusalReason,
-    BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,
-    BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
-    BuildFilesystemLogicalHandleOutput, BuildFilesystemLogicalHandleOutputSource,
-    BuildFilesystemOperationAttempt, BuildFilesystemOperationResult, BuildFilesystemProvider,
-    BuildFilesystemRoot, BuildMachineFilesystemScope,
-    BuildObservationIdentity, BuildObservationSummary, BuildRequiredOutputSettlement,
-    BuildSnapshotCapture, BuildSnapshotRequest, RestrictedBuildRequest, prepare_filesystem_scope,
+    BuildEvaluationUsage, BuildFilesystemAuthorizedPath, BuildFilesystemOperationAttempt,
+    BuildFilesystemRoot, BuildMachineFilesystemScope, BuildObservationIdentity,
+    BuildObservationSummary, BuildRequiredOutputSettlement, BuildSnapshotCapture,
+    BuildSnapshotRequest, RestrictedBuildRequest, prepare_filesystem_scope,
 };
 pub use source_compiler::WireCompatibilityDemand;
 pub use source_compiler::publication::ProducedBuildProvider;

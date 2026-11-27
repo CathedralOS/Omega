@@ -88,7 +88,7 @@ pub(crate) fn runtime_permission_rows(
 pub fn restricted_build_request_acceptance_text(
     package: PackageKeyIdentity,
     target: target::TargetProfile,
-    request: &build_consent::RestrictedBuildRequest,
+    request: &build_filesystem::consent::RestrictedBuildRequest,
 ) -> Result<String, PackageReviewEncodingError> {
     let request = crate::record::PackagePolicyRestrictedBuildRequest::from(request);
     canonical_request_text(|encoder| {
@@ -110,7 +110,7 @@ pub fn restricted_build_request_acceptance_text(
 /// Early Build review precedes the declaration of a package identity. Use the
 /// same operation payload that the final package row will bind to that owner.
 pub fn restricted_build_request_payload(
-    request: &build_consent::RestrictedBuildRequest,
+    request: &build_filesystem::consent::RestrictedBuildRequest,
 ) -> Result<String, PackageReviewEncodingError> {
     let request = crate::record::PackagePolicyRestrictedBuildRequest::from(request);
     canonical_request_text(|encoder| baseline::request(encoder, &request))

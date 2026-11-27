@@ -8,7 +8,7 @@ use crate::declarations::editable_build::{
     REGISTRATION_TYPE_NAME, WITH_ALIAS_HELPER_NAME, expression_owner, imported_dependency_helper,
     machine_leaf_name, package_authored_type_name,
 };
-use build_declarations::{BUILD_MODULE_NAME, BUILD_TYPE_NAME};
+use package_compilation::declarations::{BUILD_MODULE_NAME, BUILD_TYPE_NAME};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::Item;

@@ -1,12 +1,12 @@
 //! Form compiler inputs from the capture, Build return, and package graph of one opened Product.
 
 use super::PlannedProduct;
-use build_declarations::BuildDeclaration;
+use build_model::optimization_requests::{OptimizationRollback, OptimizationRollbackReceipt};
 use compiler::{NativeApplicationSettings, Program, SourceNativeTarget, StageSource};
 use declaration_scope::PackageDeclarationScope;
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
-use optimization_requests::{OptimizationRollback, OptimizationRollbackReceipt};
+use package_compilation::declarations::BuildDeclaration;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use retained_product_selections::RetainedProviderSelection;
 use semantic_vocabulary::source_selections::ProductTarget;
@@ -44,7 +44,7 @@ impl PlannedProduct {
         let (defaults, native) = match packages {
             Some(inputs) => (
                 inputs.admitted_package_provider_selections(
-                    build_declarations::DependencyPurpose::Product,
+                    package_compilation::declarations::DependencyPurpose::Product,
                 )?,
                 inputs.product_native_bindings()?,
             ),
@@ -303,8 +303,14 @@ impl ProductStage<'_> {
             parsed: Box::new(source.parsed.clone()),
             product: ProductSourceInputs {
                 reach_policy: {
-                    let mut policy = self.product.package_inputs()
-                        .map(|inputs| inputs.execution_reach_policy(build_declarations::DependencyPurpose::Product))
+                    let mut policy = self
+                        .product
+                        .package_inputs()
+                        .map(|inputs| {
+                            inputs.execution_reach_policy(
+                                package_compilation::declarations::DependencyPurpose::Product,
+                            )
+                        })
                         .unwrap_or_default();
                     policy.enabled_unsafe.insert(policy.root, build.enabled_unsafe_atoms.clone());
                     std::sync::Arc::new(policy)

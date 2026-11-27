@@ -47,9 +47,9 @@ const HEADER: &str = "omega-package-proposal 3";
 const MAXIMUM_TEXT_BYTES: usize = 128 * 1024 * 1024;
 const MAXIMUM_TARGETS: usize = 32;
 const MAXIMUM_BUILD_INPUTS: usize =
-    filesystem_authority::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT - 1;
+    build_filesystem::authority::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT - 1;
 const MAXIMUM_BUILD_INPUT_PATH_BYTES: usize =
-    filesystem_authority::FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT;
+    build_filesystem::authority::FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT;
 
 pub(super) struct PendingPackageChange {
     pub kind: PackageCommandKind,

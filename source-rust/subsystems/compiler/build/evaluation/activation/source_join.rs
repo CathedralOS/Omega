@@ -3,8 +3,8 @@
 //! purpose-local ordinal and alias. Product compilation consumes the graph that passed this join.
 
 use super::ReturnedBuild;
-use build_declarations::{BuildDeclaration, BuildRequest, DependencyPurpose};
 use package_compilation::PackageCompilationInputs;
+use package_compilation::declarations::{BuildDeclaration, BuildRequest, DependencyPurpose};
 use semantic_vocabulary::PackageKeyIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

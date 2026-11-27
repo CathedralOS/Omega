@@ -1,7 +1,7 @@
 //! The native part of a package handoff binds its selected declarations, locators and Build execution.
 
 use super::PackageBuildHandoff;
-use filesystem_authority::observation_codec::push_framed;
+use build_filesystem::authority::observation_codec::push_framed;
 use semantic_vocabulary::{ForeignLocatorCandidate, NativeBindingLocator};
 
 fn number(output: &mut Vec<u8>, value: u64) {

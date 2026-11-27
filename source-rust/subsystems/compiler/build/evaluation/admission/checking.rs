@@ -292,7 +292,7 @@ pub(crate) fn prepare_admitted_build(
                 entry,
                 subject.as_slice(),
                 providers
-                    .selection_scope(build_declarations::DependencyPurpose::Build)
+                    .selection_scope(package_compilation::declarations::DependencyPurpose::Build)
                     .map(Arc::new),
                 anonymous_source.map(|capture| capture.invocation_consent(Arc::clone(libraries))),
                 interpreter_providers,

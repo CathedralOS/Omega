@@ -2,7 +2,7 @@
 // source-relative paths, resolving relative components inside the registered
 // workspace and rejecting paths that escape the workspace root.
 
-use build_declarations::WorkspaceMemberPath;
+use package_compilation::declarations::WorkspaceMemberPath;
 use source_acquisition::SourceRelativePath;
 
 pub(crate) fn normalize_member_path(

@@ -2,7 +2,7 @@
 
 use super::ProductQueryDependency;
 use crate::{AnonymousSourceCapture, PackageCompilationInputs};
-use build_declarations::{
+use crate::declarations::{
     BuildDeclarationKind, BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName,
 };
 use declaration_scope::PackageDeclarationScope;

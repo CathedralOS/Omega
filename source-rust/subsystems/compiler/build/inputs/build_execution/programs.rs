@@ -19,7 +19,7 @@ pub struct DelegatedProgram {
     pub declaration: source_admission::SourceFile,
     pub declaration_span: source_text::Span,
     pub image: build_program_launch::ReviewedProgram,
-    pub meaning: build_consent::RestrictedProgramLaunch,
+    pub meaning: build_filesystem::consent::RestrictedProgramLaunch,
     pub files: Option<Arc<ForwardedProgramFiles>>,
 }
 
@@ -121,7 +121,9 @@ impl BuildProgramBinding {
     }
 
     pub fn add_path(&mut self, value: Vec<u8>, write: bool) -> Result<(), String> {
-        if !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(&value, false) {
+        if !build_filesystem::authority::canonical_filesystem_metadata_path_is_canonical(
+            &value, false,
+        ) {
             return Err("program resource requires a canonical relative logical file path".into());
         }
         let paths = if write {

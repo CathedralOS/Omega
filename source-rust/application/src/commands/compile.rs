@@ -512,7 +512,7 @@ struct PreparedTarget<'a> {
     stage: project_build::ProductStage<'a>,
     profile: TargetProfile,
     directory: &'a Path,
-    rollback: Option<optimization_requests::OptimizationRollbackReceipt>,
+    rollback: Option<build_model::optimization_requests::OptimizationRollbackReceipt>,
     tests: project_build::RegisteredTestPlan,
 }
 
@@ -616,7 +616,7 @@ fn compile_target(
     } else if arguments.check_only
         || matches!(
             configuration.project_declaration,
-            Some(build_declarations::BuildDeclaration::Package(_))
+            Some(package_compilation::declarations::BuildDeclaration::Package(_))
         )
     {
         let reason;

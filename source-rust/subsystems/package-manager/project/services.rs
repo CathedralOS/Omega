@@ -2,13 +2,13 @@
 use super::{PreparedRequest, SettledSource, SourceHost};
 use crate::PackageCommandError;
 use crate::resolution::source::{AcquiredBuildSource, AcquiredSourceSelection};
-use build_declarations::{BuildRequest, DependencyPurpose};
 use build_execution::host::bindings::BuildProductQuery;
 use build_execution::host::requests::{
     BuildDependencyPreparation, BuildValidationRequest, IssuedBuildRequest,
 };
 use build_execution::{CompileFailure, TerminalBuildActivation};
 use diagnostics::Diagnostic;
+use package_compilation::declarations::{BuildRequest, DependencyPurpose};
 use package_compilation::source_imports::ProductQueryDependency;
 use package_compilation::{PackageBuildHandoff, PackageCompilationInputs};
 use project_build::PlanningServices;

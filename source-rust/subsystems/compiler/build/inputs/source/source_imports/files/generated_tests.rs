@@ -1,6 +1,6 @@
 use super::*;
 use crate::{BuildDeclarationKind, PackageSourceBinding};
-use build_output::PackageGeneratedSource;
+use build_filesystem::trees::PackageGeneratedSource;
 use source_compiler::representations::source_inputs::SourceCatalogue;
 use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
 use std::sync::Arc;

@@ -12,7 +12,10 @@ use std::sync::Arc;
 struct ReselectedSources {
     storage: SourceStorage,
     imports: ImportQueue,
-    generated: Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
+    generated: Vec<(
+        source_text::SourceId,
+        build_filesystem::trees::PackageGeneratedSource,
+    )>,
     build_source: Option<BuildSourceSelection>,
 }
 

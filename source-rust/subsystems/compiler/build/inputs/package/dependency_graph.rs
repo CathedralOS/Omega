@@ -6,7 +6,7 @@
 use super::construction::is_snake_case;
 use super::{PackageCompilationInputs, PackageCompilationSourceRecord, PackageDependencyBinding};
 use crate::BuildDeclarationKind;
-use build_declarations::DependencyPurpose;
+use crate::declarations::DependencyPurpose;
 use declaration_scope::PackageDeclarationScope;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::{BTreeMap, BTreeSet};

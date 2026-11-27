@@ -9,6 +9,7 @@ version.workspace = true
 path = "execution.rs"
 
 [dependencies]
+build-filesystem = { path = "../filesystem" }
 build-time-evaluation = { path = "../build-time" }
 build-model = { path = "../model" }
 language-core = { path = "../../foundation/language-core" }
@@ -16,13 +17,11 @@ build-program-launch = { path = "authority/program" }
 bounded-process = { path = "../../../../foundation/bounded-process" }
 build-settings = { path = "../settings" }
 build-evaluation-result = { path = "result" }
-normalized-build-settings = { path = "../settings/normalized" }
 psi-authorization = { path = "../../psi/artifact/authorization" }
 psi-provider-selections = { path = "../../psi/execution-inputs/providers" }
 psi-target-layouts = { path = "../../psi/execution-inputs/target-layouts" }
 declaration-scope = { path = "../../foundation/declaration-scope" }
 source-provenance = { path = "../../foundation/source-provenance" }
-optimization-requests = { path = "../settings/optimizations" }
 source-admission = { path = "../../source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../../../foundation/source-text" }
 terminal-interpreter = { path = "../../../interpreter" }
@@ -31,9 +30,7 @@ terminal-work = { path = "../../psi/semantics/work" }
 terminal-codec = { path = "../../psi/artifact/codec" }
 syntax-trees = { path = "../../source-to-psi/representations/syntax-trees" }
 source-compiler = { path = "../../source-to-psi" }
-filesystem-authority = { path = "authority/filesystem" }
 artifacts = { path = "../../foundation/measurements" }
-build-output = { path = "../inputs/trees" }
 package-compilation = { path = "../inputs" }
 target = { path = "../../psi-to-native/targets/target" }
 runtime-abi = { path = "../../psi-to-native/targets/runtime-abi" }
@@ -41,7 +38,6 @@ diagnostics = { path = "../../../../foundation/diagnostics" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-psi = { path = "../../psi" }
 symbols = { path = "../../foundation/declaration-identity" }
-build-declarations = { path = "../inputs/declarations" }
 
 [dev-dependencies]
 tokens = { path = "../../source-to-psi/representations/tokens" }

@@ -1,6 +1,6 @@
 //! Exercise package and provider selection through the public project API.
-use build_declarations::{BuildDependencySource, DependencyPurpose, ProjectName};
 use build_evaluation_result::BuildSubjectValidation;
+use package_compilation::declarations::{BuildDependencySource, DependencyPurpose, ProjectName};
 use package_manager::project::{BuildLibraryRequest, ProjectInput, open_products};
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fs;

@@ -219,10 +219,10 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         &mut self,
         requester: &AcquiredBuildSource,
         requests: &[build_execution::host::requests::IssuedBuildRequest],
-        purpose: build_declarations::DependencyPurpose,
+        purpose: package_compilation::declarations::DependencyPurpose,
         ordinal: usize,
     ) -> Result<AcquiredSourceSelection, String> {
-        if requests.iter().filter(|issued| matches!(issued.request(), build_declarations::BuildRequest::Dependency {purpose: registered, ..} if *registered == purpose)).nth(ordinal).is_some_and(|issued| issued.forwarded().is_some()) {
+        if requests.iter().filter(|issued| matches!(issued.request(), package_compilation::declarations::BuildRequest::Dependency {purpose: registered, ..} if *registered == purpose)).nth(ordinal).is_some_and(|issued| issued.forwarded().is_some()) {
             return Err("a forwarded binding requires its already settled source".into());
         }
         self.acquire_requests(
@@ -236,8 +236,8 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
     pub(crate) fn acquire_requests<'request>(
         &mut self,
         requester: &AcquiredBuildSource,
-        requests: impl Iterator<Item = &'request build_declarations::BuildRequest>,
-        purpose: build_declarations::DependencyPurpose,
+        requests: impl Iterator<Item = &'request package_compilation::declarations::BuildRequest>,
+        purpose: package_compilation::declarations::DependencyPurpose,
         ordinal: usize,
     ) -> Result<AcquiredSourceSelection, String> {
         self.acquire_requests_or_reuse(requester, requests, purpose, ordinal, None)
@@ -246,8 +246,8 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
     pub(crate) fn acquire_requests_or_reuse<'request>(
         &mut self,
         requester: &AcquiredBuildSource,
-        requests: impl Iterator<Item = &'request build_declarations::BuildRequest>,
-        purpose: build_declarations::DependencyPurpose,
+        requests: impl Iterator<Item = &'request package_compilation::declarations::BuildRequest>,
+        purpose: package_compilation::declarations::DependencyPurpose,
         ordinal: usize,
         frozen: Option<AcquiredBuildSource>,
     ) -> Result<AcquiredSourceSelection, String> {
@@ -720,21 +720,23 @@ impl AcquiredBuildSource {
 
     fn declare_requests<'request>(
         &self,
-        declaration: Option<&build_declarations::BuildDeclaration>,
-        requests: impl Iterator<Item = &'request build_declarations::BuildRequest>,
+        declaration: Option<&package_compilation::declarations::BuildDeclaration>,
+        requests: impl Iterator<Item = &'request package_compilation::declarations::BuildRequest>,
     ) -> Result<DeclaredBuildSource, String> {
         let declaration = declaration.ok_or("default Build has no authored named source owner")?;
         let name = match declaration {
-            build_declarations::BuildDeclaration::Package(package) => &package.name,
-            build_declarations::BuildDeclaration::Application(application) => &application.name,
-            build_declarations::BuildDeclaration::Workspace(_) => {
+            package_compilation::declarations::BuildDeclaration::Package(package) => &package.name,
+            package_compilation::declarations::BuildDeclaration::Application(application) => {
+                &application.name
+            }
+            package_compilation::declarations::BuildDeclaration::Workspace(_) => {
                 return Err("a workspace declaration does not name a Product source owner".into());
             }
         };
         if let PackageRootSourceRequest::Bundled { name: requested } = &self.root_request
             && (!matches!(
                 declaration,
-                build_declarations::BuildDeclaration::Package(_)
+                package_compilation::declarations::BuildDeclaration::Package(_)
             ) || name.as_str() != requested.as_str())
         {
             return Err(format!(

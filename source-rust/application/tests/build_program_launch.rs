@@ -5,11 +5,11 @@
     any(target_arch = "x86_64", target_arch = "aarch64")
 ))]
 
-use build_declarations::BuildDeclaration;
 use package_compilation::build_execution::{
     BuildProgramBinding, BuildProgramInvocation, RestrictedBuildGrants, RestrictedBuildOperation,
     RestrictedBuildRequest,
 };
+use package_compilation::declarations::BuildDeclaration;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use project_build::{PlanningRequest, PlanningSources, interpret, prepare};
 use std::path::{Path, PathBuf};

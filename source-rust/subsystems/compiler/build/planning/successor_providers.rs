@@ -1,7 +1,7 @@
 //! Resolve the executed provider choices where the preparing Build can name its product.
 use super::{PlanningSource, refusal};
-use build_declarations::BuildEntryPath;
 use build_execution::{CompileFailure, EvaluatedBuild};
+use package_compilation::declarations::BuildEntryPath;
 use package_compilation::source_imports::{ProductQueryInputs, SuppliedBuildLibrary};
 use semantic_vocabulary::source_selections::ProductTarget;
 use source_compiler::{InterpretedProviderSelections, compile_product::ProductPolicyInputs};

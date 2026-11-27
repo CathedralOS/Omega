@@ -1,8 +1,8 @@
 //! A Build declaration issued for the same captured source and returned activation.
 use super::{CompileFailure, PreparedBuildEvaluation};
-use build_declarations::BuildDeclaration;
 use diagnostics::Diagnostic;
 use package_compilation::CapturedLocalSource;
+use package_compilation::declarations::BuildDeclaration;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceBuildDeclaration {

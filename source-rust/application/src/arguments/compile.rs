@@ -8,7 +8,7 @@
 
 use super::{option_value, parse_build_input};
 use compiler::stage_validators::StageValidatorRequest;
-use optimization_requests::OptimizationRollback;
+use build_model::optimization_requests::OptimizationRollback;
 use package_compilation::BuildSourceCaptureRequest;
 use std::path::PathBuf;
 

@@ -458,7 +458,7 @@ fn a_prepared_build_library_can_import_a_later_frozen_file() {
     use crate::{
         BuildDeclarationKind, PackageBuildHandoff, PackageCompilationInputs, PackageSourceBinding,
     };
-    use build_output::PackageGeneratedSource;
+    use build_filesystem::trees::PackageGeneratedSource;
     use semantic_vocabulary::PackageKeyIdentity;
 
     let owner = PackageKeyIdentity::from_digest([9; 32]).unwrap();
@@ -497,7 +497,7 @@ fn a_prepared_build_library_can_import_a_later_frozen_file() {
     let assemble = |sources| {
         let handoff = PackageBuildHandoff::from_checked(
             owner,
-            build_declarations::DependencyPurpose::Build,
+            crate::declarations::DependencyPurpose::Build,
             target::TargetProfile::LinuxX64,
             Some(target::TargetProfile::LinuxX64),
             graph.dependency_closure(),

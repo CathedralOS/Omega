@@ -1,9 +1,9 @@
 //! Describe the Product declarations mounted for a paused Build call and bind
 //! each acquired graph to the Product registration that made it visible.
 use super::{PlanningServices, PlanningSource, refusal};
-use build_declarations::{BuildRequest, DependencyPurpose};
 use build_execution::host::bindings::{BuildProductDescription, BuildProductQuery};
 use build_execution::{BuildDependencySelection, CompileFailure, TerminalBuildActivation};
+use package_compilation::declarations::{BuildRequest, DependencyPurpose};
 use package_compilation::source_imports::ProductQueryInputs;
 use source_compiler::publication::TerminalBuildQueryOperation;
 use source_compiler::{ProductDeclarations, representations::source_inputs::SourceMap};
@@ -98,9 +98,9 @@ impl PlanningSource {
                 &self.preparation,
                 self.profile.target_name(),
                 self.original.as_ref().map(|inputs| {
-                    Arc::new(
-                        inputs.declaration_scope(build_declarations::DependencyPurpose::Product),
-                    )
+                    Arc::new(inputs.declaration_scope(
+                        package_compilation::declarations::DependencyPurpose::Product,
+                    ))
                 }),
             )?;
             self.query_declarations = Some((inputs, source));

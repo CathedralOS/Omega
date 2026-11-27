@@ -7,9 +7,9 @@
 // build settlement verification.
 
 use super::canonical_source_root;
+use crate::declarations::DependencyPurpose;
 use crate::source::source_snapshot;
-use build_declarations::DependencyPurpose;
-use filesystem_authority::CanonicalFilesystemMetadataIndex;
+use build_filesystem::authority::CanonicalFilesystemMetadataIndex;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -26,7 +26,7 @@ pub struct PackageSourceBinding {
     pub(super) preparing_source: Option<crate::CapturedLocalSource>,
     pub(super) canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
     pub(super) captured_source: Option<Arc<source_acquisition::capture::CapturedSourceTree>>,
-    pub(super) captured_build_source: Option<build_output::CapturedBuildSourceInput>,
+    pub(super) captured_build_source: Option<build_filesystem::trees::CapturedBuildSourceInput>,
 }
 
 impl PackageSourceBinding {

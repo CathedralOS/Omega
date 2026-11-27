@@ -94,11 +94,13 @@ pub(crate) fn check_metadata_row_ceiling(rows: usize, stack: usize) -> Result<()
     if rows
         .checked_add(stack)
         .and_then(|count| count.checked_add(1))
-        .is_none_or(|count| count > filesystem_authority::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT)
+        .is_none_or(|count| {
+            count > build_filesystem::authority::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT
+        })
     {
         return Err(format!(
             "canonical Source metadata exceeds its {}-row ceiling",
-            filesystem_authority::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT
+            build_filesystem::authority::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT
         ));
     }
     Ok(())

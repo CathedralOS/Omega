@@ -5,7 +5,7 @@ use crate::{
     RetainedDynamicElfArtifact, RetainedNativeArtifact, TerminalRuntimeProvisions,
 };
 use native_artifact::{DynamicElfNativeArtifactIdentity, NativeArtifactIdentity};
-use optimization_requests::OptimizationRollbackReceipt;
+use build_model::optimization_requests::OptimizationRollbackReceipt;
 use std::path::Path;
 use target::NativeApplicationMetadata;
 use terminal_codec::CanonicalTerminalArtifact;

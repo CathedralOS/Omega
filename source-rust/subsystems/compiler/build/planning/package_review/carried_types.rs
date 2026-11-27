@@ -29,7 +29,7 @@ impl CarriedTypes {
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut suppliers = BTreeMap::new();
         for (scope, handoff) in inputs.dependency_build_handoff_instances() {
-            if scope != build_declarations::DependencyPurpose::Product {
+            if scope != package_compilation::declarations::DependencyPurpose::Product {
                 continue;
             }
             if handoff.target() != target

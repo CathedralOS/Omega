@@ -1,10 +1,10 @@
 //! Interpret the product in the plan lent to the currently executing Build.
-use build_declarations::{
+use build_model::values::BuildTimeValue;
+use package_compilation::build_execution::SelectedBuildMachine;
+use package_compilation::declarations::{
     ApplicationDeclaration, BuildDeclaration, BuildEntryPath, BuildRequest, PackageDeclaration,
     ProjectName, WorkspaceDeclaration,
 };
-use build_model::values::BuildTimeValue;
-use package_compilation::build_execution::SelectedBuildMachine;
 use terminal_interpreter::{TerminalInstance, TerminalObservationRoot};
 
 use crate::host::requests::IssuedBuildRequest;
@@ -206,7 +206,10 @@ fn text(value: BuildTimeValue) -> Result<String, String> {
 
 pub(super) fn named_identity(
     declaration: &BuildDeclaration,
-) -> Option<(build_declarations::BuildDeclarationKind, ProjectName)> {
+) -> Option<(
+    package_compilation::declarations::BuildDeclarationKind,
+    ProjectName,
+)> {
     let name = match declaration {
         BuildDeclaration::Application(application) => &application.name,
         BuildDeclaration::Package(package) => &package.name,

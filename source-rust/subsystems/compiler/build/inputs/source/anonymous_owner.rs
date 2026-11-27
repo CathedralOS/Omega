@@ -2,7 +2,7 @@
 //! resolved dependencies, and applicable toolchain inputs. Before the Build
 //! returns, a distinct provisional identity may be used only for checking.
 
-use build_declarations::DependencyPurpose;
+use crate::declarations::DependencyPurpose;
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 use source_acquisition::capture::{CapturedSourceNode, CapturedSourceTree};
@@ -70,7 +70,7 @@ impl AnonymousSourceCapture {
         &self.filesystem
     }
 
-    pub fn build_input(&self) -> Result<build_output::CapturedBuildSourceInput, String> {
+    pub fn build_input(&self) -> Result<build_filesystem::trees::CapturedBuildSourceInput, String> {
         crate::source::source_snapshot::retained_source_input(&self.capture)
     }
 

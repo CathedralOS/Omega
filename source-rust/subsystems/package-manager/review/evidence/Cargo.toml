@@ -6,8 +6,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+build-filesystem = { path = "../../../compiler/build/filesystem" }
 build-providers = { path = "../../../compiler/build/providers" }
-build-consent = { path = "../../../compiler/build/evaluation/authority/consent" }
 native-intrinsics = { path = "../../../compiler/psi-to-native/targets/intrinsics" }
 service-surface = { path = "../../../compiler/psi/interfaces/service-surface" }
 source-provenance = { path = "../../../compiler/foundation/source-provenance" }

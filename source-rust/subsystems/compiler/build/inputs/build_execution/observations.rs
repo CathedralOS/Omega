@@ -4,23 +4,17 @@
 // `BuildRequiredOutputSettlement`) produced when
 // a build evaluation settles its filesystem and output obligations.
 
-use build_output::BuildStagedOutputTree;
-pub use build_output::{BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory};
-
-pub use build_model::contracts::BuildEvaluationUsage;
-pub use filesystem_authority::{
-    FilesystemGrantAccess as BuildFilesystemGrantAccess,
-    FilesystemGrantRefusal as BuildFilesystemGrantRefusal,
-    FilesystemGrantRefusalReason as BuildFilesystemGrantRefusalReason,
-    FilesystemLogicalHandleIdentity as BuildFilesystemLogicalHandleIdentity,
-    FilesystemLogicalHandleInput as BuildFilesystemLogicalHandleInput,
-    FilesystemLogicalHandleInputResolution as BuildFilesystemLogicalHandleInputResolution,
-    FilesystemLogicalHandleKind as BuildFilesystemLogicalHandleKind,
-    FilesystemLogicalHandleOutput as BuildFilesystemLogicalHandleOutput,
-    FilesystemLogicalHandleOutputSource as BuildFilesystemLogicalHandleOutputSource,
-    FilesystemObservationProvider as BuildFilesystemProvider,
-    FilesystemOperationResult as BuildFilesystemOperationResult,
+use build_filesystem::trees::BuildStagedOutputTree;
+pub use build_filesystem::trees::{
+    BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,
 };
+
+use build_filesystem::authority::{
+    FilesystemGrantAccess, FilesystemGrantRefusal, FilesystemLogicalHandleIdentity,
+    FilesystemLogicalHandleInput, FilesystemLogicalHandleOutput, FilesystemObservationProvider,
+    FilesystemOperationResult,
+};
+pub use build_model::contracts::BuildEvaluationUsage;
 
 pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 86;
 
@@ -48,7 +42,7 @@ impl BuildActivation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildFilesystemAuthorizedPath {
     pub(crate) operand_ordinal: u8,
-    pub(crate) access: BuildFilesystemGrantAccess,
+    pub(crate) access: FilesystemGrantAccess,
     pub(crate) root: BuildFilesystemRoot,
     pub(crate) relative_path: Vec<u8>,
 }
@@ -66,7 +60,7 @@ impl BuildFilesystemAuthorizedPath {
         self.operand_ordinal
     }
 
-    pub const fn access(&self) -> BuildFilesystemGrantAccess {
+    pub const fn access(&self) -> FilesystemGrantAccess {
         self.access
     }
 
@@ -82,14 +76,14 @@ impl BuildFilesystemAuthorizedPath {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildFilesystemOperationAttempt {
     pub(crate) operation_tag: u16,
-    pub(crate) provider: BuildFilesystemProvider,
-    pub(crate) result: BuildFilesystemOperationResult,
+    pub(crate) provider: FilesystemObservationProvider,
+    pub(crate) result: FilesystemOperationResult,
     pub(crate) post_error: i32,
     pub(crate) authorized_paths: Vec<BuildFilesystemAuthorizedPath>,
-    pub(crate) logical_handle_inputs: Vec<BuildFilesystemLogicalHandleInput>,
-    pub(crate) logical_handle_output: Option<BuildFilesystemLogicalHandleOutput>,
-    pub(crate) retired_logical_handles: Vec<BuildFilesystemLogicalHandleIdentity>,
-    pub(crate) grant_refusals: Vec<BuildFilesystemGrantRefusal>,
+    pub(crate) logical_handle_inputs: Vec<FilesystemLogicalHandleInput>,
+    pub(crate) logical_handle_output: Option<FilesystemLogicalHandleOutput>,
+    pub(crate) retired_logical_handles: Vec<FilesystemLogicalHandleIdentity>,
+    pub(crate) grant_refusals: Vec<FilesystemGrantRefusal>,
 }
 
 impl BuildFilesystemOperationAttempt {
@@ -97,11 +91,11 @@ impl BuildFilesystemOperationAttempt {
         self.operation_tag
     }
 
-    pub const fn provider(&self) -> BuildFilesystemProvider {
+    pub const fn provider(&self) -> FilesystemObservationProvider {
         self.provider
     }
 
-    pub const fn result(&self) -> BuildFilesystemOperationResult {
+    pub const fn result(&self) -> FilesystemOperationResult {
         self.result
     }
 
@@ -113,19 +107,19 @@ impl BuildFilesystemOperationAttempt {
         &self.authorized_paths
     }
 
-    pub fn logical_handle_inputs(&self) -> &[BuildFilesystemLogicalHandleInput] {
+    pub fn logical_handle_inputs(&self) -> &[FilesystemLogicalHandleInput] {
         &self.logical_handle_inputs
     }
 
-    pub const fn logical_handle_output(&self) -> Option<BuildFilesystemLogicalHandleOutput> {
+    pub const fn logical_handle_output(&self) -> Option<FilesystemLogicalHandleOutput> {
         self.logical_handle_output
     }
 
-    pub fn retired_logical_handles(&self) -> &[BuildFilesystemLogicalHandleIdentity] {
+    pub fn retired_logical_handles(&self) -> &[FilesystemLogicalHandleIdentity] {
         &self.retired_logical_handles
     }
 
-    pub fn grant_refusals(&self) -> &[BuildFilesystemGrantRefusal] {
+    pub fn grant_refusals(&self) -> &[FilesystemGrantRefusal] {
         &self.grant_refusals
     }
 }
@@ -139,7 +133,7 @@ pub struct BuildObservationSummary {
     pub(crate) activation: BuildActivation,
     pub(crate) captured_source_inventory: Option<BuildCapturedSourceInventory>,
     pub(super) product_source_tree: Option<BuildStagedOutputTree>,
-    pub(super) generated_sources: Vec<build_output::PackageGeneratedSource>,
+    pub(super) generated_sources: Vec<build_filesystem::trees::PackageGeneratedSource>,
     pub(crate) required_output_settlements: Vec<BuildRequiredOutputSettlement>, // Completed `BuildOutput::require` obligations in issue order.
     pub(crate) staged_output_tree: Option<BuildStagedOutputTree>,
     pub(crate) build_log: Vec<u8>,
@@ -201,7 +195,7 @@ impl BuildObservationSummary {
         self.product_source_tree.as_ref()
     }
 
-    pub fn generated_sources(&self) -> &[build_output::PackageGeneratedSource] {
+    pub fn generated_sources(&self) -> &[build_filesystem::trees::PackageGeneratedSource] {
         &self.generated_sources
     }
 

@@ -1,0 +1,17 @@
+[package]
+name = "build-filesystem"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "filesystem.rs"
+
+[dependencies]
+build-model = { path = "../model" }
+diagnostics = { path = "../../../../foundation/diagnostics" }
+language-core = { path = "../../foundation/language-core" }
+record-storage = { path = "../../../../foundation/record-storage" }
+source-acquisition = { path = "../../../package-manager/source-acquisition" }
+target = { path = "../../psi-to-native/targets/target" }
+wire = { path = "../../../../foundation/wire" }

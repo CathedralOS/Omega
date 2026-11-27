@@ -15,8 +15,8 @@ use crate::resolution::source::{
 };
 use crate::{PackageBuildSession, PackageCommandError};
 use artifacts::compile_timings::{CompileTimings, StageMeta};
-use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
+use package_compilation::declarations::{BuildDeclaration, DependencyPurpose, ProjectName};
 use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
 use project_build::ReturnedPlanningStage;
 use std::cell::RefCell;
@@ -141,7 +141,7 @@ struct PreparedRequest {
 struct ExecutedBuild {
     receiving: AcquiredBuildSource,
     preparations: Vec<(
-        build_declarations::BuildEntryPath,
+        package_compilation::declarations::BuildEntryPath,
         Vec<successor_inputs::PreparedInput>,
     )>,
     stage: ReturnedPlanningStage,
@@ -591,8 +591,8 @@ fn planning_timings(enabled: bool) -> CompileTimings {
 pub struct BuildLibraryRequest {
     /// The invoker supplies this edge independently of any filesystem mapping.
     pub max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
-    pub alias: build_declarations::ProjectName,
-    pub source: build_declarations::BuildDependencySource,
+    pub alias: package_compilation::declarations::ProjectName,
+    pub source: package_compilation::declarations::BuildDependencySource,
 }
 
 pub enum ProjectInput<'a> {
@@ -680,7 +680,7 @@ enum OpenPurpose<'a> {
 }
 
 enum OpenedRoot {
-    Product(ProjectProducts, Option<build_declarations::ProjectName>),
+    Product(ProjectProducts, Option<ProjectName>),
     Catalog(build_execution::SourceBuildDeclaration),
 }
 
@@ -802,7 +802,7 @@ fn open_products_with(
         let acquired = executed.receiving;
         let returned = executed.stage;
         let name = match returned.returned().declaration() {
-            Some(build_declarations::BuildDeclaration::Workspace(_)) => match purpose {
+            Some(BuildDeclaration::Workspace(_)) => match purpose {
                 OpenPurpose::Check => {
                     preparation.require_unlocked_anonymous()?;
                     return Ok(OpenedRoot::Catalog(
@@ -822,12 +822,8 @@ fn open_products_with(
                     );
                 }
             },
-            Some(build_declarations::BuildDeclaration::Package(package)) => {
-                Some(package.name.clone())
-            }
-            Some(build_declarations::BuildDeclaration::Application(application)) => {
-                Some(application.name.clone())
-            }
+            Some(BuildDeclaration::Package(package)) => Some(package.name.clone()),
+            Some(BuildDeclaration::Application(application)) => Some(application.name.clone()),
             None if matches!(purpose, OpenPurpose::Member(..)) => {
                 return Err(
                     "a workspace member must declare a package or application name"
@@ -917,7 +913,7 @@ fn open_products_with(
                     let (planned, rechecks) = sources
                         .dependency_product(
                             &root,
-                            build_declarations::DependencyPurpose::Product,
+                            package_compilation::declarations::DependencyPurpose::Product,
                             target,
                             &mut dependencies,
                             project_build::DependencyCheck::DemandedClosure,

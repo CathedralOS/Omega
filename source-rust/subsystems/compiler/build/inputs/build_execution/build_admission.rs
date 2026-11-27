@@ -4,9 +4,9 @@
 
 use super::build_value::BuildValueAdmission;
 use super::{BuildMachineExecutionMode, BuildMachineFilesystemScope};
+use build_filesystem::authority::FilesystemMetadataLayout;
 use build_model::values::BuildTimeValue;
 use diagnostics::Diagnostic;
-use filesystem_authority::FilesystemMetadataLayout;
 use symbols::SymbolHandle;
 
 pub struct SelectedBuildMachine {

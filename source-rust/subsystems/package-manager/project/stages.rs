@@ -13,7 +13,7 @@ impl SourceHost<'_, '_> {
         acquired: &AcquiredBuildSource,
         mut snapshot: Option<BuildSnapshotRequest>,
         dependency: Option<(
-            build_declarations::DependencyPurpose,
+            package_compilation::declarations::DependencyPurpose,
             &[package_compilation::DelegatedProgram],
         )>,
         supplied: &[BuildLibraryRequest],

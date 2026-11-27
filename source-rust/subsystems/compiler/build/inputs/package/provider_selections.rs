@@ -7,7 +7,7 @@
 
 use super::provider_defaults::CompletedProviderDefaults;
 use super::{PackageBuildHandoff, PackageCompilationInputs};
-use build_declarations::DependencyPurpose;
+use crate::declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use retained_product_selections::{RetainedProductApplication, RetainedProviderSelection};
 use source_admission::RetainedDeclaration;

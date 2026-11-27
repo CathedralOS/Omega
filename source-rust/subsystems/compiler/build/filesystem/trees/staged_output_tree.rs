@@ -1,0 +1,529 @@
+/*
+Retained staged-output tree, its content commitment, and selection of completed outputs.
+
+We represent a captured build-output tree as canonical slash-separated relative
+paths sorted in unsigned byte order, paired with directory, regular-file
+(`Arc<[u8]>` + executable flag), or relative-symlink payloads. No physical host
+root, inode, timestamp, or hard-link topology enters the retained tree.
+
+Commitment rules (`OMEGA-BUILD-STAGED-OUTPUT-TREE\0`, schema v2):
+- Entries are hashed in strict canonical path order.
+- Unique file bytes (`file_bytes`) are deduplicated by `(content_digest,
+  content_length)` and bounded by `MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES` (256 MiB),
+  while total entries are bounded by `MAX_STAGED_OUTPUT_ENTRIES` (4,096) and path
+  bytes by `MAX_STAGED_OUTPUT_PATH_BYTES` (16 MiB).
+*/
+
+use crate::trees::capture::{StagedOutputEntry, StagedOutputEntryKind};
+use crate::trees::materialization::{checked_retained_commitment, materialize_retained_tree};
+use diagnostics::Diagnostic;
+
+use std::collections::BTreeSet;
+use std::fmt;
+use std::path::Path;
+use std::sync::Arc;
+
+const STAGED_OUTPUT_TREE_COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-STAGED-OUTPUT-TREE\0";
+
+const STAGED_OUTPUT_TREE_SCHEMA_VERSION: u32 = 2;
+
+const STAGED_OUTPUT_ROOT_TAG: u8 = 1;
+
+const DIRECTORY_MODE: u32 = 0o040000;
+
+const FILE_MODE: u32 = 0o100644;
+
+const EXECUTABLE_FILE_MODE: u32 = 0o100755;
+
+const SYMLINK_MODE: u32 = 0o120000;
+
+pub(crate) const MAX_STAGED_OUTPUT_ENTRIES: usize = 4_096;
+
+pub(crate) const MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES: u64 = 256 * 1024 * 1024;
+
+pub(crate) const MAX_STAGED_OUTPUT_PATH_BYTES: usize = 16 * 1024 * 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildStagedOutputTreeCommitment {
+    digest: [u8; 32],
+    entry_count: u64,
+    file_bytes: u64,
+}
+
+impl BuildStagedOutputTreeCommitment {
+    #[doc(hidden)]
+    pub const fn from_retained_parts(digest: [u8; 32], entry_count: u64, file_bytes: u64) -> Self {
+        Self {
+            digest,
+            entry_count,
+            file_bytes,
+        }
+    }
+
+    pub const fn digest(self) -> [u8; 32] {
+        self.digest
+    }
+
+    pub const fn entry_count(self) -> u64 {
+        self.entry_count
+    }
+
+    pub const fn file_bytes(self) -> u64 {
+        self.file_bytes
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildStagedOutputTree {
+    pub(crate) commitment: BuildStagedOutputTreeCommitment,
+    pub(crate) entries: Vec<RetainedStagedOutputEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+pub struct PackageGeneratedSource {
+    relative_path: Vec<u8>,
+    bytes: Arc<[u8]>,
+    digest: [u8; 32],
+}
+
+impl PackageGeneratedSource {
+    pub fn validate_publication(logical_name: &[u8], bytes: &[u8]) -> Result<(), String> {
+        let valid_name =
+            std::str::from_utf8(logical_name).is_ok_and(language_core::logical_filename::is_valid);
+        if !valid_name
+            || !crate::authority::canonical_filesystem_metadata_path_is_canonical(
+                logical_name,
+                false,
+            )
+        {
+            return Err(format!(
+                "invalid generated source filename `{}`: expected a package-relative .omg filename",
+                logical_name.escape_ascii()
+            ));
+        }
+        std::str::from_utf8(bytes).map_err(|_| {
+            format!(
+                "generated source `{}` must contain UTF-8 bytes",
+                logical_name.escape_ascii()
+            )
+        })?;
+        Ok(())
+    }
+
+    #[doc(hidden)]
+    pub fn from_retained_parts(relative_path: Vec<u8>, bytes: Arc<[u8]>) -> Self {
+        let digest: [u8; 32] = crate::trees::digest_encoder::content_identity(bytes.as_ref());
+        Self {
+            relative_path,
+            bytes,
+            digest,
+        }
+    }
+
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub const fn digest(&self) -> [u8; 32] {
+        self.digest
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BuildStagedOutputEntryInput {
+    Directory,
+    File { bytes: Arc<[u8]>, executable: bool },
+    Symlink { target: Vec<u8> },
+}
+
+impl BuildStagedOutputTree {
+    #[doc(hidden)]
+    pub fn from_retained_parts(
+        expected_commitment: &BuildStagedOutputTreeCommitment,
+        entries: impl IntoIterator<Item = (Vec<u8>, BuildStagedOutputEntryInput)>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut retained = Vec::new();
+        for (relative_path, kind) in entries {
+            if retained.len() == MAX_STAGED_OUTPUT_ENTRIES {
+                return Err(diagnostics(format!(
+                    "retained staged-output tree exceeds its {MAX_STAGED_OUTPUT_ENTRIES}-entry ceiling"
+                )));
+            }
+            if relative_path.is_empty()
+                || !crate::authority::canonical_filesystem_metadata_path_is_canonical(
+                    &relative_path,
+                    false,
+                )
+            {
+                return Err(diagnostics(format!(
+                    "retained staged-output entry is not a canonical relative path: {relative_path:?}"
+                )));
+            }
+            let kind = match kind {
+                BuildStagedOutputEntryInput::Directory => RetainedStagedOutputEntryKind::Directory,
+                BuildStagedOutputEntryInput::File { bytes, executable } => {
+                    RetainedStagedOutputEntryKind::File { bytes, executable }
+                }
+                BuildStagedOutputEntryInput::Symlink { target } => {
+                    RetainedStagedOutputEntryKind::Symlink { target }
+                }
+            };
+            retained.push(RetainedStagedOutputEntry {
+                relative_path,
+                kind,
+            });
+        }
+        retained.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+        let commitment = checked_retained_commitment(&retained)
+            .map_err(|error| diagnostics(error.to_string()))?;
+        if &commitment != expected_commitment {
+            return Err(diagnostics(
+                "retained staged-output entries do not reproduce the recorded commitment",
+            ));
+        }
+        Ok(Self {
+            commitment,
+            entries: retained,
+        })
+    }
+
+    pub const fn commitment(&self) -> BuildStagedOutputTreeCommitment {
+        self.commitment
+    }
+
+    pub const fn digest(&self) -> [u8; 32] {
+        self.commitment.digest()
+    }
+
+    pub const fn entry_count(&self) -> u64 {
+        self.commitment.entry_count()
+    }
+
+    pub const fn file_bytes(&self) -> u64 {
+        self.commitment.file_bytes()
+    }
+
+    pub fn materialize_into(
+        &self,
+        destination: impl AsRef<Path>,
+    ) -> Result<BuildStagedOutputTreeCommitment, BuildStagedOutputMaterializationError> {
+        materialize_retained_tree(self, destination.as_ref())
+    }
+
+    /// Freeze the selected directory under its own logical root, retaining
+    /// regular bytes, executable bits, directories and inert links together.
+    pub fn select_directory(&self, directory: &[u8]) -> Result<Self, Vec<Diagnostic>> {
+        if directory.is_empty() {
+            return Ok(self.clone());
+        }
+        if !self
+            .sealed_entry(directory)
+            .is_some_and(|entry| matches!(entry.kind(), BuildStagedOutputEntryKind::Directory))
+        {
+            return Err(diagnostics(format!(
+                "selected Product source directory `{}` is absent from private staging",
+                directory.escape_ascii()
+            )));
+        }
+        let entries = self
+            .entries
+            .iter()
+            .filter_map(|entry| {
+                let path = entry
+                    .relative_path
+                    .strip_prefix(directory)?
+                    .strip_prefix(b"/")?;
+                Some(RetainedStagedOutputEntry {
+                    relative_path: path.to_vec(),
+                    kind: entry.kind.clone(),
+                })
+            })
+            .collect();
+        Self::from_selection(entries)
+    }
+
+    /// Only regular Omega files in the selected frozen view are compiler inputs.
+    pub fn source_files(&self) -> Result<Vec<PackageGeneratedSource>, Vec<Diagnostic>> {
+        let mut sources = Vec::new();
+        for entry in &self.entries {
+            if !entry.relative_path.ends_with(b".omg") {
+                continue;
+            }
+            if let RetainedStagedOutputEntryKind::File { bytes, .. } = &entry.kind {
+                PackageGeneratedSource::validate_publication(&entry.relative_path, bytes)
+                    .map_err(diagnostics)?;
+                sources.push(PackageGeneratedSource::from_retained_parts(
+                    entry.relative_path.clone(),
+                    Arc::clone(bytes),
+                ));
+            }
+        }
+        Ok(sources)
+    }
+
+    pub fn entries(&self) -> impl ExactSizeIterator<Item = BuildStagedOutputEntry<'_>> {
+        self.entries.iter().map(|entry| {
+            let kind = match &entry.kind {
+                RetainedStagedOutputEntryKind::Directory => BuildStagedOutputEntryKind::Directory,
+                RetainedStagedOutputEntryKind::File { bytes, executable } => {
+                    BuildStagedOutputEntryKind::File {
+                        bytes: bytes.as_ref(),
+                        executable: *executable,
+                    }
+                }
+                RetainedStagedOutputEntryKind::Symlink { target } => {
+                    BuildStagedOutputEntryKind::Symlink {
+                        target: target.as_slice(),
+                    }
+                }
+            };
+            BuildStagedOutputEntry {
+                relative_path: entry.relative_path.as_slice(),
+                kind,
+            }
+        })
+    }
+
+    /// Share immutable rows with an acquisition that consumes this directory.
+    pub fn into_source_entries(
+        self,
+    ) -> impl Iterator<Item = (Vec<u8>, crate::trees::CapturedSourceEntry)> {
+        self.entries.into_iter().map(|entry| {
+            let kind = match entry.kind {
+                RetainedStagedOutputEntryKind::Directory => {
+                    crate::trees::CapturedSourceEntry::Directory
+                }
+                RetainedStagedOutputEntryKind::File { bytes, executable } => {
+                    crate::trees::CapturedSourceEntry::file(bytes, executable)
+                }
+                RetainedStagedOutputEntryKind::Symlink { target } => {
+                    crate::trees::CapturedSourceEntry::symlink(target)
+                }
+            };
+            (entry.relative_path, kind)
+        })
+    }
+
+    pub fn sealed_entry(&self, relative_path: &[u8]) -> Option<BuildStagedOutputEntry<'_>> {
+        self.entries()
+            .find(|entry| entry.relative_path == relative_path)
+    }
+
+    /// Each `(output_name, staged_file)` pair publishes immutable bytes under the reserved name.
+    pub fn select_files(&self, files: &[(&[u8], &[u8])]) -> Result<Self, Vec<Diagnostic>> {
+        let mut selected = std::collections::BTreeMap::new();
+        for &(name, staged_file) in files {
+            let index = self
+                .entries
+                .binary_search_by(|entry| entry.relative_path.as_slice().cmp(staged_file))
+                .map_err(|_| {
+                    diagnostics(format!(
+                        "selected build output `{}` is absent from the retained tree",
+                        String::from_utf8_lossy(staged_file)
+                    ))
+                })?;
+            let kind = &self.entries[index].kind;
+            if !matches!(
+                kind,
+                RetainedStagedOutputEntryKind::File {
+                    executable: false,
+                    ..
+                }
+            ) {
+                return Err(diagnostics(
+                    "selected build output must be a non-executable regular file",
+                ));
+            }
+            if selected.insert(name, kind.clone()).is_some() {
+                return Err(diagnostics("completed build output names collide"));
+            }
+            for (separator, _) in name.iter().enumerate().filter(|(_, byte)| **byte == b'/') {
+                let parent = selected
+                    .entry(&name[..separator])
+                    .or_insert(RetainedStagedOutputEntryKind::Directory);
+                if !matches!(parent, RetainedStagedOutputEntryKind::Directory) {
+                    return Err(diagnostics(
+                        "completed build output has a non-directory ancestor",
+                    ));
+                }
+                if selected.len() > MAX_STAGED_OUTPUT_ENTRIES {
+                    return Err(diagnostics(
+                        "completed build outputs exceed the retained entry limit",
+                    ));
+                }
+            }
+            if selected.len() > MAX_STAGED_OUTPUT_ENTRIES {
+                return Err(diagnostics(
+                    "completed build outputs exceed the retained entry limit",
+                ));
+            }
+        }
+        let mut path_bytes = 0;
+        let mut entries = Vec::with_capacity(selected.len());
+        for (name, kind) in selected {
+            path_bytes = crate::trees::portable_paths::reserve_path_bytes(path_bytes, name.len())?;
+            entries.push(RetainedStagedOutputEntry {
+                relative_path: name.to_vec(),
+                kind,
+            });
+        }
+        Self::from_selection(entries)
+    }
+
+    fn from_selection(entries: Vec<RetainedStagedOutputEntry>) -> Result<Self, Vec<Diagnostic>> {
+        let commitment = checked_retained_commitment(&entries)
+            .map_err(|error| diagnostics(error.to_string()))?;
+        Ok(Self {
+            commitment,
+            entries,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildStagedOutputEntryKind<'a> {
+    Directory,
+    File { bytes: &'a [u8], executable: bool },
+    Symlink { target: &'a [u8] },
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BuildStagedOutputEntry<'a> {
+    relative_path: &'a [u8],
+    kind: BuildStagedOutputEntryKind<'a>,
+}
+
+impl<'a> BuildStagedOutputEntry<'a> {
+    pub fn relative_path(&self) -> &'a [u8] {
+        self.relative_path
+    }
+
+    pub const fn kind(&self) -> BuildStagedOutputEntryKind<'a> {
+        self.kind
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildStagedOutputMaterializationError {
+    pub(crate) message: String,
+}
+
+impl BuildStagedOutputMaterializationError {
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+}
+
+impl fmt::Display for BuildStagedOutputMaterializationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for BuildStagedOutputMaterializationError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RetainedStagedOutputEntry {
+    pub(crate) relative_path: Vec<u8>,
+    pub(crate) kind: RetainedStagedOutputEntryKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum RetainedStagedOutputEntryKind {
+    Directory,
+    File { bytes: Arc<[u8]>, executable: bool },
+    Symlink { target: Vec<u8> },
+}
+
+pub fn empty() -> BuildStagedOutputTree {
+    finish_commitment(Vec::new())
+}
+
+pub(crate) fn finish_commitment(mut entries: Vec<StagedOutputEntry>) -> BuildStagedOutputTree {
+    entries.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    let mut retained_entries = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let retained_kind = match entry.kind {
+            StagedOutputEntryKind::Directory => RetainedStagedOutputEntryKind::Directory,
+            StagedOutputEntryKind::File(content) => RetainedStagedOutputEntryKind::File {
+                bytes: content.bytes,
+                executable: content.executable,
+            },
+        };
+        retained_entries.push(RetainedStagedOutputEntry {
+            relative_path: entry.relative_path,
+            kind: retained_kind,
+        });
+    }
+    BuildStagedOutputTree {
+        commitment: commitment_for_retained_entries(&retained_entries)
+            .expect("captured staged-output content remains within its byte ceiling"),
+        entries: retained_entries,
+    }
+}
+
+pub(crate) fn commitment_for_retained_entries(
+    entries: &[RetainedStagedOutputEntry],
+) -> Option<BuildStagedOutputTreeCommitment> {
+    let entry_count = u64::try_from(entries.len()).expect("staged-output entry ceiling fits u64");
+    let mut digest = crate::trees::digest_encoder::DomainDigestEncoder::new(
+        STAGED_OUTPUT_TREE_COMMITMENT_DOMAIN,
+    );
+    let mut distinct_content = BTreeSet::new();
+    let mut file_bytes = 0u64;
+    digest.u32(STAGED_OUTPUT_TREE_SCHEMA_VERSION);
+    digest.byte(STAGED_OUTPUT_ROOT_TAG);
+    digest.u64(entry_count);
+    for entry in entries {
+        hash_field(&mut digest, &entry.relative_path);
+        match &entry.kind {
+            RetainedStagedOutputEntryKind::Directory => {
+                digest.byte(0);
+                digest.u32(DIRECTORY_MODE);
+            }
+            RetainedStagedOutputEntryKind::File { bytes, executable } => {
+                let content_digest: [u8; 32] =
+                    crate::trees::digest_encoder::content_identity(bytes);
+                let content_length = u64::try_from(bytes.len()).ok()?;
+                if distinct_content.insert((content_digest, content_length)) {
+                    file_bytes = file_bytes
+                        .checked_add(content_length)
+                        .filter(|total| *total <= MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES)?;
+                }
+                digest.byte(1);
+                digest.u32(if *executable {
+                    EXECUTABLE_FILE_MODE
+                } else {
+                    FILE_MODE
+                });
+                digest.u64(content_length);
+                digest.raw(&content_digest);
+            }
+            RetainedStagedOutputEntryKind::Symlink { target } => {
+                digest.byte(2);
+                digest.u32(SYMLINK_MODE);
+                hash_field(&mut digest, target);
+            }
+        }
+    }
+    Some(BuildStagedOutputTreeCommitment {
+        digest: digest.finish(),
+        entry_count,
+        file_bytes,
+    })
+}
+
+fn hash_field(digest: &mut crate::trees::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
+    digest.bytes(bytes);
+}
+
+pub(crate) fn diagnostics(message: impl Into<String>) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(message)]
+}
+
+#[cfg(test)]
+mod tests;

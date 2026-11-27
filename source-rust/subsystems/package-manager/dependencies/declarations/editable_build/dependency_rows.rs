@@ -158,7 +158,7 @@ fn registration(
         return Ok(None);
     }
     let owner = expression_owner(syntax_trees, call.receiver);
-    if owner != Some(build_declarations::BUILD_MODULE_NAME)
+    if owner != Some(package_compilation::declarations::BUILD_MODULE_NAME)
         && (owner.is_some() || discarded.is_none())
     {
         return Ok(None);

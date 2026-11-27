@@ -67,8 +67,10 @@ pub struct AssembledSyntax {
     pub product_sources: Option<DeferredProductSources>, // Deferred `Product` continuation held during `Build` evaluation.
     pub default_product_entry: Option<source_admission::RetainedDeclaration>,
     pub build_source: Option<BuildSourceSelection>, // Exact authored or compiler-default `Build` source selection.
-    pub generated_source_custody:
-        Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, // Admitted dependency-generated sources keyed by `SourceId`.
+    pub generated_source_custody: Vec<(
+        source_text::SourceId,
+        build_filesystem::trees::PackageGeneratedSource,
+    )>, // Admitted dependency-generated sources keyed by `SourceId`.
     pending_build_imports: Vec<source_compiler::PendingBuildImport>,
     pub build_scope_sources: HashSet<source_text::SourceId>, // Sources owned by the `Build` execution scope.
 }

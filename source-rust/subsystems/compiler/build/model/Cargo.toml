@@ -10,6 +10,7 @@ path = "model.rs"
 [dependencies]
 declaration-scope = { path = "../../foundation/declaration-scope" }
 layout-plans = { path = "../../psi/layouts/geometry" }
+optimization-selections = { path = "../../foundation/optimization-selections" }
 proof-applications = { path = "../../psi/proofs/applications" }
 psi-program-identity = { path = "../../psi/identities/program" }
 psi-provider-selections = { path = "../../psi/execution-inputs/providers" }

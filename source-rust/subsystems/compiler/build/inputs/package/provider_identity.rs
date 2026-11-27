@@ -1,6 +1,6 @@
 //! Package provider identity binds the declarations, their package-relative source and the selected arguments.
 
-use filesystem_authority::observation_codec::push_framed;
+use build_filesystem::authority::observation_codec::push_framed;
 use retained_product_selections::{
     RetainedProductApplication, RetainedProviderSelection, RetainedProviderSubject,
 };

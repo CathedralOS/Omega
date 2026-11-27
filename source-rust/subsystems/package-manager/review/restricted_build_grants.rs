@@ -101,7 +101,7 @@ impl OccurrenceBuildGrants {
         sections: &[&crate::lock::PackageLockTarget],
         acquired: &crate::resolution::source::AcquiredBuildSource,
         host: target::TargetProfile,
-        purpose: Option<build_declarations::DependencyPurpose>,
+        purpose: Option<package_compilation::declarations::DependencyPurpose>,
     ) -> Option<Self> {
         use review_evidence::record::PackagePolicyRowKind;
         let mut name = None;
@@ -130,7 +130,7 @@ impl OccurrenceBuildGrants {
             name = Some(key.name().as_str().to_owned());
             let package = key.identity();
             let context = PackageCheckedContext::new(
-                purpose.unwrap_or(build_declarations::DependencyPurpose::Product),
+                purpose.unwrap_or(package_compilation::declarations::DependencyPurpose::Product),
                 section.target(),
                 Some(host),
             );

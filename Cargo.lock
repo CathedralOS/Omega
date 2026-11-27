@@ -247,40 +247,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "build-consent"
-version = "0.1.0"
-dependencies = [
- "build-model",
- "build-output",
- "filesystem-authority",
- "target",
-]
-
-[[package]]
-name = "build-declarations"
-version = "0.1.0"
-dependencies = [
- "optimization-selections",
- "record-storage",
- "semantic-vocabulary",
- "source-acquisition",
- "source-syntax",
- "syntax-trees",
-]
-
-[[package]]
 name = "build-evaluation-result"
 version = "0.1.0"
 dependencies = [
- "build-consent",
- "build-declarations",
+ "build-filesystem",
  "build-model",
- "build-output",
  "checked-program-to-psi",
  "diagnostics",
  "language-core",
- "normalized-build-settings",
- "optimization-requests",
  "package-compilation",
  "source-admission",
  "source-completion-accounting",
@@ -297,19 +271,15 @@ version = "0.1.0"
 dependencies = [
  "artifacts",
  "bounded-process",
- "build-declarations",
  "build-evaluation-result",
+ "build-filesystem",
  "build-model",
- "build-output",
  "build-program-launch",
  "build-settings",
  "build-time-evaluation",
  "declaration-scope",
  "diagnostics",
- "filesystem-authority",
  "language-core",
- "normalized-build-settings",
- "optimization-requests",
  "package-compilation",
  "psi-authorization",
  "psi-provider-selections",
@@ -332,11 +302,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "build-filesystem"
+version = "0.1.0"
+dependencies = [
+ "build-model",
+ "diagnostics",
+ "language-core",
+ "record-storage",
+ "source-acquisition",
+ "target",
+ "wire",
+]
+
+[[package]]
 name = "build-model"
 version = "0.1.0"
 dependencies = [
  "declaration-scope",
  "layout-plans",
+ "optimization-selections",
  "proof-applications",
  "psi-program-identity",
  "psi-provider-selections",
@@ -349,17 +333,6 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "terminal-work",
- "wire",
-]
-
-[[package]]
-name = "build-output"
-version = "0.1.0"
-dependencies = [
- "diagnostics",
- "filesystem-authority",
- "language-core",
- "record-storage",
  "wire",
 ]
 
@@ -396,8 +369,6 @@ name = "build-settings"
 version = "0.1.0"
 dependencies = [
  "build-model",
- "normalized-build-settings",
- "optimization-requests",
  "package-compilation",
  "semantic-vocabulary",
  "terminal-interpreter",
@@ -801,15 +772,6 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "record-storage",
-]
-
-[[package]]
-name = "filesystem-authority"
-version = "0.1.0"
-dependencies = [
- "record-storage",
- "source-acquisition",
- "wire",
 ]
 
 [[package]]
@@ -1698,15 +1660,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "normalized-build-settings"
-version = "0.1.0"
-dependencies = [
- "build-model",
- "optimization-selections",
- "target",
-]
-
-[[package]]
 name = "normalized-foreign-call-plan"
 version = "0.1.0"
 dependencies = [
@@ -1792,8 +1745,8 @@ version = "0.1.0"
 dependencies = [
  "artifacts",
  "bounded-process",
- "build-declarations",
  "build-execution",
+ "build-model",
  "build-program-launch",
  "compiler",
  "diagnostics",
@@ -1801,9 +1754,7 @@ dependencies = [
  "libc",
  "mimalloc",
  "native-provider-sponsor",
- "normalized-build-settings",
  "omega-source",
- "optimization-requests",
  "package-compilation",
  "package-manager",
  "platform-custody",
@@ -1884,13 +1835,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "optimization-requests"
-version = "0.1.0"
-dependencies = [
- "optimization-selections",
-]
-
-[[package]]
 name = "optimization-selections"
 version = "0.1.0"
 dependencies = [
@@ -1936,10 +1880,8 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "artifacts",
- "build-consent",
- "build-declarations",
+ "build-filesystem",
  "build-model",
- "build-output",
  "build-program-launch",
  "build-providers",
  "cap-fs-ext",
@@ -1947,10 +1889,7 @@ dependencies = [
  "cap-std",
  "declaration-scope",
  "diagnostics",
- "filesystem-authority",
  "language-core",
- "normalized-build-settings",
- "optimization-requests",
  "optimization-selections",
  "platform-custody",
  "record-storage",
@@ -1963,8 +1902,10 @@ dependencies = [
  "source-declarations",
  "source-provenance",
  "source-symbol-table",
+ "source-syntax",
  "source-text",
  "symbols",
+ "syntax-trees",
  "target",
  "terminal-psi",
  "wire",
@@ -1976,18 +1917,16 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "artifacts",
- "build-declarations",
  "build-evaluation-result",
  "build-execution",
+ "build-filesystem",
  "build-model",
- "build-output",
  "build-providers",
  "cap-fs-ext",
  "cap-std",
  "compiler-identity",
  "declaration-scope",
  "diagnostics",
- "filesystem-authority",
  "host-provider-inputs",
  "installation-conditions",
  "package-compilation",
@@ -2171,11 +2110,11 @@ dependencies = [
 name = "product-publication"
 version = "0.1.0"
 dependencies = [
+ "build-model",
  "image",
  "image-macho",
  "native-artifact",
  "object-file",
- "optimization-requests",
  "platform-custody",
  "target",
  "terminal-codec",
@@ -2206,9 +2145,9 @@ dependencies = [
  "arena",
  "artifacts",
  "bounded-process",
- "build-declarations",
  "build-evaluation-result",
  "build-execution",
+ "build-filesystem",
  "build-model",
  "build-providers",
  "calling-conventions",
@@ -2216,14 +2155,12 @@ dependencies = [
  "declaration-scope",
  "diagnostics",
  "direct-boundary-bindings",
- "filesystem-authority",
  "host-provider-inputs",
  "installation-conditions",
  "language-core",
  "native-intrinsics",
  "numeric-literals",
  "numerics",
- "optimization-requests",
  "package-compilation",
  "package-manager",
  "platform-custody",
@@ -2683,7 +2620,7 @@ name = "review-evidence"
 version = "0.1.0"
 dependencies = [
  "application-identity",
- "build-consent",
+ "build-filesystem",
  "build-providers",
  "calling-conventions",
  "diagnostics",

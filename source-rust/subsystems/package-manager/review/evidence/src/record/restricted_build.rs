@@ -10,7 +10,7 @@
 // in the enum so review surfaces it if an evaluator ever carries it, even
 // though build admission issues only scoped grants.
 
-use build_consent::{
+use build_filesystem::consent::{
     RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
     RestrictedBuildOperation, RestrictedBuildRequest,
 };
@@ -18,7 +18,8 @@ use target::TargetProfile;
 
 pub(crate) type PackagePolicyRestrictedBuildOperation = RestrictedBuildOperation;
 
-pub(crate) type PackagePolicyRestrictedBuildGrantRoot = build_consent::RestrictedBuildGrantRoot;
+pub(crate) type PackagePolicyRestrictedBuildGrantRoot =
+    build_filesystem::consent::RestrictedBuildGrantRoot;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyRestrictedBuildGrant {

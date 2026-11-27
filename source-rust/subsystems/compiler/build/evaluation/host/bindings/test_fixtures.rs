@@ -101,7 +101,7 @@ impl TerminalBuildBindingAdapter {
             if !path.is_empty() {
                 return Err(refuse("a standard stream cannot name a file"));
             }
-        } else if !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(
+        } else if !build_filesystem::authority::canonical_filesystem_metadata_path_is_canonical(
             path, false,
         ) || path.len() >= 4096
             || path.split(|b| *b == b'/').any(|p| p.len() > 255)

@@ -10,10 +10,10 @@ use source_acquisition::SourceRelativePath;
 impl Reader<'_> {
     pub(super) fn package_name(&mut self, maximum: usize) -> Result<PackageName, Error> {
         let value = self.string(maximum)?;
-        if !build_declarations::ProjectName::is_valid(&value) {
+        if !package_compilation::declarations::ProjectName::is_valid(&value) {
             return Err(Error::new("invalid text package name"));
         }
-        build_declarations::ProjectName::parse(value)
+        package_compilation::declarations::ProjectName::parse(value)
             .map(PackageName::from)
             .map_err(|_| Error::new("invalid text package name"))
     }

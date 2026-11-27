@@ -1,7 +1,7 @@
 //! Select an exact package file under the requesting stage’s dependency grants.
 
 use crate::PackageCompilationInputs;
-use build_declarations::DependencyPurpose;
+use crate::declarations::DependencyPurpose;
 use source_provenance::DependencyScope;
 use diagnostics::Diagnostic;
 use std::path::{Path, PathBuf};

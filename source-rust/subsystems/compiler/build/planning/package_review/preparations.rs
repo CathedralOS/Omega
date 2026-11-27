@@ -1,9 +1,9 @@
 //! A preparing Build has its own checked program, source address and host observations.
 use super::declarations::unavailable;
-use build_declarations::BuildEntryPath;
 use build_evaluation_result::{ComputedBuildConfig, ExecutedBuildEntry};
 use diagnostics::Diagnostic;
 use package_compilation::BuildObservationSummary;
+use package_compilation::declarations::BuildEntryPath;
 use semantic_vocabulary::{MachineId, ServiceId, TargetMachineCallable};
 use terminal_psi::TerminalModule;
 

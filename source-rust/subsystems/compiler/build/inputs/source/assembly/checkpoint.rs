@@ -41,7 +41,7 @@ impl DeferredProductSources {
         self,
         package_inputs: Option<&PackageCompilationInputs>,
         entries: ProductEntrySources<'_>,
-        generated: &[build_output::PackageGeneratedSource],
+        generated: &[build_filesystem::trees::PackageGeneratedSource],
         declarations: &[Arc<ProductDeclarationRequest>],
         build_providers: &crate::InterpretedProviderSelections,
         timings: &mut CompileTimings,
@@ -79,7 +79,7 @@ pub struct ProductEntrySources<'a> {
 
 pub(super) struct ProductSourceSelection<'a> {
     roots: Arc<[std::path::PathBuf]>,
-    pub(super) generated: &'a [build_output::PackageGeneratedSource],
+    pub(super) generated: &'a [build_filesystem::trees::PackageGeneratedSource],
     entries: ProductEntrySources<'a>,
     declarations: &'a [Arc<ProductDeclarationRequest>],
 }

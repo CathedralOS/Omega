@@ -6,7 +6,7 @@
 // identity against the authoritative `BuildStagedOutputTree`.
 
 use crate::build_execution::message;
-use build_output::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
+use build_filesystem::trees::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::fs::{
     Dir as CapabilityDirectory, Metadata as CapabilityMetadata,

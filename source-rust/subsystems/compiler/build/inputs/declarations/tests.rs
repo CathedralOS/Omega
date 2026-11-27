@@ -33,7 +33,7 @@ fn requirements_with_crash_routes(source: &str) -> Vec<String> {
 
 #[test]
 fn successor_entry_selects_one_package_relative_omega_file() {
-    use crate::BuildEntryPath;
+    use crate::declarations::BuildEntryPath;
     for path in ["configure.omg", "stages/compile.omg", "build.lock.omg"] {
         assert_eq!(BuildEntryPath::parse(path.into()).unwrap().as_str(), path);
     }
@@ -58,7 +58,7 @@ fn successor_entry_selects_one_package_relative_omega_file() {
 #[test]
 fn every_build_host_operation_writes_its_crash_ceiling() {
     assert_eq!(
-        requirements_with_crash_routes(&crate::build_prelude().declarations),
+        requirements_with_crash_routes(&crate::declarations::build_prelude().declarations),
         Vec::<String>::new()
     );
     // The same reading reports a requirement that publishes a crash route.
@@ -78,7 +78,7 @@ fn every_build_host_operation_writes_its_crash_ceiling() {
 fn build_prelude_uses_file_imports_and_free_machines() {
     use syntax_trees::item::Item;
 
-    let prelude = crate::build_prelude();
+    let prelude = crate::declarations::build_prelude();
     for (namespace, text) in std::iter::once((None, prelude.declarations)).chain(
         prelude
             .modules

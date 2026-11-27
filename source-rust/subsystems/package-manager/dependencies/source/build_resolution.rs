@@ -17,7 +17,7 @@ use std::sync::Arc;
 pub struct DeclaredBuildSource {
     pub(super) custody: PackageSourceCustody,
     pub(super) backings: std::collections::BTreeMap<
-        (build_declarations::DependencyPurpose, usize),
+        (package_compilation::declarations::DependencyPurpose, usize),
         build_execution::DependencyBacking,
     >,
     pub(super) root_request: PackageRootSourceRequest,
@@ -97,7 +97,7 @@ impl PendingBuildSource {
         self.request.requester().key().identity()
     }
 
-    pub(crate) fn purpose(&self) -> build_declarations::DependencyPurpose {
+    pub(crate) fn purpose(&self) -> package_compilation::declarations::DependencyPurpose {
         self.request.purpose()
     }
 

@@ -1,9 +1,9 @@
 //! Select local workspace check subjects from the executing catalog's final declaration.
 use super::{OpenPurpose, OpenedRoot, ProjectInput, ProjectProducts, open_products_with};
 use crate::resolution::source::{AcquiredBuildSource, LocalWorkspaceMembers};
-use build_declarations::BuildDeclaration;
 use diagnostics::Diagnostic;
 use package_compilation::build_execution::BuildSnapshotCapture;
+use package_compilation::declarations::BuildDeclaration;
 use source_acquisition::{ExternalSourceContext, LocalSourceLimits};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

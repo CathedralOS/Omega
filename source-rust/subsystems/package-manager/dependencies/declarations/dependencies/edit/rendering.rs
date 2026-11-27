@@ -7,7 +7,7 @@ use crate::declarations::editable_build::{
     DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_REGISTRATION_NAME, FROM_SOURCE_HELPER_NAME,
     REGISTRATION_TYPE_NAME, WITH_ALIAS_HELPER_NAME,
 };
-use build_declarations::BUILD_MODULE_NAME;
+use package_compilation::declarations::BUILD_MODULE_NAME;
 
 // `build_source` is the build file the statement joins; the registration and
 // description locals take names it does not already use.

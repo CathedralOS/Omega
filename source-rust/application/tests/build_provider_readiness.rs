@@ -3,8 +3,8 @@
 
 mod support;
 
-use build_declarations::{BuildDependencySource, ProjectName};
 use diagnostics::Diagnostic;
+use package_compilation::declarations::{BuildDependencySource, ProjectName};
 use package_manager::project::{BuildLibraryRequest, ProjectInput, open_products};
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::PathBuf;

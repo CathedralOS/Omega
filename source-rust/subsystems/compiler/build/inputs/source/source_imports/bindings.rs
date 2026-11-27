@@ -106,8 +106,8 @@ impl PendingPackageImport {
             }
         }
         let purpose = match self.scope {
-            DependencyScope::Product => build_declarations::DependencyPurpose::Product,
-            DependencyScope::Build => build_declarations::DependencyPurpose::Build,
+            DependencyScope::Product => crate::declarations::DependencyPurpose::Product,
+            DependencyScope::Build => crate::declarations::DependencyPurpose::Build,
         };
         let admitted = packages
             .dependency_build_handoff_instances()

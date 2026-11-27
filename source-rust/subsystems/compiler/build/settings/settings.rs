@@ -6,10 +6,10 @@
 //! active sum cases and array elements come from the completed invocation.
 //! Product selection and host facets have separate admission rules.
 
+use build_model::optimization_requests::OptimizationReportRequest;
 use build_model::values::BuildTimeValue;
-use normalized_build_settings::EvaluatedBuildSettings;
-use optimization_requests::OptimizationReportRequest;
 use package_compilation::build_execution::SelectedBuildMachine;
+use package_compilation::normalized_settings::EvaluatedBuildSettings;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue, StructuralTypeId};
 use terminal_interpreter::{
     TerminalInstance, TerminalScalarValue, TerminalStorageContents, TerminalStorageObservationValue,

@@ -86,8 +86,8 @@ fn an_entry_asked_through_a_build_scope_alias_names_nothing() {
 /// Supply the external Build library at invocation. Run the resulting Product
 /// artifact through the CLI so both engines exercise the entry the Build bound.
 fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Result<(), String> {
-    use build_declarations::{BuildDependencySource, ProjectName};
     use compiler::{Artifact, CompileRequest};
+    use package_compilation::declarations::{BuildDependencySource, ProjectName};
     use package_manager::project::{BuildLibraryRequest, ProjectInput, open_products};
     use product_publication::CompletedProduct;
 

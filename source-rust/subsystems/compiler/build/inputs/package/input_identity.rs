@@ -6,7 +6,7 @@ use crate::{
     AcceptedSemanticBinding, IndependentComponentDescription, PackageBuildHandoff,
     PackageCompilationInputs, PackageDependencyClosure,
 };
-use filesystem_authority::CanonicalFilesystemMetadataIndex;
+use build_filesystem::authority::CanonicalFilesystemMetadataIndex;
 
 // Previously issued Build receipts bind this domain.
 const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x08";
@@ -43,7 +43,7 @@ impl PackageCompilationInputs {
                 None => digest.byte(0),
             }
         }
-        for purpose in build_declarations::DependencyPurpose::ALL {
+        for purpose in crate::declarations::DependencyPurpose::ALL {
             digest.byte(purpose.canonical_tag());
             let uses = self.package_uses(purpose).collect::<Vec<_>>();
             digest.u64(uses.len() as u64);
@@ -72,10 +72,10 @@ fn hash_metadata_index(digest: &mut DomainDigestEncoder, index: &CanonicalFilesy
     for row in index.rows() {
         digest.bytes(row.relative_path());
         match row.kind() {
-            filesystem_authority::CanonicalFilesystemMetadataRowKind::Directory => {
+            build_filesystem::authority::CanonicalFilesystemMetadataRowKind::Directory => {
                 digest.byte(0);
             }
-            filesystem_authority::CanonicalFilesystemMetadataRowKind::File {
+            build_filesystem::authority::CanonicalFilesystemMetadataRowKind::File {
                 logical_byte_length,
                 executable,
             } => {
@@ -83,7 +83,7 @@ fn hash_metadata_index(digest: &mut DomainDigestEncoder, index: &CanonicalFilesy
                 digest.u64(logical_byte_length);
                 digest.byte(executable as u8);
             }
-            filesystem_authority::CanonicalFilesystemMetadataRowKind::Symlink {
+            build_filesystem::authority::CanonicalFilesystemMetadataRowKind::Symlink {
                 target_spelling_logical_byte_length,
             } => {
                 digest.byte(2);

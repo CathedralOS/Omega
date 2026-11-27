@@ -11,7 +11,7 @@
 use super::BuildValueAdmission;
 use crate::build_execution::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY};
 use build_model::values::BuildTimeValue;
-use filesystem_authority::FilesystemGrantRootIdentity;
+use build_filesystem::authority::FilesystemGrantRootIdentity;
 
 pub(super) fn initial_value(admission: &BuildValueAdmission) -> BuildTimeValue {
     // Source cannot construct the issued seal in the Build borrowed from the host.
@@ -113,7 +113,7 @@ pub(super) fn initial_value(admission: &BuildValueAdmission) -> BuildTimeValue {
                 fields: vec![(
                     "index_expansion_terms".to_owned(),
                     BuildTimeValue::Int(
-                        normalized_build_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS as i64,
+                        crate::normalized_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS as i64,
                     ),
                 )],
             },
@@ -140,7 +140,7 @@ pub(super) fn initial_value(admission: &BuildValueAdmission) -> BuildTimeValue {
         ]);
     }
     BuildTimeValue::Struct {
-        type_name: build_declarations::BUILD_TYPE_NAME.to_owned(),
+        type_name: crate::declarations::BUILD_TYPE_NAME.to_owned(),
         fields: build_fields,
     }
 }

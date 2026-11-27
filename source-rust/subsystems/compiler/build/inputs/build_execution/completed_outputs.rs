@@ -6,7 +6,7 @@
 // byte-for-byte via `verification::verify_existing_set`.
 
 use super::{BuildObservationIdentity, BuildObservationSummary};
-use build_output::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
+use build_filesystem::trees::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
 use std::path::{Path, PathBuf};
 
 #[path = "completed_outputs_verification.rs"]

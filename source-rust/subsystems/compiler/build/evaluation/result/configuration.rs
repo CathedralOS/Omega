@@ -1,7 +1,7 @@
 //! Normalized Build choices, their accepted source and the observations of this execution.
 use build_model::behavior_exclusions::AuthoredBehaviorExclusion;
 use checked_program_to_psi::provider_choice_inputs::{NativeBuildSupply, ProviderSelection};
-use normalized_build_settings::EvaluatedBuildSettings;
+use package_compilation::normalized_settings::EvaluatedBuildSettings;
 use source_declarations::source_selections::{
     RootBinding, ServiceAuditRegistration, TestGroupRegistration, WireCompatibilityDemand,
 };
@@ -66,13 +66,13 @@ pub struct ComputedBuildConfig {
         Vec<source_declarations::declaration_selection::ExecutedNativeBinding>,
     pub behavior_exclusion_requests:
         Vec<source_declarations::declaration_selection::ExecutedEnumExclusion>,
-    pub project_declaration: Option<build_declarations::BuildDeclaration>,
-    pub optimization_report_request: optimization_requests::OptimizationReportRequest,
+    pub project_declaration: Option<package_compilation::declarations::BuildDeclaration>,
+    pub optimization_report_request: build_model::optimization_requests::OptimizationReportRequest,
     pub evaluation_usage: Option<build_model::contracts::BuildEvaluationUsage>,
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,
     /// Exact declaration of the machine whose checked invocation returned this Build.
     pub executed_entry: Option<ExecutedBuildEntry>,
-    pub generated_sources: Vec<build_output::PackageGeneratedSource>,
+    pub generated_sources: Vec<build_filesystem::trees::PackageGeneratedSource>,
 }
 
 // Retaining a judgment changes custody, not the meaning of Build's output.

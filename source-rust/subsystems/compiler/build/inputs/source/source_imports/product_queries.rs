@@ -13,7 +13,7 @@ use declaration::DeclarationLookup;
 
 use super::SourceStorage;
 use crate::PackageCompilationInputs;
-use build_declarations::DependencyPurpose;
+use crate::declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use source_compiler::ParsedSourceBatch;
 use std::path::PathBuf;
@@ -268,7 +268,7 @@ pub struct ProductQueryInputs {
     named_source: Option<PackageCompilationInputs>,
     dependencies: Vec<ProductQueryDependency>,
     declarations: Vec<DeclarationLookup>,
-    successor: Option<build_declarations::BuildEntryPath>,
+    successor: Option<crate::declarations::BuildEntryPath>,
     /// The build dependencies a staged Build has prepared, by the alias its
     /// Build sources import them under (`for_build_stage`). A Product query
     /// mounts none.
@@ -288,7 +288,7 @@ impl ProductQueryInputs {
             {
                 return Err("Product query dependency aliases must be nonempty and unique".into());
             }
-            if dependency.inputs.root_role() != build_declarations::BuildDeclarationKind::Package {
+            if dependency.inputs.root_role() != crate::declarations::BuildDeclarationKind::Package {
                 return Err("Product query dependency must declare a package".into());
             }
             if let Some(original) = &original
@@ -372,7 +372,7 @@ impl ProductQueryInputs {
             {
                 return Err("prepared build dependency aliases must be nonempty and unique".into());
             }
-            if dependency.inputs.root_role() != build_declarations::BuildDeclarationKind::Package {
+            if dependency.inputs.root_role() != crate::declarations::BuildDeclarationKind::Package {
                 return Err("prepared build dependency must declare a package".into());
             }
             if let Some(original) = original

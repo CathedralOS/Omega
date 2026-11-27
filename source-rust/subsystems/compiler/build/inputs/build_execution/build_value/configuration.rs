@@ -11,7 +11,7 @@
 
 use super::optimization;
 use build_model::values::BuildTimeValue;
-use normalized_build_settings::{
+use crate::normalized_settings::{
     ElfInterpreterSelections, EvaluatedBuildSettings, X86DeploymentClaim,
 };
 use target::{ApplicationIdentifier, HostedApplicationIntent};
@@ -21,7 +21,7 @@ pub(crate) fn extract_build_settings(
 ) -> Result<
     (
         EvaluatedBuildSettings,
-        optimization_requests::OptimizationReportRequest,
+        build_model::optimization_requests::OptimizationReportRequest,
     ),
     String,
 > {
@@ -148,14 +148,14 @@ pub(crate) fn extract_build_settings(
                     "Build.proof.index_expansion_terms is not an integer: {other:?}"
                 ));
             }
-            None => normalized_build_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS,
+            None => crate::normalized_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS,
         },
         Ok(other) => {
             return Err(format!(
                 "Build.proof is not a ProofWorkPolicy struct: {other:?}"
             ));
         }
-        Err(_) => normalized_build_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS,
+        Err(_) => crate::normalized_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS,
     };
 
     let (optimizations, optimization_report) = optimization::extract(field("optimizations")?)?;
@@ -260,7 +260,7 @@ mod tests {
 
         assert_eq!(
             baseline.1,
-            optimization_requests::OptimizationReportRequest::Suppressed
+            build_model::optimization_requests::OptimizationReportRequest::Suppressed
         );
 
         let mut requested = original.clone();
@@ -282,7 +282,7 @@ mod tests {
         assert_eq!(settings.optimizations.as_slice(), &[option]);
         assert_eq!(
             report,
-            optimization_requests::OptimizationReportRequest::EmitHumanText
+            build_model::optimization_requests::OptimizationReportRequest::EmitHumanText
         );
 
         fields(&mut requested).retain(|(name, _)| name != "optimizations");
@@ -319,7 +319,7 @@ mod tests {
 
         assert_eq!(
             baseline.0.proof_index_expansion_terms,
-            normalized_build_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS
+            crate::normalized_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS
         );
         let mut raised = original.clone();
         let (_, proof) = fields(&mut raised)

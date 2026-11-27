@@ -11,8 +11,8 @@ pub enum CompileFailure {
         accounting: source_completion_accounting::SourceCompletionAccounting,
     },
     BuildConsentRequired {
-        site: build_consent::RestrictedBuildSite,
-        requests: Vec<build_consent::RestrictedBuildRequest>,
+        site: build_filesystem::consent::RestrictedBuildSite,
+        requests: Vec<build_filesystem::consent::RestrictedBuildRequest>,
         accounting: source_completion_accounting::SourceCompletionAccounting,
     },
 }
@@ -116,7 +116,9 @@ impl From<Vec<Diagnostic>> for CompileFailure {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use build_consent::{RestrictedBuildBounds, RestrictedBuildOperation, RestrictedBuildRequest};
+    use build_filesystem::consent::{
+        RestrictedBuildBounds, RestrictedBuildOperation, RestrictedBuildRequest,
+    };
 
     #[test]
     fn attaching_source_work_preserves_a_pending_consent_request() {
@@ -129,7 +131,7 @@ mod tests {
             None,
         );
         let failure = CompileFailure::BuildConsentRequired {
-            site: build_consent::RestrictedBuildSite {
+            site: build_filesystem::consent::RestrictedBuildSite {
                 subject: None,
                 entry: "build".into(),
                 program: [7; 32],

@@ -25,11 +25,11 @@ pub use bindings::PackageSourceBindings;
 pub(crate) use order::dependency_first_package_order;
 
 use crate::review::CompileResolvedPackageReviewsError;
+use build_filesystem::authority::FilesystemSponsor;
 use build_model::accounting::BuildEvaluationSponsor;
 use build_model::contracts::{
     BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
 };
-use filesystem_authority::FilesystemSponsor;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -77,7 +77,7 @@ impl PackageBuildSession {
                 canonical_workspace.join(format!(".omega-package-build-{}-{sequence}", id()));
             match FilesystemSponsor::create_private(
                 &root,
-                filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
+                build_filesystem::authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
             ) {
                 Ok(filesystem_sponsor) => {
                     let canonical_root = filesystem_sponsor
@@ -248,7 +248,7 @@ fn staging_create(path: PathBuf, error: io::Error) -> CompileResolvedPackageRevi
 
 fn staging_sponsor(
     path: PathBuf,
-    error: filesystem_authority::FilesystemSponsorError,
+    error: build_filesystem::authority::FilesystemSponsorError,
 ) -> CompileResolvedPackageReviewsError {
     CompileResolvedPackageReviewsError::new(
         crate::review::CompileResolvedPackageReviewCause::BuildStagingSponsor { path, error },

@@ -42,7 +42,7 @@ host or deployment target. Compilation calls `project::open_products`. Package
 review uses `project::resolve_build_sources` to resolve the same graph. Build
 executes the declarations and the compiler produces the requested artifacts.
 The independent [declaration](../compiler/build/inputs/declarations/README.md),
-[output](../compiler/build/inputs/trees/README.md) and [compilation-input](../compiler/build/inputs/README.md)
+[output](../compiler/build/filesystem/trees/README.md) and [compilation-input](../compiler/build/inputs/README.md)
 packages sit below both the compiler and this crate, so the compiler does not
 depend on install/update code. Source acquisition creates input custody, the
 compiler records the exact source units it used, and review joins both to

@@ -3,8 +3,8 @@
 #[path = "../../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
-use build_declarations::BuildDeclaration;
 use package_compilation::BuildExecutionInputs;
+use package_compilation::declarations::BuildDeclaration;
 use package_manager::{
     operations::begin_local_project_preparation, resolution::source::ExecutedSourceResolution,
 };
@@ -491,7 +491,7 @@ fn an_artifact_only_build_requests_its_scoped_filesystem_once() {
         false,
     )
     .unwrap();
-    let sponsor = filesystem_authority::FilesystemSponsor::new(staging.path()).unwrap();
+    let sponsor = build_filesystem::authority::FilesystemSponsor::new(staging.path()).unwrap();
     let requests = Arc::new(Mutex::new(Vec::new()));
     let _prepared = prepare(
         PlanningRequest {
@@ -522,7 +522,9 @@ fn an_artifact_only_build_requests_its_scoped_filesystem_once() {
 
 #[test]
 fn the_invoker_supplies_a_library_before_the_build_runs() {
-    use build_declarations::{BuildDependencySource, DependencyPurpose, ProjectName};
+    use package_compilation::declarations::{
+        BuildDependencySource, DependencyPurpose, ProjectName,
+    };
     use package_manager::project::{BuildLibraryRequest, ProjectInput, open_products};
 
     configure_library();

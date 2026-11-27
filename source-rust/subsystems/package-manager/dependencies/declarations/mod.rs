@@ -16,7 +16,6 @@ mod identity;
 pub(crate) use identity::AliasName;
 pub use identity::{PackageKey, PackageName};
 
-pub use build_declarations::{BuildDeclarationKind, WorkspaceMemberPath};
 pub use dependencies::DependencyPurpose;
 pub(crate) use dependencies::PackageSelection;
 pub(crate) use dependencies::edit::{
@@ -25,6 +24,7 @@ pub(crate) use dependencies::edit::{
 pub(crate) use dependencies::{
     BuildDependencyEditPlan, BuildFileReplacement, DependencySourceRequest,
 };
+pub use package_compilation::declarations::{BuildDeclarationKind, WorkspaceMemberPath};
 
 pub(crate) fn purpose_slot(purpose: DependencyPurpose) -> usize {
     match purpose {

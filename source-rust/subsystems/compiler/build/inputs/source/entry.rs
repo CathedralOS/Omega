@@ -112,7 +112,7 @@ impl<'a> CapturedBuildEntry<'a> {
             })?;
         let filename = path.strip_prefix(package_root).ok().and_then(Path::to_str);
         if !filename.is_some_and(|name| {
-            build_declarations::BuildEntryPath::validate(
+            crate::declarations::BuildEntryPath::validate(
                 &name.replace(std::path::MAIN_SEPARATOR, "/"),
             )
             .is_ok()

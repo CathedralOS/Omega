@@ -10,7 +10,7 @@ pub(crate) use product_operand::product_file_sources;
 use super::bindings::{ImportOccurrence, PendingPackageImport, ResolvedSourceImport};
 use super::package_selection::ReconciledPackageImportRequest;
 use crate::PackageCompilationInputs;
-use build_declarations::DependencyPurpose;
+use crate::declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use source_acquisition::capture::SourceFileSystem;

@@ -224,7 +224,7 @@ impl CanonicalSourceClosureSubject {
                 reader.expect("stage")?;
                 let ordinal = reader.number(u32::MAX as usize)?;
                 reader.expect("successor")?;
-                let successor = build_declarations::BuildEntryPath::parse(
+                let successor = package_compilation::declarations::BuildEntryPath::parse(
                     reader.string(limits.maximum_request_bytes)?,
                 )
                 .map_err(Error::new)?;

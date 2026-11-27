@@ -15,7 +15,7 @@
 use crate::BuildMachineFilesystemScope;
 use crate::PackageCompilationInputs;
 use diagnostics::Diagnostic;
-use filesystem_authority::{FilesystemSponsor, FilesystemSponsorLimits};
+use build_filesystem::authority::{FilesystemSponsor, FilesystemSponsorLimits};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 

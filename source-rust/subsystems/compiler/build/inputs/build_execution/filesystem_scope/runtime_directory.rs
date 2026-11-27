@@ -1,9 +1,9 @@
 //! Extra runtime directories can retain a live handle or a read-only subtree
 //! of the package bytes admitted to the parent Build.
 use super::BuildMachineFilesystemScope;
-use build_output::{CapturedBuildSourceInput, SourceSnapshotEntry, SourceSnapshotError};
+use build_filesystem::authority::FilesystemObservationProvider;
+use build_filesystem::trees::{CapturedBuildSourceInput, SourceSnapshotEntry, SourceSnapshotError};
 use build_model::accounting::EvaluationInvocationAccount;
-use filesystem_authority::FilesystemObservationProvider;
 use platform_custody::{bound_directory::BoundDirectory, directory_mappings::DirectoryMappings};
 use std::io::{self, Read, Write};
 use std::sync::Arc;

@@ -14,7 +14,7 @@ use crate::build_execution::observations::{
     BuildFilesystemAuthorizedPath, BuildFilesystemOperationAttempt, BuildFilesystemRoot,
 };
 use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-use filesystem_authority::{
+use build_filesystem::authority::{
     BuildOutputObligation, BuildOutputObligationState, BuildOutputReceipt, FilesystemGrantAccess,
     FilesystemGrantRootIdentity, FilesystemHostOperation, FilesystemLogicalHandleIdentity,
     FilesystemLogicalHandleInput, FilesystemLogicalHandleInputResolution,
@@ -63,9 +63,9 @@ pub struct BuildFilesystemRuntime {
 }
 
 fn staging_create_error(
-    reason: filesystem_authority::FilesystemSponsorError,
+    reason: build_filesystem::authority::FilesystemSponsorError,
 ) -> Result<(i32, std::io::ErrorKind), String> {
-    use filesystem_authority::FilesystemSponsorError;
+    use build_filesystem::authority::FilesystemSponsorError;
     use std::io::ErrorKind;
     match reason {
         FilesystemSponsorError::EntryAlreadyExists(_) => Ok((17, ErrorKind::AlreadyExists)),
@@ -126,7 +126,7 @@ impl BuildFilesystemRuntime {
             filesystem_root_relative_path_is_canonical(relative, false)
         } else {
             self.snapshot(root)?;
-            filesystem_authority::source_snapshot_path_is_canonical(relative, false)
+            build_filesystem::authority::source_snapshot_path_is_canonical(relative, false)
         };
         if !canonical {
             return Err("Build path is not a canonical relative path".into());
@@ -241,7 +241,7 @@ impl BuildFilesystemRuntime {
     fn snapshot(
         &self,
         root: FilesystemGrantRootIdentity,
-    ) -> Result<&build_output::CapturedBuildSourceInput, String> {
+    ) -> Result<&build_filesystem::trees::CapturedBuildSourceInput, String> {
         if root == BUILD_SOURCE_ROOT_IDENTITY {
             return self
                 .effects
@@ -369,10 +369,10 @@ impl BuildFilesystemRuntime {
         attempt.authorized_paths.clear();
         attempt
             .grant_refusals
-            .push(filesystem_authority::FilesystemGrantRefusal::new(
+            .push(build_filesystem::authority::FilesystemGrantRefusal::new(
                 0,
                 access,
-                filesystem_authority::FilesystemGrantRefusalReason::OutsideGrantedRoots,
+                build_filesystem::authority::FilesystemGrantRefusalReason::OutsideGrantedRoots,
             ));
         self.complete_attempt(ordinal, -1, 13)
     }
@@ -423,7 +423,7 @@ impl BuildFilesystemRuntime {
             None
         };
         if live_source.is_none() {
-            use build_output::SourceSnapshotError;
+            use build_filesystem::trees::SourceSnapshotError;
             if let Err(reason) = self.snapshot(root)?.open_file(path) {
                 let error = match reason {
                     SourceSnapshotError::NotFound => 2,
@@ -569,14 +569,14 @@ impl BuildFilesystemRuntime {
                 )
                 .map(|result| result.map(|bytes| bytes as u64));
         }
-        if !filesystem_authority::source_snapshot_path_is_canonical(path, false) {
+        if !build_filesystem::authority::source_snapshot_path_is_canonical(path, false) {
             return Ok(Err(ErrorKind::InvalidInput));
         }
         // The package remains read-only even if an explicitly granted Output
         // operation used the same spelling in the independent staging tree.
         let absent = matches!(
             self.snapshot(ROOT)?.lookup(path),
-            Err(build_output::SourceSnapshotError::NotFound)
+            Err(build_filesystem::trees::SourceSnapshotError::NotFound)
         );
         let has_writer =
             |file: &OpenFile| file.root == BUILD_OUTPUT_ROOT_IDENTITY && file.path == path;
@@ -641,7 +641,7 @@ impl BuildFilesystemRuntime {
         path: &[u8],
         operation: FilesystemHostOperation,
     ) -> Result<Result<(), std::io::ErrorKind>, String> {
-        use build_output::SourceSnapshotError;
+        use build_filesystem::trees::SourceSnapshotError;
         use std::io::ErrorKind;
 
         if !filesystem_root_relative_path_is_canonical(path, false) {
@@ -701,7 +701,7 @@ impl BuildFilesystemRuntime {
         let (sponsor, bound) = self.staging_entry(path)?;
         let prepared = match sponsor.prepare_create_directory(&bound) {
             Ok(prepared) => prepared,
-            Err(filesystem_authority::FilesystemSponsorError::EntryAlreadyExists(_))
+            Err(build_filesystem::authority::FilesystemSponsorError::EntryAlreadyExists(_))
                 if self
                     .staging
                     .is_directory(path)
@@ -841,8 +841,8 @@ impl BuildFilesystemRuntime {
         path: &[u8],
     ) -> Result<
         (
-            &filesystem_authority::FilesystemSponsor,
-            filesystem_authority::FilesystemSponsorPath,
+            &build_filesystem::authority::FilesystemSponsor,
+            build_filesystem::authority::FilesystemSponsorPath,
         ),
         String,
     > {
@@ -1026,7 +1026,9 @@ impl BuildFilesystemRuntime {
 
     pub fn require(&mut self, path: &[u8]) -> Result<usize, String> {
         self.resolve(BUILD_OUTPUT_ROOT_IDENTITY, path)?;
-        if self.effects.obligations.len() >= filesystem_authority::MAX_BUILD_OUTPUT_OBLIGATIONS {
+        if self.effects.obligations.len()
+            >= build_filesystem::authority::MAX_BUILD_OUTPUT_OBLIGATIONS
+        {
             return Err("Build required-output limit exhausted".into());
         }
         if self.effects.obligations.iter().any(|obligation| {
@@ -1218,11 +1220,11 @@ fn copy_bytes(bytes: &[u8]) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
-    use filesystem_authority::{
+    use build_filesystem::authority::{
         CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRow,
         CanonicalFilesystemMetadataRowKind as Kind,
     };
+    use build_filesystem::trees::{CapturedBuildSourceInput, CapturedSourceEntry};
 
     fn scope(root: &std::path::Path, name: &str) -> BuildMachineFilesystemScope {
         let metadata = CanonicalFilesystemMetadataIndex::version_1(
@@ -1269,9 +1271,9 @@ mod tests {
     ) -> BuildMachineFilesystemScope {
         let source_root = root.join("source");
         std::fs::create_dir_all(&source_root).unwrap();
-        let sponsor = filesystem_authority::FilesystemSponsor::create_private(
+        let sponsor = build_filesystem::authority::FilesystemSponsor::create_private(
             root.join(name),
-            filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
+            build_filesystem::authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
         )
         .unwrap();
         let output = sponsor.session_root().unwrap().join("output");
@@ -1288,7 +1290,7 @@ mod tests {
 
     #[test]
     fn source_capture_validates_only_the_selected_snapshot() {
-        use build_output::{SourceSnapshotEntry, SourceSnapshotError};
+        use build_filesystem::trees::{SourceSnapshotEntry, SourceSnapshotError};
         let capture = |names: &[&[u8]]| {
             let rows = std::iter::once(b"".as_slice())
                 .chain(names.iter().copied())
@@ -1384,9 +1386,9 @@ mod tests {
         )
         .unwrap();
         let mut child = scope(temporary.path(), "child");
-        let sponsor = filesystem_authority::FilesystemSponsor::create_private(
+        let sponsor = build_filesystem::authority::FilesystemSponsor::create_private(
             temporary.path().join("parent"),
-            filesystem_authority::FilesystemSponsorLimits {
+            build_filesystem::authority::FilesystemSponsorLimits {
                 maximum_entries: 8,
                 maximum_total_logical_bytes: 2,
                 maximum_object_extent: 2,
@@ -1606,7 +1608,7 @@ mod tests {
                 .sealed_entry(b"public/generated.omg")
                 .unwrap()
                 .kind(),
-            build_output::BuildStagedOutputEntryKind::File {
+            build_filesystem::trees::BuildStagedOutputEntryKind::File {
                 bytes: b"hello",
                 ..
             }
@@ -1615,7 +1617,7 @@ mod tests {
         let tree = summary.staged_output_tree().unwrap();
         assert!(matches!(
             tree.sealed_entry(b"generated.omg").unwrap().kind(),
-            build_output::BuildStagedOutputEntryKind::File {
+            build_filesystem::trees::BuildStagedOutputEntryKind::File {
                 bytes: b"hello",
                 ..
             }
@@ -1623,7 +1625,7 @@ mod tests {
 
         assert!(matches!(
             tree.sealed_entry(b"z-export.omg").unwrap().kind(),
-            build_output::BuildStagedOutputEntryKind::File {
+            build_filesystem::trees::BuildStagedOutputEntryKind::File {
                 bytes: b"exported",
                 ..
             }

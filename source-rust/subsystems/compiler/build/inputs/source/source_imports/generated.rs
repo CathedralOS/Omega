@@ -5,7 +5,7 @@ use std::path::Path;
 
 pub(crate) struct GeneratedFile<'source> {
     pub logical_path: std::path::PathBuf,
-    pub source: &'source build_output::PackageGeneratedSource,
+    pub source: &'source build_filesystem::trees::PackageGeneratedSource,
     pub stratum: source_admission::SourceResolutionStratum,
     pub scope: source_provenance::DependencyScope,
 }
@@ -34,7 +34,7 @@ impl<'source> GeneratedFiles<'source> {
         package: semantic_vocabulary::PackageKeyIdentity,
         scope: source_provenance::DependencyScope,
         stratum: source_admission::SourceResolutionStratum,
-        sources: &'source [build_output::PackageGeneratedSource],
+        sources: &'source [build_filesystem::trees::PackageGeneratedSource],
     ) -> Result<(), Vec<Diagnostic>> {
         let root = inputs.package_root(package).ok_or_else(|| {
             vec![Diagnostic::error(
@@ -68,7 +68,7 @@ impl<'source> GeneratedFiles<'source> {
 
     pub fn for_package(
         inputs: &'source crate::PackageCompilationInputs,
-        own: &'source [build_output::PackageGeneratedSource],
+        own: &'source [build_filesystem::trees::PackageGeneratedSource],
         scope: source_provenance::DependencyScope,
     ) -> Result<Self, Vec<Diagnostic>> {
         use source_admission::SourceResolutionStratum::{
@@ -86,8 +86,8 @@ impl<'source> GeneratedFiles<'source> {
         )?;
         for (purpose, handoff) in inputs.dependency_build_handoff_instances() {
             let dependency_scope = match purpose {
-                build_declarations::DependencyPurpose::Product => Product,
-                build_declarations::DependencyPurpose::Build => Build,
+                crate::declarations::DependencyPurpose::Product => Product,
+                crate::declarations::DependencyPurpose::Build => Build,
             };
             if scope == Product || dependency_scope == Build {
                 files.mount(
@@ -127,7 +127,7 @@ impl<'source> GeneratedFiles<'source> {
 
 pub(crate) fn generated_file_path(
     package_root: &Path,
-    source: &build_output::PackageGeneratedSource,
+    source: &build_filesystem::trees::PackageGeneratedSource,
 ) -> Result<std::path::PathBuf, Vec<Diagnostic>> {
     let filename = std::str::from_utf8(source.relative_path()).map_err(|_| {
         vec![Diagnostic::error(

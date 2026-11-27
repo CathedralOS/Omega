@@ -10,7 +10,7 @@ pub struct PackageName(String);
 impl PackageName {
     pub fn parse(value: impl Into<String>) -> Result<Self, String> {
         let value = value.into();
-        build_declarations::ProjectName::parse(value.clone())?;
+        package_compilation::declarations::ProjectName::parse(value.clone())?;
         Ok(Self(value))
     }
 
@@ -23,8 +23,8 @@ impl PackageName {
     }
 }
 
-impl From<build_declarations::ProjectName> for PackageName {
-    fn from(value: build_declarations::ProjectName) -> Self {
+impl From<package_compilation::declarations::ProjectName> for PackageName {
+    fn from(value: package_compilation::declarations::ProjectName) -> Self {
         Self(value.into_string())
     }
 }

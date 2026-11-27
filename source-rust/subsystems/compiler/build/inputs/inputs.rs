@@ -7,6 +7,9 @@
 
 #![forbid(unsafe_code)]
 
+pub mod declarations;
+pub mod normalized_settings;
+
 pub use source::anonymous_owner::{AnonymousSourceCapture, CompletedAnonymousSource};
 pub use source_acquisition::local::resolution_observations::CapturedLocalSource;
 pub mod build_execution;
@@ -24,7 +27,7 @@ mod diagnostic_locations;
 pub use diagnostic_locations::attribute_diagnostics;
 mod package;
 
-pub use build_declarations::BuildDeclarationKind;
+pub use crate::declarations::BuildDeclarationKind;
 pub use build_providers::acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 pub use package::{
     IndependentComponentDescription, PackageBuildEntries, PackageBuildHandoff,

@@ -330,7 +330,7 @@ pub(super) fn request(
     })?;
     if let PackagePolicyRestrictedBuildOperation::ProgramLaunch(program) = &request.operation {
         encoder.field("program_owner", |encoder| {
-            use build_consent::ProgramDeclarationOwner;
+            use build_filesystem::consent::ProgramDeclarationOwner;
             match program.owner {
                 ProgramDeclarationOwner::RequestingSource => encoder.tag("requesting_source", 0),
                 ProgramDeclarationOwner::Package(digest) => {

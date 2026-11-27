@@ -78,8 +78,9 @@ impl BuildSnapshotRequest {
         mut self,
         directory: Vec<u8>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        if !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(&directory, true)
-        {
+        if !build_filesystem::authority::canonical_filesystem_metadata_path_is_canonical(
+            &directory, true,
+        ) {
             return Err(vec![Diagnostic::error(
                 "Product source directory must be relative to the activation's private staging",
             )]);

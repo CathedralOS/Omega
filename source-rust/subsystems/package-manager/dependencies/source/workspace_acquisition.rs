@@ -13,9 +13,9 @@ use super::{
 };
 use crate::declarations::dependencies::read::{DependencyPurpose, DependencyUse, PackageSelection};
 use crate::resolution::graph::PackageRootSourceRequest;
-use build_declarations::{BuildDeclaration, WorkspaceMemberPath};
 use build_execution::SourceBuildDeclaration;
 use package_compilation::CapturedLocalSource;
+use package_compilation::declarations::{BuildDeclaration, WorkspaceMemberPath};
 use source_acquisition::git::resolution::{GitWorkspaceCatalog, GitWorkspaceSession};
 use source_acquisition::{ImmutableSourceResolution, LocalSourceLimits};
 use std::path::Path;
@@ -26,7 +26,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CatalogPreparation {
     pub ordinal: usize,
-    pub successor: build_declarations::BuildEntryPath,
+    pub successor: package_compilation::declarations::BuildEntryPath,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -397,7 +397,7 @@ impl ExecutedWorkspace {
         request: GitPackageSourceRequest,
         selected: &crate::declarations::PackageName,
     ) -> Result<AcquiredBuildSource, String> {
-        let selected = build_declarations::ProjectName::parse(selected.as_str())
+        let selected = package_compilation::declarations::ProjectName::parse(selected.as_str())
             .map_err(|error| error.to_string())?;
         let evidence = super::GitWorkspaceSelectionEvidence::from_executed(
             &selected,

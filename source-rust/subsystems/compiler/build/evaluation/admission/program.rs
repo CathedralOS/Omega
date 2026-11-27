@@ -5,13 +5,13 @@ structural protocol rows and independently admitted host grants each retain
 separate authority; an old checked result cannot replace any of them.
 */
 
-use build_declarations::DependencyPurpose;
 use build_model::accounting::BuildEvaluationSponsor;
 use declaration_scope::DeclarationSelectionAuthority;
 use diagnostics::Diagnostic;
 use package_compilation::BuildMachineFilesystemScope;
 use package_compilation::build_execution::RestrictedBuildRequest;
 use package_compilation::build_execution::{SelectedBuildMachine, admit_build_machine};
+use package_compilation::declarations::DependencyPurpose;
 use psi_authorization::selection_questions::SelectionAuthorities;
 use symbols::SymbolHandle;
 

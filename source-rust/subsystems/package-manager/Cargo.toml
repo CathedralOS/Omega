@@ -9,6 +9,7 @@ version.workspace = true
 path = "package_manager.rs"
 
 [dependencies]
+build-filesystem = { path = "../compiler/build/filesystem" }
 build-providers = { path = "../compiler/build/providers" }
 build-model = { path = "../compiler/build/model" }
 project-build = { path = "../compiler/build" }
@@ -24,9 +25,7 @@ wire = { path = "../../foundation/wire" }
 terminal-codec = { path = "../compiler/psi/artifact/codec" }
 terminal-work = { path = "../compiler/psi/semantics/work" }
 artifacts = { path = "../compiler/foundation/measurements" }
-build-declarations = { path = "../compiler/build/inputs/declarations" }
 build-execution = { path = "../compiler/build/evaluation" }
-build-output = { path = "../compiler/build/inputs/trees" }
 compiler-identity = { path = "../compiler/foundation/compiler-identity" }
 review-evidence = { path = "review/evidence" }
 source-acquisition = { path = "source-acquisition" }
@@ -36,7 +35,6 @@ target = { path = "../compiler/psi-to-native/targets/target" }
 provider-admission = { path = "../compiler/psi-to-native/verification/provider-admission" }
 arena = { path = "../../foundation/arena" }
 semantic-vocabulary = { path = "../compiler/foundation/semantic-records" }
-filesystem-authority = { path = "../compiler/build/evaluation/authority/filesystem" }
 diagnostics = { path = "../../foundation/diagnostics" }
 source-syntax = { path = "../compiler/source-to-psi/source-syntax" }
 syntax-trees = { path = "../compiler/source-to-psi/representations/syntax-trees" }

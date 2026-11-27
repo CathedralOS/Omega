@@ -24,8 +24,8 @@ pub(crate) use policy::reject_authored_toolchain_vocabulary;
 
 use crate::declarations::{AliasName, PackageName};
 use aliases::validate_alias_uniqueness;
-use build_declarations::BuildRequest;
-pub use build_declarations::DependencyPurpose;
+use package_compilation::declarations::BuildRequest;
+pub use package_compilation::declarations::DependencyPurpose;
 pub(crate) use projection::{
     EditableSource, extract_requests_from_source, project_source_for_edit,
 };
@@ -110,7 +110,7 @@ impl DependencyProjections {
     pub(crate) fn from_executed_requests<'request>(
         requests: impl IntoIterator<Item = &'request BuildRequest>,
     ) -> Result<Self, String> {
-        use build_declarations::{BuildDependencySource, BuildRequest};
+        use package_compilation::declarations::{BuildDependencySource, BuildRequest};
         let mut projected = Self::new(Vec::new().into(), Vec::new().into());
         for request in requests {
             let BuildRequest::Dependency {
@@ -216,7 +216,7 @@ impl DependencySourceRequest {
         purpose: DependencyPurpose,
         max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
     ) -> Result<BuildRequest, String> {
-        use build_declarations::{BuildDependencySource, BuildRequest, ProjectName};
+        use package_compilation::declarations::{BuildDependencySource, BuildRequest, ProjectName};
         let alias = self
             .explicit_alias()
             .map(|name| ProjectName::parse(name.as_str()))

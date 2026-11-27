@@ -26,7 +26,7 @@ pub(super) fn extract(
 ) -> Result<
     (
         OptimizationSelections,
-        optimization_requests::OptimizationReportRequest,
+        build_model::optimization_requests::OptimizationReportRequest,
     ),
     String,
 > {
@@ -47,8 +47,8 @@ pub(super) fn extract(
         ));
     };
     let report = match *report_count {
-        0 => optimization_requests::OptimizationReportRequest::Suppressed,
-        1 => optimization_requests::OptimizationReportRequest::EmitHumanText,
+        0 => build_model::optimization_requests::OptimizationReportRequest::Suppressed,
+        1 => build_model::optimization_requests::OptimizationReportRequest::EmitHumanText,
         count if count > 1 => {
             return Err("optimization human report is requested more than once".to_owned());
         }

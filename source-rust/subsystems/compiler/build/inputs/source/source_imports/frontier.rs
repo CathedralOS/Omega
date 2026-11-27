@@ -479,7 +479,10 @@ impl SourceStorage {
 
     pub(crate) fn retain_anonymous_owner(
         &mut self,
-        generated: &[(source_text::SourceId, build_output::PackageGeneratedSource)],
+        generated: &[(
+            source_text::SourceId,
+            build_filesystem::trees::PackageGeneratedSource,
+        )],
     ) -> Result<Option<crate::AnonymousSourceCapture>, Vec<Diagnostic>> {
         if self.default_package_identity.is_some() {
             return Ok(None);

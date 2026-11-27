@@ -1,7 +1,7 @@
 //! Only the selected free Build entry and its borrowed receiver identify an edit.
 use super::{BuildEntrySyntaxProjection, project_build_entry_syntax};
 use crate::declarations::dependencies::read::DependencyProjectionError;
-use build_declarations::{ProjectName, WorkspaceMemberPath};
+use package_compilation::declarations::{ProjectName, WorkspaceMemberPath};
 
 fn project(source: &str) -> Result<BuildEntrySyntaxProjection, DependencyProjectionError> {
     let parsed = source_syntax::parse_text(source).expect("valid editor test fixture");

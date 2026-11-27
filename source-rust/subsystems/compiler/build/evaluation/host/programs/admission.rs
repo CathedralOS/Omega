@@ -235,7 +235,9 @@ impl ProgramBinding {
     ) -> Result<Self, String> {
         let relative = file.logical_filename()?;
         for path in binding.read.iter().chain(&binding.write) {
-            if !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(path, false) {
+            if !build_filesystem::authority::canonical_filesystem_metadata_path_is_canonical(
+                path, false,
+            ) {
                 return Err(format!(
                     "program `{declaration}` has an invalid logical resource path"
                 ));

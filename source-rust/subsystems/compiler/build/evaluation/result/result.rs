@@ -11,7 +11,7 @@ pub use failure::CompileFailure;
 /// A preparation can select a library which its successor never forwards.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DependencyValidationSubject {
-    pub purpose: build_declarations::DependencyPurpose,
+    pub purpose: package_compilation::declarations::DependencyPurpose,
     pub inputs: package_compilation::PackageCompilationInputs,
     pub configuration: std::sync::Arc<ComputedBuildConfig>,
 }
@@ -20,11 +20,11 @@ pub struct DependencyValidationSubject {
 pub struct EvaluatedBuild {
     /// Completed, independently admitted preparations in execution order.
     pub preparations: Vec<(
-        build_declarations::BuildEntryPath,
+        package_compilation::declarations::BuildEntryPath,
         std::sync::Arc<ComputedBuildConfig>,
     )>,
     pub configuration: std::sync::Arc<ComputedBuildConfig>,
-    pub restricted_build_requests: Vec<build_consent::RestrictedBuildRequest>,
+    pub restricted_build_requests: Vec<build_filesystem::consent::RestrictedBuildRequest>,
     pub base_source_consumption_commitment:
         Option<source_provenance::PackageSourceConsumptionCommitment>,
     pub constants: BuildConstants,

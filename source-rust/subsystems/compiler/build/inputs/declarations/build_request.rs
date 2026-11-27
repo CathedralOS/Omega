@@ -3,7 +3,7 @@
 // granting acquisition, execution, or publication authority, and keep Product
 // and Build dependency alias scopes separate.
 
-use crate::{DependencyPurpose, ProjectName};
+use crate::declarations::{DependencyPurpose, ProjectName};
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub enum BuildRequest {

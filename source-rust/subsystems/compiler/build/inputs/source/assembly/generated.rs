@@ -15,7 +15,13 @@ pub(super) fn admit_generated_files(
     routing: SourceRouting<'_>,
     timings: &mut CompileTimings,
     catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
-) -> Result<Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
+) -> Result<
+    Vec<(
+        source_text::SourceId,
+        build_filesystem::trees::PackageGeneratedSource,
+    )>,
+    Vec<Diagnostic>,
+> {
     let entries = frozen.entries;
     let mut retained = Vec::with_capacity(entries.len());
     let mut files = Vec::with_capacity(entries.len());

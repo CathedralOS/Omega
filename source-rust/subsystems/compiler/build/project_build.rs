@@ -22,7 +22,6 @@ pub use source::{
 };
 pub use source_compiler::SourcePreparation;
 
-use build_declarations::BuildRequest;
 use build_execution::host::bindings::BuildProductQuery;
 use build_execution::host::requests::BuildDependencyPreparation;
 use build_execution::{
@@ -32,6 +31,7 @@ use build_execution::{
 };
 use diagnostics::{BuildDiagnosticContext, Diagnostic};
 use package_compilation::PackageCompilationInputs;
+use package_compilation::declarations::BuildRequest;
 use package_compilation::source_imports::ProductQueryDependency;
 
 /// The coordinator resolves each request against the services granted to this stage.
@@ -179,7 +179,10 @@ struct BuildPreparations {
     package_capture: Option<package_compilation::BuildSnapshotCapture>,
     first_stage_in_package: usize,
     demanded_programs: Vec<package_compilation::DelegatedProgram>,
-    stages: Vec<(build_declarations::BuildEntryPath, EvaluatedBuild)>,
+    stages: Vec<(
+        package_compilation::declarations::BuildEntryPath,
+        EvaluatedBuild,
+    )>,
     files: Vec<std::path::PathBuf>,
     entries: Vec<(
         std::path::PathBuf,
@@ -367,7 +370,7 @@ impl ReturnedPlanningStage {
     ) -> Result<(source::PlanningSource, EvaluatedBuild), CompileFailure> {
         let mut verify = || -> Result<(), String> {
             match (self.returned.declaration(), inputs) {
-                (Some(build_declarations::BuildDeclaration::Workspace(_)), _) => {
+                (Some(package_compilation::declarations::BuildDeclaration::Workspace(_)), _) => {
                     Err("a workspace Build returns a member roster and has no Product".into())
                 }
                 (Some(_), None) => Err(

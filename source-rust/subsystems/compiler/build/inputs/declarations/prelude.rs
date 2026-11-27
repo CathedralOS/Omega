@@ -42,7 +42,7 @@ const MODULES: &[(&str, &str)] = &[
         include_str!("prelude/modules/program_launch.omg"),
     ),
     (
-        crate::BUILD_MODULE_NAME,
+        crate::declarations::BUILD_MODULE_NAME,
         include_str!("prelude/modules/build_operations.omg"),
     ),
     (

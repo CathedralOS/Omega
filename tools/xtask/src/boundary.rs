@@ -47,7 +47,6 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "source-rust/foundation",
     "source-rust/subsystems/compiler/build/model",
     "source-rust/subsystems/compiler/build/build-time",
-    "source-rust/subsystems/compiler/build/evaluation/authority",
     "source-rust/subsystems/compiler/build/providers",
     INTERPRETER,
 ];

@@ -40,7 +40,7 @@ pub use source_result::BuildSourceResult;
 
 use build_model::accounting::EvaluationInvocationAccount;
 use build_model::work::EvaluationWorkMeter;
-use normalized_build_settings::EvaluatedBuildSettings;
+use package_compilation::normalized_settings::EvaluatedBuildSettings;
 use source_compiler::publication::ProducedTerminalProgram;
 use source_compiler::representations::declaration_selection::ExecutedBuildSelection;
 use source_compiler::representations::declaration_selection::ExecutedEnumExclusion;
@@ -114,7 +114,7 @@ fn default_proof_policy_override(
             value: terminal_interpreter::TerminalScalarValue::Integer {
                 scalar_type,
                 value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(
-                    normalized_build_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS,
+                    package_compilation::normalized_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS,
                 )),
             },
         },
@@ -156,7 +156,7 @@ pub struct ReturnedBuild {
     pub(crate) validation_subjects: Vec<crate::DependencyValidationSubject>,
     pub(crate) demanded_sources: Vec<BuildDependencySelection>,
     pub(crate) settings: EvaluatedBuildSettings,
-    pub(crate) optimization_report: optimization_requests::OptimizationReportRequest,
+    pub(crate) optimization_report: build_model::optimization_requests::OptimizationReportRequest,
     pub(crate) enabled_unsafe_atoms:
         std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
     pub(crate) root_bindings: Vec<ProductEntryBinding>,
@@ -190,7 +190,7 @@ impl ReturnedBuild {
             }
             // A preparation's immediate consumer is the interpreter for the successor.
             if prepares_build {
-                subject.purpose = build_declarations::DependencyPurpose::Build;
+                subject.purpose = package_compilation::declarations::DependencyPurpose::Build;
             }
             if !self.validation_subjects.contains(&subject) {
                 self.validation_subjects.push(subject);
@@ -222,13 +222,13 @@ impl ReturnedBuild {
         BuildSourceResult::executed(self)
     }
 
-    pub fn declaration(&self) -> Option<&build_declarations::BuildDeclaration> {
+    pub fn declaration(&self) -> Option<&package_compilation::declarations::BuildDeclaration> {
         self.destination
             .as_ref()
             .and_then(project::Destination::project)
     }
 
-    pub fn successor_entry(&self) -> Option<&build_declarations::BuildEntryPath> {
+    pub fn successor_entry(&self) -> Option<&package_compilation::declarations::BuildEntryPath> {
         match self.destination.as_ref()? {
             project::Destination::Successor(path) => Some(path),
             project::Destination::Project(_) => None,
@@ -245,7 +245,7 @@ impl ReturnedBuild {
         &self,
     ) -> Result<
         (
-            &build_declarations::BuildEntryPath,
+            &package_compilation::declarations::BuildEntryPath,
             &package_compilation::CapturedLocalSource,
         ),
         String,
@@ -599,8 +599,8 @@ pub struct TerminalBuildActivation {
     work: EvaluationWorkMeter,
     state: ActivationState,
     described_product: Option<(
-        build_declarations::BuildDeclarationKind,
-        build_declarations::ProjectName,
+        package_compilation::declarations::BuildDeclarationKind,
+        package_compilation::declarations::ProjectName,
     )>,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
@@ -642,15 +642,16 @@ impl TerminalBuildActivation {
         }
         self.state = ActivationState::Refused;
         for selected in dependencies {
-            if selected.purpose != build_declarations::DependencyPurpose::Product
+            if selected.purpose != package_compilation::declarations::DependencyPurpose::Product
                 || self
                     .requests
                     .iter()
                     .filter(|issued| {
                         matches!(
                             issued.request(),
-                            build_declarations::BuildRequest::Dependency {
-                                purpose: build_declarations::DependencyPurpose::Product,
+                            package_compilation::declarations::BuildRequest::Dependency {
+                                purpose:
+                                    package_compilation::declarations::DependencyPurpose::Product,
                                 ..
                             }
                         )
@@ -684,7 +685,9 @@ impl TerminalBuildActivation {
     }
 
     /// A paused declaration query reads the product currently stored in this activation's plan.
-    pub fn project_declaration(&self) -> Result<build_declarations::BuildDeclaration, String> {
+    pub fn project_declaration(
+        &self,
+    ) -> Result<package_compilation::declarations::BuildDeclaration, String> {
         let current = project::destination(
             &self.instance,
             &self.host.machine,
@@ -777,10 +780,10 @@ impl TerminalBuildActivation {
         self.host.requests.dependency_prepared()?;
         self.preparations.prepared(
             match selected.purpose {
-                build_declarations::DependencyPurpose::Product => {
+                package_compilation::declarations::DependencyPurpose::Product => {
                     source_provenance::DependencyScope::Product
                 }
-                build_declarations::DependencyPurpose::Build => {
+                package_compilation::declarations::DependencyPurpose::Build => {
                     source_provenance::DependencyScope::Build
                 }
             },

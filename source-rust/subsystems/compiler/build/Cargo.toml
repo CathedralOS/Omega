@@ -17,11 +17,9 @@ declaration-scope = { path = "../foundation/declaration-scope" }
 retained-product-selections = { path = "../source-to-psi/representations/retained-product-selections" }
 retained-image-runtime = { path = "../../interpreter/host/retained-image" }
 review-evidence = { path = "../../package-manager/review/evidence" }
-optimization-requests = { path = "settings/optimizations" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 installation-conditions = { path = "../psi-to-native/verification/installation-admission/conditions" }
 source-declarations = { path = "../source-to-psi/representations/symbol-resolved-trees/declarations" }
-build-declarations = { path = "inputs/declarations" }
 source-compiler = { path = "../source-to-psi" }
 artifacts = { path = "../foundation/measurements" }
 build-execution = { path = "evaluation" }
@@ -54,9 +52,9 @@ rayon = "1.11"
 worker-budget = { path = "../foundation/worker-budget" }
 
 [dev-dependencies]
+build-filesystem = { path = "filesystem" }
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "../psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }
 provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "../psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }
-filesystem-authority = { path = "evaluation/authority/filesystem" }
 terminal-interpreter = { path = "../../interpreter" }
 package-manager = { path = "../../package-manager" }
 terminal-codec = { path = "../psi/artifact/codec" }

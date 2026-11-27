@@ -4,7 +4,7 @@
 
 use super::display_identity;
 use crate::{AcceptedSemanticBindingRole, BuildDeclarationKind};
-use build_declarations::DependencyPurpose;
+use crate::declarations::DependencyPurpose;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::fmt;
 use std::path::PathBuf;

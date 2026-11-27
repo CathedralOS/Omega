@@ -127,7 +127,10 @@ impl BuildRecheck {
             .filter(|inputs| build_owner.is_none_or(|owner| owner == inputs.root()));
         let subject = build_owner.or_else(|| inputs.map(|inputs| inputs.root()));
         let authority = inputs
-            .map(|inputs| inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
+            .map(|inputs| {
+                inputs
+                    .declaration_scope(package_compilation::declarations::DependencyPurpose::Build)
+            })
             .or_else(|| {
                 package_compilation::source_imports::SuppliedBuildLibrary::declaration_scope(
                     &self.libraries,

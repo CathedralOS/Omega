@@ -107,7 +107,7 @@ impl super::PackageCompilationInputs {
         Vec<diagnostics::Diagnostic>,
     > {
         self.dependency_build_handoff_instances()
-            .filter(|(scope, _)| *scope == build_declarations::DependencyPurpose::Product)
+            .filter(|(scope, _)| *scope == crate::declarations::DependencyPurpose::Product)
             .map(|(_, handoff)| {
                 Ok(source_compiler::compile_product::PackageNativeBindings {
                     declarations: self.admit_package_native_declarations(handoff)?,

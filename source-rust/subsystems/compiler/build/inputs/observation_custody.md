@@ -82,7 +82,7 @@ observation.
 | Successful result returned | 1,048,576 cells / 64 MiB Text, counted separately. |
 | One invocation | 100,000 pure or 10,000,000 granted evaluation units, for the single execution. |
 
-The [filesystem sponsor](../evaluation/authority/filesystem/staging.rs)
+The [filesystem sponsor](../filesystem/authority/staging.rs)
 counts names per entry, file content once per object, symlink target bytes,
 and unlinked objects until their last handle closes. Reserve before a host
 operation, commit successes, release failed reservations. An operation cannot

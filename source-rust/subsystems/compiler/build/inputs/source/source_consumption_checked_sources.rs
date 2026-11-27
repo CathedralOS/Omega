@@ -22,8 +22,10 @@ use std::sync::Arc;
 pub struct BuildSourceCustody {
     pub source_file_count: usize,
     pub build_execution_profile: Option<target::TargetProfile>,
-    pub generated_source_custody:
-        Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
+    pub generated_source_custody: Vec<(
+        source_text::SourceId,
+        build_filesystem::trees::PackageGeneratedSource,
+    )>,
     pub base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
 }
 
@@ -31,7 +33,7 @@ pub struct BuildSourceCustody {
 pub struct CheckedSourceCustody {
     owner: ProductSourceIdentity,
     build: BuildSourceCustody,
-    package_purpose: Option<build_declarations::DependencyPurpose>,
+    package_purpose: Option<crate::declarations::DependencyPurpose>,
     package_subject: Option<PackageCompilationSubject>,
     exact_toolchain_sources: Vec<(source_text::SourceId, [u8; 32])>,
     // These are the consumer-scoped decisions supplied to this compilation,
@@ -46,7 +48,7 @@ impl BuildSourceCustody {
         program: &source_compiler::representations::source_state::TypedTrees,
         inputs: &PackageCompilationInputs,
         target: target::TargetProfile,
-        own_generated_sources: Vec<build_output::PackageGeneratedSource>,
+        own_generated_sources: Vec<build_filesystem::trees::PackageGeneratedSource>,
     ) -> Result<PackageBuildHandoff, Vec<Diagnostic>> {
         let subject = derive_package_compilation_subject(
             program.symbols.source_files(),
@@ -167,7 +169,7 @@ impl CheckedSourceCustody {
     pub fn package_build_handoff(
         &self,
         selected_target: Option<target::TargetProfile>,
-        own_generated_sources: Vec<build_output::PackageGeneratedSource>,
+        own_generated_sources: Vec<build_filesystem::trees::PackageGeneratedSource>,
     ) -> Result<PackageBuildHandoff, &'static str> {
         let subject = self
             .package_subject

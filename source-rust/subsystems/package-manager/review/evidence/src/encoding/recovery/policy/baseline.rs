@@ -269,11 +269,11 @@ pub(in crate::encoding::recovery) fn request(
     let operation = super::tag!(reader => {
         0 => PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution,
         1 => PackagePolicyRestrictedBuildOperation::UnscopedFilesystemExecution,
-        2 => PackagePolicyRestrictedBuildOperation::ProgramLaunch(Box::new(build_consent::RestrictedProgramLaunch {
+        2 => PackagePolicyRestrictedBuildOperation::ProgramLaunch(Box::new(build_filesystem::consent::RestrictedProgramLaunch {
             owner: super::tag!(reader => {
-                0 => build_consent::ProgramDeclarationOwner::RequestingSource,
-                1 => build_consent::ProgramDeclarationOwner::Package(reader.digest()?),
-                2 => build_consent::ProgramDeclarationOwner::Toolchain(reader.digest()?),
+                0 => build_filesystem::consent::ProgramDeclarationOwner::RequestingSource,
+                1 => build_filesystem::consent::ProgramDeclarationOwner::Package(reader.digest()?),
+                2 => build_filesystem::consent::ProgramDeclarationOwner::Toolchain(reader.digest()?),
             }),
             declaration: reader.string()?, file: reader.string()?, image_sha256: reader.digest()?,
             readable: reader.sequence(REQUIRED_OUTPUT_MINIMUM_BYTES, Reader::bytes)?,

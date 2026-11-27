@@ -23,13 +23,13 @@ mod file_read;
 #[cfg(unix)]
 use crate::source::canonical_fs::require_canonical_mode;
 use crate::source::canonical_fs::{canonical_file_executable, os_str_bytes};
-use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
-use file_read::{hash_canonical_source_file, read_canonical_source_file};
-use filesystem_authority::{
+use build_filesystem::authority::{
     CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION, CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRow,
     CanonicalFilesystemMetadataRowKind, FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
 };
+use build_filesystem::trees::{CapturedBuildSourceInput, CapturedSourceEntry};
+use file_read::{hash_canonical_source_file, read_canonical_source_file};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -102,7 +102,11 @@ pub(crate) fn retained_scoped_source_input(
                 .map(|(child, _)| child.clone())
                 .collect())
         },
-        |path| filesystem_authority::canonical_filesystem_metadata_path_is_canonical(path, false),
+        |path| {
+            build_filesystem::authority::canonical_filesystem_metadata_path_is_canonical(
+                path, false,
+            )
+        },
         |reason| reason.to_string(),
     )?;
     require_source_members(&selected, required_members)?;
@@ -135,7 +139,7 @@ fn retained_entries_input(
         }
         let (relative_path, entry) = entry?;
         charge_capture_path_bytes(&mut aggregate_path_bytes, &relative_path)?;
-        if !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(
+        if !build_filesystem::authority::canonical_filesystem_metadata_path_is_canonical(
             &relative_path,
             false,
         ) {
@@ -367,7 +371,11 @@ fn capture_scoped_rows<T>(
             }
             Ok(child_paths)
         },
-        |path| filesystem_authority::canonical_filesystem_metadata_path_is_canonical(path, false),
+        |path| {
+            build_filesystem::authority::canonical_filesystem_metadata_path_is_canonical(
+                path, false,
+            )
+        },
         |reason| reason.to_string(),
     )?;
     let mut rows = BTreeMap::new();
@@ -440,7 +448,7 @@ fn enqueue_capture_children(
         }
         child_relative.extend_from_slice(&name);
         charge_capture_path_bytes(aggregate_path_bytes, &child_relative)?;
-        if !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(
+        if !build_filesystem::authority::canonical_filesystem_metadata_path_is_canonical(
             &child_relative,
             false,
         ) {

@@ -32,12 +32,12 @@ use super::observations::{
     BuildRequiredOutputSettlement,
 };
 use crate::BuildCanonicalSourceMetadataIdentity;
-use build_output::{BuildStagedOutputTree, CapturedBuildSourceInput, capture, empty};
-use diagnostics::Diagnostic;
-use filesystem_authority::{
+use build_filesystem::authority::{
     FilesystemGrantRoot, FilesystemGrantRootIdentity, FilesystemMetadataLayout, FilesystemSponsor,
     FilesystemSponsorEntry, FsGrants,
 };
+use build_filesystem::trees::{BuildStagedOutputTree, CapturedBuildSourceInput, capture, empty};
+use diagnostics::Diagnostic;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -82,7 +82,8 @@ pub const BUILD_OUTPUT_ROOT_IDENTITY: FilesystemGrantRootIdentity =
 pub struct BuildMachineFilesystemScope {
     source_root: PathBuf, // Physical source root path.
     live_source: Option<bound_directory::BoundDirectory>, // Capability-bound live source directory when uncaptured.
-    canonical_source_metadata: Option<filesystem_authority::CanonicalFilesystemMetadataIndex>, // Validated canonical Source metadata index.
+    canonical_source_metadata:
+        Option<build_filesystem::authority::CanonicalFilesystemMetadataIndex>, // Validated canonical Source metadata index.
     canonical_source_metadata_required: bool, // Whether package/anonymous custody requires canonical metadata.
     build_dir: PathBuf,                       // Physical Output staging root path.
     admitted_build_dir_key: PathBuf,          // Overlap key of `build_dir` recorded at admission.
@@ -196,7 +197,7 @@ impl BuildMachineFilesystemScope {
         source_root: PathBuf,
         build_dir: PathBuf,
         sponsor: Option<FilesystemSponsor>,
-        metadata: Option<filesystem_authority::CanonicalFilesystemMetadataIndex>,
+        metadata: Option<build_filesystem::authority::CanonicalFilesystemMetadataIndex>,
     ) -> Self {
         let admitted_build_dir_key = overlap_key(&build_dir);
         Self {
@@ -287,8 +288,9 @@ impl BuildMachineFilesystemScope {
                     "required build outputs exceed the {REQUIRED_BUILD_OUTPUT_LIMIT}-entry ceiling"
                 ))]);
             }
-            if !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(&name, false)
-            {
+            if !build_filesystem::authority::canonical_filesystem_metadata_path_is_canonical(
+                &name, false,
+            ) {
                 return Err(vec![Diagnostic::error(format!(
                     "required build output name is not a canonical relative path: {name:?}"
                 ))]);
@@ -571,7 +573,7 @@ impl BuildMachineFilesystemScope {
 
     fn sponsor_diagnostic(
         &self,
-        error: filesystem_authority::FilesystemSponsorError,
+        error: build_filesystem::authority::FilesystemSponsorError,
     ) -> Vec<Diagnostic> {
         vec![Diagnostic::error(format!(
             "build machine staging sponsor rejected `{}`: {error}",

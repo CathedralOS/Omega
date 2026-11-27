@@ -2,7 +2,7 @@
 use crate::PackageBuildSession;
 use crate::operations::begin_local_project_preparation;
 use crate::resolution::graph::{CanonicalRootSourceRequest, CanonicalSourceClosureSubject};
-use build_declarations::DependencyPurpose;
+use package_compilation::declarations::DependencyPurpose;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fs;
 use std::path::Path;

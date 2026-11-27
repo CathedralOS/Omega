@@ -12,7 +12,7 @@ use super::{
     PackageSourceBinding, display_identity,
 };
 use crate::BuildDeclarationKind;
-use build_declarations::DependencyPurpose;
+use crate::declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::{BTreeMap, BTreeSet};

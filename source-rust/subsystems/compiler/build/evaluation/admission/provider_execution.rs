@@ -25,7 +25,7 @@ impl BuildProviderScope {
         libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
         owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     ) -> Self {
-        use build_declarations::DependencyPurpose;
+        use package_compilation::declarations::DependencyPurpose;
         let mut reach_policy = packages
             .map(|inputs| inputs.execution_reach_policy(DependencyPurpose::Build))
             .unwrap_or_default();
@@ -67,7 +67,7 @@ impl BuildProviderScope {
 
     pub(crate) fn selection_scope(
         &self,
-        purpose: build_declarations::DependencyPurpose,
+        purpose: package_compilation::declarations::DependencyPurpose,
     ) -> Option<declaration_scope::PackageDeclarationScope> {
         self.packages
             .as_ref()
@@ -112,7 +112,8 @@ impl BuildProviderScope {
             &prepared.unsafe_services()?,
             &selections.dependency_calls,
         )?;
-        let authority = self.selection_scope(build_declarations::DependencyPurpose::Build);
+        let authority =
+            self.selection_scope(package_compilation::declarations::DependencyPurpose::Build);
         let pending = build_model::admission::admit_declaration_selections(
             artifact,
             None,

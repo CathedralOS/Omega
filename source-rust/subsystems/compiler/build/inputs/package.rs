@@ -54,9 +54,9 @@ pub(crate) use construction::canonical_source_root;
 pub use dependency_graph::PackageDependencyClosure;
 pub use errors::PackageCompilationInputError;
 
+use crate::declarations::DependencyPurpose;
 use crate::{AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind};
-use build_declarations::DependencyPurpose;
-use filesystem_authority::CanonicalFilesystemMetadataIndex;
+use build_filesystem::authority::CanonicalFilesystemMetadataIndex;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -101,7 +101,7 @@ pub struct PackageCompilationSourceInputs {
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub struct PackageDependencyAcquisition {
     pub request_ordinal: usize,
-    pub request: build_declarations::BuildRequest,
+    pub request: crate::declarations::BuildRequest,
     pub package: PackageKeyIdentity,
 }
 
@@ -125,7 +125,7 @@ struct PackageCompilationSourceRecord {
     canonical_name: String,
     canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
     captured_source: Option<Arc<source_acquisition::capture::CapturedSourceTree>>,
-    captured_build_source: Option<build_output::CapturedBuildSourceInput>,
+    captured_build_source: Option<build_filesystem::trees::CapturedBuildSourceInput>,
     dependencies: BTreeMap<String, PackageUse>,
     build_dependencies: BTreeMap<String, PackageUse>, // Only the compilation root may hold build-scope edges.
 }
@@ -288,7 +288,7 @@ impl PackageCompilationInputs {
         };
         let mut counts = [0usize; 2];
         for acquisition in &acquisitions {
-            let build_declarations::BuildRequest::Dependency {
+            let crate::declarations::BuildRequest::Dependency {
                 purpose,
                 alias,
                 max_reach,
@@ -384,7 +384,7 @@ impl PackageCompilationInputs {
     pub(crate) fn captured_source_input(
         &self,
         identity: PackageKeyIdentity,
-    ) -> Option<&build_output::CapturedBuildSourceInput> {
+    ) -> Option<&build_filesystem::trees::CapturedBuildSourceInput> {
         self.source
             .packages
             .get(&identity)?
@@ -613,7 +613,7 @@ fn display_identity(identity: PackageKeyIdentity) -> String {
 #[cfg(test)]
 mod acquisition_tests {
     use super::*;
-    use build_declarations::{BuildDependencySource, BuildRequest, ProjectName};
+    use crate::declarations::{BuildDependencySource, BuildRequest, ProjectName};
 
     #[test]
     fn acquisition_order_and_aliases_are_scoped_by_purpose() {

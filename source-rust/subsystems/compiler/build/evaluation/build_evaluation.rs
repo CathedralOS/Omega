@@ -58,8 +58,10 @@ pub struct BuildEvaluationRequest<'request> {
     pub sources: &'request source_compiler::representations::source_inputs::SourceMap,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
-    pub generated_source_custody:
-        &'request [(source_text::SourceId, build_output::PackageGeneratedSource)],
+    pub generated_source_custody: &'request [(
+        source_text::SourceId,
+        build_filesystem::trees::PackageGeneratedSource,
+    )],
     pub source_acquisition:
         Option<&'request package_compilation::source_assembly::BuildStageAcquisition>,
     pub execution: BuildExecutionInputs,

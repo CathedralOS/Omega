@@ -16,10 +16,10 @@ filesystem observations and build logs, and assembles `ComputedBuildConfig`.
 */
 
 use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig, ReturnedBuild};
-use build_declarations::BuildRequest;
-use diagnostics::Diagnostic;
 use build_model::accounting::BuildEvaluationSponsor;
 use build_model::contracts::BuildEvaluationSponsorLimits;
+use diagnostics::Diagnostic;
+use package_compilation::declarations::BuildRequest;
 use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
@@ -181,12 +181,12 @@ impl PreparedBuildExecution {
         let declaration = completed.declaration().cloned();
         if matches!(
             declaration,
-            Some(build_declarations::BuildDeclaration::Package(_))
+            Some(package_compilation::declarations::BuildDeclaration::Package(_))
         ) && !completed.root_bindings.is_empty()
         {
             return Err(self.refuse("a package Product cannot bind an executable root"));
         }
-        let artifact_only = matches!(&declaration, Some(build_declarations::BuildDeclaration::Application(application)) if application.artifact_only);
+        let artifact_only = matches!(&declaration, Some(package_compilation::declarations::BuildDeclaration::Application(application)) if application.artifact_only);
         // Artifact-only mode builds no product, so an entry, provider or
         // native binding would have nothing to apply to. The spec
         // (scoped_execution.md, "Staged products and failure") requires a

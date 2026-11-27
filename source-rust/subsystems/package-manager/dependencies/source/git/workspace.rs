@@ -13,10 +13,10 @@
 */
 
 use crate::resolution::source::PackageSourceSelectionEvidenceError;
-use build_declarations::{
+use build_execution::SourceBuildDeclaration;
+use package_compilation::declarations::{
     BuildDeclaration, BuildDeclarationKind, ProjectName, WorkspaceMemberPath,
 };
-use build_execution::SourceBuildDeclaration;
 use sha2::{Digest, Sha256};
 use std::fmt;
 use std::path::Path;

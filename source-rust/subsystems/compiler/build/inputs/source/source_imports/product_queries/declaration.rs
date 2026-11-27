@@ -52,12 +52,12 @@ impl ProductQueryInputs {
         Ok(paths)
     }
 
-    pub fn with_successor_entry(mut self, entry: build_declarations::BuildEntryPath) -> Self {
+    pub fn with_successor_entry(mut self, entry: crate::declarations::BuildEntryPath) -> Self {
         self.successor = Some(entry);
         self
     }
 
-    pub(crate) fn successor_entry(&self) -> Option<&build_declarations::BuildEntryPath> {
+    pub(crate) fn successor_entry(&self) -> Option<&crate::declarations::BuildEntryPath> {
         self.successor.as_ref()
     }
 }

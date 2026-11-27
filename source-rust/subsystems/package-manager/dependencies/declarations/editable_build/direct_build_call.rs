@@ -3,7 +3,7 @@
 // explicit first operand names the root entry's Build parameter, with no
 // generic, evidence, or operational modifiers.
 
-use build_declarations::BUILD_MODULE_NAME;
+use package_compilation::declarations::BUILD_MODULE_NAME;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::TableCallExpression;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};

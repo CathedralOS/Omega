@@ -28,7 +28,7 @@ pub(crate) struct BuildPhaseGrants {
 /// Use the same immutable occurrence for pre-action acceptance and later review.
 pub(crate) fn dependency_subject(
     acquired: &crate::resolution::source::AcquiredBuildSource,
-    purpose: build_declarations::DependencyPurpose,
+    purpose: package_compilation::declarations::DependencyPurpose,
 ) -> Result<package_compilation::RestrictedBuildSubject, PackageCommandError> {
     let origin = acquired.acquisition_origin();
     let mut digest = Sha256::new();

@@ -3,7 +3,7 @@ use super::{BUILD_MACHINE_NAME, machine_leaf_name};
 use crate::declarations::dependencies::read::{
     DependencyProjectionError, reject_authored_toolchain_vocabulary,
 };
-use build_declarations::BUILD_TYPE_NAME;
+use package_compilation::declarations::BUILD_TYPE_NAME;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{Item, StateHandle, StateParameterHandle};
 use syntax_trees::types::TypeReferenceNode;

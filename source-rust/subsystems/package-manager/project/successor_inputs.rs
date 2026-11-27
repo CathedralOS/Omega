@@ -4,8 +4,8 @@ use super::{PreparedRequest, SourceHost};
 use crate::PackageCommandError;
 use crate::declarations::dependencies::read::{DependencyProjections, DependencyUse};
 use crate::resolution::source::AcquiredBuildSource;
-use build_declarations::{BuildRequest, DependencyPurpose};
 use build_execution::ReturnedBuild;
+use package_compilation::declarations::{BuildRequest, DependencyPurpose};
 use package_compilation::source_imports::SuppliedBuildLibrary;
 use std::collections::{BTreeMap, BTreeSet};
 

@@ -261,10 +261,10 @@ fn build_snapshot(
         for entry in entries {
             let path = String::from_utf8_lossy(entry.relative_path());
             match entry.kind() {
-                build_output::BuildStagedOutputEntryKind::Directory => {
+                build_filesystem::trees::BuildStagedOutputEntryKind::Directory => {
                     writeln!(output, "  sealed-output {path:?} directory")?;
                 }
-                build_output::BuildStagedOutputEntryKind::File { bytes, executable } => {
+                build_filesystem::trees::BuildStagedOutputEntryKind::File { bytes, executable } => {
                     writeln!(
                         output,
                         "  sealed-output {path:?} file {} bytes{}",
@@ -272,7 +272,7 @@ fn build_snapshot(
                         if executable { " executable" } else { "" }
                     )?;
                 }
-                build_output::BuildStagedOutputEntryKind::Symlink { target } => {
+                build_filesystem::trees::BuildStagedOutputEntryKind::Symlink { target } => {
                     writeln!(
                         output,
                         "  sealed-output {path:?} symlink {:?}",

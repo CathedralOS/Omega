@@ -118,7 +118,10 @@ fn canonical_root_role(role: crate::BuildDeclarationKind) -> u8 {
 #[doc(hidden)]
 pub(crate) fn derive_consumed_source_units<'source>(
     sources: impl IntoIterator<Item = &'source SourceFile>,
-    generated_sources: &[(source_text::SourceId, build_output::PackageGeneratedSource)],
+    generated_sources: &[(
+        source_text::SourceId,
+        build_filesystem::trees::PackageGeneratedSource,
+    )],
 ) -> Result<Vec<ConsumedSourceUnit>, Vec<Diagnostic>> {
     let generated_by_id = GeneratedSourceOrder::new(generated_sources);
     if (1..generated_sources.len())
@@ -165,13 +168,19 @@ pub(crate) fn derive_consumed_source_units<'source>(
 }
 
 struct GeneratedSourceOrder<'source> {
-    sources: &'source [(source_text::SourceId, build_output::PackageGeneratedSource)],
+    sources: &'source [(
+        source_text::SourceId,
+        build_filesystem::trees::PackageGeneratedSource,
+    )],
     positions: Option<Vec<usize>>,
 }
 
 impl<'source> GeneratedSourceOrder<'source> {
     fn new(
-        sources: &'source [(source_text::SourceId, build_output::PackageGeneratedSource)],
+        sources: &'source [(
+            source_text::SourceId,
+            build_filesystem::trees::PackageGeneratedSource,
+        )],
     ) -> Self {
         let positions = sources
             .windows(2)
@@ -187,7 +196,10 @@ impl<'source> GeneratedSourceOrder<'source> {
     fn at(
         &self,
         position: usize,
-    ) -> &'source (source_text::SourceId, build_output::PackageGeneratedSource) {
+    ) -> &'source (
+        source_text::SourceId,
+        build_filesystem::trees::PackageGeneratedSource,
+    ) {
         &self.sources[self
             .positions
             .as_ref()
@@ -197,7 +209,10 @@ impl<'source> GeneratedSourceOrder<'source> {
     fn find(
         &self,
         source_id: source_text::SourceId,
-    ) -> Option<(usize, &'source build_output::PackageGeneratedSource)> {
+    ) -> Option<(
+        usize,
+        &'source build_filesystem::trees::PackageGeneratedSource,
+    )> {
         let position = match &self.positions {
             Some(positions) => {
                 positions.partition_point(|position| self.sources[*position].0.0 < source_id.0)
@@ -213,7 +228,7 @@ impl<'source> GeneratedSourceOrder<'source> {
 
 fn validate_generated_source_join(
     source: &SourceFile,
-    generated: &build_output::PackageGeneratedSource,
+    generated: &build_filesystem::trees::PackageGeneratedSource,
 ) -> Result<(), Vec<Diagnostic>> {
     if source.origin != SourceOrigin::User || source.source.as_bytes() != generated.bytes() {
         return Err(vec![Diagnostic::error(format!(
@@ -248,7 +263,10 @@ fn validate_generated_source_join(
 pub fn derive_package_compilation_subject<'source>(
     sources: impl IntoIterator<Item = &'source SourceFile>,
     inputs: &crate::PackageCompilationInputs,
-    generated_sources: &[(source_text::SourceId, build_output::PackageGeneratedSource)],
+    generated_sources: &[(
+        source_text::SourceId,
+        build_filesystem::trees::PackageGeneratedSource,
+    )],
 ) -> Result<PackageCompilationSubject, Vec<Diagnostic>> {
     let consumed_units = derive_consumed_source_units(sources, generated_sources)?;
     let source_consumption_commitment =

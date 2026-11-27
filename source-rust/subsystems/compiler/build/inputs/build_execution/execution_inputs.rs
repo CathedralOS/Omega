@@ -28,7 +28,7 @@ pub struct BuildExecutionInputs {
     pub interpreter_providers: crate::InterpretedProviderSelections,
     pub profile: Option<TargetProfile>, // Compilation requests default to the host, independently of Product target.
     pub directory: Option<PathBuf>, // Writable staging, separate from immutable source snapshots.
-    pub filesystem_sponsor: Option<filesystem_authority::FilesystemSponsor>,
+    pub filesystem_sponsor: Option<build_filesystem::authority::FilesystemSponsor>,
     pub evaluation_sponsor: Option<build_model::accounting::BuildEvaluationSponsor>,
     pub snapshot: Option<BuildSnapshotRequest>,
     pub restricted_grants: Option<Box<dyn RestrictedBuildGrants>>, // Absence reports restricted requests without executing them.
@@ -48,7 +48,7 @@ impl BuildExecutionInputs {
         if let Some(inputs) = inputs {
             self.interpreter_providers.extend_package_defaults(
                 inputs.admitted_package_provider_selections(
-                    build_declarations::DependencyPurpose::Build,
+                    crate::declarations::DependencyPurpose::Build,
                 )?,
             );
         }

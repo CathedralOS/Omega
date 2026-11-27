@@ -7,13 +7,13 @@
 
 use super::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope};
 use super::{BuildMachineExecutionMode, BuildMachineFilesystemAccess};
-pub use build_consent::{
+use build_filesystem::authority::FilesystemGrantRoot;
+pub use build_filesystem::consent::{
     ProgramDeclarationOwner, RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
     RestrictedBuildOperation, RestrictedBuildRequest, RestrictedBuildSite, RestrictedBuildSubject,
     RestrictedProgramLaunch,
 };
 use build_model::accounting::BuildEvaluationSponsor;
-use filesystem_authority::FilesystemGrantRoot;
 
 pub trait RestrictedBuildGrants: Send {
     fn subject(&self) -> Option<RestrictedBuildSubject> {

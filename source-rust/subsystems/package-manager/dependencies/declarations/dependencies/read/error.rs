@@ -59,7 +59,7 @@ impl fmt::Display for DependencyProjectionError {
             Self::InvalidBuildParameter => write!(
                 formatter,
                 "package build machine requires one parameter of type `@mutable {}`",
-                build_declarations::BUILD_TYPE_NAME
+                package_compilation::declarations::BUILD_TYPE_NAME
             ),
             Self::UnsupportedDependencyShape => formatter.write_str(
                 "automatic dependency editing requires unconditional root Build registrations of a literal Source or a fresh dependency description. A configured alias must immediately precede registration, and options or computed registrations need a source edit",

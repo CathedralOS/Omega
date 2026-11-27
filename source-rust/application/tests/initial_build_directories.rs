@@ -3,8 +3,8 @@
 mod project;
 mod support;
 
-use build_declarations::{BuildDeclaration, BuildDependencySource, ProjectName};
 use package_compilation::BuildSnapshotRequest;
+use package_compilation::declarations::{BuildDeclaration, BuildDependencySource, ProjectName};
 use package_manager::project::{BuildLibraryRequest, ProjectInput, RootBuildInputs, open_products};
 use platform_custody::directory_mappings::{DirectoryAccess, DirectoryMappings};
 use semantic_vocabulary::dependency_reach::DependencyReach;

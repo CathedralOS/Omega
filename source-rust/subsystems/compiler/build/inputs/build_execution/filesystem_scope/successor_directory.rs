@@ -1,6 +1,8 @@
 //! Convert the returned Build's issued directory into one complete immutable source acquisition.
 use crate::CapturedLocalSource;
-use build_output::{BuildStagedOutputTree, CapturedBuildSourceInput, CapturedSourceEntry};
+use build_filesystem::trees::{
+    BuildStagedOutputTree, CapturedBuildSourceInput, CapturedSourceEntry,
+};
 use source_acquisition::capture::CapturedSourceNode;
 use std::path::{Path, PathBuf};
 

@@ -4,11 +4,11 @@
 // `BUILD_OBSERVATION_IDENTITY_DOMAIN` is intentionally the two literal bytes
 // `\\` and `0` as part of the established serialized wire contract.
 
-use crate::{
-    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
-    BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
-    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
-    BuildFilesystemProvider, BuildFilesystemRoot, BuildObservationSummary,
+use crate::{BuildFilesystemRoot, BuildObservationSummary};
+use build_filesystem::authority::{
+    FilesystemGrantAccess, FilesystemGrantRefusalReason, FilesystemLogicalHandleInputResolution,
+    FilesystemLogicalHandleKind, FilesystemLogicalHandleOutputSource,
+    FilesystemObservationProvider, FilesystemOperationResult,
 };
 
 // @Volatile: Established serialized domain contract; the trailing `\\0` is
@@ -108,11 +108,11 @@ impl BuildObservationSummary {
             digest.u16(attempt.operation_tag());
             digest.byte(filesystem_provider_tag(attempt.provider()));
             match attempt.result() {
-                BuildFilesystemOperationResult::Scalar(value) => {
+                FilesystemOperationResult::Scalar(value) => {
                     digest.byte(0);
                     digest.i64(value);
                 }
-                BuildFilesystemOperationResult::LogicalHandle(identity) => {
+                FilesystemOperationResult::LogicalHandle(identity) => {
                     digest.byte(1);
                     digest.u64(identity.get());
                 }
@@ -136,12 +136,12 @@ impl BuildObservationSummary {
                 digest.byte(input.operand_ordinal());
                 digest.byte(logical_handle_kind_tag(input.kind()));
                 match input.resolution() {
-                    BuildFilesystemLogicalHandleInputResolution::Resolved(identity) => {
+                    FilesystemLogicalHandleInputResolution::Resolved(identity) => {
                         digest.byte(0);
                         digest.u64(identity.get());
                     }
-                    BuildFilesystemLogicalHandleInputResolution::Null => digest.byte(1),
-                    BuildFilesystemLogicalHandleInputResolution::Unknown => digest.byte(2),
+                    FilesystemLogicalHandleInputResolution::Null => digest.byte(1),
+                    FilesystemLogicalHandleInputResolution::Unknown => digest.byte(2),
                 }
             }
             match attempt.logical_handle_output() {
@@ -151,12 +151,12 @@ impl BuildObservationSummary {
                     digest.byte(logical_handle_kind_tag(output.kind()));
                     digest.u64(output.identity().get());
                     match output.source() {
-                        BuildFilesystemLogicalHandleOutputSource::Created => digest.byte(0),
-                        BuildFilesystemLogicalHandleOutputSource::Duplicated(identity) => {
+                        FilesystemLogicalHandleOutputSource::Created => digest.byte(0),
+                        FilesystemLogicalHandleOutputSource::Duplicated(identity) => {
                             digest.byte(1);
                             digest.u64(identity.get());
                         }
-                        BuildFilesystemLogicalHandleOutputSource::Borrowed(identity) => {
+                        FilesystemLogicalHandleOutputSource::Borrowed(identity) => {
                             digest.byte(2);
                             digest.u64(identity.get());
                         }
@@ -184,19 +184,19 @@ impl BuildObservationSummary {
     }
 }
 
-const fn filesystem_provider_tag(provider: BuildFilesystemProvider) -> u8 {
+const fn filesystem_provider_tag(provider: FilesystemObservationProvider) -> u8 {
     match provider {
-        BuildFilesystemProvider::Virtual => 0,
-        BuildFilesystemProvider::RealUnscoped => 1,
-        BuildFilesystemProvider::RealScoped => 2,
-        BuildFilesystemProvider::Captured => 3,
+        FilesystemObservationProvider::Virtual => 0,
+        FilesystemObservationProvider::RealUnscoped => 1,
+        FilesystemObservationProvider::RealScoped => 2,
+        FilesystemObservationProvider::Captured => 3,
     }
 }
 
-const fn grant_access_tag(access: BuildFilesystemGrantAccess) -> u8 {
+const fn grant_access_tag(access: FilesystemGrantAccess) -> u8 {
     match access {
-        BuildFilesystemGrantAccess::Read => 0,
-        BuildFilesystemGrantAccess::Write => 1,
+        FilesystemGrantAccess::Read => 0,
+        FilesystemGrantAccess::Write => 1,
     }
 }
 
@@ -208,20 +208,20 @@ const fn filesystem_root_tag(root: BuildFilesystemRoot) -> u8 {
     }
 }
 
-const fn logical_handle_kind_tag(kind: BuildFilesystemLogicalHandleKind) -> u8 {
+const fn logical_handle_kind_tag(kind: FilesystemLogicalHandleKind) -> u8 {
     match kind {
-        BuildFilesystemLogicalHandleKind::Descriptor => 0,
-        BuildFilesystemLogicalHandleKind::Native => 1,
-        BuildFilesystemLogicalHandleKind::Find => 2,
+        FilesystemLogicalHandleKind::Descriptor => 0,
+        FilesystemLogicalHandleKind::Native => 1,
+        FilesystemLogicalHandleKind::Find => 2,
     }
 }
 
-const fn grant_refusal_reason_tag(reason: BuildFilesystemGrantRefusalReason) -> u8 {
+const fn grant_refusal_reason_tag(reason: FilesystemGrantRefusalReason) -> u8 {
     match reason {
-        BuildFilesystemGrantRefusalReason::Unresolvable => 0,
-        BuildFilesystemGrantRefusalReason::OutsideGrantedRoots => 1,
-        BuildFilesystemGrantRefusalReason::UnrepresentableRootedPath => 2,
-        BuildFilesystemGrantRefusalReason::ObservationEvidenceLimitExceeded => 3,
+        FilesystemGrantRefusalReason::Unresolvable => 0,
+        FilesystemGrantRefusalReason::OutsideGrantedRoots => 1,
+        FilesystemGrantRefusalReason::UnrepresentableRootedPath => 2,
+        FilesystemGrantRefusalReason::ObservationEvidenceLimitExceeded => 3,
     }
 }
 

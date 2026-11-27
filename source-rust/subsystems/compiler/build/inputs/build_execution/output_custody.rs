@@ -2,12 +2,12 @@
 
 use super::filesystem_scope::BUILD_OUTPUT_ROOT_IDENTITY;
 use super::observations::BuildRequiredOutputSettlement;
-use build_output::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
+use build_filesystem::trees::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
 use diagnostics::Diagnostic;
 
 pub(super) fn settle_build_output_obligations(
-    obligations: &[filesystem_authority::BuildOutputObligation],
-    receipts: &[filesystem_authority::BuildOutputReceipt],
+    obligations: &[build_filesystem::authority::BuildOutputObligation],
+    receipts: &[build_filesystem::authority::BuildOutputReceipt],
     staged_output_tree: Option<&BuildStagedOutputTree>,
     machine_name: &str,
 ) -> Result<Vec<BuildRequiredOutputSettlement>, Vec<Diagnostic>> {
@@ -19,22 +19,25 @@ pub(super) fn settle_build_output_obligations(
                 "build-time evaluation of `{machine_name}` issued required output `{name}` outside the compiler-issued Output root"
             ))]);
         }
-        let filesystem_authority::BuildOutputObligationState::Completed {
+        let build_filesystem::authority::BuildOutputObligationState::Completed {
             receipt: receipt_index,
             ..
         } = obligation.state()
         else {
             let message = match obligation.state() {
-                filesystem_authority::BuildOutputObligationState::Pending => format!(
+                build_filesystem::authority::BuildOutputObligationState::Pending => format!(
                     "required output `{name}` of `{machine_name}` was declared but never completed"
                 ),
-                filesystem_authority::BuildOutputObligationState::Failed { diagnostic, .. } => {
+                build_filesystem::authority::BuildOutputObligationState::Failed {
+                    diagnostic,
+                    ..
+                } => {
                     format!(
                         "required output `{name}` of `{machine_name}` failed: {}",
                         String::from_utf8_lossy(diagnostic)
                     )
                 }
-                filesystem_authority::BuildOutputObligationState::Completed { .. } => {
+                build_filesystem::authority::BuildOutputObligationState::Completed { .. } => {
                     unreachable!("completed obligations settle")
                 }
             };

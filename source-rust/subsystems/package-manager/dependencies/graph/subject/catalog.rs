@@ -461,7 +461,8 @@ mod tests {
     fn repeated_catalog_stages_keep_their_own_registration_ordinals() {
         let first_graph = catalog_graph();
         let mut first = first_graph.catalog_dependencies[0].clone();
-        let successor = build_declarations::BuildEntryPath::parse("step.omg".into()).unwrap();
+        let successor =
+            package_compilation::declarations::BuildEntryPath::parse("step.omg".into()).unwrap();
         first.preparation = Some(crate::resolution::source::CatalogPreparation {
             ordinal: 0,
             successor: successor.clone(),
@@ -490,7 +491,7 @@ mod tests {
         assert!(build(vec![first.clone(), second.clone()]).is_err());
         second.ordinal = 1;
         second.preparation.as_mut().unwrap().successor =
-            build_declarations::BuildEntryPath::parse("other.omg".into()).unwrap();
+            package_compilation::declarations::BuildEntryPath::parse("other.omg".into()).unwrap();
         assert!(build(vec![first, second]).is_err());
     }
 

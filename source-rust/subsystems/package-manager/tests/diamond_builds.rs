@@ -1,6 +1,6 @@
 //! Count actual Build entries for a diamond in two consecutive compiler invocations.
 use artifacts::compile_timings::counters::source_build_execution_count;
-use build_declarations::DependencyPurpose;
+use package_compilation::declarations::DependencyPurpose;
 use package_manager::project::{ProjectInput, open_products};
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fs;

@@ -2,8 +2,8 @@
 //! retain that activation's declaration and demanded-source authority.
 
 use super::{BuildDependencySelection, ReturnedBuild};
-use build_declarations::{BuildDeclaration, BuildRequest};
 use package_compilation::PackageCompilationInputs;
+use package_compilation::declarations::{BuildDeclaration, BuildRequest};
 
 pub struct BuildSourceResult<'result> {
     returned: &'result mut ReturnedBuild,
@@ -32,7 +32,7 @@ impl<'result> BuildSourceResult<'result> {
     pub fn dependency_backings(
         &self,
     ) -> std::collections::BTreeMap<
-        (build_declarations::DependencyPurpose, usize),
+        (package_compilation::declarations::DependencyPurpose, usize),
         super::source_join::DependencyBacking,
     > {
         self.returned.dependency_backings()

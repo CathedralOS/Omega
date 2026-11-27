@@ -14,8 +14,10 @@ carries its own storage lease, and `BuildLog` retains its line leases until
 normal-return settlement charges result custody and publishes the log bytes.
 */
 
-use build_declarations::{BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName};
 use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use package_compilation::declarations::{
+    BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName,
+};
 mod dependency_options;
 mod input_bindings;
 mod output;
@@ -178,7 +180,7 @@ impl TerminalBuildRequestHost {
     pub(crate) fn workspace_members(
         &self,
         marker: &TerminalStructuralValue,
-    ) -> Result<Vec<build_declarations::WorkspaceMemberPath>, String> {
+    ) -> Result<Vec<package_compilation::declarations::WorkspaceMemberPath>, String> {
         self.workspace.paths(marker)
     }
 

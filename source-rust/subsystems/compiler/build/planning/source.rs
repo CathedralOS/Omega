@@ -437,7 +437,9 @@ fn resolve(
     entry_only: bool,
 ) -> Result<TypedBuildInterval, CompileFailure> {
     let scope = inputs
-        .map(|inputs| inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
+        .map(|inputs| {
+            inputs.declaration_scope(package_compilation::declarations::DependencyPurpose::Build)
+        })
         .or_else(|| SuppliedBuildLibrary::declaration_scope(libraries, assembled.build_owner()))
         .map(Arc::new);
     let stage = assembled.build_stage_source()?;
@@ -503,7 +505,7 @@ impl PlanningSource {
                 inputs
                     .dependency_build_handoff_instances()
                     .filter(move |(scope, handoff)| {
-                        *scope == build_declarations::DependencyPurpose::Build
+                        *scope == package_compilation::declarations::DependencyPurpose::Build
                             && handoff.package() == owner
                     })
                     .map(|(_, handoff)| handoff)
@@ -543,9 +545,11 @@ impl PlanningSource {
         };
         let declaration = activation.project_declaration().map_err(refusal)?;
         let name = match &declaration {
-            build_declarations::BuildDeclaration::Package(package) => &package.name,
-            build_declarations::BuildDeclaration::Application(application) => &application.name,
-            build_declarations::BuildDeclaration::Workspace(_) => {
+            package_compilation::declarations::BuildDeclaration::Package(package) => &package.name,
+            package_compilation::declarations::BuildDeclaration::Application(application) => {
+                &application.name
+            }
+            package_compilation::declarations::BuildDeclaration::Workspace(_) => {
                 return Err(refusal("workspace has no named Product root".into()));
             }
         };

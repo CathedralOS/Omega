@@ -8,8 +8,8 @@
 
 use super::{PackageCompilationInputError, PackageCompilationInputs, PackageDependencyClosure};
 use crate::PackageSourceConsumptionCommitment;
-use build_declarations::DependencyPurpose;
-use build_output::PackageGeneratedSource;
+use crate::declarations::DependencyPurpose;
+use build_filesystem::trees::PackageGeneratedSource;
 use retained_product_selections::{CapturedNativeDeclaration, RetainedProviderSelection};
 use semantic_vocabulary::PackageKeyIdentity;
 use source_declarations::declaration_selection::CapturedNativeIntent;

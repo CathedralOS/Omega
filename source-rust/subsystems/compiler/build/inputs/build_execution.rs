@@ -40,7 +40,7 @@ pub use restricted_requests::{
 pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
 
 use diagnostics::Diagnostic;
-use filesystem_authority::{BuildOutputObligation, BuildOutputReceipt};
+use build_filesystem::authority::{BuildOutputObligation, BuildOutputReceipt};
 
 fn message<T, E: std::fmt::Display>(result: Result<T, E>) -> Result<T, String> {
     result.map_err(|error| error.to_string())
@@ -87,7 +87,7 @@ impl<'scope> CapturedBuildObservations<'scope> {
             scope,
             filesystem_host_observed: false,
             filesystem_operation_schema_version:
-                filesystem_authority::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
+                build_filesystem::authority::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
             filesystem_operation_attempts: Vec::new(),
             output_obligations: Vec::new(),
             output_receipts: Vec::new(),
