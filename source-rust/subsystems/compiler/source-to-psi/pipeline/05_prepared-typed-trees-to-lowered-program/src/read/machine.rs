@@ -4061,9 +4061,15 @@ impl<'t> Program<'t> {
                         if self.fact_restates_formal_domain(formals, fact) {
                             continue;
                         }
-                        if let Some((clause, text)) =
-                            self.contract_clause(id, &required, fact, true)?
-                        {
+                        // A clause calling a machine may rely on the clauses
+                        // before it: every caller establishes them all, in
+                        // order, so the called machine's own preconditions
+                        // hold where its body is read.
+                        let saved_requires =
+                            std::mem::replace(&mut self.enclosing_requires, requires.clone());
+                        let read = self.contract_clause(id, &required, fact, true);
+                        self.enclosing_requires = saved_requires;
+                        if let Some((clause, text)) = read? {
                             requires.push(clause);
                             requires_text.push(text);
                         }
