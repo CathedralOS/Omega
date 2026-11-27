@@ -57,8 +57,8 @@ pub fn measure_installed_handler(
     frame: &frame_planning::PhysicalFrameProgram,
     facts: &physical_program::EmissionFacts,
     authority: &installation_admission::PlannedInstallationResources,
-    bridge: &entry_planning::native_entry_bridge::NativeEntryBridgePlan,
-    cpu: &entry_planning::body_cpu::PlannedBodyCpuState,
+    bridge: &crate::native_entry_bridge::NativeEntryBridgePlan,
+    cpu: &crate::body_cpu::PlannedBodyCpuState,
 ) -> Result<MeasuredInstalledHandler, Error> {
     let execution = authority
         .installed_entry_execution()
@@ -128,7 +128,7 @@ fn plan_fault_exclusion(
     frame: &frame_planning::PhysicalFrameProgram,
     facts: &physical_program::EmissionFacts,
     authority: &installation_admission::PlannedInstallationResources,
-    cpu: &entry_planning::body_cpu::PlannedBodyCpuState,
+    cpu: &crate::body_cpu::PlannedBodyCpuState,
 ) -> Result<Option<InstalledBodyFaultPremises>, Error> {
     let execution = authority
         .installed_entry_execution()

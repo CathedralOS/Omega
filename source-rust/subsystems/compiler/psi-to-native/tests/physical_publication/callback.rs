@@ -780,7 +780,7 @@ fn check_callback_publication(retain_body_source: bool) {
     };
     let physical_originals = native_artifact::NativePhysicalOriginals::new(originals).unwrap();
     let entry = native_encoding::callable_entry::encode_private_function_entry(
-        installation_binding::entries::bind_private_entry(
+        entry_planning::installation_binding::entries::bind_private_entry(
             planned_entry.expect("complete callback entry plan"),
         ),
     )

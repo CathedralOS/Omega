@@ -1745,7 +1745,7 @@ mod tests {
         }
     }
 
-    /// A port write may fault, so its encoding must say so: stage 10 skips the
+    /// A port write may fault, so its encoding must say so: installation binding skips the
     /// installed fault check for any alternative encoded as never trapping.
     #[test]
     fn may_fault_declarations_cannot_encode_a_never_trapping_alternative() {
@@ -3889,7 +3889,7 @@ fn validate_encoded_effects(
                     }
                 }) => {}
         // An alternative may encode a wider trap than its row declares (relative
-        // branches may fault on fetch), never a narrower one: stage 10 skips the
+        // branches may fault on fetch), never a narrower one: installation binding skips the
         // installed fault check for alternatives encoded as never trapping.
         (
             MachineEncodedMemoryEffect::NoneV1,

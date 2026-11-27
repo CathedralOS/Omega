@@ -24,7 +24,7 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
     let mut readers = vec![
         ("source-rust/subsystems/package-manager", HOST_PROVIDERS),
         // Fixed-width entry layouts already contain the final call and relocation fields.
-        (stages[13], stages[11]),
+        (stages[12], stages[10]),
         (
             "source-rust/subsystems/interpreter/host/native-sponsor",
             IMAGE_EMISSION,
@@ -40,7 +40,7 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
         stages[6],
         stages[7],
         stages[8],
-        stages[11],
+        stages[10],
         IMAGE_EMISSION,
     ] {
         readers.push((OBJECT_REPLAY, dependency));

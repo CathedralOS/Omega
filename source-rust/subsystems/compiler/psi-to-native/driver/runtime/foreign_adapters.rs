@@ -19,7 +19,7 @@ pub(crate) fn compile(
     request: crate::driver::runtime::NativeForeignAdapterRequest,
 ) -> Result<ObjectForeignAdapter, String> {
     plan(request)
-        .map(installation_binding::entries::bind_foreign_adapter)
+        .map(entry_planning::installation_binding::entries::bind_foreign_adapter)
         .and_then(encode)
         .and_then(place)
         .and_then(construct)

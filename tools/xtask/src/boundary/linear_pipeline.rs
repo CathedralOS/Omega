@@ -11,7 +11,7 @@ fn recycled(root: &str, path: &str) -> bool {
         .is_ok_and(|relative| relative.iter().any(|component| component == "_recycling"))
 }
 
-pub(super) const NATIVE_STAGES: [&str; 15] = [
+pub(super) const NATIVE_STAGES: [&str; 14] = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations",
@@ -21,7 +21,6 @@ pub(super) const NATIVE_STAGES: [&str; 15] = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/07_selected-instructions-to-register-homes",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/08_register-homes-to-post-allocation-machine",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions",

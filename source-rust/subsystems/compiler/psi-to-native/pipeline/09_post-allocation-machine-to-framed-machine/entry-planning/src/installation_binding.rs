@@ -1,16 +1,18 @@
-//! Bind guarded installations against the complete retained physical program.
-#![forbid(unsafe_code)]
+//! Stage 09's second phase binds guarded installations against the complete
+//! retained physical program. The driver measures every retained installed
+//! handler after all bodies are framed, then binds each body here; only this
+//! module holds the issuer that lets stage 11 accept a bound body.
 
 use installation_admission::{BoundInstallationAuthority, PlannedInstallationResources};
 use installation_conditions::{InstalledInterruptStackRequirement, InstalledPhysicalStackRoot};
 /// Bind planner-issued entry recipes for encoding. Callable entries leave their CPU
 /// measurements here once installation binding has used them.
 pub mod entries {
-    use bound_framed_machine::entries::{self, BoundEntry};
-    use entry_planning::{
+    use crate::{
         PhysicalRecipeOrigin as Planner,
         callable_entry::{PlannedCallableEntryTransport, PlannedPrivateEntry},
     };
+    use bound_framed_machine::entries::{self, BoundEntry};
     use installation_binding_issuer::BINDER;
     use physical_recipes::{
         callable_entry::CallableInstructions, hosted_program::HostedProgram,
@@ -20,7 +22,7 @@ pub mod entries {
     /// A foreign adapter must carry the frame planner's issuing type.
     /// ```compile_fail,E0308
     /// fn bind(adapter: physical_recipes::native_foreign_bridge::ForeignAdapterPlan<()>) {
-    ///     let _ = installation_binding::entries::bind_foreign_adapter(adapter);
+    ///     let _ = entry_planning::installation_binding::entries::bind_foreign_adapter(adapter);
     /// }
     /// ```
     pub fn bind_foreign_adapter(
@@ -134,13 +136,13 @@ pub type BoundBodyPublication = physical_program::BodyPublication<Arc<BoundBodyC
 
 pub type BoundFunctionBody = bound_framed_machine::BoundFunctionBody<
     frame_planning::FrameRecipeOrigin,
-    entry_planning::PhysicalRecipeOrigin,
+    crate::PhysicalRecipeOrigin,
     BoundInstallationAuthority,
     BoundBodyPublication,
 >;
 
 pub fn bind_function_body(
-    body: entry_planning::imports::PreparedFunctionBody,
+    body: crate::imports::PreparedFunctionBody,
     handlers: &RetainedHandlerMeasurements,
     root: Option<InstalledPhysicalStackRoot>,
 ) -> Result<BoundFunctionBody, &'static str> {
