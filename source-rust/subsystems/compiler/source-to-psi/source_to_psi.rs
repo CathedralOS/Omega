@@ -7,8 +7,8 @@ mod driver;
 
 pub use compile_product::ProductDeclarations;
 pub use driver::compile_build::{
-    BuildInvocationJudgment, BuildStageSource, CheckedBuildInvocation, PendingBuildImport,
-    PreparedBuildInvocation, ProductDeclarationSource, TypedBuildInterval,
+    BuildInvocationJudgment, BuildSourceCheck, BuildStageSource, CheckedBuildInvocation,
+    PendingBuildImport, PreparedBuildInvocation, ProductDeclarationSource, TypedBuildInterval,
 };
 pub use driver::declaration_usage::DeclarationUsageAdvisories;
 pub use driver::package_handoff::{

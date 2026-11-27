@@ -321,6 +321,35 @@ fn a_description_uses_the_file_selected_by_the_query_alias() {
 }
 
 #[test]
+fn file_qualifiers_keep_their_enclosing_declaration() {
+    use syntax_trees::item::UseItem;
+    let source = "use util.omg; machine first(a: |util|::Byte) -> u8 {
+        nested()
+        machine nested() -> u8 { |util|::one() } }
+        machine second() -> u8 { |util|::two() }";
+    let mut trees = SyntaxTrees::new(SourceId(1));
+    let tokens = Lexer::new(source).tokenize().unwrap();
+    let roots = parse(&mut trees, SourceId(1), &tokens).unwrap();
+    let Item::Use(UseItem { qualifiers, .. }) = trees.root_item(roots.items[0]) else {
+        panic!("expected the file import");
+    };
+    let owners: Vec<_> = qualifiers
+        .iter()
+        .map(|usage| {
+            assert!(usage.declaration.end <= usage.offset);
+            (
+                &source[usage.declaration.start..usage.declaration.end],
+                usage.in_machine_body,
+            )
+        })
+        .collect();
+    assert_eq!(
+        owners,
+        [("first", false), ("nested", true), ("second", true)]
+    );
+}
+
+#[test]
 fn file_imports_keep_their_roots_filenames_and_local_aliases() {
     use syntax_trees::item::UseItem;
     let text = "use math/vector.omg; use {geometry}/math/value-cell.omg as chosen;";

@@ -8,7 +8,7 @@ use std::{path::PathBuf, sync::Arc};
 use syntax_trees::{SyntaxTrees, item::Item};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
-#[record(format = b"OmegaSourceSyntax2")]
+#[record(format = b"OmegaSourceSyntax4")]
 pub struct SourceSyntax {
     pub(crate) trees: SyntaxTrees,
     files: Vec<ParsedFile>,
@@ -234,9 +234,25 @@ impl SourceImport {
     /// A symbolic operand of core field/parameter reflection may be a Product
     /// query. Only an ordinary Build reference makes a host binding mandatory.
     pub fn requires_build_binding(&self) -> bool {
+        self.build_use_owners().next().is_some()
+    }
+
+    pub fn build_use_owners(&self) -> impl Iterator<Item = source_text::Span> + '_ {
         self.qualifiers
             .iter()
-            .any(|usage| usage.role == syntax_trees::item::FileQualifierRole::Code)
+            .filter(|usage| usage.role == syntax_trees::item::FileQualifierRole::Code)
+            .map(|usage| usage.declaration)
+    }
+
+    /// A Product description inspects declarations. The receiving stage later
+    /// selects the implementation with its own fixed source and bindings.
+    pub fn used_in_declaration_query(&self, scope: source_provenance::DependencyScope) -> bool {
+        match scope {
+            source_provenance::DependencyScope::Product => {
+                self.qualifiers.iter().any(|usage| !usage.in_machine_body)
+            }
+            source_provenance::DependencyScope::Build => self.used_in(scope),
+        }
     }
 
     pub fn used_in(&self, scope: source_provenance::DependencyScope) -> bool {

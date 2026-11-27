@@ -24,6 +24,8 @@ pub fn parse_into(
     let mut roots = ParsedRootItems::default();
     while !input.tokens.is_empty() {
         let (declaration, rest) = parse_item(syntax_trees, input)?;
+        let region = input.source_span_until(rest).span;
+        qualifiers.close_declaration(region, region, None);
         match declaration {
             ParsedDeclaration::Item(item) => {
                 if matches!(item, Item::Use(_)) {

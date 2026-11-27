@@ -39,6 +39,7 @@ impl TypedTrees {
             }};
         }
         clone_storage!(
+            build_invocation_entry,
             excluded_authored_selection_occurrences,
             roots,
             tables,
@@ -137,6 +138,7 @@ impl TypedTrees {
     ) -> Self {
         Self {
             identity: ProgramIdentity::default(),
+            build_invocation_entry: None,
             excluded_authored_selection_occurrences: AuthoredSelectionExclusions::default(),
             roots,
             tables,

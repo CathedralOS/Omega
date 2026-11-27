@@ -225,6 +225,30 @@ fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
 }
 
 #[test]
+fn the_selected_build_provider_must_have_its_imports_before_entry() {
+    let backings = format!(
+        "use future.omg;\n{}",
+        BACKINGS.replace("17u32", "|future|::read()")
+    );
+    for (provider, refusal) in [
+        ("Seventeen", "no admitted logical file `future.omg`"),
+        ("TwentyThree", "Build path is not a canonical relative path"),
+    ] {
+        let fixture = project(
+            "linux_x86_64",
+            Some(provider),
+            ProviderSource::Local,
+            r#"_ = BuildSource::resolve(@builder.source, "../entered");"#,
+            ProductEntries::Separate,
+        );
+        fs::write(fixture.path().join("app/backings.omg"), &backings).unwrap();
+        let (output, report) = run(&fixture, "psi");
+        assert!(!output.status.success(), "{provider}: {report}");
+        assert!(report.contains(refusal), "{provider}: {report}");
+    }
+}
+
+#[test]
 fn a_shared_product_entry_cannot_use_the_builds_meter_dependency() {
     let fixture = project(
         "linux_x86_64",

@@ -12,9 +12,16 @@ use syntax_trees::{ParsedRootItems, SyntaxTrees};
 #[derive(Default)]
 pub(crate) struct FileQualifiers<'source> {
     // Parsing can visit a name more than once. Its opening bar identifies one occurrence.
-    uses: RefCell<BTreeMap<usize, (&'source str, QualifierUse)>>,
+    uses: RefCell<BTreeMap<usize, Occurrence<'source>>>,
     // The first `asm` instruction that needs core's packed-integer contracts.
     packed_instruction: std::cell::Cell<Option<source_text::SourceSpan>>,
+}
+
+struct Occurrence<'source> {
+    alias: &'source str,
+    role: QualifierUse,
+    declaration: Option<source_text::Span>,
+    in_machine_body: bool,
 }
 
 enum QualifierUse {
@@ -41,20 +48,38 @@ impl<'source> FileQualifiers<'source> {
     }
 
     pub(crate) fn record(&self, start: usize, alias: &'source str) {
-        self.uses
-            .borrow_mut()
-            .entry(start)
-            .or_insert((alias, QualifierUse::Host));
+        self.uses.borrow_mut().entry(start).or_insert(Occurrence {
+            alias,
+            role: QualifierUse::Host,
+            declaration: None,
+            in_machine_body: false,
+        });
+    }
+
+    /// Declarations are closed inside-out. A lexical child's uses already have an owner.
+    pub(crate) fn close_declaration(
+        &self,
+        span: source_text::Span,
+        owner: source_text::Span,
+        body: Option<source_text::Span>,
+    ) {
+        for (&offset, usage) in self.uses.borrow_mut().range_mut(span.start..span.end) {
+            if usage.declaration.is_none() {
+                usage.declaration = Some(owner);
+                usage.in_machine_body =
+                    body.is_some_and(|body| (body.start..body.end).contains(&offset));
+            }
+        }
     }
 
     fn mark(&self, path: &[Identifier], role: QualifierUse) {
         if let Some(head) = path.first()
-            && let Some((_, product)) = self
+            && let Some(usage) = self
                 .uses
                 .borrow_mut()
                 .get_mut(&head.source_span().span.start)
         {
-            *product = role;
+            usage.role = role;
         }
     }
 
@@ -93,7 +118,8 @@ impl<'source> FileQualifiers<'source> {
                 }
             });
         if explicit || schema.is_some() {
-            for (_, (_, role)) in self.uses.borrow_mut().range_mut(body.start..body.end) {
+            for (_, usage) in self.uses.borrow_mut().range_mut(body.start..body.end) {
+                let role = &mut usage.role;
                 if matches!(role, QualifierUse::RootOperand(None)) {
                     *role = if explicit {
                         QualifierUse::Host
@@ -206,9 +232,9 @@ impl<'source> FileQualifiers<'source> {
                 _ => {}
             }
         }
-        for (&offset, (alias, role)) in uses.iter() {
+        for (&offset, usage) in uses.iter() {
             use syntax_trees::item::FileQualifierRole;
-            let role = match role {
+            let role = match &usage.role {
                 QualifierUse::Product => FileQualifierRole::Product,
                 QualifierUse::Host => FileQualifierRole::Code,
                 QualifierUse::Description(api) if description_apis.contains(api.as_str()) => {
@@ -225,9 +251,16 @@ impl<'source> FileQualifiers<'source> {
                 }
             };
             aliases
-                .entry(*alias)
+                .entry(usage.alias)
                 .or_default()
-                .push(syntax_trees::item::FileQualifier { offset, role });
+                .push(syntax_trees::item::FileQualifier {
+                    declaration: usage
+                        .declaration
+                        .expect("a parsed file qualifier belongs to a declaration"),
+                    in_machine_body: usage.in_machine_body,
+                    offset,
+                    role,
+                });
         }
         aliases
     }

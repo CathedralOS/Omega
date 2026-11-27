@@ -18,7 +18,7 @@ fn local_and_dependency_file_roots_select_only_their_exact_admitted_source() {
                             CapturedSourceNode::Directory
                         } else {
                             CapturedSourceNode::File {
-                                bytes: Arc::from(b"machine f() {}".as_slice()),
+                                bytes: Arc::from(b"public machine f() {}".as_slice()),
                                 executable: false,
                             }
                         },
@@ -50,8 +50,14 @@ fn local_and_dependency_file_roots_select_only_their_exact_admitted_source() {
     )
     .unwrap();
     let root = graph.package_root(app).unwrap();
-    let imports = "use kit/math/v.omg as local; use {kit}/math/v.omg as dep; use {kit}/other/v.omg as absent; use {lib}/math/v.omg as indirect; use {omega}/language/core/layout.omg;
-        machine reference() { |local|::work(); |dep|::work(); |absent|::work(); |indirect|::work(); |layout|::work(); }";
+    let imports = r#"use kit/math/v.omg as local;
+use {kit}/math/v.omg as dep;
+use {kit}/other/v.omg as absent;
+use {lib}/math/v.omg as indirect;
+use {omega}/language/core/layout.omg;
+machine inspect(layout: |layout|::Layout) {
+    |local|::f(); |dep|::f(); |absent|::f(); |indirect|::f();
+}"#;
     let parsed = SourceInput(
         [source_admission::LoadedSource {
             source_id: source_text::SourceId(1),

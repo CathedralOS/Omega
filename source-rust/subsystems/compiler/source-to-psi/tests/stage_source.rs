@@ -1078,9 +1078,10 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
         build_sources: [root].into(),
         pending_imports: missing
             .iter()
-            .map(|(name, span)| source_compiler::PendingBuildImport {
+            .map(|(name, import_span)| source_compiler::PendingBuildImport {
+                declarations: vec![span("build")],
                 source: root,
-                span: *span,
+                span: *import_span,
                 target: source_compiler::SourceImportTarget {
                     root: None,
                     path: format!("{name}.omg"),
@@ -1090,14 +1091,22 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
             .collect(),
         entry: SourceSpan::new(root, span("build")),
     };
-    let Err(errors) = stage.prepare(&Default::default(), "linux_x86_64", None) else {
+    let Err(errors) = stage.prepare(
+        &Default::default(),
+        "linux_x86_64",
+        None,
+        source_compiler::BuildSourceCheck {
+            providers: &Default::default(),
+            check_entry_file: true,
+        },
+    ) else {
         panic!("a Build with unbound imports was prepared");
     };
     assert_eq!(errors.len(), missing.len());
     for (error, (name, span)) in errors.iter().zip(missing) {
         assert_eq!(
             error.message,
-            format!("Build import `{name}.omg as {name}` has no supplied source")
+            format!("no admitted logical file `{name}.omg`")
         );
         assert_eq!(error.source_span, Some(SourceSpan::new(root, span)));
     }
@@ -1118,7 +1127,15 @@ fn typed_build(
         entry,
     };
     Ok(stage
-        .prepare(&Default::default(), "linux_x86_64", None)?
+        .prepare(
+            &Default::default(),
+            "linux_x86_64",
+            None,
+            source_compiler::BuildSourceCheck {
+                providers: &Default::default(),
+                check_entry_file: true,
+            },
+        )?
         .program)
 }
 
@@ -1135,14 +1152,20 @@ fn source_syntax_stores_only_the_complete_parse_and_files() {
     )
     .unwrap();
     assert_eq!(
-        bytes.strip_prefix(b"OmegaSourceSyntax2".as_slice()),
+        bytes.strip_prefix(b"OmegaSourceSyntax4".as_slice()),
         Some(body.as_slice())
     );
-    let mut previous_format = b"OmegaSourceSyntax1".to_vec();
-    previous_format.extend_from_slice(&body);
-    assert!(
-        record_storage::decode::<source_compiler::SourceSyntax>(&previous_format, limits).is_err()
-    );
+    for tag in [
+        b"OmegaSourceSyntax1",
+        b"OmegaSourceSyntax2",
+        b"OmegaSourceSyntax3",
+    ] {
+        let mut former = tag.to_vec();
+        former.extend_from_slice(&body);
+        let error =
+            record_storage::decode::<source_compiler::SourceSyntax>(&former, limits).unwrap_err();
+        assert_eq!(error.reason, "unsupported SourceSyntax record format");
+    }
     let reopened: source_compiler::SourceSyntax = record_storage::decode(&bytes, limits).unwrap();
     assert_eq!(syntax, reopened);
     for (entry, can_return) in [(None, false), (Some(entry), false), (None, true)] {

@@ -145,6 +145,10 @@ impl BuildRecheck {
                 authority,
                 subject,
                 declaration,
+                source_compiler::BuildSourceCheck {
+                    providers: &self.interpreter_providers,
+                    check_entry_file: self.subject_validation != BuildSubjectValidation::EntryOnly,
+                },
                 timings,
             )?;
             build_execution::settle_rejoined_build_slice(
@@ -647,13 +651,11 @@ machine build(builder: @mutable BuildPlan) {
             build_execution::BuildSubjectValidation::Checked
         );
 
-        // Now verify an invalid Build subject helper is caught under its real owner
-        // even when BuildRecheck receives only Build-scope sources.
-        std::fs::write(
-            &helper,
-            "public machine configure(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Application { name: \"scoped_app\" };\n}\nmachine unused_invalid() {\n    let bad: u8 = true;\n}\n",
-        )
-        .unwrap();
+        // A package subject owes every declaration in its Build entry file,
+        // even when the dependency activation that first typed it only needed the entry.
+        let mut with_invalid = std::fs::read_to_string(&entry).unwrap();
+        with_invalid.push_str("machine unused_invalid() { let bad: u8 = true; }\n");
+        std::fs::write(&entry, with_invalid).unwrap();
         let mut invalid_product = open_unchecked_project(&entry, true);
         invalid_product.evaluated.subject_validation =
             build_execution::BuildSubjectValidation::NeedsOwnerCheck;

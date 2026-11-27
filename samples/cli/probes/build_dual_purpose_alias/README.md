@@ -1,8 +1,9 @@
 # One alias in a Build and its application
 
-The first Build prepares the dependency as `kit`. Its successor imports
-`{kit}/generated.omg`, checks that `value()` returns 7, and forwards the
-prepared binding to the application under the same alias. The application
+The first Build reads the dependency location from `main.omg` and prepares it
+as `kit`. Only the application entry in that shared file needs the alias.
+The successor imports `{kit}/generated.omg`, checks that `value()` returns 7,
+and forwards the prepared binding to the application under the same alias. The application
 imports that file independently and checks the same value at runtime.
 
 The dependency seals its source template as the required output
