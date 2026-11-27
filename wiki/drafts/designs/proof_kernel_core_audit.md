@@ -1318,6 +1318,22 @@ starts with records.
   their recursive equations are not available to a law. The termination
   spec's "core proves once that this order is well founded" is not yet
   true of the implementation.
+- **Fuel sufficiency (2026-11-27).** The fuel of a program's machine with
+  computed descent is now proved sufficient
+  ([design](computed_descent_recursion.md)). Each unit of fuel is guarded by
+  `x_r ∸ rest`, so extra fuel does nothing. Each machine on fuel carries two
+  laws stage 06 proves. Its fuel bound says any fuel reaching the ranked
+  argument gives the same result. Its recursive equation is the source
+  equation under its premises, and a law that calls the machine cites it. A
+  law that cites itself at a computed natural is proved by induction on
+  fuel that reaches its ranked formal. The order's facts are proved once, in
+  core: `succ_of_sub_between`, `not_succ_le_self`, `not_succ_le_zero`,
+  `le_of_succ_le_succ`, `not_lt_of_le_zero`, `le_of_lt_of_sub_between` and
+  `sub_self`. Each is recognized by its exact statement over the recognized
+  order, and an order without one is refused, naming it. This is the
+  implementation's form of "core proves once that this order is well
+  founded": the kernel has no accessibility predicate, so the step-counter
+  route of the spec is taken.
 - **A choice by a computed value** (`rat_eq`, `mod`) is a definition by
   cases of its own over its subject and the variables in scope, so the
   prover computes with it as with any other. In a law, a split on a computed

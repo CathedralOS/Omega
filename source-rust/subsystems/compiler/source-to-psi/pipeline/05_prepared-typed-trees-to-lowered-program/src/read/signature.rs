@@ -193,6 +193,7 @@ impl Program<'_> {
             fueled: Vec::new(),
             equations: Vec::new(),
             unfolding: None,
+            within: None,
             result_as: None,
             callable_scope: Vec::new(),
             generic_premises: Vec::new(),
@@ -617,21 +618,44 @@ struct Guard {
     all: u32,
 }
 
-/// What a recursive call cites in the script of its machine's recursive
-/// equation (`Converter::equation`), in one case of the ranked formal.
+/// What a recursive call cites in a script the compiler reads from a body
+/// for a law of its own: the recursive equation of a machine on fuel
+/// (`Converter::equation`), in one case of its ranked formal, or the
+/// induction on fuel of a law that cites itself at a computed natural
+/// (`Converter::within`), in one case of the fuel.
 #[derive(Clone, Copy)]
 struct Unfolding {
     machine: MachineId,
-    /// The position of the ranked formal among the machine's formals.
+    /// The position of the ranked formal among the machine's formals, and
+    /// how many formals it has.
     measure: usize,
-    /// The statement entries of the machine's fuel bound and of the order's
-    /// lemmas `not_succ_le_zero` and `le_of_succ_le_succ`.
-    bound: u32,
+    formals: usize,
+    /// For the equation, the statement entry of the machine's fuel bound.
+    /// The statement entries of the order's lemmas: for the equation,
+    /// `not_succ_le_zero` and `le_of_succ_le_succ`; for the induction,
+    /// `not_lt_of_le_zero` and `le_of_lt_of_sub_between`.
+    bound: Option<u32>,
     exhausted: u32,
     step: u32,
-    /// Whether the ranked formal is a successor here, `S p` with `p` the
-    /// outermost variable the case binds; otherwise it is zero.
+    /// Whether this is the case of a successor: for the equation, of the
+    /// ranked formal, `S p` with `p` the outermost variable the case binds;
+    /// for the induction, of the fuel `S k`, with `k` that variable and the
+    /// guard's `w` the next. Otherwise the case of zero.
     successor: bool,
+}
+
+/// The induction on fuel of a law that cites itself at a computed natural
+/// (`Converter::within`): the entries of the ranked formal's data and its
+/// truncated subtraction, the ranked formal's position, the scripts of the
+/// fuel's zero and of a unit of fuel whose guard runs the body, and the
+/// statement entry of `sub_self`.
+struct Within {
+    data: u32,
+    order: u32,
+    measure: usize,
+    zero: LawCase,
+    successor: LawCase,
+    sub_self: u32,
 }
 
 /// A law of the natural order that the laws stated for a machine on fuel
@@ -724,6 +748,9 @@ struct Converter<'p, 't> {
     /// While the script of a machine's recursive equation is read: what a
     /// recursive call in it cites.
     unfolding: Option<Unfolding>,
+    /// Set by `script` when the law it reads cites itself at a computed
+    /// natural: what `read_laws` states the law's induction on fuel with.
+    within: Option<Within>,
     /// While a law is read for its induction on fuel: the machine and the
     /// term its clauses' `result` stands for.
     result_as: Option<(MachineId, TermHandle)>,
@@ -4828,20 +4855,21 @@ impl<'p> Converter<'p, '_> {
         let unfolding = Unfolding {
             machine: id,
             measure,
-            bound,
+            formals: count,
+            bound: Some(bound),
             exhausted,
             step,
             successor: false,
         };
         let scripts = self
-            .unfolding_script(id, count, measure, zero, 0, 0, unfolding)
+            .unfolding_script(id, count, Some((zero, 0)), 0, unfolding)
             .and_then(|at_zero| {
                 // Under `S p`, the guard's successor names its field after `p`.
                 let unfolding = Unfolding {
                     successor: true,
                     ..unfolding
                 };
-                self.unfolding_script(id, count, measure, successor, 1, 2, unfolding)
+                self.unfolding_script(id, count, Some((successor, 1)), 2, unfolding)
                     .map(|at_successor| (at_zero, at_successor))
             });
         self.callable_scope = enclosing;
@@ -4909,25 +4937,22 @@ impl<'p> Converter<'p, '_> {
         Ok(())
     }
 
-    /// The script of the machine's recursive equation in the case `case` of
-    /// its ranked formal, which binds `arity` fields and is read under
-    /// `depth` variables inside the formals, the case's fields outermost:
-    /// the body's citations and splits, as the law on fuel reads them, with
-    /// each recursive call citing what `unfolding` says. A dispatch on the
-    /// ranked formal itself is already decided: only this case's arm runs.
-    #[allow(clippy::too_many_arguments)]
+    /// The body's script, read under `depth` variables inside the formals:
+    /// its citations and splits, as the law on fuel reads them, with each
+    /// recursive call citing what `unfolding` says. With `ranked`, the
+    /// ranked formal is known to be that case, which binds that many
+    /// fields, outermost: a dispatch on it is already decided, and only
+    /// that case's arm runs.
     fn unfolding_script(
         &mut self,
         id: MachineId,
         count: usize,
-        measure: usize,
-        case: usize,
-        arity: u32,
+        ranked: Option<(usize, u32)>,
         depth: u32,
         unfolding: Unfolding,
     ) -> Checked<LawCase> {
         let enclosing = self.unfolding.replace(unfolding);
-        let read = self.unfolding_case(id, count, measure, case, arity, depth);
+        let read = self.unfolding_case(id, count, unfolding.measure, ranked, depth);
         self.unfolding = enclosing;
         read
     }
@@ -4937,8 +4962,7 @@ impl<'p> Converter<'p, '_> {
         id: MachineId,
         count: usize,
         measure: usize,
-        case: usize,
-        arity: u32,
+        ranked: Option<(usize, u32)>,
         depth: u32,
     ) -> Checked<LawCase> {
         let body = self
@@ -4962,6 +4986,7 @@ impl<'p> Converter<'p, '_> {
         for bound in slots.iter_mut().flatten() {
             bound.term = shift(&mut self.signature.arena, bound.term, 0, depth);
         }
+        let arity = ranked.map_or(0, |(_, arity)| arity);
         let fields: Vec<_> = (0..arity)
             .map(|field| self.variable(depth - 1 - field))
             .collect();
@@ -4969,20 +4994,21 @@ impl<'p> Converter<'p, '_> {
         let scope = Scope {
             slots: &slots,
             aliases: &aliases,
-            case: Some((measure, case, &fields)),
+            case: ranked.map(|(case, _)| (measure, case, fields.as_slice())),
             recursion: None,
             depth,
             induction: false,
             value: None,
         };
         let mut script = LawCase::default();
-        let on_ranked = dispatch.as_ref().is_some_and(|(subject, _, default)| {
-            matches!(subject.kind, ExpressionKind::Slot(slot)
+        let on_ranked = ranked.is_some()
+            && dispatch.as_ref().is_some_and(|(subject, _, default)| {
+                matches!(subject.kind, ExpressionKind::Slot(slot)
                 if aliases.get(slot).copied().unwrap_or(slot) == measure)
-                && default.is_none()
-        });
+                    && default.is_none()
+            });
         match dispatch {
-            Some((_, arms, _)) if on_ranked => {
+            Some((_, arms, _)) if let (true, Some((case, _))) = (on_ranked, ranked) => {
                 let mut selected = arms.iter().filter(|(selector, _, _)| selector.case == case);
                 let (Some((selector, target, _)), None) = (selected.next(), selected.next()) else {
                     return Err(unserved(
@@ -5015,6 +5041,245 @@ impl<'p> Converter<'p, '_> {
             None => self.citations(id, id, before, &scope, &mut script)?,
         }
         Ok(script)
+    }
+
+    /// The scripts of the induction on fuel `k` by which a law that cites
+    /// itself at a computed natural is proved: for every `k` with
+    /// `x_r ∸ k = 0`, the law, where `x_r` is the ranked formal. With no
+    /// fuel, each call the law makes of itself is unreachable, since it owes
+    /// its descent `S e ∸ x_r = 0` (`not_lt_of_le_zero`). At `S k` the
+    /// guard `x_r ∸ k` is split: at zero the hypothesis at the same
+    /// arguments is the goal (`read_laws`), and otherwise the body runs,
+    /// where a call is within `k` (`le_of_lt_of_sub_between`), which is the
+    /// hypothesis's premise at the call's arguments. The law itself is
+    /// then this at `k = x_r`, whose premise `sub_self` gives
+    /// (`wiki/drafts/designs/computed_descent_recursion.md`).
+    fn within(&mut self, id: MachineId, formals: &[(TermHandle, u32)]) -> Checked<Within> {
+        let not_ranked = || unserved(id, "law that cites itself without a ranking on one formal");
+        let ranking = self
+            .program
+            .signatures
+            .get(id)
+            .and_then(|signature| signature.ranking.as_ref())
+            .ok_or_else(not_ranked)?;
+        let [measure] = ranking.measures.as_slice() else {
+            return Err(not_ranked());
+        };
+        let ExpressionKind::Slot(measure) = measure.kind else {
+            return Err(not_ranked());
+        };
+        let &(_, data) = formals.get(measure).ok_or_else(not_ranked)?;
+        let order = self.natural_order(id, data)?;
+        let [exhausted, step, sub_self] = self.within_lemmas(id, data, order)?;
+        let count = formals.len();
+        let unfolding = Unfolding {
+            machine: id,
+            measure,
+            formals: count,
+            bound: None,
+            exhausted,
+            step,
+            successor: false,
+        };
+        let zero = self.unfolding_script(id, count, None, 0, unfolding)?;
+        // Under `S k`, the guard's successor names its field after `k`.
+        let successor = self.unfolding_script(
+            id,
+            count,
+            None,
+            2,
+            Unfolding {
+                successor: true,
+                ..unfolding
+            },
+        )?;
+        Ok(Within {
+            data,
+            order,
+            measure,
+            zero,
+            successor,
+            sub_self,
+        })
+    }
+
+    /// The law `clause` for every amount of fuel `k` that reaches the
+    /// ranked formal: over `k` and then `types` (the machine parameters and
+    /// formals), under the clause's premises and `x_r ∸ k = 0`, proved by
+    /// induction on `k` with the scripts of `within`. Its statement entry.
+    fn within_law(
+        &mut self,
+        id: MachineId,
+        within: &Within,
+        types: &[TermHandle],
+        clause: Law,
+    ) -> Checked<u32> {
+        let shape = self.shape(within.data);
+        let (Some(zero), Some(successor)) = (
+            (0..shape.cases()).find(|&case| shape.arity(case) == 0),
+            (0..shape.cases()).find(|&case| shape.arity(case) == 1),
+        ) else {
+            return Err(unserved(id, "fuel without a zero and a successor"));
+        };
+        let all = types.len();
+        let count = self.formals(id)?.len();
+        let ([zero_value, _], nat, monus) = self.natural_terms(id, within.data, within.order)?;
+        // The fuel is bound outside the machine parameters and formals, so
+        // the clause's premises and goal read as they stand.
+        let ranked = self.variable((count - 1 - within.measure) as u32);
+        let fuel = self.variable(all as u32);
+        let reached = self.signature.arena.apply_arguments(monus, &[ranked, fuel]);
+        let reached = self.signature.arena.insert(Term::Id {
+            ty: nat,
+            left: reached,
+            right: zero_value,
+        });
+        let mut premises = clause.premises.clone();
+        premises.push(reached);
+        // The case of `S k` splits on the guard `x_r ∸ k`, under `k`.
+        let ranked_in = self.variable((count - 1 - within.measure) as u32 + 1);
+        let rest = self.variable(0);
+        let guard = self
+            .signature
+            .arena
+            .apply_arguments(monus, &[ranked_in, rest]);
+        let same = Citation {
+            evidence: Evidence::Hypothesis { field: 0, at: None },
+            arguments: (0..all)
+                .map(|position| self.variable((all - position) as u32))
+                .collect(),
+        };
+        let mut guarded = vec![LawCase::default(); shape.cases()];
+        guarded[zero].citations.push(same);
+        guarded[successor] = within.successor.clone();
+        let mut cases = vec![LawCase::default(); shape.cases()];
+        cases[zero] = within.zero.clone();
+        cases[successor].split = Some(LawSplit {
+            subject: SplitSubject::Value(guard),
+            data: within.data,
+            cases: guarded,
+        });
+        let mut formals = vec![nat];
+        formals.extend_from_slice(types);
+        let mut statement = self.implication(&premises, clause.goal);
+        for &formal in formals.iter().rev() {
+            statement = self.signature.arena.insert(Term::Pi {
+                domain: formal,
+                codomain: statement,
+            });
+        }
+        let law = index(id, self.signature.laws.len())?;
+        index(id, self.signature.declarations.len() + 1)?;
+        let entry = self.push(
+            Declaration::assumption(0, statement),
+            SignatureEntryKind::Statement { law },
+            format!("{} within fuel", clause.machine_name),
+        );
+        let mut formal_names = vec!["fuel".to_owned()];
+        formal_names.extend(clause.formal_names.iter().cloned());
+        self.signature.laws.push(Law {
+            statement: entry,
+            formals,
+            premises,
+            proof: LawProof::Cases {
+                formal: 0,
+                data: within.data,
+                cases,
+                mutual: Vec::new(),
+            },
+            formal_names,
+            ..clause
+        });
+        Ok(entry)
+    }
+
+    /// The statement entries of the natural order's lemmas a law's
+    /// induction on fuel cites (`within`): `not_lt_of_le_zero(e, a)`
+    /// (`a ∸ 0 = 0` and `S e ∸ a = 0` give `S 0 = 0`),
+    /// `le_of_lt_of_sub_between(e, a, k, w)` (`a ∸ k = S w`,
+    /// `a ∸ S k = 0` and `S e ∸ a = 0` give `e ∸ k = 0`) and `sub_self(a)`
+    /// (`a ∸ a = 0`).
+    fn within_lemmas(&mut self, id: MachineId, data: u32, order: u32) -> Checked<[u32; 3]> {
+        let ([zero, succ], nat, monus) = self.natural_terms(id, data, order)?;
+        let arena = &mut self.signature.arena;
+        let id_at = |arena: &mut mathematical_kernel::TermArena, left, right| {
+            arena.insert(Term::Id {
+                ty: nat,
+                left,
+                right,
+            })
+        };
+        let monus_at = |arena: &mut mathematical_kernel::TermArena, left, right| {
+            arena.apply_arguments(monus, &[left, right])
+        };
+        let one = arena.apply_arguments(succ, &[zero]);
+        let absurd = id_at(arena, one, zero);
+        // `not_lt_of_le_zero` under `e`, `a`.
+        let (e, a) = (
+            arena.insert(Term::Variable(1)),
+            arena.insert(Term::Variable(0)),
+        );
+        let at_zero = monus_at(arena, a, zero);
+        let at_zero = id_at(arena, at_zero, zero);
+        let succ_e = arena.apply_arguments(succ, &[e]);
+        let below = monus_at(arena, succ_e, a);
+        let below = id_at(arena, below, zero);
+        // `le_of_lt_of_sub_between` under `e`, `a`, `k`, `w`.
+        let (e4, a4, k4, w4) = (
+            arena.insert(Term::Variable(3)),
+            arena.insert(Term::Variable(2)),
+            arena.insert(Term::Variable(1)),
+            arena.insert(Term::Variable(0)),
+        );
+        let succ_w = arena.apply_arguments(succ, &[w4]);
+        let above = monus_at(arena, a4, k4);
+        let above = id_at(arena, above, succ_w);
+        let succ_k = arena.apply_arguments(succ, &[k4]);
+        let within = monus_at(arena, a4, succ_k);
+        let within = id_at(arena, within, zero);
+        let succ_e4 = arena.apply_arguments(succ, &[e4]);
+        let below4 = monus_at(arena, succ_e4, a4);
+        let below4 = id_at(arena, below4, zero);
+        let reached = monus_at(arena, e4, k4);
+        let reached = id_at(arena, reached, zero);
+        // `sub_self` under `a`.
+        let a1 = arena.insert(Term::Variable(0));
+        let itself = monus_at(arena, a1, a1);
+        let itself = id_at(arena, itself, zero);
+        let exhausted = self.natural_lemma(
+            id,
+            nat,
+            NaturalLemma {
+                name: "not_lt_of_le_zero",
+                formals: 2,
+                premises: &[at_zero, below],
+                goal: absurd,
+                refused: "recursive call at a computed value whose natural order has no lemma `not_lt_of_le_zero(e, a)`: `saturating_sub(a, Zero) = Zero` and `saturating_sub(Succ e, a) = Zero` give `Succ Zero = Zero`",
+            },
+        )?;
+        let step = self.natural_lemma(
+            id,
+            nat,
+            NaturalLemma {
+                name: "le_of_lt_of_sub_between",
+                formals: 4,
+                premises: &[above, within, below4],
+                goal: reached,
+                refused: "recursive call at a computed value whose natural order has no lemma `le_of_lt_of_sub_between(e, a, k, w)`: `saturating_sub(a, k) = Succ w`, `saturating_sub(a, Succ k) = Zero` and `saturating_sub(Succ e, a) = Zero` give `saturating_sub(e, k) = Zero`",
+            },
+        )?;
+        let sub_self = self.natural_lemma(
+            id,
+            nat,
+            NaturalLemma {
+                name: "sub_self",
+                formals: 1,
+                premises: &[],
+                goal: itself,
+                refused: "recursive call at a computed value whose natural order has no lemma `sub_self(a)`: `saturating_sub(a, a) = Zero`",
+            },
+        )?;
+        Ok([exhausted, step, sub_self])
     }
 
     /// The statement entry of the natural order's lemma that a unit of fuel
@@ -6647,6 +6912,7 @@ impl<'p> Converter<'p, '_> {
                 self.script(id, body, &formals)?
             }
         };
+        let within = self.within.take();
         let mut over_fuel = Vec::new();
         if matches!(proof, LawProof::Fuel { .. }) {
             if !own {
@@ -6681,8 +6947,77 @@ impl<'p> Converter<'p, '_> {
             .symbols
             .get(id)
             .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let formal_names: Vec<String> = template
+            .iter()
+            .flat_map(|template| &template.callables)
+            .map(|callable| callable.name.clone())
+            .chain(names.formals.iter().cloned())
+            .collect();
         let mut laws = Vec::with_capacity(goals.len());
         for (clause, (goal, text)) in goals.into_iter().enumerate() {
+            let (text, source) = text.unwrap_or_default();
+            // A law citing itself at a computed natural: the law for every
+            // amount of fuel that reaches its ranked formal, then at the
+            // ranked formal itself.
+            let clause_proof = match &within {
+                Some(within) => {
+                    let law = Law {
+                        machine: symbol,
+                        clause: clause as u32,
+                        statement: 0,
+                        formals: Vec::new(),
+                        premises: premises.clone(),
+                        goal,
+                        declared: None,
+                        proof: LawProof::Direct(LawCase::default()),
+                        formal_names: formal_names.clone(),
+                        machine_name: names.machine.clone(),
+                        text: text.clone(),
+                        source: source.or(names.declared),
+                    };
+                    let types: Vec<TermHandle> = callables
+                        .iter()
+                        .copied()
+                        .chain(formals.iter().map(|(formal, _)| *formal))
+                        .collect();
+                    let induction = self.within_law(id, within, &types, law)?;
+                    let all = types.len();
+                    let ranked = self.variable((formals.len() - 1 - within.measure) as u32);
+                    let mut arguments = vec![ranked];
+                    arguments.extend(
+                        (0..all).map(|position| self.variable((all - 1 - position) as u32)),
+                    );
+                    LawProof::Direct(LawCase {
+                        citations: vec![
+                            Citation {
+                                evidence: Evidence::Statement(within.sub_self),
+                                arguments: vec![ranked],
+                            },
+                            Citation {
+                                evidence: Evidence::Statement(induction),
+                                arguments,
+                            },
+                        ],
+                        ..LawCase::default()
+                    })
+                }
+                None => match &proof {
+                    LawProof::Fuel {
+                        data,
+                        formal,
+                        order,
+                        script,
+                        ..
+                    } => LawProof::Fuel {
+                        data: *data,
+                        formal: *formal,
+                        order: *order,
+                        goal: over_fuel[clause],
+                        script: script.clone(),
+                    },
+                    other => other.clone(),
+                },
+            };
             let law = index(id, self.signature.laws.len())?;
             index(id, self.signature.declarations.len() + 1)?;
             // For all formals, given a proof of each premise, the equality.
@@ -6703,7 +7038,6 @@ impl<'p> Converter<'p, '_> {
                 SignatureEntryKind::Statement { law },
                 names.machine.clone(),
             );
-            let (text, source) = text.unwrap_or_default();
             self.signature.laws.push(Law {
                 machine: symbol,
                 clause: clause as u32,
@@ -6723,28 +7057,8 @@ impl<'p> Converter<'p, '_> {
                     refusal: "the proved equality is not the law its requirement declares"
                         .to_owned(),
                 }),
-                proof: match &proof {
-                    LawProof::Fuel {
-                        data,
-                        formal,
-                        order,
-                        script,
-                        ..
-                    } => LawProof::Fuel {
-                        data: *data,
-                        formal: *formal,
-                        order: *order,
-                        goal: over_fuel[clause],
-                        script: script.clone(),
-                    },
-                    other => other.clone(),
-                },
-                formal_names: template
-                    .iter()
-                    .flat_map(|template| &template.callables)
-                    .map(|callable| callable.name.clone())
-                    .chain(names.formals.iter().cloned())
-                    .collect(),
+                proof: clause_proof,
+                formal_names: formal_names.clone(),
                 machine_name: names.machine.clone(),
                 text,
                 source: source.or(names.declared),
@@ -7284,11 +7598,32 @@ impl<'p> Converter<'p, '_> {
         if let Some(&(_, _, data, formal)) = self.fueled.iter().find(|(fueled, ..)| *fueled == id) {
             return self.script_as(id, body, formals, Some((data, formal)));
         }
+        // A failed reading marks the helpers it read in place refused, so
+        // the reading by induction on fuel starts from the rows before it.
+        let before = ranked_definition.then(|| self.machines.clone());
         match self.script_as(id, body, formals, None) {
             // A machine with a result and a ranking may be defined on fuel.
             // Its law is then an induction on the fuel, whatever its body
             // dispatches on.
             Err(refusal) if ranked_definition => {
+                // A law whose equalities do not name its own result, citing
+                // itself at a computed natural, is proved by induction on
+                // fuel that reaches its ranked formal.
+                if self
+                    .functions
+                    .get(id)
+                    .is_some_and(|state| matches!(state, Read::Unread))
+                    && let Some(before) = before
+                {
+                    let after = std::mem::replace(&mut self.machines, before);
+                    match self.within(id, formals) {
+                        Ok(within) => {
+                            self.within = Some(within);
+                            return Ok(LawProof::Direct(LawCase::default()));
+                        }
+                        Err(_) => self.machines = after,
+                    }
+                }
                 self.function(id)?;
                 match self.fueled.iter().find(|(fueled, ..)| *fueled == id) {
                     Some(&(_, _, data, formal)) => {
@@ -7812,13 +8147,42 @@ impl<'p> Converter<'p, '_> {
         if *callee == law
             && let Some(unfolding) = self.unfolding.filter(|unfolding| unfolding.machine == law)
         {
-            // In the machine's recursive equation, a call is unreachable
-            // without fuel, and with `p` units it is within them, so the
-            // fuel bound at `p` makes it the machine at its arguments.
             let next = operands
                 .get(unfolding.measure)
                 .ok_or_else(|| unserved(machine, "recursive call without its ranked argument"))?
                 .term;
+            let Some(bound) = unfolding.bound else {
+                // In a law's induction on fuel `k` that reaches its ranked
+                // formal `x_r`, `x_r ∸ k = 0`: without fuel a call strictly
+                // below `x_r` is unreachable, and at `S k`, where the guard
+                // `x_r ∸ k = S w` runs the body, a call is within `k`, which
+                // is the hypothesis's premise there.
+                let ranked =
+                    self.variable((unfolding.formals - 1 - unfolding.measure) as u32 + scope.depth);
+                if !unfolding.successor {
+                    script.citations.push(Citation {
+                        evidence: Evidence::Statement(unfolding.exhausted),
+                        arguments: vec![next, ranked],
+                    });
+                    return Ok(());
+                }
+                let rest = self.variable(scope.depth - 1);
+                let above = self.variable(scope.depth - 2);
+                script.citations.push(Citation {
+                    evidence: Evidence::Statement(unfolding.step),
+                    arguments: vec![next, ranked, rest, above],
+                });
+                let mut arguments = passing;
+                arguments.extend(operands.iter().map(|operand| operand.term));
+                script.citations.push(Citation {
+                    evidence: Evidence::Hypothesis { field: 0, at: None },
+                    arguments,
+                });
+                return Ok(());
+            };
+            // In the machine's recursive equation, a call is unreachable
+            // without fuel, and with `p` units it is within them, so the
+            // fuel bound at `p` makes it the machine at its arguments.
             if !unfolding.successor {
                 script.citations.push(Citation {
                     evidence: Evidence::Statement(unfolding.exhausted),
@@ -7835,7 +8199,7 @@ impl<'p> Converter<'p, '_> {
             arguments.push(rest);
             arguments.extend(operands.iter().map(|operand| operand.term));
             script.citations.push(Citation {
-                evidence: Evidence::Statement(unfolding.bound),
+                evidence: Evidence::Statement(bound),
                 arguments,
             });
             return Ok(());

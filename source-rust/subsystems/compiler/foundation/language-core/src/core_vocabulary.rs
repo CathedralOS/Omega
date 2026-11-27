@@ -42,6 +42,14 @@ pub enum CoreVocabulary {
     NaturalFuelGuard,
     NaturalFuelExhausted,
     NaturalFuelStep,
+    /// Core nat.omg's lemmas the induction on fuel of a law citing itself
+    /// at a computed natural cites: `sub_self` (the ranked argument is
+    /// fuel enough), `not_lt_of_le_zero` (with no fuel no call is reached)
+    /// and `le_of_lt_of_sub_between` (a call at a unit of fuel that runs
+    /// the body is within the rest).
+    NaturalSubSelf,
+    NaturalFuelInductionExhausted,
+    NaturalFuelInductionStep,
     /// The ordinary `Never` data declaration in core `never.omg`.
     /// This identifies a nominal ABI result; it proves no inhabitedness.
     Never,
@@ -240,6 +248,9 @@ impl CoreVocabulary {
                 | Self::NaturalFuelGuard
                 | Self::NaturalFuelExhausted
                 | Self::NaturalFuelStep
+                | Self::NaturalSubSelf
+                | Self::NaturalFuelInductionExhausted
+                | Self::NaturalFuelInductionStep
         )
     }
 }
@@ -347,6 +358,24 @@ const ROWS: &[CoreVocabularyRow] = &[
         "le_of_succ_le_succ",
         BundledFile::CoreNat,
         CoreVocabulary::NaturalFuelStep,
+    ),
+    row(
+        "nat.omg",
+        "sub_self",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalSubSelf,
+    ),
+    row(
+        "nat.omg",
+        "not_lt_of_le_zero",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalFuelInductionExhausted,
+    ),
+    row(
+        "nat.omg",
+        "le_of_lt_of_sub_between",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalFuelInductionStep,
     ),
     row(
         "native_execution_authority.omg",

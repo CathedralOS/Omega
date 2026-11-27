@@ -1,8 +1,7 @@
 # Computed descent recursion
 
-Status: design, 2026-11-27. Implementation is staged below; the
-`TASKS.md` bullet under **PROOF-KERNEL-CORE** about the natural order's
-well-foundedness tracks it.
+Status: built, 2026-11-27, in the three steps below (#6331, #6340, #6343
+and the step 3 PR). What is still owed is listed at the end.
 
 ## What the spec asks
 
@@ -139,14 +138,29 @@ call owes.
 
 - A law about `f` that holds for every bound keeps its proof: induction on
   the bound, now with the guard split in each successor case, whose `0`
-  branch is the hypothesis at the same arguments. Stage 06's `Split::Fuel`
-  gets that split; the script is unchanged.
-- A law that needs the equations, such as reconstruction for a
-  repeated-subtraction `div`, is proved about `f` itself: stage 06 may
-  rewrite `f(x̄)` by `Equation_f` under the law's premises, and a law that
-  cites itself at a computed argument owes the same descent and is proved
-  by induction on a bound with premise `x_r ∸ k = 0` (`LawProof` gains that
-  form).
+  branch is the hypothesis at the same arguments (stage 06's `Split::Fuel`).
+- A law that calls `f` cites `Equation_f` at the call, so it can rewrite
+  `f(x̄)` by its body under the law's premises.
+- A law whose equalities do not name its own result and which cites itself
+  at a computed natural (`Converter::within`) is proved in two laws. The
+  first is the law for every `k` with `x_r ∸ k = 0`, over `k` and then the
+  formals, by induction on `k` (`LawProof::Cases` on the fuel, no stage 06
+  change):
+  - At `k = 0`, each self-citation is unreachable: `not_lt_of_le_zero(e_r,
+    x_r)` takes `x_r ∸ 0 = 0` and the call's descent `S e_r ∸ x_r = 0` to
+    `S 0 = 0`.
+  - At `S k'` the case splits on the guard `x_r ∸ k'`. At zero the
+    hypothesis at the same arguments is the goal. At `S w` the body's
+    script runs, and a self-citation cites
+    `le_of_lt_of_sub_between(e_r, x_r, k', w)`, which gives `e_r ∸ k' = 0`,
+    and then the hypothesis at the call's arguments.
+
+  The law itself cites the first at `k = x_r`, whose premise is
+  `sub_self(x_r)`. Both lemmas are core's and are recognized like the
+  others (vocabulary rows `NaturalFuelInductionExhausted`,
+  `NaturalFuelInductionStep` and `NaturalSubSelf`). The descent a
+  self-citation owes is what those lemmas' premises ask for, so a
+  self-citation that does not descend leaves the induction unproved.
 
 ## Steps
 
@@ -159,8 +173,20 @@ call owes.
    `mod(a, b) = mod(a ∸ b, b)` for `1 <= b <= a` by citing `mod(a, b)`; its
    twin `fail/mod_step_without_its_dividend_bound` drops `b <= a` and is
    refused.
-3. Laws that recurse at computed arguments. Fixture: reconstruction of a
-   repeated-subtraction `div` and `mod`; its twin citing itself at an
-   argument that does not descend is refused at that citation.
+3. Laws that recurse at computed arguments. Fixtures:
+   `computed_descent/pass/two_modulos_agree` proves that the
+   repeated-subtraction `mod` and a copy with its formals swapped agree, by
+   citing itself at `saturating_sub(a, b)`. Its twin
+   `fail/modulos_agree_at_an_unchanged_dividend` cites itself at `a` and is
+   refused.
 
-The `TASKS.md` bullet closes with step 3.
+## Still owed
+
+- The spec asks that an unproved descent be reported at its recursive call.
+  A machine's own call is reported there. A law's self-citation is reported
+  at the law's clause instead, in the case of the fuel where its descent
+  is needed (`TASKS.md`).
+- The reconstruction law of a repeated-subtraction `div` and `mod` needs
+  `a = add(b, a ∸ b)` for `b <= a`, which core does not state. The fixture
+  proves agreement of two definitions instead, which needs only the
+  equations and the induction.

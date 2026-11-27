@@ -343,6 +343,28 @@ fn the_same_law_without_its_dividend_bound_is_refused_at_its_ensures() {
 }
 
 #[test]
+fn a_law_that_cites_itself_at_a_computed_dividend_compiles() {
+    // `modulos_agree` cites itself at `saturating_sub(a, b)`, below `a`: it
+    // is proved by induction on fuel that reaches `a`, each side unfolded by
+    // its machine's recursive equation.
+    let (output, report) = check("computed_descent/pass/two_modulos_agree");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn the_same_law_citing_itself_at_its_own_dividend_is_refused() {
+    // At `a` itself the call does not descend, so with no fuel it is not
+    // shown unreachable and the induction's case of zero stays unproved.
+    let (output, report) = check("computed_descent/fail/modulos_agree_at_an_unchanged_dividend");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report
+            .contains("cannot prove ensures contract for `modulos_agree` in the case `Nat::Zero`"),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_local_order_without_its_fuel_bound_is_refused_for_that_lemma() {
     // `Peano` spells core's truncated subtraction, so `drain`'s descent is
     // checked and holds. The law that its fuel suffices needs the order's
