@@ -1252,6 +1252,7 @@ impl Program<'_> {
             .with_source_span(origin.span()));
         }
         let carrier = self.value_type(id, call.machine_arguments[0].type_reference)?;
+        let (left_expression, right_expression) = (left, right);
         let mut values = Vec::new();
         let left = self
             .clause_term(id, scope, left, ClauseUse::Operand(carrier, &mut values))?
@@ -1259,6 +1260,26 @@ impl Program<'_> {
         let right = self
             .clause_term(id, scope, right, ClauseUse::Operand(carrier, &mut values))?
             .operand(id)?;
+        if !self.mathematical
+            && let Some(relation) = self
+                .executable_quotient_of(carrier)
+                .map(|quotient| quotient.relation)
+        {
+            let classes = semantic_vocabulary::ClauseIdentity {
+                values,
+                left,
+                right,
+            };
+            self.quotient_soundness(
+                id,
+                scope,
+                relation,
+                [left_expression, right_expression],
+                &classes,
+            )
+            .map_err(|refusal| refusal.with_source_span(origin.span()))?;
+            return Ok(Proposition::DeclarationIdentity(classes));
+        }
         // Keep the arithmetic prover's integer relation when both operands
         // already have scalar denotations. An abstract operation stays applied.
         if !preserve_type
@@ -1280,6 +1301,99 @@ impl Program<'_> {
                 right,
             },
         ))
+    }
+
+    /// Records what proves an Identity of two classes of an executable
+    /// quotient: the quotient's relation read at the two representatives,
+    /// as one Identity. Only two classes written `value as Quotient` have
+    /// representatives to relate; any other Identity of the quotient's
+    /// values is left opaque, so nothing proves it but an equal premise.
+    fn quotient_soundness(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        relation: SymbolHandle,
+        sides: [ExpressionHandle; 2],
+        classes: &semantic_vocabulary::ClauseIdentity,
+    ) -> Checked<()> {
+        use crate::source_state::proposition::{PropositionBody, PropositionFormula};
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
+        let typed = self.typed;
+        let mut representatives = Vec::with_capacity(2);
+        for side in sides {
+            match typed.expression_table.expression(side) {
+                ExpressionNode::Cast(cast) => representatives.push(cast.value),
+                _ => return Ok(()),
+            }
+        }
+        let definition = typed
+            .proposition_definition_by_symbol(relation)
+            .ok_or_else(|| unserved("quotient relation that is no declared proposition"))?;
+        let PropositionBody::Transparent {
+            proposition: PropositionFormula::BooleanExpression(formula),
+        } = &definition.body
+        else {
+            return Err(unserved("quotient relation declared without a formula"));
+        };
+        let parameters = typed
+            .state_parameters
+            .span(definition.parameters)
+            .ok_or_else(|| unserved("quotient relation lost its parameters"))?;
+        if parameters.len() != 2 {
+            return Err(unserved(
+                "quotient relation over something other than two values of its carrier",
+            ));
+        }
+        self.applied_propositions.push(AppliedProposition {
+            declaration: Some(definition.symbol),
+            arguments: parameters
+                .iter()
+                .zip(&representatives)
+                .map(|(parameter, &argument)| (parameter.symbol, argument))
+                .collect(),
+        });
+        let read = self.clause(id, scope, *formula);
+        self.applied_propositions.pop();
+        // The relation is one Identity, or one equality of two scalars,
+        // which is their Identity at the scalar's type.
+        let related = match read? {
+            Proposition::DeclarationIdentity(related) => related,
+            Proposition::Equal(left, right) if left.scalar_type() == right.scalar_type() => {
+                let carrier = semantic_vocabulary::ClauseCarrier::Scalar(left.scalar_type());
+                semantic_vocabulary::ClauseIdentity {
+                    values: vec![
+                        semantic_vocabulary::ClauseValue {
+                            carrier,
+                            operand: semantic_vocabulary::ClauseOperand::Scalar(left),
+                        },
+                        semantic_vocabulary::ClauseValue {
+                            carrier,
+                            operand: semantic_vocabulary::ClauseOperand::Scalar(right),
+                        },
+                    ],
+                    left: 0,
+                    right: 1,
+                }
+            }
+            _ => {
+                return Err(unserved(
+                    "Identity of two classes of a quotient whose relation is not one Identity \
+                     or one equality",
+                ));
+            }
+        };
+        let row = terminal_check_tables::QuotientSoundness {
+            classes: classes.clone(),
+            related,
+        };
+        if !self
+            .quotient_soundness
+            .iter()
+            .any(|(machine, known)| *machine == id && *known == row)
+        {
+            self.quotient_soundness.push((id, row));
+        }
+        Ok(())
     }
 
     /// A primitive byte predicate of a byte view (`no_nul(self)`,
@@ -1765,6 +1879,12 @@ impl Program<'_> {
                 }
                 if !path.symbol.is_valid() {
                     return Err(spelling("clause name without a symbol"));
+                }
+                // A parameter of a named proposition being read is the
+                // argument written for it where it was applied, so its
+                // fields are that argument's.
+                if let Some(actual) = self.proposition_argument(path.symbol) {
+                    return self.read_projection(id, scope, actual);
                 }
                 let Some(subject) = scope.subject else {
                     // A scope that reads no formal storage names none here,

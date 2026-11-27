@@ -2458,6 +2458,9 @@ enum Named {
     Scalar(ScalarTerm),
     Operation(ClauseDeclaration),
     Law(MachineId, u32),
+    /// The quotient's soundness at the two representatives of one
+    /// `QuotientSoundness` row, by its position.
+    Soundness(usize),
 }
 
 /// The kernel carrier of a record field: either a `ClauseCarrier` that clauses
@@ -3169,6 +3172,26 @@ impl<'a> Declarations<'a> {
     /// whole values, each side is rebuilt from its fields and the field
     /// identities are carried into the rebuilt tuple one at a time. The
     /// kernel converts a tuple of a value's projections back into the value.
+    /// The quotient's soundness at the representatives of row `row`:
+    /// `related → expected`, where `related` is the quotient's relation at
+    /// them and `expected` the Identity of their classes. It is declared
+    /// before the signature is checked; the proof applies it.
+    fn soundness(
+        &mut self,
+        row: usize,
+        related: &ClauseIdentity,
+        expected: TermHandle,
+    ) -> Result<(TermHandle, TermHandle), &'static str> {
+        let statement = self.identity(related, &[])?;
+        let codomain = shift(&mut self.arena, expected, 0, 1);
+        let soundness = self.arena.insert(Term::Pi {
+            domain: statement,
+            codomain,
+        });
+        let sound = self.entry(Named::Soundness(row), soundness)?;
+        Ok((statement, sound))
+    }
+
     fn prove_identity(
         &mut self,
         context: &Context,
@@ -3381,6 +3404,24 @@ pub(crate) fn discharge(
         );
         citations.push(row);
     }
+    // Two classes of a quotient of data that has storage: the soundness
+    // that relates them, declared with everything else the obligation
+    // names.
+    let soundness = match tables
+        .quotient_soundness
+        .iter()
+        .position(|row| row.classes == *goal)
+    {
+        Some(position) => {
+            let related = &tables.quotient_soundness[position].related;
+            let (statement, sound) = declarations
+                .soundness(position, related, expected)
+                .map_err(unavailable)?;
+            let carrier = FieldCarrier::Clause(related.values[related.left as usize].carrier);
+            Some((statement, sound, carrier))
+        }
+        None => None,
+    };
     let mut budget = Budget::default();
     let field_name = |identity: TerminalIdentityIndex| {
         let text = module.identities.text(identity).unwrap_or("?");
@@ -3455,16 +3496,33 @@ pub(crate) fn discharge(
     let Term::Id { left, right, .. } = declarations.arena.get(expected) else {
         unreachable!("an Identity denotes kernel Id")
     };
-    let proof = declarations
-        .prove_identity(
-            &context,
-            FieldCarrier::Clause(goal.values[goal.left as usize].carrier),
-            left,
-            right,
-            &proofs,
-            &mut budget,
-        )
-        .map_err(refused)?;
+    let proved = declarations.prove_identity(
+        &context,
+        FieldCarrier::Clause(goal.values[goal.left as usize].carrier),
+        left,
+        right,
+        &proofs,
+        &mut budget,
+    );
+    let proof = match proved {
+        Ok(proof) => proof,
+        // Two classes of a quotient of data that has storage are equal when
+        // their representatives are related: the quotient's soundness at
+        // them, applied to a proof of the relation.
+        Err(unproved) if unproved.error == SearchError::NoProof => {
+            let Some((statement, sound, carrier)) = soundness else {
+                return Err(refused(unproved));
+            };
+            let Term::Id { left, right, .. } = declarations.arena.get(statement) else {
+                unreachable!("an Identity denotes kernel Id")
+            };
+            let evidence = declarations
+                .prove_identity(&context, carrier, left, right, &proofs, &mut budget)
+                .map_err(refused)?;
+            declarations.arena.apply_arguments(sound, &[evidence])
+        }
+        Err(unproved) => return Err(refused(unproved)),
+    };
     let certificate =
         MathematicalCertificate::with_signature(declarations.signature, premises, proof, expected);
     let receipt =

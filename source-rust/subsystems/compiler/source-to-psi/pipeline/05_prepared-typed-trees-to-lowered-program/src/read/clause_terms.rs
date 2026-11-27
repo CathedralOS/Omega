@@ -1928,16 +1928,32 @@ impl Program<'_> {
                         arguments: vec![value],
                     }
                 }
-                // The class of a value of data that has storage: the
-                // mathematical signature states no such quotient, so no
-                // law can equate two of its classes.
-                (ExpressionNode::Cast(_), Some(expected))
-                    if self.executable_quotient_of(expected).is_some() =>
+                // The class of a value of data that has storage is the
+                // quotient's declaration applied to it: an opaque value of
+                // the quotient, equal to another class only by what the
+                // checker proves (`QuotientSoundness`).
+                (ExpressionNode::Cast(cast), Some(expected))
+                    if !self.mathematical && self.executable_quotient_of(expected).is_some() =>
                 {
-                    return Err(unavailable(
-                        "Identity of classes of a quotient of data that has storage, which the \
-                         mathematical signature does not state",
-                    ));
+                    let quotient = self
+                        .executable_quotient_of(expected)
+                        .expect("the guard found it");
+                    let (declaration, carrier) = (quotient.declaration, quotient.carrier);
+                    if self.value_type(id, cast.target_type)? != expected {
+                        return Err(unavailable(
+                            "Identity operand differs from the written carrier",
+                        ));
+                    }
+                    let value = self
+                        .clause_term(id, scope, cast.value, ClauseUse::Operand(carrier, values))?
+                        .operand(id)?;
+                    ClauseOperand::Application {
+                        declaration: ClauseDeclaration {
+                            member: (declaration.arena_index(), declaration.generation()),
+                            supplier: None,
+                        },
+                        arguments: vec![value],
+                    }
                 }
                 _ => {
                     return Err(unavailable(

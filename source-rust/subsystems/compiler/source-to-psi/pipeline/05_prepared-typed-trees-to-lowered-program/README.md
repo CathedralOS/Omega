@@ -85,8 +85,11 @@ relation, so the signature records that sealed statement on the row's law
 for stage 06 to compare. A conformance whose every row is proved by a
 machine over mathematical data states laws only, and the ordinary reader
 skips it. A quotient of data that has storage is run by the ordinary
-reader, and a law equating its classes is refused by name: the signature
-states no record with a fixed-width field. The reader still refuses generic quotient data. The
+reader. A contract's class of such data, `value as Quotient`, is the
+quotient's declaration applied to `value`; an Identity of two classes also
+records the quotient's relation read at their representatives
+(`QuotientSoundness`), from which stage 06 may prove it by soundness.
+The reader still refuses generic quotient data. The
 [owner ruling](../../../../../../OWNER_QUESTIONS.md#generic-quotient-selection) specifies explicit arguments for the relation and its named conformance.
 
 An operation on a quotient is a machine whose whole body is
