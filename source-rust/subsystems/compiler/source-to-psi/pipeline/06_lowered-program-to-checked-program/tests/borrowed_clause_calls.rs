@@ -204,3 +204,47 @@ fn a_weaker_premise_does_not_prove_a_helper_call() {
         "{HELPER}machine forward(value: @i32) requires $value > -1i32 {{ needs_through(value); }}\n"
     ));
 }
+
+const GUARDED: &str = "machine big(value: @i32) -> bool requires $value > 0i32 { $value > 10i32 }
+";
+
+fn lowering_refusal(program: &str) -> String {
+    match Program::try_of(&[("product/main.omg", program)]) {
+        Ok(_) => panic!("lowering accepted {program}"),
+        Err(refusal) => format!("{refusal:?}"),
+    }
+}
+
+#[test]
+fn a_clause_call_relies_on_the_requires_clauses_before_it() {
+    accepted(&format!(
+        "{GUARDED}machine needs(value: @i32) requires $value > 0i32, big(value) {{}}
+machine split(value: @i32) requires $value > 0i32 requires big(value) {{}}
+machine forward(value: @i32) requires $value > 20i32 {{ needs(value); split(value); }}
+"
+    ));
+}
+
+#[test]
+fn a_clause_call_proves_nothing_its_callee_promises_beyond_the_premise() {
+    unproved(&format!(
+        "{GUARDED}machine needs(value: @i32) requires $value > 0i32, big(value) {{}}
+machine forward(value: @i32) requires $value > 5i32 {{ needs(value); }}
+"
+    ));
+}
+
+#[test]
+fn a_clause_call_cannot_rely_on_a_later_or_missing_clause() {
+    for needs in [
+        "machine needs(value: @i32) requires big(value) {}\n",
+        "machine needs(value: @i32) requires big(value), $value > 0i32 {}\n",
+        "machine needs(value: @i32) requires $value > -1i32, big(value) {}\n",
+    ] {
+        let refusal = lowering_refusal(&format!("{GUARDED}{needs}"));
+        assert!(
+            refusal.contains("called machine in a clause has an unproved precondition"),
+            "{refusal}"
+        );
+    }
+}
