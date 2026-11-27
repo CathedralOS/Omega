@@ -133,7 +133,6 @@ pub(crate) fn boundary_internal_call_exists(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_boundary_internal_call_child(
-    pass: crate::physical::PhysicalEvidencePass,
     module: &terminal_psi::TerminalModule,
     object: &image_emission::ObjectArtifact,
     image: &[u8],
@@ -305,7 +304,7 @@ pub(crate) fn derive_boundary_internal_call_child(
         .text_bytes()
         .get(opcode..end)
         .ok_or("selected boundary internal call is outside object text")?;
-    pass.verify(|| validate_destination(target.architecture, opcode, bytes, callee.text_offset))?;
+    validate_destination(target.architecture, opcode, bytes, callee.text_offset)?;
     let mut attribution = object.semantic_code_attribution().iter().filter(|row| {
         row.machine == function.machine
             && row.attribution.site == semantic_site
@@ -337,7 +336,7 @@ pub(crate) fn derive_boundary_internal_call_child(
     let machine_bytes = span(function.bytes(object), machine_span)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
     let final_image_bytes = span(image, final_image_span)?;
-    if pass.is_receiver() && (machine_bytes != object_bytes || object_bytes != final_image_bytes) {
+    if machine_bytes != object_bytes || object_bytes != final_image_bytes {
         return Err("selected boundary internal call bytes changed across physical custody");
     }
 

@@ -950,10 +950,7 @@ pub mod compute {
         ValidatedRegisterReservationProfile, target_register_environment_identity,
     };
 
-    use crate::{
-        AllocationLegalityError, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
-        ValidatedLiveRanges,
-    };
+    use crate::{AllocationLegalityError, ValidatedAllocatorAvailability, ValidatedLiveRanges};
     use register_homes::AllocationLegalityPlan;
 
     pub(crate) fn compute_terminal_allocation_legality(
@@ -964,8 +961,7 @@ pub mod compute {
         constraints: &PreparedRegisterConstraintCatalog,
         reservations: &ValidatedRegisterReservationProfile,
         selected_keys: &TargetRegisterEnvironmentConstraintKeys,
-        previous: Option<(&ValidatedLiveRanges, &ValidatedAllocationLegality)>,
-    ) -> Result<(AllocationLegalityPlan, Vec<bool>), AllocationLegalityError> {
+    ) -> Result<AllocationLegalityPlan, AllocationLegalityError> {
         validate_roots(
             ranges,
             availability,
@@ -984,62 +980,29 @@ pub mod compute {
         if environment != register_environment {
             return Err(AllocationLegalityError::RootMismatch);
         }
-        let previous = previous.filter(|(prior_ranges, prior_legality)| {
-            prior_ranges.plan().target == ranges.plan().target
-                && prior_ranges.plan().optimization_unit == ranges.plan().optimization_unit
-                && prior_ranges.plan().work_schedule == ranges.plan().work_schedule
-                && prior_legality.plan().ranges == prior_ranges.receipt().identity()
-                && prior_legality.receipt().ranges() == prior_ranges.receipt().identity()
-                && prior_legality.plan().register_environment == register_environment
-                && prior_legality.receipt().register_environment() == register_environment
-                && prior_legality.plan().allocator_availability == availability.receipt().identity()
-                && prior_legality.receipt().allocator_availability()
-                    == availability.receipt().identity()
-        });
-        let mut carried = vec![false; ranges.plan().functions.len()];
         let functions = ranges
             .plan()
             .functions
             .iter()
             .enumerate()
             .map(|(function_index, live_ranges)| {
-                if let Some((prior_ranges, prior_legality)) = previous
-                    && prior_ranges.plan().functions.get(function_index) == Some(live_ranges)
-                    && let Some(function) = prior_legality.plan().functions.get(function_index)
-                {
-                    carried[function_index] = true;
-                    return Ok(function.clone());
-                }
-                let prior_pair = previous.and_then(|(prior_ranges, prior_legality)| {
-                    Some((
-                        prior_ranges.plan().functions.get(function_index)?.as_ref(),
-                        prior_legality
-                            .plan()
-                            .functions
-                            .get(function_index)?
-                            .as_ref(),
-                    ))
-                });
                 function::compute_reusing(
                     function_index,
                     live_ranges,
                     availability,
                     physical,
                     reservations,
-                    prior_pair,
+                    None,
                 )
                 .map(std::sync::Arc::new)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Ok((
-            AllocationLegalityPlan {
-                ranges: ranges.receipt().identity(),
-                register_environment,
-                allocator_availability: availability.receipt().identity(),
-                functions,
-            },
-            carried,
-        ))
+        Ok(AllocationLegalityPlan {
+            ranges: ranges.receipt().identity(),
+            register_environment,
+            allocator_availability: availability.receipt().identity(),
+            functions,
+        })
     }
 
     fn validate_roots(
@@ -1193,7 +1156,7 @@ pub fn analyze_allocation_legality(
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
-    let (plan, _) = compute::compute_terminal_allocation_legality(
+    let plan = compute::compute_terminal_allocation_legality(
         ranges,
         availability,
         register_environment,
@@ -1201,38 +1164,8 @@ pub fn analyze_allocation_legality(
         constraints,
         reservations,
         selected_keys,
-        None,
     )?;
     validate::admit(plan, &[], &[], &[])
-}
-
-pub fn analyze_allocation_legality_reusing(
-    previous_ranges: &ValidatedLiveRanges,
-    previous_legality: &ValidatedAllocationLegality,
-    ranges: &ValidatedLiveRanges,
-    availability: &ValidatedAllocatorAvailability,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &PreparedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
-) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
-    let (plan, carried) = compute::compute_terminal_allocation_legality(
-        ranges,
-        availability,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        Some((previous_ranges, previous_legality)),
-    )?;
-    validate::admit(
-        plan,
-        &carried,
-        &previous_legality.function_digests,
-        &previous_legality.function_counts,
-    )
 }
 
 copy_receipt! {

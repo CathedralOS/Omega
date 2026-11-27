@@ -7,10 +7,7 @@ dynamic ELF image.
 */
 
 use super::identity::derive_native_artifact_identity;
-use super::{
-    NativeArtifactParts, NativePhysicalEvidence, NativePhysicalEvidenceGap,
-    NativeProviderExecution, NativeSelectedProviderPlan,
-};
+use super::{NativeArtifactParts, NativeProviderExecution, NativeSelectedProviderPlan};
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
 const DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] =
     b"omega.dynamic-elf-native-artifact.sha256.v1\0";
@@ -40,19 +37,15 @@ impl std::fmt::Display for DynamicElfNativeArtifactIdentity {
 #[must_use = "dynamic ELF native custody is non-installable and must be replayed"]
 pub struct DynamicElfNativeArtifact(RetainedDynamicElfArtifact);
 
-/// The sealed image, its replay evidence, and its read-only inspection operations.
+/// The sealed image and its read-only inspection operations.
 #[derive(Debug)]
 pub struct RetainedDynamicElfArtifact {
     parts: DynamicElfNativeArtifactParts,
-    physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
     identity: DynamicElfNativeArtifactIdentity,
 }
 
 pub type DynamicElfNativeArtifactParts =
     NativeArtifactParts<image_emission::RequestedDynamicElfImage>;
-
-pub(crate) type DynamicElfNativeArtifactEmissionParts =
-    super::NativeArtifactEmissionParts<image_emission::RequestedDynamicElfImage>;
 
 impl std::ops::Deref for DynamicElfNativeArtifact {
     type Target = RetainedDynamicElfArtifact;
@@ -63,24 +56,11 @@ impl std::ops::Deref for DynamicElfNativeArtifact {
 }
 
 impl DynamicElfNativeArtifact {
-    pub(crate) fn from_emitted_parts(
-        parts: DynamicElfNativeArtifactEmissionParts,
-    ) -> Result<Self, &'static str> {
-        let derivation = parts.publication_derivation(
-            parts.image.output(),
-            *image::final_image_symbol_digest(parts.image.emission().admitted().image()).as_bytes(),
-        )?;
-        let (parts, physical_evidence_gap) = parts.into_parts(derivation);
-        Ok(Self::seal(parts, physical_evidence_gap))
-    }
-
-    fn seal(
-        parts: DynamicElfNativeArtifactParts,
-        physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
-    ) -> Self {
+    /// Seal the emitted image directly, as the direct product does; no
+    /// physical evidence derivation runs on emission.
+    pub(crate) fn from_emitted_parts(parts: DynamicElfNativeArtifactParts) -> Self {
         let mut artifact = RetainedDynamicElfArtifact {
             parts,
-            physical_evidence_gap,
             identity: DynamicElfNativeArtifactIdentity([0; 32]),
         };
         artifact.identity = artifact.recomputed_identity();
@@ -135,37 +115,29 @@ impl RetainedDynamicElfArtifact {
             &self.parts.native_calling,
         )
         .map_err(super::provider_execution::ProviderExecutionReplayError::dynamic_message)?;
-        let final_image_symbol_digest =
-            *image::final_image_symbol_digest(self.parts.image.emission().admitted().image())
-                .as_bytes();
-        let (expected_physical_evidence, expected_physical_evidence_gap) = self
-            .parts
-            .replayed_evidence(self.parts.image.output(), final_image_symbol_digest)?;
-        if self.parts.physical_evidence != expected_physical_evidence {
-            return Err("dynamic native artifact physical children disagree with exact replay");
-        }
-        if self.physical_evidence_gap != expected_physical_evidence_gap {
-            return Err(
-                "dynamic native artifact physical evidence gap disagrees with exact derivation replay",
-            );
-        }
+        // As for direct artifacts, the receiver re-derives physical evidence
+        // only to reject contradictory custody.
+        self.parts.audit_physical_evidence(
+            self.parts.image.output(),
+            *self.final_image_symbol_digest().as_bytes(),
+        )?;
         if self.identity != self.recomputed_identity() {
             return Err("dynamic native artifact identity disagrees with retained custody");
         }
         Ok(())
     }
 
+    fn final_image_symbol_digest(&self) -> image::FinalImageSymbolDigest {
+        image::final_image_symbol_digest(self.parts.image.emission().admitted().image())
+    }
+
     fn recomputed_identity(&self) -> DynamicElfNativeArtifactIdentity {
-        let base = derive_native_artifact_identity(
-            self.parts.identity_fields(
-                self.parts.image.output(),
-                *image::final_image_symbol_digest(self.parts.image.emission().admitted().image())
-                    .as_bytes(),
-                self.parts.object.foreign_calls(),
-                None,
-                self.physical_evidence_gap.as_ref(),
-            ),
-        );
+        let base = derive_native_artifact_identity(self.parts.identity_fields(
+            self.parts.image.output(),
+            *self.final_image_symbol_digest().as_bytes(),
+            self.parts.object.foreign_calls(),
+            None,
+        ));
         let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
             DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN,
         );
@@ -205,13 +177,5 @@ impl RetainedDynamicElfArtifact {
         &self,
     ) -> Option<&TerminalBoundaryApplicationCoverage> {
         self.parts.boundary_application_coverage.as_ref()
-    }
-
-    pub const fn physical_evidence(&self) -> Option<&NativePhysicalEvidence> {
-        self.parts.physical_evidence.as_ref()
-    }
-
-    pub const fn physical_evidence_gap(&self) -> Option<&NativePhysicalEvidenceGap> {
-        self.physical_evidence_gap.as_ref()
     }
 }

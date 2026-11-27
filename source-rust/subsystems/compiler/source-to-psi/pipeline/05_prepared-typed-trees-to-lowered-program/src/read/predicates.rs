@@ -537,7 +537,7 @@ impl<'t> Program<'t> {
         if let Some(declaration) = self.typed.domain_definition(instance.declaration) {
             self.require_domain_predicate_form(id, declaration);
         }
-        let domains = crate::DomainSet::EMPTY
+        let domains = crate::body::DomainSet::EMPTY
             .with(instance)
             .ok_or_else(|| refuse_at(id, Unserved::Type("domain predicate subject")))?;
         let qualification = Qualification {

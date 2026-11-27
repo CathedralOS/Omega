@@ -448,8 +448,6 @@ struct IdentityFixture<'a> {
     permission_policy_present: bool,
     boundary_application_marker: Option<u8>,
     physical_evidence_scope: NativePhysicalEvidenceScope,
-    physical_evidence_marker: u8,
-    physical_evidence_gap_marker: Option<u8>,
     with_entry_evidence: bool,
 }
 
@@ -473,8 +471,6 @@ impl Default for IdentityFixture<'static> {
             boundary_application_marker: Some(73),
             physical_evidence_scope:
                 NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
-            physical_evidence_marker: 61,
-            physical_evidence_gap_marker: None,
             with_entry_evidence: true,
         }
     }
@@ -536,10 +532,6 @@ fn fixture_identity(fixture: IdentityFixture<'_>) -> NativeArtifactIdentity {
             .boundary_application_marker
             .map(|marker| [marker; 32]),
         physical_evidence_scope: &fixture.physical_evidence_scope,
-        physical_evidence_identity: Some([fixture.physical_evidence_marker; 32]),
-        physical_evidence_gap_identity: fixture
-            .physical_evidence_gap_marker
-            .map(|marker| [marker; 32]),
     })
 }
 
@@ -629,8 +621,6 @@ fn native_artifact_identity_binds_evidence_and_provider_realization() {
         mutated_identity(|fixture| {
             fixture.physical_evidence_scope = NativePhysicalEvidenceScope::Unavailable
         }),
-        mutated_identity(|fixture| fixture.physical_evidence_marker = 17),
-        mutated_identity(|fixture| fixture.physical_evidence_gap_marker = Some(23)),
     ] {
         assert_ne!(mutation, baseline);
     }

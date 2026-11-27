@@ -6,7 +6,7 @@ use crate::source_state as typed;
 use crate::tables::type_constraints;
 use diagnostics::Diagnostic;
 
-pub fn access_borrow_factory(
+pub(crate) fn access_borrow_factory(
     program: &resolved::SymbolResolvedTrees,
     target_symbol: symbols::SymbolHandle,
 ) -> Result<Option<typed::expression::AccessBorrowOperationRequest>, Diagnostic> {
@@ -35,7 +35,7 @@ pub fn access_borrow_factory(
     access_borrow_factory_of(program, machine)
 }
 
-pub fn access_borrow_factory_of(
+fn access_borrow_factory_of(
     program: &resolved::SymbolResolvedTrees,
     machine: &resolved::machine::Machine,
 ) -> Result<Option<typed::expression::AccessBorrowOperationRequest>, Diagnostic> {

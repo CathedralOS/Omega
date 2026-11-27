@@ -216,24 +216,32 @@ impl TypedReferences for CohortOwnerCollector {
     }
 }
 
-/// Retain static argument contexts for `cohort` without re-walking the whole program when an
-/// incremental cohort introduces no statement calls that need static context retention.
+/// Retain static argument contexts for the calls `cohort` added.
+///
+/// A continuing cohort gives each new expression call its context through
+/// `retain_call_static_argument_context`, walking only the cohort's
+/// declarations. Statement calls have no such per-call operation in typed
+/// trees, so a cohort machine with a statement call that needs a context
+/// (`cohort_has_static_statement_calls`) still runs the program-wide pass, as
+/// does a fresh cohort. Returns whether the program-wide pass ran, since it
+/// may rewrite retained declarations.
 pub(crate) fn retain_cohort_static_argument_contexts(
     program: &mut TypedTrees,
     cohort: &TypingCohort<'_>,
-) -> Result<(), &'static str> {
+) -> Result<bool, &'static str> {
     if cohort.is_fresh() || cohort_has_static_statement_calls(program, cohort) {
-        return program.retain_static_argument_contexts();
+        return program.retain_static_argument_contexts().map(|()| true);
     }
     if program.expression_table.expression_count() <= cohort.typed_expressions {
-        return Ok(());
+        return Ok(false);
     }
-    let has_new_call = program
+    let new_calls = program
         .expression_table
         .iter_expressions_from(cohort.typed_expressions + 1)
-        .any(|(_, node)| matches!(node, ExpressionNode::Call(_)));
-    if !has_new_call {
-        return Ok(());
+        .filter(|(_, node)| matches!(node, ExpressionNode::Call(_)))
+        .count();
+    if new_calls == 0 {
+        return Ok(false);
     }
 
     struct CohortCalls {
@@ -293,14 +301,32 @@ pub(crate) fn retain_cohort_static_argument_contexts(
         calls: Vec::new(),
     };
     visit_program(program, &mut collector);
+    // A new call that the cohort's declarations do not reach belongs to a
+    // retained declaration; only the program-wide pass gives it its context.
+    let mut reached_calls = collector
+        .calls
+        .iter()
+        .filter(|(expression, _)| program.expression_table.call_node(*expression).is_some())
+        .map(|(expression, _)| expression.arena_index())
+        .collect::<Vec<_>>();
+    reached_calls.sort_unstable();
+    reached_calls.dedup();
+    if reached_calls.len() != new_calls {
+        return program.retain_static_argument_contexts().map(|()| true);
+    }
     for (expression, owner) in collector.calls {
         if program.expression_table.call_node(expression).is_some() {
             program.retain_call_static_argument_context(expression, owner)?;
         }
     }
-    Ok(())
+    Ok(false)
 }
 
+/// Whether a machine in `cohort` has a statement call that
+/// `TypedTrees::retain_static_argument_contexts` would give a source
+/// application. The predicate is that pass's own statement filter. It includes
+/// ordinary direct calls to a machine or state, because their result evidence
+/// needs the exact declaration and lexical owner too.
 fn cohort_has_static_statement_calls(program: &TypedTrees, cohort: &TypingCohort<'_>) -> bool {
     let direct_declaration = |target: SymbolHandle| {
         program
@@ -354,6 +380,11 @@ fn cohort_has_static_statement_calls(program: &TypedTrees, cohort: &TypingCohort
 
 /// Returns `true` when an incremental cohort introduced declarations, trait scopes, or invocation
 /// sites that could require `prepare_applied_callable_signatures`.
+///
+/// That operation always walks the whole program: a new conformance or trait
+/// can give an already-typed application new requirement signatures, and typed
+/// trees offers a narrower form only for one known application. This guard is
+/// therefore the only cohort scoping the pass gets.
 pub(crate) fn cohort_may_need_applied_callable_signatures(
     program: &TypedTrees,
     cohort: &TypingCohort<'_>,

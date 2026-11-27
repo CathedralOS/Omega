@@ -4,9 +4,10 @@ and foreign-call custody digest (`foreign_call_custody_digest`) for native
 artifacts. We bind the canonical Terminal artifact identity, physical entry
 requirements, installation assumptions, target wire identity, object/image text
 and container bytes, selected provider plans,
-provider execution reports, authority policy commitments, D29 boundary coverage,
-and D32 physical evidence (or its blocking gap) into one collision-resistant
-digest.
+provider execution reports, authority policy commitments, D29 boundary coverage
+and the physical evidence scope into one collision-resistant digest. Derived
+physical evidence and its gaps stay out: the machine-state evidence spec makes
+artifact identity independent of any second pass over the emitted bytes.
 */
 
 use super::{
@@ -21,7 +22,7 @@ use terminal_authority_receipts::{
     TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
 };
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v18\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v19\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) physical_entry_requirements: Option<&'a image_emission::PhysicalEntryRequirements>,
@@ -53,8 +54,6 @@ pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) terminal_authority_closure_review_identity: [u8; 32],
     pub(super) boundary_application_coverage_identity: Option<[u8; 32]>,
     pub(super) physical_evidence_scope: &'a NativePhysicalEvidenceScope,
-    pub(super) physical_evidence_identity: Option<[u8; 32]>,
-    pub(super) physical_evidence_gap_identity: Option<[u8; 32]>,
 }
 
 pub(super) fn compiler_identity_evidence(
@@ -207,8 +206,6 @@ pub(super) fn derive_native_artifact_identity(
             digest.raw(scope.identity());
         }
     }
-    hash_optional_digest(&mut digest, fields.physical_evidence_identity);
-    hash_optional_digest(&mut digest, fields.physical_evidence_gap_identity);
     NativeArtifactIdentity(digest.finish())
 }
 
