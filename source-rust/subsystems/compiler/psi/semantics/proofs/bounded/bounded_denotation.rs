@@ -2770,8 +2770,10 @@ impl Denotation {
                 _ => {
                     if let Some(rel) = self.integer_relation_term(cur)? {
                         rel
-                    } else if cur.scalar_type() == ScalarType::Boolean
-                        && let Some(read) = self.data_payload_read(cur)?
+                    } else if matches!(
+                        cur.scalar_type(),
+                        ScalarType::Boolean | ScalarType::IeeeFloat(_)
+                    ) && let Some(read) = self.data_payload_read(cur)?
                     {
                         read
                     } else {

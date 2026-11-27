@@ -10,7 +10,7 @@ use proof_admission::{
 };
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue,
-    IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, PlaceId, Proposition,
+    IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, PlaceId, Proposition,
     ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseId, StructuralCaseSubject,
     StructuralFieldId, StructuralTypeId,
 };
@@ -211,18 +211,46 @@ fn a_payload_read_at_another_carrier_is_refused() {
     assert!(refused.contains("its field's scalar carrier"), "{refused}");
 }
 
+/// A float payload is a value of its format's carrier, as a float subject
+/// is, and an equality of it is read through the recursor.
 #[test]
-fn a_float_payload_has_no_denotation_yet() {
+fn a_float_payload_is_read_at_its_carrier() {
     let float = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
-    let refused = refusal(denote(
+    let premise = Proposition::Equal(
+        read(1, case(1), field(1), float),
+        ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(0x3f80_0000)),
+    );
+    let ty = denote(
         &[subject(1, choice(float))],
-        &[],
+        &[premise],
+        &is_case(1, case(1)),
+    )
+    .unwrap();
+    // The input and the premise: a float payload has no integer bounds.
+    assert_well_formed(ty, 2);
+}
+
+/// A read of a float payload at the other format is not its field.
+#[test]
+fn a_float_payload_read_at_another_format_is_refused() {
+    let premise = Proposition::Equal(
+        read(
+            1,
+            case(1),
+            field(1),
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+        ),
+        ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(0x3ff0_0000_0000_0000)),
+    );
+    let refused = refusal(denote(
+        &[subject(
+            1,
+            choice(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)),
+        )],
+        &[premise],
         &is_case(1, case(1)),
     ));
-    assert!(
-        refused.contains("payload is not a closed-width integer"),
-        "{refused}"
-    );
+    assert!(refused.contains("its field's scalar carrier"), "{refused}");
 }
 
 #[test]

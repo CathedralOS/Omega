@@ -1526,14 +1526,29 @@ fn a_theorem_concluding_less_about_the_payload_cannot_supply_the_alias() {
     );
 }
 
+/// A sum with a float payload is a subject too: `Two(y: f32)` is part of the
+/// declaration the alias and the cited machine are read over.
 #[test]
-fn a_theorem_over_a_sum_with_a_float_payload_is_refused_by_name() {
+fn a_theorem_over_a_sum_with_a_float_payload_supplies_its_alias() {
     let source = ONE_IS_POSITIVE.replace("case Two(y: u8);", "case Two(y: f32);");
     assert!(source.contains("case Two(y: f32);"), "{source}");
     let verdict = stored(&source);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_over_a_sum_with_a_float_payload_needing_another_case_is_refused() {
+    let source = ONE_IS_POSITIVE
+        .replace("case Two(y: u8);", "case Two(y: f32);")
+        .replace(
+            "machine one_is_positive(c: Choice)\nrequires c in Choice::One && c.x != 0u8",
+            "machine one_is_positive(c: Choice)\nrequires c in Choice::Two && c.x != 0u8",
+        );
+    assert!(source.contains("requires c in Choice::Two"), "{source}");
+    let verdict = stored(&source);
     let shown = format!("{verdict:?}");
     assert!(
-        shown.contains("logical contract has no well-formed mathematical implication"),
+        shown.contains("explicit proof argument does not establish the complete aliased contract"),
         "{shown}"
     );
 }
