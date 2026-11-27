@@ -1145,7 +1145,7 @@ pub(crate) mod capabilities {
         }
 
         #[test]
-        fn a_reinstalled_component_keeps_its_original_provider_allocation() {
+        fn component_bindings_own_their_independently_supplied_allocations() {
             use crate::{
                 TerminalComponentBinding, TerminalProgram, TerminalProviderBacking,
                 TerminalProviderStorageResolver,
@@ -1236,13 +1236,14 @@ pub(crate) mod capabilities {
             original.0.lock().unwrap()[2] = 23;
             let live = Rc::downgrade(&original);
             let replacement = Rc::new(Store(TerminalProviderBacking::new(vec![7, 11, 13, 17])));
-            let unused = Rc::downgrade(&replacement);
-            let resumed = bind(original)
-                .for_successor_receiver(bind(replacement))
-                .unwrap();
-            assert!(unused.upgrade().is_none());
+            let fresh = Rc::downgrade(&replacement);
+            let first_binding = bind(original);
+            let second_binding = bind(replacement);
+            assert_eq!(fresh.upgrade().unwrap().0.retire().unwrap(), [7, 11, 13, 17]);
+            drop(second_binding);
+            assert!(fresh.upgrade().is_none());
             assert_eq!(live.upgrade().unwrap().0.retire().unwrap(), [7, 11, 23, 17]);
-            drop(resumed);
+            drop(first_binding);
             assert!(live.upgrade().is_none());
         }
 
