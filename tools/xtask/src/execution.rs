@@ -283,6 +283,16 @@ mod tests {
         serde_json::from_slice(&fs::read(directory.join(format!("{name}.json"))).unwrap()).unwrap()
     }
 
+    // Starting a descendant tree launches the test binary twice, which can take
+    // seconds while the whole suite runs. The timeout test grants the tree the
+    // startup allowance the fixture enforces, so the timeout fires while the
+    // descendant runs. The descendant outlives that allowance, and each peer
+    // outlives the last moment an escaped descendant could write its marker,
+    // so a test that waits for its peer has waited out any escape.
+    const DESCENDANT_START_LIMIT: Duration = Duration::from_secs(3);
+    const DESCENDANT_LIFETIME_MS: &str = "4000";
+    const PEER_LIFETIME_MS: &str = "8000";
+
     #[test]
     #[ignore = "child process used by command budget tests"]
     fn command_fixture() {
@@ -315,11 +325,11 @@ mod tests {
                 // the outer runner must own and terminate that descendant.
                 #[allow(clippy::zombie_processes)]
                 let mut descendant = fixture_command("marker")
-                    .env("OMEGA_XTASK_TEST_DELAY_MS", "2000")
+                    .env("OMEGA_XTASK_TEST_DELAY_MS", DESCENDANT_LIFETIME_MS)
                     .spawn()
                     .unwrap();
                 let ready = marker.with_extension("ready");
-                let deadline = Instant::now() + Duration::from_secs(3);
+                let deadline = Instant::now() + DESCENDANT_START_LIMIT;
                 while !ready.exists() {
                     assert!(descendant.try_wait().unwrap().is_none());
                     assert!(Instant::now() < deadline, "descendant did not start");
@@ -342,7 +352,7 @@ mod tests {
         let peer_marker = directory.join("peer");
         let mut peer = fixture_command("marker")
             .env("OMEGA_XTASK_TEST_MARKER", &peer_marker)
-            .env("OMEGA_XTASK_TEST_DELAY_MS", "3000")
+            .env("OMEGA_XTASK_TEST_DELAY_MS", PEER_LIFETIME_MS)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -351,7 +361,7 @@ mod tests {
             fixture_command("tree-timeout").env("OMEGA_XTASK_TEST_MARKER", &marker),
             &directory,
             "tree",
-            Duration::from_secs(1),
+            DESCENDANT_START_LIMIT,
         );
         assert!(
             peer.wait().unwrap().success(),
@@ -374,7 +384,7 @@ mod tests {
         let peer_marker = directory.join("peer");
         let mut peer = fixture_command("marker")
             .env("OMEGA_XTASK_TEST_MARKER", &peer_marker)
-            .env("OMEGA_XTASK_TEST_DELAY_MS", "3000")
+            .env("OMEGA_XTASK_TEST_DELAY_MS", PEER_LIFETIME_MS)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -409,7 +419,7 @@ mod tests {
         let peer_marker = directory.join("peer");
         let mut peer = fixture_command("marker")
             .env("OMEGA_XTASK_TEST_MARKER", &peer_marker)
-            .env("OMEGA_XTASK_TEST_DELAY_MS", "3000")
+            .env("OMEGA_XTASK_TEST_DELAY_MS", PEER_LIFETIME_MS)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -422,7 +432,7 @@ mod tests {
                     .stderr(Stdio::null()),
             )
             .unwrap();
-            let deadline = Instant::now() + Duration::from_secs(3);
+            let deadline = Instant::now() + DESCENDANT_START_LIMIT;
             while !marker.with_extension("ready").exists() {
                 assert!(Instant::now() < deadline, "descendant did not start");
                 std::thread::sleep(Duration::from_millis(5));
