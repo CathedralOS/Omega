@@ -8,7 +8,6 @@ pub use float_spelling::FloatSpelling;
 pub use item_copies::SuppliedSyntaxArgument;
 pub use language_core::operator_spelling;
 pub use relocation::{PageRelocation, SyntaxRelocate};
-pub use snapshot::SyntaxTreesSnapshot;
 pub use source_files::{ParsedRootItems, ParsedSource, ParsedSources, ParsedUnit};
 pub use source_pages::{ParsedSyntaxPages, ParsedSyntaxSource};
 pub use text_owner::{RetainedSource, SyntaxTextContext, SyntaxTextOwner};
@@ -354,9 +353,6 @@ pub(crate) mod paged_roster;
 
 #[path = "files/parsed.rs"]
 pub mod source_files;
-
-#[path = "inspection/snapshot.rs"]
-pub mod snapshot;
 
 #[cfg(test)]
 #[path = "tests/unit/forest.rs"]

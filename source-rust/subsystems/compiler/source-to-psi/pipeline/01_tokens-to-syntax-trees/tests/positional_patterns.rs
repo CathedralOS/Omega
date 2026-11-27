@@ -14,16 +14,20 @@
 //! components."
 //!
 //! The tests lex with the real lexer, parse through `source_parser::parse`
-//! and read the syntax snapshot.
+//! and inspect the syntax trees directly.
 
-use crate::parsing_support::{parse, snapshot};
-use serde_json::Value;
+use crate::parsing_support::{parse, trees};
+use language_core::PatternSelector;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::{ExpressionNode, MatchFieldAction, MatchPattern, TableMatchField};
+use syntax_trees::item::Item;
+use syntax_trees::statement::StatementNode;
 
 /// How one pattern row picks its field.
 #[derive(Debug, PartialEq, Eq)]
 enum Selects {
     Named,
-    Place(u64),
+    Place(u32),
     Rest,
 }
 
@@ -36,44 +40,71 @@ struct Row<'source> {
     binds: Option<String>,
 }
 
-/// Every pattern row in the snapshot, in tree order.
-fn rows<'source>(tree: &Value, source: &'source str, found: &mut Vec<Row<'source>>) {
-    match tree {
-        Value::Object(fields) => {
-            if let (Some(member), Some(action)) = (fields.get("member"), fields.get("action")) {
-                let offset = |key: &str| member[key].as_u64().expect("an offset") as usize;
-                found.push(Row {
-                    selects: match (fields.get("position"), fields.get("rest")) {
-                        (Some(place), None) => Selects::Place(place.as_u64().expect("a place")),
-                        (None, Some(Value::Bool(true))) => Selects::Rest,
-                        (None, None) => Selects::Named,
-                        other => panic!("a row selects in one way: {other:?}"),
-                    },
-                    written: &source[offset("start")..offset("end")],
-                    binds: (action["kind"] == "bind")
-                        .then(|| action["binding"]["text"].as_str().unwrap().to_owned()),
-                });
-            }
-            for value in fields.values() {
-                rows(value, source, found);
+fn collect_pattern_fields<'trees>(
+    parsed: &'trees SyntaxTrees,
+    found: &mut Vec<&'trees TableMatchField>,
+) {
+    for item in parsed.root_items() {
+        let Item::Machine(machine) = item else {
+            continue;
+        };
+        for &state_handle in parsed.items.state_handles(machine.states) {
+            let state = parsed.items.state(state_handle);
+            for &statement in parsed.items.statements(state.statements) {
+                match parsed.statements.statement(statement) {
+                    StatementNode::LocalData(local) => {
+                        found.extend(parsed.expressions.match_fields(local.pattern_fields));
+                    }
+                    StatementNode::Dispatch(dispatch) => {
+                        for arm in &parsed.statements.dispatch(*dispatch).arms {
+                            for slot in &arm.patterns {
+                                if let MatchPattern::Destructure(pattern) = slot.pattern {
+                                    found.extend(parsed.expressions.match_fields(pattern.fields));
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
-        Value::Array(values) => {
-            for value in values {
-                rows(value, source, found);
+    }
+    for (_, expression) in parsed.expressions.iter_expressions() {
+        if let ExpressionNode::Match(dispatch) = expression {
+            for arm in parsed.expressions.match_arms(dispatch.arms) {
+                if let MatchPattern::Destructure(pattern) = arm.pattern {
+                    found.extend(parsed.expressions.match_fields(pattern.fields));
+                }
             }
         }
-        _ => {}
     }
 }
 
 fn pattern_rows(source: &str) -> Vec<Row<'_>> {
-    let mut found = Vec::new();
-    rows(&snapshot(source), source, &mut found);
-    found
+    let parsed = trees(source);
+    let mut fields = Vec::new();
+    collect_pattern_fields(&parsed, &mut fields);
+    fields
+        .into_iter()
+        .map(|field| {
+            let span = field.member.source_span().span;
+            Row {
+                selects: match field.selector {
+                    PatternSelector::Name => Selects::Named,
+                    PatternSelector::Position(place) => Selects::Place(place),
+                    PatternSelector::Rest => Selects::Rest,
+                },
+                written: &source[span.start..span.end],
+                binds: match &field.action {
+                    MatchFieldAction::Bind(binding) => Some(binding.as_str(&parsed).to_owned()),
+                    MatchFieldAction::Equal(_) | MatchFieldAction::Waive => None,
+                },
+            }
+        })
+        .collect()
 }
 
-fn place<'source>(place: u64, written: &'source str, binds: Option<&str>) -> Row<'source> {
+fn place<'source>(place: u32, written: &'source str, binds: Option<&str>) -> Row<'source> {
     Row {
         selects: Selects::Place(place),
         written,
@@ -135,30 +166,17 @@ fn a_positional_pattern_records_each_place_and_its_final_rest() {
 #[test]
 fn a_positional_row_names_no_field_and_the_rest_row_spans_two_bytes() {
     let source = "machine f(x: Pair) -> u8 { let (second, ..) = x; second }";
-    let tree = snapshot(source);
-    let mut members = Vec::new();
-    fn members_of<'tree>(tree: &'tree Value, found: &mut Vec<&'tree Value>) {
-        match tree {
-            Value::Object(fields) => {
-                if fields.contains_key("action") {
-                    found.push(&fields["member"]);
-                }
-                fields.values().for_each(|value| members_of(value, found));
-            }
-            Value::Array(values) => values.iter().for_each(|value| members_of(value, found)),
-            _ => {}
-        }
-    }
-    members_of(&tree, &mut members);
-    let [binding, rest] = members.as_slice() else {
-        panic!("one component and one rest: {members:?}")
+    let parsed = trees(source);
+    let mut fields = Vec::new();
+    collect_pattern_fields(&parsed, &mut fields);
+    let [binding, rest] = fields.as_slice() else {
+        panic!("one component and one rest: {fields:?}")
     };
-    assert_eq!(binding["text"], "");
-    assert_eq!(rest["text"], "..");
+    assert_eq!(binding.member.as_str(&parsed), "");
+    assert_eq!(rest.member.as_str(&parsed), "..");
     let start = source.find("..").unwrap();
-    assert_eq!((rest["start"].as_u64(), rest["end"].as_u64()), {
-        (Some(start as u64), Some(start as u64 + 2))
-    });
+    let rest_span = rest.member.source_span().span;
+    assert_eq!((rest_span.start, rest_span.end), (start, start + 2));
 }
 
 /// Each use of a positional binding is a read of its place in the subject:
@@ -166,21 +184,6 @@ fn a_positional_row_names_no_field_and_the_rest_row_spans_two_bytes() {
 /// field's name and has no position.
 #[test]
 fn a_positional_binding_is_read_by_its_place() {
-    fn reads(tree: &Value, found: &mut Vec<(Option<u64>, String)>) {
-        match tree {
-            Value::Object(fields) => {
-                if fields.get("kind") == Some(&Value::from("member")) {
-                    found.push((
-                        fields.get("position").and_then(Value::as_u64),
-                        fields["member"]["text"].as_str().unwrap().to_owned(),
-                    ));
-                }
-                fields.values().for_each(|value| reads(value, found));
-            }
-            Value::Array(values) => values.iter().for_each(|value| reads(value, found)),
-            _ => {}
-        }
-    }
     for (source, expected) in [
         (
             "machine f(x: Pair) -> u8 { let (_, second) = x; second }",
@@ -195,8 +198,17 @@ fn a_positional_binding_is_read_by_its_place() {
             (None, "second"),
         ),
     ] {
-        let mut found = Vec::new();
-        reads(&snapshot(source), &mut found);
+        let parsed = trees(source);
+        let found: Vec<_> = parsed
+            .expressions
+            .iter_expressions()
+            .filter_map(|(_, expression)| match expression {
+                ExpressionNode::Member(member) => {
+                    Some((member.position, member.member.as_str(&parsed).to_owned()))
+                }
+                _ => None,
+            })
+            .collect();
         assert_eq!(found, [(expected.0, expected.1.to_owned())], "{source}");
     }
 }

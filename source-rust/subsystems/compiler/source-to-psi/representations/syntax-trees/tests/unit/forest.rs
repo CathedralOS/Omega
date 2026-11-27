@@ -8,7 +8,6 @@ use crate::item::{
     DataDefinition, Item, Machine, PackageDeclaration, State, StateHandle, StateSignature,
     TraitDefinition,
 };
-use crate::snapshot::ItemSnapshot;
 use crate::statement::{StatementNode, TableAssignment, TableCall};
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
@@ -301,14 +300,15 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
     let restored: SyntaxTrees =
         record_storage::decode(&bytes, record_storage::RecordLimits::default()).unwrap();
     assert_eq!(restored, source);
-    let snapshot = restored.snapshot();
-    let crate::snapshot::ItemSnapshot::Const { value: written, .. } = &snapshot.root_items[0]
+    let Item::Const(restored_constant) = restored.root_items().next().expect("restored constant")
     else {
-        panic!("expected constant snapshot")
+        panic!("expected constant root item")
     };
     assert!(matches!(
-        **written,
-        crate::snapshot::ExpressionSnapshot::Unary { .. }
+        restored
+            .expressions
+            .expression(restored_constant.initializer),
+        ExpressionNode::Unary(_)
     ));
     let mut cloned = source.clone();
     assert_eq!(cloned, source);
@@ -764,7 +764,7 @@ fn copying_nested_generic_origins_remaps_handles_and_preserves_occurrence_tokens
 }
 
 #[test]
-fn syntax_copy_and_snapshot_preserve_generic_instance_origin() {
+fn syntax_copy_preserves_generic_instance_origin() {
     let mut source = SyntaxTrees::new(Default::default());
     let argument = source
         .type_references
@@ -798,19 +798,10 @@ fn syntax_copy_and_snapshot_preserve_generic_instance_origin() {
         panic!("copied root must remain data");
     };
     let origin = data.generic_instance.expect("copied generic origin");
+    assert!(data.conformance_bounds.is_empty());
     assert!(matches!(
         copied.type_references.type_reference(origin),
         TypeReferenceNode::Generic { base_name, .. } if base_name.as_str(&copied) == "Carrier"
-    ));
-
-    let snapshot = copied.snapshot();
-    assert!(matches!(
-        &snapshot.root_items[0],
-        ItemSnapshot::Data {
-            conformance_bounds,
-            generic_instance: Some(crate::snapshot::TypeReferenceSnapshot::Generic { .. }),
-            ..
-        } if conformance_bounds.is_empty()
     ));
 }
 
@@ -857,22 +848,6 @@ fn syntax_trees_extend_from_preserves_trait_and_data_visibility() {
     };
     assert!(trait_definition.is_public);
     assert!(data_definition.is_public);
-
-    let snapshot = assembled.snapshot();
-    assert!(matches!(
-        &snapshot.root_items[0],
-        ItemSnapshot::Trait {
-            is_public: true,
-            ..
-        }
-    ));
-    assert!(matches!(
-        &snapshot.root_items[1],
-        ItemSnapshot::Data {
-            is_public: true,
-            ..
-        }
-    ));
 }
 
 #[test]
@@ -934,13 +909,6 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         panic!("expected machine root item");
     };
     assert!(machine.is_public, "syntax assembly must retain visibility");
-    assert!(matches!(
-        &assembled.snapshot().root_items[0],
-        ItemSnapshot::Machine {
-            is_public: true,
-            ..
-        }
-    ));
     assert_eq!(
         machine.suspends_keyword_source_spans,
         [suspends_keyword_source_span]

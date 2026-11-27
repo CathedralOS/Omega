@@ -27,8 +27,8 @@ struct ParsedFile {
 
 impl SourceSyntax {
     #[cfg(feature = "test-support")]
-    pub fn snapshot_json(&self) -> Result<String, serde_json::Error> {
-        self.trees.snapshot_json()
+    pub fn record_bytes(&self) -> Result<Vec<u8>, record_storage::RecordError> {
+        record_storage::encode(&self.trees, record_storage::RecordLimits::default())
     }
 
     #[cfg(feature = "test-support")]

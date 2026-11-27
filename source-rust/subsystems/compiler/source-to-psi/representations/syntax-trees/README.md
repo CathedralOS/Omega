@@ -19,7 +19,6 @@ checkpoints, page adoption and root publication stay beside those structures.
 | Copying between tables in one forest | [copying/statement_paths.rs](copying/statement_paths.rs): expression arguments and identifier paths retained by statements |
 | Logical equality and page identity | [storage/equality.rs](storage/equality.rs), [relocation.rs](storage/relocation.rs), [paged_tables.rs](storage/paged_tables.rs) |
 | Constant declarations | [constants.rs](declarations/constants.rs) keeps the parsed initializer. [constant_preparation.rs](declarations/constant_preparation.rs) records the materialized value and obligations for that occurrence when resolution needs them. |
-| Diagnostic snapshots | [inspection/snapshot.rs](inspection/snapshot.rs): the snapshot representation; adjacent files expand the grammar domains |
 
 The [parser](../../pipeline/01_tokens-to-syntax-trees/src/lib.rs) produces this
 representation. [Symbol resolution](../../pipeline/02_syntax-trees-to-symbol-resolved-trees)
@@ -39,7 +38,7 @@ syntax-specific equality, source ownership and page-admission rules. Moving them
 to foundation would make foundation depend on this representation. Keyword and
 punctuation classification similarly belongs to the token vocabulary.
 
-[tests/unit/](tests/unit/) contains the existing forest, node, text and snapshot
+[tests/unit/](tests/unit/) contains the existing forest, node and text
 tests. No test bodies live in the representation files. Root exports retain the
 public vocabulary used by compiler consumers; domain folders expose the code
 that defines it.

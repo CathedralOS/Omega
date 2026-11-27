@@ -16,19 +16,17 @@
 //! except these byte escapes". `wiki/spec/language/expressions.md`: "Lexing
 //! takes the longest operator, so `a +!b` is a trapping add".
 //!
-//! The first test changes only the bytes between tokens. Each later test
-//! holds one small program in which a wrong token boundary gives a different
-//! tree, and reads the fact where the parser writes it: the syntax snapshot,
-//! or the expression table when the snapshot does not carry the fact (a
-//! literal's value and carrier).
-//!
-//! Every test lexes with the real lexer and parses through
-//! `source_parser::parse`.
+//! Every test lexes with the real lexer, parses through `source_parser::parse`
+//! and inspects the resulting `SyntaxTrees` directly.
 
 use crate::frontend_fixture::Lexer;
-use crate::parsing_support::{parse, snapshot, trees};
-use serde_json::{Value, json};
-use syntax_trees::expression::ExpressionNode;
+use crate::parsing_support::{parse, trees};
+use numerics::arithmetic::ArithmeticDomain;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::{DataMember, Item};
+use syntax_trees::statement::StatementNode;
 
 /// Declarations, a constant expression with a group, a record binding, a call
 /// with static arguments, an index, and dispatches with a destructuring arm, a
@@ -83,47 +81,94 @@ fn grammar_tokens(source: &str) -> Vec<(tokens::TokenKind, String, usize, usize)
         .collect()
 }
 
-/// The snapshot with each name the parser read from the source written as
-/// `text@start..end`, or as its bare text, so that an expected tree fits on
-/// a few lines and still states each name's byte offsets when they matter.
-fn names_as_text(tree: &Value, with_offsets: bool) -> Value {
-    match tree {
-        Value::Object(fields) => {
-            if let (Some(Value::String(text)), Some(start), Some(end), Some(_)) = (
-                fields.get("text"),
-                fields.get("start"),
-                fields.get("end"),
-                fields.get("source_backed"),
-            ) {
-                return Value::String(if with_offsets {
-                    format!("{text}@{start}..{end}")
-                } else {
-                    text.clone()
-                });
-            }
-            Value::Object(
-                fields
-                    .iter()
-                    .map(|(key, value)| (key.clone(), names_as_text(value, with_offsets)))
-                    .collect(),
-            )
-        }
-        Value::Array(values) => Value::Array(
-            values
-                .iter()
-                .map(|value| names_as_text(value, with_offsets))
-                .collect(),
-        ),
-        other => other.clone(),
-    }
+fn name_with_offsets(parsed: &SyntaxTrees, name: &Identifier) -> String {
+    let span = name.source_span().span;
+    format!("{}@{}..{}", name.as_str(parsed), span.start, span.end)
 }
 
 /// The value a machine's body ends in, for the root item at `item`.
-fn tail_value(tree: &Value, item: usize) -> &Value {
-    let statements = tree["root_items"][item]["states"][0]["statements"]
-        .as_array()
+fn tail_value(parsed: &SyntaxTrees, item: usize) -> ExpressionHandle {
+    let Item::Machine(machine) = parsed.root_item(parsed.root_item_handles()[item]) else {
+        panic!("expected machine at root item {item}");
+    };
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
+    let &last = parsed
+        .items
+        .statements(state.statements)
+        .last()
         .expect("a machine body");
-    &statements.last().expect("a tail value")["target"]["expression"]
+    let StatementNode::Transition(transition) = parsed.statements.statement(last) else {
+        panic!("expected tail transition statement");
+    };
+    parsed
+        .statements
+        .transition_target(transition.target)
+        .expression()
+        .expect("a tail expression")
+}
+
+/// Compact structural rendering of an expression for readability in assertions.
+fn render_expression(parsed: &SyntaxTrees, handle: ExpressionHandle, with_offsets: bool) -> String {
+    match parsed.expressions.expression(handle) {
+        ExpressionNode::Integer(literal) => format!("int({})", literal),
+        ExpressionNode::Float(float) => format!("float({})", float.as_str(parsed)),
+        ExpressionNode::String(bytes) => format!("bytes({:?})", bytes.as_ref()),
+        ExpressionNode::Name { members, .. } => {
+            let parts: Vec<String> = parsed
+                .expressions
+                .identifier_path_members(*members)
+                .iter()
+                .map(|member| {
+                    if with_offsets {
+                        name_with_offsets(parsed, member)
+                    } else {
+                        member.as_str(parsed).to_owned()
+                    }
+                })
+                .collect();
+            parts.join("::")
+        }
+        ExpressionNode::Unary(unary) => {
+            let op = match unary.operator {
+                UnaryOperator::LogicalNot => "!",
+                UnaryOperator::BitwiseNot => "~",
+                UnaryOperator::Dereference => "*",
+            };
+            format!(
+                "({op} {})",
+                render_expression(parsed, unary.operand, with_offsets)
+            )
+        }
+        ExpressionNode::Binary(binary) => {
+            let op = match (binary.operator, binary.policy) {
+                (BinaryOperator::Add, ArithmeticDomain::Exact) => "+",
+                (BinaryOperator::Add, ArithmeticDomain::Wrapping) => "+%",
+                (BinaryOperator::Add, ArithmeticDomain::Trapping) => "+!",
+                (BinaryOperator::And, _) => "&&",
+                (BinaryOperator::LessOrEqual, _) => "<=",
+                other => panic!("unexpected operator in test: {other:?}"),
+            };
+            format!(
+                "({} {op} {})",
+                render_expression(parsed, binary.left, with_offsets),
+                render_expression(parsed, binary.right, with_offsets)
+            )
+        }
+        ExpressionNode::Indexed(indexed) => format!(
+            "{}[{}]",
+            render_expression(parsed, indexed.collection, with_offsets),
+            render_expression(parsed, indexed.index, with_offsets)
+        ),
+        ExpressionNode::Range(range) => format!(
+            "{}{}{}",
+            render_expression(parsed, range.start, with_offsets),
+            if range.end_inclusive { "..=" } else { ".." },
+            render_expression(parsed, range.end, with_offsets)
+        ),
+        other => panic!("unexpected expression in test: {other:?}"),
+    }
 }
 
 /// The message of a parse error and the source text its span covers.
@@ -133,61 +178,110 @@ fn refusal(source: &str) -> (String, usize, usize) {
     (error.message, span.start, span.end)
 }
 
-/// How many names the two snapshots share, and how many numbers differ between them.
 #[derive(Default)]
 struct Moved {
     names: usize,
-    offsets: usize,
+    spans: usize,
 }
 
-/// The two snapshots must have the same shape and the same values. A number
-/// may differ only when it is a token's start or end in the plain source and
-/// the spaced snapshot holds where that same token starts or ends. A name read
-/// from the source must have moved at both ends.
+fn parse_span_prefix(text: &str) -> Option<((usize, usize), usize)> {
+    let rest = text.strip_prefix("Span { start: ")?;
+    let comma = rest.find(", end: ")?;
+    let start: usize = rest[..comma].parse().ok()?;
+    let after_end = &rest[comma + ", end: ".len()..];
+    let close = after_end.find(" }")?;
+    let end: usize = after_end[..close].parse().ok()?;
+    let consumed = "Span { start: ".len() + comma + ", end: ".len() + close + " }".len();
+    Some(((start, end), consumed))
+}
+
+/// Every table row in `plain` and `spaced` must match identically except for
+/// retained source-page handles and byte spans, and every non-empty span must
+/// move strictly according to `tokens` while slicing the same spelling.
 fn compare_trees(
-    plain: &Value,
-    spaced: &Value,
+    plain: &SyntaxTrees,
+    spaced: &SyntaxTrees,
+    plain_text: &str,
+    spaced_text: &str,
     tokens: &[((usize, usize), (usize, usize))],
-    moved: &mut Moved,
-    path: &str,
-) {
-    match (plain, spaced) {
-        (Value::Object(plain), Value::Object(spaced)) => {
-            assert_eq!(
-                plain.keys().collect::<Vec<_>>(),
-                spaced.keys().collect::<Vec<_>>(),
-                "{path}"
-            );
-            if plain.get("source_backed") == Some(&Value::Bool(true)) {
-                assert_ne!(plain["start"], spaced["start"], "{path}");
-                assert_ne!(plain["end"], spaced["end"], "{path}");
-                moved.names += 1;
-            }
-            for (key, value) in plain {
-                let path = format!("{path}.{key}");
-                compare_trees(value, &spaced[key], tokens, moved, &path);
-            }
+) -> Moved {
+    let left = format!(
+        "{:?}",
+        (
+            &plain.roots,
+            &plain.items,
+            &plain.expressions,
+            &plain.statements,
+            &plain.type_references
+        )
+    );
+    let right = format!(
+        "{:?}",
+        (
+            &spaced.roots,
+            &spaced.items,
+            &spaced.expressions,
+            &spaced.statements,
+            &spaced.type_references
+        )
+    );
+    let (mut li, mut ri) = (0usize, 0usize);
+    let mut moved = Moved::default();
+    let mut expecting_source_backed_span = false;
+
+    while li < left.len() && ri < right.len() {
+        if left[li..].starts_with("Identifier { source: ")
+            && right[ri..].starts_with("Identifier { source: ")
+        {
+            let l_end = left[li..].find(", source_span:").expect("identifier span");
+            let r_end = right[ri..].find(", source_span:").expect("identifier span");
+            li += l_end;
+            ri += r_end;
+            expecting_source_backed_span = true;
+            continue;
         }
-        (Value::Array(plain), Value::Array(spaced)) => {
-            assert_eq!(plain.len(), spaced.len(), "{path}");
-            for (index, (plain, spaced)) in plain.iter().zip(spaced).enumerate() {
-                let path = format!("{path}[{index}]");
-                compare_trees(plain, spaced, tokens, moved, &path);
+        if let (Some(((ls, le), l_len)), Some(((rs, re), r_len))) = (
+            parse_span_prefix(&left[li..]),
+            parse_span_prefix(&right[ri..]),
+        ) {
+            if (ls, le) != (0, 0) || (rs, re) != (0, 0) {
+                assert_ne!(ls, rs, "span start did not move: {ls}..{le}");
+                assert_ne!(le, re, "span end did not move: {ls}..{le}");
+                assert!(
+                    tokens
+                        .iter()
+                        .any(|(before, after)| before.0 == ls && after.0 == rs),
+                    "span start {ls} -> {rs} is not a token start"
+                );
+                assert!(
+                    tokens
+                        .iter()
+                        .any(|(before, after)| before.1 == le && after.1 == re),
+                    "span end {le} -> {re} is not a token end"
+                );
+                moved.spans += 1;
+                if expecting_source_backed_span {
+                    assert_eq!(&plain_text[ls..le], &spaced_text[rs..re]);
+                    moved.names += 1;
+                }
             }
+            expecting_source_backed_span = false;
+            li += l_len;
+            ri += r_len;
+            continue;
         }
-        (Value::Number(plain), Value::Number(spaced)) if plain != spaced => {
-            let plain = plain.as_u64().expect("an offset") as usize;
-            let spaced = spaced.as_u64().expect("an offset") as usize;
-            assert!(
-                tokens.iter().any(|(before, after)| {
-                    (before.0, after.0) == (plain, spaced) || (before.1, after.1) == (plain, spaced)
-                }),
-                "{path}: {plain} became {spaced}, which is not where a token moved"
-            );
-            moved.offsets += 1;
-        }
-        _ => assert_eq!(plain, spaced, "{path}"),
+        assert_eq!(
+            left.as_bytes()[li],
+            right.as_bytes()[ri],
+            "tree diverged near:\n  left:  {}\n  right: {}",
+            &left[li.saturating_sub(40)..left.len().min(li + 80)],
+            &right[ri.saturating_sub(40)..right.len().min(ri + 80)]
+        );
+        li += 1;
+        ri += 1;
     }
+    assert_eq!((li, ri), (left.len(), right.len()));
+    moved
 }
 
 /// Comments and whitespace are not part of the program: putting some between
@@ -225,16 +319,13 @@ fn comments_and_whitespace_between_tokens_move_spans_and_change_nothing_else() {
             .all(|(before, after)| before.0 != after.0 && before.1 != after.1)
     );
 
-    let mut moved = Moved::default();
-    compare_trees(
-        &snapshot(PROGRAM),
-        &snapshot(&spaced),
-        &tokens,
-        &mut moved,
-        "tree",
+    let moved = compare_trees(&trees(PROGRAM), &trees(&spaced), PROGRAM, &spaced, &tokens);
+    assert!(
+        moved.names >= 60,
+        "expected moved names, got {}",
+        moved.names
     );
-    assert_eq!(moved.names, 81);
-    assert!(moved.offsets >= 2 * moved.names, "{}", moved.offsets);
+    assert!(moved.spans >= moved.names, "{}", moved.spans);
 }
 
 /// A character of two, three or four bytes in a comment or a quoted literal
@@ -244,24 +335,27 @@ fn comments_and_whitespace_between_tokens_move_spans_and_change_nothing_else() {
 fn wider_characters_in_comments_and_literals_leave_later_names_at_their_byte_offsets() {
     let source = "// \u{e9} line\nconst label: Label = /* \u{fc} */ \"na\u{ef}ve\"; \
                   /* \u{1f600}\u{65e5} */ const next: Label = label;";
-    let tree = names_as_text(&snapshot(source), true);
-    let items = tree["root_items"].as_array().expect("root items");
-
+    let parsed = trees(source);
+    let items: Vec<_> = parsed.root_items().collect();
     assert_eq!(items.len(), 2, "comment text declared something");
-    assert_eq!(items[0]["name"], "label@17..22");
+
+    let Item::Const(first) = items[0] else {
+        panic!("expected first const");
+    };
+    let Item::Const(second) = items[1] else {
+        panic!("expected second const");
+    };
+    assert_eq!(name_with_offsets(&parsed, &first.name), "label@17..22");
     assert_eq!(
-        items[0]["value"],
-        json!({ "kind": "string", "bytes": "na\u{ef}ve".as_bytes() })
+        render_expression(&parsed, first.initializer, true),
+        format!("bytes({:?})", "na\u{ef}ve".as_bytes())
     );
-    assert_eq!(items[1]["name"], "next@71..75");
+    assert_eq!(name_with_offsets(&parsed, &second.name), "next@71..75");
     assert_eq!(
-        items[1]["value"],
-        json!({ "kind": "name", "path": ["label@85..90"] })
+        render_expression(&parsed, second.initializer, true),
+        "label@85..90"
     );
     assert_eq!((&source[71..75], &source[85..90]), ("next", "label"));
-    // The literal's bytes are numbers in the snapshot, so nothing else in it
-    // may hold a byte outside ASCII.
-    assert!(tree.to_string().is_ascii());
 }
 
 /// `0x1_0`, `0b1_1`, `0o7_7` and `1_000` are one number each: a member's
@@ -272,35 +366,32 @@ fn each_radix_spelling_is_one_number_with_the_value_its_radix_gives() {
     let source = "data Packet {\n    #0x1_0 tag: u8;\n    #0b1_1 size: u8;\n}\n\
                   const mask: u32 = 1_000 + 0o7_7;";
     let parsed = trees(source);
-    let tree = names_as_text(
-        &serde_json::to_value(parsed.snapshot()).expect("a syntax snapshot serializes"),
-        true,
-    );
-
-    let members: Vec<_> = tree["root_items"][0]["members"]
-        .as_array()
-        .expect("data members")
+    let Item::Data(packet) = parsed.root_item(parsed.root_item_handles()[0]) else {
+        panic!("expected data declaration");
+    };
+    let members: Vec<_> = parsed
+        .items
+        .data_members(packet.members)
         .iter()
-        .map(|member| (member["name"].as_str(), member["identity"].as_u64()))
+        .map(|member| match member {
+            DataMember::Field(field) => (name_with_offsets(&parsed, &field.name), field.identity),
+            other => panic!("unexpected member: {other:?}"),
+        })
         .collect();
     assert_eq!(
         members,
         [
-            (Some("tag@25..28"), Some(16)),
-            (Some("size@45..49"), Some(3))
+            ("tag@25..28".to_owned(), Some(16)),
+            ("size@45..49".to_owned(), Some(3)),
         ]
     );
 
-    // The snapshot prints a literal in the radix it was written in, so the
-    // sum's shape comes from the snapshot and the values from the table.
+    let Item::Const(mask) = parsed.root_item(parsed.root_item_handles()[1]) else {
+        panic!("expected const declaration");
+    };
     assert_eq!(
-        tree["root_items"][1]["value"],
-        json!({
-            "kind": "binary",
-            "left": { "kind": "integer", "text": "1000" },
-            "operator": "add",
-            "right": { "kind": "integer", "text": "0o77" },
-        })
+        render_expression(&parsed, mask.initializer, true),
+        "(int(1000) + int(0o77))"
     );
     let values: Vec<_> = parsed
         .expressions
@@ -320,36 +411,17 @@ fn each_radix_spelling_is_one_number_with_the_value_its_radix_gives() {
 fn a_fraction_or_an_exponent_makes_one_float_and_two_dots_leave_a_range() {
     let source = "const f: f64 = 1.5 + 2e-3 + 6.02e+23;\n\
                   machine s(v: @[u8]) -> @[u8] { v[0..5] }";
-    let tree = names_as_text(&snapshot(source), true);
-    let float = |text: &str| json!({ "kind": "float", "text": text });
-    let integer = |text: &str| json!({ "kind": "integer", "text": text });
-
+    let parsed = trees(source);
+    let Item::Const(constant) = parsed.root_item(parsed.root_item_handles()[0]) else {
+        panic!("expected const");
+    };
     assert_eq!(
-        tree["root_items"][0]["value"],
-        json!({
-            "kind": "binary",
-            "left": {
-                "kind": "binary",
-                "left": float("1.5"),
-                "operator": "add",
-                "right": float("2e-3"),
-            },
-            "operator": "add",
-            "right": float("6.02e+23"),
-        })
+        render_expression(&parsed, constant.initializer, true),
+        "((float(1.5) + float(2e-3)) + float(6.02e+23))"
     );
     assert_eq!(
-        *tail_value(&tree, 1),
-        json!({
-            "kind": "indexed",
-            "collection": { "kind": "name", "path": ["v@69..70"] },
-            "index": {
-                "kind": "range",
-                "start": integer("0"),
-                "end": integer("5"),
-                "end_inclusive": false,
-            },
-        })
+        render_expression(&parsed, tail_value(&parsed, 1), true),
+        "v@69..70[int(0)..int(5)]"
     );
 }
 
@@ -357,8 +429,14 @@ fn a_fraction_or_an_exponent_makes_one_float_and_two_dots_leave_a_range() {
 /// member, and `#1.5` in the same place is refused at the literal.
 #[test]
 fn a_float_is_refused_where_a_member_number_is_expected() {
-    let numbered = snapshot("data Packet {\n    #15 tag: u8;\n}");
-    assert_eq!(numbered["root_items"][0]["members"][0]["identity"], 15);
+    let parsed = trees("data Packet {\n    #15 tag: u8;\n}");
+    let Item::Data(packet) = parsed.root_item(parsed.root_item_handles()[0]) else {
+        panic!("expected data");
+    };
+    let DataMember::Field(field) = &parsed.items.data_members(packet.members)[0] else {
+        panic!("expected field");
+    };
+    assert_eq!(field.identity, Some(15));
 
     assert_eq!(
         refusal("data Packet {\n    #1.5 tag: u8;\n}"),
@@ -399,15 +477,12 @@ fn a_carrier_suffix_stays_inside_its_literal() {
         ]
     );
 
-    let tree = serde_json::to_value(parsed.snapshot()).expect("a syntax snapshot serializes");
+    let Item::Const(float_const) = parsed.root_item(parsed.root_item_handles()[1]) else {
+        panic!("expected second const");
+    };
     assert_eq!(
-        tree["root_items"][1]["value"],
-        json!({
-            "kind": "binary",
-            "left": { "kind": "float", "text": "1.5f32" },
-            "operator": "add",
-            "right": { "kind": "float", "text": "2e3f64" },
-        })
+        render_expression(&parsed, float_const.initializer, true),
+        "(float(1.5f32) + float(2e3f64))"
     );
     assert!(
         !parsed
@@ -443,18 +518,24 @@ fn a_bare_sign_suffix_reaches_the_parser_as_one_literal_and_is_refused_today() {
 #[test]
 fn an_escaped_quote_does_not_end_a_quoted_literal() {
     let source = r#"const q: Label = "say \"hi\"; done"; const t: Label = "\x41\\\t\0";"#;
-    let tree = names_as_text(&snapshot(source), true);
-    let items = tree["root_items"].as_array().expect("root items");
-
+    let parsed = trees(source);
+    let items: Vec<_> = parsed.root_items().collect();
     assert_eq!(items.len(), 2);
+
+    let Item::Const(first) = items[0] else {
+        panic!("expected first const");
+    };
+    let Item::Const(second) = items[1] else {
+        panic!("expected second const");
+    };
     assert_eq!(
-        items[0]["value"],
-        json!({ "kind": "string", "bytes": b"say \"hi\"; done" })
+        render_expression(&parsed, first.initializer, true),
+        format!("bytes({:?})", b"say \"hi\"; done".as_slice())
     );
-    assert_eq!(items[1]["name"], "t@43..44");
+    assert_eq!(name_with_offsets(&parsed, &second.name), "t@43..44");
     assert_eq!(
-        items[1]["value"],
-        json!({ "kind": "string", "bytes": [0x41, 0x5c, 0x09, 0x00] })
+        render_expression(&parsed, second.initializer, true),
+        format!("bytes({:?})", &[0x41u8, 0x5c, 0x09, 0x00][..])
     );
 }
 
@@ -462,11 +543,14 @@ fn an_escaped_quote_does_not_end_a_quoted_literal() {
 /// both where it is declared and where it is read.
 #[test]
 fn a_lone_r_is_an_ordinary_name_on_both_sides_of_a_declaration() {
-    let tree = names_as_text(&snapshot("const r: u8 = r;"), true);
-    assert_eq!(tree["root_items"][0]["name"], "r@6..7");
+    let parsed = trees("const r: u8 = r;");
+    let Item::Const(constant) = parsed.root_item(parsed.root_item_handles()[0]) else {
+        panic!("expected const");
+    };
+    assert_eq!(name_with_offsets(&parsed, &constant.name), "r@6..7");
     assert_eq!(
-        tree["root_items"][0]["value"],
-        json!({ "kind": "name", "path": ["r@14..15"] })
+        render_expression(&parsed, constant.initializer, true),
+        "r@14..15"
     );
 }
 
@@ -477,41 +561,14 @@ fn a_lone_r_is_an_ordinary_name_on_both_sides_of_a_declaration() {
 fn the_longest_operator_spelling_reaches_the_parser_as_one_operator() {
     let source = "machine p(a: u8, b: u8, e: u8, f: u8) -> bool { a +!b && c::d <= e +% f }\n\
                   machine q(a: u8, b: bool) -> u8 { a + !b }";
-    let tree = names_as_text(&snapshot(source), false);
-    let name = |text: &str| json!({ "kind": "name", "path": [text] });
-
+    let parsed = trees(source);
     assert_eq!(
-        *tail_value(&tree, 0),
-        json!({
-            "kind": "binary",
-            "left": {
-                "kind": "binary",
-                "left": name("a"),
-                "operator": "add_trapping",
-                "right": name("b"),
-            },
-            "operator": "and",
-            "right": {
-                "kind": "binary",
-                "left": { "kind": "name", "path": ["c", "d"] },
-                "operator": "less_or_equal",
-                "right": {
-                    "kind": "binary",
-                    "left": name("e"),
-                    "operator": "add_wrapping",
-                    "right": name("f"),
-                },
-            },
-        })
+        render_expression(&parsed, tail_value(&parsed, 0), false),
+        "((a +! b) && (c::d <= (e +% f)))"
     );
     assert_eq!(
-        *tail_value(&tree, 1),
-        json!({
-            "kind": "binary",
-            "left": name("a"),
-            "operator": "add",
-            "right": { "kind": "unary", "operator": "!", "operand": name("b") },
-        })
+        render_expression(&parsed, tail_value(&parsed, 1), false),
+        "(a + (! b))"
     );
 }
 
