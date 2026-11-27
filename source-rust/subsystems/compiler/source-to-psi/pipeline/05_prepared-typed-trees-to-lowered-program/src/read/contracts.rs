@@ -2138,6 +2138,78 @@ impl Program<'_> {
             _ => Ok(record),
         }
     }
+
+    /// `$held.slot` follows a shared reference stored in a field or element
+    /// across its explicit `Referent` crossing. The read depends on the
+    /// selected referent and its contents version, not on the carrier alone
+    /// (fact_validity.md, "Borrowed read dependencies").
+    pub(super) fn stored_referent(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        operand: ExpressionHandle,
+    ) -> Checked<(ScalarTerm, ValueType)> {
+        let unavailable = |what| refuse_at(id, Unserved::Contract(what));
+        let Some((root, mut path, carrier)) = self.read_projection(id, scope, operand)? else {
+            return Err(unavailable(
+                "dereference of other than a borrowed formal in a clause",
+            ));
+        };
+        let ValueType::Record(carrier, _, _) = carrier else {
+            return Err(unavailable(
+                "dereference of a value that is not a stored reference",
+            ));
+        };
+        let referent = match self.data_type(id, carrier)?.shape {
+            StorageShape::Reference {
+                referent,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            } => referent,
+            StorageShape::Reference { .. } => {
+                return Err(unavailable("clause through an exclusive stored reference"));
+            }
+            _ => {
+                return Err(unavailable(
+                    "dereference of a value that is not a stored reference",
+                ));
+            }
+        };
+        path.push(ScalarReadProjection::Referent);
+        let value_type = self.storage_value_type(id, referent, Qualification::NONE)?;
+        let ValueType::Scalar(scalar_type, _) = value_type else {
+            return Err(unavailable("stored reference to data dereferenced whole"));
+        };
+        let Some(path) = static_read_path(&path) else {
+            if matches!(scalar_type, ScalarType::Callable(_)) {
+                return Err(unavailable("callable field in a clause"));
+            }
+            return Ok((
+                ScalarTerm::StructuralRead {
+                    root,
+                    path,
+                    scalar_type,
+                },
+                value_type,
+            ));
+        };
+        let version = semantic_vocabulary::ContentPlaceVersion::Current;
+        let term = match scalar_type {
+            ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                version,
+                root,
+                path,
+                scalar_type,
+            },
+            ScalarType::Boolean => ScalarTerm::BooleanField {
+                version,
+                root,
+                path,
+            },
+            ScalarType::IeeeFloat(format) => ScalarTerm::ieee_float_field_path(root, path, format),
+            ScalarType::Callable(_) => return Err(unavailable("callable field in a clause")),
+        };
+        Ok((term, value_type))
+    }
 }
 
 pub(super) fn static_read_path(

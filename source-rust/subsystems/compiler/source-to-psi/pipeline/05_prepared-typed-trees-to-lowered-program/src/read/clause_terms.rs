@@ -711,9 +711,7 @@ impl Program<'_> {
                         if unary.operator == UnaryOperator::Dereference =>
                     {
                         let ExpressionNode::Name(path) = table.expression(unary.operand) else {
-                            return Err(unavailable(
-                                "dereference of other than a borrowed formal in a clause",
-                            ));
+                            break 'read self.stored_referent(id, scope, unary.operand)?;
                         };
                         if path.reserved_result_of.is_valid() || path.static_application.is_valid()
                         {

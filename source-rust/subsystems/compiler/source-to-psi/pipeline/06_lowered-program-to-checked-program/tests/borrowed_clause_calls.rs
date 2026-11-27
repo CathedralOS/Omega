@@ -314,3 +314,67 @@ fn an_element_write_does_not_prove_another_length() {
         "{LENGTH}machine fixed(items: @mutable [i32]) requires items.length == 3 {{ items[0] = 5i32; needs(items); }}\n"
     ));
 }
+
+const SLOT: &str = "data Held<'a> { slot: @'a i32; other: i32; }
+machine slot_positive<'a>(held: @Held<'a>) -> bool { $held.slot > 0i32 }
+machine needs<'a>(held: @Held<'a>) requires slot_positive(held) {}
+";
+
+#[test]
+fn a_clause_reads_through_a_shared_reference_stored_in_a_field() {
+    accepted(&format!(
+        "{SLOT}machine forward<'a>(held: @Held<'a>) requires $held.slot > 3i32 {{ needs(held); }}
+machine kept<'a>(held: @mutable Held<'a>) requires $held.slot > 3i32 {{ held.other = 0i32; needs(held); }}
+machine direct<'a>(held: @Held<'a>) requires $held.slot > 3i32 {{}}
+machine caller<'a>(held: @Held<'a>) requires $held.slot > 5i32 {{ direct(held); }}
+"
+    ));
+}
+
+#[test]
+fn a_fact_about_the_carrier_or_a_weaker_referent_does_not_prove_the_call() {
+    unproved(&format!(
+        "{SLOT}machine forward<'a>(held: @Held<'a>) requires $held.slot > -1i32 {{ needs(held); }}\n"
+    ));
+    unproved(&format!(
+        "{SLOT}machine forward<'a>(held: @Held<'a>) requires held.other > 3i32 {{ needs(held); }}\n"
+    ));
+}
+
+const SLOTS: &str = "data Held<'a> { slot: @'a i32; }
+machine needs<'a>(items: @[Held<'a>]) requires items.length > 0, $items[0].slot > 0i32 {}
+";
+
+#[test]
+fn a_clause_reads_through_a_reference_stored_in_a_slice_element() {
+    accepted(&format!(
+        "{SLOTS}machine forward<'a>(items: @[Held<'a>]) requires items.length > 0, $items[0].slot > 3i32 {{ needs(items); }}\n"
+    ));
+}
+
+#[test]
+fn a_referent_of_another_element_does_not_prove_the_call() {
+    unproved(&format!(
+        "{SLOTS}machine forward<'a>(items: @[Held<'a>]) requires items.length > 1, $items[1].slot > 3i32 {{ needs(items); }}\n"
+    ));
+}
+
+#[test]
+fn a_referent_behind_a_mutable_loan_does_not_prove_the_element_call() {
+    unproved(&format!(
+        "{SLOTS}machine forward<'a>(items: @mutable [Held<'a>]) requires items.length > 0, $items[0].slot > 3i32 {{ needs(items); }}\n"
+    ));
+}
+
+#[test]
+fn a_clause_cannot_read_through_an_exclusive_stored_reference() {
+    let refusal = lowering_refusal(
+        "data Mut<'a> { slot: @'a mutable i32; }
+machine m<'a>(held: @Mut<'a>) requires $held.slot > 3i32 {}
+",
+    );
+    assert!(
+        refusal.contains("clause through an exclusive stored reference"),
+        "{refusal}"
+    );
+}
