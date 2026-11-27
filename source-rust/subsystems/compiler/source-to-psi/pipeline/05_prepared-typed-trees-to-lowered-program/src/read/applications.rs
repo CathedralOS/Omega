@@ -18,7 +18,7 @@ pub(super) struct ApplicationArguments<'source> {
         crate::source_state::types::TypeReferenceHandle,
     )>,
     pub(super) values: Vec<ScalarTerm>,
-    pub(super) proofs: Vec<terminal_psi::TheoremSource>,
+    pub(super) proofs: Vec<crate::body::ProofSupply>,
     pub(super) const_sources: Vec<(
         SymbolHandle,
         crate::source_state::types::TypeReferenceHandle,
@@ -242,7 +242,9 @@ impl<'source> Program<'source> {
                         .ok_or_else(|| {
                             unavailable("forwarded theorem has no exact caller formal")
                         })?;
-                    proofs.push(terminal_psi::TheoremSource::Formal(formal));
+                    proofs.push(crate::body::ProofSupply::plain(
+                        terminal_psi::TheoremSource::Formal(formal),
+                    ));
                 } else {
                     let binding = retained.get(&parameter.symbol).ok_or_else(|| {
                         unavailable("proof parameter has no unique explicit actual")

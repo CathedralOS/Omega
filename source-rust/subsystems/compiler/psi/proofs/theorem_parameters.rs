@@ -58,4 +58,18 @@ pub struct TheoremCitation {
     pub proof_position: u32,
     pub source: TheoremSource,
     pub derivations: Vec<CertificateEnvelope>,
+    /// A named source that declares proof parameters of its own receives one
+    /// supply for each, in its header order, such as `lifted::<inner>`. Each
+    /// is checked against the named machine's own alias, as a citation at an
+    /// invocation of that machine would be. Empty for every other source.
+    pub instantiation: Vec<TheoremInstantiation>,
+}
+
+/// One proof given to a cited theorem's own proof parameter. A named supply
+/// owes the same three derivations a citation does; a forwarded formal owes
+/// none and must state the same implication.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TheoremInstantiation {
+    pub source: TheoremSource,
+    pub derivations: Vec<CertificateEnvelope>,
 }
