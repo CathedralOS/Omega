@@ -46,6 +46,7 @@ fn identity(machine: MachineId, detail: &str) -> Refusal {
         site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
         source_span: None,
         detail: detail.to_owned(),
+        obligation: None,
     }
 }
 

@@ -785,6 +785,7 @@ pub(crate) fn declare<'a, 'b>(
             site: terminal_check_tables::RefusalSite::Machine(entry, Construct::Machine),
             source_span: None,
             detail: format!("byte domain source identity: {detail}"),
+            obligation: None,
         })?;
         let declaration =
             crate::qualifications::domain_identity(typed, &sources, source.source, &mut identities)
@@ -1478,6 +1479,7 @@ impl Records<'_> {
             site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
             source_span: None,
             detail: String::from("a scalar place's exact primitive type is not uniquely declared"),
+            obligation: None,
         })
     }
 }
@@ -2301,6 +2303,7 @@ impl<'a> Lowering<'a> {
                 site: terminal_check_tables::RefusalSite::Machine(id, Construct::Block(cast)),
                 source_span: None,
                 detail: String::from("a record cast's block is past its function"),
+                obligation: None,
             })?
             .structural_parameters
             .push(parameter);
@@ -4418,6 +4421,7 @@ impl<'a> Lowering<'a> {
                         ),
                         source_span: None,
                         detail: String::from("a dispatch selects no arm for a declared case"),
+                        obligation: None,
                     });
                 }
             };

@@ -73,6 +73,7 @@ impl Lowering<'_> {
                 ),
                 source_span: None,
                 detail: "an operation has no allocated source coordinate".to_owned(),
+                obligation: None,
             }
         })?;
         if location.replace((block, ordinal)).is_some() {

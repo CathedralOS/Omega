@@ -1272,6 +1272,7 @@ fn an_unsupported_closure_falls_back_whole_and_a_route_defect_is_not_accepted() 
         site: terminal_check_tables::RefusalSite::Machine(id(1), Construct::Machine),
         source_span: None,
         detail: String::from("test"),
+        obligation: None,
     };
     let authored =
         source_text::SourceSpan::new(source_text::SourceId(1), source_text::Span::new(13, 19));
@@ -2930,6 +2931,7 @@ fn the_verdict_rejects_a_closure_elaboration_refused_as_unestablished() {
         ),
         source_span: None,
         detail: String::from("a dispatch selects no arm for a declared case"),
+        obligation: None,
     };
     let RouteVerdict::Rejected {
         unproved,
@@ -6636,6 +6638,7 @@ mod generic_bodies {
             site: terminal_check_tables::RefusalSite::Machine(id(1), Construct::Machine),
             source_span: None,
             detail: "refinement unavailable".to_owned(),
+            obligation: None,
         };
         let verdicts =
             crate::judge_compilation(prepared_refinement(2, double(), Err(refused)));

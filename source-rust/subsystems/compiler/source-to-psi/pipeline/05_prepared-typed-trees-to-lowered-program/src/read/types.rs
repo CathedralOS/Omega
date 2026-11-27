@@ -458,6 +458,7 @@ impl Program<'_> {
                     reason: terminal_check_tables::RefusalReason::ForeignIdentity,
                     site: terminal_check_tables::RefusalSite::Machine(id, Construct::Machine),
                     detail: reason.to_owned(),
+                    obligation: None,
                 })?
                 .map(ScalarType::Callable)
                 .ok_or_else(|| refuse_at(id, Unserved::Type("unprepared runtime callable"))),

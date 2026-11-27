@@ -415,6 +415,7 @@ pub(crate) fn declare(
             reason: terminal_check_tables::RefusalReason::Unsupported,
             site: terminal_check_tables::RefusalSite::Machine(machine.id, Construct::Machine),
             detail: reason.to_string(),
+            obligation: None,
         })?;
         let evaluation = (|| {
             if let Some(reason) = unavailable {

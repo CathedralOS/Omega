@@ -1174,6 +1174,7 @@ fn malformed(machine: MachineId, detail: &'static str) -> Refusal {
         site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
         source_span: None,
         detail: detail.into(),
+        obligation: None,
     }
 }
 

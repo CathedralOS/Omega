@@ -124,6 +124,7 @@ impl CallableNamespace {
             reason: RefusalReason::Unsupported,
             site: terminal_check_tables::RefusalSite::Machine(context, Construct::Machine),
             detail: reason.to_owned(),
+            obligation: None,
         };
         if module.execution.callables != TerminalCallableCatalog::default() {
             return Err(refuse("callable catalog was already published"));

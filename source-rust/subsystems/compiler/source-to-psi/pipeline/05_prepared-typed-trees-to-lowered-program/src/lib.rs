@@ -300,6 +300,7 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
         site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
         source_span: None,
         detail: format!("{} {}", unserved.family(), unserved.construct()),
+        obligation: None,
     }
 }
 
@@ -314,6 +315,7 @@ pub(crate) fn reject(machine: MachineId, at: SourceOrigin, rule: impl Into<Strin
         site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
         source_span: at.span(),
         detail: rule.into(),
+        obligation: None,
     }
 }
 
@@ -1241,6 +1243,7 @@ fn capture_source_questions(
         site: terminal_check_tables::RefusalSite::Machine(entry, Construct::Machine),
         reason: RefusalReason::Unsupported,
         detail: error.to_string(),
+        obligation: None,
     })
 }
 
@@ -2489,6 +2492,7 @@ fn storage_plan(
                     None => detail,
                 }
             },
+            obligation: None,
         }
     });
     let plan = match plan {
@@ -2506,6 +2510,7 @@ fn storage_plan(
             site: terminal_check_tables::RefusalSite::Machine(machine.id, Construct::Machine),
             source_span: None,
             detail: format!("replacement input {place:?} has no unique source declaration"),
+            obligation: None,
         },
         terminal_semantics::StructuralStoreValueError::CannotDiscard {
             operation,
@@ -2523,6 +2528,7 @@ fn storage_plan(
                 } else {
                     "replacement input does not have the checked discardability required by this store"
                 }.into(),
+                obligation: None,
             }
         },
     })?;

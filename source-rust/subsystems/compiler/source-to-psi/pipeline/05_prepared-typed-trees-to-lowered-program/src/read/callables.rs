@@ -161,6 +161,7 @@ impl<'t> Program<'t> {
                     site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
                     detail: "equal callable identities lower to different lifetime binders"
                         .to_owned(),
+                    obligation: None,
                 });
             }
             // Each occurrence has now formed its own complete signature. Its
@@ -191,6 +192,7 @@ impl<'t> Program<'t> {
                     reason: RefusalReason::ForeignIdentity,
                     site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
                     detail: "equal callable identities lower to different contracts".to_owned(),
+                    obligation: None,
                 });
             }
             id

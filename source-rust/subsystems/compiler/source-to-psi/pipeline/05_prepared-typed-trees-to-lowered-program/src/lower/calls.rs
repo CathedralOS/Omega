@@ -57,6 +57,7 @@ pub(crate) fn publish_write_frames(module: &mut terminal_psi::TerminalModule) ->
                 site: terminal_check_tables::RefusalSite::Machine(machine.id, Construct::Machine),
                 source_span: None,
                 detail: "write frame has no owner".to_owned(),
+                obligation: None,
             })?
             .clone();
     }
@@ -789,6 +790,7 @@ impl Lowering<'_> {
                 ),
                 source_span: None,
                 detail: String::from("invocation is past the end of this machine"),
+                obligation: None,
             })?
             .requirements
             .clone_from(&requirements);
