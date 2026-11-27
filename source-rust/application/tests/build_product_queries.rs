@@ -86,8 +86,7 @@ fn an_entry_asked_through_a_build_scope_alias_names_nothing() {
         target::TargetProfile::WindowsX64,
         output.path(),
     )
-    .err()
-    .expect("a Build library grants no Product selection scope");
+    .expect_err("a Build library grants no Product selection scope");
     // The root's own private `launch` shares the leaf name, so the refusal
     // reports a declaration that is not visible through this path.
     assert!(

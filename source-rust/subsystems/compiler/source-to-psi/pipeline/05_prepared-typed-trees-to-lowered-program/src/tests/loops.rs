@@ -269,8 +269,9 @@ fn mutual() -> Vec<(Body, Signature)> {
 fn recursive_entries_share_the_target_needed_by_their_loop() {
     use terminal_psi::RegisterTargetApplicability::{Aarch64, X86_64};
 
+    // The first entry calls the second. The second emits both bodies in its loop.
     let mut entries = mutual();
-    entries[1].0.assembly_target_requirement = X86_64;
+    entries[0].0.assembly_target_requirement = X86_64;
     let elaboration = elaborate(entries).unwrap();
     for id in [1, 2] {
         assert_eq!(
