@@ -372,8 +372,6 @@ fn independent_wait_uses_the_selected_export_and_the_callers_private_cell() {
                 &application,
                 &[
                     "run",
-                    "--engine",
-                    "psi",
                     "--target",
                     "linux_x86_64",
                     "--psi-work-budget",
@@ -634,8 +632,6 @@ fn a_fused_wait_uses_the_body_selected_by_the_actual_target() {
             ][..],
             &[
                 "run",
-                "--engine",
-                "psi",
                 "--target",
                 "linux_x86_64",
                 "--psi-work-budget",
