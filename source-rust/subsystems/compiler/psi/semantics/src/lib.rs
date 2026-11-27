@@ -317,9 +317,8 @@ pub use access::access_ram_origins::{
 };
 
 pub use descriptors::primitive_store_memberships::{
-    primitive_scalar_memberships, primitive_store_byte_predicates,
+    IntrinsicMemberships, primitive_scalar_memberships, primitive_store_byte_predicates,
     primitive_store_preserves_scalar_memberships, primitive_store_restriction,
-    scalar_projection_entails_membership,
 };
 
 pub use scalars::unchanged_scalar::{UnchangedScalarOrigin, unchanged_scalar_identity};

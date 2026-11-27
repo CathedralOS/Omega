@@ -809,6 +809,82 @@ pub(crate) mod activation_storage {
 }
 
 pub(crate) mod primitive_storage {
+    /// What a `WriteOnlyPrimitiveStore` checks that depends only on the
+    /// program's declarations: the destination's declared root, the scalar
+    /// restriction its declared memberships impose at the written path, and
+    /// whether its byte predicates require a UTF-8 check of the result. The
+    /// program prepares this once per store operation. The stored value
+    /// itself is still checked against the restriction on every store.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub(crate) struct PrimitiveStorePlan {
+        pub(crate) root: StructuralTypeId,
+        pub(crate) restriction: Option<terminal_psi::StructuralFieldType>,
+        pub(crate) validates_utf8: bool,
+    }
+
+    /// The plan for a store to `destination` at `path` in `machine`; none
+    /// when the destination or its memberships are malformed.
+    pub(crate) fn primitive_store_plan(
+        program: &crate::embedding::program::AdmittedTerminalProgram<'_>,
+        machine: &terminal_psi::TerminalMachine,
+        destination: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Option<PrimitiveStorePlan> {
+        let (root, whole, projected, additional_input) = machine
+            .structural_parameter(destination)
+            .map(|parameter| {
+                (
+                    parameter.structural_type,
+                    parameter.qualifications.as_slice(),
+                    parameter.projected_qualifications.as_slice(),
+                    parameter.additional_input_qualifications.as_slice(),
+                )
+            })
+            .or_else(|| {
+                machine
+                    .operations()
+                    .filter_map(|operation| operation.result.structural())
+                    .find(|result| result.place == destination)
+                    .map(|result| {
+                        (
+                            result.structural_type,
+                            result.qualifications.as_slice(),
+                            result.projected_qualifications.as_slice(),
+                            result.additional_input_qualifications.as_slice(),
+                        )
+                    })
+            })?;
+        let restriction = terminal_semantics::primitive_store_restriction(
+            program.structural_types().values(),
+            program.catalogs.types.structural_domains.iter(),
+            root,
+            whole,
+            projected,
+            additional_input,
+            path,
+        )?;
+        let predicates = terminal_semantics::primitive_store_byte_predicates(
+            program.structural_types().values(),
+            program.catalogs.types.structural_domains.iter(),
+            root,
+            whole,
+            projected,
+            additional_input,
+            path,
+        )?;
+        let validates_utf8 = predicates
+            .predicates()
+            .any(|predicate| predicate == terminal_psi::ByteSequencePredicate::ValidUtf8)
+            && !predicates
+                .predicates()
+                .any(|predicate| predicate == terminal_psi::ByteSequencePredicate::AsciiOnly);
+        Some(PrimitiveStorePlan {
+            root,
+            restriction,
+            validates_utf8,
+        })
+    }
+
     use semantic_vocabulary::{
         IntegerSign, IntegerType, IntegerValue, MachineId, PlaceId, ScalarType,
         StructuralPlaceKind, StructuralTypeId, ValueId,
@@ -4420,67 +4496,22 @@ pub(crate) mod primitive_storage {
                 return Err(malformed());
             }
             let scalar = self.scalar_value(value)?;
-            let machine = self.program.machine(self.current_machine)?;
-            let (root, whole, projected, additional_input) = machine
-                .structural_parameter(destination)
-                .map(|parameter| {
-                    (
-                        parameter.structural_type,
-                        parameter.qualifications.as_slice(),
-                        parameter.projected_qualifications.as_slice(),
-                        parameter.additional_input_qualifications.as_slice(),
-                    )
-                })
-                .or_else(|| {
-                    machine
-                        .operations()
-                        .filter_map(|operation| operation.result.structural())
-                        .find(|result| result.place == destination)
-                        .map(|result| {
-                            (
-                                result.structural_type,
-                                result.qualifications.as_slice(),
-                                result.projected_qualifications.as_slice(),
-                                result.additional_input_qualifications.as_slice(),
-                            )
-                        })
-                })
-                .ok_or(malformed())?;
-            let restriction = terminal_semantics::primitive_store_restriction(
-                self.structural_types().values(),
-                self.program.catalogs.types.structural_domains.iter(),
-                root,
-                whole,
-                projected,
-                additional_input,
+            let plan = self.program.primitive_store_plan(
+                self.current_machine,
+                operation,
+                destination,
                 path,
-            )
-            .ok_or(malformed())?;
-            let predicates = terminal_semantics::primitive_store_byte_predicates(
-                self.structural_types().values(),
-                self.program.catalogs.types.structural_domains.iter(),
-                root,
-                whole,
-                projected,
-                additional_input,
-                path,
-            )
-            .ok_or(malformed())?;
-            if predicates
-                .predicates()
-                .any(|predicate| predicate == terminal_psi::ByteSequencePredicate::ValidUtf8)
-                && !predicates
-                    .predicates()
-                    .any(|predicate| predicate == terminal_psi::ByteSequencePredicate::AsciiOnly)
-            {
-                self.validate_utf8_primitive_write(destination, root, path, scalar)?;
+            )?;
+            if plan.validates_utf8 {
+                self.validate_utf8_primitive_write(destination, plan.root, path, scalar)?;
             }
-            if let Some(restriction) = restriction
+            if let Some(restriction) = &plan.restriction
                 && (!crate::engine::scalar_operations::terminal_scalar_belongs_to_type(scalar)
-                    || !scalar.satisfies_field(&restriction))
+                    || !scalar.satisfies_field(restriction))
             {
                 return Err(malformed());
             }
+            drop(plan);
             self.store_primitive_place(destination, path, scalar)
         }
 
@@ -6653,6 +6684,119 @@ pub(crate) mod storage_addresses {
                     );
                 }
             }
+        }
+
+        #[test]
+        fn produced_programs_plan_each_primitive_store_once() {
+            use semantic_vocabulary::{OperationId, PlaceId, StructuralDomainId, ValueId};
+            use std::borrow::Cow;
+            use terminal_psi::{Operation, OperationKind, OperationResult, StructuralPathSegment};
+
+            let mut execution = execution();
+            let destination = PlaceId::new(1).unwrap();
+            let root = StructuralTypeId::new(2).unwrap();
+            let domain = StructuralDomainId::new(1).unwrap();
+            let path = vec![StructuralPathSegment::FixedIndex(1)];
+            let operation = Operation::unsuspended(
+                OperationId::new(1).unwrap(),
+                OperationResult::Unit,
+                OperationKind::WriteOnlyPrimitiveStore {
+                    destination,
+                    value: ValueId::new(1).unwrap(),
+                    path: path.clone(),
+                    range_obligation: None,
+                },
+            );
+            let module = Arc::get_mut(&mut execution.program)
+                .unwrap()
+                .fixture_module_mut();
+            module
+                .types
+                .structural_domains
+                .push(terminal_psi::StructuralDomainDeclaration {
+                    subject_identity: Default::default(),
+                    access_policy: None,
+                    required_memberships: Some(Vec::new()),
+                    complete_predicate_theory: true,
+                    predicate: None,
+                    id: domain,
+                    semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+                    identity: TerminalIdentityIndex(4),
+                    carrier: root,
+                    content_projection: None,
+                    byte_predicate: Some(terminal_psi::ByteSequencePredicate::ValidUtf8),
+                    establishment_routes: None,
+                });
+            module.machines[0].structural_parameters.push(
+                terminal_psi::StructuralParameterDeclaration {
+                    place: destination,
+                    position: 0,
+                    structural_type: root,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                    access: StructuralAccess::Owned,
+                    qualifications: vec![domain],
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                },
+            );
+            module.machines[0].blocks[0]
+                .operations
+                .push(operation.clone());
+            let machine = module.machines[0].id;
+            let closed = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+            let identity = closed.identity();
+            let record = terminal_codec::PsiOptimizationExecutionRecord::new(
+                Default::default(),
+                identity,
+                identity,
+            )
+            .unwrap();
+            let artifact =
+                terminal_codec::CanonicalTerminalArtifact::from_closed_parts(closed, record, None)
+                    .unwrap();
+            let program = crate::TerminalProgram::borrow(artifact.view()).unwrap();
+            let admitted = &program.program;
+
+            let Cow::Borrowed(first) = admitted
+                .primitive_store_plan(machine, &operation, destination, &path)
+                .unwrap()
+            else {
+                panic!("a declared store uses the plan its program prepared");
+            };
+            let Cow::Borrowed(second) = admitted
+                .primitive_store_plan(machine, &operation, destination, &path)
+                .unwrap()
+            else {
+                panic!("a declared store uses the plan its program prepared");
+            };
+            assert!(std::ptr::eq(first, second));
+            assert_eq!(
+                first,
+                &crate::storage::primitive_storage::primitive_store_plan(
+                    admitted,
+                    admitted.machine(machine).unwrap(),
+                    destination,
+                    &path
+                )
+                .unwrap()
+            );
+            assert_eq!(first.root, root);
+            assert!(first.validates_utf8);
+            assert_eq!(first.restriction, None);
+
+            // A store at a path the program does not declare is planned on
+            // request by the same rules, never from another store's plan.
+            let other = [StructuralPathSegment::FixedIndex(2)];
+            assert!(matches!(
+                admitted.primitive_store_plan(machine, &operation, destination, &other),
+                Ok(Cow::Owned(_))
+            ));
+            let absent = PlaceId::new(9).unwrap();
+            assert!(
+                admitted
+                    .primitive_store_plan(machine, &operation, absent, &path)
+                    .is_err()
+            );
         }
 
         fn shared(execution: &TerminalExecution<'_>, array: &ArrayStorage) -> ByteSequenceView {

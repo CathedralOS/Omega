@@ -351,7 +351,7 @@ pub fn structural_memberships_disjoint_from_write(
 }
 
 pub fn qualification_path_carrier<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    types: impl crate::StructuralDeclarations<'types>,
     mut root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
@@ -365,7 +365,7 @@ pub fn qualification_path_carrier<'types>(
         if count == cursor.len() {
             return Some(root);
         }
-        let declaration = exactly_one(types.clone(), |row| row.id == root)?;
+        let declaration = types.unique(root)?;
         root = match declaration.shape {
             StructuralTypeShape::FixedArray { element, .. }
             | StructuralTypeShape::ElementView { element, .. } => element,

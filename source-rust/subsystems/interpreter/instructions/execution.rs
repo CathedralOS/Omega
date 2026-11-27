@@ -1040,14 +1040,12 @@ pub(crate) mod capabilities {
             ];
             module.machines.push(machine(0, Vec::new()));
             let identity = terminal_codec::terminal_psi_identity(&module).unwrap();
-            let mut program = AdmittedTerminalProgram {
-                identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
-                catalogs: std::sync::Arc::new(crate::embedding::program::ProgramStorage::Fixture(
-                    module,
-                )),
-                target_layouts: None,
-                scalar_geometry: None,
-            };
+            let mut program = AdmittedTerminalProgram::new(
+                terminal_codec::TerminalExecutionIdentity::portable(identity),
+                std::sync::Arc::new(crate::embedding::program::ProgramStorage::Fixture(module)),
+                None,
+                None,
+            );
             set_machine(&mut program, entry, machine(1, Vec::new()));
             let boundary = BoundaryMachineId::new(1).unwrap();
             let catalogs = program.fixture_module_mut();

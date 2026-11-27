@@ -2765,11 +2765,11 @@ impl TerminalExecution<'_> {
                 &self.array_initialization.cases(&self.structural_cases),
                 &required_paths,
             )?;
+        let memberships = self.program.intrinsic_memberships();
         for domain in &required_whole {
             if !referent.qualifications.contains(domain)
-                && terminal_semantics::scalar_projection_entails_membership(
-                    self.structural_types().values(),
-                    self.program.catalogs.types.structural_domains.iter(),
+                && memberships.entails(
+                    self.structural_types(),
                     referent.structural_type,
                     &[],
                     *domain,
@@ -2780,9 +2780,8 @@ impl TerminalExecution<'_> {
         }
         for row in &required_paths {
             if !referent.projected_qualifications.contains(row)
-                && terminal_semantics::scalar_projection_entails_membership(
-                    self.structural_types().values(),
-                    self.program.catalogs.types.structural_domains.iter(),
+                && memberships.entails(
+                    self.structural_types(),
                     referent.structural_type,
                     &row.path,
                     row.domain,
@@ -2791,6 +2790,7 @@ impl TerminalExecution<'_> {
                 referent.projected_qualifications.push(row.clone());
             }
         }
+        drop(memberships);
         referent.qualifications.sort();
         referent.qualifications.dedup();
         referent.projected_qualifications.sort();
