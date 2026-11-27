@@ -1,6 +1,6 @@
 # Native pipeline representations
 
-The numbered transformations exchange the program families described here. The native [body driver](../driver/compile_body.rs) runs the stages for each selected body. Stage 06 computes [allocation analyses](../pipeline/06_selected-instructions-to-selected-instructions/analyses) and hands [the selected program and its results](selected-instructions/allocation_input.rs) to stage 07.
+The numbered transformations exchange the program families described here. The native [body driver](../driver/compile_body.rs) runs the stages for each selected body. Stage 06 computes [allocation analyses](../pipeline/06_selected-instructions-to-selected-instructions/analyses) and hands [the selected program and its results](../pipeline/06_selected-instructions-to-selected-instructions/analyses/src/allocation_input.rs) to stage 07.
 
 ## Program families and pipeline boundaries
 

@@ -309,16 +309,18 @@ pub(crate) mod literal_folds {
             RecoveryClassificationPolicy, SpillChoicePolicy, ValidatedSelectedAnalysis,
         };
         use crate::selected_rewrites::analyses::prepared_machine_effect_catalog;
+        use crate::selected_rewrites::analyses::{
+            RecoveryReanalysisError, reanalyze_rewritten_functions,
+        };
         use crate::selected_rewrites::rewrites::fold_selected_incoming_literal;
         use crate::selected_rewrites::{
-            LiteralFoldPolicy, OptimizedLiteralFoldCustodyError, StagedOptimizedAllocationLegality,
-            StagedOptimizedLiteralFoldAttempt, StagedOptimizedLiteralFoldStep,
-            StagedSelectedLoweringOptimizationCustodyReceipt,
+            LiteralFoldPolicy, OptimizedLiteralFoldCustodyError, SelectedProgramView,
+            StagedOptimizedAllocationLegality, StagedOptimizedLiteralFoldAttempt,
+            StagedOptimizedLiteralFoldStep, StagedSelectedLoweringOptimizationCustodyReceipt,
             StagedSelectedLoweringOptimizationRun, ValidatedAllocationLegality,
-            ValidatedLiveRanges,
+            ValidatedLiveRanges, ValidatedLiveness,
         };
         use crate::selected_rewrites::{
-            analyze_allocation_legality, analyze_live_ranges, analyze_liveness,
             choose_spill_victims, classify_pressure_recovery, resolve_selected_lowering_rules,
         };
 
@@ -352,7 +354,7 @@ pub(crate) mod literal_folds {
                 budget,
             )?;
             let mut previous_measure = iteration_bound;
-            let mut steps = Vec::new();
+            let mut steps: Vec<StagedOptimizedLiteralFoldStep> = Vec::new();
             let mut usage = attempt_usage(&attempt)?;
             ensure_selected_lowering_budget(usage, budget)?;
             loop {
@@ -366,7 +368,24 @@ pub(crate) mod literal_folds {
                         },
                     );
                 }
-                let step = complete_attempt(attempt, &source)?;
+                let step = match steps.last() {
+                    Some(previous) => complete_attempt(
+                        attempt,
+                        previous.fold(),
+                        previous.liveness(),
+                        previous.ranges(),
+                        previous.legality(),
+                        &source,
+                    )?,
+                    None => complete_attempt(
+                        attempt,
+                        selected,
+                        source.liveness(),
+                        source.ranges(),
+                        source.legality(),
+                        &source,
+                    )?,
+                };
                 previous_measure = charge_step_measure(previous_measure, &step)?;
                 steps.push(step);
                 let previous = steps.last().expect("applied selected-lowering step exists");
@@ -453,6 +472,7 @@ pub(crate) mod literal_folds {
                 replayed.push(replay_step(
                     0,
                     selected,
+                    run.source.liveness(),
                     run.source.ranges(),
                     run.source.legality(),
                     &run.source,
@@ -463,6 +483,7 @@ pub(crate) mod literal_folds {
                     replayed.push(replay_step(
                         step_index,
                         previous.fold(),
+                        previous.liveness(),
                         previous.ranges(),
                         previous.legality(),
                         &run.source,
@@ -530,6 +551,7 @@ pub(crate) mod literal_folds {
         #[allow(clippy::too_many_arguments)]
         fn build_step<S: ValidatedSelectedAnalysis>(
             selected: &S,
+            liveness: &ValidatedLiveness,
             ranges: &ValidatedLiveRanges,
             legality: &ValidatedAllocationLegality,
             source: &StagedOptimizedAllocationLegality,
@@ -551,7 +573,7 @@ pub(crate) mod literal_folds {
             if attempt.fold.receipt().applied_count() == 0 {
                 return Err(OptimizedLiteralFoldCustodyError::NoAppliedFold);
             }
-            complete_attempt(attempt, source)
+            complete_attempt(attempt, selected, liveness, ranges, legality, source)
         }
 
         #[allow(clippy::too_many_arguments)]
@@ -612,30 +634,42 @@ pub(crate) mod literal_folds {
             })
         }
 
+        /// Seals the fold `attempt` made to `previous`, whose validated
+        /// analyses are `liveness`, `ranges` and `legality`. Only the
+        /// functions the fold rewrote are reanalyzed.
         fn complete_attempt(
             attempt: StagedOptimizedLiteralFoldAttempt,
+            previous: &impl SelectedProgramView,
+            liveness: &ValidatedLiveness,
+            ranges: &ValidatedLiveRanges,
+            legality: &ValidatedAllocationLegality,
             source: &StagedOptimizedAllocationLegality,
         ) -> Result<StagedOptimizedLiteralFoldStep, OptimizedLiteralFoldCustodyError> {
-            let environment = source.register_environment();
             let StagedOptimizedLiteralFoldAttempt {
                 choices,
                 recovery,
                 fold,
             } = attempt;
-            let liveness =
-                analyze_liveness(&fold).map_err(OptimizedLiteralFoldCustodyError::Liveness)?;
-            let ranges = analyze_live_ranges(&fold, &liveness)
-                .map_err(OptimizedLiteralFoldCustodyError::LiveRanges)?;
-            let legality = analyze_allocation_legality(
-                &ranges,
+            let (liveness, ranges, legality) = reanalyze_rewritten_functions(
+                previous,
+                liveness,
+                ranges,
+                legality,
+                &fold,
                 source.allocator_availability(),
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &environment.allocation_constraint_keys(),
+                source.register_environment(),
             )
-            .map_err(OptimizedLiteralFoldCustodyError::AllocationLegality)?;
+            .map_err(|error| match error {
+                RecoveryReanalysisError::Liveness(error) => {
+                    OptimizedLiteralFoldCustodyError::Liveness(error)
+                }
+                RecoveryReanalysisError::Ranges(error) => {
+                    OptimizedLiteralFoldCustodyError::LiveRanges(error)
+                }
+                RecoveryReanalysisError::Legality(error) => {
+                    OptimizedLiteralFoldCustodyError::AllocationLegality(error)
+                }
+            })?;
             let transition_count = legality.receipt().entry_transition_count();
             if transition_count != 0 {
                 return Err(OptimizedLiteralFoldCustodyError::RemainingTransitions {
@@ -655,6 +689,7 @@ pub(crate) mod literal_folds {
         fn replay_step<S: ValidatedSelectedAnalysis>(
             step_index: usize,
             selected: &S,
+            liveness: &ValidatedLiveness,
             ranges: &ValidatedLiveRanges,
             legality: &ValidatedAllocationLegality,
             source: &StagedOptimizedAllocationLegality,
@@ -662,6 +697,7 @@ pub(crate) mod literal_folds {
         ) -> Result<StagedOptimizedLiteralFoldStep, OptimizedLiteralFoldCustodyError> {
             let replayed = build_step(
                 selected,
+                liveness,
                 ranges,
                 legality,
                 source,

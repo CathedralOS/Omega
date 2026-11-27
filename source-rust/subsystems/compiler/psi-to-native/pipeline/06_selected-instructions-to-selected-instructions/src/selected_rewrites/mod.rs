@@ -34,7 +34,6 @@ and explicitly requested validators.
   - `copy_and_extension_rewrites.rs`: direct-call copied operand folding, same-block copy removal, and redundant carrier-extension removal.
   - `branch_and_compare_rewrites.rs`: compile-time constant boolean materialization, constant branch folding, and dead/redundant/equivalent compare elimination.
   - `literal_fold_rewrites.rs`: selected-lowering pair-rule catalog and incoming literal folding.
-  - `unexecuted_rewrites.rs`: design-record disposition roster for unexecuted rewrite families.
 */
 
 use selected_instruction_analyses as analyses;
@@ -50,68 +49,22 @@ mod selected_input {
         ValidatedRedundantCompare, ValidatedRedundantExtension, ValidatedStoredLoadForwarding,
     };
     use optimization_core::OptimizationUnitIdentity;
-    use selected_instruction_analyses::{
-        OwnedSelectedProgram, SelectedProgramRef, SelectedProgramView,
-    };
-    use selected_instructions::{
-        SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedProgram,
-    };
+    use selected_instruction_analyses::{SelectedProgramView, validated_selected_analysis};
+    use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
     use semantic_vocabulary::WorkScheduleIdentity;
 
-    mod sealed {
-        pub trait Sealed {}
-    }
-
-    pub trait ValidatedSelectedAnalysis: sealed::Sealed + SelectedProgramView {}
-
-    impl sealed::Sealed for SelectedProgram {}
-    impl ValidatedSelectedAnalysis for SelectedProgram {}
-    impl sealed::Sealed for OwnedSelectedProgram {}
-    impl ValidatedSelectedAnalysis for OwnedSelectedProgram {}
-    impl sealed::Sealed for SelectedProgramRef<'_> {}
-    impl ValidatedSelectedAnalysis for SelectedProgramRef<'_> {}
-
-    macro_rules! validated_selected_analysis {
-        ($name:ident) => {
-            impl sealed::Sealed for $name {}
-
-            impl ValidatedSelectedAnalysis for $name {}
-
-            impl SelectedProgramView for $name {
-                fn selected_plan(&self) -> &SelectedInstructionPlan {
-                    self.transformed()
-                }
-                fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-                    self.shared_transformed()
-                }
-                fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-                    self.receipt().transformed_selected()
-                }
-                fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-                    self.receipt().optimization_unit()
-                }
-                fn work_schedule_identity(&self) -> WorkScheduleIdentity {
-                    self.receipt().work_schedule()
-                }
-            }
-        };
-    }
-
     validated_selected_analysis!(ValidatedAddressFold);
-
     validated_selected_analysis!(ValidatedConstantBoolean);
-
     validated_selected_analysis!(ValidatedConstantBranch);
-
     validated_selected_analysis!(ValidatedCopyRemoval);
-
     validated_selected_analysis!(ValidatedRedundantCompare);
-
     validated_selected_analysis!(ValidatedRedundantExtension);
-
-    impl sealed::Sealed for ValidatedPreAllocationTransformation {}
-
-    impl ValidatedSelectedAnalysis for ValidatedPreAllocationTransformation {}
+    validated_selected_analysis!(ValidatedStoredLoadForwarding);
+    validated_selected_analysis!(ValidatedDeadCompare);
+    validated_selected_analysis!(ValidatedEquivalentCompare);
+    validated_selected_analysis!(ValidatedLiteralFold);
+    validated_selected_analysis!(ValidatedCopiedCallOperand);
+    validated_selected_analysis!(@sealed ValidatedPreAllocationTransformation);
 
     impl SelectedProgramView for ValidatedPreAllocationTransformation {
         fn selected_plan(&self) -> &SelectedInstructionPlan {
@@ -130,19 +83,9 @@ mod selected_input {
             self.work_schedule()
         }
     }
-
-    validated_selected_analysis!(ValidatedStoredLoadForwarding);
-
-    validated_selected_analysis!(ValidatedDeadCompare);
-
-    validated_selected_analysis!(ValidatedEquivalentCompare);
-
-    validated_selected_analysis!(ValidatedLiteralFold);
-
-    validated_selected_analysis!(ValidatedCopiedCallOperand);
 }
-pub use selected_input::ValidatedSelectedAnalysis;
 pub use selected_instruction_analyses::SelectedProgramView;
+pub use selected_instruction_analyses::ValidatedSelectedAnalysis;
 #[macro_use]
 mod rewrites;
 mod address_and_load_rewrites;
@@ -150,7 +93,6 @@ mod branch_and_compare_rewrites;
 mod copy_and_extension_rewrites;
 mod literal_fold_rewrites;
 mod selected_optimization;
-pub mod unexecuted_rewrites;
 
 pub use selected_optimization::optimization_output::{
     SelectedInstructionOptimizationError, SelectedInstructionOptimizationOutput,
@@ -166,8 +108,8 @@ pub use analyses::{
     SpillChoiceError, StagedOptimizedAllocationLegality,
     StagedOptimizedAllocationLegalityCustodyReceipt, ValidatedAllocationLegality,
     ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedRecoveryClassifications, ValidatedSpillChoices, analyze_allocation_legality,
-    analyze_live_ranges, analyze_liveness, choose_spill_victims, classify_pressure_recovery,
+    ValidatedRecoveryClassifications, ValidatedSpillChoices, choose_spill_victims,
+    classify_pressure_recovery,
 };
 pub(crate) use analyses::{
     OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError, stage_optimized_live_ranges,

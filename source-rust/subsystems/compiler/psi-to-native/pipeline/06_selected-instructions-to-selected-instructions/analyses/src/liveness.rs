@@ -1,6 +1,6 @@
 /*
   Selected-CFG dataflow liveness analysis (`analyze_liveness`,
-  `analyze_liveness_reusing`, `ValidatedLiveness`, `StagedOptimizedLiveness`).
+  `ValidatedLiveness`, `StagedOptimizedLiveness`).
 
   Computes bounded backward liveness over virtual registers and physical
   architectural units across `SelectedInstructionPlan` control flow, edge
@@ -558,53 +558,6 @@ pub mod compute {
             target: plan.target,
             functions,
         })
-    }
-
-    pub(crate) fn compute_terminal_liveness_reusing(
-        previous: &impl crate::SelectedProgramView,
-        previous_liveness: &crate::ValidatedLiveness,
-        selected: &impl crate::SelectedProgramView,
-    ) -> Result<(LivenessPlan, Vec<bool>), LivenessError> {
-        let plan = selected.selected_plan();
-        let prior = previous_liveness.plan();
-        let mut carried = vec![false; plan.functions.len()];
-        let compatible = prior.selected == previous.selected_identity()
-            && prior.optimization_unit == previous.optimization_unit_identity()
-            && prior.work_schedule == previous.work_schedule_identity()
-            && prior.target == previous.selected_plan().target
-            && prior.optimization_unit == selected.optimization_unit_identity()
-            && prior.work_schedule == selected.work_schedule_identity()
-            && prior.target == plan.target
-            && prior.functions.len() == previous.selected_plan().functions.len();
-        let functions = plan
-            .functions
-            .iter()
-            .enumerate()
-            .map(|(function_index, function)| {
-                if compatible
-                    && (previous
-                        .selected_plan()
-                        .functions
-                        .shares_function_storage(&plan.functions, function_index)
-                        || previous.selected_plan().functions.get(function_index) == Some(function))
-                    && let Some(facts) = prior.functions.get(function_index)
-                {
-                    carried[function_index] = true;
-                    return Ok(facts.clone());
-                }
-                compute_function(function_index, function).map(Arc::new)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok((
-            LivenessPlan {
-                selected: selected.selected_identity(),
-                optimization_unit: selected.optimization_unit_identity(),
-                work_schedule: selected.work_schedule_identity(),
-                target: plan.target,
-                functions,
-            },
-            carried,
-        ))
     }
 
     pub struct UnitInstructionLiveness {
@@ -2092,20 +2045,6 @@ pub fn analyze_liveness<S: SelectedProgramView>(
 ) -> Result<ValidatedLiveness, LivenessError> {
     let plan = compute::compute_terminal_liveness(selected)?;
     Ok(validate::admit_validated_liveness(plan, &[], &[]))
-}
-
-pub fn analyze_liveness_reusing(
-    previous: &impl SelectedProgramView,
-    previous_liveness: &ValidatedLiveness,
-    selected: &impl SelectedProgramView,
-) -> Result<ValidatedLiveness, LivenessError> {
-    let (plan, carried) =
-        compute::compute_terminal_liveness_reusing(previous, previous_liveness, selected)?;
-    Ok(validate::admit_validated_liveness(
-        plan,
-        &carried,
-        &previous_liveness.function_digests,
-    ))
 }
 
 mod staging {
