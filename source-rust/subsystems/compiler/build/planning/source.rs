@@ -306,7 +306,10 @@ pub fn prepare(
         profile,
         inputs,
         &supplied_libraries,
-        &execution.interpreter_providers,
+        source_compiler::BuildSourceCheck {
+            providers: &execution.interpreter_providers,
+            check_entry_file: !execution.dependency_activation,
+        },
     )?;
     // A dependency Build checks only what its entry reaches, so typing its
     // file under a check-only owner would produce a subject nothing judges.
@@ -395,7 +398,10 @@ fn check_only_subject(
         .map_err(refusal)?;
     let scope = SuppliedBuildLibrary::declaration_scope(libraries, check_owner).map(Arc::new);
     stage
-        .prepare(preparation, profile.target_name(), scope, providers)
+        .prepare(preparation, profile.target_name(), scope, source_compiler::BuildSourceCheck {
+            providers,
+            check_entry_file: true,
+        })
         .map(Some)
         .map_err(|rows| locate_failure(rows.into(), &assembled.parsed.files, None))
 }
@@ -454,14 +460,14 @@ fn resolve(
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
     libraries: &[SuppliedBuildLibrary],
-    providers: &source_compiler::InterpretedProviderSelections,
+    check: source_compiler::BuildSourceCheck<'_>,
 ) -> Result<TypedBuildInterval, CompileFailure> {
     let scope = inputs
         .map(|inputs| inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
         .or_else(|| SuppliedBuildLibrary::declaration_scope(libraries, assembled.build_owner()))
         .map(Arc::new);
     let stage = assembled.build_stage_source()?;
-    let prepared = stage.prepare(preparation, profile.target_name(), scope, providers);
+    let prepared = stage.prepare(preparation, profile.target_name(), scope, check);
     prepared.map_err(|rows| locate_failure(rows.into(), &assembled.parsed.files, inputs))
 }
 

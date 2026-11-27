@@ -145,6 +145,10 @@ impl BuildRecheck {
                 authority,
                 subject,
                 declaration,
+                source_compiler::BuildSourceCheck {
+                    providers: &self.interpreter_providers,
+                    check_entry_file: self.subject_validation != BuildSubjectValidation::EntryOnly,
+                },
                 timings,
             )?;
             build_execution::settle_rejoined_build_slice(

@@ -1095,7 +1095,7 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
         &Default::default(),
         "linux_x86_64",
         None,
-        &Default::default(),
+        source_compiler::BuildSourceCheck { providers: &Default::default(), check_entry_file: true },
     ) else {
         panic!("a Build with unbound imports was prepared");
     };
@@ -1128,7 +1128,7 @@ fn typed_build(
             &Default::default(),
             "linux_x86_64",
             None,
-            &Default::default(),
+            source_compiler::BuildSourceCheck { providers: &Default::default(), check_entry_file: true },
         )?
         .program)
 }

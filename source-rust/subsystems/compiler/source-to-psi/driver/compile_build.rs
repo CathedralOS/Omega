@@ -40,6 +40,15 @@ pub struct BuildStageSource {
     pub entry: source_text::SourceSpan,
 }
 
+/// Body and provider roots fixed for one Build activation or its recheck.
+#[derive(Clone, Copy)]
+pub struct BuildSourceCheck<'a> {
+    pub providers: &'a crate::InterpretedProviderSelections,
+    /// A directly checked Build owns every declaration in its entry file.
+    /// A dependency activation checks only the entry and what it reaches.
+    pub check_entry_file: bool,
+}
+
 /// The complete typed source of one Build invocation.
 pub struct TypedBuildInterval {
     pub program: Arc<TypedTrees>,
@@ -80,13 +89,13 @@ impl BuildStageSource {
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
-        providers: &crate::InterpretedProviderSelections,
+        check: BuildSourceCheck<'_>,
     ) -> Result<TypedBuildInterval, Vec<Diagnostic>> {
         let program = self.typed_source_scoped(
             preparation,
             host,
             authority,
-            Some(providers),
+            Some(check),
             &mut CompileTimings::default(),
         )?;
         program
@@ -104,9 +113,10 @@ impl BuildStageSource {
         authority: Option<Arc<PackageDeclarationScope>>,
         subject: Option<PackageKeyIdentity>,
         declaration: &source_admission::RetainedDeclaration,
+        check: BuildSourceCheck<'_>,
         timings: &mut CompileTimings,
     ) -> Result<(Arc<TypedTrees>, SymbolHandle), Vec<Diagnostic>> {
-        let typed = self.typed_source_scoped(preparation, host, authority, None, timings)?;
+        let typed = self.typed_source_scoped(preparation, host, authority, Some(check), timings)?;
         let entry = crate::source_state::source_subjects::rejoin_build_activation(
             &typed,
             subject,
@@ -121,11 +131,11 @@ impl BuildStageSource {
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
-        providers: Option<&crate::InterpretedProviderSelections>,
+        check: Option<BuildSourceCheck<'_>>,
         timings: &mut CompileTimings,
     ) -> Result<Arc<TypedTrees>, Vec<Diagnostic>> {
         let checkpoint = self
-            .request(preparation, host, authority, providers)?
+            .request(preparation, host, authority, check)?
             .prepare(timings)?;
         Ok(checkpoint.shared_typed())
     }
@@ -135,7 +145,7 @@ impl BuildStageSource {
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
-        providers: Option<&crate::InterpretedProviderSelections>,
+        check: Option<BuildSourceCheck<'_>>,
     ) -> Result<ResolveAndTypeRequest, Vec<Diagnostic>> {
         let entry_span = self.entry;
         let subject_files: Vec<_> = self
@@ -145,7 +155,7 @@ impl BuildStageSource {
             .filter(|file| {
                 file.dependency_scope == source_provenance::DependencyScope::Build
                     && ((file.origin == source_admission::SourceOrigin::User
-                        && providers.is_none())
+                        && check.is_none_or(|roots| roots.check_entry_file && file.source_id == entry_span.source_id))
                         || (file.origin == source_admission::SourceOrigin::Toolchain
                             && source_admission::source_identity::is_build_prelude_path(
                                 &file.path,
@@ -154,7 +164,8 @@ impl BuildStageSource {
             .map(|file| file.source_id)
             .collect();
         let pending = imports::DeferredBuildImports::new(self.pending_imports)?;
-        let provider_conformances = providers
+        let provider_conformances = check
+            .map(|check| check.providers)
             .into_iter()
             .flat_map(|providers| {
                 providers
@@ -229,6 +240,13 @@ impl CheckedBuildInvocation {
             diagnostics,
             accounting: Default::default(),
         };
+        // The complete entry file belongs to a subject Build. Other files enter
+        // this private program through the declarations the entry and its selected
+        // providers actually need. Product checks have their own full subjects.
+        program.build_invocation_entry = Some(
+            program.symbols.symbol_provenance_source_span(entry)
+                .ok_or_else(|| uncharged(vec![Diagnostic::error("Build entry has no admitted source occurrence")]))?
+        );
         let overrides = provider_declarations::rejoin_in_scope(
             &mut program,
             &providers.overrides,

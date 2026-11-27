@@ -144,7 +144,7 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
             &Default::default(),
             "linux_x86_64",
             None,
-            &Default::default(),
+            source_compiler::BuildSourceCheck { providers: &Default::default(), check_entry_file: true },
         )
         .expect("exact declared requirement calls reach typed preparation");
     let typed = interval.program.as_ref();
@@ -353,7 +353,7 @@ machine build(builder: @mutable BuildPlan) {
                 &Default::default(),
                 "linux_x86_64",
                 None,
-                &Default::default(),
+                source_compiler::BuildSourceCheck { providers: &Default::default(), check_entry_file: true },
             ) else {
                 panic!("a conditional wait admitted an unbound Build import");
             };
@@ -374,7 +374,7 @@ machine build(builder: @mutable BuildPlan) {
                     &Default::default(),
                     "linux_x86_64",
                     None,
-                    &Default::default(),
+                    source_compiler::BuildSourceCheck { providers: &Default::default(), check_entry_file: true },
                 )
                 .expect("local Build code and deferred Product operands both prepare");
         }
