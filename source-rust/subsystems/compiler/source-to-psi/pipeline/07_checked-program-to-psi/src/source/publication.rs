@@ -77,21 +77,6 @@ impl SourcePublication {
             })
     }
 
-    pub fn require_source_owner(
-        &self,
-        source: &Arc<crate::source_state::FrozenTypedTrees>,
-    ) -> Result<(), Diagnostic> {
-        let (accepted, _) = self.accepted.as_ref().ok_or_else(|| {
-            Diagnostic::error("no product route yet: the source has no retained accepted judgment")
-        })?;
-        if !Arc::ptr_eq(source, accepted.source()) {
-            return Err(Diagnostic::error(
-                "no product route yet: product publication retains a different frozen source owner",
-            ));
-        }
-        Ok(())
-    }
-
     pub fn accepted(&self) -> Result<&crate::AcceptedTerminalSource, Vec<Diagnostic>> {
         self.accepted_owner().map(Arc::as_ref)
     }
@@ -161,7 +146,7 @@ impl SourcePublication {
                     },
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            let (artifact, _) = produced
+            let artifact = produced
                 .into_portable_publication()
                 .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
             Ok(Arc::new(artifact))

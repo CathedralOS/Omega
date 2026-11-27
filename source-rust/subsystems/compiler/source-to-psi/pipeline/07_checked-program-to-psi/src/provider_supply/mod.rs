@@ -361,12 +361,6 @@ impl PreparedTargetSupply {
     pub fn requirements(&self) -> &[DemandedRequirement] {
         &self.requirements
     }
-
-    /// Whether the target's entries reach no boundary requirement, so this
-    /// target has no provider to settle.
-    pub fn demands_nothing(&self) -> bool {
-        self.requirements.is_empty()
-    }
 }
 
 /// Why a demanded requirement has no chosen supply.

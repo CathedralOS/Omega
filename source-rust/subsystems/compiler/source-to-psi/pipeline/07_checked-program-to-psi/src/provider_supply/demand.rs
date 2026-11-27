@@ -1,5 +1,5 @@
 //! Finish one product target's source choices while the accepted source owns its declarations.
-use super::{ClosedLogicalProviderReach, explicit_build_requirements};
+use super::explicit_build_requirements;
 use crate::provider_choice_inputs::NativeBuildSupply;
 use crate::provider_choice_inputs::ProviderSelection;
 use crate::{AcceptedTerminalSource, SourcePublication};
@@ -74,20 +74,6 @@ impl SourceProviderFacts<SourceProviderDemand> {
         Ok(source_provider_publication::issue_target_provider_demand(
             artifact, target, demand,
         ))
-    }
-
-    /// A lock-policy request can prepare its source-derived review facts from
-    /// the same closed choices that portable publication receives next.
-    pub fn logical_provider_reach(
-        &self,
-        publication: &SourcePublication,
-        target: Option<&str>,
-    ) -> Result<Option<&ClosedLogicalProviderReach>, Vec<Diagnostic>> {
-        self.require_issuer(publication, target)?;
-        match &self.facts {
-            SourceProviderDemand::Unscoped { .. } => Ok(None),
-            SourceProviderDemand::Target { closed, .. } => Ok(Some(closed)),
-        }
     }
 }
 
@@ -220,18 +206,6 @@ impl SourcePublication {
                 review,
             },
         ))
-    }
-
-    /// Publish only the named requirements for explicit native-input inspection.
-    pub fn prepare_provider_bindings(
-        &self,
-        target: &str,
-        supplies: &[NativeBuildSupply],
-        reached: &[BoundaryMachineId],
-    ) -> Result<SourceProviderFacts<Vec<SourceNativeBinding>>, Vec<Diagnostic>> {
-        let accepted = self.accepted_owner()?;
-        let bindings = accepted.reached_native_bindings(target, supplies, reached);
-        Ok(SourceProviderFacts::new(accepted, Some(target), bindings))
     }
 }
 
