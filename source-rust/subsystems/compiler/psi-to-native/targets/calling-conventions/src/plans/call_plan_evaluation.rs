@@ -13,6 +13,7 @@ use crate::plans::{
     PlanDiagnostic, RegisterSet, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement,
     ValueShape,
 };
+use language_core::native_call::NativeCallingConvention;
 use target::Architecture;
 
 fn borrowed_class(class: ValueClass) -> bool {
@@ -517,9 +518,11 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
                 )],
             })
         } else {
-            result_placement(signature.result, &[MachineRegister::X86Rax], |index| {
-                MachineRegister::X86Xmm(index)
-            })?
+            result_placement(
+                signature.result,
+                NativeCallingConvention::MicrosoftX64.integer_result_registers(),
+                |index| MachineRegister::X86Xmm(index),
+            )?
         },
         callback_materializations: Vec::new(),
         ordinary_clobbers: CallingPolicy::MicrosoftX64.ordinary_clobbers(),
@@ -544,7 +547,7 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
         &integer,
         8,
         MachineRegister::X86Xmm,
-        &[MachineRegister::X86Rax, MachineRegister::X86Rdx],
+        NativeCallingConvention::SystemVAMD64.integer_result_registers(),
         16,
         CallingPolicy::SystemVAMD64.ordinary_clobbers(),
     )?;
@@ -561,7 +564,7 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
             )]
         } else {
             register_fragments(result.shape, 8, 0, |index| {
-                [MachineRegister::X86Rax, MachineRegister::X86Rdx][usize::from(index)]
+                NativeCallingConvention::SystemVAMD64.integer_result_registers()[usize::from(index)]
             })
         };
     }
@@ -588,7 +591,7 @@ fn evaluate_aapcs64(
         &integer,
         8,
         MachineRegister::Aarch64V,
-        &integer[..2],
+        NativeCallingConvention::Aapcs64.integer_result_registers(),
         16,
         policy.ordinary_clobbers(),
     )?;
@@ -603,8 +606,9 @@ fn evaluate_aapcs64(
                 result.shape.alignment,
             )];
         } else if result.shape.byte_size > 8 {
-            result.locations =
-                register_fragments(result.shape, 8, 0, |index| integer[usize::from(index)]);
+            result.locations = register_fragments(result.shape, 8, 0, |index| {
+                NativeCallingConvention::Aapcs64.integer_result_registers()[usize::from(index)]
+            });
         }
     }
     Ok(plan)

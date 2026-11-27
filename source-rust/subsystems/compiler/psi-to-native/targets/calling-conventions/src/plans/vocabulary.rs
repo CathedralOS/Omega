@@ -15,85 +15,7 @@ use crate::callback_materializations::CallbackMaterialization;
 use semantic_vocabulary::{ClosedIntegerType, ClosedScalarType, IntegerType, ScalarType};
 use target::Architecture;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum MachineRegister {
-    X86Rax,
-    X86Rcx,
-    X86Rdx,
-    X86Rbx,
-    X86Rsp,
-    X86Rbp,
-    X86Rsi,
-    X86Rdi,
-    X86R8,
-    X86R9,
-    X86R10,
-    X86R11,
-    X86R12,
-    X86R13,
-    X86R14,
-    X86R15,
-    X86Xmm(u8),
-    Aarch64X(u8),
-    Aarch64V(u8),
-}
-
-impl MachineRegister {
-    pub const fn codec_index(self) -> u8 {
-        const BANK_BASE: [u8; 5] = [0, 0, 32, 64, 128];
-        const BANK_LANES: [u8; 5] = [1, 16, 16, 32, 32];
-        let (class, index) = self.wire_class_index();
-        let bank = class as usize;
-        BANK_BASE[bank] + index % BANK_LANES[bank]
-    }
-
-    pub const fn wire_class_index(self) -> (u8, u8) {
-        match self {
-            Self::X86Rax => (1, 0),
-            Self::X86Rcx => (1, 1),
-            Self::X86Rdx => (1, 2),
-            Self::X86Rbx => (1, 3),
-            Self::X86Rsp => (1, 4),
-            Self::X86Rbp => (1, 5),
-            Self::X86Rsi => (1, 6),
-            Self::X86Rdi => (1, 7),
-            Self::X86R8 => (1, 8),
-            Self::X86R9 => (1, 9),
-            Self::X86R10 => (1, 10),
-            Self::X86R11 => (1, 11),
-            Self::X86R12 => (1, 12),
-            Self::X86R13 => (1, 13),
-            Self::X86R14 => (1, 14),
-            Self::X86R15 => (1, 15),
-            Self::X86Xmm(index) => (2, index),
-            Self::Aarch64X(index) => (3, index),
-            Self::Aarch64V(index) => (4, index),
-        }
-    }
-
-    pub fn architecture(self) -> Architecture {
-        match self {
-            Self::X86Rax
-            | Self::X86Rcx
-            | Self::X86Rdx
-            | Self::X86Rbx
-            | Self::X86Rsp
-            | Self::X86Rbp
-            | Self::X86Rsi
-            | Self::X86Rdi
-            | Self::X86R8
-            | Self::X86R9
-            | Self::X86R10
-            | Self::X86R11
-            | Self::X86R12
-            | Self::X86R13
-            | Self::X86R14
-            | Self::X86R15
-            | Self::X86Xmm(_) => Architecture::X86_64,
-            Self::Aarch64X(_) | Self::Aarch64V(_) => Architecture::Aarch64,
-        }
-    }
-}
+pub use language_core::native_call::MachineRegister;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct RegisterSet(Vec<MachineRegister>);
@@ -547,16 +469,12 @@ impl CallingPolicy {
     }
 
     pub const fn native_for_target(target: target::NativeTarget) -> Self {
-        match (target.architecture, target.object_format) {
-            (Architecture::X86_64, target::ObjectFormat::Coff) => Self::MicrosoftX64,
-            (Architecture::X86_64, target::ObjectFormat::Elf)
-            | (Architecture::X86_64, target::ObjectFormat::MachO) => Self::SystemVAMD64,
-            // Windows ARM64 places fixed arguments and results exactly as
-            // AAPCS64 does; its reserved x18 belongs to the register model.
-            (Architecture::Aarch64, target::ObjectFormat::Elf | target::ObjectFormat::Coff) => {
-                Self::Aapcs64
-            }
-            (Architecture::Aarch64, target::ObjectFormat::MachO) => Self::DarwinAapcs64,
+        use language_core::native_call::NativeCallingConvention as Native;
+        match Native::for_target(target.architecture, target.object_format) {
+            Native::MicrosoftX64 => Self::MicrosoftX64,
+            Native::SystemVAMD64 => Self::SystemVAMD64,
+            Native::Aapcs64 => Self::Aapcs64,
+            Native::DarwinAapcs64 => Self::DarwinAapcs64,
         }
     }
 

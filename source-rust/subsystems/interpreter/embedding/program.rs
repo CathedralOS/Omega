@@ -3243,7 +3243,7 @@ pub(crate) mod program {
                 ))
             ));
             let plans =
-                psi_target_layouts::AssemblyReturnPlans::new(&target, vec![(machine, returned)])
+                psi_target_layouts::AssemblyReturnPlans::admit(artifact.view(), &target, [machine])
                     .unwrap();
             let supplies = program
                 .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
@@ -3252,6 +3252,25 @@ pub(crate) mod program {
                 })
                 .unwrap();
             assert!(program.execution_requirements(Some(&supplies)).is_ok());
+
+            // An otherwise valid artifact can name a different working register. A custom
+            // embedder choosing the matching target still cannot install that as its ABI result.
+            let mut forged = artifact.semantic_module().clone();
+            forged.machines[0].blocks[0].assembly_exit =
+                Some(AssemblyExitConstraint::ScalarReturn(
+                    AsmRegisterView::from_scratch_slot(2).unwrap(),
+                ));
+            let record =
+                terminal_codec::build_identity_optimization_execution_record(&forged).unwrap();
+            let forged =
+                terminal_codec::CanonicalTerminalArtifact::from_parts(forged, record, None)
+                    .unwrap();
+            let target = psi_target_layouts::terminal_target_context(forged.view(), "linux_x86_64");
+            assert_eq!(
+                psi_target_layouts::AssemblyReturnPlans::admit(forged.view(), &target, [machine])
+                    .unwrap_err(),
+                "authored assembly register does not hold this calling convention's scalar result",
+            );
         }
     }
 

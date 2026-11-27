@@ -370,6 +370,20 @@ impl AsmRegisterView {
         ASM_SCRATCH_NAMES[usize::from(self.0)]
     }
 
+    /// The entire physical register written by this 32-bit view, including the zeroed high bits.
+    pub fn parent(self) -> crate::native_call::MachineRegister {
+        use crate::native_call::MachineRegister::*;
+        const X86_PARENTS: [crate::native_call::MachineRegister; ASM_ZERO_FLAG_SLOT] = [
+            X86Rax, X86Rbx, X86Rcx, X86Rdx, X86Rsi, X86Rdi, X86R8, X86R9, X86R10, X86R11, X86R12,
+            X86R13, X86R14, X86R15,
+        ];
+        if let Some(parent) = X86_PARENTS.get(usize::from(self.0)) {
+            *parent
+        } else {
+            Aarch64X(self.0 - scratch_registers::ASM_ARM_REGISTER_START as u8)
+        }
+    }
+
     pub fn target(self) -> AsmTargetApplicability {
         if usize::from(self.0) < ASM_ZERO_FLAG_SLOT {
             AsmTargetApplicability::X86_64
@@ -937,13 +951,12 @@ impl AsmTargetApplicability {
     }
 
     pub fn accepts_target_name(self, target: &str) -> bool {
+        use crate::native_call::{Architecture, target_platform};
+        let architecture = target_platform(target).map(|(architecture, _)| architecture);
         match self {
             Self::Any => true,
-            Self::X86_64 => matches!(
-                target,
-                "linux_x86_64" | "windows_x86_64" | "macos_x86_64" | "uefi_x86_64"
-            ),
-            Self::Aarch64 => matches!(target, "linux_arm64" | "macos_arm64" | "windows_arm64"),
+            Self::X86_64 => architecture == Some(Architecture::X86_64),
+            Self::Aarch64 => architecture == Some(Architecture::Aarch64),
         }
     }
 }

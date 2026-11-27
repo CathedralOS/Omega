@@ -64,7 +64,7 @@ impl AdmittedRuntimeInput<'_> {
         &self,
     ) -> Result<Option<psi_target_layouts::AssemblyReturnPlans>, &'static str> {
         match self.native_scope {
-            Some(scope) => scope.assembly_return_environment(),
+            Some(scope) => scope.assembly_return_environment(self.artifact.artifact().view()),
             None => Ok(None),
         }
     }

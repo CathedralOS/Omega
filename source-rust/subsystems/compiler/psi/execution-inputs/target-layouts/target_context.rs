@@ -21,20 +21,73 @@ pub struct AssemblyReturnPlans {
 }
 
 impl AssemblyReturnPlans {
-    pub fn new(
+    /// Resolve the ordinary calling convention for the target and check each demanded body.
+    /// A host supplies artifact-local machine identities. Register choices come from the body
+    /// and the convention's own direct integer result bank.
+    pub fn admit<'code>(
+        artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
         target: &TerminalTargetContext,
-        mut results: Vec<(
-            semantic_vocabulary::MachineId,
-            terminal_psi::AsmRegisterView,
-        )>,
+        machines: impl IntoIterator<Item = semantic_vocabulary::MachineId>,
     ) -> Result<Self, &'static str> {
-        results.sort_unstable_by_key(|(machine, _)| *machine);
-        if results.windows(2).any(|pair| pair[0].0 == pair[1].0)
-            || results
-                .iter()
-                .any(|(_, view)| !view.target().accepts_target_name(target.target()))
-        {
-            return Err("assembly return plans repeat a machine or name another architecture");
+        use language_core::native_call::{NativeCallingConvention, target_platform};
+        use terminal_psi::{AssemblyExitConstraint, TerminalMachineResult};
+        let artifact = artifact.into();
+        if target.terminal_psi() != artifact.identity() {
+            return Err("assembly calling plan belongs to another artifact");
+        }
+        let (architecture, format) = target_platform(target.target())
+            .ok_or("assembly return requires a concrete native target")?;
+        let native = NativeCallingConvention::for_target(architecture, format);
+        let module = artifact.module();
+        let mut results = Vec::new();
+        for id in machines {
+            let machine = module
+                .machine(id)
+                .ok_or("assembly calling plan names an absent machine")?;
+            if !machine.structural_parameters.is_empty()
+                || !machine.entry_claims.is_empty()
+                || module
+                    .interfaces
+                    .provider_candidates
+                    .iter()
+                    .any(|row| row.candidate == id)
+            {
+                return Err(
+                    "assembly return requires its selected boundary or structural calling plan",
+                );
+            }
+            let TerminalMachineResult::Scalar(result) = &machine.result else {
+                return Err("assembly register return requires a scalar result");
+            };
+            if !matches!(result.scalar_type, semantic_vocabulary::ScalarType::Integer(integer)
+                if !integer.is_address() && integer.bits() == Some(32))
+            {
+                return Err("assembly register return requires a fixed 32-bit integer result");
+            }
+            let mut returns =
+                machine
+                    .blocks
+                    .iter()
+                    .filter_map(|block| match &block.assembly_exit {
+                        Some(AssemblyExitConstraint::ScalarReturn(view)) => Some(*view),
+                        _ => None,
+                    });
+            let view = returns
+                .next()
+                .ok_or("machine does not declare an assembly register return")?;
+            if returns.any(|other| other != view)
+                || !view.target().accepts_target_name(target.target())
+                || Some(&view.parent()) != native.integer_result_registers().first()
+            {
+                return Err(
+                    "authored assembly register does not hold this calling convention's scalar result",
+                );
+            }
+            results.push((id, view));
+        }
+        results.sort_unstable_by_key(|(id, _)| *id);
+        if results.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err("duplicate machine in assembly return plans");
         }
         Ok(Self {
             target: target.clone(),
