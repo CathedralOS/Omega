@@ -1,6 +1,7 @@
 //! Keep each callable's authored permissions separate from what its body reaches.
 //! Private omitted axes are inferred from actual calls, never from callers or a
 //! list of eligible implementations. Published axes are checked as ceilings.
+use crate::callables::static_contracts::SourceImplementation;
 use crate::read::refuse_at;
 pub(crate) use crate::read::unavailable;
 
@@ -1529,6 +1530,9 @@ impl<'t> Program<'t> {
                 .iter()
                 .any(|selected| selected.implementation == id)
             || self.calling_policy_bodies.contains(&id)
+            || self.static_contracts.conformances.iter().any(|question| {
+                matches!(question.implementation, SourceImplementation::Machine(body) if body == id)
+            })
     }
 
     /// Replace a witness's closed transitive callee with a bodyless requirement
