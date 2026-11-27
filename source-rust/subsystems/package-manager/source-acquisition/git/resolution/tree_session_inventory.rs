@@ -9,7 +9,7 @@
 // budget. The retained `catalog-<namespace>/<commit>` directory serves only as
 // a routing identity for the in-memory tree.
 
-use super::{GitWorkspaceSession, source_error};
+use super::GitWorkspaceSession;
 use crate::git::cache::identity::git_cache_identity;
 use crate::git::executable::selection::resolver_package_controlled_roots;
 use crate::git::objects::GitTreeEntryKind;
@@ -151,6 +151,6 @@ impl GitWorkspaceSession {
         );
         route.verify_path_identity()?;
         storage.verify_path_identity()?;
-        result.map_err(source_error)
+        result
     }
 }

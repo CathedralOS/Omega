@@ -14,7 +14,6 @@ use crate::git::objects::authentication::{authenticate_git_commit, verify_exact_
 use crate::git::objects::identity::is_object_id;
 use crate::git::objects::{ExactGitObjectAvailability, probe_exact_git_object};
 use crate::git::request::GitExecutionTransport;
-use crate::git::workspace::GitWorkspaceProjectionError;
 use crate::limits::LocalSourceLimits;
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::OsStr;
@@ -25,7 +24,7 @@ use super::exact_objects::exact_revision_needs_fetch;
 use super::selection::GitRevisionSelection;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn inspect_verified_git_cache_entry<Evidence, PlannerError>(
+pub(super) fn inspect_verified_git_cache_entry<Evidence>(
     executor: &GitExecutor,
     cache_directory: &CapabilityDirectory,
     entry_name: &OsStr,
@@ -43,8 +42,8 @@ pub(super) fn inspect_verified_git_cache_entry<Evidence, PlannerError>(
         &str,
         &str,
         LocalSourceLimits,
-    ) -> Result<Evidence, GitWorkspaceProjectionError<PlannerError>>,
-) -> Result<Evidence, GitWorkspaceProjectionError<PlannerError>> {
+    ) -> Result<Evidence, SourceResolveError>,
+) -> Result<Evidence, SourceResolveError> {
     let repository = VerifiedGitRepository::open(
         cache_directory,
         entry_name,
@@ -73,7 +72,7 @@ pub(super) fn inspect_verified_git_cache_entry<Evidence, PlannerError>(
         let arguments = bounded_git_fetch_arguments(fetch_locator, fetch_revision, limits);
         let fetched = repository.run_git(executor, arguments.iter());
         if let Err(error @ SourceResolveError::GitCleanupFailed { .. }) = fetched {
-            return Err(error.into());
+            return Err(error);
         }
         repository.restore_canonical_config(&canonical_config)?;
         fetched?;
@@ -104,8 +103,7 @@ pub(super) fn inspect_verified_git_cache_entry<Evidence, PlannerError>(
         return Err(SourceResolveError::GitObjectInvalid {
             oid: commit,
             message: "reused Git acquisition selected a different commit".to_owned(),
-        }
-        .into());
+        });
     }
     let tree = repository.run_git_stdout(
         executor,
@@ -123,8 +121,7 @@ pub(super) fn inspect_verified_git_cache_entry<Evidence, PlannerError>(
         return Err(SourceResolveError::GitObjectInvalid {
             oid: tree,
             message: "reused Git acquisition selected a different root tree".to_owned(),
-        }
-        .into());
+        });
     }
     repository.verify_current(limits)?;
     authenticate_git_commit(executor, &repository, &commit, Some(&tree))?;

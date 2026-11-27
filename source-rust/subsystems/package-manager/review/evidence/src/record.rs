@@ -147,11 +147,6 @@ mod conformances;
 mod contracts;
 pub(crate) mod package;
 mod policy_rows;
-/// Exact source units reported by a review. An absent inventory cannot support cache reuse.
-#[derive(Debug)]
-pub struct PackageReviewSourceFacts {
-    pub consumed_units: Option<Vec<source_provenance::ConsumedSourceUnit>>,
-}
 mod public_policy;
 mod representation;
 mod restricted_build;

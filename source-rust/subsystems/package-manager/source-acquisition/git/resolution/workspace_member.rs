@@ -1,6 +1,6 @@
-// Selection and snapshot publication for one declared member from an
-// authenticated Git workspace (`resolve_git_workspace_member_from_pin_in_lanes`,
-// `materialize_member`).
+// Snapshot publication for one declared member of an authenticated Git
+// workspace (`materialize_member`), after `GitWorkspaceSession` has read the
+// root and requested member declarations (`declarations`).
 //
 // Both the bare-repository `git_lane` and the `member_lane` prove their path
 // identities around the resolution. Because identical Git member subtrees can
@@ -10,187 +10,19 @@
 // rather than sharing a content-only member namespace.
 
 use super::GitMaterializedSource;
-use super::acquisition::resolve_git_source_from_retained_cache;
-use super::exact_revision::GitExactRevisionAcquisition;
-use super::selection::{ExactGitRevision, GitRevisionSelection};
-#[cfg(test)]
-use crate::SourceResolver;
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::GitExecutor;
-use crate::git::executable::selection::PrimaryGitSelection;
-use crate::git::objects::{
-    AuthenticatedGitTreeInspection, GitTreeProjectionRequest, inspect_git_tree_graph,
-};
-use crate::git::request::GitSourceRequest;
+use crate::git::objects::{AuthenticatedGitTreeInspection, GitTreeProjectionRequest};
 use crate::git::snapshot::publish_git_member_snapshot;
-use crate::git::workspace::{
-    GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionCustody,
-    GitWorkspaceProjectionError, GitWorkspaceProjectionPlanner, GitWorkspaceProjectionResult,
-};
-use crate::identity::{GitCommitId, GitTreeId};
+use crate::git::workspace::{GitWorkspaceDeclaration, GitWorkspaceProjectionCustody};
 use crate::limits::LocalSourceLimits;
-use crate::observations::resolved::GitAcquisitionPin;
 use crate::storage::RetainedStorageLane;
 
 pub(super) mod declarations;
 
-#[cfg(test)]
-pub(crate) fn resolve_git_workspace_member<Planner>(
-    request: &GitSourceRequest,
-    resolver: &SourceResolver,
-    limits: LocalSourceLimits,
-    declaration_limits: GitWorkspaceDeclarationLimits,
-    planner: &mut Planner,
-) -> Result<
-    GitWorkspaceProjectionResult<Planner::Evidence>,
-    GitWorkspaceProjectionError<Planner::Error>,
->
-where
-    Planner: GitWorkspaceProjectionPlanner,
-{
-    resolver.verify_path_identity()?;
-    let result = resolve_git_workspace_member_from_pin_in_lanes(
-        resolver.primary_git()?,
-        request,
-        None,
-        resolver.git_sources(),
-        resolver.workspace_members(),
-        limits.compiler_bounded(),
-        declaration_limits,
-        planner,
-    );
-    resolver.verify_path_identity()?;
-    result
-}
-
-pub fn resolve_git_workspace_member_from_pin_in_lanes<Planner>(
-    primary_git: &PrimaryGitSelection,
-    request: &GitSourceRequest,
-    pin: Option<&GitAcquisitionPin>,
-    git_lane: &RetainedStorageLane,
-    member_lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-    declaration_limits: GitWorkspaceDeclarationLimits,
-    planner: &mut Planner,
-) -> Result<
-    GitWorkspaceProjectionResult<Planner::Evidence>,
-    GitWorkspaceProjectionError<Planner::Error>,
->
-where
-    Planner: GitWorkspaceProjectionPlanner,
-{
-    resolve_git_workspace_member_at_selection(
-        primary_git,
-        request,
-        GitRevisionSelection::Ordinary(pin),
-        git_lane,
-        member_lane,
-        limits,
-        declaration_limits,
-        planner,
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
-fn resolve_git_workspace_member_at_selection<Planner>(
-    primary_git: &PrimaryGitSelection,
-    request: &GitSourceRequest,
-    selection: GitRevisionSelection<'_>,
-    git_lane: &RetainedStorageLane,
-    member_lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-    declaration_limits: GitWorkspaceDeclarationLimits,
-    planner: &mut Planner,
-) -> Result<
-    GitWorkspaceProjectionResult<Planner::Evidence>,
-    GitWorkspaceProjectionError<Planner::Error>,
->
-where
-    Planner: GitWorkspaceProjectionPlanner,
-{
-    resolve_git_source_from_retained_cache(
-        primary_git,
-        &[git_lane, member_lane],
-        request,
-        limits,
-        selection,
-        |executor, repository, tree, limits| {
-            project_git_workspace_member(
-                executor,
-                repository,
-                tree,
-                member_lane,
-                limits,
-                declaration_limits,
-                planner,
-            )
-        },
-    )
-    .map(|(source, evidence)| GitWorkspaceProjectionResult::new(source, evidence))
-}
-
-fn project_git_workspace_member<Planner>(
-    executor: &GitExecutor,
-    repository: &VerifiedGitRepository,
-    tree: &str,
-    member_lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-    declaration_limits: GitWorkspaceDeclarationLimits,
-    planner: &mut Planner,
-) -> Result<GitMaterializedSource<Planner::Evidence>, GitWorkspaceProjectionError<Planner::Error>>
-where
-    Planner: GitWorkspaceProjectionPlanner,
-{
-    let inspection = inspect_git_tree_graph(executor, repository, tree)?;
-    debug_assert_eq!(inspection.root_tree_oid(), tree);
-    let root_declaration = declarations::open_root(
-        &inspection,
-        executor,
-        repository,
-        limits,
-        declaration_limits,
-    )?;
-    let member_paths = planner
-        .discover_members(&root_declaration)
-        .map_err(GitWorkspaceProjectionError::Planner)?;
-    let member_declarations = declarations::open_members(
-        &inspection,
-        executor,
-        repository,
-        &root_declaration,
-        &member_paths,
-        limits,
-        declaration_limits,
-    )?;
-    let selection = planner
-        .select_member(&root_declaration, &member_declarations)
-        .map_err(GitWorkspaceProjectionError::Planner)?;
-    let (selected_member_path, evidence) = selection.into_parts();
-    if !member_paths.contains(&selected_member_path) {
-        return Err(SourceResolveError::GitTreeInvalid {
-            path: selected_member_path.as_str().as_bytes().to_vec(),
-            message: "workspace planner selected a member absent from its discovered set"
-                .to_owned(),
-        }
-        .into());
-    }
-
-    materialize_member(
-        &inspection,
-        executor,
-        repository,
-        member_lane,
-        limits,
-        root_declaration,
-        member_declarations,
-        selected_member_path,
-        evidence,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn materialize_member<Evidence, PlannerError>(
+pub(super) fn materialize_member(
     inspection: &AuthenticatedGitTreeInspection,
     executor: &GitExecutor,
     repository: &VerifiedGitRepository,
@@ -199,8 +31,7 @@ pub(super) fn materialize_member<Evidence, PlannerError>(
     root_declaration: GitWorkspaceDeclaration,
     member_declarations: Vec<GitWorkspaceDeclaration>,
     selected_member_path: crate::SourceRelativePath,
-    evidence: Evidence,
-) -> Result<GitMaterializedSource<Evidence>, GitWorkspaceProjectionError<PlannerError>> {
+) -> Result<GitMaterializedSource, SourceResolveError> {
     let projection = inspection.project(
         executor,
         repository,
@@ -236,44 +67,5 @@ pub(super) fn materialize_member<Evidence, PlannerError>(
         snapshot_root,
         local,
         workspace_projection: Some(workspace_projection),
-        evidence,
     })
-}
-
-// Exact recorded-revision workspace member resolution
-// (`resolve_git_workspace_member_at_revision_in_lanes`).
-//
-// After authenticating the commit and tree graph for the recorded `(commit,
-// tree)` pair, opens only the root/member declarations and the selected
-// member's payload closure, and materializes only the selected member.
-
-pub fn resolve_git_workspace_member_at_revision_in_lanes<Planner>(
-    primary_git: &PrimaryGitSelection,
-    request: &GitSourceRequest,
-    commit: &GitCommitId,
-    tree: &GitTreeId,
-    acquisition: GitExactRevisionAcquisition,
-    git_lane: &RetainedStorageLane,
-    member_lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-    declaration_limits: GitWorkspaceDeclarationLimits,
-    planner: &mut Planner,
-) -> Result<
-    GitWorkspaceProjectionResult<Planner::Evidence>,
-    GitWorkspaceProjectionError<Planner::Error>,
->
-where
-    Planner: GitWorkspaceProjectionPlanner,
-{
-    let recorded = ExactGitRevision::new(request, commit, Some(tree), acquisition)?;
-    resolve_git_workspace_member_at_selection(
-        primary_git,
-        request,
-        GitRevisionSelection::Exact(&recorded),
-        git_lane,
-        member_lane,
-        limits.compiler_bounded(),
-        declaration_limits,
-        planner,
-    )
 }

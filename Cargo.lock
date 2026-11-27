@@ -567,7 +567,6 @@ name = "compiler"
 version = "0.1.0"
 dependencies = [
  "build-providers",
- "compiler-identity",
  "component-description",
  "diagnostics",
  "native-compiler",
@@ -578,9 +577,7 @@ dependencies = [
  "psi-entry-memory",
  "review-evidence",
  "semantic-vocabulary",
- "source-admission",
  "source-compiler",
- "source-text",
  "target",
  "terminal-codec",
 ]
@@ -1894,7 +1891,6 @@ dependencies = [
 name = "package-manager"
 version = "0.1.0"
 dependencies = [
- "arena",
  "artifacts",
  "build-declarations",
  "build-evaluation-result",
@@ -1909,7 +1905,6 @@ dependencies = [
  "diagnostics",
  "filesystem-authority",
  "host-provider-inputs",
- "installation-conditions",
  "package-compilation",
  "platform-custody",
  "project-build",
@@ -1919,13 +1914,11 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "source-acquisition",
- "source-admission",
  "source-completion-accounting",
  "source-syntax",
  "source-text",
  "syntax-trees",
  "target",
- "terminal-codec",
  "terminal-psi",
  "terminal-work",
  "tokens",

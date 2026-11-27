@@ -158,9 +158,9 @@ a valid record. Incomplete or corrupted child objects fail without automatic
 repair. This function neither chooses workspace members nor rebuilds a
 manager lock's package graph.
 
-The companion `resolve_git_workspace_member_at_revision_in_lanes` uses the
-same recorded commit/root tree with the existing bounded workspace planner.
-It verifies root and declared-member declarations at that revision, then
+The companion `GitWorkspaceSession::open_at_revision` uses the same
+recorded commit/root tree for a workspace member. The session verifies root
+and requested member declarations at that revision, and its catalog then
 writes only the chosen member. The returned record separates the repository
 root tree from the member tree and keeps the declarations that led there.
 Both storage lanes are checked; unrelated repository content stays out of

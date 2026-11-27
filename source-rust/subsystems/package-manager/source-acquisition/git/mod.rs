@@ -29,9 +29,10 @@ Provenance and workspace member projection:
 `resolution` coordinates exact-revision and selector-based resolutions,
 emitting `ResolvedGitSource` records paired with `GitResolutionObservation`
 provenance. When a package resides inside a multi-package Git workspace
-(`workspace`), we authenticate the root and member declaration blobs in memory,
-delegate syntax-aware member selection to a `GitWorkspaceProjectionPlanner`,
-and project only the selected member subtree into an isolated snapshot root.
+(`workspace`), a `GitWorkspaceSession` authenticates the root and requested
+member declaration blobs in memory, leaves syntax-aware member selection to the
+package manager, and projects only the selected member subtree into an isolated
+snapshot root.
 */
 
 pub(crate) mod cache;

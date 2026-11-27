@@ -14,14 +14,11 @@ build-model = { path = "../compiler/build/model" }
 project-build = { path = "../compiler/build" }
 build-evaluation-result = { path = "../compiler/build/evaluation/result" }
 source-completion-accounting = { path = "../compiler/source-to-psi/representations/evaluation-receipts" }
-installation-conditions = { path = "../compiler/psi-to-native/verification/installation-admission/conditions" }
 host-provider-inputs = { path = "../compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 declaration-scope = { path = "../compiler/foundation/declaration-scope" }
 record-storage = { path = "../../foundation/record-storage" }
-source-admission = { path = "../compiler/source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../foundation/source-text" }
 wire = { path = "../../foundation/wire" }
-terminal-codec = { path = "../compiler/psi/artifact/codec" }
 terminal-work = { path = "../compiler/psi/semantics/work" }
 artifacts = { path = "../compiler/foundation/measurements" }
 build-declarations = { path = "../compiler/build/inputs/declarations" }
@@ -34,7 +31,6 @@ package-compilation = { path = "../compiler/build/inputs" }
 platform-custody = { path = "../../foundation/filesystem" }
 target = { path = "../compiler/psi-to-native/targets/target" }
 provider-admission = { path = "../compiler/psi-to-native/verification/provider-admission" }
-arena = { path = "../../foundation/arena" }
 semantic-vocabulary = { path = "../compiler/foundation/semantic-records" }
 filesystem-authority = { path = "../compiler/build/evaluation/authority/filesystem" }
 diagnostics = { path = "../../foundation/diagnostics" }

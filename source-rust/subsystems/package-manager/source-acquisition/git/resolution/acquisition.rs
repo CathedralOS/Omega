@@ -28,7 +28,6 @@ use crate::git::git_command::reconciliation::{
 };
 use crate::git::objects::identity::{git_object_algorithm, is_object_id};
 use crate::git::request::GitSourceRequest;
-use crate::git::workspace::GitWorkspaceProjectionError;
 use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::{PendingResolvedGitSource, ResolvedGitSource};
 use crate::storage::RetainedStorageLane;
@@ -41,7 +40,7 @@ use super::repository::inspect_verified_git_cache_entry;
 use super::selection::GitRevisionSelection;
 use super::{GitMaterializedSource, materialize_whole_git_source};
 
-pub(super) fn resolve_git_source_from_retained_cache<Evidence, PlannerError>(
+pub(super) fn resolve_git_source_from_retained_cache(
     primary_git: &PrimaryGitSelection,
     lanes: &[&RetainedStorageLane],
     request: &GitSourceRequest,
@@ -52,11 +51,8 @@ pub(super) fn resolve_git_source_from_retained_cache<Evidence, PlannerError>(
         &VerifiedGitRepository,
         &str,
         LocalSourceLimits,
-    ) -> Result<
-        GitMaterializedSource<Evidence>,
-        GitWorkspaceProjectionError<PlannerError>,
-    >,
-) -> Result<(ResolvedGitSource, Evidence), GitWorkspaceProjectionError<PlannerError>> {
+    ) -> Result<GitMaterializedSource, SourceResolveError>,
+) -> Result<ResolvedGitSource, SourceResolveError> {
     let (cache_lane, _) = lanes
         .split_first()
         .expect("one Git resolution retains at least one storage lane");
@@ -91,20 +87,17 @@ pub(super) fn resolve_git_source_from_retained_cache<Evidence, PlannerError>(
                 workspace_projection: materialized.workspace_projection,
                 source_limits: limits,
             };
-            Ok((pending, materialized.evidence))
+            Ok(pending)
         },
-        |(pending, evidence), entry_lock, entry_root| {
-            let source = finalize_git_resolution(
-                pending, request, entry_lock, cache_dir, entry_root, limits,
-            )?;
-            Ok((source, evidence))
+        |pending, entry_lock, entry_root| {
+            finalize_git_resolution(pending, request, entry_lock, cache_dir, entry_root, limits)
         },
     );
-    verify_retained_lane_custody(lanes).map_err(GitWorkspaceProjectionError::Source)?;
+    verify_retained_lane_custody(lanes)?;
     outcome
 }
 
-pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerError>(
+pub(super) fn with_git_repository_from_retained_cache<Evidence, Output>(
     primary_git: &PrimaryGitSelection,
     package_controlled_roots: &[PathBuf],
     request: &GitSourceRequest,
@@ -118,9 +111,9 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
         &str,
         &str,
         LocalSourceLimits,
-    ) -> Result<Evidence, GitWorkspaceProjectionError<PlannerError>>,
+    ) -> Result<Evidence, SourceResolveError>,
     issue: impl FnOnce(Evidence, &CacheEntryLock, &Path) -> Result<Output, SourceResolveError>,
-) -> Result<Output, GitWorkspaceProjectionError<PlannerError>> {
+) -> Result<Output, SourceResolveError> {
     selection.validate_request(request)?;
     let execution_transport = request.execution_transport();
     let executor = GitExecutor::selected(
@@ -187,22 +180,19 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
                     namespace_result,
                     Some(invalidation_result),
                 );
-                return Err(GitWorkspaceProjectionError::Source(
-                    failure
-                        .err()
-                        .expect("failed cache verification must retain one failure"),
-                ));
+                return Err(failure
+                    .err()
+                    .expect("failed cache verification must retain one failure"));
             }
         } else {
             if matches!(selection, GitRevisionSelection::Ordinary(Some(_))) {
                 return Err(SourceResolveError::GitCacheInvalid {
                     path: entry_root,
                     message: "pinned Git acquisition cache entry is absent".to_owned(),
-                }
-                .into());
+                });
             }
             if let Some(unavailable) = selection.offline_unavailable() {
-                return Err(unavailable.into());
+                return Err(unavailable);
             }
             let creation_result = create_git_cache_entry(
                 &executor,
@@ -222,8 +212,7 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
                 creation_result,
                 entry_lock.verify_path_identity(),
                 None,
-            )
-            .map_err(GitWorkspaceProjectionError::Source)?;
+            )?;
         }
 
         entry_lock.verify_path_identity()?;
@@ -248,16 +237,13 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
                 )
             },
         );
-        let namespace_result = entry_lock
-            .verify_path_identity()
-            .map_err(GitWorkspaceProjectionError::Source);
+        let namespace_result = entry_lock.verify_path_identity();
         match result {
             Ok(evidence) => {
                 namespace_result?;
                 issue(evidence, &entry_lock, &entry_root)
-                    .map_err(GitWorkspaceProjectionError::Source)
             }
-            Err(GitWorkspaceProjectionError::Source(error)) => {
+            Err(error) => {
                 if namespace_result.is_ok()
                     && may_preserve_cache(&error)
                     && VerifiedGitRepository::open(
@@ -271,7 +257,7 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
                     )
                     .is_ok()
                 {
-                    return Err(GitWorkspaceProjectionError::Source(error));
+                    return Err(error);
                 }
                 if matches!(selection, GitRevisionSelection::Exact(_))
                     && matches!(
@@ -280,7 +266,7 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
                     )
                     && namespace_result.is_ok()
                 {
-                    return Err(GitWorkspaceProjectionError::Source(error));
+                    return Err(error);
                 }
                 let invalidation_result = invalidate_git_cache_entry_from_open_parent(
                     cache_dir,
@@ -290,34 +276,13 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
                 );
                 reconcile_git_cache_operation_result(
                     Err(error),
-                    namespace_result.map_err(|error| match error {
-                        GitWorkspaceProjectionError::Source(error) => error,
-                        GitWorkspaceProjectionError::Planner(_) => unreachable!(),
-                    }),
+                    namespace_result,
                     Some(invalidation_result),
                 )
-                .map_err(GitWorkspaceProjectionError::Source)
-            }
-            Err(GitWorkspaceProjectionError::Planner(error)) => {
-                namespace_result?;
-                Err(GitWorkspaceProjectionError::Planner(error))
             }
         }
     })();
-    let budget_result = executor.verify_budget();
-    match result {
-        Ok(value) => reconcile_git_command_result(Ok(value), budget_result)
-            .map_err(GitWorkspaceProjectionError::Source),
-        Err(GitWorkspaceProjectionError::Source(error)) => {
-            reconcile_git_command_result(Err(error), budget_result)
-                .map_err(GitWorkspaceProjectionError::Source)
-        }
-        Err(GitWorkspaceProjectionError::Planner(error)) => {
-            reconcile_git_command_result(Ok(()), budget_result)
-                .map_err(GitWorkspaceProjectionError::Source)?;
-            Err(GitWorkspaceProjectionError::Planner(error))
-        }
-    }
+    reconcile_git_command_result(result, executor.verify_budget())
 }
 
 pub(super) fn resolve_whole_git_source_from_retained_lanes(
@@ -327,18 +292,14 @@ pub(super) fn resolve_whole_git_source_from_retained_lanes(
     limits: LocalSourceLimits,
     selection: GitRevisionSelection<'_>,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    match resolve_git_source_from_retained_cache(
+    resolve_git_source_from_retained_cache(
         primary_git,
         lanes,
         request,
         limits.compiler_bounded(),
         selection,
         materialize_whole_git_source,
-    ) {
-        Ok((source, ())) => Ok(source),
-        Err(GitWorkspaceProjectionError::Source(error)) => Err(error),
-        Err(GitWorkspaceProjectionError::Planner(never)) => match never {},
-    }
+    )
 }
 
 fn verify_retained_lane_custody(lanes: &[&RetainedStorageLane]) -> Result<(), SourceResolveError> {

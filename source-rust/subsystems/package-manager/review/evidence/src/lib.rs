@@ -4,6 +4,4 @@
 
 pub mod encoding;
 pub mod permission_acceptance;
-mod projection_error;
 pub mod record;
-pub use projection_error::{PackageReviewProjectionError, SemanticBindingProjectionError};
