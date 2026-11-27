@@ -47,11 +47,20 @@ pub fn nominal_call_type_matches(
         while remaining > 0 {
             remaining -= 1;
             let declaration = module.structural_type(ty)?;
-            if !declaration.declaration_identity.is_absent() {
+            if !declaration.declaration_identity.is_absent()
+                && !matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::TypeParameter
+                )
+            {
                 return Some(ty);
             }
             ty = match declaration.shape {
-                terminal_psi::StructuralTypeShape::Reference { referent, .. } => referent,
+                terminal_psi::StructuralTypeShape::Reference {
+                    referent: child, ..
+                }
+                | terminal_psi::StructuralTypeShape::ElementView { element: child, .. }
+                | terminal_psi::StructuralTypeShape::FixedArray { element: child, .. } => child,
                 _ => return None,
             };
         }
@@ -183,21 +192,31 @@ fn dependent_argument_matches(
             return false;
         }
         if const_arguments.is_some() {
-            if let (
-                StructuralTypeShape::Reference {
-                    referent: left,
-                    access: la,
-                },
-                StructuralTypeShape::Reference {
-                    referent: right,
-                    access: ra,
-                },
-            ) = (&actual.shape, &expected.shape)
-            {
-                if la != ra {
-                    return false;
-                }
-                pending.push((*left, *right));
+            let children = match (&actual.shape, &expected.shape) {
+                (
+                    StructuralTypeShape::Reference {
+                        referent: left,
+                        access: la,
+                    },
+                    StructuralTypeShape::Reference {
+                        referent: right,
+                        access: ra,
+                    },
+                ) if la == ra => Some((*left, *right)),
+                (
+                    StructuralTypeShape::ElementView {
+                        element: left,
+                        access: la,
+                    },
+                    StructuralTypeShape::ElementView {
+                        element: right,
+                        access: ra,
+                    },
+                ) if la == ra => Some((*left, *right)),
+                _ => None,
+            };
+            if let Some(children) = children {
+                pending.push(children);
                 continue;
             }
             let same_shape = match (&actual.shape, &expected.shape) {

@@ -3860,7 +3860,10 @@ impl<'t> Program<'t> {
         let mut lenders = Vec::new();
         for (argument, (declared, erased, borrowed)) in arguments.iter().zip(&formals) {
             let formal = self.substitute(*declared, &bound);
-            let formal = &self.argument_context(formal, &free, &bound);
+            let context = self
+                .instantiated_call_type(id, &callee, formal, const_sources)?
+                .unwrap_or(formal);
+            let formal = &self.argument_context(context, &free, &bound);
             // The argument for an erased formal is a term, not a
             // computation; the argument for a borrowed formal is a loan of
             // a place.
@@ -4001,7 +4004,7 @@ impl<'t> Program<'t> {
         let mut result = declared_result.map(|result| self.substitute(result, &bound));
         if let Some(declared) = result
             && let Some(instantiated) =
-                self.instantiated_nominal_result(id, &callee, declared, const_sources)?
+                self.instantiated_call_type(id, &callee, declared, const_sources)?
         {
             let correspondence = self
                 .nominal_call_type(
