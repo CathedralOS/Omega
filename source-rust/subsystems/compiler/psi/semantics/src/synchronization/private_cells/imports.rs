@@ -12,6 +12,7 @@ pub(super) fn unproved_continuation(
     module: &TerminalModule,
     frames: &[Frame<'_>],
     boundary: &impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
+    computed: &super::computed::Invocations,
 ) -> Option<PrivateWaitFailure> {
     let mut pending = frames
         .iter()
@@ -33,6 +34,29 @@ pub(super) fn unproved_continuation(
             }
         };
         for op in block.operations.iter().skip(first) {
+            if let Some(call) = op.kind.callable_invocation() {
+                let targets = computed.site(module, boundary, machine_id, op.id);
+                if let Some(row) = targets {
+                    row.selected_machines.iter().copied().for_each(&mut enter);
+                }
+                if !targets.is_some_and(|row| row.targets_are_resolved()) {
+                    let envelope = module
+                        .execution
+                        .callables
+                        .contract(call.contract)
+                        .map(|c| &c.envelope);
+                    if envelope
+                        .is_none_or(|e| !e.invocations.is_empty() || !e.service_reach.is_empty())
+                    {
+                        return Some(PrivateWaitFailure {
+                            machine: machine_id,
+                            operation: op.id,
+                            cause: ProgressFailure::UnprovedImport,
+                        });
+                    }
+                }
+                continue;
+            }
             let Some(call) = op.declared_invocation() else {
                 continue;
             };

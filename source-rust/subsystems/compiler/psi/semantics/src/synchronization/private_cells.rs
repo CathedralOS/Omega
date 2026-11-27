@@ -3,6 +3,7 @@
 
 mod activation;
 mod aggregate;
+mod computed;
 mod control;
 mod imports;
 mod opaque_calls;
@@ -31,13 +32,15 @@ pub fn private_wait_failure(
             Some(SelectedCall::ImportedWait(_) | SelectedCall::UnresolvedImport)
         )
     });
-    if !imported_obligations && !module.types.structural_types.iter().any(|ty| {
-        matches!(ty.shape, terminal_psi::StructuralTypeShape::AtomicCell(_))
-            || ty
-                .shape
-                .fields()
-                .any(|field| field.field_type.atomic_cell_type().is_some())
-    }) {
+    if !imported_obligations
+        && !module.types.structural_types.iter().any(|ty| {
+            matches!(ty.shape, terminal_psi::StructuralTypeShape::AtomicCell(_))
+                || ty
+                    .shape
+                    .fields()
+                    .any(|field| field.field_type.atomic_cell_type().is_some())
+        })
+    {
         return None;
     }
     let selected_entry = module.machine(entry)?;
@@ -88,12 +91,14 @@ pub fn private_wait_failure(
         coverage: Default::default(),
     });
     let mut summaries = Summaries::default();
+    let computed = computed::Invocations::new(selected_entry.id);
     let mut unproved = None;
     while let Some(mut path) = paths.next() {
         match advance(
             module,
             &boundary,
             &mut summaries,
+            &computed,
             &mut path,
             &selected_entry.requires,
             scope,
@@ -107,7 +112,9 @@ pub fn private_wait_failure(
                 unproved.get_or_insert(failure);
             }
             None if imported_obligations => {
-                if let Some(failure) = imports::unproved_continuation(module, &path.stack, &boundary) {
+                if let Some(failure) =
+                    imports::unproved_continuation(module, &path.stack, &boundary, &computed)
+                {
                     unproved.get_or_insert(failure);
                 }
             }
@@ -127,6 +134,7 @@ fn advance<'m>(
     module: &'m TerminalModule,
     boundary: &impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
     summaries: &mut Summaries,
+    computed: &computed::Invocations,
     path: &mut Execution<'m>,
     requirements: &[semantic_vocabulary::Proposition],
     scope: ProgressScope,
@@ -136,18 +144,37 @@ fn advance<'m>(
     let stack = &mut path.stack;
     while let Some(frame) = stack.last_mut() {
         if let Some(op) = frame.block.operations.get(frame.position) {
-            let Some(call) = op.declared_invocation() else {
+            let (selected, arguments, structural_arguments) = if let Some(call) =
+                op.declared_invocation()
+            {
+                let Some(selected) = SelectedCall::resolve(call.callee, boundary) else {
+                    let terminal_psi::TargetMachineCallable::Boundary(slot) = call.callee else {
+                        return None;
+                    };
+                    if !opaque_calls::returns_without_storage(module, slot, op, &call)? {
+                        path.coverage = control::Coverage::Partial;
+                    }
+                    frame.position += 1;
+                    return Some(Advance::Continue);
+                };
+                (selected, call.arguments, call.structural_arguments)
+            } else if let Some(call) = op.kind.callable_invocation() {
+                let reached = computed.site(module, boundary, frame.machine.id, op.id)?;
+                let [callee] = reached.selected_machines.as_slice() else {
+                    return None;
+                };
+                if !reached.targets_are_resolved() {
+                    return None;
+                }
+                (
+                    SelectedCall::Local(*callee),
+                    call.arguments,
+                    call.structural_arguments,
+                )
+            } else {
                 frame.step(module, op, memory)?;
                 frame.position += 1;
                 continue;
-            };
-            let Some(selected) = SelectedCall::resolve(call.callee, boundary) else {
-                let terminal_psi::TargetMachineCallable::Boundary(slot) = call.callee else { return None };
-                if !opaque_calls::returns_without_storage(module, slot, op, &call)? {
-                    path.coverage = control::Coverage::Partial;
-                }
-                frame.position += 1;
-                return Some(Advance::Continue);
             };
             let spin = match selected {
                 SelectedCall::Local(id) => {
@@ -159,8 +186,8 @@ fn advance<'m>(
                             memory,
                             &callee.parameters,
                             &callee.structural_parameters,
-                            ScalarArguments::Values(call.arguments),
-                            call.structural_arguments,
+                            ScalarArguments::Values(arguments),
+                            structural_arguments,
                         )?;
                         let return_to = Destination::of(op);
                         let child = Frame::enter(callee, args, return_to)?;
@@ -173,15 +200,19 @@ fn advance<'m>(
                     }
                 }
                 SelectedCall::ImportedWait(wait) => wait,
-                SelectedCall::UnresolvedImport => return Some(Advance::Blocked(PrivateWaitFailure {
-                    machine: frame.machine.id, operation: op.id, cause: ProgressFailure::UnprovedImport,
-                })),
+                SelectedCall::UnresolvedImport => {
+                    return Some(Advance::Blocked(PrivateWaitFailure {
+                        machine: frame.machine.id,
+                        operation: op.id,
+                        cause: ProgressFailure::UnprovedImport,
+                    }));
+                }
             };
             let progress = wait::apply(
                 &spin,
                 &frame.bindings,
                 memory,
-                call.structural_arguments,
+                structural_arguments,
                 requirements,
                 scope,
             );

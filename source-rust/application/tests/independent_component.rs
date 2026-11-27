@@ -437,10 +437,13 @@ public TwoWaits satisfies Wait {
     );
     let build = read("application/build.omg");
     let application = read("application/main.omg");
-    for (requires, lend_before_wait) in [
-        ("", false),
-        ("requires input != 1", false),
-        ("requires input != 1", true),
+    for (requires, lend_before_wait, use_descriptor) in [
+        ("", false, false),
+        ("requires input != 1", false, false),
+        ("requires input != 1", true, false),
+        ("", false, true),
+        ("requires input != 1", false, true),
+        ("requires input != 1", true, true),
     ] {
         let mut work = application
             .replace("machine main()", "public machine work(input: u32)")
@@ -455,6 +458,17 @@ public TwoWaits satisfies Wait {
                     "Gate::receive(@signal); |signals|::Wait::until_clear(@signal);",
                 );
             work.push_str("public boundary trait Gate { machine receive(signal: @|signals|::Signal) reaches none crashes none; }");
+        }
+        if use_descriptor {
+            work = work.replace(
+                "|signals|::Wait::until_clear(@signal);",
+                "let run: Action = dispatch; run(@signal);",
+            );
+            work.push_str("
+data Action = machine(signal: @|signals|::Signal) reaches |signals|::Wait invokes |signals|::Wait crashes none;
+machine dispatch(signal: @|signals|::Signal) reaches |signals|::Wait invokes |signals|::Wait crashes none {
+    |signals|::Wait::until_clear(signal);
+}");
         }
         let scratch = project::stage(
             "selected-component-wait-progress",
@@ -554,26 +568,19 @@ public TwoWaits satisfies Wait {
                 let failure =
                     failure.expect("an unprojected or unvisited input obligation stays open");
                 assert_eq!(failure.cause, ProgressFailure::UnprovedImport);
-                assert_eq!(failure.machine, entry);
+                if !use_descriptor { assert_eq!(failure.machine, entry); }
             } else if provider.ends_with("::ObservedWait") && requires.is_empty() {
                 let failure =
                     failure.expect("the installed provider may never see an enabled value");
                 assert_eq!(failure.cause, ProgressFailure::Unproved);
-                assert_eq!(failure.machine, entry);
-                let call = root
-                    .machine(entry)
-                    .unwrap()
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
-                    .find(|op| op.id == failure.operation)
-                    .unwrap()
-                    .declared_invocation()
-                    .unwrap();
-                assert_eq!(
-                    call.callee,
-                    terminal_psi::TargetMachineCallable::Boundary(slot.id)
-                );
+                if !use_descriptor { assert_eq!(failure.machine, entry); }
+                let call = root.machine(failure.machine).unwrap().operations()
+                    .find(|op| op.id == failure.operation).unwrap();
+                if use_descriptor {
+                    assert!(call.kind.callable_invocation().is_some(), "{call:?}");
+                } else {
+                    assert_eq!(call.declared_invocation().unwrap().callee, terminal_psi::TargetMachineCallable::Boundary(slot.id));
+                }
             } else {
                 assert_eq!(failure, None, "{provider} with {requires}");
             }

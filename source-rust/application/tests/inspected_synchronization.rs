@@ -181,6 +181,24 @@ fn authorizing_an_inspected_artifact_still_checks_its_raw_execution_entry() {
         zero_initialized_arguments: &[0],
         ..Default::default()
     };
+    let program = terminal_interpreter::TerminalProgram::admit(&authorized);
+    let mut instance = program
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            structural_inputs: inputs,
+            ..Default::default()
+        })
+        .unwrap();
+    match instance.invoke(&mut terminal_work::WorkMeter::with_budget(100)) {
+        Err(terminal_interpreter::TerminalInstanceError::Synchronization(failure)) => {
+            assert_eq!(
+                failure.cause,
+                terminal_semantics::synchronization::ProgressFailure::UnprovedExternal
+            );
+        }
+        other => panic!(
+            "standalone supplied storage reached execution without a progress discharge: {other:?}"
+        ),
+    }
     match TerminalExecution::start_artifact(&authorized, &[], inputs) {
         Err(TerminalArtifactInterpretError::Synchronization(failure)) => {
             assert_eq!(

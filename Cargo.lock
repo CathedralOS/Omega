@@ -1746,6 +1746,7 @@ dependencies = [
  "terminal-semantics",
  "windows-sys 0.61.2",
  "worker-budget",
+ "terminal-work",
 ]
 
 [[package]]
