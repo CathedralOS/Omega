@@ -136,7 +136,10 @@ impl Lowering<'_> {
                     pending.push(conclusion);
                     pending.push(premise);
                 }
-                Proposition::IsMere(inner) | Proposition::Universal { body: inner, .. } => {
+                Proposition::IsMere(inner)
+                | Proposition::Squash(inner)
+                | Proposition::Boxed(inner)
+                | Proposition::Universal { body: inner, .. } => {
                     pending.push(inner)
                 }
                 Proposition::StructuralCaseMembership { subject, .. }

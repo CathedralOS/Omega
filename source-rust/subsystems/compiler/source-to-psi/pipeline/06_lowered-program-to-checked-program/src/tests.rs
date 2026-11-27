@@ -34,6 +34,7 @@ mod arrays;
 mod atomic_wake;
 mod borrowed_restoration;
 mod boundary_calls;
+mod boxed;
 mod branch_warnings;
 mod build_purpose;
 mod byte_domains;

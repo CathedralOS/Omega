@@ -7626,6 +7626,16 @@ impl<'p> Converter<'p, '_> {
                 codomain: inner_pi,
             }));
         }
+        // The squash of a proposition and the box of a strict one are the
+        // kernel's own type formers over the inner statement.
+        if let Proposition::Squash(inner) | Proposition::Boxed(inner) = proposition {
+            let ty = self.equality(id, inner, formals, satisfaction)?;
+            let term = match proposition {
+                Proposition::Squash(_) => Term::Squash { ty },
+                _ => Term::Box { ty },
+            };
+            return Ok(self.signature.arena.insert(term));
+        }
         // For every value of the data, the body: a dependent product whose
         // body names the value as variable 0, every term of the enclosing
         // scope one binder further out.

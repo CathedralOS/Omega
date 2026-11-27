@@ -2865,6 +2865,41 @@ pub(crate) mod direct {
     use crate::types::type_reference::constraints::lower_type_constraint_node_span_with_context;
 
     /*
+        A static argument that applies a proposition, as in
+        `|proof|::Squash::<same(a, b)>`, names a proposition and is never a
+        runtime value, so it is lowered in proof position. Any other static
+        argument keeps the ordinary runtime rules.
+    */
+    pub(crate) fn lower_const_argument(
+        source_trees: &SymbolResolvedTrees,
+        typed_trees: &mut typed::TypedTrees,
+        expression: resolved::expression::ExpressionHandle,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        let source = &source_trees.tables.bodies.expressions;
+        if let resolved::expression::ExpressionNode::Call(call) = source.expression(expression)
+            && !call.receiver.is_valid()
+            && crate::expressions::proposition::is_proposition_call_target(
+                &source_trees.symbols,
+                call.target_symbol,
+            )
+        {
+            return crate::expressions::expression::lower_expression_handle_from_table_in_fact_position(
+                source_trees,
+                source,
+                typed_trees,
+                expression,
+            );
+        }
+        crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution(
+            Some(source_trees),
+            source,
+            typed_trees,
+            expression,
+            None,
+        )
+    }
+
+    /*
         `u<N>` and `i<N>` reach typing only when their width is not a closed
         number: Psi 02 already replaced every closed application by the
         carrier it names. What is left is a width the declaration is generic
@@ -3028,13 +3063,8 @@ pub(crate) mod direct {
                 }
             }
             resolved::types::TypeReference::ConstExpression(expression) => {
-                let expression = crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution(
-                Some(source_trees),
-                &source_trees.tables.bodies.expressions,
-                typed_trees,
-                expression.expression,
-                None,
-            )?;
+                let expression =
+                    lower_const_argument(source_trees, typed_trees, expression.expression)?;
                 Ok(typed_trees
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
@@ -4166,13 +4196,11 @@ pub(crate) mod table {
                 }
             }
             resolved::types::TypeReferenceNode::ConstExpression(expression) => {
-                let expression = crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution(
-                Some(source_trees),
-                &source_trees.tables.bodies.expressions,
-                typed_trees,
-                *expression,
-                None,
-            )?;
+                let expression = super::direct::lower_const_argument(
+                    source_trees,
+                    typed_trees,
+                    *expression,
+                )?;
                 Ok(typed_trees
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
