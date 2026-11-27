@@ -2,7 +2,7 @@
 // (`<= 256`) is enforced on spawned resolver processes.
 
 use super::{Path, ResolverExecutionBackend, ResolverExecutionPhase, inspection_root};
-use crate::ResolverExecutionChild;
+use bounded_process::BoundedProcessChild;
 use std::io::Read;
 use std::time::{Duration, Instant};
 
@@ -26,7 +26,7 @@ fn child_open_file_limit_is_enforced() {
         .stdin_null()
         .stdout_piped()
         .stderr_null();
-    let mut child = ResolverExecutionChild::spawn(prepared).expect("run limited shell");
+    let mut child = BoundedProcessChild::spawn(prepared).expect("run limited shell");
     let mut stdout = String::new();
     child
         .take_stdout()

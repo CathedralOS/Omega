@@ -1,5 +1,5 @@
 /*
-We bind neutral source acquisition (`source_capture::CapturedSourceTree`) and physical package roots to `Build`'s canonical input metadata (`CanonicalFilesystemMetadataIndex`, `CapturedBuildSourceInput`).
+We bind neutral source acquisition (`source_acquisition::capture::CapturedSourceTree`) and physical package roots to `Build`'s canonical input metadata (`CanonicalFilesystemMetadataIndex`, `CapturedBuildSourceInput`).
 
 We provide three capture and projection routes:
 1. `retained_source_input` and `retained_scoped_source_input` derive `CapturedBuildSourceInput` directly from an already-captured in-memory `CapturedSourceTree` or `CapturedBuildSourceInput` without touching the host filesystem, sharing `Arc<[u8]>` file buffers while computing `Build`'s canonical metadata commitment under `OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1`.
@@ -37,7 +37,7 @@ use std::sync::Arc;
 const CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1\0";
 const CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
 
-pub use source_selection::{
+pub use source_acquisition::selection::{
     SourceCaptureObligation as BuildSourceCaptureObligation,
     SourceCaptureRequest as BuildSourceCaptureRequest,
 };
@@ -49,16 +49,18 @@ struct CapturedSourceMetadataRow {
 }
 
 pub(crate) fn retained_source_input(
-    tree: &source_capture::CapturedSourceTree,
+    tree: &source_acquisition::capture::CapturedSourceTree,
 ) -> Result<CapturedBuildSourceInput, String> {
     let entries = tree.entries().map(|(path, node)| {
         let relative_path = capture_relative_path_bytes(path)?;
         let entry = match node {
-            source_capture::CapturedSourceNode::Directory => CapturedSourceEntry::Directory,
-            source_capture::CapturedSourceNode::File { bytes, executable } => {
+            source_acquisition::capture::CapturedSourceNode::Directory => {
+                CapturedSourceEntry::Directory
+            }
+            source_acquisition::capture::CapturedSourceNode::File { bytes, executable } => {
                 CapturedSourceEntry::file(Arc::clone(bytes), *executable)
             }
-            source_capture::CapturedSourceNode::Symlink { target } => {
+            source_acquisition::capture::CapturedSourceNode::Symlink { target } => {
                 CapturedSourceEntry::symlink(os_str_bytes(target.as_os_str())?)
             }
         };
@@ -78,7 +80,7 @@ pub(crate) fn retained_scoped_source_input(
         .map(|(path, entry)| (path.to_vec(), entry))
         .collect::<BTreeMap<_, _>>();
     available.insert(Vec::new(), &root);
-    let selected = source_selection::select_source_members(
+    let selected = source_acquisition::selection::select_source_members(
         request,
         (
             CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
@@ -324,7 +326,7 @@ fn capture_scoped_rows<T>(
         &mut u64,
     ) -> Result<(CapturedSourceMetadataRow, T), String>,
 ) -> Result<(CanonicalFilesystemMetadataIndex, Vec<(Vec<u8>, T)>), String> {
-    let selected = source_selection::select_source_members(
+    let selected = source_acquisition::selection::select_source_members(
         request,
         (
             CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,

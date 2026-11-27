@@ -12,20 +12,12 @@ containment, descriptor hygiene, and CPU/memory/file ceilings as other bounded
 helper processes, while keeping executable custody and working-root separation
 specific to source-resolution phases (`TransportDiscovery`,
 `RepositoryInitialization`, `Fetch`, `RepositoryInspection`). Nothing in this
-crate produces canonical package evidence; git command policy belongs to
-`source-acquisition`.
+module produces canonical package evidence; git command policy belongs to
+`git_command`.
 */
-
-#![deny(unsafe_op_in_unsafe_fn)]
 
 mod path_custody;
 mod resolver_execution;
 
-pub use bounded_process::{
-    BoundedProcessChild as ResolverExecutionChild,
-    BoundedProcessCompletion as ResolverExecutionCompletion,
-    BoundedProcessExitStatus as ResolverExecutionExitStatus,
-    BoundedProcessPrepared as ResolverPreparedExecution,
-};
 pub use path_custody::canonicalize_exclusion_root;
 pub use resolver_execution::{ResolverExecutionBackend, ResolverExecutionPhase};

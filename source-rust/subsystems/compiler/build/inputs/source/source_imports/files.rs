@@ -13,7 +13,7 @@ use crate::PackageCompilationInputs;
 use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
-use source_capture::SourceFileSystem;
+use source_acquisition::capture::SourceFileSystem;
 use source_compiler::{ParsedSourceSummary, SourceImport};
 use source_provenance::DependencyScope;
 use std::path::{Path, PathBuf};

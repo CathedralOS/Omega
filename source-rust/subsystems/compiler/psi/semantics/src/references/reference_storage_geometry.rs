@@ -97,6 +97,14 @@ fn scalar_placement(
     }
 }
 
+/// Physical record-field geometry before the layout policy places the field.
+pub fn scalar_field_storage_geometry(
+    scalar: ScalarType,
+    carriers: Option<TargetCarrierLayout>,
+) -> Result<(u64, u64), StorageGeometryError> {
+    scalar_placement(scalar, carriers, layout_planning::field_integer_geometry)
+}
+
 fn field_geometry<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     owner: StructuralTypeId,
@@ -108,12 +116,11 @@ fn field_geometry<'types>(
     extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
 ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
     if let Some(scalar) = field.field_type.scalar_type() {
-        return scalar_placement(
+        return scalar_field_storage_geometry(
             storage
                 .and_then(AuthoredFieldStorage::stored_scalar)
                 .unwrap_or(scalar),
             carriers,
-            layout_planning::field_integer_geometry,
         )
         .map(Some);
     }

@@ -1,6 +1,6 @@
 use super::*;
 use crate::{BuildDeclarationKind, PackageDependencyBinding, PackageSourceBinding};
-use source_capture::{CapturedSourceNode, CapturedSourceTree};
+use source_acquisition::capture::{CapturedSourceNode, CapturedSourceTree};
 use source_compiler::{CompileTimings, SourceInput, SourceSyntax};
 use std::sync::Arc;
 
@@ -82,14 +82,19 @@ machine inspect(layout: |layout|::Layout) {
     )])
     .unwrap();
     let mut filesystem = SourceFileSystem::new();
-    filesystem.mount_exact_capture(core.clone(), Arc::new(capture)).unwrap();
+    filesystem
+        .mount_exact_capture(core.clone(), Arc::new(capture))
+        .unwrap();
     let import = |index: usize| FileImport::from(unit, &unit.imports[index]);
     assert!(matches!(
         import(4).standalone(None, None, &filesystem).unwrap(),
         FileSelection::Selected(file) if file.path == core.join("layout.omg")
     ));
     for index in [0, 1] {
-        let errors = import(index).standalone(None, Some(&graph), &filesystem).err().unwrap();
+        let errors = import(index)
+            .standalone(None, Some(&graph), &filesystem)
+            .err()
+            .unwrap();
         assert!(errors[0].message.contains("no admitted package root"));
     }
     let rooted = FileImport::from(unit, &unit.imports[1]);
@@ -165,10 +170,13 @@ fn a_captured_file_link_selects_its_source_with_the_same_package_permissions() {
             (PathBuf::from("types.omg"), file()),
             (PathBuf::from("public.omg"), link("types.omg")),
             (PathBuf::from("build.omg"), file()),
-            (PathBuf::from("configure.omg"), CapturedSourceNode::File {
-                bytes: Arc::from(b"machine build() {}".as_slice()),
-                executable: false,
-            }),
+            (
+                PathBuf::from("configure.omg"),
+                CapturedSourceNode::File {
+                    bytes: Arc::from(b"machine build() {}".as_slice()),
+                    executable: false,
+                },
+            ),
             (PathBuf::from("setup.omg"), link("configure.omg")),
         ])
         .unwrap(),

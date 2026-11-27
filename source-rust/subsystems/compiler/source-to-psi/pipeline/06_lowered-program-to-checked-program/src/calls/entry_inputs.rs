@@ -736,6 +736,15 @@ fn derived(
     beyond: &[ValueId],
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Derived> {
+    let mut found = Derived {
+        bounds: Vec::new(),
+        unreached: Vec::new(),
+    };
+    // Structural actuals already contributed their field observations to the
+    // caller's description. Only scalar actuals can contribute bounds here.
+    if crossing.is_empty() {
+        return Ok(found);
+    }
     let mut assumptions = Vec::new();
     let mut axioms = Vec::new();
     for (_, row) in tables.knowledge.iter() {
@@ -755,10 +764,6 @@ fn derived(
     }
     let mut prover =
         crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values, activity);
-    let mut found = Derived {
-        bounds: Vec::new(),
-        unreached: Vec::new(),
-    };
     for (name, here) in crossing {
         if let ScalarTerm::Value { id: formal, .. } = name
             && prover.value_beyond_rules(*here, beyond)

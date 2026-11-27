@@ -60,7 +60,6 @@ impl StagedOptimizedSelectedInstructions {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedSelectionCustodyReceipt {
     pub(crate) core: StagedOptimizedCustodyCore,
-    pub(crate) legalized: legalized_operations::LegalizedOperationPlanIdentity,
     pub(crate) legalization_validator: OptimizationValidatorIdentity,
     pub(crate) selected: SelectedInstructionPlanIdentity,
     pub(crate) function_count: usize,
@@ -71,10 +70,6 @@ impl StagedOptimizedSelectionCustodyReceipt {
 
     pub const fn selected(self) -> SelectedInstructionPlanIdentity {
         self.selected
-    }
-
-    pub const fn legalized(self) -> legalized_operations::LegalizedOperationPlanIdentity {
-        self.legalized
     }
 
     pub const fn legalization_validator(self) -> OptimizationValidatorIdentity {
@@ -122,7 +117,6 @@ pub(crate) fn selection_custody_receipt(
             work_schedule: plan.work_schedule,
             register_environment: register_environment.identity(),
         },
-        legalized: bound.receipt().identity(),
         legalization_validator: bound.receipt().validator(),
         selected: selected.receipt().identity(),
         function_count: selected.plan().functions.len(),

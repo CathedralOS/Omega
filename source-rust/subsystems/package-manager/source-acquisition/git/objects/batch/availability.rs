@@ -14,12 +14,12 @@ use super::PendingGitBatchRequest;
 use crate::error::{SourceResolveError, cache_invalid};
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::GitExecutor;
+use crate::git::execution::ResolverExecutionPhase;
 use crate::git::git_command::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::git_command::{GitCommandCapture, run_git_output};
 use crate::git::objects::identity::{git_object_algorithm, git_object_invalid};
 use crate::tree::filesystem::IoResultAt;
 use bounded_process::BoundedProcessInput;
-use resolver_execution::ResolverExecutionPhase;
 use std::fs::File;
 use std::io::{Seek, SeekFrom, Write};
 

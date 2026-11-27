@@ -23,14 +23,14 @@ pub(crate) struct SourceStorage {
     // A successor can execute under its predecessor's completed Product owner.
     pub(crate) build_owner: Option<PackageKeyIdentity>,
     pub(crate) entry: Option<crate::source::entry::NamedSource>,
-    pub filesystem: source_capture::SourceFileSystem, // Captured virtual source filesystem.
-    pub source_roots: Arena<SourceRoots>,             // Per-source parsed root `ItemHandle` lists.
-    pub sources: SourceMap,                           // Active `SourceMap` selection cohort.
-    pub syntax_trees: SourceSyntax,                   // Parsed syntax forest for the active cohort.
+    pub filesystem: source_acquisition::capture::SourceFileSystem, // Captured virtual source filesystem.
+    pub source_roots: Arena<SourceRoots>, // Per-source parsed root `ItemHandle` lists.
+    pub sources: SourceMap,               // Active `SourceMap` selection cohort.
+    pub syntax_trees: SourceSyntax,       // Parsed syntax forest for the active cohort.
     pub resolved_imports: Vec<super::ResolvedSourceImport>, // Discovered imports resolved to paths.
     pub(super) default_package_root: PathBuf, // Root directory of the primary package or standalone project.
     default_package_identity: Option<PackageKeyIdentity>, // Bound `PackageKeyIdentity` (`None` while an anonymous Build is unbound).
-    anonymous_capture: Option<std::sync::Arc<source_capture::CapturedSourceTree>>, // Original root capture retained through named and completed source joins.
+    anonymous_capture: Option<std::sync::Arc<source_acquisition::capture::CapturedSourceTree>>, // Original root capture retained through named and completed source joins.
     pub(crate) unbound_acquisition: Option<crate::CapturedLocalSource>,
     core_capture: Option<crate::CapturedLocalSource>, // Exact core input shared by Build imports, Product typing and owner derivation.
     pub(crate) package_roots: Vec<RegisteredPackageRoot>, // Dense registered source-owner rows; inventories belong to their exact capture.
@@ -142,7 +142,7 @@ impl SourceStorage {
                 )]);
             }
         }
-        let mut supplier_filesystem = source_capture::SourceFileSystem::new();
+        let mut supplier_filesystem = source_acquisition::capture::SourceFileSystem::new();
         supplier_filesystem
             .add_capture(root.clone(), capture.tree().clone())
             .map_err(|error| {
@@ -189,7 +189,9 @@ impl SourceStorage {
     /// enter Product scope only through its normal entry and import requests.
     pub(crate) fn product_subject_sources(&self) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         let root = &self.default_package_root;
-        let nested_packages: Vec<_> = self.package_roots.iter()
+        let nested_packages: Vec<_> = self
+            .package_roots
+            .iter()
             .map(|package| package.root.as_path())
             .filter(|package| *package != root && package.starts_with(root))
             .collect();
@@ -198,18 +200,25 @@ impl SourceStorage {
             .selected_files()
             .filter(|file| file.dependency_scope == source_provenance::DependencyScope::Build)
             .map(|file| file.path.as_path())
-            .chain(self.package_roots.iter().filter(|owner| owner.root == *root)
-                .flat_map(|owner| owner.build_files.iter().map(PathBuf::as_path)))
+            .chain(
+                self.package_roots
+                    .iter()
+                    .filter(|owner| owner.root == *root)
+                    .flat_map(|owner| owner.build_files.iter().map(PathBuf::as_path)),
+            )
             .collect::<std::collections::HashSet<_>>();
         let mut paths = self.filesystem.captured_files(root).map_err(|reason| {
             vec![Diagnostic::error(format!(
-                "cannot enumerate Product subject {}: {reason}", root.display()
+                "cannot enumerate Product subject {}: {reason}",
+                root.display()
             ))]
         })?;
         paths.retain(|path| {
             path.extension().is_some_and(|extension| extension == "omg")
                 && !build_units.contains(path.as_path())
-                && !nested_packages.iter().any(|package| path.starts_with(package))
+                && !nested_packages
+                    .iter()
+                    .any(|package| path.starts_with(package))
         });
         Ok(paths)
     }
@@ -362,13 +371,11 @@ impl SourceStorage {
                 ))
             })?;
             if file.package_root == self.default_package_root
-                && file
-                    .package_identity
-                    .is_some_and(|owner| {
-                        owner != inputs.root()
-                            && !(file.dependency_scope == source_provenance::DependencyScope::Build
-                                && Some(owner) == self.build_owner)
-                    })
+                && file.package_identity.is_some_and(|owner| {
+                    owner != inputs.root()
+                        && !(file.dependency_scope == source_provenance::DependencyScope::Build
+                            && Some(owner) == self.build_owner)
+                })
             {
                 return Err(refuse(
                     "Build source has another named owner at Product join".to_owned(),
@@ -544,7 +551,7 @@ impl SourceStorage {
         default_package_root: PathBuf,
         default_package_identity: PackageKeyIdentity,
         core_root: PathBuf,
-        filesystem: source_capture::SourceFileSystem,
+        filesystem: source_acquisition::capture::SourceFileSystem,
     ) -> Self {
         Self {
             default_package_root: filesystem
@@ -850,8 +857,7 @@ pub(crate) fn validate_package_source_frontier(
                 continue;
             }
         };
-        if canonical.starts_with(&toolchain_root)
-            || source_storage.is_installed_source(&canonical)
+        if canonical.starts_with(&toolchain_root) || source_storage.is_installed_source(&canonical)
         {
             validated.push((canonical, scope));
             continue;
@@ -864,8 +870,7 @@ pub(crate) fn validate_package_source_frontier(
             )));
             continue;
         };
-        if owner != package_inputs.root()
-            && package_inputs.dependency_build_file(owner, &canonical)
+        if owner != package_inputs.root() && package_inputs.dependency_build_file(owner, &canonical)
         {
             diagnostics.push(Diagnostic::error(format!(
                 "dependency build file {} may not join the compiled program",
@@ -898,7 +903,8 @@ mod tests {
         let text: Arc<str> = Arc::from("public data Shared {} // retained bytes");
         let retained = Arc::downgrade(&text);
         let mut storage = SourceStorage::default();
-        let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
+        let mut catalogue =
+            source_compiler::representations::source_inputs::SourceCatalogue::default();
         let loaded = [DependencyScope::Build, DependencyScope::Product].map(|scope| {
             storage
                 .admit_source(
@@ -975,9 +981,10 @@ mod tests {
                 core.parent().unwrap().join("capture-admission-consumer"),
                 semantic_vocabulary::PackageKeyIdentity::from_digest([31; 32]).unwrap(),
                 core.clone(),
-                source_capture::SourceFileSystem::new(),
+                source_acquisition::capture::SourceFileSystem::new(),
             );
-            let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
+            let mut catalogue =
+                source_compiler::representations::source_inputs::SourceCatalogue::default();
             storage.sources = catalogue.begin_selection();
             let text: std::sync::Arc<str> = if substituted {
                 format!("{original}\n// different parsed source bytes\n").into()
@@ -1020,7 +1027,9 @@ mod tests {
 
     #[test]
     fn issued_contract_files_keep_their_role_without_loading_unimported_siblings() {
-        use source_capture::{CapturedSourceNode, CapturedSourceTree, SourceFileSystem};
+        use source_acquisition::capture::{
+            CapturedSourceNode, CapturedSourceTree, SourceFileSystem,
+        };
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("contract-test-capture");
         let entry = root.join("entry.omg");
         let mut entries = std::collections::BTreeMap::from([(
@@ -1080,7 +1089,7 @@ mod tests {
     #[test]
     fn product_join_retains_closed_contract_capture_and_refuses_owner_shadowing() {
         use crate::{BuildDeclarationKind, PackageCompilationInputs, PackageSourceBinding};
-        use source_capture::{CapturedSourceNode, CapturedSourceTree};
+        use source_acquisition::capture::{CapturedSourceNode, CapturedSourceTree};
         let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("contract-join-capture");
         let application = base.join("application");
         let contract = base.join("system");
@@ -1211,7 +1220,7 @@ mod tests {
             base.join("application"),
             semantic_vocabulary::PackageKeyIdentity::from_digest([29; 32]).unwrap(),
             core,
-            source_capture::SourceFileSystem::new(),
+            source_acquisition::capture::SourceFileSystem::new(),
         );
         assert_eq!(
             implicit,

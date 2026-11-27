@@ -1,5 +1,5 @@
-// Two byte views cross loop transitions unchanged; native code copies each
-// descriptor straight into the next state's parameter.
+// Two byte views cross loop transitions unchanged; native code leaves each
+// descriptor in the next state's parameter instead of copying it.
 data Bufs { a: [u8; 4]; b: [u8; 4]; }
 
 machine first(view: @[u8]) -> u32 {

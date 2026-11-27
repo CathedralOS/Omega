@@ -6,12 +6,12 @@ use super::*;
 use super::{policy::*, reconciliation::*};
 use crate::error::SourceResolveError;
 use crate::git::executable::*;
+use crate::git::execution::ResolverExecutionPhase;
 use crate::git::request::GitExecutionTransport;
 #[cfg(unix)]
 use crate::limits::*;
 #[cfg(unix)]
 use crate::test_support::*;
-use resolver_execution::ResolverExecutionPhase;
 
 mod bounded;
 mod configuration;

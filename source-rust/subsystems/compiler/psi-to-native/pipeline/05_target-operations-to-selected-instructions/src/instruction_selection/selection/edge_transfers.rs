@@ -846,6 +846,14 @@ pub(crate) mod descriptors {
             else {
                 continue;
             };
+            // A descriptor passed back to the parameter it was read from
+            // (a loop passing its view on unchanged) already holds its bytes.
+            if source_byte_offset == 0
+                && source_slot(emission.registers, emission.memory, argument)
+                    == Some(Some(destination))
+            {
+                continue;
+            }
             let pointer = frame_address(emission, destination, binding.semantic.parameter)?;
             let address_instruction = emission
                 .instructions

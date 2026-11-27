@@ -173,7 +173,8 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
     );
     let mut occurrences = Vec::new();
     for (_, expression) in typed.expression_table.expression_entries() {
-        let source_compiler::representations::source_state::expression::ExpressionNode::Call(call) = expression
+        let source_compiler::representations::source_state::expression::ExpressionNode::Call(call) =
+            expression
         else {
             continue;
         };
@@ -184,7 +185,9 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
             .expression_table
             .build_selection_request(call.build_selection)
             .expect("a captured Build call keeps its real selection request");
-        let source_compiler::representations::declaration_selection::BuildSelectionRequest::Entry(binding) = request
+        let source_compiler::representations::declaration_selection::BuildSelectionRequest::Entry(
+            binding,
+        ) = request
         else {
             continue;
         };
@@ -241,8 +244,13 @@ machine build(builder: @mutable Build) {
     let mut timings = CompileTimings::default();
     let capture = crate::capture_anonymous_compilation_source(&root).unwrap();
     let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
-        &root, None, Some(&capture), &mut timings, &mut catalogue,
-    ).unwrap();
+        &root,
+        None,
+        Some(&capture),
+        &mut timings,
+        &mut catalogue,
+    )
+    .unwrap();
     let (_, assembled) = checkpoint
         .assemble(None, &Default::default(), &mut timings, &mut catalogue)
         .unwrap();
@@ -297,7 +305,11 @@ machine build(builder: @mutable BuildPlan) {
     )
     .unwrap();
     let root = temporary.path().join("build.omg");
-    std::fs::write(temporary.path().join("main.omg"), "public machine main() {}\n").unwrap();
+    std::fs::write(
+        temporary.path().join("main.omg"),
+        "public machine main() {}\n",
+    )
+    .unwrap();
     std::fs::write(
         temporary.path().join("value.omg"),
         "public machine value() -> i32 { 7 }\n",
@@ -472,9 +484,9 @@ fn a_prepared_build_library_can_import_a_later_frozen_file() {
         vec![
             PackageSourceBinding::new(owner, "library", root.clone())
                 .with_captured_source(Arc::new(
-                    source_capture::CapturedSourceTree::new([(
+                    source_acquisition::capture::CapturedSourceTree::new([(
                         std::path::PathBuf::from("authored.omg"),
-                        source_capture::CapturedSourceNode::File {
+                        source_acquisition::capture::CapturedSourceNode::File {
                             bytes: Arc::from(b"public data Authored {}".as_slice()),
                             executable: false,
                         },
