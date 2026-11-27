@@ -16,7 +16,7 @@
 //! except these byte escapes". `wiki/spec/language/expressions.md`: "Lexing
 //! takes the longest operator, so `a +!b` is a trapping add".
 //!
-//! Every test lexes with the real lexer, parses through `source_parser::parse`
+//! Every test lexes with the real lexer, parses through `source_parser::parse_into`
 //! and inspects the resulting `SyntaxTrees` directly.
 
 use crate::frontend_fixture::Lexer;

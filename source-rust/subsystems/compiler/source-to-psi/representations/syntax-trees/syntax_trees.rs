@@ -9,7 +9,6 @@ pub use item_copies::SuppliedSyntaxArgument;
 pub use language_core::operator_spelling;
 pub use relocation::{PageRelocation, SyntaxRelocate};
 pub use source_files::{ParsedRootItems, ParsedSource, ParsedSources, ParsedUnit};
-pub use source_pages::{ParsedSyntaxPages, ParsedSyntaxSource};
 pub use text_owner::{RetainedSource, SyntaxTextContext, SyntaxTextOwner};
 
 use crate::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
@@ -360,6 +359,3 @@ pub(crate) mod tests;
 
 #[path = "copying/statement_paths.rs"]
 mod statement_paths;
-
-#[path = "files/pages.rs"]
-mod source_pages;

@@ -25,7 +25,7 @@
 //! closers after `Vec<Vec<u8>`.
 //!
 //! Every test lexes with the real lexer and parses through
-//! `source_parser::parse`.
+//! `source_parser::parse_into`.
 
 use crate::parsing_support::{parse, trees};
 use numerics::arithmetic::ArithmeticDomain::{self, Exact, Saturating, Trapping, Wrapping};

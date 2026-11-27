@@ -234,17 +234,12 @@ public data BuildPlan<'storage> {
                 scope: file.dependency_scope,
             });
         }
-        let lexed =
-            source_compiler::test_support::lexing::lex(loaded.into_iter().collect()).unwrap();
-        let (pages, _) = source_compiler::test_support::parsing::parse(&lexed, Default::default())
-            .unwrap()
-            .into_parts();
-        let mut pages = pages.into_iter();
-        let mut syntax = pages.next().unwrap();
-        for page in pages {
-            syntax.adopt_page(page);
-        }
-        let mut request = source_compiler::test_support::resolution::ResolutionRequest::new(syntax);
+        let mut syntax = source_compiler::SourceSyntax::new(loaded[0].source_id);
+        source_compiler::SourceInput(loaded.into_iter().collect())
+            .append(&mut syntax, &mut source_compiler::CompileTimings::default())
+            .unwrap();
+        let mut request =
+            source_compiler::test_support::resolution::ResolutionRequest::new(syntax.into_trees());
         request.sources = Some(Arc::new(sources));
         let resolved = source_compiler::test_support::resolution::resolve(request).unwrap();
         source_compiler::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap()

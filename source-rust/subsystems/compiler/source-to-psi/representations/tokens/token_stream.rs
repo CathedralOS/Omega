@@ -2,7 +2,7 @@
 //! Start with `TokenStream`; its lexemes, spelling views and file batches follow below.
 
 pub use source_text::Span;
-pub use sources::{LexedSource, LexedSources};
+pub use sources::LexedSource;
 pub use token::Token;
 pub use token_kind::{
     CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase,
