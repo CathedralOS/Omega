@@ -102,7 +102,6 @@ public data BuildPlan<'storage> {
     optimizations: Optimizations;
     proof: ProofWorkPolicy;
     source: BuildSource;
-    inputs: BuildInputs;
     output: BuildOutput;
     log: BuildLog;
     declarations: BuildDeclarations;

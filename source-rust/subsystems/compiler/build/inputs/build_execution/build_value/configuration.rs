@@ -194,7 +194,7 @@ mod tests {
         std::fs::write(&main, "machine main() {}\n").expect("stage Product source");
         std::fs::write(
             root.join("build.omg"),
-            "machine build(builder: @mutable Build) {}",
+            "machine build(builder: @mutable BuildPlan) {}",
         )
         .expect("stage the ordinary Build entry");
         let mut timings = artifacts::compile_timings::CompileTimings::default();
@@ -220,12 +220,7 @@ mod tests {
         let typed = interval.program.as_ref();
         let admission = BuildValueAdmission::admit(typed).expect("real Build admission");
         drop(interval);
-        let scope = crate::build_execution::BuildMachineFilesystemScope::for_root(
-            &main,
-            root.join("output"),
-            None,
-        );
-        let value = admission.initial_value(&scope);
+        let value = admission.initial_value();
         (admission, value)
     }
 
@@ -250,7 +245,7 @@ mod tests {
         assert!(
             !fields(&mut original)
                 .iter()
-                .any(|(name, _)| matches!(name.as_str(), "privileged_services" | "freestanding"))
+                .any(|(name, _)| matches!(name.as_str(), "privileged_services" | "freestanding" | "inputs"))
         );
         assert!(
             fields(&mut original)

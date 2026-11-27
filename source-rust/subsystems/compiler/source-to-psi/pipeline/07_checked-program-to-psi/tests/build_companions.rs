@@ -669,7 +669,7 @@ use checked_program_to_psi::{TerminalBuildQueryCall, TerminalBuildRequestCall};
         // or source protocol declaration is supplied by these bytes.
         let mut output = RecordWriter::new(RecordLimits::default());
         output.record(|output| {
-            u64::from_le_bytes(*b"OMGBLD03").write(output)?;
+            u64::from_le_bytes(*b"OMGBLD04").write(output)?;
             program.artifact().unwrap().to_bytes().write(output)?;
             Arc::<[checked_program_to_psi::TerminalBuildBindingCall]>::from([]).write(output)?;
             Arc::<[Arc<source_compiler::representations::declaration_selection::ProductDeclarationRequest>]>::from([]).write(output)?;

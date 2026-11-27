@@ -199,7 +199,7 @@ plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
 ```
 
 Each call extends the supplied list. The returned plan selects the list the
-successor receives. Captured source and named inputs accept read-only mappings.
+successor receives. A directory backed by a captured snapshot can be delegated read-only.
 A grant of private output retains its sponsor and is subject to the same limits
 on entries, bytes and file extent. Duplicate guest roots are rejected.
 

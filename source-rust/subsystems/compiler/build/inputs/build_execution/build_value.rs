@@ -10,7 +10,6 @@ mod vocabulary;
 pub use normalized_build_settings::{EvaluatedBuildSettings, X86DeploymentClaim};
 pub(super) use vocabulary::is_exact_toolchain_build_prelude_data;
 
-use super::BuildMachineFilesystemScope;
 use build_model::values::BuildTimeValue;
 use diagnostics::Diagnostic;
 use source_compiler::representations::source_state::{TypedTrees, data::DataMember};
@@ -24,7 +23,6 @@ pub struct BuildValueAdmission {
     tests: bool,
     proof: bool,
     filesystem_roots: bool,
-    inputs: bool,
 }
 
 impl BuildValueAdmission {
@@ -42,12 +40,11 @@ impl BuildValueAdmission {
             tests: has("BuildTests"),
             proof: has("ProofWorkPolicy"),
             filesystem_roots: has("BuildSource") && has("BuildOutput"),
-            inputs: has("BuildInputs"),
         })
     }
 
-    pub fn initial_value(&self, filesystem_scope: &BuildMachineFilesystemScope) -> BuildTimeValue {
-        initial::initial_value(self, filesystem_scope)
+    pub fn initial_value(&self) -> BuildTimeValue {
+        initial::initial_value(self)
     }
 
     pub fn extract(
