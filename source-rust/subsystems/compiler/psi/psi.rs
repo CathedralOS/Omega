@@ -54,9 +54,13 @@ pub(crate) fn find_by_identity<Row, Id: Ord + Copy>(
     id: Id,
     identity: impl Fn(&Row) -> Id,
 ) -> Option<&Row> {
-    match rows.binary_search_by_key(&id, &identity) {
-        Ok(position) => Some(&rows[position]),
-        Err(_) => rows.iter().find(|row| identity(row) == id),
+    // In ascending rows, the first with this identity, as the scan finds
+    // it. A binary search may land on any of several duplicates, and a table
+    // still being built may hold duplicates until it is checked.
+    let position = rows.partition_point(|row| identity(row) < id);
+    match rows.get(position) {
+        Some(row) if identity(row) == id => Some(row),
+        _ => rows.iter().find(|row| identity(row) == id),
     }
 }
 
