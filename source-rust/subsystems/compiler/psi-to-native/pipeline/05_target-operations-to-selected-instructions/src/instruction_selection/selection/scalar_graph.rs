@@ -7803,6 +7803,7 @@ pub(crate) fn select_function(
         source,
         &mut builder.transport.memory,
     )?;
+    let owned_copies = std::mem::take(&mut builder.transport.owned_copies);
     let mut selected = SelectedFunction {
         contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
             machine: source.machine,
@@ -7838,9 +7839,10 @@ pub(crate) fn select_function(
         entry_block: SelectedBlockId(0),
         blocks: blocks.into(),
     };
-    crate::instruction_selection::selection::shared_parameters::share(
+    let dissolved = crate::instruction_selection::selection::shared_parameters::share(
         &mut selected,
         &builder.edge_work,
+        &owned_copies,
     );
     crate::instruction_selection::selection::edge_transfers::prepare(
         function,
@@ -7850,6 +7852,10 @@ pub(crate) fn select_function(
         environment,
         builder.edge_work,
     )?;
+    crate::instruction_selection::selection::shared_parameters::drop_copies(
+        &mut selected,
+        dissolved,
+    );
     if !selected.ids_are_positions() {
         return Err(SelectedInstructionError::custody_because(
             "selected block or virtual register ID differs from its position",
