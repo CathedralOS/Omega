@@ -28,15 +28,8 @@ pub(super) fn parse(
 ) -> Result<(Vec<SyntaxTrees>, ParsedSources), Vec<Diagnostic>> {
     let sources = loaded.sources.span_mut_or_empty(loaded.batch);
     let count = sources.len();
-    let desired_pages = if !matches!(layout, Layout::Shared) {
-        count.max(1)
-    } else {
-        count
-            .min(worker_budget::current_workers().saturating_mul(4))
-            .max(1)
-    };
-    let chunk_size = count.max(1).div_ceil(desired_pages);
-    let page_count = count.div_ceil(chunk_size);
+    let page_ends = page_ends(count, layout);
+    let page_count = page_ends.len();
     if first_page == 0
         || (page_count != 0
             && u32::try_from(page_count - 1)
@@ -48,51 +41,65 @@ pub(super) fn parse(
             "parser exhausted its source-page directory",
         )]);
     }
-    let restore_or_parse =
-        |index: usize, sources: &mut [LoadedSource], syntax: &mut SyntaxTrees| {
-            if let Layout::Reuse(units) = layout
-                && let Some(unit) = units[index]
-            {
-                let [file] = sources else {
-                    unreachable!("a retained file owns one page")
-                };
-                let mut page = ParsedPageSources::default();
-                match unit.at_coordinates(file.source_id, first_page + index as u32) {
-                    Ok((relocated, root_items)) => {
-                        *syntax = relocated;
-                        page.sources.push(ParsedSource {
-                            source_id: file.source_id,
-                            path: std::mem::take(&mut file.path),
-                            source: file.source.clone(),
-                            origin: file.origin,
-                            scope: file.scope,
-                            root_items,
-                            import_root_range: unit.import_root_range.clone(),
-                        });
-                    }
-                    Err(reason) => page.reuse_error = Some(Diagnostic::error(reason)),
+    let restore_or_parse = |page_index: usize,
+                            first_file: usize,
+                            sources: &mut [LoadedSource],
+                            syntax: &mut SyntaxTrees| {
+        if let Layout::Reuse(units) = layout
+            && let Some(unit) = units[first_file]
+        {
+            let [file] = sources else {
+                unreachable!("a retained file owns one page")
+            };
+            let mut page = ParsedPageSources::default();
+            match unit.at_coordinates(file.source_id, first_page + page_index as u32) {
+                Ok((relocated, root_items)) => {
+                    *syntax = relocated;
+                    page.sources.push(ParsedSource {
+                        source_id: file.source_id,
+                        path: std::mem::take(&mut file.path),
+                        source: file.source.clone(),
+                        origin: file.origin,
+                        scope: file.scope,
+                        root_items,
+                        import_root_range: unit.import_root_range.clone(),
+                    });
                 }
-                return page;
+                Err(reason) => page.reuse_error = Some(Diagnostic::error(reason)),
             }
-            parse_page(sources, syntax)
-        };
-    let mut trees: Vec<_> = sources
-        .chunks(chunk_size)
+            return page;
+        }
+        parse_page(sources, syntax)
+    };
+    let mut page_files = Vec::with_capacity(page_count);
+    let mut remaining = sources;
+    let mut page_start = 0;
+    for &page_end in &page_ends {
+        let (files, rest) = std::mem::take(&mut remaining).split_at_mut(page_end - page_start);
+        page_files.push((page_start, files));
+        remaining = rest;
+        page_start = page_end;
+    }
+    let mut trees: Vec<_> = page_files
+        .iter()
         .enumerate()
-        .map(|(index, chunk)| {
-            SyntaxTrees::new_with_generation(chunk[0].source_id, first_page + index as u32)
+        .map(|(index, (_, files))| {
+            SyntaxTrees::new_with_generation(files[0].source_id, first_page + index as u32)
         })
         .collect();
     let mut pages = Vec::with_capacity(if page_count == 1 { 0 } else { page_count });
     let mut single_page_sources = worker_budget::within_budget(|| {
-        if let [syntax] = trees.as_mut_slice() {
-            Some(restore_or_parse(0, sources, syntax))
+        if let ([syntax], [(first_file, files)]) = (trees.as_mut_slice(), page_files.as_mut_slice())
+        {
+            Some(restore_or_parse(0, *first_file, files, syntax))
         } else {
-            sources
-                .par_chunks_mut(chunk_size)
+            page_files
+                .par_iter_mut()
                 .zip_eq(trees.par_iter_mut())
                 .enumerate()
-                .map(|(index, (sources, syntax))| restore_or_parse(index, sources, syntax))
+                .map(|(index, ((first_file, files), syntax))| {
+                    restore_or_parse(index, *first_file, files, syntax)
+                })
                 .collect_into_vec(&mut pages);
             None
         }
@@ -126,6 +133,43 @@ pub(super) fn parse(
             batch,
         },
     ))
+}
+
+/// Return the exclusive end of each page's file range, in input order.
+///
+/// A retained file needs a page of its own because its relocated parse
+/// replaces the whole page. Fresh files share pages of the size the shared
+/// layout would give the fresh files alone, so a few retained files split
+/// the fresh pages only where they interrupt them instead of turning every
+/// fresh file into a single-file page.
+fn page_ends(count: usize, layout: Layout<'_>) -> Vec<usize> {
+    let retained = |index: usize| matches!(layout, Layout::Reuse(units) if units[index].is_some());
+    let fresh = (0..count).filter(|&index| !retained(index)).count();
+    let files_per_page = if matches!(layout, Layout::Independent) {
+        1
+    } else {
+        let pages = fresh
+            .min(worker_budget::current_workers().saturating_mul(4))
+            .max(1);
+        fresh.max(1).div_ceil(pages)
+    };
+    // Each retained file adds its own page and may end one fresh page early.
+    let mut ends = Vec::with_capacity(fresh.div_ceil(files_per_page) + 2 * (count - fresh));
+    let mut page_start = 0;
+    for index in 0..count {
+        let retained = retained(index);
+        if retained && index > page_start {
+            ends.push(index);
+        }
+        if retained || index + 1 - page_start == files_per_page {
+            ends.push(index + 1);
+            page_start = index + 1;
+        }
+    }
+    if page_start < count {
+        ends.push(count);
+    }
+    ends
 }
 
 fn parse_page(sources: &mut [LoadedSource], syntax: &mut SyntaxTrees) -> ParsedPageSources {

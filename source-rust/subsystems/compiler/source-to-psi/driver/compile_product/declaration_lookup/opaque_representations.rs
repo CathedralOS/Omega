@@ -91,7 +91,11 @@ fn inert_carrier(
                 }
                 pending.push((*base_type, false));
             }
-            TypeReferenceNode::FixedArray { element_type, .. } if typed.closed_fixed_array_length(reference).is_some() => pending.push((*element_type, false)),
+            TypeReferenceNode::FixedArray { element_type, .. }
+                if typed.closed_fixed_array_length(reference).is_some() =>
+            {
+                pending.push((*element_type, false))
+            }
             TypeReferenceNode::Named { .. }
                 if typed.primitive_type_reference(reference).is_some() => {}
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
@@ -326,4 +330,73 @@ pub fn collect_opaque_representations(
         }
     }
     Ok(selected)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::collect_opaque_representations;
+    use crate::declaration_selection::{
+        BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
+    };
+    use crate::source_state::TypedTrees;
+    use std::sync::Arc;
+
+    fn request(operation: BuildOperation) -> Arc<ProductDeclarationRequest> {
+        Arc::new(ProductDeclarationRequest {
+            source_span: source_text::SourceSpan::default(),
+            operation,
+            operands: Box::new([]),
+        })
+    }
+
+    fn executed(request: Arc<ProductDeclarationRequest>) -> ExecutedProductSelection {
+        ExecutedProductSelection {
+            test_group: None,
+            static_environment: None,
+            target: None,
+            request,
+            selecting_machine: None,
+            composition: None,
+        }
+    }
+
+    // Preparation installs these choices without walking the Build requests
+    // again, so a request with no authored occurrence or no Build activation
+    // must be refused here, before it can become a choice.
+    #[test]
+    fn representation_requests_without_their_original_authority_are_refused() {
+        let selection = request(BuildOperation::RepresentationSelection);
+        let declared = [Arc::clone(&selection)];
+        let ran = [executed(selection)];
+        for (declared, ran, expected) in [
+            (
+                &declared[..],
+                &[][..],
+                "Build request has no original authored occurrence",
+            ),
+            (
+                &[][..],
+                &ran[..],
+                "executed Build request has no original Build activation",
+            ),
+        ] {
+            let refusal =
+                collect_opaque_representations(&TypedTrees::default(), None, declared, ran)
+                    .expect_err(expected);
+            assert_eq!(refusal[0].message, expected);
+        }
+    }
+
+    #[test]
+    fn a_build_that_selects_no_representation_owes_no_representation_choice() {
+        let audit = request(BuildOperation::ServiceAudit);
+        let selected = collect_opaque_representations(
+            &TypedTrees::default(),
+            Some(symbols::SymbolHandle::invalid()),
+            &[Arc::clone(&audit)],
+            &[executed(audit)],
+        )
+        .expect("a Build without a representation selection is admitted");
+        assert!(selected.is_empty());
+    }
 }
