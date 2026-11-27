@@ -387,5 +387,3 @@ impl std::fmt::Display for OptimizationUnitValidationError {
         write!(formatter, "invalid Psi optimization unit: {self:?}")
     }
 }
-
-impl std::error::Error for OptimizationUnitValidationError {}

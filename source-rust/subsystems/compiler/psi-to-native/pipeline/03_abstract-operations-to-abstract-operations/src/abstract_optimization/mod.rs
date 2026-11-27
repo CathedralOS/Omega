@@ -1,31 +1,19 @@
 #![forbid(unsafe_code)]
 
 /*
-We optimize abstract operations in native stage 03,
-transforming a `VerifiedPsiOptimizationInput` lowered from Terminal Psi into a
-`ValidatedOptimizedAbstractPlan` ready for target lowering. Starting at
-`optimize_abstract_operations`, we admit the input under the active work
-schedule, construct a `VerifiedPsiOptimizationUnit`, run the selected pass
-registries through `pass_manager` over the rules ordered by `rules`, and seal
-the resulting plan and pre-physical manifest through `publication` and
-`validation`.
-*/
+Native stage 03 turns the `VerifiedPsiOptimizationInput` that stage 02 lowered
+from Terminal Psi into the `ValidatedOptimizedAbstractPlan` that target lowering
+reads. It builds the `VerifiedPsiOptimizationUnit`, admits its runtime evidence
+and ranked cycles, and seals the plan with its projection and pre-physical
+manifest.
 
-/*
-We keep target-neutral post-Terminal optimization isolated in its own stage so
-every rewrite over `AbstractOperationPlan` is governed by deterministic fixed
-points, explicit work budgets, and independent custody replay before any target
-ISA or ABI decision is introduced. When the Psi optimization selection is
-empty, we short-circuit to an exact identity transform without reconstructing
-unused optimizer ownership analyses, ensuring zero-pass compilation never adds
-a second admission gate.
-*/
-
-/*
-We consume `VerifiedPsiOptimizationInput` from `target-bound-program-to-abstract-operations`
-(native stage 02), together with `OptimizationSelections` and
-`OptimizationWorkBudget`. We produce `ValidatedOptimizedAbstractPlan` and
-`ValidatedPrePhysicalOptimizationManifest` for target lowering in native stage 04.
+The Psi optimization phase runs before Terminal publication, in source stage 06
+(`wiki/spec/terminal-psi/product.md#optimization-ordering`), and no
+optimization is assigned to the abstract-operations phase. Native lowering
+receives only post-Terminal selections, so stage 03 always records the identity
+run (`pass_manager::identity_run`) and publishes the input plan unchanged. The
+rule engine that used to live here is parked in `_recycling/` at this crate's
+mirrored path until its rules migrate to stage 06.
 */
 
 macro_rules! failed_display {
@@ -40,68 +28,33 @@ macro_rules! failed_display {
     };
 }
 
-#[macro_use]
-mod rules;
-mod analyses;
-mod control_flow_analyses;
-mod control_flow_cleanup;
-mod countdown_analyses;
-mod global_value_numbering;
 mod pass_manager;
-mod proof_check_elision;
 mod publication;
 mod ranked_cycles_validation;
-mod ranked_rewrites;
-mod sccp;
-mod semantic_analyses;
-mod specialization;
 pub mod validation;
-mod value_ranges;
 mod verified_unit;
 
 pub(crate) use ::wire::codec_bytes;
-pub(crate) use specialization::{
-    field_value_specialization, representation_specialization, state_specialization,
-};
 
 pub(crate) mod cycles {
     pub(crate) use super::strongly_connected_components;
 }
 
+pub(crate) use pass_manager::OptimizationRun;
+pub(crate) use pass_manager::VerifiedPsiOptimizationSession;
 pub(crate) use publication::OptimizedAbstractProjectionError;
 pub use publication::ValidatedOptimizedAbstractPlan;
 
-pub(crate) use analyses::{
-    AnalysisError, CallGraphAnalysis, EffectKnowledge, EffectSummaryAnalysis,
-    OwnershipFrontierAnalysis, ScalarConstantAnalysis, UseDefinitionAnalysis, ValueRangeAnalysis,
-};
-pub(crate) use analyses::{AnalysisProduct, AnalysisRevision, compute_analysis};
-pub(crate) use analyses::{
-    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
-    CountedLoopAnalysisError, analyze_countdown_invariant_constant_placement,
-    analyze_countdown_invariant_constants, analyze_counted_loops,
-};
-pub(crate) use optimization_unit::ScalarConstantValue;
-pub(crate) use pass_manager::OptimizationRun;
-pub(crate) use pass_manager::VerifiedPsiOptimizationSession;
-pub(crate) use rules::registry::{
-    OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
-    RuleRegistryError,
-};
-
 use optimization_core::{
     OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
-    PsiOptimizationSelectionProjection,
 };
 use verified_optimization_input::VerifiedPsiOptimizationInput;
 pub use verified_unit::{
-    VerifiedPsiOptimizationUnit, VerifiedPsiOptimizationUnitBuildError,
-    build_verified_psi_optimization_unit,
+    VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
 };
 
-use crate::abstract_optimization::pass_manager::{OptimizationRunError, run_registries};
+use crate::abstract_optimization::pass_manager::{OptimizationRunError, identity_run};
 use crate::abstract_optimization::publication::publish_optimization_run;
-use crate::abstract_optimization::rules::built_in_psi_steps_for_selections;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_work::WorkSchedule;
 
@@ -111,7 +64,6 @@ pub enum AbstractOptimizationError {
     UnitBuild(VerifiedPsiOptimizationUnitBuildError),
     Run(OptimizationRunError),
     Publication(OptimizedAbstractProjectionError),
-    EmptySelectionChangedPlan,
 }
 
 failed_display!(AbstractOptimizationError, "abstract optimization failed");
@@ -119,14 +71,17 @@ failed_display!(AbstractOptimizationError, "abstract optimization failed");
 pub fn optimize_abstract_operations(
     input: VerifiedPsiOptimizationInput,
     selections: &OptimizationSelections,
-    psi_selections: &PsiOptimizationSelectionProjection,
     budget_per_pass: OptimizationWorkBudget,
 ) -> Result<ValidatedOptimizedAbstractPlan, AbstractOptimizationError> {
-    let phase = OptimizationExecutionPhase::AbstractOperations;
-    if !selections.for_phase(phase).is_empty() {
-        return Err(AbstractOptimizationError::UnconsumedOptimizationPhase(
-            phase,
-        ));
+    for phase in [
+        OptimizationExecutionPhase::Psi,
+        OptimizationExecutionPhase::AbstractOperations,
+    ] {
+        if !selections.for_phase(phase).is_empty() {
+            return Err(AbstractOptimizationError::UnconsumedOptimizationPhase(
+                phase,
+            ));
+        }
     }
     let verified = build_verified_psi_optimization_unit(input, WorkSchedule::CURRENT.identity())
         .map_err(AbstractOptimizationError::UnitBuild)?;
@@ -135,44 +90,13 @@ pub fn optimize_abstract_operations(
             OptimizedAbstractProjectionError::PrePhysicalManifest(error),
         )
     })?;
-    let run =
-        run_psi_pipeline_for_projection(verified, selections, psi_selections, budget_per_pass)
-            .map_err(AbstractOptimizationError::Run)?;
-    let published =
-        publish_optimization_run(run, initial).map_err(AbstractOptimizationError::Publication)?;
-    if psi_selections.selections().is_empty()
-        && published.plan() != published.verified_input().plan()
-    {
-        return Err(AbstractOptimizationError::EmptySelectionChangedPlan);
-    }
-    Ok(published)
-}
-
-pub(crate) fn run_psi_pipeline_for_projection(
-    verified: VerifiedPsiOptimizationUnit,
-    selections: &OptimizationSelections,
-    projection: &PsiOptimizationSelectionProjection,
-    budget_per_pass: OptimizationWorkBudget,
-) -> Result<OptimizationRun, OptimizationRunError> {
-    if projection.complete_selection() != selections.identity() {
-        return Err(OptimizationRunError::SelectionRegistryMismatch);
-    }
-    let steps = built_in_psi_steps_for_selections(projection.selections())
-        .map_err(OptimizationRunError::RegistryConstruction)?;
-    let session = if steps.is_empty() {
-        let (input, unit) = verified.into_parts();
-        VerifiedPsiOptimizationSession::from_transformed(input, unit)
-    } else {
-        VerifiedPsiOptimizationSession::new(verified)
-    }
-    .map_err(OptimizationRunError::InitialValidation)?;
-    run_registries(
-        session,
-        selections,
-        projection.selections(),
-        &steps,
-        budget_per_pass,
-    )
+    let (input, unit) = verified.into_parts();
+    let session = VerifiedPsiOptimizationSession::admit(input, unit).map_err(|error| {
+        AbstractOptimizationError::Run(OptimizationRunError::InitialValidation(error))
+    })?;
+    let run = identity_run(session, selections, budget_per_pass)
+        .map_err(AbstractOptimizationError::Run)?;
+    publish_optimization_run(run, initial).map_err(AbstractOptimizationError::Publication)
 }
 
 pub(crate) fn strongly_connected_components<T>(graph: &BTreeMap<T, Vec<T>>) -> Vec<Vec<T>>
