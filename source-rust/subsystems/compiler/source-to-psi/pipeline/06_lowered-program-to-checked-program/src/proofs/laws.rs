@@ -22,7 +22,8 @@ use terminal_check_tables::mathematics::{
 };
 
 use super::equality::{
-    Definitions, Distribution, License, Licenses, SearchError, abstracted, normal, prove_licensed,
+    BudgetLimit, Definitions, Distribution, License, Licenses, SearchError, abstracted, normal,
+    prove_licensed,
 };
 
 /// How many rewrite attempts one case of one law may make.
@@ -168,10 +169,7 @@ struct Failure {
 
 fn failure(case: Option<usize>, error: SearchError) -> Failure {
     let (cause, detail) = match error {
-        SearchError::Budget => (
-            UnprovedCause::BudgetExhausted,
-            "mathematical equality proof budget exhausted".to_owned(),
-        ),
+        SearchError::Budget(limit) => (UnprovedCause::BudgetExhausted, limit.describe()),
         SearchError::NoProof => (
             UnprovedCause::NoDerivation,
             "no available equality proves the stated Identity".to_owned(),
@@ -223,14 +221,17 @@ pub(crate) struct Judged {
     pub(crate) theorems: Vec<LawJudgment>,
 }
 
-pub(crate) fn judge(signature: MathematicalSignature) -> Judged {
+pub(crate) fn judge_with_policy(
+    signature: MathematicalSignature,
+    policy: crate::ProofWorkPolicy,
+) -> Judged {
     let theorems = |laws: &[LawJudgment]| {
         laws.iter()
             .filter(|law| law.theorem.is_some())
             .cloned()
             .collect::<Vec<_>>()
     };
-    match judge_laws(signature) {
+    match judge_laws(signature, policy) {
         Ok(judged) => Judged {
             theorems: theorems(&judged.laws),
             verdict: Ok(judged),
@@ -245,6 +246,7 @@ pub(crate) fn judge(signature: MathematicalSignature) -> Judged {
 /// `Err` holds what is unproved and every law that was proved beside it.
 fn judge_laws(
     signature: MathematicalSignature,
+    policy: crate::ProofWorkPolicy,
 ) -> Result<SignatureJudgment, (Vec<UnprovedLaw>, Vec<LawJudgment>)> {
     let MathematicalSignature {
         mut arena,
@@ -320,6 +322,7 @@ fn judge_laws(
                 &entries,
                 &laws,
                 &licenses,
+                policy,
                 law,
             ),
         };
@@ -562,7 +565,7 @@ impl Cited<'_> {
         while !waiting.is_empty() {
             let mut refused = Vec::new();
             let before = evidence.len();
-            let mut exhausted = false;
+            let mut exhausted: Option<BudgetLimit> = None;
             for (mut term, goals) in waiting {
                 let mut proofs = Vec::with_capacity(goals.len());
                 for &goal in &goals {
@@ -582,8 +585,8 @@ impl Cited<'_> {
                     ) {
                         Ok(proof) => proofs.push(proof),
                         Err(SearchError::NoProof) => break,
-                        Err(SearchError::Budget) => {
-                            exhausted = true;
+                        Err(SearchError::Budget(limit)) => {
+                            exhausted.get_or_insert(limit);
                             break;
                         }
                         Err(error) => return Err(Uncited::Search(error)),
@@ -602,10 +605,9 @@ impl Cited<'_> {
                 evidence.push(term);
             }
             if evidence.len() == before {
-                return Err(if exhausted {
-                    Uncited::Search(SearchError::Budget)
-                } else {
-                    Uncited::Premise
+                return Err(match exhausted {
+                    Some(limit) => Uncited::Search(SearchError::Budget(limit)),
+                    None => Uncited::Premise,
                 });
             }
             waiting = refused;
@@ -1595,6 +1597,7 @@ struct Extras<'s> {
     families: &'s [mathematical_kernel::DeclaredIndexedData],
 }
 
+#[allow(clippy::too_many_arguments)]
 fn prove_law(
     arena: &mut TermArena,
     checked_signature: &Signature,
@@ -1602,12 +1605,14 @@ fn prove_law(
     entries: &[SignatureEntry],
     laws: &[Law],
     granted: &[OperandLicense],
+    policy: crate::ProofWorkPolicy,
     law: &Law,
 ) -> Result<LawJudgment, Failure> {
     let (operations, distributions) = licenses(arena, declarations, granted, law);
     let licenses = Licenses {
         operations: &operations,
         distributions: &distributions,
+        index_expansion_terms: policy.index_expansion_terms,
     };
     let definitions = Definitions::of_signature(&entries[..law.statement as usize]);
     let prefix = declarations[..law.statement as usize].to_vec();

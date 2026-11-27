@@ -142,7 +142,38 @@ use proofs::{equality, known, laws, membership_tests, prove, reuse, theorems};
 use reports::{branch_warnings, describe};
 use storage::{generic_storage, owned_cleanup, places};
 
-pub use publication::{AcceptedAdvisories, CheckedPublication, judge_publication};
+/// Default summand limit per attempted automatic compatibility-proof product
+/// expansion (`wiki/spec/build/configuration.md#proof-work-policy`).
+pub const DEFAULT_PROOF_INDEX_EXPANSION_TERMS: usize = equality::MAX_SUMMANDS;
+
+/// Proof-work policy admitted by the root Build for checking one Product
+/// (`wiki/spec/build/configuration.md#proof-work-policy`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProofWorkPolicy {
+    pub index_expansion_terms: usize,
+}
+
+impl ProofWorkPolicy {
+    pub fn with_index_expansion_terms(limit: u64) -> Self {
+        let limit = usize::try_from(limit).unwrap_or(usize::MAX).max(1);
+        Self {
+            index_expansion_terms: limit,
+        }
+    }
+}
+
+impl Default for ProofWorkPolicy {
+    fn default() -> Self {
+        Self {
+            index_expansion_terms: DEFAULT_PROOF_INDEX_EXPANSION_TERMS,
+        }
+    }
+}
+
+pub use publication::{
+    AcceptedAdvisories, CheckedPublication, judge_publication, judge_publication_with_policy,
+};
+pub use verdict::judge_compilation_with_policy;
 
 #[cfg(any(test, feature = "test-support"))]
 pub use ceilings::Axis as CeilingAxis;

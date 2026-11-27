@@ -87,6 +87,7 @@ pub struct ProductSourceInputs<'a> {
     pub default_provider_selections: &'a [retained_product_selections::RetainedProviderSelection],
     pub native_bindings: NativeBindingInputs<'a>,
     pub optimizations: optimization::PsiOptimizationSelections,
+    pub proof_index_expansion_terms: u64,
 }
 
 pub(crate) struct CompletedProductSource {
@@ -373,11 +374,16 @@ pub(crate) fn prepare_lower_and_check(
                 }
             }
         };
-        let publication = Arc::new(judge_lowered_source::SourcePublication::judge_lowered(
-            lowered,
-            pass.inputs.optimizations.clone(),
-            pass.timings,
-        )?);
+        let publication = Arc::new(
+            judge_lowered_source::SourcePublication::judge_lowered_with_policy(
+                lowered,
+                pass.inputs.optimizations.clone(),
+                lowered_program_to_checked_program::ProofWorkPolicy::with_index_expansion_terms(
+                    pass.inputs.proof_index_expansion_terms,
+                ),
+                pass.timings,
+            )?,
+        );
         let judged = JudgedSource {
             program: current.program,
             publication,

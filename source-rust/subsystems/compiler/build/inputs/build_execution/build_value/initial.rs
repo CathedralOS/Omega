@@ -110,6 +110,20 @@ pub(super) fn initial_value(
             },
         ));
     }
+    if admission.proof {
+        build_fields.push((
+            "proof".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "ProofWorkPolicy".to_owned(),
+                fields: vec![(
+                    "index_expansion_terms".to_owned(),
+                    BuildTimeValue::Int(
+                        normalized_build_settings::DEFAULT_PROOF_INDEX_EXPANSION_TERMS as i64,
+                    ),
+                )],
+            },
+        ));
+    }
     if admission.filesystem_roots {
         let root_facet =
             |type_name: &str, root: FilesystemGrantRootIdentity| BuildTimeValue::Struct {

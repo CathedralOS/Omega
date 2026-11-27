@@ -7,25 +7,35 @@ pub use accepted_closure::AcceptedClosure;
 pub use advisories::AcceptedAdvisories;
 pub use checked_program::CheckedPublication;
 
-use super::verdict::{CompilationRefusal, RouteVerdict, judge_compilation};
+use super::verdict::{CompilationRefusal, RouteVerdict, judge_compilation_with_policy};
 use checked_program::CheckedProgram;
 use checked_program_issuer::CHECKER;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use terminal_check_tables::compilation::CompilationForPublication;
 
-/// Judge the whole lowered compilation. An accepted compilation returns the
-/// source of `input` beside the checked root program, and the advisories of
-/// every accepted part for whoever reports the compilation.
+/// Judge the whole lowered compilation under the default proof-work policy.
 pub fn judge_publication<Input: CompilationForPublication>(
     input: Input,
     selections: ::optimization::PsiOptimizationSelections,
+) -> Result<(CheckedPublication<Input>, AcceptedAdvisories), Vec<Diagnostic>> {
+    judge_publication_with_policy(input, selections, crate::ProofWorkPolicy::default())
+}
+
+/// Judge the whole lowered compilation under the root Build's proof-work policy.
+/// An accepted compilation returns the source of `input` beside the checked root
+/// program, and the advisories of every accepted part for whoever reports the
+/// compilation.
+pub fn judge_publication_with_policy<Input: CompilationForPublication>(
+    input: Input,
+    selections: ::optimization::PsiOptimizationSelections,
+    policy: crate::ProofWorkPolicy,
 ) -> Result<(CheckedPublication<Input>, AcceptedAdvisories), Vec<Diagnostic>> {
     let (program, source) = input.into_program_and_source();
     // Preserve the unsealed lowering only when there is a transformation to run.
     // Neither run of the checker receives evidence from the other.
     let candidate = (!selections.is_empty()).then(|| program.clone());
-    let mut accepted = accept_compilation(judge_compilation(program))?;
+    let mut accepted = accept_compilation(judge_compilation_with_policy(program, policy))?;
     let mut original_for_diagnostics = None;
     if let Some(candidate) = candidate {
         let input = terminal_codec::terminal_psi_identity(&accepted.closure.elaboration.module)
@@ -33,15 +43,17 @@ pub fn judge_publication<Input: CompilationForPublication>(
         original_for_diagnostics = Some(accepted.closure);
         drop(accepted.additional);
         let optimized = optimization::apply(candidate, &selections)?;
-        accepted = accept_compilation(judge_compilation(optimized)).map_err(|mut findings| {
-            for finding in &mut findings {
-                finding.message = format!(
-                    "compiler defect: optimized Psi failed the lowered-form check: {}",
-                    finding.message
-                );
-            }
-            findings
-        })?;
+        accepted = accept_compilation(judge_compilation_with_policy(optimized, policy)).map_err(
+            |mut findings| {
+                for finding in &mut findings {
+                    finding.message = format!(
+                        "compiler defect: optimized Psi failed the lowered-form check: {}",
+                        finding.message
+                    );
+                }
+                findings
+            },
+        )?;
         let output = terminal_codec::terminal_psi_identity(&accepted.closure.elaboration.module)
             .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
         accepted.closure.optimization = Some(
@@ -372,8 +384,7 @@ mod tests {
         for marker in ["", "[copy]"] {
             let source = source.replace("MARK", marker);
             let stated = elaboration_with(terminal_codec::TerminalPublication::Invocation, &source);
-            let RouteVerdict::Accepted(closure) = crate::judge(Ok(stated)).unwrap()
-            else {
+            let RouteVerdict::Accepted(closure) = crate::judge(Ok(stated)).unwrap() else {
                 panic!("the call and its normal successor must check together");
             };
             let invocation = closure.publish_invocation().unwrap();
@@ -518,8 +529,7 @@ machine pause() suspends {}
                 .contains("a live scalar has no declaration in its machine")),
             "{diagnostics:?}"
         );
-        let RouteVerdict::AcceptedPrefix(closure) = crate::judge(Ok(stated)).unwrap()
-        else {
+        let RouteVerdict::AcceptedPrefix(closure) = crate::judge(Ok(stated)).unwrap() else {
             panic!("the partial body must receive its own checked verdict");
         };
         let invocation = closure.publish_invocation().unwrap();

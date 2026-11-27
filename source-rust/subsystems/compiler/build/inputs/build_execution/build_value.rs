@@ -22,6 +22,7 @@ pub struct BuildValueAdmission {
     declarations: bool,
     elf_interpreter: bool,
     tests: bool,
+    proof: bool,
     filesystem_roots: bool,
     inputs: bool,
 }
@@ -39,6 +40,7 @@ impl BuildValueAdmission {
             declarations: has("BuildDeclarations"),
             elf_interpreter: has("ElfInterpreterSelection"),
             tests: has("BuildTests"),
+            proof: has("ProofWorkPolicy"),
             filesystem_roots: has("BuildSource") && has("BuildOutput"),
             inputs: has("BuildInputs"),
         })

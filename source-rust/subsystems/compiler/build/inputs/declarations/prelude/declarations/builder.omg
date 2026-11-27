@@ -77,6 +77,13 @@ public data BuildPackageRoot {
 // Empty selects no runtime mounts. Appending a held directory produces a new list.
 public data BuildDirectories [copy] {}
 
+// Root Build proof-work policy (wiki/spec/build/configuration.md#proof-work-policy).
+// `index_expansion_terms` limits resulting summands per attempted automatic
+// compatibility-proof product expansion; default is 64 and 0 is rejected.
+public data ProofWorkPolicy [copy] {
+    index_expansion_terms: u64;
+}
+
 // Stored views in this plan share one explicit backing lifetime.
 public data BuildPlan<'storage> {
     product: BuildProduct<'storage>;
@@ -93,6 +100,7 @@ public data BuildPlan<'storage> {
     identifier: @'storage [u8];
     elf_interpreter: ElfInterpreterSelection<'storage>;
     optimizations: Optimizations;
+    proof: ProofWorkPolicy;
     source: BuildSource;
     inputs: BuildInputs;
     output: BuildOutput;
