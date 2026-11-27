@@ -29,7 +29,7 @@ Use examples from the actual question in each brief. State the expected outcome 
 Then show the code strictly as **Before** and **After**, each in its own fenced `omega` block:
 
 - **Before** is the smallest complete program that shows today's behavior. Under it, state the observed outcome, quoting the compiler's message verbatim, and label it as observed.
-- **After** is the same program under the recommended ruling. Change only the lines the ruling affects, and keep every other line identical so the diff is the decision. Show only the declarations that differ, under the note "Rest as Before". If the ruling changes only the outcome, write "Source unchanged" and give no block. Under it, state the expected outcome and label it as expected.
+- **After** is the same program under the recommended ruling. Change only the lines the ruling affects, and keep every other line identical so the diff is the decision. Show only the declarations that differ, and say in a plain sentence which ones, such as "Only `entry` changes. It passes the other case:". If no code changes, say so plainly, such as "No code changes. The same program compiles under the ruling.", and give no block. Never use shorthand labels the owner has to decode. Under it, state the expected outcome and label it as expected.
 - If the ruling both accepts and rejects something, give an After for each, each differing from Before by as few lines as possible.
 - An alternate whose outcome differs from the recommendation gets its own After block under Alternates, built from the same Before.
 - No prose inside the code blocks beyond one short comment on the changed line. Do not paraphrase code in sentences when the block can show it.
