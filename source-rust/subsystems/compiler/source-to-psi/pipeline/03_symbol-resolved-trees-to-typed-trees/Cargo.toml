@@ -20,7 +20,6 @@ numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-provenance = { path = "../../../foundation/source-provenance" }
 source-admission = { path = "../../representations/source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
-wire = { path = "../../../../../foundation/wire" }
 arena = { path = "../../../../../foundation/arena" }
 record-storage = { path = "../../../../../foundation/record-storage" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }

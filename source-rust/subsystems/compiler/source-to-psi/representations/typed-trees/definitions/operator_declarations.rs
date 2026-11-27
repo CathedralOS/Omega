@@ -13,10 +13,6 @@ pub mod operator {
         use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 
         use super::{OperatorConstBinding, OperatorDefinition};
-        use crate::source_state::declarations::operator::operand_signatures::normalized_operand_parameters;
-        use crate::source_state::declarations::operator::spellings::qualifications_match;
-        use crate::source_state::declarations::operator::type_matching::type_reference_matches_with_policy;
-        use crate::source_state::static_applications;
 
         #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
         pub enum ClosedOperatorApplicationArgument {
@@ -29,91 +25,6 @@ pub mod operator {
                 declared_carrier: TypeReferenceHandle,
                 value: CanonicalConstIdentity,
             },
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq)]
-        pub struct SymbolicOperatorTypeApplicationArgument {
-            pub operator_binder_symbol: SymbolHandle,
-            pub machine_binder_symbol: SymbolHandle,
-            pub machine_binder_ordinal: u32,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-        pub struct ClosedOperatorRealizationApplication {
-            pub requirement_symbol: SymbolHandle,
-            pub arguments: Vec<ClosedOperatorApplicationArgument>,
-        }
-
-        pub fn closed_operator_application_from_bindings(
-            program: &TypedTrees,
-            operator: &OperatorDefinition,
-            bindings: &[static_applications::StaticMachineBinding],
-        ) -> Option<Vec<ClosedOperatorApplicationArgument>> {
-            use crate::source_state::data::TypeParameterKind;
-            use static_applications::StaticMachineBindingValue;
-            let parameters = program.operator_type_parameters(operator);
-            if !operator.lifetime_parameters.is_empty() || parameters.len() != bindings.len() {
-                return None;
-            }
-            let types = parameters
-                .iter()
-                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
-                .map(|parameter| {
-                    let mut selected = bindings
-                        .iter()
-                        .filter(|binding| binding.parameter == parameter.symbol);
-                    let binding = selected.next()?;
-                    if selected.next().is_some() {
-                        return None;
-                    }
-                    let StaticMachineBindingValue::Type(actual) = binding.value else {
-                        return None;
-                    };
-                    closed_boundary_application_type(program, actual)
-                        .then_some((parameter.symbol, actual))
-                })
-                .collect::<Option<Vec<_>>>()?;
-            parameters
-                .iter()
-                .map(|parameter| {
-                    let mut selected = bindings
-                        .iter()
-                        .filter(|binding| binding.parameter == parameter.symbol);
-                    let binding = selected.next()?;
-                    if selected.next().is_some() {
-                        return None;
-                    }
-                    match (&parameter.kind, &binding.value) {
-                        (TypeParameterKind::Type, StaticMachineBindingValue::Type(actual))
-                            if closed_boundary_application_type(program, *actual) =>
-                        {
-                            Some(ClosedOperatorApplicationArgument::Type {
-                                binder_symbol: parameter.symbol,
-                                type_reference: *actual,
-                            })
-                        }
-                        (
-                            TypeParameterKind::Const { type_reference },
-                            StaticMachineBindingValue::Const(actual),
-                        ) => {
-                            let carrier = static_applications::project_type_operand(
-                                program,
-                                *type_reference,
-                                &types,
-                            );
-                            Some(ClosedOperatorApplicationArgument::Const {
-                                binder_symbol: parameter.symbol,
-                                declared_carrier: carrier,
-                                value:
-                                    super::type_matching::closed_const_identity_from_type_reference(
-                                        program, *actual, carrier,
-                                    )?,
-                            })
-                        }
-                        _ => None,
-                    }
-                })
-                .collect()
         }
 
         /// An ordinary call infers the declaration's lifetimes from its actual loans.
@@ -203,172 +114,6 @@ pub mod operator {
             Some(application)
         }
 
-        pub fn symbolic_operator_type_application_for_operands(
-            program: &TypedTrees,
-            machine: &crate::source_state::machine::Machine,
-            operator: &OperatorDefinition,
-            operand_types: &[Option<TypeReferenceHandle>],
-        ) -> Option<Vec<SymbolicOperatorTypeApplicationArgument>> {
-            if !operator.lifetime_parameters.is_empty() {
-                return None;
-            }
-            let operator_parameters = program.operator_type_parameters(operator);
-            if operator_parameters.is_empty()
-                || operator_parameters.iter().any(|parameter| {
-                    !matches!(
-                        parameter.kind,
-                        crate::source_state::data::TypeParameterKind::Type
-                    )
-                })
-            {
-                return None;
-            }
-            let parameters = program.operator_parameters(operator);
-            if parameters.len() != operand_types.len() {
-                return None;
-            }
-
-            let mut type_bindings = Vec::new();
-            let mut const_bindings = Vec::new();
-            if !operand_types
-                .iter()
-                .zip(normalized_operand_parameters(parameters))
-                .all(|(actual, expected)| {
-                    actual.is_some_and(|actual| {
-                        type_reference_matches_with_policy(
-                            program,
-                            actual,
-                            expected.type_reference,
-                            None,
-                            operator_parameters,
-                            &mut type_bindings,
-                            &mut const_bindings,
-                            false,
-                        ) && qualifications_match(
-                            program,
-                            actual,
-                            expected.type_reference,
-                            &type_bindings,
-                        )
-                    })
-                })
-                || !const_bindings.is_empty()
-            {
-                return None;
-            }
-
-            let machine_parameters = program.machine_type_parameters(machine);
-            operator_parameters
-                .iter()
-                .map(|operator_parameter| {
-                    let type_reference = type_bindings.iter().find_map(|(symbol, argument)| {
-                        (*symbol == operator_parameter.symbol).then_some(*argument)
-                    })?;
-                    let symbol = program
-                        .type_reference_node(type_reference)
-                        .as_named_symbol()?;
-                    let (machine_binder_ordinal, machine_parameter) = machine_parameters
-                        .iter()
-                        .enumerate()
-                        .find(|(_, parameter)| parameter.symbol == symbol)?;
-                    if !matches!(
-                        machine_parameter.kind,
-                        crate::source_state::data::TypeParameterKind::Type
-                    ) {
-                        return None;
-                    }
-                    Some(SymbolicOperatorTypeApplicationArgument {
-                        operator_binder_symbol: operator_parameter.symbol,
-                        machine_binder_symbol: machine_parameter.symbol,
-                        machine_binder_ordinal: u32::try_from(machine_binder_ordinal).ok()?,
-                    })
-                })
-                .collect()
-        }
-
-        pub fn closed_operator_realization_application(
-            program: &TypedTrees,
-            machine: &crate::source_state::machine::Machine,
-            operator: &OperatorDefinition,
-        ) -> Option<ClosedOperatorRealizationApplication> {
-            if !operator.lifetime_parameters.is_empty() {
-                return None;
-            }
-            let state = program.machine_states(machine).first()?;
-            let actual_parameters = program.state_parameters(state);
-            let required_parameters = program.operator_parameters(operator);
-            if actual_parameters.len() != required_parameters.len()
-                || actual_parameters
-                    .iter()
-                    .zip(required_parameters)
-                    .any(|(actual, required)| {
-                        actual.is_const != required.is_const
-                            || actual.is_mutable != required.is_mutable
-                    })
-            {
-                return None;
-            }
-
-            let operand_types = actual_parameters
-                .iter()
-                .map(|parameter| Some(parameter.type_reference))
-                .collect::<Vec<_>>();
-            let arguments =
-                closed_application_for_operands(program, operator, &operand_types, false)?;
-
-            if state.return_type.is_valid() != operator.return_type.is_valid() {
-                return None;
-            }
-            if state.return_type.is_valid() {
-                let mut type_bindings = arguments
-                    .iter()
-                    .filter_map(|argument| match argument {
-                        ClosedOperatorApplicationArgument::Type {
-                            binder_symbol,
-                            type_reference,
-                        } => Some((*binder_symbol, *type_reference)),
-                        ClosedOperatorApplicationArgument::Const { .. } => None,
-                    })
-                    .collect::<Vec<_>>();
-                let mut const_bindings = arguments
-                    .iter()
-                    .filter_map(|argument| match argument {
-                        ClosedOperatorApplicationArgument::Const {
-                            binder_symbol,
-                            value,
-                            ..
-                        } => Some(OperatorConstBinding {
-                            symbol: *binder_symbol,
-                            value: value.clone(),
-                        }),
-                        ClosedOperatorApplicationArgument::Type { .. } => None,
-                    })
-                    .collect::<Vec<_>>();
-                if !type_reference_matches_with_policy(
-                    program,
-                    state.return_type,
-                    operator.return_type,
-                    None,
-                    program.operator_type_parameters(operator),
-                    &mut type_bindings,
-                    &mut const_bindings,
-                    false,
-                ) || !qualifications_match(
-                    program,
-                    state.return_type,
-                    operator.return_type,
-                    &type_bindings,
-                ) {
-                    return None;
-                }
-            }
-
-            Some(ClosedOperatorRealizationApplication {
-                requirement_symbol: operator.symbol,
-                arguments,
-            })
-        }
-
         fn closed_boundary_application_type(
             program: &TypedTrees,
             type_reference: TypeReferenceHandle,
@@ -429,143 +174,6 @@ pub mod operator {
                     program.symbols.get(symbol).kind,
                     SymbolKind::BuiltinType | SymbolKind::Data
                 )
-        }
-
-        pub fn canonical_closed_operator_realization_bytes(
-            program: &TypedTrees,
-            machine_symbol: SymbolHandle,
-            retained: &[ClosedOperatorRealizationApplication],
-        ) -> Result<Vec<u8>, &'static str> {
-            let machine = program
-                .machine(machine_symbol)
-                .ok_or("operator realization specialization lost its concrete machine")?;
-            let expected = program
-                .machine_trait_conformances(machine)
-                .iter()
-                .filter_map(|conformance| {
-                    super::declaration_by_symbol(program, conformance.requirement_symbol)
-                        .map(|operator| (conformance.requirement_symbol, operator))
-                })
-                .collect::<Vec<_>>();
-            if expected.len() != retained.len() {
-                return Err("operator realization specialization has incomplete retained coverage");
-            }
-
-            let mut rows = Vec::with_capacity(retained.len());
-            for (requirement_symbol, operator) in expected {
-                let matching = retained
-                    .iter()
-                    .filter(|row| row.requirement_symbol == requirement_symbol)
-                    .collect::<Vec<_>>();
-                let [row] = matching.as_slice() else {
-                    return Err(
-                        "operator realization specialization has missing or duplicate exact rows",
-                    );
-                };
-                let reconstructed = closed_operator_realization_application(
-                    program, machine, operator,
-                )
-                .ok_or(
-                    "operator realization specialization no longer matches its concrete signature",
-                )?;
-                if **row != reconstructed {
-                    return Err(
-                        "operator realization specialization mismatches fresh reconstruction",
-                    );
-                }
-
-                let parameters = program.operator_type_parameters(operator);
-                if parameters.len() != row.arguments.len() {
-                    return Err(
-                        "operator realization specialization mismatches its static telescope",
-                    );
-                }
-                let mut bytes = Vec::new();
-                encode_application_text(
-                    &operator_symbol_identity(program, requirement_symbol),
-                    &mut bytes,
-                );
-                bytes.extend((row.arguments.len() as u64).to_le_bytes());
-                for (ordinal, (parameter, argument)) in
-                    parameters.iter().zip(&row.arguments).enumerate()
-                {
-                    bytes.extend((ordinal as u64).to_le_bytes());
-                    match (&parameter.kind, argument) {
-                        (
-                            crate::source_state::data::TypeParameterKind::Type,
-                            ClosedOperatorApplicationArgument::Type {
-                                binder_symbol,
-                                type_reference,
-                            },
-                        ) if *binder_symbol == parameter.symbol && type_reference.is_valid() => {
-                            bytes.push(0);
-                            encode_application_text(
-                                &program.package_qualified_type_identity_text(*type_reference),
-                                &mut bytes,
-                            );
-                        }
-                        (
-                            crate::source_state::data::TypeParameterKind::Const {
-                                type_reference: expected_carrier,
-                            }
-                            | crate::source_state::data::TypeParameterKind::Value {
-                                type_reference: expected_carrier,
-                            },
-                            ClosedOperatorApplicationArgument::Const {
-                                binder_symbol,
-                                declared_carrier,
-                                value,
-                            },
-                        ) if *binder_symbol == parameter.symbol
-                            && *declared_carrier == *expected_carrier =>
-                        {
-                            bytes.push(1);
-                            encode_application_text(
-                                &program.package_qualified_type_identity_text(*declared_carrier),
-                                &mut bytes,
-                            );
-                            encode_application_text(&value.type_name, &mut bytes);
-                            encode_application_text(&value.encoding, &mut bytes);
-                        }
-                        _ => {
-                            return Err(
-                                "operator realization specialization mismatches binder category or identity",
-                            );
-                        }
-                    }
-                }
-                rows.push(bytes);
-            }
-            rows.sort();
-            if rows.windows(2).any(|pair| pair[0] == pair[1]) {
-                return Err("operator realization specialization has duplicate canonical rows");
-            }
-            let mut bytes = Vec::new();
-            bytes.extend((rows.len() as u64).to_le_bytes());
-            for row in rows {
-                bytes.extend((row.len() as u64).to_le_bytes());
-                bytes.extend(row);
-            }
-            Ok(bytes)
-        }
-
-        fn operator_symbol_identity(program: &TypedTrees, symbol: SymbolHandle) -> String {
-            let path = program.symbols.display_path(symbol, "::");
-            let Some(package) = program.symbols.symbol_package_identity(symbol) else {
-                return format!("unmanaged::{path}");
-            };
-            let mut owner = String::with_capacity(package.digest().len() * 2);
-            const HEX: &[u8; 16] = b"0123456789abcdef";
-            for byte in package.digest() {
-                owner.push(char::from(HEX[usize::from(byte >> 4)]));
-                owner.push(char::from(HEX[usize::from(byte & 0x0f)]));
-            }
-            format!("package:{owner}::{path}")
-        }
-
-        fn encode_application_text(value: &str, bytes: &mut Vec<u8>) {
-            bytes.extend((value.len() as u64).to_le_bytes());
-            bytes.extend(value.as_bytes());
         }
     }
     pub(crate) mod indexing {
@@ -741,59 +349,6 @@ pub mod operator {
         use crate::source_state::TypedTrees;
         use crate::source_state::declarations::operator::OperatorDefinition;
         use symbols::SymbolHandle;
-
-        pub fn resolve_named_call<'program>(
-            program: &'program TypedTrees,
-            target_symbol: SymbolHandle,
-            static_receiver_segments: Option<&[&str]>,
-            target_name: &str,
-            argument_count: usize,
-            has_value_receiver: bool,
-        ) -> Option<&'program OperatorDefinition> {
-            if target_symbol.is_valid() {
-                return program.operator_definition_by_symbol(target_symbol);
-            }
-
-            let mut candidates = program.operators().iter().filter(|operator| {
-                named_operator_path_matches_call(
-                    program,
-                    operator,
-                    static_receiver_segments,
-                    target_name,
-                ) && named_operator_arity_fits_call(
-                    program,
-                    operator,
-                    argument_count,
-                    has_value_receiver,
-                )
-            });
-            let first = candidates.next()?;
-            candidates
-                .all(|other| {
-                    same_authored_operator_declaration(program, first.symbol, other.symbol)
-                })
-                .then_some(first)
-        }
-
-        fn same_authored_operator_declaration(
-            program: &TypedTrees,
-            left: SymbolHandle,
-            right: SymbolHandle,
-        ) -> bool {
-            let Some(left_span) = program.symbols.symbol_provenance_source_span(left) else {
-                return false;
-            };
-            let Some(right_span) = program.symbols.symbol_provenance_source_span(right) else {
-                return false;
-            };
-            left_span.span == right_span.span
-                && left_span.span.start != left_span.span.end
-                && program
-                    .symbols
-                    .source_file(left_span)
-                    .zip(program.symbols.source_file(right_span))
-                    .is_some_and(|(left_file, right_file)| left_file.path == right_file.path)
-        }
 
         pub fn resolve_named_expression_call<'program>(
             program: &'program TypedTrees,
@@ -1054,43 +609,6 @@ pub mod operator {
                 return positional == argument_count + 1;
             }
             positional == argument_count
-        }
-
-        pub fn selected_named_statement_call_has_no_runtime_receiver(
-            program: &TypedTrees,
-            call: &crate::source_state::statement::TableCall,
-        ) -> bool {
-            let candidates = named_statement_call_candidates(program, call);
-            let [operator] = candidates.as_slice() else {
-                return false;
-            };
-            let arguments = program.statement_table.expression_handles(call.arguments);
-            if arguments.len() != call.arguments.len()
-                || arguments.len() != program.operator_parameters(operator).len()
-            {
-                return false;
-            }
-            if program
-                .statement_table
-                .name_path_members(call.receiver)
-                .is_empty()
-            {
-                return named_operator_path_matches_call(
-                    program,
-                    operator,
-                    None,
-                    call.target.as_str(),
-                );
-            }
-            let Some(namespace) = statement_static_receiver_segments(program, call) else {
-                return false;
-            };
-            named_operator_path_matches_call(
-                program,
-                operator,
-                Some(&namespace),
-                call.target.as_str(),
-            )
         }
 
         fn statement_static_receiver_segments<'program>(
@@ -1905,80 +1423,6 @@ pub mod operator {
         use crate::source_state::TypedTrees;
         use crate::source_state::declarations::operator::OperatorDefinition;
 
-        pub fn resolve_satisfied_boundary_operator_for_conformance<'program>(
-            program: &'program TypedTrees,
-            machine: &'program crate::source_state::machine::Machine,
-            conformance: &'program crate::source_state::machine::TraitConformance,
-        ) -> Option<&'program OperatorDefinition> {
-            let requirement = conformance.requirement.as_ref()?;
-            let candidates = satisfied_operator_candidates(
-                program,
-                machine,
-                conformance.name.as_str(),
-                requirement.as_str(),
-            )
-            .collect::<Vec<_>>();
-            if conformance.requirement_symbol.is_valid() {
-                return candidates
-                    .into_iter()
-                    .find(|operator| operator.symbol == conformance.requirement_symbol);
-            }
-            let path = format!("{}::{}", conformance.name, requirement);
-            let selected = program
-                .symbols
-                .lookup_signature_free_top_level_from_source_matching(
-                    &path,
-                    &[symbols::SymbolKind::Machine, symbols::SymbolKind::Operator],
-                    conformance.requirement_source_span.unwrap_or_default(),
-                    |symbol| {
-                        candidates
-                            .iter()
-                            .any(|candidate| candidate.symbol == symbol)
-                    },
-                )
-                .unique()?;
-            candidates
-                .into_iter()
-                .find(|candidate| candidate.symbol == selected)
-        }
-
-        fn satisfied_operator_candidates<'program>(
-            program: &'program TypedTrees,
-            machine: &'program crate::source_state::machine::Machine,
-            namespace: &str,
-            requirement: &str,
-        ) -> impl Iterator<Item = &'program OperatorDefinition> {
-            program
-                .operators()
-                .iter()
-                .chain(program.machine_token_bindings())
-                .filter(move |operator| {
-                    if !operator.is_boundary
-                        || !operator_path_matches(operator, program, namespace, requirement)
-                    {
-                        return false;
-                    }
-                    crate::source_state::callable_signature_shapes::realizes_signature(
-                        program,
-                        machine,
-                        program.operator_type_parameters(operator),
-                        program.operator_parameters(operator),
-                        operator.return_type,
-                    )
-                })
-        }
-
-        fn operator_path_matches(
-            operator: &OperatorDefinition,
-            program: &TypedTrees,
-            namespace: &str,
-            requirement: &str,
-        ) -> bool {
-            let path = program.operator_path_members(operator.name);
-            matches!(path.as_array(), Some([owner, member])
-        if owner.as_str() == namespace && member.as_str() == requirement)
-        }
-
         pub fn boundary_operator_requirement_identity(
             program: &TypedTrees,
             operator: &OperatorDefinition,
@@ -2100,17 +1544,6 @@ pub mod operator {
                 BinaryOperator::Divide => OperatorSpelling::Divide,
                 BinaryOperator::Modulo => OperatorSpelling::Modulo,
                 _ => return comparison_operator_spelling(operator),
-            })
-        }
-
-        pub fn arithmetic_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
-            Some(match operator {
-                BinaryOperator::Add => OperatorSpelling::Add,
-                BinaryOperator::Subtract => OperatorSpelling::Subtract,
-                BinaryOperator::Multiply => OperatorSpelling::Multiply,
-                BinaryOperator::Divide => OperatorSpelling::Divide,
-                BinaryOperator::Modulo => OperatorSpelling::Modulo,
-                _ => return None,
             })
         }
 
@@ -2398,19 +1831,6 @@ pub mod operator {
         pub struct OperatorOperandBindings {
             pub types: Vec<(SymbolHandle, TypeReferenceHandle)>,
             pub constants: Vec<OperatorConstBinding>,
-        }
-
-        pub fn operator_operand_bindings(
-            program: &TypedTrees,
-            operator: &OperatorDefinition,
-            operand_types: &[Option<TypeReferenceHandle>],
-        ) -> Option<OperatorOperandBindings> {
-            let operands = operand_types
-                .iter()
-                .copied()
-                .map(OperandType::from_reference)
-                .collect::<Vec<_>>();
-            operand_bindings_with_indexed_collection(program, operator, &operands, false)
         }
 
         pub(crate) fn operator_matches_operands_with_indexed_collection(
@@ -3711,39 +3131,6 @@ pub mod operator {
             meanings
         }
 
-        #[derive(Debug, Clone)]
-        pub struct ScopedTraitOperatorMeaning<'program> {
-            pub trait_definition: &'program crate::source_state::trait_definition::TraitDefinition,
-            pub requirement: &'program crate::source_state::signature::StateSignature,
-            pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
-            pub constants: Vec<super::OperatorConstBinding>,
-        }
-
-        pub fn trait_scope_operator_meanings<'program>(
-            program: &'program TypedTrees,
-            trait_definition: &'program crate::source_state::trait_definition::TraitDefinition,
-            spelling: OperatorSpelling,
-            operand_types: &[Option<TypeReferenceHandle>],
-        ) -> Vec<ScopedTraitOperatorMeaning<'program>> {
-            let mut meanings = Vec::new();
-            visit_trait_operator_meanings(
-                program,
-                trait_definition,
-                spelling,
-                operand_types,
-                &[],
-                &mut |trait_definition, requirement, substitutions, constants| {
-                    meanings.push(ScopedTraitOperatorMeaning {
-                        trait_definition,
-                        requirement,
-                        substitutions,
-                        constants,
-                    });
-                },
-            );
-            meanings
-        }
-
         pub fn trait_scope_operator_meaning_exists(
             program: &TypedTrees,
             trait_definition: &crate::source_state::trait_definition::TraitDefinition,
@@ -3950,25 +3337,6 @@ pub mod operator {
                             )
                     })
                 })
-        }
-
-        pub fn trait_operator_operand_signature(
-            program: &TypedTrees,
-            trait_definition: &crate::source_state::trait_definition::TraitDefinition,
-            requirement: &crate::source_state::signature::StateSignature,
-        ) -> Result<
-            String,
-            crate::source_state::runtime_callable_identity::RuntimeCallableIdentityError,
-        > {
-            super::operand_signatures::operand_signature(
-                program,
-                program
-                    .trait_type_parameters(trait_definition)
-                    .iter()
-                    .chain(program.state_signature_type_parameters(requirement))
-                    .map(|parameter| parameter.symbol),
-                program.state_signature_parameters(requirement),
-            )
         }
 
         pub(crate) fn abstract_requirement_may_have_operator_bound(
@@ -4481,12 +3849,7 @@ pub mod operator {
     }
     pub use type_matching::closed_const_identity_from_type_reference as closed_const_identity_for_type_reference;
 
-    pub use applications::{
-        ClosedOperatorApplicationArgument, ClosedOperatorRealizationApplication,
-        SymbolicOperatorTypeApplicationArgument, canonical_closed_operator_realization_bytes,
-        closed_operator_application_from_bindings, closed_operator_realization_application,
-        operator_call_arguments, symbolic_operator_type_application_for_operands,
-    };
+    pub use applications::{ClosedOperatorApplicationArgument, operator_call_arguments};
     pub use indexing::{
         builtin_index_read_is_spelled, resolve_indexed_spelling_for_operands,
         unconstrained_type_reference,
@@ -4494,32 +3857,28 @@ pub mod operator {
     pub use named_calls::{
         named_call_family_members, named_call_family_path, named_expression_call_candidates,
         named_expression_call_family_path, named_statement_call_candidates,
-        named_statement_call_family_path, named_transition_family_path, resolve_named_call,
+        named_statement_call_family_path, named_transition_family_path,
         resolve_named_expression_call, selected_named_expression_call_has_no_runtime_receiver,
-        selected_named_statement_call_has_no_runtime_receiver,
     };
     pub use operand_signatures::operator_operand_signature;
     pub use primitive_float::{
         is_sealed_toolchain_float_operator, primitive_float_binary_semantics,
     };
     pub use primitive_integer::{builtin_integer_result_carrier, integer_peer_operand_carrier};
-    pub use satisfied_operators::{
-        boundary_operator_requirement_identity, resolve_satisfied_boundary_operator_for_conformance,
-    };
+    pub use satisfied_operators::boundary_operator_requirement_identity;
     pub use spellings::{
-        OperandType, OperatorOperandBindings, arithmetic_operator_spelling,
-        binary_operator_spelling, comparison_operator_spelling, core_integer_operand,
-        core_integer_result, declared_domain_constraints, has_builtin_spelled_expression_meaning,
-        has_scoped_operator_meaning, operator_operand_bindings, operator_operand_is_qualified,
-        resolve_spelling, resolve_spelling_for_operand_types, resolve_spelling_for_operands,
+        OperandType, OperatorOperandBindings, binary_operator_spelling,
+        comparison_operator_spelling, core_integer_operand, core_integer_result,
+        declared_domain_constraints, has_builtin_spelled_expression_meaning,
+        has_scoped_operator_meaning, operator_operand_is_qualified, resolve_spelling,
+        resolve_spelling_for_operand_types, resolve_spelling_for_operands,
         scalar_operand_read_type,
     };
     pub use trait_operators::{
-        BoundTraitOperatorMeaning, ScopedTraitOperatorMeaning, SelectedTraitOperatorMeaning,
-        bound_trait_operator_meanings, selected_trait_operator_meaning_exists,
-        selected_trait_operator_meanings, trait_operator_matches_application,
-        trait_operator_operand_bindings, trait_operator_operand_signature,
-        trait_scope_operator_meaning_exists, trait_scope_operator_meanings,
+        BoundTraitOperatorMeaning, SelectedTraitOperatorMeaning, bound_trait_operator_meanings,
+        selected_trait_operator_meaning_exists, selected_trait_operator_meanings,
+        trait_operator_matches_application, trait_operator_operand_bindings,
+        trait_scope_operator_meaning_exists,
     };
 
     use application_identity::const_value::CanonicalConstIdentity;

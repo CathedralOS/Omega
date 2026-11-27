@@ -50,43 +50,10 @@ pub fn service_declaration_commitment(
 pub mod provider_declarations {
     pub use super::inventory_records::{
         AcceptedContractDeclaration, AcceptedMachineDeclaration, AcceptedTemplateDeclaration,
-        ProviderRequirementApplication, SelectedTargetMachineOrigin, TrustDeclarationCardinality,
-        TrustDeclarations,
+        SelectedTargetMachineOrigin, TrustDeclarationCardinality, TrustDeclarations,
     };
     use diagnostics::Diagnostic;
     use std::sync::{Arc, OnceLock};
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct NamedProviderApplication {
-        pub declaration: symbols::SymbolHandle,
-        pub capture: arena::Handle<crate::source_state::CapturedMachineApplication>,
-    }
-
-    pub enum ProviderApplicationView {
-        None,
-        PhysicalLeaf,
-        External,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum ProviderDeclarationOrigin {
-        Authored(symbols::SymbolHandle),
-        BuildNative {
-            requirement: symbols::SymbolHandle,
-            application: Option<
-                arena::Handle<crate::source_state::product_operand::ProductOperandApplication>,
-            >,
-        },
-        Toolchain,
-    }
-
-    pub struct ProviderDeclarationRow<'identity> {
-        pub requirement: symbols::SymbolHandle,
-        pub origin: ProviderDeclarationOrigin,
-        pub requirement_identity: &'identity str,
-        pub declared_requirement_identity: &'identity str,
-        pub application: ProviderApplicationView,
-    }
 
     pub(crate) mod context {
         use crate::source_state::TypedTrees;

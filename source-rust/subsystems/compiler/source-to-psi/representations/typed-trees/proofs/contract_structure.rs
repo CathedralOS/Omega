@@ -39,14 +39,6 @@ pub struct DeclaredContractClause<Cause = semantic_vocabulary::CrashCause> {
     pub fact: Option<DeclaredContractFact>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DeclaredContractParameter {
-    pub mutable: bool,
-    pub constant: bool,
-    pub relevance: language_core::BindingRelevance,
-    pub type_identity: NormalizedTypeIdentity,
-}
-
 /// The supplying operation owns the context captured by these callbacks.
 pub struct ContractIdentityContext<Type, Fact, Symbol, Cause> {
     pub type_identity: Type,

@@ -25,6 +25,8 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
 
 [dev-dependencies]
+# The unit tests take prepared trees back to compare them (`into_inner`).
+prepared-source = { path = "../../representations/prepared-source", features = ["test-support"] }
 source-symbol-table = { path = "../../representations/symbol-resolved-trees/symbol-table" }
 application-identity = { path = "../../../psi/identities/applications" }
 source-admission = { path = "../../representations/source-files/custody" }

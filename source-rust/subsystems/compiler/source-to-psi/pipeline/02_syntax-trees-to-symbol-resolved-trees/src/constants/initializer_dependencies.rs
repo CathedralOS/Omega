@@ -24,6 +24,7 @@ use crate::source_resolved::{
     expression::{ExpressionHandle, ExpressionNode},
     machine::MachineBodyStatus,
 };
+use arena::Handle;
 use language_core::data_layout_queries::is_data_layout_query_spelling;
 use source_text::SourceSpan;
 use std::iter::once;
@@ -94,27 +95,24 @@ mod types {
                     value: initializer,
                     lexical_owner: symbol,
                 };
-                if !self.initializer_expressions.contains(&work) {
-                    self.initializer_expressions.push(work);
-                }
+                self.initializer_expressions.insert(work);
             }
             Ok(())
         }
 
         pub(super) fn type_child(&mut self, handle: Handle<TypeReference>) -> Result<(), String> {
-            if !self.follow_dependencies
-                || self
-                    .visited_type_children
-                    .contains(&(handle, self.lexical_owner))
-            {
+            let work = DependencyWork {
+                value: handle,
+                lexical_owner: self.lexical_owner,
+            };
+            if !self.follow_dependencies || self.visited_type_children.contains(&work) {
                 return Ok(());
             }
             let children = &self.program.tables.declarations.child_type_references;
             if !children.is_valid(handle) {
                 return Err("constant dependency has a stale child type reference".to_owned());
             }
-            self.visited_type_children
-                .push((handle, self.lexical_owner));
+            self.visited_type_children.insert(work);
             self.queue_type(children.get(handle));
             Ok(())
         }
@@ -619,7 +617,7 @@ pub(crate) fn collect_declaration(
 ) -> Result<ConstInitializerDependencies, String> {
     let mut collector = Collector {
         expressions: vec![DependencyWork::unscoped(root)],
-        initializer_expressions: vec![DependencyWork::unscoped(root)],
+        initializer_expressions: once(DependencyWork::unscoped(root)).collect(),
         selected_calls,
         types: destination
             .map(DependencyWork::unscoped)
@@ -784,6 +782,55 @@ impl<Value> DependencyWork<Value> {
     }
 }
 
+/*
+    Work the collector has already classified or visited. The worklist asks
+    these questions once or more for every node it pops, so membership is a
+    binary search over rows kept sorted by handle and owner, not a scan of
+    everything reached so far.
+*/
+struct WorkSet<Node> {
+    rows: Vec<DependencyWork<Handle<Node>>>,
+}
+
+impl<Node> Default for WorkSet<Node> {
+    fn default() -> Self {
+        Self { rows: Vec::new() }
+    }
+}
+
+impl<Node> WorkSet<Node> {
+    fn key(work: &DependencyWork<Handle<Node>>) -> (u32, u32, u32, u32) {
+        (
+            work.value.arena_index(),
+            work.value.generation(),
+            work.lexical_owner.arena_index(),
+            work.lexical_owner.generation(),
+        )
+    }
+
+    fn contains(&self, work: &DependencyWork<Handle<Node>>) -> bool {
+        self.rows
+            .binary_search_by_key(&Self::key(work), Self::key)
+            .is_ok()
+    }
+
+    fn insert(&mut self, work: DependencyWork<Handle<Node>>) {
+        if let Err(position) = self.rows.binary_search_by_key(&Self::key(&work), Self::key) {
+            self.rows.insert(position, work);
+        }
+    }
+}
+
+impl<Node> FromIterator<DependencyWork<Handle<Node>>> for WorkSet<Node> {
+    fn from_iter<Rows: IntoIterator<Item = DependencyWork<Handle<Node>>>>(rows: Rows) -> Self {
+        let mut set = Self::default();
+        for work in rows {
+            set.insert(work);
+        }
+        set
+    }
+}
+
 struct Collector<'program, 'selection> {
     program: &'program SymbolResolvedTrees,
     body_call_routing:
@@ -796,16 +843,16 @@ struct Collector<'program, 'selection> {
         Machine bodies and declaration type work enter their separate queues;
         following a call does not make its body an initializer expression.
     */
-    initializer_expressions: Vec<DependencyWork<ExpressionHandle>>,
+    initializer_expressions: WorkSet<ExpressionNode>,
     machines: Vec<SymbolHandle>,
     available_machines: Vec<SymbolHandle>,
     types: Vec<DependencyWork<&'program TypeReference>>,
-    visited_type_children: Vec<(arena::Handle<TypeReference>, SymbolHandle)>,
+    visited_type_children: WorkSet<TypeReference>,
     visited_type_declarations: Vec<SymbolHandle>,
     visited_traits: Vec<SymbolHandle>,
     expanded_constants: Vec<SymbolHandle>,
-    visited_expressions: Vec<DependencyWork<ExpressionHandle>>,
-    visited_initializer_expressions: Vec<DependencyWork<ExpressionHandle>>,
+    visited_expressions: WorkSet<ExpressionNode>,
+    visited_initializer_expressions: WorkSet<ExpressionNode>,
     visited_machines: Vec<SymbolHandle>,
     /*
         Only a retained-body owner can request an incomplete dependency frontier.
@@ -834,16 +881,16 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             dependencies: ConstInitializerDependencies::default(),
             expressions: Vec::new(),
             lexical_owner: SymbolHandle::invalid(),
-            initializer_expressions: Vec::new(),
+            initializer_expressions: WorkSet::default(),
             machines: Vec::new(),
             available_machines: Vec::new(),
             types: Vec::new(),
-            visited_type_children: Vec::new(),
+            visited_type_children: WorkSet::default(),
             visited_type_declarations: Vec::new(),
             visited_traits: Vec::new(),
             expanded_constants: Vec::new(),
-            visited_expressions: Vec::new(),
-            visited_initializer_expressions: Vec::new(),
+            visited_expressions: WorkSet::default(),
+            visited_initializer_expressions: WorkSet::default(),
             visited_machines: Vec::new(),
             deferred_machines: None,
             follow_dependencies: true,
@@ -903,11 +950,9 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 {
                     continue;
                 }
-                if !self.visited_expressions.contains(&work) {
-                    self.visited_expressions.push(work);
-                }
+                self.visited_expressions.insert(work);
                 if initializer {
-                    self.visited_initializer_expressions.push(work);
+                    self.visited_initializer_expressions.insert(work);
                 }
                 self.expression(expression)?;
             } else if let Some(machine) = self.machines.pop() {
@@ -1166,12 +1211,9 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 if self.expressions[child_frontier..]
                     .iter()
                     .any(|work| *work == self.expression_work(child))
-                    && !self
-                        .initializer_expressions
-                        .contains(&self.expression_work(child))
                 {
                     self.initializer_expressions
-                        .push(self.expression_work(child));
+                        .insert(self.expression_work(child));
                 }
             }
         }
@@ -1190,12 +1232,9 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             if self
                 .initializer_expressions
                 .contains(&self.expression_work(expression))
-                && !self
-                    .initializer_expressions
-                    .contains(&self.expression_work(authored))
             {
                 self.initializer_expressions
-                    .push(self.expression_work(authored));
+                    .insert(self.expression_work(authored));
             }
         }
         if matches!(

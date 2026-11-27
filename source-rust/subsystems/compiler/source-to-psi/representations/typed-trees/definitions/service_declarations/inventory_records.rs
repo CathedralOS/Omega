@@ -11,9 +11,3 @@ pub struct SelectedTargetMachineOrigin {
     pub machine: SymbolHandle,
     pub target: String,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProviderRequirementApplication {
-    pub requirement: String,
-    pub receiving_application: String,
-}

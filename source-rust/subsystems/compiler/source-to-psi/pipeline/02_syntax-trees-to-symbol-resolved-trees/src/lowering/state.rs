@@ -226,40 +226,13 @@ fn with_state_scope<T>(
     } else {
         Vec::new()
     };
-    let parameter_names = lowerer
-        .symbol_resolved_trees
-        .state_parameters(state.parameters)
-        .iter()
-        .map(|parameter| parameter.name.as_str().to_string())
-        .collect();
-    let parameters = lowerer
-        .symbol_resolved_trees
-        .state_parameters(state.parameters)
-        .iter()
-        .map(|parameter| {
-            (
-                parameter.name.as_str().to_string(),
-                parameter.type_reference.clone(),
-                parameter.is_mutable,
-            )
-        })
-        .collect();
     let previous_references = replace(
         &mut lowerer.reference_struct_parameters,
         reference_parameters,
     );
-    let previous_names = replace(&mut lowerer.current_state_parameter_names, parameter_names);
-    let previous_parameters = replace(&mut lowerer.current_state_parameters, parameters);
-    let previous_return = replace(
-        &mut lowerer.current_state_return_type,
-        state.return_type.clone(),
-    );
     let result = operation(lowerer);
     lowerer.current_state_name = previous_name;
     lowerer.reference_struct_parameters = previous_references;
-    lowerer.current_state_parameter_names = previous_names;
-    lowerer.current_state_parameters = previous_parameters;
-    lowerer.current_state_return_type = previous_return;
     result
 }
 

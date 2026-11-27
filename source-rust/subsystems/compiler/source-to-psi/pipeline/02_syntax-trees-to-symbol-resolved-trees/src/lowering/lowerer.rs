@@ -213,14 +213,6 @@ pub(crate) struct Lowerer {
         boot-verified pointee path. Overwritten at each state's lowering.
     */
     pub(crate) reference_struct_parameters: Vec<String>,
-    /*
-        ALL of the current state's parameter names -- the computed-index hoist
-        gate uses this to tell a typeable bare-Name operand (a param, whose
-        declared type the typed layer resolves via `parameter_type`) from a
-        LOCAL (untypeable at the hoist-temp layer; hoisting would mint a Unit
-        temp and a confusing layout error). Overwritten at each state.
-    */
-    pub(crate) current_state_parameter_names: Vec<String>,
     pub(crate) machine_body: Option<super::machine::MachineBodyScope>,
     pub(crate) current_state_name: Option<String>,
     /*
@@ -234,14 +226,6 @@ pub(crate) struct Lowerer {
     match_subject_temps:
         std::collections::HashMap<syntax_trees::expression::ExpressionHandle, (String, SourceSpan)>,
     pub(crate) expression_match_captures: Vec<MatchArmCapture>,
-    /*
-        The CURRENT state's parameters (name, resolved type,
-        mutability). The scalar-computation classification of transition
-        values reads them. Overwritten at each state.
-    */
-    pub(crate) current_state_parameters: Vec<(String, TypeReference, bool)>,
-    /* The CURRENT state's declared return type. Overwritten at each state. */
-    pub(crate) current_state_return_type: Option<TypeReference>,
     /* Present when this lowerer extends a retained base. */
     pub(crate) seed: Option<BaseSeed>,
 }
@@ -328,13 +312,10 @@ impl Lowerer {
             source_scoped_top_level_bindings,
             hoist_counter: 0,
             reference_struct_parameters: Vec::new(),
-            current_state_parameter_names: Vec::new(),
             machine_body: None,
             current_state_name: None,
             match_subject_temps: std::collections::HashMap::new(),
             expression_match_captures: Vec::new(),
-            current_state_parameters: Vec::new(),
-            current_state_return_type: None,
             seed: None,
         }
     }
