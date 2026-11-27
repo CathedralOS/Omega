@@ -74,7 +74,7 @@ struct CallSite<'body> {
     terminal: bool,
     required_contract: Option<semantic_vocabulary::ContractId>,
     arguments: &'body [Expression],
-    has_proof_arguments: bool,
+    proof_arguments: &'body [terminal_psi::TheoremSource],
 }
 
 pub(crate) fn index(machine: MachineId) -> usize {
@@ -131,6 +131,7 @@ fn call_graph(bodies: &IdTable<MachineId, Body>) -> Checked<(CallGraph<'_>, Comp
 pub(crate) fn components(
     bodies: &IdTable<MachineId, Body>,
     signatures: &mut IdTable<MachineId, Signature>,
+    theorems: &[terminal_psi::TheoremParameter],
 ) -> Checked<Components> {
     let (calls, mut table) = call_graph(bodies)?;
     rankings::carry(&calls, &table, signatures)?;
@@ -169,12 +170,15 @@ pub(crate) fn components(
             {
                 return unserved(Unserved::Call("recursion outside a terminal position"));
             }
-            // The loop head declares no theorem parameters. Refuse these
-            // calls before replacing them with jumps that would drop proofs.
-            if calls.calls(this).iter().any(|site| {
-                site.has_proof_arguments && table.same_component(this, index(site.callee))
-            }) {
-                return unserved(Unserved::Call("proof argument on a call cycle"));
+            // Every member's body is lowered beneath every member's heads, and
+            // a jump to a head carries no proof argument. So a theorem formal
+            // named in any member's body must mean the same implication in
+            // every member, and a call around the cycle must hand each formal
+            // on unchanged: the jump then keeps the proof the caller received.
+            // The jump still proves the callee's substituted `requires` at the
+            // head and its descent, like any other call around the cycle.
+            if let Some(reason) = cyclic_theorems(&calls, &table, this, members, theorems) {
+                return unserved(Unserved::Call(reason));
             }
             // A head's parameters carry the member's runtime formals.
             // An erased binding has no runtime lane to carry around the
@@ -657,6 +661,49 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut BodyWalk<'body,
     }
 }
 
+/// Why the cycle through `this` cannot keep its theorem formals, if it cannot.
+/// The component's members must declare the same implications in the same
+/// order, and every call between members must pass formal `k` as its `k`th
+/// proof argument. Any other supply, such as a named citation, would need the
+/// head to receive a new proof, which a jump cannot carry.
+fn cyclic_theorems(
+    calls: &CallGraph<'_>,
+    table: &Components,
+    this: usize,
+    members: &[MachineId],
+    theorems: &[terminal_psi::TheoremParameter],
+) -> Option<&'static str> {
+    let declared = |machine: MachineId| {
+        theorems
+            .iter()
+            .filter(move |row| row.machine == machine)
+            .map(|row| (row.proof_position, &row.contract))
+    };
+    let first = *members.first()?;
+    if members
+        .iter()
+        .any(|member| !declared(*member).eq(declared(first)))
+    {
+        return Some("members of a call cycle declare different theorem parameters");
+    }
+    let count = declared(first).count();
+    let forwards = |site: &CallSite<'_>| {
+        site.proof_arguments.len() == count
+            && site
+                .proof_arguments
+                .iter()
+                .enumerate()
+                .all(|(position, source)| {
+                    *source == terminal_psi::TheoremSource::Formal(position as u32)
+                })
+    };
+    calls
+        .calls(this)
+        .iter()
+        .any(|site| table.same_component(this, index(site.callee)) && !forwards(site))
+        .then_some("a call around a cycle must forward each theorem formal unchanged")
+}
+
 /// An arm's target is the one terminal position: a call there forwards its
 /// result as the machine's (`wiki/spec/language/machines.md`: "A machine
 /// call in a terminal `transition` arm forwards its normal result as the
@@ -672,7 +719,7 @@ fn call<'body>(
     callee: &'body CallTarget,
     arguments: &'body [Expression],
     required_contract: Option<semantic_vocabulary::ContractId>,
-    has_proof_arguments: bool,
+    proof_arguments: &'body [terminal_psi::TheoremSource],
     terminal: bool,
     walk: &mut BodyWalk<'body, '_>,
 ) {
@@ -693,7 +740,7 @@ fn call<'body>(
             terminal,
             required_contract,
             arguments,
-            has_proof_arguments,
+            proof_arguments,
         });
     }
 }
@@ -758,7 +805,10 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
             }
             expression(place, false, sites);
         }
-        ExpressionKind::PackedInteger { operands: elements, .. } | ExpressionKind::Array { elements } => {
+        ExpressionKind::PackedInteger {
+            operands: elements, ..
+        }
+        | ExpressionKind::Array { elements } => {
             for element in elements {
                 expression(element, false, sites);
             }
@@ -807,7 +857,9 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
                 expression(arm, terminal, sites);
             }
         }
-        ExpressionKind::TestMembership { subject, predicate, .. } => {
+        ExpressionKind::TestMembership {
+            subject, predicate, ..
+        } => {
             expression(subject, false, sites);
             expression(predicate, terminal, sites);
         }
@@ -835,7 +887,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
                 callee,
                 arguments,
                 *required_contract,
-                !proof_arguments.is_empty(),
+                proof_arguments,
                 terminal,
                 sites,
             );

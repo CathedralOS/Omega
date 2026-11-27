@@ -1178,7 +1178,11 @@ fn finish_logical_witness<'source>(
     program.prepare_domain_predicates(entry)?;
     let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let services = program.service_map(entry)?;
-    let components = prepare_call_components(&bodies, &mut program.signatures)?;
+    let components = prepare_call_components(
+        &bodies,
+        &mut program.signatures,
+        &program.theorem_parameters,
+    )?;
     let mut witness = lower_program(
         Some(entry),
         &bodies,
@@ -1409,7 +1413,11 @@ fn finish_reading_into<'source>(
                 program.application_binders(next)?
             });
         }
-        let components = prepare_call_components(&bodies, &mut program.signatures)?;
+        let components = prepare_call_components(
+            &bodies,
+            &mut program.signatures,
+            &program.theorem_parameters,
+        )?;
         program.finish_operational_envelopes(&bodies, &components)?;
         program.prepare_service_bindings(diagnostic)?;
         let more = program.prepare_calling_policies(diagnostic, calling, &mut policies)?;
@@ -1758,7 +1766,7 @@ fn lower_generic_for<'source>(
     source: Option<&'source read::Program<'source>>,
 ) -> Checked<PreparedProgram<'source>> {
     let mut machine_signatures = signatures.machines.clone();
-    let components = prepare_call_components(bodies, &mut machine_signatures)?;
+    let components = prepare_call_components(bodies, &mut machine_signatures, signatures.theorems)?;
     let signatures = body::Signatures {
         machines: &machine_signatures,
         ..signatures
@@ -1786,11 +1794,12 @@ fn lower_generic_for<'source>(
 fn prepare_call_components(
     bodies: &IdTable<MachineId, Body>,
     signatures: &mut IdTable<MachineId, Signature>,
+    theorems: &[terminal_psi::TheoremParameter],
 ) -> Checked<components::Components> {
     for (machine, body) in bodies.iter() {
         lower::operational::positions(machine, body)?;
     }
-    components::components(bodies, signatures)
+    components::components(bodies, signatures, theorems)
 }
 
 fn lower_program<'source>(
@@ -1953,7 +1962,9 @@ fn lower_program_with_parallel<'source>(
         bodies,
         signatures,
         requirements,
-        declarations.map_or(&[][..], |source| source.non_returning_requirements.as_slice()),
+        declarations.map_or(&[][..], |source| {
+            source.non_returning_requirements.as_slice()
+        }),
         callables,
         local_summaries
             .as_ref()
@@ -2634,7 +2645,7 @@ mod publication_scope_tests {
         });
         let lower = |publication| {
             let mut signatures = signatures.clone();
-            let components = prepare_call_components(&bodies, &mut signatures).unwrap();
+            let components = prepare_call_components(&bodies, &mut signatures, &[]).unwrap();
             lower_program(
                 Some(entry),
                 &bodies,

@@ -3,9 +3,9 @@
 
 use super::{Program, span};
 use crate::body::{Ceiling, CrashCeiling, Qualification, ValueType};
-use crate::{Unserved, refuse};
 use crate::source_state::domain::ProofFact;
 use crate::source_state::signature::{SignatureContractKind, StateSignature};
+use crate::{Unserved, refuse};
 use semantic_vocabulary::{MachineId, ScalarType, ValueId};
 use std::fmt::Write;
 use terminal_check_tables::{Checked, Construct};
@@ -50,24 +50,27 @@ impl Program<'_> {
                 ));
             }
         }
-        let selection = argument
-            .authored_selection
-            .and_then(|occurrence| typed.authored_declaration_selections().get(occurrence))
-            .ok_or_else(|| unavailable("proof citation has no exact authored selection"))?;
-        if selection.kind()
-            != crate::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
-        {
-            return Err(unavailable("proof citation has another authored role"));
-        }
+        // A proof formal is a binder of the caller's own header, not a
+        // declaration selected by name, so resolution records no selection
+        // for it. Its binder identifies it exactly; a recorded selection must
+        // still name that binder.
         if typed.proof_parameter_contract(argument.symbol).is_some() {
-            if selection
-                .target()
-                .as_resolved()
-                .is_none_or(|selected| selected.selected_symbol() != argument.symbol)
-            {
-                return Err(unavailable(
-                    "forwarded theorem selection names another parameter",
-                ));
+            if let Some(occurrence) = argument.authored_selection {
+                let selection = typed
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| unavailable("proof citation has no exact authored selection"))?;
+                if selection.kind()
+                    != crate::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
+                    || selection
+                        .target()
+                        .as_resolved()
+                        .is_none_or(|selected| selected.selected_symbol() != argument.symbol)
+                {
+                    return Err(unavailable(
+                        "forwarded theorem selection names another parameter",
+                    ));
+                }
             }
             let mut formals = self
                 .theorem_parameters
@@ -88,6 +91,15 @@ impl Program<'_> {
                 ));
             }
             return Ok(terminal_psi::TheoremSource::Formal(position));
+        }
+        let selection = argument
+            .authored_selection
+            .and_then(|occurrence| typed.authored_declaration_selections().get(occurrence))
+            .ok_or_else(|| unavailable("proof citation has no exact authored selection"))?;
+        if selection.kind()
+            != crate::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
+        {
+            return Err(unavailable("proof citation has another authored role"));
         }
         self.static_argument_selections(id, argument)?;
         let target = self.entered_machine(argument.symbol).ok_or_else(|| {

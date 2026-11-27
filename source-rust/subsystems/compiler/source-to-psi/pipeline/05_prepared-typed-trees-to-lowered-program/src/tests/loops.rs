@@ -611,9 +611,7 @@ fn ranking_observations_keep_the_selected_arithmetic_policy() {
     *policy = Some(crate::body::Policy::Wrapping);
     **right = integer(0);
     let mut declared = signature(vec![u32_type()], Some(u32_type()));
-    declared.ranking = Some(crate::body::Ranking::without_range(vec![
-        observation,
-    ]));
+    declared.ranking = Some(crate::body::Ranking::without_range(vec![observation]));
     let lowered = elaborate(vec![countdown(declared)]).expect("the canonical measure lowers");
     let machine = &lowered.module.machines[0];
     let Some(terminal_psi::TerminalRankedScc::Natural(cycles)) = &machine.ranked_scc else {
@@ -672,7 +670,9 @@ fn a_tail_cycle_cannot_discard_a_supplied_theorem() {
         terminal_check_tables::RefusalReason::Unsupported
     );
     assert!(
-        refusal.detail.contains("proof argument on a call cycle"),
+        refusal
+            .detail
+            .contains("a call around a cycle must forward each theorem formal unchanged"),
         "{refusal:?}"
     );
 }

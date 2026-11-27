@@ -268,3 +268,110 @@ fn decoding_preserves_the_recorded_judgment_and_leaves_proof_checking_to_the_val
         "{error:?}"
     );
 }
+
+const RECURSIVE: &str = include_str!("fixtures/proofs/positive/recursive_forwarding/main.omg");
+
+#[test]
+fn a_recursive_call_forwards_its_theorem_through_the_cycle() {
+    let program = Program::of(RECURSIVE);
+    let verdict = program.judged(|elaboration| {
+        assert!(
+            !elaboration.module.proofs.theorem_applications.is_empty(),
+            "Step(n) stays a real logical application inside the loop"
+        );
+    });
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_recursive_call_cannot_hand_the_cycle_another_proof() {
+    let source = RECURSIVE.replace(
+        "false -> walk::<Step>(n - 1u8)",
+        "false -> walk::<nonzero_is_positive>(n - 1u8)",
+    );
+    assert_ne!(source, RECURSIVE);
+    let refusal = format!(
+        "{:?}",
+        Program::try_of(&[("product/main.omg", &source)]).err()
+    );
+    assert!(
+        refusal.contains("a call around a cycle must forward each theorem formal unchanged"),
+        "{refusal}"
+    );
+}
+
+#[test]
+fn a_recursive_call_still_owes_its_substituted_premise() {
+    // With `n == 200`, the step from one reaches `walk(0)`.
+    let source = RECURSIVE.replace("transition n == 1u8", "transition n == 200u8");
+    assert_ne!(source, RECURSIVE);
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(
+        format!("{verdict:?}").contains("ArrivalInvariant"),
+        "the jump to the loop head must prove `n != 0`: {verdict:?}"
+    );
+}
+
+#[test]
+fn a_recursive_call_still_owes_its_descent() {
+    let source = RECURSIVE.replace("walk::<Step>(n - 1u8)", "walk::<Step>(n)");
+    assert_ne!(source, RECURSIVE);
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(
+        format!("{verdict:?}").contains("removing strict rank edges leaves a control cycle"),
+        "{verdict:?}"
+    );
+}
+
+const RELAY: &str = "machine relay<Inner: NonzeroIsPositive>(n: u8)
+requires n != 0u8
+{
+    use_step::<Inner>(n);
+}
+
+machine entry() -> u8 {
+    relay::<nonzero_is_positive>(7u8);";
+
+#[test]
+fn a_theorem_formal_forwards_to_another_theorem_parameter() {
+    let source = ORIGINAL.replace(
+        "machine entry() -> u8 {\n    use_step::<nonzero_is_positive>(7u8);",
+        RELAY,
+    );
+    assert_ne!(source, ORIGINAL);
+    let verdict = Program::of(&source).judged(|elaboration| {
+        assert!(
+            elaboration
+                .module
+                .proofs
+                .theorem_citations
+                .iter()
+                .any(|row| matches!(row.source, terminal_psi::TheoremSource::Formal(0))),
+            "the relay hands on its own formal, not a new citation"
+        );
+    });
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_forwarded_formal_must_state_the_same_implication() {
+    // `relay`'s formal promises `n > 0` only for `n == 7`, which cannot
+    // stand in for `use_step`'s alias over every nonzero `n`.
+    let source = ORIGINAL
+        .replace(
+            "machine entry() -> u8 {\n    use_step::<nonzero_is_positive>(7u8);",
+            &RELAY
+                .replace("<Inner: NonzeroIsPositive>", "<Inner: OnlySeven>")
+                .replace("relay::<nonzero_is_positive>", "relay::<only_seven>"),
+        )
+        .replace(
+            "machine only_seven",
+            "data OnlySeven = machine(n: u8)\n    requires n == 7u8\n    ensures n > 0u8;\n\nmachine only_seven",
+        );
+    assert_ne!(source, ORIGINAL);
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(
+        format!("{verdict:?}").contains("forwarded theorem has another complete implication"),
+        "{verdict:?}"
+    );
+}
