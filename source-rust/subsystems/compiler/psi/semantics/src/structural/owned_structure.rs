@@ -80,7 +80,9 @@ pub fn validate_claim_transfers<'held, 'rows>(
 }
 
 pub(crate) mod complete_claims;
-pub use complete_claims::{ClaimTypes, validate_complete_claim_frontier};
+pub use complete_claims::{
+    ClaimDeclarations, ClaimRoster, ClaimTypes, validate_complete_claim_frontier,
+};
 
 /// An unbounded parameter may contain linear claims even when its carrier
 /// bound is affine. Keep that unknown packet as one whole-value debt; this

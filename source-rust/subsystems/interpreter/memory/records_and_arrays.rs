@@ -442,12 +442,7 @@ pub(crate) mod record {
             {
                 let invalid = || TerminalInterpretError::ClaimTransferMismatch;
                 let types = self.structural_types();
-                let claim_types = terminal_semantics::owned_structure::ClaimTypes::new(
-                    types.values(),
-                )
-                .map_err(|reason| {
-                    TerminalInterpretError::VerifiedOperationContractInvalid { reason }
-                })?;
+                let claim_types = self.claim_types();
                 let nominal_root = match result.claims.as_slice() {
                     [binding]
                         if origin == ResultClaimOrigin::Construction

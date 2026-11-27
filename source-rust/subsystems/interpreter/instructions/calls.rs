@@ -912,7 +912,84 @@ pub(crate) mod frames {
                 catalogs: Arc::new(crate::embedding::program::ProgramStorage::Fixture(module)),
                 target_layouts: None,
                 scalar_geometry: None,
+                preparation: Default::default(),
             })
+        }
+
+        /// Preparation judges every vacant local of a borrowed program before
+        /// its first operation runs, even one execution would never reach.
+        #[test]
+        fn preparation_refuses_a_vacant_local_before_any_operation_runs() {
+            use semantic_vocabulary::{OperationId, PlaceId};
+            use terminal_psi::{
+                Operation, OperationKind, OperationResult, StructuralOperationResult,
+                StructuralRecordStorage, StructuralTypeDeclaration, StructuralTypeShape,
+            };
+
+            let start = |structural_type: u64, duplicate: bool| {
+                let mut program = empty_program();
+                let module = Arc::get_mut(&mut program).unwrap().fixture_module_mut();
+                let declaration = StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    id: StructuralTypeId::new(1).unwrap(),
+                    identity: Default::default(),
+                    owns_linear_claim: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                    shape: StructuralTypeShape::Record {
+                        storage: StructuralRecordStorage::Packed,
+                        fields: Vec::new(),
+                    },
+                };
+                if duplicate {
+                    module.types.structural_types.push(declaration.clone());
+                }
+                module.types.structural_types.push(declaration);
+                // An unreachable block: preparation reads it, dispatch never does.
+                let mut unreachable = module.machines[0].blocks[0].clone();
+                unreachable.id = BlockId::new(2).unwrap();
+                unreachable.operations.push(Operation::unsuspended(
+                    OperationId::new(1).unwrap(),
+                    OperationResult::Structural(StructuralOperationResult {
+                        place: PlaceId::new(1).unwrap(),
+                        structural_type: StructuralTypeId::new(structural_type).unwrap(),
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    OperationKind::EstablishStructuralLocal {},
+                ));
+                module.machines[0].blocks.push(unreachable);
+                TerminalExecution::start_with_program(
+                    program,
+                    &[],
+                    crate::TerminalStructuralInputs::default(),
+                    None,
+                    None,
+                )
+                .map(|_| ())
+            };
+            start(1, false).unwrap();
+            assert!(matches!(
+                start(9, false),
+                Err(TerminalInterpretError::ProgramPreparationRefused {
+                    reason: "structural local has no declared storage type"
+                })
+            ));
+            assert!(matches!(
+                start(1, true),
+                Err(TerminalInterpretError::ProgramPreparationRefused {
+                    reason: "claim type roster repeats a declaration identity"
+                })
+            ));
         }
 
         #[test]

@@ -977,12 +977,8 @@ impl TerminalExecution<'_> {
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => EstablishStructuralLocal {});
+        // Preparation checked this result against the selected type catalog.
         let result = operation.result.structural().ok_or(malformed())?;
-        terminal_semantics::validate_vacant_structural_local(
-            self.structural_types().values(),
-            result,
-        )
-        .map_err(|reason| TerminalInterpretError::VerifiedOperationContractInvalid { reason })?;
         if self.result_place_in_use(result.place) {
             return Err(malformed());
         }

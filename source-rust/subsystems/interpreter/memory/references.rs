@@ -995,9 +995,8 @@ pub(crate) mod placed {
                 {
                     return Err(malformed());
                 }
+                // Preparation checked this view plan's content.
                 let program = std::sync::Arc::clone(&self.program);
-                terminal_semantics::validate_access_view_content(&program.catalogs, plan)
-                    .map_err(TerminalInterpretError::ContentTransformationMismatch)?;
                 let terminal_semantics::AccessResultContract::View {
                     result: declared,
                     ready,

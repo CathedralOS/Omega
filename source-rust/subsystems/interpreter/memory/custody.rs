@@ -24,10 +24,7 @@ pub(crate) mod complete_values {
                 return Err(malformed());
             }
             let types = self.structural_types();
-            let claim_types = terminal_semantics::owned_structure::ClaimTypes::new(types.values())
-                .map_err(
-                    |reason| TerminalInterpretError::VerifiedOperationContractInvalid { reason },
-                )?;
+            let claim_types = self.claim_types();
             // A complete pattern leaves each component in the same storage.
             // Check the live component covering this projection; its ended
             // wrapper no longer supplies a whole-value claim.
@@ -520,6 +517,7 @@ pub(crate) fn require_owned_value_claims<'claims>(
         '_,
         StructuralTypeDeclaration,
     >,
+    claim_types: &terminal_semantics::owned_structure::ClaimTypes<'_>,
     live_claims: impl Iterator<Item = &'claims LiveClaim> + Clone,
     root_type: StructuralTypeId,
     argument: &StructuralArgument,
@@ -548,11 +546,8 @@ pub(crate) fn require_owned_value_claims<'claims>(
             "owned value claim has no exact linear multiplicity",
         ));
     }
-    let claim_types =
-        terminal_semantics::owned_structure::ClaimTypes::new(structural_types.values())
-            .map_err(refusal)?;
     terminal_semantics::owned_structure::validate_owned_claim_frontier(
-        &claim_types,
+        claim_types,
         selected,
         &argument.path,
         claims.map(|claim| claim.path.clone()),
@@ -629,6 +624,7 @@ impl crate::engine::execution::TerminalExecution<'_> {
         }
         require_owned_value_claims(
             &self.structural_types(),
+            &self.claim_types(),
             self.live_claims.values(),
             root_type,
             argument,

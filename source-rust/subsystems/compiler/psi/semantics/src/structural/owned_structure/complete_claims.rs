@@ -1,6 +1,7 @@
 use super::child_types;
 use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use terminal_psi::{
     StructuralPathSegment as Path, StructuralTypeDeclaration, StructuralTypeShape,
@@ -29,7 +30,7 @@ pub fn validate_complete_claim_frontier<'a>(
     Ok(())
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum ClaimState {
     Unknown,
     Active,
@@ -37,11 +38,34 @@ enum ClaimState {
     Present,
 }
 
-/// Claim-search scratch belongs to the declared type roster, not to
-/// the numeric range of its identities. Reuse it for queries over the
-/// same immutable declarations.
+/// Which structural types of one roster can hold a linear claim. `new`
+/// classifies a roster it collects. `prepared` reads a classification that
+/// an earlier `new` computed over the same immutable declarations, so a
+/// consumer that queries many times sorts and classifies the roster once.
 pub struct ClaimTypes<'types> {
-    declarations: Vec<&'types StructuralTypeDeclaration>,
+    rows: ClaimRows<'types>,
+    states: Cow<'types, [ClaimState]>,
+}
+
+enum ClaimRows<'types> {
+    Collected(Vec<&'types StructuralTypeDeclaration>),
+    Prepared {
+        identities: &'types [StructuralTypeId],
+        declarations: &'types dyn ClaimDeclarations,
+    },
+}
+
+/// The declarations a prepared classification was computed over, looked up
+/// by identity without collecting them again.
+pub trait ClaimDeclarations {
+    fn claim_declaration(&self, identity: StructuralTypeId)
+    -> Option<&StructuralTypeDeclaration>;
+}
+
+/// An owned classification, kept beside the declarations it describes.
+#[derive(Debug, Clone)]
+pub struct ClaimRoster {
+    identities: Vec<StructuralTypeId>,
     states: Vec<ClaimState>,
 }
 
@@ -54,58 +78,102 @@ impl<'types> ClaimTypes<'types> {
         if declarations.windows(2).any(|rows| rows[0].id == rows[1].id) {
             return Err("claim type roster repeats a declaration identity");
         }
-        let mut prepared = Self {
-            states: vec![ClaimState::Unknown; declarations.len()],
-            declarations,
-        };
-        for slot in 0..prepared.declarations.len() {
-            let identity = prepared.declarations[slot].id;
-            compute_claim(identity, &mut prepared)?;
+        let mut states = vec![ClaimState::Unknown; declarations.len()];
+        for slot in 0..declarations.len() {
+            compute_claim(declarations[slot].id, &declarations, &mut states)?;
         }
-        Ok(prepared)
+        Ok(Self {
+            rows: ClaimRows::Collected(declarations),
+            states: Cow::Owned(states),
+        })
+    }
+
+    /// Reads `roster` over `declarations`, which must be the roster `new`
+    /// classified. A lookup that no longer finds a row refuses the query.
+    pub fn prepared(
+        roster: &'types ClaimRoster,
+        declarations: &'types dyn ClaimDeclarations,
+    ) -> Self {
+        Self {
+            rows: ClaimRows::Prepared {
+                identities: &roster.identities,
+                declarations,
+            },
+            states: Cow::Borrowed(&roster.states),
+        }
+    }
+
+    pub fn roster(&self) -> ClaimRoster {
+        ClaimRoster {
+            identities: (0..self.states.len())
+                .filter_map(|slot| self.row(slot).map(|row| row.id))
+                .collect(),
+            states: self.states.to_vec(),
+        }
+    }
+
+    fn slot(&self, identity: StructuralTypeId) -> Option<usize> {
+        match &self.rows {
+            ClaimRows::Collected(rows) => rows.binary_search_by_key(&identity, |row| row.id).ok(),
+            ClaimRows::Prepared { identities, .. } => identities.binary_search(&identity).ok(),
+        }
+    }
+
+    fn row(&self, slot: usize) -> Option<&'types StructuralTypeDeclaration> {
+        match &self.rows {
+            ClaimRows::Collected(rows) => rows.get(slot).copied(),
+            ClaimRows::Prepared {
+                identities,
+                declarations,
+            } => {
+                let identity = *identities.get(slot)?;
+                declarations
+                    .claim_declaration(identity)
+                    .filter(|row| row.id == identity)
+            }
+        }
     }
 
     pub(super) fn declaration(
         &self,
         identity: StructuralTypeId,
     ) -> Option<&'types StructuralTypeDeclaration> {
-        self.declarations
-            .binary_search_by_key(&identity, |row| row.id)
-            .ok()
-            .map(|slot| self.declarations[slot])
+        self.row(self.slot(identity)?)
     }
 }
 
+/// Claim-search scratch belongs to the declared type roster, not to
+/// the numeric range of its identities.
 fn compute_claim(
     current: StructuralTypeId,
-    possible: &mut ClaimTypes<'_>,
+    declarations: &[&StructuralTypeDeclaration],
+    states: &mut [ClaimState],
 ) -> Result<bool, &'static str> {
-    let slot = possible
-        .declarations
+    let slot = declarations
         .binary_search_by_key(&current, |row| row.id)
         .map_err(|_| "complete value type is absent")?;
-    let row = possible.declarations[slot];
+    let row = declarations[slot];
     if row.owns_linear_claim || super::unknown_owned_claims(row) {
         return Ok(true);
     }
-    match possible.states[slot] {
+    match states[slot] {
         ClaimState::Present => return Ok(true),
         ClaimState::Absent => return Ok(false),
         ClaimState::Active => return Err("complete value has a cyclic by-value type"),
         ClaimState::Unknown => {}
     }
-    possible.states[slot] = ClaimState::Active;
+    states[slot] = ClaimState::Active;
     let mut found = false;
     for child in child_types(row) {
-        match compute_claim(child, possible) {
+        match compute_claim(child, declarations, states) {
             Ok(child_found) => found |= child_found,
             Err(error) => {
-                possible.states[slot] = ClaimState::Unknown;
+                states[slot] = ClaimState::Unknown;
                 return Err(error);
             }
         }
     }
-    possible.states[slot] = if found {
+    states[slot] = if found {
         ClaimState::Present
     } else {
         ClaimState::Absent
@@ -118,11 +186,11 @@ pub(crate) fn contains_claim(
     possible: &ClaimTypes<'_>,
 ) -> Result<bool, &'static str> {
     let slot = possible
-        .declarations
-        .binary_search_by_key(&current, |row| row.id)
-        .map_err(|_| "complete value type is absent")?;
-    Ok(possible.declarations[slot].owns_linear_claim
-        || super::unknown_owned_claims(possible.declarations[slot])
+        .slot(current)
+        .ok_or("complete value type is absent")?;
+    let row = possible.row(slot).ok_or("complete value type is absent")?;
+    Ok(row.owns_linear_claim
+        || super::unknown_owned_claims(row)
         || matches!(possible.states[slot], ClaimState::Present))
 }
 

@@ -998,6 +998,7 @@ pub(crate) mod capabilities {
                 )),
                 target_layouts: None,
                 scalar_geometry: None,
+                preparation: Default::default(),
             };
             set_machine(&mut program, entry, machine(1, Vec::new()));
             let boundary = BoundaryMachineId::new(1).unwrap();
@@ -2878,6 +2879,16 @@ pub(crate) mod execution {
             self.program.structural_types()
         }
 
+        /// The claim classification preparation computed for this program.
+        pub(crate) fn claim_types(&self) -> terminal_semantics::owned_structure::ClaimTypes<'_> {
+            let program: &crate::embedding::program::AdmittedTerminalProgram<'artifact> =
+                &self.program;
+            terminal_semantics::owned_structure::ClaimTypes::prepared(
+                &program.prepared().claims,
+                program,
+            )
+        }
+
         pub(crate) fn structural_declaration(
             &self,
             structural_type: StructuralTypeId,
@@ -2892,6 +2903,7 @@ pub(crate) mod execution {
             installation: Option<&TerminalRuntimeSupplies>,
             account: Option<EvaluationInvocationAccount>,
         ) -> Result<Self, TerminalInterpretError> {
+            program.prepare()?;
             let current_machine = program.resolve_entry(installation)?;
             validate_empty_erased_invocation_inputs(&program.catalogs, current_machine).map_err(
                 |reason| TerminalInterpretError::UnsuppliedErasedEntryInputs {

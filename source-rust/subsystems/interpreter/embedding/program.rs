@@ -1743,6 +1743,78 @@ pub(crate) mod program {
         pub(crate) target_layouts:
             Option<std::sync::Arc<psi_target_layouts::AdmittedTargetLayouts>>,
         pub(crate) scalar_geometry: Option<std::sync::Arc<[StructuralTypeDeclaration]>>,
+        /// Filled by `prepare` before the first operation of any execution.
+        pub(crate) preparation: std::sync::OnceLock<Result<PreparedProgram, &'static str>>,
+    }
+
+    /// Static checks and tables of one admitted program under its selected
+    /// layouts. They depend on no run-time value, so the interpreter computes
+    /// them once, before any operation runs, on every arrival route: loaded
+    /// bytes have passed the decoder's foundation validation, but borrowed
+    /// in-process modules have not.
+    pub(crate) struct PreparedProgram {
+        /// Which structural types can hold a linear claim.
+        pub(crate) claims: terminal_semantics::owned_structure::ClaimRoster,
+    }
+
+    impl AdmittedTerminalProgram<'_> {
+        /// Prepares the program once and refuses it if a static check fails,
+        /// before execution reaches any operation.
+        pub(crate) fn prepare(&self) -> Result<&PreparedProgram, TerminalInterpretError> {
+            self.preparation
+                .get_or_init(|| self.prepared_program())
+                .as_ref()
+                .map_err(|reason| TerminalInterpretError::ProgramPreparationRefused { reason })
+        }
+
+        /// Executions start only after `prepare` succeeded.
+        pub(crate) fn prepared(&self) -> &PreparedProgram {
+            match self.preparation.get() {
+                Some(Ok(prepared)) => prepared,
+                _ => unreachable!("an execution started without a prepared program"),
+            }
+        }
+
+        fn prepared_program(&self) -> Result<PreparedProgram, &'static str> {
+            let types = self.structural_types();
+            // Classifying the roster also refuses a repeated type identity,
+            // so each lookup below names at most one declaration.
+            let claims = terminal_semantics::owned_structure::ClaimTypes::new(types.values())?
+                .roster();
+            for machine in self.machines().values() {
+                for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+                    if !matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::EstablishStructuralLocal {}
+                    ) {
+                        continue;
+                    }
+                    let result = operation
+                        .result
+                        .structural()
+                        .ok_or("structural local establishment has no structural result")?;
+                    terminal_semantics::validate_vacant_structural_local(
+                        types.get(&result.structural_type),
+                        result,
+                    )?;
+                }
+            }
+            for plan in self.access_lifecycle_plans().iter().filter(|plan| {
+                plan.operation == terminal_psi::TerminalAccessLifecycleOperation::View
+            }) {
+                terminal_semantics::validate_access_view_content(&self.catalogs, plan)?;
+            }
+            Ok(PreparedProgram { claims })
+        }
+    }
+
+    impl terminal_semantics::owned_structure::ClaimDeclarations for AdmittedTerminalProgram<'_> {
+        fn claim_declaration(
+            &self,
+            identity: StructuralTypeId,
+        ) -> Option<&StructuralTypeDeclaration> {
+            self.structural_types().get(&identity)
+        }
     }
 
     pub(crate) enum ProgramStorage<'artifact> {
@@ -1832,6 +1904,8 @@ pub(crate) mod program {
     impl AdmittedTerminalProgram<'_> {
         #[cfg(test)]
         pub(crate) fn fixture_module_mut(&mut self) -> &mut TerminalModule {
+            // An edited fixture is a different program; prepare it again.
+            self.preparation = Default::default();
             let storage = std::sync::Arc::get_mut(&mut self.catalogs)
                 .expect("fixture construction requires unshared storage");
             let ProgramStorage::Fixture(module) = storage else {
@@ -2199,6 +2273,7 @@ pub(crate) mod program {
                 catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
                 target_layouts: None,
                 scalar_geometry: None,
+                preparation: Default::default(),
             }))
         }
 
@@ -2211,6 +2286,7 @@ pub(crate) mod program {
                 catalogs: std::sync::Arc::new(ProgramStorage::Borrowed(artifact)),
                 target_layouts: None,
                 scalar_geometry: None,
+                preparation: Default::default(),
             })
         }
 
@@ -2220,6 +2296,7 @@ pub(crate) mod program {
                 catalogs: std::sync::Arc::new(ProgramStorage::Retained(code)),
                 target_layouts: None,
                 scalar_geometry: None,
+                preparation: Default::default(),
             })
         }
 
@@ -2234,6 +2311,7 @@ pub(crate) mod program {
                 catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
                 target_layouts: None,
                 scalar_geometry: None,
+                preparation: Default::default(),
             }))
         }
 
@@ -2603,6 +2681,7 @@ pub(crate) mod program {
                 catalogs: std::sync::Arc::clone(&self.program.catalogs),
                 target_layouts: Some(std::sync::Arc::clone(layouts)),
                 scalar_geometry: scalars.map(|scalars| std::sync::Arc::clone(scalars.geometry())),
+                preparation: Default::default(),
             })
         }
 

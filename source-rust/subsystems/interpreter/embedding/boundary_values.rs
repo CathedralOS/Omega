@@ -665,6 +665,11 @@ pub(crate) mod errors {
         VerifiedOperationContractInvalid {
             reason: &'static str,
         },
+        /// A static check of the whole program failed while preparing it,
+        /// before any operation ran.
+        ProgramPreparationRefused {
+            reason: &'static str,
+        },
         ExecutionSite {
             machine: MachineId,
             block: BlockId,

@@ -74,6 +74,33 @@ fn claim_scratch_follows_declared_rows_with_sparse_identities() {
         )
         .is_err()
     );
+    // A prepared roster answers exactly as the classification it came from,
+    // and refuses a lookup that loses one of its rows.
+    struct Rows<'a>(&'a [StructuralTypeDeclaration]);
+    impl ClaimDeclarations for Rows<'_> {
+        fn claim_declaration(
+            &self,
+            identity: StructuralTypeId,
+        ) -> Option<&StructuralTypeDeclaration> {
+            self.0.iter().find(|row| row.id == identity)
+        }
+    }
+    let roster = types.roster();
+    let rows = Rows(&declarations);
+    let prepared = ClaimTypes::prepared(&roster, &rows);
+    assert!(!contains_claim(declarations[0].id, &prepared).unwrap());
+    assert!(contains_claim(declarations[1].id, &prepared).unwrap());
+    validate_complete_claim_frontier(
+        &prepared,
+        declarations[1].id,
+        &[],
+        paths.iter().map(Vec::as_slice),
+        &|_, _| false,
+    )
+    .unwrap();
+    let missing = Rows(&declarations[1..]);
+    let lost = ClaimTypes::prepared(&roster, &missing);
+    assert!(contains_claim(declarations[0].id, &lost).is_err());
     assert!(ClaimTypes::new([&declarations[0], &declarations[0]]).is_err());
     // Clearing the nominal root or forging a claim on the affine
     // child cannot evade the declaration checks.
