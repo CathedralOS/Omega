@@ -150,3 +150,54 @@ machine main() { let fixed: u32 = choose::<Storage::Fixed>(); }
         "{report}"
     );
 }
+
+#[test]
+fn a_selected_provider_uses_the_callers_worker_and_static_value() {
+    program::assert_fixture_silent_return(&fixture_path("run", "selected_callback"));
+}
+
+#[test]
+fn a_provider_cannot_call_the_worker_outside_its_public_contract() {
+    let source = r#"
+data Pick [copy] { case First; case Second; }
+data Allowed<T> = machine(value: T, flag: u32) -> T requires flag == 7u32 reaches none crashes none;
+data Unrestricted<T> = machine(value: T, flag: u32) -> T reaches none crashes none;
+boundary trait Dispatch {
+    machine apply<T, const Worker: Allowed<T>, const Plan: Pick>(value: T) -> T reaches none crashes none;
+}
+LocalDispatcher satisfies Dispatch {
+    machine apply<T, const Action: Unrestricted<T>, const Plan: Pick>(value: T) -> T
+    reaches none crashes none { Action(value, 1u32) }
+}
+machine main() {}
+"#;
+    let (output, report) = program::invoke(source, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(report.contains("different callback contract"), "{report}");
+}
+
+#[test]
+fn selecting_a_provider_preserves_an_explicit_empty_worker_reach() {
+    let source = r#"
+data Step<T> = machine(value: T) -> T reaches none crashes none;
+boundary trait Dispatch {
+    machine apply<T, const Worker: Step<T>>(input: T) -> T reaches none crashes none;
+}
+LocalDispatcher satisfies Dispatch {
+    machine apply<T, const Action: Step<T>>(input: T) -> T reaches none crashes none {
+        Action(input)
+    }
+}
+boundary trait Output { machine write(value: u32) reaches none crashes none; }
+machine emits(value: u32) -> u32 reaches Output invokes Output crashes none {
+    Output::write(value);
+    value
+}
+machine main() reaches Dispatch + Output invokes Dispatch crashes none {
+    let observed: u32 = Dispatch::apply::<u32, emits>(1u32);
+}
+"#;
+    let (output, report) = program::invoke(source, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(report.contains("authored service ceiling"), "{report}");
+}
