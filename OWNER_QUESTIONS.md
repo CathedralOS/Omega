@@ -65,4 +65,28 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None.
+### 1. May the selected work callback enable a maskable timer after interrupt-table publication?
+
+An x86 kernel needs to admit timer interrupts after its exception handlers and
+stacks are ready. The bundled installer checks that interrupts are masked,
+loads the new table with `lidt`, then calls `Work`. Loading the table preserves
+the mask. Both the installer and `StaticInterruptWork::run` publish
+`MachineControl + PortIo`. Enabling or restoring the interrupt mask requires
+the separate `InterruptControl` reach. The successful installation alone
+therefore establishes no point at which a maskable timer can interrupt `Work`.
+[Core declarations](source/library/core/static_interrupt.omg) ·
+[x86 install checks and publication](source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64/src/selected_form_encoding/register_access.rs)
+
+The target package already owns mask policy. Bootstrap keeps interrupts
+masked until the exception floor exists. The remaining decision is whether
+the bundled scope supports an explicit, authorized mask change by `Work`, or
+is deliberately a masked-only scope with interruptible work requiring a
+separate target-authored installation path. In the former case, let the
+selected work callback's checked reach propagate to the installer and require
+its controller authority at the operation. A work callback that leaves the
+mask alone should introduce no `InterruptControl` reach. A deadlock check can
+then use the actual enabled interval and its matching installed timer.
+[Interrupt obligations](wiki/spec/build/interrupt_obligations.md#mask-providers-and-initial-authority) ·
+[Bootstrap sequencing](wiki/spec/build/uefi_entry.md#hardware-preparation-and-reporting) ·
+[Privileged reach](wiki/spec/build/permissions.md#privileged-services) ·
+[Static callback reach](wiki/spec/language/effects.md#static-callback-reach-dependencies)
