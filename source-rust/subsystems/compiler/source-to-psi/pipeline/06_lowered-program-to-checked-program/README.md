@@ -316,7 +316,17 @@ true edge and `false` on the false edge) and per payload parameter a dispatch
 edge binds (`DispatchBinding` of that edge: the parameter equals the one
 value its payload leaf holds, when there is one, and holds each clause of
 its storage's type that a payload read at the head of the arm could state;
-see [What a dispatch binds](#what-a-dispatch-binds)). Each row's proposition
+see [What a dispatch binds](#what-a-dispatch-binds)), and per call of a
+machine whose selected operation the machine's clauses name
+(`CallCongruence`, after the call: the call's result is that operation
+applied to its arguments, from `MachineTables::applied_operations`). The
+equality discharge cites a congruence row only when nothing in the machine
+writes the places it names, a `mutable` by-value formal included, and a
+Boolean goal such as `result` or `!result` the arithmetic prover leaves open
+is retried as an Identity at `bool` when a congruence row exists
+([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
+"Changed argument values or relevant observed referent versions ...
+invalidate that reasoning"). Each row's proposition
 is in `MachineTables::propositions`. The kernel gets a row for an obligation
 only when the row's point dominates the obligation's. Requires and guarantees
 go in as assumptions and result equations as semantic axioms, which is how

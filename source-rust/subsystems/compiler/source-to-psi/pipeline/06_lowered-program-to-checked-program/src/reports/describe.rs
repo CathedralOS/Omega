@@ -581,6 +581,9 @@ pub(crate) fn premise(
                 _ => None,
             })
             .unwrap_or_else(|| String::from("a callee's guarantee")),
+        Justification::CallCongruence { .. } => {
+            String::from("the value an earlier call of the same operation returned")
+        }
         Justification::BranchCondition { .. } => String::from("an earlier branch condition"),
         Justification::ExcludedDispatchCase { .. } => {
             String::from("the dispatch observes a different case on every arrival")

@@ -150,6 +150,15 @@ pub enum Justification {
         invocation: InvocationId,
         clause: u32,
     },
+    /// What a call returns as the selected operation applied to its
+    /// unchanged arguments, on that invocation's normal continuation
+    /// (`AppliedOperation`). It is the operation's meaning, not a
+    /// guarantee the callee owes.
+    /// `wiki/spec/proofs/contracts.md`, "Equality bridges and comparison
+    /// facts": "Repeated admitted pure comparisons with the same selected
+    /// operation and exact unchanged arguments have the same Boolean
+    /// denotation."
+    CallCongruence { invocation: InvocationId },
     /// The condition of a `Conditional` terminator, holding on its true edge
     /// (`holds`) or failing on its false edge, available on that edge.
     /// `wiki/spec/language/expressions.md`: "Caller preconditions, branch
