@@ -2,7 +2,8 @@
 //! successive comparison thresholds every word takes the same branches.
 
 use super::{Observation, SpinCondition};
-use crate::synchronization::progress::ScalarFact;
+use crate::entry_values::TerminalScalarValue as Scalar;
+use crate::synchronization::{progress::ScalarFact, spin::Operand};
 use semantic_vocabulary::{IntegerValue, ScalarType};
 use std::collections::{BTreeSet, HashMap};
 use std::hash::Hash;
@@ -26,14 +27,18 @@ impl<K> Default for StableWords<K> {
 
 impl<K: Eq + Hash> StableWords<K> {
     pub(super) fn record(&mut self, home: K, node: usize, condition: SpinCondition) {
-        let Some((ty, pivot)) = ScalarFact::Literal(condition.comparison.pivot).known_integer()
+        let Some((ty, pivot)) = condition
+            .comparison
+            .pivot
+            .literal()
+            .and_then(|p| ScalarFact::Literal(p).known_integer())
         else {
             return;
         };
         // The same raw word can give different answers under different masks.
         // Partition the resulting integer for each distinct projection.
         let mask = match condition.comparison.mask {
-            Some(crate::entry_values::TerminalScalarValue::Integer { value, .. }) => Some(value),
+            Some(Operand::Literal(Scalar::Integer { value, .. })) => Some(value),
             Some(_) => return,
             None => None,
         };

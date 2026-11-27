@@ -3,6 +3,7 @@
 mod borrowed_cells;
 mod multiple_cells;
 mod provider_returns;
+mod scalar_arguments;
 mod suspending_calls;
 mod threshold_waits;
 

@@ -100,11 +100,11 @@ pub(crate) mod literal_folds {
             receipt: &StagedSelectedLoweringOptimizationCustodyReceipt,
         ) -> SelectedLoweringOptimizationCompletionIdentity {
             let mut canonical = Vec::new();
-            canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v7\0");
+            canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v8\0");
             let source = receipt.source;
             for identity in [
-                source.optimization().bytes(),
-                source.manifest().bytes(),
+                source.optimization_unit().bytes(),
+                source.selection().bytes(),
                 source.register_environment().bytes(),
                 source.allocator_availability().bytes(),
                 receipt.selections.bytes(),
@@ -112,6 +112,7 @@ pub(crate) mod literal_folds {
             ] {
                 canonical.extend_from_slice(&identity);
             }
+            canonical.extend_from_slice(&source.budget_per_pass().encode());
             canonical.extend_from_slice(&receipt.budget.encode());
             canonical.extend_from_slice(&receipt.usage.encode());
             for count in [

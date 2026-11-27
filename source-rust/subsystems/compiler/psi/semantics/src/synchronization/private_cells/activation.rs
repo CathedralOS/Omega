@@ -371,10 +371,7 @@ impl<'m> Frame<'m> {
                         match (expect, proposal) {
                             (Some(expected), _) if observed == Some(expected) => proposal.into(),
                             (Some(expected), _) if proposal == Some(expected) => return Some(()),
-                            (
-                                Some(ScalarFact::Literal(expected)),
-                                Some(ScalarFact::Literal(replacement)),
-                            ) => memory
+                            (Some(expected), Some(replacement)) => memory
                                 .get(&location)
                                 .after_update(CellUpdate::CompareExchange {
                                     expected,

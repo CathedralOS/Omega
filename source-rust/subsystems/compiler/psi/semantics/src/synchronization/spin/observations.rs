@@ -3,7 +3,7 @@
 //! once. The retry must carry the original borrowed resources to its header.
 
 mod predicate;
-use super::{Comparison, Facts, Scalar, SpinCondition, Subject, Subjects, bind, constant};
+use super::{Comparison, Facts, Operand, Scalar, SpinCondition, Subject, Subjects, bind, constant};
 use predicate::{ALWAYS, Guard, NEVER};
 pub(in super::super) use predicate::{Observation, Predicate};
 use semantic_vocabulary::{BlockId, OperationId, ValueId};
@@ -16,7 +16,8 @@ use terminal_psi::{
 #[derive(Clone, PartialEq, Eq)]
 enum Word {
     Literal(Scalar),
-    Cell(Subject, Option<Scalar>),
+    Argument(Operand),
+    Cell(Subject, Option<Operand>),
     Boolean(Guard),
 }
 
@@ -69,14 +70,22 @@ impl Analysis<'_> {
                 OperationKind::IntegerBitwiseAnd { left, right } => {
                     let left = self.words.get(left)?;
                     let right = self.words.get(right)?;
-                    match (left, right) {
-                        (Word::Cell(subject, prior), Word::Literal(mask))
-                        | (Word::Literal(mask), Word::Cell(subject, prior)) => Word::Cell(
-                            subject.clone(),
-                            Some(super::condition::masked(*mask, *prior)?),
-                        ),
-                        (Word::Literal(left), Word::Literal(right)) => {
-                            Word::Literal(super::condition::masked(*left, Some(*right))?)
+                    let operand = |word: &Word| match word {
+                        Word::Literal(value) => Some(Operand::Literal(*value)),
+                        Word::Argument(formal) => Some(*formal),
+                        _ => None,
+                    };
+                    let (word, mask) = if let Some(mask) = operand(right) {
+                        (left, mask)
+                    } else {
+                        (right, operand(left)?)
+                    };
+                    match word {
+                        Word::Cell(subject, prior) => {
+                            Word::Cell(subject.clone(), Some(mask.intersect(*prior)?))
+                        }
+                        Word::Literal(left) => {
+                            Word::Literal(super::condition::masked(*left, Some(mask.literal()?))?)
                         }
                         _ => return None,
                     }
@@ -90,8 +99,12 @@ impl Analysis<'_> {
                     let left = self.words.get(&a)?.clone();
                     let right = self.words.get(&b)?.clone();
                     let (word, pivot, order) = match (left, right) {
-                        (word, Word::Literal(pivot)) => (word, pivot, order),
-                        (Word::Literal(pivot), word) => (word, pivot, order.reverse()),
+                        (word, Word::Literal(pivot)) => (word, Operand::Literal(pivot), order),
+                        (Word::Literal(pivot), word) => {
+                            (word, Operand::Literal(pivot), order.reverse())
+                        }
+                        (word, Word::Argument(pivot)) => (word, pivot, order),
+                        (Word::Argument(pivot), word) => (word, pivot, order.reverse()),
                         _ => return None,
                     };
                     let condition = SpinCondition {
@@ -121,7 +134,7 @@ impl Analysis<'_> {
                             }
                         }
                         Word::Boolean(value) if order.is_eq() => {
-                            let Scalar::Boolean(bit) = pivot else {
+                            let Scalar::Boolean(bit) = pivot.literal()? else {
                                 return None;
                             };
                             if positive == bit { value } else { !value }
@@ -157,8 +170,10 @@ impl Analysis<'_> {
             bind(&mut self.resources.places, formal.place, subject)?;
         }
         if repeat && target == self.header {
-            if !scalars.is_empty() {
-                return None;
+            for (formal, actual) in block.parameters.iter().zip(scalars) {
+                if self.words.get(&formal.id)? != self.words.get(actual)? {
+                    return None;
+                }
             }
             self.predicate.retry = self.predicate.either(self.predicate.retry, guard);
             return Some(());
@@ -246,7 +261,7 @@ pub(super) fn derive(
         header,
         predicate: Predicate::new(),
         resources: Subjects::at_entry(machine),
-        words: Facts::default(),
+        words: Operand::formals(machine, Word::Argument),
         reached: Facts::default(),
         first_read: None,
         returned: false,

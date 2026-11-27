@@ -1772,7 +1772,11 @@ same_sign> as SameSign;` is read into the mathematical signature when
   citation, a squash by `SquashElim` and a box by `BoxElim`, both toward
   the squash goal, or else by `SquashIntro` of a proof of the
   proposition. Nothing opens a strict citation toward a relevant goal, so
-  a boxed squash never yields its witness. Tests: `tests::boxed`.
+  a boxed squash never yields its witness. Tests: `tests::boxed`. A
+  quotient's relation may be a boxed squash: its `IsMere` row is proved by
+  `QUOTIENT_BOX_PROP` at the boxed type's strict level, so the relation of a
+  mathematical quotient need not be a set's Identity. Test:
+  `a_quotient_by_a_boxed_squash_relates_its_classes`.
 - **Not done:**
   - A lifted operation is a definition only where the kernel's `lift`
     gives one (2026-11-27): one or two classes in, a class or plain data out (the

@@ -106,6 +106,60 @@ fn related_representatives_have_one_class() {
     assert_eq!(closure("related_representatives_have_one_class"), 3);
 }
 
+/// `CLASS` with its relation boxed: `close` is the boxed squash of
+/// `same_sign`, a mere proposition because any two boxes of one strict
+/// type are equal.
+fn boxed_class(requires: &str) -> String {
+    let source = proofs(CLASS)
+        .replace(
+            "SameSign satisfies",
+            "proposition close(a: Representative, b: Representative) =\n    \
+             |proof|::Box::<|proof|::Squash::<same_sign(a, b)>>;\n\nSameSign satisfies",
+        )
+        .replace("ensures same_sign(", "ensures close(")
+        .replace("IsMere(same_sign(", "IsMere(close(")
+        .replace("Representative, same_sign>", "Representative, close>")
+        .replace("% same_sign", "% close")
+        .replace("requires same_sign satisfies", "requires close satisfies")
+        .replace(
+            "requires same_sign(left, middle), same_sign(middle, right)",
+            "requires close(left, middle), close(middle, right)",
+        )
+        .replace(
+            "requires same_sign(left, right) ensures",
+            "requires close(left, right) ensures",
+        );
+    // Only the relation's own formula still names `same_sign`.
+    assert_eq!(source.matches("same_sign(").count(), 3, "{source}");
+    source.replace("requires same_sign(a, b)\n", requires)
+}
+
+#[test]
+fn a_quotient_by_a_boxed_squash_relates_its_classes() {
+    for requires in ["requires same_sign(a, b)\n", "requires close(a, b)\n"] {
+        let verdicts = judged(&boxed_class(requires));
+        let judgment = signature(&verdicts);
+        for row in [
+            "SameSign::reflexive",
+            "SameSign::symmetric",
+            "SameSign::transitive",
+            "SameSign::proofs_agree",
+            "related_representatives_have_one_class",
+        ] {
+            assert!(
+                judgment.laws.iter().any(|law| law.machine == row),
+                "the law `{row}`: {judgment:?}"
+            );
+        }
+    }
+    // Without a premise the two classes are not related.
+    let verdicts = judged(&boxed_class(""));
+    assert_eq!(
+        unproved(&verdicts).machine,
+        "related_representatives_have_one_class"
+    );
+}
+
 #[test]
 fn a_symmetry_row_that_asks_for_more_is_refused() {
     let source = proofs(WEAK_SYMMETRY);

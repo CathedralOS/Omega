@@ -73,6 +73,12 @@ pub fn private_wait_failure(
             &root_bindings,
             &mut memory,
             &arguments,
+            |index| {
+                root_bindings
+                    .values
+                    .get(&selected_entry.parameters.get(index)?.id)
+                    .copied()
+            },
             &selected_entry.requires,
             scope,
         )
@@ -248,6 +254,7 @@ fn advance<'m>(
                 &frame.bindings,
                 memory,
                 structural_arguments,
+                |index| frame.bindings.values.get(arguments.get(index)?).copied(),
                 requirements,
                 scope,
             );
