@@ -70,3 +70,31 @@ public TableRepresentation satisfies |representation|::OpaqueRepresentation<EfiS
         "{report}"
     );
 }
+
+#[test]
+fn package_review_can_name_the_complete_public_uefi_table_representation() {
+    let package = TemporaryDirectory::create("uefi-table-interface", false).unwrap();
+    let library = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../source/library");
+    fs::copy(
+        library.join("system/targets/uefi_x86_64/tables.omg"),
+        package.path().join("tables.omg"),
+    )
+    .unwrap();
+    fs::write(package.path().join("build.omg"), r#"use tables.omg;
+machine build(plan: @mutable BuildPlan) { plan.product = BuildProduct::Package { name: "firmware_tables" }; }"#).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .current_dir(package.path())
+        .env("OMEGA_LIBRARY_ROOT", &library)
+        .args([
+            "packages",
+            "audit",
+            "--offline",
+            "--target",
+            "windows_x86_64",
+        ])
+        .output()
+        .unwrap();
+    let report = String::from_utf8(output.stdout).unwrap();
+    assert!(output.status.success(), "{report}");
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+}
