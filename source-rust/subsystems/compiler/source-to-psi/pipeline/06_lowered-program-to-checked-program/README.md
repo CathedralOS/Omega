@@ -22,6 +22,11 @@ requirement can prove that the wait returns. When progress remains unproved,
 the diagnostic points to the call. A known permanently blocked call receives
 a deadlock diagnostic. [Synchronization checking](../../../psi/semantics/src/synchronization.rs)
 
+Time the synchronization judgment with
+`mbx test --release -p lowered-program-to-checked-program --lib finite_branch_timing -- --ignored --nocapture`.
+It reports the median for 8 to 256 independent branches, with and without a
+reachable private wait. Source compilation and publication happen before the timer starts.
+
 ## Find the code
 
 Start at [`judge_compilation`](src/verdict.rs) to follow the checks in order. [Publication](src/publication.rs) issues the checked program after acceptance.

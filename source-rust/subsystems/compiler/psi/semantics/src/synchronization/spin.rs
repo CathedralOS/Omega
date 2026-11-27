@@ -158,7 +158,6 @@ impl Word {
     }
 }
 
-
 pub(super) struct ForwardedWait {
     pub(super) callee: TargetMachineCallable,
     borrowed: Vec<Subject>,
@@ -703,16 +702,29 @@ pub fn spin_wait(module: &TerminalModule, machine: &TerminalMachine) -> Option<S
     spin_observation(module, machine).map(|(_, wait)| wait)
 }
 
+/// A local atomic retry both observes a cell and traverses a control cycle.
+/// Every cycle contains an edge to an equal or lower block ID, regardless of
+/// allocation order. A backwards edge alone does not establish a wait.
+pub(super) fn may_spin(machine: &TerminalMachine) -> bool {
+    machine.blocks.iter().any(|block| {
+        block
+            .terminator
+            .successor_edges()
+            .iter()
+            .any(|(_, target)| *target <= block.id)
+    }) && machine.operations().any(|op| {
+        matches!(op.kind, OperationKind::AtomicAccess { event, .. }
+            if !matches!(event, AtomicAccessEvent::Store { .. }))
+    })
+}
+
 /// The operation belongs to this defining body; only the resource predicate
 /// is substituted into another machine or published provider.
 pub(super) fn spin_observation(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Option<(OperationId, SpinWait)> {
-    if !machine
-        .operations()
-        .any(|op| matches!(op.kind, OperationKind::AtomicAccess { .. }))
-    {
+    if !may_spin(machine) {
         return None;
     }
     single_cell_wait(module, machine)
