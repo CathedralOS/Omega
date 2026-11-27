@@ -266,3 +266,17 @@ stage_error_display!(
     OptimizedPostAllocationMachinePipelineError,
     "optimized post-allocation machine staging failed"
 );
+
+impl OptimizedPostAllocationMachinePipelineError {
+    /// The selected optimization that this target has no implementation of, when that is
+    /// why staging failed.
+    pub fn unimplemented_optimization(&self) -> Option<optimization_core::Optimization> {
+        match self {
+            Self::Optimization(
+                PostAllocationMachineOptimizationError::NoExecutor { optimization }
+                | PostAllocationMachineOptimizationError::TargetMismatch { optimization, .. },
+            ) => Some(*optimization),
+            _ => None,
+        }
+    }
+}

@@ -20,6 +20,7 @@ struct CallableCustody {
     code: terminal_codec::RetainedTerminalCode,
     coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
     observation: crate::driver::observations::NativePipelineObservation,
+    architecture: target::Architecture,
 }
 
 pub(super) type CallablePhysicalProduct = CallableProduct<compile_body::PreparedPhysicalBody>;
@@ -27,11 +28,14 @@ pub(super) type BoundCallable = CallableProduct<compile_body::BoundPhysicalBody>
 pub(super) type EncodedCallable = CallableProduct<compile_body::EncodedBody>;
 pub(super) type LaidOutCallable = CallableProduct<compile_body::LaidOutBody>;
 
-fn callable_error(error: BodyEmissionError) -> Vec<Diagnostic> {
+fn callable_error(architecture: target::Architecture, error: BodyEmissionError) -> Vec<Diagnostic> {
     match error {
-        BodyEmissionError::Physical(error) => {
-            realization_error("callable physical pipeline", error)
-        }
+        BodyEmissionError::Physical(error) => match error.unimplemented_optimization() {
+            Some(optimization) => {
+                compile_body::unimplemented_optimization(optimization, architecture)
+            }
+            None => realization_error("callable physical pipeline", error),
+        },
         BodyEmissionError::Installation(reason) => {
             realization_error("callable installation binding", reason)
         }
@@ -50,19 +54,21 @@ pub(super) fn prepare_callable_physical(
         target: optimized_target,
         observation,
     } = prepared;
+    let architecture = optimized_target.execution_plan().plan().target.architecture;
     let body = compile_body::prepare_physical_body(
         optimized_target,
         execution,
         requirements,
         &observation,
     )
-    .map_err(callable_error)?;
+    .map_err(|error| callable_error(architecture, error))?;
     Ok(CallableProduct {
         body,
         custody: CallableCustody {
             code,
             coverage,
             observation,
+            architecture,
         },
     })
 }
@@ -81,7 +87,7 @@ impl CallablePhysicalProduct {
 impl BoundCallable {
     pub(super) fn encode(self) -> Result<EncodedCallable, Vec<Diagnostic>> {
         let body = compile_body::encode_physical_body(self.body, &self.custody.observation)
-            .map_err(callable_error)?;
+            .map_err(|error| callable_error(self.custody.architecture, error))?;
         Ok(CallableProduct {
             body,
             custody: self.custody,
@@ -92,7 +98,7 @@ impl BoundCallable {
 impl EncodedCallable {
     pub(super) fn layout(self) -> Result<LaidOutCallable, Vec<Diagnostic>> {
         let body = compile_body::layout_encoded_body(self.body, &self.custody.observation)
-            .map_err(callable_error)?;
+            .map_err(|error| callable_error(self.custody.architecture, error))?;
         Ok(CallableProduct {
             body,
             custody: self.custody,
@@ -106,11 +112,13 @@ impl LaidOutCallable {
             code,
             coverage,
             observation,
+            architecture,
         } = self.custody;
         let compile_body::BodyObject {
             projection,
             originals,
-        } = compile_body::construct_body_object(self.body).map_err(callable_error)?;
+        } = compile_body::construct_body_object(self.body)
+            .map_err(|error| callable_error(architecture, error))?;
         let physical_original = native_artifact::PrivatePhysicalOriginal::new(
             projection.object().psi(),
             code,
