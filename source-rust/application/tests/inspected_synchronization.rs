@@ -96,3 +96,68 @@ fn an_exclusive_input_can_defer_only_bytes_its_supplier_has_preserved() {
         "{report}"
     );
 }
+
+#[test]
+fn authorizing_an_inspected_artifact_still_checks_its_raw_execution_entry() {
+    use std::sync::Arc;
+    use terminal_interpreter::{
+        TerminalArtifactInterpretError, TerminalExecution, TerminalStructuralInputs,
+        TerminalStructuralValue,
+    };
+
+    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "omega-raw-wait-entry",
+        false,
+    )
+    .unwrap();
+    let output = scratch.path().join("supplier.psi");
+    let (inspect, report) = program::invoke(
+        SOURCE,
+        &[
+            "psi",
+            "inspect",
+            "--machine",
+            "supplied",
+            "--output",
+            output.to_str().unwrap(),
+        ],
+    );
+    assert!(inspect.status.success(), "{report}");
+    let artifact =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&std::fs::read(output).unwrap())
+            .unwrap();
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) =
+        artifact.semantic_module().entry
+    else {
+        panic!("expected supplied as the artifact entry")
+    };
+    let signal = artifact
+        .semantic_module()
+        .machine(entry)
+        .unwrap()
+        .structural_parameters[0]
+        .structural_type;
+    let authorized = psi_authorization::authorize_terminal_artifact(
+        Arc::new(artifact),
+        Some(&psi_authorization::HostProducerTrust::accept(
+            "test compiler",
+        )),
+    )
+    .unwrap();
+    let signal = TerminalStructuralValue::minted(1, signal, Vec::new());
+    let inputs = TerminalStructuralInputs {
+        arguments: std::slice::from_ref(&signal),
+        zero_initialized_arguments: &[0],
+        ..Default::default()
+    };
+    match TerminalExecution::start_artifact(&authorized, &[], inputs) {
+        Err(TerminalArtifactInterpretError::Synchronization(failure)) => {
+            assert_eq!(
+                failure.cause,
+                terminal_semantics::synchronization::ProgressFailure::UnprovedExternal
+            );
+        }
+        Err(error) => panic!("raw entry lost its synchronization diagnosis: {error}"),
+        Ok(_) => panic!("borrowed wait reached raw execution without a discharge"),
+    }
+}

@@ -701,7 +701,7 @@ pub(crate) mod errors {
     pub use psi_provider_selections::ProviderInstallationError;
 
     #[derive(Debug)]
-    pub enum TerminalArtifactInterpretError {
+    pub enum TerminalArtifactInterpretError {        Synchronization(psi_provider_selections::PrivateWaitFailure),
         ArtifactDecode(terminal_codec::CanonicalTerminalArtifactError),
         SemanticDecode(terminal_codec::CodecError),
         Execution(TerminalInterpretError),
@@ -709,6 +709,9 @@ pub(crate) mod errors {
 
     impl std::fmt::Display for TerminalArtifactInterpretError {
         fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            if let Self::Synchronization(failure) = self {
+                return failure.fmt(formatter);
+            }
             write!(formatter, "{self:?}")
         }
     }
