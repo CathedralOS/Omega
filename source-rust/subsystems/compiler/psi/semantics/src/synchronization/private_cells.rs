@@ -2,13 +2,15 @@
 //! arguments identify the same allocation across checked calls and jumps.
 
 mod activation;
+mod control;
 mod storage;
 
-use super::facts::Facts;
+use super::progress::{PrivateWaitFailure, ProgressFailure, ScalarFact, entry_scalars};
 use super::selected::Summaries;
 use super::spin::SpinWait;
 use crate::entry_values::TerminalScalarValue as Scalar;
 use activation::{Bindings, Destination, Frame};
+use control::{Execution, Frontier};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use storage::{Storage, Stored};
 use terminal_psi::{
@@ -25,6 +27,15 @@ pub fn stuck_private_wait(
     entry: MachineId,
     boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
 ) -> Option<(MachineId, OperationId)> {
+    let failure = private_wait_failure(module, entry, boundary)?;
+    (failure.cause == ProgressFailure::Deadlock).then_some((failure.machine, failure.operation))
+}
+
+pub fn private_wait_failure(
+    module: &TerminalModule,
+    entry: MachineId,
+    boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+) -> Option<PrivateWaitFailure> {
     if !module.types.structural_types.iter().any(|ty| {
         matches!(ty.shape, terminal_psi::StructuralTypeShape::AtomicCell(_))
             || ty
@@ -34,46 +45,92 @@ pub fn stuck_private_wait(
     }) {
         return None;
     }
-    let mut stack = vec![Frame::enter(
-        module.machine(entry)?,
-        Bindings::default(),
-        Destination::Unit,
-    )?];
-    let mut memory = Storage::default();
-    let mut seen = Facts::default();
+    let selected_entry = module.machine(entry)?;
+    let root_bindings = Bindings {
+        values: entry_scalars(selected_entry),
+        ..Default::default()
+    };
+    if crate::inhabitation::predicates_are_false_with(&selected_entry.requires, |value| {
+        root_bindings.values.get(&value)?.known_integer()
+    }) {
+        return None;
+    }
+    let entry = Frame::enter(selected_entry, root_bindings, Destination::Unit)?;
+    let mut paths = Frontier::default();
+    paths.queue(Execution {
+        stack: vec![entry],
+        memory: Storage::default(),
+        coverage: Default::default(),
+    });
     let mut summaries = Summaries::default();
-    while let Some(frame) = stack.last_mut() {
-        if frame.position == 0
-            && frame.cleanup_cursor == 0
-            && seen
-                .insert((frame.machine.id, frame.block.id), ())
-                .is_some()
-        {
-            return None;
+    let mut unproved = None;
+    while let Some(mut path) = paths.next() {
+        match advance(
+            module,
+            &boundary,
+            &mut summaries,
+            &mut path,
+            &selected_entry.requires,
+        ) {
+            Some(Advance::Continue) => paths.queue(path),
+            Some(Advance::Fork) => {
+                let other = path.fork()?;
+                paths.queue(other);
+                paths.queue(path);
+            }
+            Some(Advance::Blocked(failure)) if failure.cause == ProgressFailure::Deadlock => {
+                return Some(failure);
+            }
+            Some(Advance::Blocked(failure)) => {
+                unproved.get_or_insert(failure);
+            }
+            None => {}
         }
+    }
+    unproved
+}
+
+enum Advance {
+    Continue,
+    Fork,
+    Blocked(PrivateWaitFailure),
+}
+
+fn advance<'m>(
+    module: &'m TerminalModule,
+    boundary: &impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+    summaries: &mut Summaries,
+    path: &mut Execution<'m>,
+    requirements: &[semantic_vocabulary::Proposition],
+) -> Option<Advance> {
+    let certain = path.certain();
+    let memory = &mut path.memory;
+    let stack = &mut path.stack;
+    while let Some(frame) = stack.last_mut() {
         if let Some(op) = frame.block.operations.get(frame.position) {
             frame.position += 1;
-            if op.suspension_crossing.is_some() {
-                return None;
-            }
             let Some(call) = op.declared_invocation() else {
-                frame.step(module, op, &mut memory)?;
+                frame.step(module, op, memory)?;
                 continue;
             };
             let spin = match call.callee {
                 TargetMachineCallable::Machine(id) => {
-                    if let Some(summary) = summaries.get(module, id, &boundary) {
+                    if let Some(summary) = summaries.get(module, id, boundary) {
                         summary
                     } else {
                         let callee = module.machine(id)?;
                         let args = frame.bindings.arguments(
-                            &mut memory,
+                            memory,
                             &callee.parameters,
                             &callee.structural_parameters,
                             call.arguments,
                             call.structural_arguments,
                         )?;
-                        stack.push(Frame::enter(callee, args, Destination::of(op))?);
+                        let return_to = Destination::of(op);
+                        if stack.iter().any(|active| active.machine.id == id) {
+                            return None;
+                        }
+                        stack.push(Frame::enter(callee, args, return_to)?);
                         continue;
                     }
                 }
@@ -85,18 +142,36 @@ pub fn stuck_private_wait(
             }
             let base = memory.locate(&frame.bindings.places, actual.place, &actual.path)?;
             let location = memory.project(base, &spin.path)?;
-            let value = memory
+            let mut all_block = true;
+            let mut can_block = false;
+            let mut observe = |initial| {
+                let failure = spin.while_value.failure(initial, spin.writes, requirements);
+                all_block &= failure == Some(ProgressFailure::Deadlock);
+                can_block |= failure.is_some();
+            };
+            if memory
                 .get(&location)
-                .scalar(spin.while_value.value.scalar_type())?;
-            if spin.while_value.matches(value)
-                && spin
-                    .writes
-                    .is_none_or(|next| spin.while_value.matches(next))
+                .visit_scalars(spin.while_value.value.scalar_type(), |value| {
+                    observe(Some(value))
+                })
+                .is_none()
             {
-                return Some((frame.machine.id, op.id));
+                observe(None);
+            }
+            if can_block {
+                let cause = if all_block && certain {
+                    ProgressFailure::Deadlock
+                } else {
+                    ProgressFailure::Unproved
+                };
+                return Some(Advance::Blocked(PrivateWaitFailure {
+                    machine: frame.machine.id,
+                    operation: op.id,
+                    cause,
+                }));
             }
             if let Some(value) = spin.writes {
-                memory.set(&location, Stored::Scalar(value));
+                memory.set(&location, Stored::Scalar(ScalarFact::Literal(value)));
             }
             continue;
         }
@@ -116,10 +191,20 @@ pub fn stuck_private_wait(
                 when_true,
                 when_false,
             } => {
-                let Scalar::Boolean(test) = frame.bindings.values.get(condition)? else {
-                    return None;
+                let answer = match frame.bindings.values.get(condition) {
+                    Some(ScalarFact::Literal(Scalar::Boolean(value))) => *value,
+                    _ => match frame.selected_arm {
+                        Some(value) => {
+                            frame
+                                .bindings
+                                .values
+                                .insert(*condition, ScalarFact::Literal(Scalar::Boolean(value)));
+                            value
+                        }
+                        None => return Some(Advance::Fork),
+                    },
                 };
-                let edge = if *test { when_true } else { when_false };
+                let edge = if answer { when_true } else { when_false };
                 (
                     Some((edge.target, &edge.arguments, &edge.structural_arguments)),
                     &edge.cleanup_actions,
@@ -141,19 +226,22 @@ pub fn stuck_private_wait(
             if let TerminalAffineCleanupAction::InvokeOwned(invocation) = action {
                 let callee = module.machine(invocation.cleanup_machine)?;
                 let args = frame.bindings.arguments(
-                    &mut memory,
+                    memory,
                     &callee.parameters,
                     &callee.structural_parameters,
                     &[],
                     std::slice::from_ref(&invocation.subject),
                 )?;
+                if stack.iter().any(|active| active.machine.id == callee.id) {
+                    return None;
+                }
                 stack.push(Frame::enter(callee, args, Destination::Unit)?);
             }
             continue;
         }
         if let Some((target, scalars, places)) = successor {
-            frame.jump(target, scalars, places, &mut memory)?;
-            continue;
+            frame.jump(target, scalars, places, memory)?;
+            return Some(Advance::Continue);
         }
         let frame = stack.pop()?;
         if let Some(caller) = stack.last_mut() {
@@ -171,6 +259,7 @@ pub fn stuck_private_wait(
                 }
                 _ => return None,
             }
+            return Some(Advance::Continue);
         }
     }
     None

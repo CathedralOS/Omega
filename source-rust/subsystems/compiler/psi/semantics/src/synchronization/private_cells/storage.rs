@@ -1,105 +1,46 @@
 //! Known contents of activation-local storage. A by-value copy gets a new
 //! home. References inside the copy still select the original allocation.
 
+mod contents;
+
 use super::super::facts::Facts;
-use crate::entry_values::TerminalScalarValue as Scalar;
-use semantic_vocabulary::{PlaceId, ScalarType};
-use std::sync::Arc;
+pub(super) use contents::Stored;
+use semantic_vocabulary::PlaceId;
+use std::cell::Cell;
+use std::rc::Rc;
 use terminal_psi::StructuralPathSegment as Segment;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct Location {
     allocation: usize,
     path: Vec<Segment>,
 }
 
 #[derive(Clone, Default)]
-pub(super) enum Stored {
-    Zero,
-    Scalar(Scalar),
-    Reference(Location),
-    Aggregate(Arc<Aggregate>),
-    #[default]
-    Unknown,
+pub(super) struct Storage {
+    next_allocation: Rc<Cell<usize>>,
+    contents: Rc<Facts<usize, Stored>>,
 }
-
-#[derive(Clone)]
-pub(super) struct Aggregate {
-    zeroed: bool,
-    fields: Vec<(Segment, Stored)>,
-}
-
-impl Stored {
-    fn field(&self, key: &Segment) -> &Self {
-        match self {
-            Self::Zero => &Self::Zero,
-            Self::Aggregate(record) => record
-                .fields
-                .iter()
-                .find(|(field, _)| field == key)
-                .map(|(_, value)| value)
-                .unwrap_or(if record.zeroed {
-                    &Self::Zero
-                } else {
-                    &Self::Unknown
-                }),
-            _ => &Self::Unknown,
-        }
-    }
-
-    /// Shared copies retain one description until the corresponding field
-    /// is written. Nesting a record never expands all possible element paths.
-    fn field_mut(&mut self, key: &Segment) -> &mut Self {
-        if !matches!(self, Self::Aggregate(_)) {
-            *self = Self::Aggregate(Arc::new(Aggregate {
-                zeroed: matches!(self, Self::Zero),
-                fields: Vec::new(),
-            }));
-        }
-        let Self::Aggregate(record) = self else {
-            unreachable!()
-        };
-        let record = Arc::make_mut(record);
-        let index = match record.fields.iter().position(|(field, _)| field == key) {
-            Some(index) => index,
-            None => {
-                let index = record.fields.len();
-                record.fields.push((
-                    key.clone(),
-                    if record.zeroed {
-                        Self::Zero
-                    } else {
-                        Self::Unknown
-                    },
-                ));
-                index
-            }
-        };
-        &mut record.fields[index].1
-    }
-
-    pub(super) fn scalar(&self, ty: ScalarType) -> Option<Scalar> {
-        match self {
-            Self::Zero => Scalar::zero(ty),
-            Self::Scalar(value) if value.scalar_type() == ty => Some(*value),
-            _ => None,
-        }
-    }
-}
-
-impl From<Option<Scalar>> for Stored {
-    fn from(value: Option<Scalar>) -> Self {
-        value.map_or(Self::Unknown, Self::Scalar)
-    }
-}
-
-#[derive(Default)]
-pub(super) struct Storage(Vec<Stored>);
 
 impl Storage {
+    pub(super) fn join(&mut self, other: &Self) {
+        if Rc::ptr_eq(&self.contents, &other.contents) {
+            return;
+        }
+        Rc::make_mut(&mut self.contents).retain(|location, value| {
+            if let Some(incoming) = other.contents.get(location) {
+                value.join(incoming);
+                true
+            } else {
+                false
+            }
+        });
+    }
+
     pub(super) fn allocate(&mut self, contents: Stored) -> Location {
-        let allocation = self.0.len();
-        self.0.push(contents);
+        let allocation = self.next_allocation.get();
+        self.next_allocation.set(allocation + 1);
+        Rc::make_mut(&mut self.contents).insert(allocation, contents);
         Location {
             allocation,
             path: Vec::new(),
@@ -132,7 +73,10 @@ impl Storage {
     }
 
     pub(super) fn get(&self, location: &Location) -> &Stored {
-        let mut value = &self.0[location.allocation];
+        let mut value = self
+            .contents
+            .get(&location.allocation)
+            .unwrap_or(&Stored::Unknown);
         for field in &location.path {
             value = value.field(field);
         }
@@ -140,7 +84,8 @@ impl Storage {
     }
 
     pub(super) fn set(&mut self, location: &Location, new: Stored) {
-        let mut value = &mut self.0[location.allocation];
+        let mut value = Rc::make_mut(&mut self.contents)
+            .get_or_insert_with(location.allocation, Stored::default);
         for field in &location.path {
             value = value.field_mut(field);
         }

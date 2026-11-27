@@ -2,21 +2,22 @@
 //! operations that can affect the private cells or the control leading to a wait.
 
 use super::super::facts::Facts;
+use super::super::progress::ScalarFact;
 use super::super::spin::constant;
 use super::storage::{Location, Storage, Stored};
-use crate::entry_values::TerminalScalarValue as Scalar;
-use semantic_vocabulary::{BlockId, IntegerValue, PlaceId, ScalarType, ValueId};
+use semantic_vocabulary::{BlockId, PlaceId, ValueId};
 use std::cell::OnceCell;
+use std::rc::Rc;
 use terminal_psi::{
     AtomicAccessEvent, Block, Operation, OperationKind, StructuralAccess, StructuralArgument,
     StructuralParameterDeclaration, StructuralPathSegment, TerminalMachine, TerminalModule,
     ValueDeclaration,
 };
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(super) struct Bindings {
     pub(super) places: Facts<PlaceId, Location>,
-    pub(super) values: Facts<ValueId, Scalar>,
+    pub(super) values: Facts<ValueId, ScalarFact>,
 }
 
 impl Bindings {
@@ -78,6 +79,7 @@ fn field_location(
     memory.project(base, &[StructuralPathSegment::Field(field.identity)])
 }
 
+#[derive(Clone, Copy)]
 pub(super) enum Destination {
     Unit,
     Scalar(ValueId),
@@ -94,13 +96,16 @@ impl Destination {
     }
 }
 
+#[derive(Clone)]
 pub(super) struct Frame<'m> {
     pub(super) machine: &'m TerminalMachine,
     pub(super) block: &'m Block,
     pub(super) position: usize,
     pub(super) cleanup_cursor: usize,
+    pub(super) selected_arm: Option<bool>,
+    visited: Facts<BlockId, ()>,
     pub(super) bindings: Bindings,
-    scalar_types: OnceCell<crate::MachineScalarIndex<'m>>,
+    scalar_types: Rc<OnceCell<crate::MachineScalarIndex<'m>>>,
     pub(super) return_to: Destination,
 }
 
@@ -115,9 +120,11 @@ impl<'m> Frame<'m> {
             block: machine.block(&machine.entry)?,
             position: 0,
             cleanup_cursor: 0,
+            selected_arm: None,
+            visited: Facts::default(),
             bindings,
             return_to,
-            scalar_types: OnceCell::new(),
+            scalar_types: Rc::default(),
         })
     }
     pub(super) fn step(
@@ -128,7 +135,9 @@ impl<'m> Frame<'m> {
     ) -> Option<()> {
         let bindings = &mut self.bindings;
         if let Some(value) = constant(op) {
-            bindings.values.insert(op.result.scalar()?.id, value);
+            bindings
+                .values
+                .insert(op.result.scalar()?.id, ScalarFact::Literal(value));
             return Some(());
         }
         match &op.kind {
@@ -293,31 +302,17 @@ impl<'m> Frame<'m> {
                 let crate::ScalarConstantOrigin::Computed(term) = origin else {
                     return None;
                 };
-                let known =
-                    crate::inhabitation::known_scalar_value_with(&term, |id| {
-                        match bindings.values.get(&id)? {
-                            Scalar::Boolean(v) => {
-                                Some((ScalarType::Boolean, IntegerValue::Unsigned(u128::from(*v))))
-                            }
-                            Scalar::Integer { scalar_type, value } => {
-                                Some((ScalarType::Integer(*scalar_type), *value))
-                            }
-                            _ => None,
-                        }
-                    });
-                match known {
-                    Some((ScalarType::Boolean, IntegerValue::Unsigned(v))) => {
-                        bindings.values.insert(result.id, Scalar::Boolean(v == 1));
-                    }
-                    Some((ScalarType::Integer(scalar_type), value)) => {
-                        bindings
-                            .values
-                            .insert(result.id, Scalar::Integer { scalar_type, value });
-                    }
-                    _ if crate::goal_free_scalar_leaf_semantics(op, types)
-                        .ok()?
-                        .is_some() => {}
-                    _ => return None,
+                let known = crate::inhabitation::known_scalar_value_with(&term, |id| {
+                    bindings.values.get(&id)?.known_integer()
+                });
+                if let Some(fact) = known.and_then(|(ty, bits)| ScalarFact::from_integer(ty, bits))
+                {
+                    bindings.values.insert(result.id, fact);
+                } else if crate::goal_free_scalar_leaf_semantics(op, types)
+                    .ok()?
+                    .is_none()
+                {
+                    return None;
                 }
             }
         }
@@ -331,6 +326,9 @@ impl<'m> Frame<'m> {
         places: &[StructuralArgument],
         memory: &mut Storage,
     ) -> Option<()> {
+        if target == self.machine.entry || self.visited.insert(target, ()).is_some() {
+            return None;
+        }
         let block = self.machine.block(&target)?;
         let binding = self.bindings.arguments(
             memory,
@@ -350,6 +348,7 @@ impl<'m> Frame<'m> {
         self.block = block;
         self.position = 0;
         self.cleanup_cursor = 0;
+        self.selected_arm = None;
         Some(())
     }
 }
