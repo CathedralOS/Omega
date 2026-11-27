@@ -133,6 +133,7 @@ fn calls_with(argument: u128) -> (crate::lowering::Elaboration, Discharge) {
         ranking: None,
     };
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: Vec::new(),
         statements: vec![returns(call(2, vec![unsigned(argument)]))],
     });
@@ -149,6 +150,7 @@ fn calls_with(argument: u128) -> (crate::lowering::Elaboration, Discharge) {
         )
     };
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![
             Statement::Arm {

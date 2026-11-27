@@ -458,10 +458,12 @@ fn a_fixed_input_boundary_does_not_receive_its_callers_stronger_fact() {
 fn a_private_call_without_normal_return_still_owes_its_inferred_input() {
     let mut bodies = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
     });
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![
             Statement::discard(strict(Strict::Subtract, slot(0, u32_type()), unsigned(1))),
@@ -507,6 +509,7 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
     // the Unit-result call operation, which owes the inferred input too.
     let mut bodies = IdTable::default();
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![Statement::discard(expression(
             ExpressionKind::Call {
@@ -522,6 +525,7 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
         ))],
     });
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![u32_type().into()],
         statements: vec![Statement::discard(strict(
             Strict::Subtract,

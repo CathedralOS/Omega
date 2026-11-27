@@ -3,6 +3,7 @@
 //! about concurrent interrupt delivery or native retry-loop timing.
 
 use super::*;
+use super::build_purpose::execute_unit as execute;
 
 const WAKE: &str = r#"
 // A timer interrupt records an observation and wakes ordinary kernel code.
@@ -111,26 +112,6 @@ machine build_entry() crashes Trap {
 #[test]
 fn timer_wake_preserves_prior_bits_coalescing_and_neighbor_guards() {
     execute(WAKE);
-}
-
-fn execute(source: &str) {
-    let verdict = super::build_purpose::judge_build(source).unwrap();
-    let RouteVerdict::Accepted(accepted) = verdict else {
-        panic!("{verdict:?}");
-    };
-    let publication = accepted.publish_invocation().unwrap();
-    let program =
-        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
-    let mut instance = program.instantiate(Default::default()).unwrap();
-    let status = instance
-        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
-        .unwrap();
-    assert_eq!(
-        status,
-        terminal_interpreter::TerminalExecutionStatus::Complete(
-            terminal_interpreter::TerminalExecutionResult::Unit
-        )
-    );
 }
 
 #[test]

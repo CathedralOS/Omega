@@ -3,11 +3,7 @@ Physical authority observations over the shared canonical synchronous closure.
 
 `AuthorityGraph` pairs `terminal_semantics::synchronous_calls::SynchronousCallGraph` with
 native-owned physical mechanism observations (`PortWrite`, register/descriptor
-operations, and admitted static-interrupt `Scope` installations). When a
-reachable machine carries checked assembly whose catalog applicability rejects
-the realized target profile, `reachable_authority_edges` names the retained
-source declaration and required catalog architecture so diagnostics point
-directly at the offending machine body.
+operations, and admitted static-interrupt `Scope` installations).
 */
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -129,51 +125,6 @@ impl<'a> AuthorityGraph<'a> {
                 let function = self.functions.get(&machine).ok_or_else(|| {
                     format!("reachable internal call names absent machine {machine:?}")
                 })?;
-                let requirement = terminal_machine.assembly_target_requirement;
-                if !requirement.accepts_target_name(self.target_profile.target_name()) {
-                    let declared = terminal_machine
-                        .declaration
-                        .as_ref()
-                        .and_then(|declaration| {
-                            self.input
-                                .module()
-                                .identities
-                                .text(declaration.machine.identity())
-                        })
-                        .map_or_else(|| format!("{machine:?}"), |name| format!("`{name}`"));
-                    let architecture = assembly_catalog_architecture(requirement);
-                    return Err(format!(
-                        "reachable machine {declared} carries checked assembly whose catalog requires {architecture}, which the realized target `{}` does not provide; scope that assembly to a target the catalog admits for {architecture}, or build a target that provides it",
-                        self.target_profile.target_name(),
-                    ));
-                }
-                // Packed integer operations come only from x86-64 checked asm
-                // instructions, and only x86-64 selection realizes them.
-                if !RegisterTargetApplicability::X86_64
-                    .accepts_target_name(self.target_profile.target_name())
-                    && function.operations().any(|operation| {
-                        matches!(
-                            operation,
-                            AbstractOperation::PackedIntegerUnary { .. }
-                                | AbstractOperation::PackedIntegerBinary { .. }
-                        )
-                    })
-                {
-                    let declared = terminal_machine
-                        .declaration
-                        .as_ref()
-                        .and_then(|declaration| {
-                            self.input
-                                .module()
-                                .identities
-                                .text(declaration.machine.identity())
-                        })
-                        .map_or_else(|| format!("{machine:?}"), |name| format!("`{name}`"));
-                    return Err(format!(
-                        "reachable machine {declared} uses packed integer asm instructions, which only x86_64 implements; target `{}` has no packed integer instructions yet, so build for an x86_64 target",
-                        self.target_profile.target_name(),
-                    ));
-                }
                 for operation in function.operations() {
                     if self.installed_scopes.is_some()
                         && let AbstractOperation::BoundaryCall {
@@ -270,9 +221,9 @@ impl<'a> AuthorityGraph<'a> {
                                     target::Architecture::X86_64
                                 )
                             ) {
-                                let architecture = assembly_catalog_architecture(
-                                    register_operation.target_applicability(),
-                                );
+                                let architecture = register_operation
+                                    .target_applicability()
+                                    .architecture_name();
                                 return Err(format!(
                                     "reachable machine {machine:?} uses {architecture} register access outside its target profile `{}`",
                                     self.target_profile.target_name(),
@@ -311,14 +262,6 @@ impl<'a> AuthorityGraph<'a> {
             boundaries,
             checked_operations: checked_operations.into_values().collect(),
         })
-    }
-}
-
-fn assembly_catalog_architecture(requirement: RegisterTargetApplicability) -> &'static str {
-    match requirement {
-        RegisterTargetApplicability::X86_64 => "x86_64",
-        RegisterTargetApplicability::Aarch64 => "aarch64",
-        RegisterTargetApplicability::Any => "any",
     }
 }
 

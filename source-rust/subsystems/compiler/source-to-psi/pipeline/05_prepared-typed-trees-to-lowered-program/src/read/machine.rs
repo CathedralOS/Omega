@@ -1742,11 +1742,6 @@ impl<'t> Program<'t> {
         if machine.lexical_region_origin.is_some() {
             return unserved("lexical region origin");
         }
-        if machine.assembly_target_requirement
-            != language_core::inline_assembly::AsmTargetApplicability::Any
-        {
-            return unserved("assembly target");
-        }
         // A token spelling associates this ordinary declaration with a source
         // operator occurrence. Typing prepares its unique closed selection as
         // a call, retaining the authored choice and ordered operands. The
@@ -4718,6 +4713,7 @@ impl<'t> Program<'t> {
         // A requirement has no statement to read: its formals and nothing.
         if self.requirements.contains(&id) {
             return Ok(Body {
+                assembly_target_requirement: Default::default(),
                 slots: signature.parameters,
                 statements: Vec::new(),
             });
@@ -4729,6 +4725,7 @@ impl<'t> Program<'t> {
             let theorem = self.family_theorem(id, machine, state)?;
             self.family_theorems.push((id, theorem));
             return Ok(Body {
+                assembly_target_requirement: Default::default(),
                 slots: signature.parameters,
                 statements: Vec::new(),
             });
@@ -4739,6 +4736,7 @@ impl<'t> Program<'t> {
         // (`families`), so there is no body to read here.
         if self.is_family_theorem(machine) {
             return Ok(Body {
+                assembly_target_requirement: Default::default(),
                 slots: signature.parameters,
                 statements: Vec::new(),
             });
@@ -4751,6 +4749,7 @@ impl<'t> Program<'t> {
         {
             self.lifted_operations.push((id, lifted));
             return Ok(Body {
+                assembly_target_requirement: Default::default(),
                 slots: signature.parameters,
                 statements: Vec::new(),
             });
@@ -5076,6 +5075,7 @@ impl<'t> Program<'t> {
         }
         self.admitted_bodies.include(machine.symbol);
         Ok(Body {
+            assembly_target_requirement: machine.assembly_target_requirement,
             slots: slots.iter().map(|slot| slot.value_type).collect(),
             statements: body,
         })

@@ -7,13 +7,14 @@ rules in [Ownership and lifetime](../../spec/build/embedding.md#ownership-and-li
 and [Closing and failure](../../spec/build/embedding.md#closing-and-failure). It
 was made on `main` after #6468.
 
-**Verdict: containment now covers discard; untrusted execution still needs its
-route.** Every route that runs Psi still requires the host's trust in the exact
-artifact and producer. Execution of a trusted artifact is contained for denied
-host access, forged handles, stale access, work exhaustion and faults, and a
-faulted, stopped or waiting guest can now be discarded under the four-step
-sequence (see [Discard](#discard)). What remains before untrusted execution
-opens is listed under [Before an untrusted route](#before-an-untrusted-route).
+**Verdict: untrusted interpretation is open through the embedding.** A host
+can admit an artifact without producer trust and run it on the interpreter
+under bindings that enforce what they rely on (see
+[Contained interpretation](#contained-interpretation)). Every other route still
+requires the host's trust in the exact artifact and producer, and native
+lowering never accepts the contained admission. A faulted, stopped or waiting
+guest can be discarded under the four-step sequence (see [Discard](#discard)).
+What is still open is listed under [Remaining](#remaining).
 
 ## Routes into execution
 
@@ -24,6 +25,7 @@ opens is listed under [Before an untrusted route](#before-an-untrusted-route).
 | Embedding: `TerminalProgram::admit`, `retain_authorized`, `TerminalExecution::start_artifact` | Each takes `&AuthorizedTerminalArtifact`. `borrow` and `retain` refuse received code. Only `authorize_terminal_artifact` makes an executable copy. | `received_artifacts_execute_only_with_host_trust_in_their_exact_bytes`, `only_authorization_records_host_acceptance` |
 | Runtime host: `HostedTerminalProgram::prepare`, component preparation | Refuses an unauthorized received artifact with `InvalidProvision`. | `interpreter/host/src/execution.rs`, `execution/components.rs` |
 | Native lowering | Requires `AuthorizedTerminalArtifact`. | `psi-to-native` driver inputs |
+| Contained interpretation: `TerminalProgram::admit_contained`, `TerminalRuntimeContainment` | Takes `&ContainedTerminalArtifact` from `admit_contained_interpretation`, without producer trust. See [Contained interpretation](#contained-interpretation). | `a_contained_guest_needs_an_account_and_contained_adapters`, `an_untrusted_artifact_runs_only_with_containable_grants` |
 
 Authorization replays the checker's execution-only judgments
 (`prepare_received_execution`) and charges them to the same load budget, so a
@@ -52,7 +54,7 @@ is `TerminalInstance::discard`.
 | Step | How it holds | Evidence |
 | --- | --- | --- |
 | Prevent resumption and new guest-originated host calls | A discarded instance refuses every `invoke` with `TerminalInstanceError::Discarded` and refuses new bindings. Adapters are reached only to cancel and settle. | `a_late_completion_after_discard_settles_without_resuming_the_guest`, `a_discarded_paused_instance_never_resumes` |
-| Request cancellation | The waiting call's adapter gets `TerminalEffectHandler::request_effect_cancellation`. A request releases nothing unless the provider confirms it. A pending component invocation discards its provider instance the same way. | `a_confirmed_cancellation_settles_the_discard_at_once` |
+| Request cancellation | The waiting call's adapter gets `TerminalEffectHandler::request_effect_cancellation`. A request releases nothing unless the provider confirms it. A pending component invocation discards its provider instance the same way. | `a_confirmed_cancellation_settles_the_discard_at_once`, `discarding_a_consumer_mid_call_settles_its_component_providers_host_operation` |
 | Reclaim only disposable interpreter storage | The execution is dropped except for the waiting call, which keeps its argument buffers and any provider homes they name. | `an_uncooperative_provider_keeps_its_storage_retained_and_charged` (the rest of the guest's charge is released) |
 | Retain provider-held storage; consume late completions | Each later `discard` calls `settle_abandoned_effect`. Settlement never handles the effect or resumes the guest. Storage the provider reports retained is charged to the invocation account until it settles, and `close` is `Busy` until then. A provider refusal settles nothing. | `a_late_completion_after_discard_settles_without_resuming_the_guest`, `an_uncooperative_provider_keeps_its_storage_retained_and_charged`, `a_faulted_guest_keeps_its_provider_operation_until_it_settles` |
 | Unreaped native provider | Dropping a `NativeProviderProcess` that cannot be reaped moves its process, session and homes to its thread's quarantine instead of releasing them. `native_provider_quarantine` reports the retained bytes, and `settle_native_provider_quarantine` releases an incarnation only after reaping it. The runtime host settles it before starting a new provider. | `an_unreaped_provider_keeps_its_homes_retained_until_it_is_reaped` |
@@ -61,17 +63,32 @@ The settlement defaults suit a polling adapter: with no contract of its own, an
 adapter has settled when it reports the readiness and completion that
 resumption would have consumed.
 
-## Before an untrusted route
+## Contained interpretation
 
-1. **An admission route without producer trust.** The spec allows untrusted
-   interpretation only through a containment-audited interpreter and host
-   bindings. No API admits a received artifact for interpretation without
-   `AuthorizedTerminalArtifact`, and such a route must still refuse native
-   lowering and fact-driven optimization.
-2. **Per-binding review.** Each host binding offered to untrusted execution must
-   enforce its permissions, limits and custody dynamically or be unavailable,
-   and should give an accurate cancellation and settlement answer when its
-   operations can outlive a poll.
-3. **A waiting component.** Discarding a pending component invocation reuses the
-   instance discard, but no test parks a component provider on a host
-   operation yet.
+| Rule | How it holds | Evidence |
+| --- | --- | --- |
+| Admission without producer trust | `psi_authorization::admit_contained_interpretation` replays the same execution-only judgments under the artifact's load budget and returns a `ContainedTerminalArtifact`. Its inner artifact still reports `requires_host_trust`, so `TerminalProgram::borrow`, `retain` and native verification refuse it. Only the authorization crate may call the codec's hook. | `contained_admission_grants_interpretation_without_producer_trust`, `only_authorization_records_host_acceptance` |
+| No native lowering or fact-driven optimization | Native lowering and optimization take `AuthorizedTerminalArtifact`, which contained admission never makes. | `psi-to-native` driver inputs |
+| Bounded storage | A contained program instantiates only with an `EvaluationInvocationAccount`. | `a_contained_guest_needs_an_account_and_contained_adapters` |
+| Bindings enforce dynamically or are unavailable | `TerminalInstance::bind_import` refuses an adapter whose `serves_contained_execution` is false (`UncontainedAdapter`), and component bindings are refused. | `a_contained_guest_needs_an_account_and_contained_adapters` |
+| Runtime host grants | `TerminalRuntimeContainment` runs the named contained artifact under its account. It needs output limits and refuses native providers, native services and filesystem delegation. | `an_untrusted_artifact_runs_only_with_containable_grants` |
+
+The runtime host's bindings, reviewed one by one:
+
+| Binding | Contained | Why |
+| --- | --- | --- |
+| Numeric, absolute value, affine transform, integer division, integer parsing, network address, descriptor mode | Yes | Safe Rust over copied values and invocation-private state. Nothing outlives the call or reaches the host. |
+| Buffered output | With output limits | Output reaches only the invocation's capped buffers. |
+| Descriptor I/O | Without filesystem delegation, with output limits | Finite replay input and capped private output. Delegated descriptors reach the host kernel. |
+| Clock | Snapshot, or live time under a granted wait ceiling | Snapshot time is private and modeled. `TerminalClockEnvironment::HostWithin` refuses any wait past what remains of its ceiling before it sleeps; unbounded `Host` time does not serve. `a_live_wait_ceiling_refuses_waits_past_what_remains` |
+| Allocation emulation | Yes, charged to the invocation account | Each `calloc` reserves one cell and its bytes on the contained guest's account, and returns null when the account cannot cover it. `free` returns the bytes; the cell stays because addresses never recycle. `a_charged_ledger_bounds_live_allocation_by_its_account` |
+| Linux filesystem, filesystem delegation | No | Kernel calls on the host's namespace. |
+| Native provider | No | Runs foreign native code. |
+
+## Remaining
+
+1. **A command-line route.** `omega run` names only the trusted route.
+   [Owner question 4](../../../OWNER_QUESTIONS.md#untrusted-psi-run-flag) asks
+   whether to add one.
+2. **Wider bindings.** Filesystem delegation and native providers stay
+   unavailable to contained execution.

@@ -5868,6 +5868,7 @@ mod tests {
         });
         let mut bodies = IdTable::default();
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![plain, wrapping, plain, plain],
             statements: vec![
                 Statement::Declare {
@@ -5931,6 +5932,7 @@ mod tests {
         });
         signatures.push(signatures.get(machine).unwrap().clone());
         bodies.push(Body {
+            assembly_target_requirement: Default::default(),
             slots: vec![plain],
             statements: vec![Statement::Arm {
                 guard: ArmGuard::Always,

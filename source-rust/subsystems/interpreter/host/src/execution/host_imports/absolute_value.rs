@@ -122,7 +122,9 @@ impl AbsoluteValueImport {
     }
 }
 
-import_signature_via_clone!(AbsoluteValueImport);
+// Safe Rust over copied scalars and captured storage: nothing it touches
+// outlives the call or reaches the host.
+import_signature_via_clone!(AbsoluteValueImport, contained: |_adapter| true);
 
 impl TerminalEffectHandler for AbsoluteValueImport {
     fn storage_requirements(

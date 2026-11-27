@@ -39,7 +39,7 @@ pub mod embedding {
 }
 pub use execution::{
     ObservedFiles, TerminalClockEnvironment, TerminalClockSnapshot, TerminalDomainExitDelegation,
-    TerminalFilesystemDelegation, TerminalNativeServiceDelegation, TerminalOutputLimits, TerminalRuntimeError,
+    TerminalFilesystemDelegation, TerminalNativeServiceDelegation, TerminalOutputLimits, TerminalRuntimeContainment, TerminalRuntimeError,
     TerminalRuntimeObservation, TerminalRuntimeRequest, capture_host_x86_flags, execute,
     execute_sliced,
 };

@@ -184,7 +184,9 @@ impl IntegerParsingImport {
     }
 }
 
-import_signature_via_clone!(IntegerParsingImport);
+// Safe Rust over copied scalars and captured storage: nothing it touches
+// outlives the call or reaches the host.
+import_signature_via_clone!(IntegerParsingImport, contained: |_adapter| true);
 
 impl TerminalEffectHandler for IntegerParsingImport {
     fn storage_requirements(

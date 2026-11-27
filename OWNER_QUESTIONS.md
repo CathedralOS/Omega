@@ -65,4 +65,186 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None currently recorded.
+<a id="equality-bridge-binding"></a>
+### 1. How should the two `==`/`Identity` bridge traits name the comparison they are about?
+
+The ratified explicit-identity design asks for two separately selectable
+evidence traits, comparison-implies-identity and identity-implies-comparison,
+"not optional `Equatable` members". The evidence "must bind the exact
+comparison row selected at the use, including its generic application", and
+"merely naming another conformance for the same carrier does not connect
+their equality implementations". None of these says how a trait declaration
+names that row, and `core/equality.omg` declares only `Equatable<T>`.
+[Core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition) ·
+[Equality bridges](wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts) ·
+[Complete row identity](wiki/spec/language/conformances.md#complete-row-identity) ·
+[Implementation sequence, step 3](wiki/drafts/designs/explicit_identity.md#implementation-sequence)
+
+Today a clause may state a user comparison (`requires a == b` reads as the
+selected row's `equals`), and a repeated comparison is congruent with it.
+Nothing lets `a == b` license substituting `a` for `b`, or `Identity(a, b)`
+establish `a == b`. The design's acceptance list needs both: integer records
+support both bridges, case-insensitive text supports only identity-implies-
+comparison, and an always-true comparison supports neither. Synthesized
+bridges for compiler-generated equality wait on the same answer. One fact
+constrains every option, observed in the checker: a clause can apply only an
+operation that promises `reaches none crashes none terminates`, and
+`Equatable::equals` promises none of them. A satisfier's own `equals` must
+say so, as it already must for `==` in a clause.
+
+- **Option A (inherit, recommended):** `EqualImpliesIdentity<T>: Equatable<T>`
+  and `IdentityImpliesEqual<T>: Equatable<T>`, each with one law over the
+  inherited `equals`, for example
+  `machine identity_of_equal(left: T, right: T) requires equals(@left, @right) ensures |proof|::Identity::<T>(left, right);`.
+  One implementation such as `CoinByValue satisfies EqualImpliesIdentity<Coin>`
+  supplies both the comparison and the law, so the law is about exactly the
+  row `==` selects. Inheritance keeps the row's identity
+  ([complete row identity](wiki/spec/language/conformances.md#complete-row-identity)).
+  A combined trait can inherit both. The checker would accept the law's
+  clause over the inherited `equals` because every satisfier's row must be
+  total, checked at the conformance.
+- **Option B (parameter):** `EqualImpliesIdentity<T, Comparison satisfies Equatable<T>>`,
+  as `PrivateCallbackSlot` names its `Layout`. The bridge is a second
+  implementation naming the comparison implementation explicitly, so one type
+  can carry bridges for several comparisons. It costs a second block per
+  type, and clause reading of a comparison named by a type parameter, which
+  the checker refuses today.
+
+Work waiting on the answer: the two traits in `core/equality.omg`, their
+checking and use in stage 05 and stage 06, synthesized bridges from component
+evidence, and the migration inventory in the design. Which shape should Omega
+adopt?
+
+<a id="boxed-squash-relation-spelling"></a>
+### 2. How does source write the boxed squash of a quotient relation?
+
+Core `Real` (`source/library/core/real.omg`) is still an opaque type whose
+commutativity laws are axioms. Making it the quotient of regular Cauchy
+sequences of `Rat` needs a relation that says the samples agree at every index:
+`R(x,y) = (n: Nat) -> close(x(n), y(n), n)`. A quotient must select a
+`MereEquivalence`, so `R(x,y)` must be shown a mere proposition. For a
+dependent product that takes function extensionality, which the kernel does
+not have and the foundation forbids using silently.
+
+The relations spec already names the way out: an author "may explicitly
+select the squashed version of a proof-relevant relation, using
+`Box(Squash(R(a,b)))` to express it in relevant `Type`", and the kernel's
+`QUOTIENT_BOX_PROP` proves any boxed strict type mere with no assumption.
+[Set-quotient foundation](wiki/spec/proofs/quotients.md#set-quotient-foundation)
+
+That sentence is kernel notation. No source spelling exists for `Box`: the
+foundation import exposes only `Level`, `Type`, `Strict`, `Squash` and
+`Identity`, and `foundation.omg` declares no `Box`.
+[Importing the mathematical foundation](wiki/spec/proofs/mathematical_bindings.md#importing-the-mathematical-foundation)
+The same page mentions "the core's strict/relevant bridge where needed" for
+witness bundles, but does not say whether a source author writes that bridge
+or the checker inserts it.
+[Witnesses, existence and proof construction](wiki/spec/proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction)
+The relations spec also requires the squashed relation to be selected
+explicitly ("This is not implicit witness erasure").
+
+**Recommend a public `Box` declaration in the foundation import**, beside
+`Squash`: `|proof|::Box<S>` for a strict `S` is a relevant type, and a relation
+is written
+`proposition agree(x: Seq, y: Seq) = |proof|::Box<|proof|::Squash<close_all(x, y)>>`.
+The selection stays explicit and visible in the relation, as the relations spec
+requires, and `Box` gets the kernel's existing `BoxIntro`/`BoxElim` rules with
+no new conversion. The other choice is no source `Box`: a quotient whose
+relation is strict-valued (a `Squash`) would be boxed by the checker at
+formation. That is less to write, but the boxing is then implicit, which reads
+against "explicitly select". Which should it be?
+
+**Specification text, if adopted.** In mathematical_bindings.md, "Importing
+the mathematical foundation", change the list to "`Level`, `Type`, `Strict`,
+`Squash`, `Box`, and `Identity`" and add: "`Box<S>` is the relevant type of a
+strict `S`. Its value is introduced from a proof of `S` and eliminated into any
+motive by the core's box rules; a relation written `Box<Squash<R>>` is the
+explicitly squashed relation of
+[the set-quotient foundation](quotients.md#set-quotient-foundation)." In
+modules.md, change "five mathematical declarations" to "six".
+
+<a id="for-every-conclusion"></a>
+### 3. How does a theorem prove a for-every conclusion?
+
+The `Real` quotient's relation says two sequences agree at every index:
+`proposition agree(x: Seq, y: Seq) = (n: |nat|::Nat) -> close(x, y, n)`, a
+dependent arrow, which is a Π type.
+[Universes and mathematical function types](wiki/spec/proofs/mathematical_bindings.md#universes-and-mathematical-function-types)
+Its equivalence rows and the congruences the lifted `add` and `multiply` cite
+must conclude `agree(...)`. Each such proof holds index by index: the row for
+transitivity, for example, proves `close(x, z, n)` from the premises at `5n`.
+
+The spec fixes the premise side. A premise `agree(x, y)` is applied at the
+index a step needs, and automation may supply that elimination.
+[Mathematical values and quantification](wiki/spec/proofs/contracts.md#mathematical-values-and-quantification)
+For the conclusion side, it says how checked evidence meets a dependent
+function type only where a machine is cited in an evidence position: "introduce
+every input under its exact binder, establish the cited contract's premises,
+and check its guarantee against the expected codomain."
+[Logical hypotheses and machine use](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+A theorem whose own `ensures` is `agree(x, y)` has no index in scope: the
+binder `n` belongs to the definition of `agree`, and the body cannot name it.
+No quantifier keyword may be added, and machine calls may not be partial.
+
+**Recommend that a theorem cited as evidence may take the expected arrow's
+binders as its trailing explicit parameters.** The transitivity row is then
+written
+
+```omega
+machine transitive(x: Seq, y: Seq, z: Seq, n: |nat|::Nat)
+requires agree(x, y), agree(y, z)
+ensures close(x, z, n)
+{
+    close_through(x, y, z, n);
+}
+```
+
+and checked as the row `transitive(x, y, z) ensures agree(x, z)`: its type,
+`(x) -> (y) -> (z) -> agree(x,y) -> agree(y,z) -> (n) -> close(x,z,n)` after
+moving premises ahead of `n`, is the row's type once `agree` is unfolded. The
+index is an ordinary header parameter, so the body cites lemmas at `n` with
+no new scope rule, and the rule is the existing evidence elaboration applied
+to rows and to `Quotient::lift` congruences, which are already evidence
+positions. The other choice is an implicit introduction: a theorem that
+concludes `agree(x, z)` is checked under a fresh index named by the arrow's
+binder, and its body may name `n`. That keeps the row's written shape but lets
+a body name a binder declared in another definition. Which should it be?
+
+**Specification text, if adopted.** In mathematical_bindings.md, "Logical
+hypotheses and machine use", after "check its guarantee against the expected
+codomain", add: "A cited theorem may take the binders of an expected
+dependent arrow as its trailing explicit parameters, in order, after the
+parameters the expected type binds before its premises. Its guarantee is
+checked against the arrow's codomain under those parameters. This applies to
+conformance rows and to every other evidence position; it is not a partial
+call, since the citation supplies evidence and never runs the theorem."
+
+<a id="untrusted-psi-run-flag"></a>
+### 4. Should `omega run` accept a Psi artifact the host does not trust, and under what flag?
+
+The admission contract makes an untrusted artifact runnable only through a
+containment-audited interpreter and host bindings, and the command line names
+only the trusted route.
+[Publication and separate consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption) ·
+[Loading and preparation](wiki/spec/build/embedding.md#loading-and-preparation) ·
+[Command line](wiki/spec/build/command_line.md)
+
+The embedding now has that route.
+`psi_authorization::admit_contained_interpretation` admits an artifact without
+producer trust, `TerminalProgram::admit_contained` runs it, and the runtime
+host's `TerminalRuntimeContainment` runs it under a storage account and output
+limits. It refuses native providers, native services, filesystem delegation,
+components and live time, and native lowering never accepts it.
+[Containment audit](wiki/drafts/designs/psi_containment_audit.md#contained-interpretation) ·
+[Runtime host](source-rust/subsystems/interpreter/host/src/execution.rs)
+
+`omega run --trusted-artifact <manifest-id>` is the only CLI form, so a user
+cannot run an untrusted artifact without writing an embedding.
+- **Option A (add a flag):** add
+  `omega run --engine psi --untrusted-artifact [--max-psi-input-bytes <bytes>] <program.psi>`.
+  It runs on the contained route with default work, storage and output limits,
+  and refuses `--engine native`.
+- **Option B (embedding only):** keep the CLI trusted-only. Untrusted
+  interpretation stays an embedding capability that a host opts into in code.
+
+Should the command line expose untrusted interpretation?

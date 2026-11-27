@@ -67,6 +67,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         output_limits: None,
         standard_input: None,
         clock: None,
+        containment: None,
     };
     // Debug sections leave semantic code intact but change the canonical
     // manifest. Neither a retained runtime plan nor an image inspection can

@@ -398,17 +398,40 @@ public machine main() crashes Trap {{
     }
 }
 
-// Only x86-64 implements packed integer instructions. Another target refuses
-// the build by naming the machine and the missing target support.
+// A Build check and a native build both use the assembly catalog target of
+// the SIMD library machine reached by main.
 #[test]
-fn packed_instructions_refuse_arm64_native_builds_clearly() {
+fn packed_instruction_catalog_target_applies_to_checks_and_native_builds() {
     let scratch = project(false);
-    let (output, report) =
-        observations::run(&scratch, &["--target", "linux_arm64"], &["build.omg"]);
-    assert!(!output.status.success(), "{report}");
+    let build = scratch.path().join("build.omg");
+    let source = fs::read_to_string(&build).unwrap();
+    // Each invocation checks all the rows the Build binds. Select one entry
+    // row at a time so the successful x86 check exercises the same program.
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let build_source = source
+            .lines()
+            .filter(|line| !line.contains("Build::bind(") || line.contains(target))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&build, build_source).unwrap();
+        let (output, report) =
+            observations::run(&scratch, &["--check", "--target", target], &["build.omg"]);
+        if target == "linux_x86_64" {
+            assert!(output.status.success(), "{report}");
+            continue;
+        }
+        assert_catalog_refusal(&output, &report);
+        let (output, report) = observations::run(&scratch, &["--target", target], &["build.omg"]);
+        assert_catalog_refusal(&output, &report);
+    }
+}
+
+fn assert_catalog_refusal(output: &std::process::Output, report: &str) {
+    assert_eq!(output.status.code(), Some(1), "{report}");
     assert!(
-        report.contains("uses packed integer asm instructions, which only x86_64 implements")
-            && report.contains("target `linux_arm64` has no packed integer instructions yet"),
+        report.contains("wrapping_add")
+            && report.contains("requires x86_64")
+            && report.contains("target is `linux_arm64`"),
         "{report}"
     );
 }

@@ -374,6 +374,33 @@ impl CanonicalTerminalArtifact {
         }))
     }
 
+    /// Whether the host admitted this artifact only for contained
+    /// interpretation, without producer trust.
+    pub fn admitted_for_contained_interpretation(&self) -> bool {
+        self.semantic_module.admitted_for_contained_interpretation()
+    }
+
+    /// Records the receiving host's admission of this exact artifact for
+    /// contained interpretation, without producer trust.
+    ///
+    /// This is the authorization crate's hook: call
+    /// `psi_authorization::admit_contained_interpretation` instead. A
+    /// repository test refuses any other caller. The artifact passes the same
+    /// execution-only checks as an authorized one and still requires host
+    /// trust for every trusted route.
+    #[doc(hidden)]
+    pub fn record_contained_admission(
+        self: &std::sync::Arc<Self>,
+    ) -> Result<std::sync::Arc<Self>, CodecError> {
+        if self.admitted_for_contained_interpretation() {
+            return Ok(std::sync::Arc::clone(self));
+        }
+        Ok(std::sync::Arc::new(Self {
+            semantic_module: std::sync::Arc::new(self.semantic_module.contained_admitted()?),
+            ..Self::clone(self)
+        }))
+    }
+
     pub fn view(&self) -> TerminalArtifactView<'_> {
         TerminalArtifactView {
             closed: &self.semantic_module,
