@@ -62,16 +62,19 @@ fn a_matching_signature_does_not_bind_a_callback_to_the_requirement() {
 #[test]
 fn enum_static_arguments_retain_their_value_across_a_forwarding_call() {
     let source = r#"
-data Storage [copy] { case Fixed; case Split; }
-const split_plan: Storage = Storage::Split;
+use {omega}/language/core/task.omg;
+const split_plan: |task|::ActivationStorage = |task|::ActivationStorage::Split;
 
-machine choose<const Plan: Storage>() -> u32 {
-    match Plan { Storage::Fixed -> 1u32, Storage::Split -> 2u32 }
+machine choose<const Plan: |task|::ActivationStorage>() -> u32 {
+    match Plan {
+        |task|::ActivationStorage::Fixed -> 1u32,
+        |task|::ActivationStorage::Split -> 2u32
+    }
 }
-machine forward<const Plan: Storage>() -> u32 { choose::<Plan>() }
+machine forward<const Plan: |task|::ActivationStorage>() -> u32 { choose::<Plan>() }
 
 machine main() crashes Trap {
-    let fixed: u32 = forward::<Storage::Fixed>();
+    let fixed: u32 = forward::<|task|::ActivationStorage::Fixed>();
     let split: u32 = forward::<split_plan>();
     transition fixed == 1u32 && split == 2u32 { true -> done(), false -> wrong() }
     machine done() {}
@@ -79,6 +82,26 @@ machine main() crashes Trap {
 }
 "#;
     program::assert_silent_return(source);
+}
+
+#[test]
+fn choosing_activation_storage_alone_does_not_establish_custody() {
+    for (entry, outcome) in [("start", "Task<T>"), ("try_start", "StartOutcome<T, T>")] {
+        let source = format!(
+            r#"
+use {{omega}}/language/core/task.omg;
+machine schedule<T, machine Worker, const Plan: |task|::ActivationStorage>(job: T) -> |task|::{outcome}
+requires machine Worker(arguments: T) -> T suspends blocks;
+reaches |task|::TaskRuntime invokes |task|::TaskRuntime crashes Trap crashes Abort {{
+    |task|::TaskRuntime::{entry}::<T, T, Worker, Plan>(job)
+}}
+machine main() {{}}
+"#
+        );
+        let (output, report) = program::invoke(&source, &["--check"]);
+        assert!(!output.status.success(), "{entry}: {report}");
+        assert!(report.contains("execution custody"), "{entry}: {report}");
+    }
 }
 
 #[test]

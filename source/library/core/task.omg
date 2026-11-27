@@ -50,20 +50,23 @@ public boundary trait TaskLifecycle {
     machine finish<T>(task: Task<T>) -> TaskOutcome<T> reaches none suspends blocks crashes Trap crashes Abort;
 }
 
-// Runtime authority is a public selected boundary capability: callers invoke
-// `TaskRuntime` requirements directly and provider admission picks one realization. Public start outcomes let callers settle either
-// admitted custody or their returned arguments. These requirements give
-// `start<M>` a nominal, machine-contract-checked surface for activation-plan
-// elaboration; provider admission/dispatch remains the next runtime layer.
+// A start chooses the backing contract for this activation at compile time.
+public data ActivationStorage [copy] {
+    case Fixed;
+    case Split;
+}
+
+// Provider selection chooses the implementation. Activation admission must
+// still establish caller authority, backing and execution custody.
 public boundary trait TaskRuntime {
-    machine start<T, Arguments, machine Target>(
+    machine start<T, Arguments, machine Target, const Plan: ActivationStorage>(
         arguments: Arguments
     ) -> Task<T>
     requires machine Target(arguments: Arguments) -> T suspends blocks;
     ensures true reaches none
     crashes Trap crashes Abort;
 
-    machine try_start<T, Arguments, machine Target>(
+    machine try_start<T, Arguments, machine Target, const Plan: ActivationStorage>(
         arguments: Arguments
     ) -> StartOutcome<T, Arguments>
     requires machine Target(arguments: Arguments) -> T suspends blocks;
