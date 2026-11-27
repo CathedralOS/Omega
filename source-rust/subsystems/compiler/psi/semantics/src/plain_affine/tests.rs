@@ -1456,7 +1456,7 @@ fn owned_analysis(types: &[StructuralTypeDeclaration]) -> Analysis<'_> {
             affine: true,
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             whole_restoration: true,
-            unqualified_owned: true,
+            decomposition: Decomposition::Plain,
             parameter: false,
             exclusive: false,
         })],

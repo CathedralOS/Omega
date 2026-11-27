@@ -855,6 +855,10 @@ pub(crate) fn follow_the_lowered_form(
                     Error::Unconsumed { at_join, .. } => {
                         (RefusalReason::Violation, Error::unconsumed_message(at_join))
                     }
+                    Error::MissingActiveCase { .. } => (
+                        RefusalReason::Unsupported,
+                        Error::missing_active_case_message(),
+                    ),
                     Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, detail),
                     Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
                 };

@@ -82,6 +82,14 @@ pub enum Error {
         at_join: bool,
         site: Option<Site>,
     },
+    /// Disposing a sum or mixed component on an edge requires an active case,
+    /// which lowering can establish by branching on that sum first.
+    MissingActiveCase {
+        place: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        structural_type: StructuralTypeId,
+        site: Option<Site>,
+    },
     Unsupported {
         detail: &'static str,
         site: Option<Site>,
@@ -116,6 +124,17 @@ impl Error {
                 at_join,
                 site: site.or(Some(at)),
             },
+            Self::MissingActiveCase {
+                place,
+                path,
+                structural_type,
+                site,
+            } => Self::MissingActiveCase {
+                place,
+                path,
+                structural_type,
+                site: site.or(Some(at)),
+            },
             Self::Unsupported { detail, site } => Self::Unsupported {
                 detail,
                 site: site.or(Some(at)),
@@ -131,9 +150,14 @@ impl Error {
         match self {
             Self::Unavailable(unavailable) => Some(unavailable.site),
             Self::Unconsumed { site, .. }
+            | Self::MissingActiveCase { site, .. }
             | Self::Unsupported { site, .. }
             | Self::Malformed { site, .. } => *site,
         }
+    }
+
+    pub const fn missing_active_case_message() -> &'static str {
+        "component disposition needs an established active case"
     }
 
     /// What every consumer reports for an unconsumed linear value.
@@ -1566,10 +1590,15 @@ fn prepare_disposition(
         declaration.is_copyable()
     } else if declaration.no_code_affine_cleanup && declaration.descriptor_cleanup {
         true
-    } else if let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape {
+    } else if matches!(
+        declaration.shape,
+        StructuralTypeShape::Record { .. }
+            | StructuralTypeShape::Sum { .. }
+            | StructuralTypeShape::Mixed { .. }
+    ) {
         let mut complete = true;
         let mut nontrivial_child = false;
-        for field in fields {
+        for (_, field) in declaration.shape.fields_with_case() {
             if field.relevance.is_erased() {
                 complete = false;
                 break;
@@ -4206,9 +4235,12 @@ impl<'a> Analysis<'a> {
             .and_then(|references| {
                 references.established_case(machine, at, self.successor, &subject)
             })
-            .ok_or(Error::unsupported(
-                "component disposition needs an established active case",
-            ))?;
+            .ok_or_else(|| Error::MissingActiveCase {
+                place,
+                path: path.to_vec(),
+                structural_type,
+                site: None,
+            })?;
         let case = terminal_psi::find_structural_case(cases, selected).ok_or(Error::malformed(
             "component disposition selects an undeclared case",
         ))?;
@@ -4524,9 +4556,12 @@ impl<'a> Analysis<'a> {
         }
         let unresolved =
             || Error::unsupported("a borrowed window has no exact live backing correspondence");
-        let family = references
-            .captured_storage_family(machine, position, &location)
-            .map_err(|_| unresolved())?;
+        let Some(family) = references
+            .captured_storage_family_if_active(machine, position, &location)
+            .map_err(|_| unresolved())?
+        else {
+            return Ok(WindowBacking::Alternatives(Vec::new()));
+        };
         family
             .into_iter()
             .map(|origin| {
