@@ -1789,8 +1789,10 @@ same_sign> as SameSign;` is read into the mathematical signature when
   checks it, so a row that proves another statement, or only some indices,
   is refused. Tests: `equivalence_rows_may_prove_the_relation_at_every_index`,
   `a_row_proved_for_some_indices_only_leaves_the_rest_uncovered`,
-  `a_row_at_every_index_must_prove_the_relation_there`. Congruences for
-  `Quotient::lift` do not take trailing binders yet.
+  `a_row_at_every_index_must_prove_the_relation_there`. A
+  `Quotient::lift` congruence may take them the same way (`seal` records
+  the pointwise statement its definition cites). Test:
+  `a_lifted_operation_may_respect_the_relation_at_every_index`.
 - **Not done:**
   - A lifted operation is a definition only where the kernel's `lift`
     gives one (2026-11-27): one or two classes in, a class or plain data out (the

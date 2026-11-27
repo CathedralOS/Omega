@@ -202,6 +202,7 @@ impl Program<'_> {
             bound_values: Vec::new(),
             generic_premises: Vec::new(),
             held: Vec::new(),
+            pointwise_laws: Vec::new(),
             stating_premises: false,
             integers: None,
             families: Vec::new(),
@@ -775,6 +776,9 @@ struct Converter<'p, 't> {
     /// The premises of the machine being read that are read so far, as
     /// terms under its formals: what a clause of it may rest a call on.
     held: Vec<TermHandle>,
+    /// Each theorem law sealed as pointwise, with the entry of the statement
+    /// it was sealed to (`pointwise`): the statement its users cite.
+    pointwise_laws: Vec<(u32, u32)>,
     /// Set while a called machine's premises are stated at a call's
     /// arguments: what those premises themselves call was owed where that
     /// machine was declared.
@@ -1819,14 +1823,19 @@ impl<'p> Converter<'p, '_> {
             ));
         };
         let stated = &self.signature.laws[law as usize];
-        if stated.premises.len() != paired {
+        let pointwise = self
+            .pointwise_laws
+            .iter()
+            .find(|&&(known, _)| known == law)
+            .map(|&(_, entry)| entry);
+        if pointwise.is_none() && stated.premises.len() != paired {
             return Err(unserved(
                 congruence,
                 "congruence theorem of a quotient operation that requires more than related \
                  representatives",
             ));
         }
-        let statement = stated.statement;
+        let statement = pointwise.unwrap_or(stated.statement);
         if let &[first, second] = taken.as_slice() {
             let term = self.lifted_pair(
                 id,
@@ -2717,7 +2726,9 @@ impl<'p> Converter<'p, '_> {
         refusal: String,
     ) -> Checked<()> {
         let stated = &self.signature.laws[law as usize];
-        if stated.formals.len() != binders.len()
+        // A theorem may also take the binders of the needed conclusion's
+        // arrow after these (`pointwise`).
+        if stated.formals.len() < binders.len()
             || !stated
                 .formals
                 .iter()
@@ -2728,6 +2739,21 @@ impl<'p> Converter<'p, '_> {
                 machine,
                 "theorem of a quotient operation over other than two representatives of each class and one value of each other argument",
             ));
+        }
+        let extra = (stated.formals.len() - binders.len()) as u32;
+        if extra > 0 {
+            if self.pointwise_laws.iter().all(|&(known, _)| known != law) {
+                let entry = self.pointwise(
+                    machine,
+                    law,
+                    binders.to_vec(),
+                    premises.to_vec(),
+                    goal,
+                    extra,
+                )?;
+                self.pointwise_laws.push((law, entry));
+            }
+            return Ok(());
         }
         let arena = &self.signature.arena;
         if stated.declared.as_ref().is_some_and(|known| {

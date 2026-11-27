@@ -496,18 +496,14 @@ fn an_argument_that_is_no_class_is_shared_by_both_calls() {
         "machine pick_respects(left: Representative, right: Representative, other: Representative, again: Representative)",
     );
     assert_ne!(paired, source);
+    // A value past the ones it is cited at would be a binder of the needed
+    // conclusion's arrow, and `same_sign` has none.
     let verdicts = judged(&paired);
-    let refused: Vec<_> = verdicts
-        .iter()
-        .filter_map(|verdict| match verdict {
-            RouteVerdict::FallBack(refusal) => Some(refusal.detail.as_str()),
-            _ => None,
-        })
-        .collect();
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "pick_respects");
     assert!(
-        matches!(refused.as_slice(), [detail]
-            if detail.contains("theorem of a quotient operation over other than two representatives")),
-        "{verdicts:?}"
+        law.detail.contains("not a statement for every value"),
+        "{law:?}"
     );
 }
 
@@ -1279,4 +1275,46 @@ fn a_row_at_every_index_must_prove_the_relation_there() {
     );
     assert_ne!(source, POINTWISE);
     assert_eq!(unproved(&judged(&source)).machine, "Agree::reflexive");
+}
+
+
+/// An operation on the classes of `POINTWISE`, whose congruence also takes
+/// the index.
+const SUCCESSOR: &str = r"
+machine succ(value: N) -> N {
+    N::S { p: value }
+}
+
+machine succ_respects(left: N, right: N, n: N)
+requires pointwise(left, right)
+ensures |proof|::Identity::<N>(plus(succ(left), n), plus(succ(right), n))
+{
+}
+
+machine succ_class(value: Q) -> Q {
+    Quotient::lift::<succ, succ_respects>(value)
+}
+
+machine uses(a: N)
+ensures |proof|::Identity::<Q>(succ_class(a as Q), succ(a) as Q)
+{
+}
+";
+
+#[test]
+fn a_lifted_operation_may_respect_the_relation_at_every_index() {
+    let verdicts = judged(&format!("{POINTWISE}{SUCCESSOR}"));
+    let judgment = signature(&verdicts);
+    for law in ["succ_respects", "uses"] {
+        assert!(
+            judgment.laws.iter().any(|stated| stated.machine == law),
+            "the law `{law}`: {judgment:?}"
+        );
+    }
+    // A congruence that proves another statement at each index.
+    let source = format!("{POINTWISE}{SUCCESSOR}").replace(
+        "ensures |proof|::Identity::<N>(plus(succ(left), n), plus(succ(right), n))",
+        "ensures |proof|::Identity::<N>(succ(n), succ(n))",
+    );
+    assert_eq!(unproved(&judged(&source)).machine, "succ_respects");
 }

@@ -2218,6 +2218,32 @@ fn law_frame(arena: &mut TermArena, law: &Law) -> Frame {
     }
 }
 
+/// How many binders, up to `wanted`, the arrow inside `goal`'s boxes and
+/// squashes binds.
+fn arrow_binders(
+    arena: &mut TermArena,
+    context: &Context,
+    goal: TermHandle,
+    wanted: u32,
+) -> Result<u32, Failure> {
+    let mut budget = Budget::new(SEARCH_COMPUTING);
+    let mut term = goal;
+    let mut found = 0;
+    while found < wanted {
+        term = proof_admission::weak_head_normalize(arena, context.signature(), term, &mut budget)
+            .map_err(kernel)?;
+        term = match arena.get(term) {
+            Term::Box { ty } | Term::Squash { ty } => ty,
+            Term::Pi { codomain, .. } => {
+                found += 1;
+                codomain
+            }
+            _ => break,
+        };
+    }
+    Ok(found)
+}
+
 /// What [`pointwise`] proves: `goal`, from `hypotheses` and the law `row`
 /// applied at the formals, which still takes `binders` values of the
 /// goal's arrow and then its own premises.
@@ -2455,6 +2481,18 @@ fn prove_law(
             let mut context = closed.clone();
             for &ty in &frame.telescope {
                 context = context.extend(ty);
+            }
+            if arrow_binders(proving.arena, &context, frame.goal, *binders)? < *binders {
+                return Err(Failure {
+                    case: None,
+                    cause: UnprovedCause::NoDerivation,
+                    detail: format!(
+                        "the theorem takes {binders} value(s) after the ones it is cited at, \
+                         but the needed conclusion is not a statement for every value of \
+                         that many binders"
+                    ),
+                    call: None,
+                });
             }
             let row = constant(proving.arena, *row);
             let row = proving.arena.apply_arguments(row, &frame.names);
