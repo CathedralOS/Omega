@@ -58,10 +58,7 @@ fn an_authored_record_can_require_a_copyable_type_argument() {
     assert!(output.status.success(), "{report}");
 }
 
-#[test]
-fn exchange_evaluates_the_expected_and_replacement_once_in_source_order() {
-    program::assert_silent_return(
-        "use {omega}/language/core/layout.omg;
+const ORDERED_ASSIGNMENT: &str = "use {omega}/language/core/layout.omg;
 data Cells { value: AtomicU32; calls: AtomicU32; }
 machine next(cells: @Cells) -> u32 {
     let previous: u32 = cells.calls.fetch_add(1, NoOrdering);
@@ -82,6 +79,25 @@ machine main() crashes Trap {
     transition attempt(@cells) && cells.calls.load(NoOrdering) == 2 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
-}",
-    );
+}";
+
+#[test]
+fn exchange_evaluates_the_expected_and_replacement_once_in_source_order() {
+    program::assert_silent_return(ORDERED_ASSIGNMENT);
+}
+
+#[test]
+fn a_saved_program_can_replace_its_owned_exchange_result() {
+    let outputs = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "saved-exchange-result",
+        false,
+    )
+    .unwrap();
+    let saved = outputs.path().join("program.psi");
+    let (output, report) =
+        program::invoke(ORDERED_ASSIGNMENT, &["--emit-psi", saved.to_str().unwrap()]);
+    assert!(output.status.success(), "{report}");
+    let bytes = std::fs::read(saved).unwrap();
+    terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+        .expect("the received artifact admits the same owned assignment as its producer");
 }
