@@ -14,6 +14,7 @@
 
 const vscode = require('vscode');
 const scan = require('./declarations');
+const formatter = require('./formatter');
 
 // Folders never searched below a search root: version control, build output,
 // the archive of retired code and the agent worktree pool (full copies of the
@@ -30,6 +31,14 @@ const knownPaths = new Map();
 function activate(context) {
   context.subscriptions.push(
     vscode.languages.registerDefinitionProvider({ language: 'omega' }, { provideDefinition }),
+    vscode.languages.registerDocumentFormattingEditProvider(
+      { language: 'omega' },
+      { provideDocumentFormattingEdits },
+    ),
+    vscode.languages.registerDocumentRangeFormattingEditProvider(
+      { language: 'omega' },
+      { provideDocumentRangeFormattingEdits },
+    ),
     vscode.workspace.onDidChangeWorkspaceFolders(() => knownPaths.clear()),
   );
   // Adding or removing a source or package file changes which paths exist.
@@ -310,6 +319,34 @@ function parent(uri) {
 function stem(uri) {
   const name = uri.path.slice(uri.path.lastIndexOf('/') + 1);
   return name.endsWith('.omg') ? name.slice(0, -4) : name;
+}
+
+function provideDocumentFormattingEdits(document, options) {
+  const original = document.getText();
+  const formatted = formatter.formatDocument(original, options);
+  if (formatted === original) return [];
+  const lastLine = Math.max(0, document.lineCount - 1);
+  const fullRange = new vscode.Range(
+    new vscode.Position(0, 0),
+    document.lineAt(lastLine).range.end,
+  );
+  return [vscode.TextEdit.replace(fullRange, formatted)];
+}
+
+function provideDocumentRangeFormattingEdits(document, range, options) {
+  const original = document.getText();
+  const startLine = range.start.line;
+  // When the selection ends at column 0 of a later line, keep that line out of the formatted slice.
+  const endLine = range.end.character === 0 && range.end.line > startLine
+    ? range.end.line - 1
+    : range.end.line;
+  const formattedSlice = formatter.formatLineRange(original, startLine, endLine, options);
+  const lineRange = new vscode.Range(
+    new vscode.Position(startLine, 0),
+    document.lineAt(endLine).range.end,
+  );
+  if (formattedSlice === document.getText(lineRange)) return [];
+  return [vscode.TextEdit.replace(lineRange, formattedSlice)];
 }
 
 module.exports = { activate, deactivate };
