@@ -321,6 +321,27 @@ fn the_same_modulo_recursing_at_its_own_dividend_is_refused_at_that_call() {
 }
 
 #[test]
+fn core_division_computes_each_kind_of_quotient_and_remainder() {
+    // Zero dividend, divisor one, a dividend smaller than the divisor, exact
+    // and inexact division, each checked by computation through `div` and
+    // `mod` of `core/nat.omg`.
+    let (output, report) = check("core_division/pass/quotients_and_remainders");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn core_division_by_zero_is_refused_for_its_premise() {
+    let (output, report) = check("core_division/fail/divisor_zero");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for `quotient_by`")
+            && report.contains("saturating_sub(Nat::Succ(Nat::Zero), Nat::Zero), Nat::Zero)")
+            && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_machine_that_recurses_on_a_computed_value_of_local_data_is_refused() {
     // `Peano` is the program's own data, so no natural order checks the
     // descent of `drain(before(a))`.
