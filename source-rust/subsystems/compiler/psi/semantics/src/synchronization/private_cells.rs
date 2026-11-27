@@ -135,7 +135,8 @@ fn advance<'m>(
                 TargetMachineCallable::Boundary(id) => match boundary(id) {
                     Some(summary) => summary,
                     None => {
-                        let always_returns = opaque_calls::returns_without_storage(module, id, op, &call)?;
+                        let always_returns =
+                            opaque_calls::returns_without_storage(module, id, op, &call)?;
                         if !always_returns {
                             path.coverage = control::Coverage::Partial;
                         }

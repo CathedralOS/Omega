@@ -1,8 +1,8 @@
 //! Source-level synchronization judgments and the execution of their accepted twins.
 
-mod suspending_calls;
 mod borrowed_cells;
 mod multiple_cells;
+mod suspending_calls;
 mod threshold_waits;
 
 use super::build_purpose::{execute_unit, judge_build};
