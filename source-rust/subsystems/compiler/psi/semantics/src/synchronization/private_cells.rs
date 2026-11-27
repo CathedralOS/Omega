@@ -295,9 +295,8 @@ pub fn stuck_private_wait(
         }
         if let Some(op) = frame.block.operations.get(frame.position) {
             frame.position += 1;
-            if op.suspension_crossing.is_some() {
-                return None;
-            }
+            // A suspending call can return immediately. Its selected body or
+            // admitted boundary summary determines which effects reach this frame.
             let Some(call) = op.declared_invocation() else {
                 frame.step(op, &mut allocations)?;
                 continue;

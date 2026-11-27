@@ -153,9 +153,6 @@ impl Trace {
     }
 
     fn operation(&mut self, module: &TerminalModule, operation: &Operation) -> Option<bool> {
-        if operation.suspension_crossing.is_some() {
-            return None;
-        }
         if let Some(call) = operation.declared_invocation() {
             if !matches!(operation.result, OperationResult::Unit)
                 || !call.claim_transfers.is_empty()
