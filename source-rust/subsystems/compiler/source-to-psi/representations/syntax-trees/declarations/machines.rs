@@ -58,6 +58,7 @@ pub struct Machine {
     record_storage::Record,
 )]
 pub struct State {
+    pub assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability,
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
@@ -109,6 +110,7 @@ pub struct TraitRefinementClause {
     record_storage::Record,
 )]
 pub struct MachineBody {
+    pub assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability,
     pub statements: HandleSpan<crate::statement::StatementHandle>,
     pub nested_machines: HandleSpan<Item>,
 }

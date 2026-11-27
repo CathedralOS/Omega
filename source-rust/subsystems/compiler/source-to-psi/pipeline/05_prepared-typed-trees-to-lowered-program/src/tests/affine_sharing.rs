@@ -45,6 +45,7 @@ fn chain() -> crate::Elaboration {
         source: nowhere(),
     };
     let caller = || Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![array],
         statements: vec![
             lend(
@@ -65,10 +66,12 @@ fn chain() -> crate::Elaboration {
     bodies.push(caller());
     bodies.push(caller());
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![view],
         statements: vec![lend(LEAF, of_type(ExpressionKind::Slot(0), view)), finish()],
     });
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![view],
         statements: vec![finish()],
     });

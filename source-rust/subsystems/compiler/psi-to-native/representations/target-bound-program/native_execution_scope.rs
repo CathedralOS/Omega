@@ -164,6 +164,10 @@ impl<'a> NativeScopeBinding<'a> {
         })
     }
 
+    pub fn target(&self) -> &str {
+        self.targets.target()
+    }
+
     pub fn artifact(&self) -> TerminalArtifactView<'a> {
         self.artifact
     }

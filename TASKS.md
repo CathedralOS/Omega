@@ -273,7 +273,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 <a id="checked-assembly-control-flow"></a>
 
 - **CHECKED-ASM-LABEL-CONTRACTS.** Implement `asm machine`, block declarations, `align_of(value)`, port settlements (`provider_custody.rs`), and [interpreted assembly](wiki/spec/language/assembly.md#interpreted-execution).
-  - Carry the catalog target of flattened place-only regions, such as the SIMD library's packed instructions, past stage 02 so `--check` refuses them off-target and the native packed-operation rule can go.
   - Migrate [flag restoration](samples/cli/facts/checked_asm_flag_restore) and customers of colon labels or implicit fall-through to [explicit assembly control flow](wiki/spec/language/assembly.md#explicit-control-flow). Preserve the original output and the authored rejection on invalid edges. Run target-specific code on its target or a supplied Psi model.
 
 - **SAMPLE-CORPUS.** (covers **CANARY-CORPUS**, **SQUALR-HEADLESS**, **MACOS-APPLICATION-PUBLICATION**, **FACT-SAMPLE-DEPENDENCIES**) Run the release programs, [Squalr](samples/apps/README.md) and [macOS application bundles](wiki/spec/build/macos_application.md) under the [release matrix](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).

@@ -153,6 +153,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
         pub struct Machine {
+            pub assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability,
             pub symbol: SymbolHandle,
             pub lexical_parent: Handle<Machine>,
             pub name: DiagnosticName,

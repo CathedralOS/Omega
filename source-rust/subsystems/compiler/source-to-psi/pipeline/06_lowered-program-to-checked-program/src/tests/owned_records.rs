@@ -77,6 +77,7 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
         point(),
     );
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![point()],
         statements: vec![
             bind(0, point_of(unsigned(73), unsigned(97))),
@@ -100,6 +101,7 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
         ],
     });
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: vec![point()],
         statements: vec![
             Statement::discard(read(place(0, point()), 0)),

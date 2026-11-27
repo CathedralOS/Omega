@@ -156,6 +156,7 @@ fn lower_ranked(
         Some(ScalarType::Boolean),
     );
     bodies.push(Body {
+        assembly_target_requirement: Default::default(),
         slots: parameters.clone(),
         statements: vec![
             Statement::Arm {

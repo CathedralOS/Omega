@@ -126,6 +126,7 @@ fn item_copy_preserves_shared_body_subject_and_isolates_instances() {
         }));
     let statement = source.items.append_statement_handle(statement);
     let state = source.items.insert_state(&State {
+        assembly_target_requirement: Default::default(),
         name: Identifier::generated("entry"),
         parameters: HandleSpan::empty(),
         return_type: TypeReferenceHandle::invalid(),
@@ -859,6 +860,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         .type_references
         .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
     let state = file.items.insert_state(&State {
+        assembly_target_requirement: Default::default(),
         name: Identifier::generated("entry"),
         parameters: HandleSpan::empty(),
         return_type,
@@ -1016,6 +1018,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     }));
     let call = file.items.append_statement_handle(call);
     let state = file.items.insert_state(&State {
+        assembly_target_requirement: Default::default(),
         name: Identifier::generated("entry"),
         parameters: HandleSpan::empty(),
         return_type: TypeReferenceHandle::invalid(),
@@ -1128,6 +1131,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         }));
     let statement = file.items.append_statement_handle(statement);
     let state = file.items.insert_state(&State {
+        assembly_target_requirement: Default::default(),
         name: Identifier::generated("entry"),
         parameters: HandleSpan::empty(),
         return_type: TypeReferenceHandle::invalid(),
