@@ -8090,7 +8090,7 @@ impl<'a> AtCall<'_, 'a> {
 
     /// Trace the whole value at a root through copies and incoming edges
     /// to the input or operation that established it.
-    fn reaching_whole_root(&self, root: PlaceId) -> Result<Reached, crate::Unbound> {
+    fn reaching_whole_root(&mut self, root: PlaceId) -> Result<Reached, crate::Unbound> {
         let whole = Lineage {
             root,
             segments: Vec::new(),

@@ -207,11 +207,12 @@ impl Storage<'_> {
                     && view_elements.first().is_none_or(|first| position < first)
             });
             let replaceable = match producer {
-                // The producer initializes its descriptor. Every other write
-                // reaching that root can replace the captured window.
-                Some(producer) => self
-                    .writes_reaching_root(actual.root)
-                    .any(|write| write.operation != producer),
+                // The producer establishes this descriptor once. Releasing or
+                // moving it ends that value's lifetime without supplying a new
+                // backing. A later initialization is a separate logged store.
+                Some(producer) => self.writes_reaching_root(actual.root).any(|write| {
+                    write.operation != producer && !matches!(write.stored, Stored::Vacated)
+                }),
                 None => {
                     input_access != Some(StructuralAccess::MutableBorrow)
                         || self.storage_ever_written(actual.root)
@@ -241,7 +242,7 @@ impl Storage<'_> {
 
 impl AtCall<'_, '_> {
     pub(super) fn bind_call_alignment(
-        &self,
+        &mut self,
         actual: &Lineage,
         formal: &terminal_psi::StructuralParameterDeclaration,
         location: &[Projection],
