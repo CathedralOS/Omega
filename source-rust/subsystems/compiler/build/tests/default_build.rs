@@ -17,9 +17,15 @@ fn two_deployments_share_the_named_files_default_build() {
     let project = TemporaryDirectory::create("default-build-deployments", false).unwrap();
     let main = project.path().join("loose.omg");
     std::fs::write(&main, "machine main() {}").unwrap();
+    // A neighboring Build has no effect on build-first entry selection
+    // (wiki/spec/build/command_line.md). If it were selected, the returned
+    // plan would carry its Application declaration. The neighbor still parses:
+    // it is a source file of the captured root, and the Product's operator
+    // family discovery parses every unit of its owning package.
     std::fs::write(
         project.path().join("build.omg"),
-        "invalid neighboring Build",
+        "machine build(builder: @mutable BuildPlan) {\n    \
+         builder.product = BuildProduct::Application { name: \"neighbor\" };\n}\n",
     )
     .unwrap();
     let targets = [TargetProfile::LinuxX64, TargetProfile::WindowsX64];

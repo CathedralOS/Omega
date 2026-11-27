@@ -53,14 +53,13 @@ pub(super) fn unproved(
         for op in block.operations.iter().skip(first) {
             if let Some(call) = op.kind.callable_invocation() {
                 let targets = computed.site(module, boundary, machine_id, op.id);
-                if let Some(row) = targets {
-                    if let Some(failure) = row
+                if let Some(row) = targets
+                    && let Some(failure) = row
                         .selected_machines
                         .iter()
                         .find_map(|&id| visit(id, op.id))
-                    {
-                        return Some(failure);
-                    }
+                {
+                    return Some(failure);
                 }
                 if imported_obligations && !targets.is_some_and(|row| row.targets_are_resolved()) {
                     let envelope = module
