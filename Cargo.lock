@@ -509,7 +509,6 @@ version = "0.1.0"
 dependencies = [
  "checked-program-issuer",
  "optimization",
- "psi-publication-records",
  "semantic-vocabulary",
  "terminal-check-tables",
  "terminal-codec",
@@ -1301,7 +1300,6 @@ dependencies = [
  "optimization",
  "prepared-typed-trees-to-lowered-program",
  "proof-admission",
- "psi-publication-records",
  "rayon",
  "semantic-vocabulary",
  "service-surface",

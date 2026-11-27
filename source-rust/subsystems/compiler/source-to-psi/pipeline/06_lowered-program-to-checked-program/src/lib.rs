@@ -175,8 +175,6 @@ pub use publication::{
 };
 pub use verdict::judge_compilation_with_policy;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use ceilings::Axis as CeilingAxis;
 pub use formation::{ReplayScope, prepare_replay};
 pub use places::{ConflictingLoan, LoanConflict};
 pub use prove::ProofSearchActivity;
@@ -191,22 +189,15 @@ pub use reuse::{Carried, CarriedForm, Selection};
 pub use reuse::{
     Carried, CarriedForm, Selection, reverify, reverify_at_call, reverify_specialization,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use terminal_check_tables::compilation::{
-    CallableFormationCause, CallableFormationDefect, CallableFormationFailure,
-};
-#[cfg(not(any(test, feature = "test-support")))]
 pub use terminal_check_tables::compilation::{CallableFormationDefect, CallableFormationFailure};
 #[cfg(any(test, feature = "test-support"))]
 pub use verdict::{
-    AcceptedClosure, CheckedPublicationModule, CompilationRefusal, ConflictingUse, ConsumptionSite,
-    ExceededReach, PublicationError, RoutePublication, RouteVerdict, RuleViolation,
-    UnestablishedUse, UnprovedObligation, judge, judge_compilation,
+    AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, ExceededReach,
+    PublicationError, RoutePublication, RouteVerdict, RuleViolation, UnestablishedUse,
+    UnprovedObligation, judge, judge_compilation,
 };
 #[cfg(not(any(test, feature = "test-support")))]
-pub use verdict::{
-    AcceptedClosure, CheckedPublicationModule, CompilationRefusal, RouteVerdict, UnprovedObligation,
-};
+pub use verdict::{AcceptedClosure, CompilationRefusal, RouteVerdict, UnprovedObligation};
 
 #[cfg(test)]
 pub(crate) use prove::has_rules_for;
@@ -237,7 +228,16 @@ use terminal_psi::{TerminalMachine, TerminalModule, Terminator};
 
 use graph::Graph;
 
-type VerifiedBorrowEnds = [(MachineId, Vec<(EdgeId, PlaceId)>)];
+/// What the affine check (`verdict::check_affine`) established about each
+/// machine of the settled module the machine check then reads.
+pub(crate) struct VerifiedAffine {
+    /// The borrowed names each machine's verified ownership walk ends, by
+    /// edge; only machines that end some, sorted by machine.
+    pub(crate) borrow_ends: Vec<(MachineId, Vec<(EdgeId, PlaceId)>)>,
+    /// Each machine's claim-receiver result (`minted::ReceivedClaims`),
+    /// sorted by machine.
+    pub(crate) claims: Vec<(MachineId, minted::ReceivedClaims)>,
+}
 
 /// What the kernel accepted for one obligation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -519,7 +519,7 @@ pub fn discharge(
     elaboration: &mut Elaboration,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, &[], &[], None, activity)
+    discharge_inner(elaboration, &[], &[], activity)
 }
 
 /// `discharge`, where each machine of `carried` is one stage 04 generated
@@ -538,7 +538,7 @@ pub fn discharge_carrying(
     carried: &[Carried<'_>],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, carried, &[], None, activity)
+    discharge_inner(elaboration, carried, &[], activity)
 }
 
 /// Read-only fields of `Elaboration` needed while checking machines and
@@ -710,7 +710,7 @@ pub(crate) fn finish_discharge<'m>(
     checking: &mut terminal_check_tables::CheckTables,
     prepared: PreparedDischarge<'_>,
     carried: &[Carried<'_>],
-    verified_borrow_ends: Option<&VerifiedBorrowEnds>,
+    verified: Option<&'m VerifiedAffine>,
     affine: &'m terminal_semantics::plain_affine::AffineSummaries<'m>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
@@ -744,13 +744,21 @@ pub(crate) fn finish_discharge<'m>(
         module.types.structural_types.iter(),
     );
     // Each machine's borrowed-storage replay reaches the same callees; the
-    // module replays each of them once for all its machines.
+    // module replays each of them once for all its machines. The cleanup
+    // catalog and the type index describe the module alone, so every
+    // machine check reads the same ones.
     let summaries = ModuleReplays {
+        module,
         borrowed_storage: terminal_semantics::descriptor_results::ModuleSummaries::borrowed_storage(
             module,
             formed.nominal_calls(),
         ),
         affine,
+        cleanup_catalog: owned_cleanup::Catalog::new(module),
+        type_index: terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &module.types.structural_types,
+        ),
+        received_claims: verified.map_or(&[][..], |verified| verified.claims.as_slice()),
     };
     let machines =
         machine_batch::check(&mut checking.machines, activity, |id, tables, activity| {
@@ -779,7 +787,8 @@ pub(crate) fn finish_discharge<'m>(
             let beyond = unreached.values(lowered, tables);
             let proved = &theorems[theorems.partition_point(|(machine, _)| *machine < id)
                 ..theorems.partition_point(|(machine, _)| *machine <= id)];
-            let borrow_ends = verified_borrow_ends.map(|ends| {
+            let borrow_ends = verified.map(|verified| {
+                let ends = &verified.borrow_ends;
                 ends.binary_search_by_key(&id, |(machine, _)| *machine)
                     .map_or(&[][..], |position| ends[position].1.as_slice())
             });
@@ -831,7 +840,6 @@ pub(crate) fn discharge_inner(
     elaboration: &mut Elaboration,
     carried: &[Carried<'_>],
     laws: &[laws::LawJudgment],
-    verified_borrow_ends: Option<&VerifiedBorrowEnds>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
     let prepared = prepare_discharge(elaboration, laws, None, activity)?;
@@ -848,7 +856,7 @@ pub(crate) fn discharge_inner(
         &mut elaboration.tables,
         prepared,
         carried,
-        verified_borrow_ends,
+        None,
         &summaries,
         activity,
     )?;
@@ -1724,12 +1732,62 @@ fn fill_knowledge<'a>(
 /// tables serve graphs built differently, and a summary from one does not
 /// describe the other's rows.
 pub(crate) struct ModuleReplays<'m> {
+    /// The module every table here was built from. A check of any other
+    /// module, even an equal copy, builds its own.
+    module: &'m TerminalModule,
     /// For each machine check's own borrowed-storage graph, which includes
     /// the module's nominal calls.
     borrowed_storage: terminal_semantics::descriptor_results::ModuleSummaries<'m>,
     /// For the affine claim walk of each machine (`minted`), whose graph
     /// has no nominal calls.
     affine: &'m terminal_semantics::plain_affine::AffineSummaries<'m>,
+    /// The module's cleanup machines and types by identity, or why they
+    /// have none; `minted` refuses each machine with that reason.
+    cleanup_catalog: Result<owned_cleanup::Catalog<'m>, &'static str>,
+    /// The module's structural declarations by identity (`places::Storage`).
+    type_index: terminal_semantics::descriptor_lifetimes::StructuralTypeIndex<'m>,
+    /// What the affine check received for each machine's claim walk, sorted
+    /// by machine; empty when no affine check ran on this module.
+    received_claims: &'m [(MachineId, minted::ReceivedClaims)],
+}
+
+impl<'m> ModuleReplays<'m> {
+    fn built_from(&self, module: &TerminalModule) -> bool {
+        std::ptr::eq(self.module, module)
+    }
+
+    /// The cleanup catalog, when these replays were built from `module`.
+    pub(crate) fn cleanup_catalog(
+        &self,
+        module: &TerminalModule,
+    ) -> Option<&Result<owned_cleanup::Catalog<'m>, &'static str>> {
+        self.built_from(module).then_some(&self.cleanup_catalog)
+    }
+
+    /// The type index, when these replays were built from `module`.
+    fn type_index(
+        &self,
+        module: &TerminalModule,
+    ) -> Option<&terminal_semantics::descriptor_lifetimes::StructuralTypeIndex<'m>> {
+        self.built_from(module).then_some(&self.type_index)
+    }
+
+    /// What the affine check received for `machine`'s claim walk over
+    /// `module`, when it ran on that exact module.
+    pub(crate) fn received_claims(
+        &self,
+        module: &TerminalModule,
+        machine: MachineId,
+    ) -> Option<&minted::ReceivedClaims> {
+        if !self.built_from(module) {
+            return None;
+        }
+        let claims = self.received_claims;
+        claims
+            .binary_search_by_key(&machine, |(id, _)| *id)
+            .ok()
+            .map(|position| &claims[position].1)
+    }
 }
 
 /// What deciding one machine's obligations needs: value types, dominance,
@@ -1879,15 +1937,7 @@ fn with_prepared_machine<Outcome>(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(
-        id,
-        module,
-        lowered,
-        tables,
-        &types,
-        inhabitation,
-        summaries.map(|summaries| summaries.affine),
-    )?;
+    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation, summaries)?;
     let graph = Graph::new(id, lowered, tables)?;
     theorems::validate(module, lowered, tables, &graph)?;
     let reference_graph = places::reference_graph_with_generic_calls(
@@ -1907,8 +1957,26 @@ fn with_prepared_machine<Outcome>(
         if let Some(summaries) = summaries {
             references.share_summaries(&summaries.borrowed_storage, formed.nominal_calls());
         }
-        let storage =
-            places::Storage::new(id, lowered, module, &graph, tables, &types, &mut references)?;
+        let own_index;
+        let type_index = match summaries.and_then(|summaries| summaries.type_index(module)) {
+            Some(shared) => shared,
+            None => {
+                own_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+                    &module.types.structural_types,
+                );
+                &own_index
+            }
+        };
+        let storage = places::Storage::new(
+            id,
+            lowered,
+            module,
+            &graph,
+            tables,
+            &types,
+            type_index,
+            &mut references,
+        )?;
         // domains.md: "Mutation invalidates subject-bound facts unless
         // preserved or re-established." A routed domain is re-established
         // only by a machine its declaration names, so any other machine

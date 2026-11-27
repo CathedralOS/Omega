@@ -73,6 +73,9 @@ pub fn reverify(
     )?;
     let lowered = crate::terminal_machine(&module.machines, machine, machine)?;
     let mut references = prepared.references(&module.types.structural_types);
+    let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+        &module.types.structural_types,
+    );
     let storage = crate::places::Storage::new(
         machine,
         lowered,
@@ -80,6 +83,7 @@ pub fn reverify(
         &prepared.graph,
         tables,
         &prepared.types,
+        &type_index,
         &mut references,
     )?;
     let goal = crate::goal(
@@ -842,6 +846,9 @@ pub fn reverify_specialization(
     let tables = &*tables;
     let lowered = crate::terminal_machine(&module.machines, specialization, specialization)?;
     let mut references = prepared.references(&module.types.structural_types);
+    let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+        &module.types.structural_types,
+    );
     let storage = crate::places::Storage::new(
         specialization,
         lowered,
@@ -849,6 +856,7 @@ pub fn reverify_specialization(
         &prepared.graph,
         tables,
         &prepared.types,
+        &type_index,
         &mut references,
     )?;
     let carry = Carry::new(

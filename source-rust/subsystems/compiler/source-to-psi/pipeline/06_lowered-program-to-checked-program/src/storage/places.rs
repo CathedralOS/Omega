@@ -1233,7 +1233,7 @@ pub(crate) struct Storage<'a> {
     types: &'a [StructuralTypeDeclaration],
     /// The same declarations by identity. Path walks read a declaration at
     /// every step, and a scan of the list costs its whole length each time.
-    type_index: terminal_semantics::descriptor_lifetimes::StructuralTypeIndex<'a>,
+    type_index: &'a terminal_semantics::descriptor_lifetimes::StructuralTypeIndex<'a>,
     graph: &'a Graph,
     initial_contents: Vec<Option<ValueId>>,
     returned_contents: Vec<Vec<(ExactPlaceId, ValueId)>>,
@@ -1292,6 +1292,7 @@ impl<'a> Storage<'a> {
         graph: &'a Graph,
         tables: &MachineTables,
         value_types: &IdTable<ValueId, ScalarType>,
+        type_index: &'a terminal_semantics::descriptor_lifetimes::StructuralTypeIndex<'a>,
         references: &mut DescriptorAnalysis<'a>,
     ) -> Checked<Self> {
         // First, because every lineage below is read through the place
@@ -1386,9 +1387,7 @@ impl<'a> Storage<'a> {
             module,
             float_meanings: std::cell::OnceCell::new(),
             types: &module.types.structural_types,
-            type_index: terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
-                &module.types.structural_types,
-            ),
+            type_index,
             graph,
             initial_contents: contents.entry,
             returned_contents: contents.calls,
@@ -2750,7 +2749,7 @@ impl<'a> Storage<'a> {
             Vec::with_capacity(beneath.len())
         } else {
             terminal_semantics::resolved_structural_path(
-                &self.type_index,
+                self.type_index,
                 self.root_type(root, concerns)?,
                 path,
             )
@@ -3015,12 +3014,8 @@ impl<'a> Storage<'a> {
                         preceding,
                         projection.root,
                         prefix,
-                        terminal_semantics::runtime_structural_field(
-                            &self.type_index,
-                            root,
-                            prefix,
-                        )
-                        .map(|field| field.id),
+                        terminal_semantics::runtime_structural_field(self.type_index, root, prefix)
+                            .map(|field| field.id),
                     )
                 },
                 |owned, goal| {
@@ -3150,7 +3145,7 @@ impl<'a> Storage<'a> {
                 let root = self.root_type(source.place, concerns)?;
                 let Some(terminal_psi::StructuralTypeShape::ElementView { element, .. }) =
                     terminal_semantics::runtime_structural_path_tip(
-                        &self.type_index,
+                        self.type_index,
                         root,
                         &source.path,
                     )
@@ -9647,6 +9642,9 @@ mod observation_tests {
             &module.types.structural_types,
             &descriptors,
         );
+        let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &module.types.structural_types,
+        );
         let mut storage = Storage::new(
             machine.id,
             machine,
@@ -9654,6 +9652,7 @@ mod observation_tests {
             &graph,
             tables,
             &types,
+            &type_index,
             &mut references,
         )
         .unwrap();
@@ -9881,6 +9880,9 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             &module.types.structural_types,
             &descriptor_graph,
         );
+        let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &module.types.structural_types,
+        );
         let storage = Storage::new(
             machine.id,
             machine,
@@ -9888,6 +9890,7 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             &graph,
             tables,
             &types,
+            &type_index,
             &mut references,
         )
         .unwrap();
@@ -10028,6 +10031,9 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
                 &module.types.structural_types,
                 &descriptor_graph,
             );
+            let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+                &module.types.structural_types,
+            );
             let storage = Storage::new(
                 machine.id,
                 machine,
@@ -10035,6 +10041,7 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
                 &graph,
                 tables,
                 &types,
+                &type_index,
                 &mut references,
             )
             .unwrap();
@@ -10177,6 +10184,9 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             &module.types.structural_types,
             &descriptor_graph,
         );
+        let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &module.types.structural_types,
+        );
         let mut storage = Storage::new(
             machine.id,
             machine,
@@ -10184,6 +10194,7 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             &graph,
             tables,
             &types,
+            &type_index,
             &mut references,
         )
         .unwrap();
@@ -10317,6 +10328,9 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             }
         }
         let cyclic_graph = Graph::new(machine.id, machine, &unseeded).unwrap();
+        let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &module.types.structural_types,
+        );
         let storage = Storage::new(
             machine.id,
             machine,
@@ -10324,6 +10338,7 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             &cyclic_graph,
             &unseeded,
             &types,
+            &type_index,
             &mut references,
         )
         .expect("the unseeded graph has its own incoming bindings");
@@ -10392,6 +10407,9 @@ machine entry() {
             &module.types.structural_types,
             &descriptor_graph,
         );
+        let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+            &module.types.structural_types,
+        );
         let storage = Storage::new(
             machine.id,
             machine,
@@ -10399,6 +10417,7 @@ machine entry() {
             &graph,
             tables,
             &types,
+            &type_index,
             &mut references,
         )
         .unwrap();
@@ -10546,6 +10565,9 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
                 &module.types.structural_types,
                 &descriptor_graph,
             );
+            let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+                &module.types.structural_types,
+            );
             let mut storage = Storage::new(
                 machine.id,
                 machine,
@@ -10553,6 +10575,7 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
                 &graph,
                 tables,
                 &types,
+                &type_index,
                 &mut references,
             )
             .unwrap();
@@ -10695,6 +10718,9 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
                 &module.types.structural_types,
                 &descriptor_graph,
             );
+            let type_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+                &module.types.structural_types,
+            );
             let mut storage = Storage::new(
                 machine.id,
                 machine,
@@ -10702,6 +10728,7 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
                 &graph,
                 tables,
                 &types,
+                &type_index,
                 &mut references,
             )
             .unwrap();
