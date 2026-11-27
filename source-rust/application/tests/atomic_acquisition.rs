@@ -131,3 +131,41 @@ fn a_mismatch_returns_the_observed_word_and_leaves_the_cell_unchanged() {
     "#;
     program::assert_silent_return(source);
 }
+
+#[test]
+fn an_exchange_in_the_entry_supplies_the_actual_bits_and_case_to_a_later_wait() {
+    let (library, _) = DECISIVE.split_once("machine main()").unwrap();
+    let entry = r#"
+        machine main() {
+            let mutable flag: Flag;
+            flag.held.store(1, Publish);
+            let first: |layout|::AtomicCompareExchangeOutcome<u32> =
+                flag.held.compare_exchange(0, 0, ReceivePublish, Receive);
+            transition first {
+                |layout|::AtomicCompareExchangeOutcome::Exchanged -> finished(),
+                |layout|::AtomicCompareExchangeOutcome::Mismatched { observed } ->
+                    retry(@flag, observed)
+            }
+            machine retry(flag: @Flag, observed: u32) {
+                transition observed == 1 {
+                    true -> acquire(flag),
+                    _ -> finished()
+                }
+            }
+            machine finished() {}
+        }
+    "#;
+    let (outcome, diagnostic) = program::invoke(&format!("{library}{entry}"), &["--check"]);
+    assert!(!outcome.status.success(), "{diagnostic}");
+    assert!(
+        diagnostic.contains("synchronization deadlock"),
+        "{diagnostic}"
+    );
+
+    // With the expected value corrected, the same operation releases the
+    // flag, returns Exchanged, and the caller's mismatch arm cannot run.
+    let released = entry
+        .replace("compare_exchange(0, 0,", "compare_exchange(1, 0,")
+        .replace("::Exchanged -> finished()", "::Exchanged -> acquire(@flag)");
+    program::assert_silent_return(&format!("{library}{released}"));
+}

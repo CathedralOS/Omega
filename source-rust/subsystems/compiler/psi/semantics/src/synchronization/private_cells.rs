@@ -2,6 +2,7 @@
 //! arguments identify the same allocation across checked calls and jumps.
 
 mod activation;
+mod aggregate;
 mod control;
 mod storage;
 
@@ -9,7 +10,7 @@ use super::progress::{PrivateWaitFailure, ProgressFailure, ScalarFact, entry_sca
 use super::selected::Summaries;
 use super::spin::{CellUpdate, SpinWait};
 use crate::entry_values::TerminalScalarValue as Scalar;
-use activation::{Bindings, Destination, Frame};
+use activation::{Bindings, Destination, Frame, ScalarArguments};
 use control::{Execution, Frontier};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use storage::Storage;
@@ -123,7 +124,7 @@ fn advance<'m>(
                             memory,
                             &callee.parameters,
                             &callee.structural_parameters,
-                            call.arguments,
+                            ScalarArguments::Values(call.arguments),
                             call.structural_arguments,
                         )?;
                         let return_to = Destination::of(op);
@@ -184,7 +185,11 @@ fn advance<'m>(
                 cleanup_actions,
                 ..
             } => (
-                Some((*target, arguments, structural_arguments)),
+                Some((
+                    *target,
+                    ScalarArguments::Values(arguments),
+                    structural_arguments,
+                )),
                 cleanup_actions,
             ),
             Terminator::Conditional {
@@ -207,7 +212,27 @@ fn advance<'m>(
                 };
                 let edge = if answer { when_true } else { when_false };
                 (
-                    Some((edge.target, &edge.arguments, &edge.structural_arguments)),
+                    Some((
+                        edge.target,
+                        ScalarArguments::Values(&edge.arguments),
+                        &edge.structural_arguments,
+                    )),
+                    &edge.cleanup_actions,
+                )
+            }
+            Terminator::StructuralCase {
+                source,
+                path,
+                cases,
+            } => {
+                let (edge, fields) =
+                    aggregate::dispatch(module, frame, memory, *source, path, cases)?;
+                (
+                    Some((
+                        edge.target,
+                        ScalarArguments::Payload(fields),
+                        &edge.structural_arguments,
+                    )),
                     &edge.cleanup_actions,
                 )
             }
@@ -230,7 +255,7 @@ fn advance<'m>(
                     memory,
                     &callee.parameters,
                     &callee.structural_parameters,
-                    &[],
+                    ScalarArguments::Values(&[]),
                     std::slice::from_ref(&invocation.subject),
                 )?;
                 if stack.iter().any(|active| active.machine.id == callee.id) {

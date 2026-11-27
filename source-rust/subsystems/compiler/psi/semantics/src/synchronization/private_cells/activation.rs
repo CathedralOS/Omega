@@ -3,8 +3,9 @@
 
 use super::super::facts::Facts;
 use super::super::progress::ScalarFact;
-use super::super::spin::constant;
+use super::super::spin::{CellUpdate, constant};
 use super::storage::{Location, Storage, Stored};
+use crate::entry_values::TerminalScalarValue as Scalar;
 use semantic_vocabulary::{BlockId, PlaceId, ValueId};
 use std::cell::OnceCell;
 use std::rc::Rc;
@@ -20,22 +21,35 @@ pub(super) struct Bindings {
     pub(super) values: Facts<ValueId, ScalarFact>,
 }
 
+pub(super) enum ScalarArguments<'a> {
+    Values(&'a [ValueId]),
+    Payload(Vec<Option<ScalarFact>>),
+}
+
 impl Bindings {
     pub(super) fn arguments(
         &self,
         memory: &mut Storage,
         formals: &[ValueDeclaration],
         places: &[StructuralParameterDeclaration],
-        arguments: &[ValueId],
+        arguments: ScalarArguments<'_>,
         actuals: &[StructuralArgument],
     ) -> Option<Self> {
-        if places.len() != actuals.len() || formals.len() != arguments.len() {
+        let count = match &arguments {
+            ScalarArguments::Values(values) => values.len(),
+            ScalarArguments::Payload(fields) => fields.len(),
+        };
+        if places.len() != actuals.len() || formals.len() != count {
             return None;
         }
         let mut bindings = Self::default();
-        for (formal, actual) in formals.iter().zip(arguments) {
-            if let Some(v) = self.values.get(actual) {
-                bindings.values.insert(formal.id, *v);
+        for (index, formal) in formals.iter().enumerate() {
+            let value = match &arguments {
+                ScalarArguments::Values(values) => self.values.get(&values[index]).copied(),
+                ScalarArguments::Payload(fields) => fields[index],
+            };
+            if let Some(value) = value {
+                bindings.values.insert(formal.id, value);
             }
         }
         for (formal, actual) in places.iter().zip(actuals) {
@@ -170,27 +184,22 @@ impl<'m> Frame<'m> {
                     memory.set(&slot, Stored::Unknown);
                 }
             }
-            OperationKind::EstablishRecord { fields } => {
+            OperationKind::EstablishRecord { .. }
+            | OperationKind::EstablishScalarCase { .. }
+            | OperationKind::EstablishStructuralCase { .. } => {
                 let result = op.result.structural()?;
                 let shape = &module.structural_type(result.structural_type)?.shape;
-                let layout = shape.direct_fields()?;
-                let record = memory.allocate(Stored::Unknown);
-                for field in fields {
-                    let key = terminal_psi::live_field_by_id(layout, field.field)?.identity;
-                    let destination =
-                        memory.project(record.clone(), &[StructuralPathSegment::Field(key)])?;
-                    let value = match &field.value {
-                        terminal_psi::RecordFieldValue::Scalar { value, .. } => {
-                            bindings.values.get(value).copied().into()
-                        }
-                        terminal_psi::RecordFieldValue::Structural(arg) => memory
-                            .locate(&bindings.places, arg.place, &arg.path)
-                            .map(|loc| memory.get(&loc).clone())
-                            .unwrap_or_default(),
-                    };
-                    memory.set(&destination, value);
+                let value = super::aggregate::establish(shape, &op.kind, bindings, memory)?;
+                bindings.places.insert(result.place, value);
+            }
+            OperationKind::StructuralCaseMembership { source, path, case } => {
+                let target = memory.locate(&bindings.places, *source, path)?;
+                if let Some(tag) = memory.get(&target).tag() {
+                    bindings.values.insert(
+                        op.result.scalar()?.id,
+                        ScalarFact::Literal(Scalar::Boolean(tag == *case)),
+                    );
                 }
-                bindings.places.insert(result.place, record);
             }
             OperationKind::StructuralLeafCopy { source, path } => {
                 let location = memory.locate(&bindings.places, *source, path)?;
@@ -277,21 +286,52 @@ impl<'m> Frame<'m> {
                 resident_obligation: None,
             } => {
                 let location = memory.locate(&bindings.places, *place, path)?;
-                match event {
-                    AtomicAccessEvent::Load { .. } | AtomicAccessEvent::Swap { .. } => {
-                        let result = op.result.scalar()?;
-                        if let Some(value) = memory.get(&location).scalar(result.scalar_type) {
-                            bindings.values.insert(result.id, value);
+                let observed = if event.observes_resident() {
+                    let result = op.result.scalar()?;
+                    let prior = memory.get(&location).scalar(result.scalar_type);
+                    if let Some(value) = prior {
+                        bindings.values.insert(result.id, value);
+                    }
+                    prior
+                } else {
+                    None
+                };
+                let next = match event {
+                    AtomicAccessEvent::Load { .. } => return Some(()),
+                    AtomicAccessEvent::Store { value, .. }
+                    | AtomicAccessEvent::Swap { value, .. } => {
+                        bindings.values.get(value).copied().into()
+                    }
+                    AtomicAccessEvent::CompareExchange {
+                        expected,
+                        replacement,
+                        ..
+                    } => {
+                        let expect = bindings.values.get(expected).copied();
+                        let proposal = bindings.values.get(replacement).copied();
+                        match (expect, proposal) {
+                            (Some(expected), _) if observed == Some(expected) => proposal.into(),
+                            (Some(expected), _) if proposal == Some(expected) => return Some(()),
+                            (
+                                Some(ScalarFact::Literal(expected)),
+                                Some(ScalarFact::Literal(replacement)),
+                            ) => memory
+                                .get(&location)
+                                .after_update(CellUpdate::CompareExchange {
+                                    expected,
+                                    replacement,
+                                }),
+                            (Some(ScalarFact::Literal(_)), _)
+                                if matches!(observed, Some(ScalarFact::Literal(_))) =>
+                            {
+                                return Some(());
+                            }
+                            _ => Stored::Unknown,
                         }
                     }
-                    AtomicAccessEvent::Store { .. } => {}
                     _ => return None,
-                }
-                if let AtomicAccessEvent::Store { value, .. }
-                | AtomicAccessEvent::Swap { value, .. } = event
-                {
-                    memory.set(&location, bindings.values.get(value).copied().into());
-                }
+                };
+                memory.set(&location, next);
             }
             _ => {
                 let result = op.result.scalar()?;
@@ -322,7 +362,7 @@ impl<'m> Frame<'m> {
     pub(super) fn jump(
         &mut self,
         target: BlockId,
-        scalars: &[ValueId],
+        scalars: ScalarArguments<'_>,
         places: &[StructuralArgument],
         memory: &mut Storage,
     ) -> Option<()> {

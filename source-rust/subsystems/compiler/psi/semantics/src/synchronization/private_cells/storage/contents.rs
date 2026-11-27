@@ -5,7 +5,7 @@ use super::Location;
 use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::progress::ScalarFact;
 use crate::synchronization::spin::CellUpdate;
-use semantic_vocabulary::ScalarType;
+use semantic_vocabulary::{ScalarType, StructuralCaseId};
 use std::sync::Arc;
 use terminal_psi::StructuralPathSegment as Segment;
 
@@ -25,11 +25,27 @@ pub(in super::super) enum Stored {
 
 #[derive(Clone)]
 pub(in super::super) struct Aggregate {
+    tag: Option<StructuralCaseId>,
     zeroed: bool,
     fields: Vec<(Segment, Stored)>,
 }
 
 impl Stored {
+    pub(in super::super) fn variant(case: StructuralCaseId) -> Self {
+        Self::Aggregate(Arc::new(Aggregate {
+            tag: Some(case),
+            zeroed: false,
+            fields: Vec::new(),
+        }))
+    }
+
+    pub(in super::super) fn tag(&self) -> Option<StructuralCaseId> {
+        match self {
+            Self::Aggregate(value) => value.tag,
+            _ => None,
+        }
+    }
+
     pub(super) fn field(&self, key: &Segment) -> &Self {
         match self {
             Self::Zero => &Self::Zero,
@@ -52,6 +68,7 @@ impl Stored {
     pub(super) fn field_mut(&mut self, key: &Segment) -> &mut Self {
         if !matches!(self, Self::Aggregate(_)) {
             *self = Self::Aggregate(Arc::new(Aggregate {
+                tag: None,
                 zeroed: matches!(self, Self::Zero),
                 fields: Vec::new(),
             }));
@@ -99,6 +116,7 @@ impl Stored {
                     matches!(value, Self::Zero) || matches!(value, Self::Aggregate(a) if a.zeroed)
                 };
                 let mut result = Self::Aggregate(Arc::new(Aggregate {
+                    tag: self.tag().filter(|case| other.tag() == Some(*case)),
                     zeroed: zeroed(self) && zeroed(other),
                     fields: Vec::new(),
                 }));
@@ -154,7 +172,10 @@ impl Stored {
         let expected = match update {
             CellUpdate::Observe => return self.clone(),
             CellUpdate::Replace(value) => return Self::Scalar(ScalarFact::Literal(value)),
-            CellUpdate::CompareExchange { expected, replacement } if expected == replacement => {
+            CellUpdate::CompareExchange {
+                expected,
+                replacement,
+            } if expected == replacement => {
                 return self.clone();
             }
             CellUpdate::CompareExchange { expected, .. } => expected,

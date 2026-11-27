@@ -60,6 +60,9 @@ impl Storage {
         for segment in path {
             match segment {
                 Segment::Field(_) | Segment::FixedIndex(_) => location.path.push(segment.clone()),
+                Segment::Case(tag) if self.get(&location).tag() == Some(*tag) => {
+                    location.path.push(segment.clone());
+                }
                 Segment::Referent => {
                     let Stored::Reference(referent) = self.get(&location) else {
                         return None;
