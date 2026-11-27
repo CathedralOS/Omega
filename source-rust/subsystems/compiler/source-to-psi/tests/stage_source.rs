@@ -1356,6 +1356,20 @@ fn publication_checks_the_same_grammar_in_root_and_imported_files() {
 }
 
 #[test]
+fn an_open_array_prepares_its_applied_element_type() {
+    let source = "
+        data Leaf<const N: u64> { index: u64; }
+        data Group<const M: u64, const N: u64> { items: [Leaf<N>; M]; }
+        machine inspect<const Rows: u64, const Bound: u64>(group: @Group<Rows, Bound>) {}
+        machine main() {}
+    ";
+    let package = PackageKeyIdentity::from_digest([0x45; 32]).unwrap();
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None)
+        .expect("a symbolic array extent must retain its element's applied declaration");
+}
+
+#[test]
 fn an_erased_array_argument_still_requires_an_integer_extent() {
     let package = PackageKeyIdentity::from_digest([0x45; 32]).unwrap();
     let compile_source = |declarations: &str, formals: &str, extent: &str| {
