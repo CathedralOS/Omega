@@ -88,13 +88,6 @@ pub mod provider_declarations {
         pub application: ProviderApplicationView,
     }
 
-    pub struct ProviderDeclarationRequest<'rows> {
-        pub rows: &'rows [ProviderDeclarationRow<'rows>],
-        pub named_application: Option<NamedProviderApplication>,
-        pub provider_application_identity: Option<&'rows str>,
-        pub installation_reach: bool,
-    }
-
     pub(crate) mod context {
         use crate::source_state::TypedTrees;
         use source_provenance::DependencyScope;

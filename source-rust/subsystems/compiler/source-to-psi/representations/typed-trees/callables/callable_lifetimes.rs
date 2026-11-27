@@ -8,19 +8,3 @@ pub struct CallableLifetimeBinding {
     pub parameter: LifetimeParameterIdentity,
     pub argument: LifetimeParameterIdentity,
 }
-
-#[derive(Clone, Default)]
-pub struct CallableLifetimeFrame {
-    pub required: Vec<CallableLifetimeBinding>,
-    pub actual: Vec<CallableLifetimeBinding>,
-}
-
-#[derive(Clone, Copy)]
-pub enum CallableLifetimeApplication<'scope> {
-    Enclosing {
-        bindings: &'scope [CallableLifetimeBinding],
-    },
-    Invocation {
-        bindings: &'scope [CallableLifetimeBinding],
-    },
-}

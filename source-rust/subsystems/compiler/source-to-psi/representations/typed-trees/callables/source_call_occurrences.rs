@@ -24,23 +24,3 @@ pub trait ExpressionCalls<'program>: Sized {
         visit: impl FnOnce(&mut Self) -> Option<Self::Site>,
     ) -> Option<Self::Site>;
 }
-
-pub trait StatementCalls<'program>: ExpressionCalls<'program> {
-    fn named_statement_call_is_selected(
-        &self,
-        call: &'program crate::source_state::statement::TableCall,
-    ) -> bool;
-    fn visit_statement_call(
-        &mut self,
-        call: &'program crate::source_state::statement::TableCall,
-    ) -> Option<Self::Site>;
-    fn visit_transition_call(
-        &mut self,
-        target: &'program crate::source_state::statement::TransitionTargetNode,
-    ) -> Option<Self::Site>;
-    fn selected_target(
-        &mut self,
-        target: crate::source_state::statement::TransitionTargetHandle,
-        visit: impl FnOnce(&mut Self) -> Option<Self::Site>,
-    ) -> Option<Self::Site>;
-}
