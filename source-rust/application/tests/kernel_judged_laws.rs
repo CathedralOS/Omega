@@ -321,6 +321,28 @@ fn the_same_modulo_recursing_at_its_own_dividend_is_refused_at_that_call() {
 }
 
 #[test]
+fn a_law_that_needs_the_modulo_s_recursive_equation_compiles() {
+    // `mod(a, b) = mod(saturating_sub(a, b), b)` for `1 <= b <= a` holds only
+    // where the fuel reaches the recursive call. Citing `mod(a, b)` cites the
+    // recursive equation the compiler proves for it.
+    let (output, report) = check("computed_descent/pass/mod_steps_down_by_its_divisor");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn the_same_law_without_its_dividend_bound_is_refused_at_its_ensures() {
+    // Below the divisor the law is false, and the equation leaves the
+    // dispatch undecided.
+    let (output, report) = check("computed_descent/fail/mod_step_without_its_dividend_bound");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for `mod_step`")
+            && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_local_order_without_its_fuel_bound_is_refused_for_that_lemma() {
     // `Peano` spells core's truncated subtraction, so `drain`'s descent is
     // checked and holds. The law that its fuel suffices needs the order's

@@ -1248,3 +1248,58 @@ ensures
         transition { _ -> Nat::Zero }
     }
 }
+
+// THE FUEL EQUATION'S STEPS. The compiler cites these, each recognized by
+// its statement, when it proves that a machine on fuel satisfies its own
+// recursive equation (`wiki/drafts/designs/computed_descent_recursion.md`).
+//
+// No successor is at most its predecessor: `Succ p ∸ p` is never zero. A
+// unit of fuel at the machine's own ranked argument never spends itself
+// doing nothing.
+public machine not_succ_le_self(p: Nat) -> Nat
+terminates by p
+requires
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: p }, p), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(Nat::Succ { prev: Nat::Zero }, Nat::Zero)
+{
+    transition p {
+        Nat::Zero -> Nat::Zero,
+        Nat::Succ { prev as q } -> nsls_step(q)
+    }
+
+    machine nsls_step(q: Nat) -> Nat {
+        _ = succ_sub_succ(Nat::Succ { prev: q }, q);
+        _ = not_succ_le_self(q);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// No successor is at most zero: a recursive call owes `Succ e ∸ x = 0`, so
+// with no fuel left no call is reached.
+public machine not_succ_le_zero(e: Nat) -> Nat
+requires
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: e }, Nat::Zero), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(Nat::Succ { prev: Nat::Zero }, Nat::Zero)
+{
+    transition { _ -> Nat::Zero }
+}
+
+// `Succ e <= Succ p` gives `e <= p`: a call strictly below `Succ p` is
+// within the `p` units of fuel left. Lean analog: Nat.le_of_succ_le_succ.
+public machine le_of_succ_le_succ(e: Nat, p: Nat) -> Nat
+requires
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: e }, Nat::Succ { prev: p }), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(saturating_sub(e, p), Nat::Zero)
+{
+    transition {
+        _ -> lossls_body(e, p)
+    }
+
+    machine lossls_body(e: Nat, p: Nat) -> Nat {
+        _ = succ_sub_succ(e, p);
+        transition { _ -> Nat::Zero }
+    }
+}

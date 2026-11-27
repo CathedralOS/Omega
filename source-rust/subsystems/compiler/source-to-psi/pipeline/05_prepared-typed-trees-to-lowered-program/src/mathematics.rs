@@ -98,10 +98,11 @@ pub(crate) fn read(
             program.keep(read).map_err(alone)?;
         }
     }
-    // The law that a machine's fuel suffices cites core's natural-order
-    // bound, which no call names, so it is read with the naturals.
-    // A program may hold more than one copy of core's naturals: the bound of
-    // a copy the program reads from is read, and only that.
+    // The laws stated for a machine on fuel, that its fuel suffices and its
+    // recursive equation, cite core's natural-order lemmas, which no call
+    // names, so they are read with the naturals. A program may hold more
+    // than one copy of core's naturals: the lemmas of a copy the program
+    // reads from are read, and only those.
     let source = |symbol| {
         typed
             .symbols
@@ -113,22 +114,23 @@ pub(crate) fn read(
         .iter()
         .filter_map(|(_, &symbol)| source(symbol))
         .collect();
-    let mut bounds = Vec::new();
+    let mut lemmas = Vec::new();
     for machine in typed.machines() {
         if source(machine.symbol).is_some_and(|source| used.contains(&source))
-            && typed.core_vocabulary(machine.symbol)
-                == Some(language_core::core_vocabulary::CoreVocabulary::NaturalFuelBound)
+            && typed
+                .core_vocabulary(machine.symbol)
+                .is_some_and(language_core::core_vocabulary::CoreVocabulary::is_natural_fuel_lemma)
             && program.proof_machine(machine)
             && !program
                 .symbols
                 .iter()
                 .any(|(_, read)| *read == machine.symbol)
         {
-            bounds.push(machine.symbol);
+            lemmas.push(machine.symbol);
         }
     }
-    for bound in bounds {
-        let read = program.machine(bound).map(|_| ());
+    for lemma in lemmas {
+        let read = program.machine(lemma).map(|_| ());
         program.keep(read).map_err(alone)?;
     }
     let bodies = crate::read_bodies(&mut program, first).map_err(alone)?;
