@@ -1,6 +1,4 @@
 //! Execute the scalar observations requested for a published Psi program against its sealed target inputs.
-#![forbid(unsafe_code)]
-
 mod execution;
 mod receipts;
 mod scopes;

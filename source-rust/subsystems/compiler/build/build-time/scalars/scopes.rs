@@ -1,6 +1,6 @@
 //! Prepare and extend scalar work for a published program using the target inputs that produced each receipt.
-use crate::execution::TargetImportRealizations;
-use crate::receipts::CanonicalScalarEvaluationReceipt;
+use crate::scalars::execution::TargetImportRealizations;
+use crate::scalars::receipts::CanonicalScalarEvaluationReceipt;
 use psi_scalar_applications::{ScalarApplicationClosure, ScalarApplicationObservations};
 use semantic_vocabulary::ScalarApplicationId;
 use terminal_interpreter::TerminalExecutionResult;
@@ -171,13 +171,13 @@ fn complete_scopes(
             observations = observations.with_completed_scope(previous, &selected.address_model)?;
         }
         let demand = if scope == primary { requested } else { &[] };
-        let input = crate::receipts::CanonicalScalarScope::capture(
+        let input = crate::scalars::receipts::CanonicalScalarScope::capture(
             artifact,
             scope,
             &selected.providers,
             selected.carrier_layout,
         )?;
-        let (conditions, executions) = crate::execution::evaluate_accounted_scope(
+        let (conditions, executions) = crate::scalars::execution::evaluate_accounted_scope(
             &mut observations,
             primary,
             demand,
@@ -188,14 +188,16 @@ fn complete_scopes(
                 .and_then(Option::as_ref),
             selected.import_realizations.as_deref(),
             sponsor,
-            crate::receipts::PURE_PSI_WORK_BUDGET,
+            crate::scalars::receipts::PURE_PSI_WORK_BUDGET,
         );
         for execution in executions {
             let outcome = match execution.outcome {
-                Ok(value) => crate::receipts::PureTerminalEvaluationOutcome::Returned {
+                Ok(value) => crate::scalars::receipts::PureTerminalEvaluationOutcome::Returned {
                     value: TerminalExecutionResult::Scalar(value),
                 },
-                Err(reason) => crate::receipts::PureTerminalEvaluationOutcome::Failed { reason },
+                Err(reason) => {
+                    crate::scalars::receipts::PureTerminalEvaluationOutcome::Failed { reason }
+                }
             };
             records.push(CanonicalScalarEvaluationReceipt::new(
                 std::sync::Arc::clone(&input),

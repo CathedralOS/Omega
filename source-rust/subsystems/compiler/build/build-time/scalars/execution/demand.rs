@@ -46,7 +46,8 @@ pub(super) fn discover<'artifact>(
             let declaration = observations
                 .artifact()
                 .module()
-                .scalars.scalar_applications
+                .scalars
+                .scalar_applications
                 .declaration(application)
                 .ok_or("scalar evaluation dependency is absent")?;
             let (execution, dependencies) = match declaration {

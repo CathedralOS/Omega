@@ -4,9 +4,7 @@
 //! arguments and already admitted target supplies. Preparation and execution have
 //! separate ownership: this package cannot depend on a source representation or
 //! a compiler producer. Sharing code never shares an execution or its work account.
-#![forbid(unsafe_code)]
-
-pub use build_model::values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 
 use build_model::accounting::EvaluationInvocationAccount;
 use build_model::admission::AdmittedCompilerEvaluation;
@@ -201,10 +199,7 @@ impl<'input> ArtifactInvocation<'input> {
                     .module()
                     .structural_type(parameter.structural_type)
                     .ok_or("source input lost its canonical declaration")?;
-                let issued = matches!(
-                    self.input.inputs[position],
-                    crate::BuildTimeValue::LayoutTarget(_)
-                );
+                let issued = matches!(self.input.inputs[position], BuildTimeValue::LayoutTarget(_));
                 if (issued
                     && (declaration.shape != terminal_psi::StructuralTypeShape::Opaque
                         || parameter.access != terminal_psi::StructuralAccess::Owned))
@@ -235,9 +230,9 @@ impl<'input> ArtifactInvocation<'input> {
             .iter()
             .zip(self.input.inputs.iter())
             .enumerate()
-            .filter(|(_, (_, value))| !matches!(value, crate::BuildTimeValue::LayoutTarget(_)))
+            .filter(|(_, (_, value))| !matches!(value, BuildTimeValue::LayoutTarget(_)))
             .map(|(position, (parameter, value))| {
-                build_value_projection::input_contents(
+                crate::projection::input_contents(
                     &program,
                     u32::try_from(position)
                         .map_err(|_| "source input exceeds its argument namespace")?,
@@ -298,16 +293,16 @@ impl<'input> ArtifactInvocation<'input> {
             .map_err(|error| format!("source invocation execution: {error:?}"))?;
         let value = match status {
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
-                Ok(crate::BuildTimeValue::Unit)
+                Ok(BuildTimeValue::Unit)
             }
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(value)) => {
-                build_value_projection::scalar_result(instance.program(), value)
+                crate::projection::scalar_result(instance.program(), value)
             }
             TerminalExecutionStatus::Complete(
                 TerminalExecutionResult::Structural(_)
                 | TerminalExecutionResult::ScalarCase(_)
                 | TerminalExecutionResult::ScalarArray(_),
-            ) => build_value_projection::result_value(
+            ) => crate::projection::result_value(
                 &instance,
                 result_type.ok_or("source invocation lost its structured result type")?,
                 &opaque_inputs,

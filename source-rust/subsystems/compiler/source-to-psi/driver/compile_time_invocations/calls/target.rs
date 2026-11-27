@@ -48,7 +48,7 @@ pub(super) fn complete_invocation_scalar_applications<'artifact>(
         ScalarApplicationObservations::new(artifact, Some(selected), providers, Some(facts))?
             .with_target_carriers(target.carrier_layout)?
             .with_invocation_roots(&[declaration])?;
-    let conditions = build_scalar_evaluation::evaluate_scalar_applications(
+    let conditions = build_time_evaluation::scalars::evaluate_scalar_applications(
         &mut observations,
         Some(name),
         requested,

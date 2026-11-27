@@ -1,6 +1,4 @@
 //! Project Build values into an interpreter entry and read its declared result.
-#![forbid(unsafe_code)]
-
 use build_model::values::BuildTimeValue;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, ClosedScalarType, IntegerValue, ScalarType,

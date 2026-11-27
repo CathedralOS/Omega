@@ -1,12 +1,12 @@
 //! Extend the actual Product completion with the native entry's requested scalar observations.
-use build_scalar_evaluation::CanonicalScalarEvaluationReceipt;
+use build_time_evaluation::scalars::CanonicalScalarEvaluationReceipt;
 use target_provider_admission::TerminalTargetProviderProposal;
 
 /// The Product phase's completed scalar work and its unchanged provider inputs.
 /// Native completion adds application roots and demanded values to this owner.
 /// It is never encoded in saved native inputs.
 pub struct ProductScalarCompletion {
-    pub(super) completed: build_scalar_evaluation::ScalarApplicationCompletion,
+    pub(super) completed: build_time_evaluation::scalars::ScalarApplicationCompletion,
     pub(super) proposals: Vec<TerminalTargetProviderProposal>,
 }
 

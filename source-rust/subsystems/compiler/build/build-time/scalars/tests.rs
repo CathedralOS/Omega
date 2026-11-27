@@ -103,7 +103,8 @@ fn program() -> std::sync::Arc<CanonicalTerminalArtifact> {
         ));
         let callable = TargetMachineCallable::Machine(machine_id(index));
         module
-            .scalars.scalar_applications
+            .scalars
+            .scalar_applications
             .insert(ScalarApplication::Evaluate {
                 entry: callable,
                 scalar_type: scalar(),
@@ -151,7 +152,8 @@ fn program() -> std::sync::Arc<CanonicalTerminalArtifact> {
     }
     module.identities = identities.build();
     module
-        .scalars.scalar_applications
+        .scalars
+        .scalar_applications
         .conditions
         .retain_completion(ScalarConditionSubject::Module, application(1));
     let optimized = build_identity_optimization_execution_record(&module).unwrap();

@@ -9,6 +9,7 @@ version.workspace = true
 path = "execution.rs"
 
 [dependencies]
+build-time-evaluation = { path = "../build-time" }
 build-model = { path = "../model" }
 language-core = { path = "../../foundation/language-core" }
 build-program-launch = { path = "authority/program" }
@@ -18,8 +19,6 @@ build-evaluation-result = { path = "result" }
 normalized-build-settings = { path = "../settings/normalized" }
 psi-authorization = { path = "../../psi/artifact/authorization" }
 psi-provider-selections = { path = "../../psi/execution-inputs/providers" }
-build-scalar-evaluation = { path = "scalars" }
-build-value-projection = { path = "values/projection" }
 psi-target-layouts = { path = "../../psi/execution-inputs/target-layouts" }
 declaration-scope = { path = "../../foundation/declaration-scope" }
 source-provenance = { path = "../../foundation/source-provenance" }

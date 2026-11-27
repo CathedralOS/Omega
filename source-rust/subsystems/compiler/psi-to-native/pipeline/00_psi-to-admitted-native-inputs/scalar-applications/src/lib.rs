@@ -2,7 +2,7 @@
 //! The native driver determines which applications its entry demands. Product completion
 //! retains its actual execution inputs and can extend them with newly selected roots.
 
-pub use build_scalar_evaluation::CanonicalScalarEvaluationReceipt as EvaluationReceipt;
+pub use build_time_evaluation::scalars::CanonicalScalarEvaluationReceipt as EvaluationReceipt;
 use psi_target_layouts::terminal_target_context;
 use runtime_abi::target_carrier_layout;
 use std::sync::Arc;
@@ -17,7 +17,7 @@ pub fn complete<'scope>(
     demand: &[semantic_vocabulary::ScalarApplicationId],
     proposals: &[TerminalTargetProviderProposal],
     x86_fma: Option<target::AdmittedX86ScalarFmaProvider>,
-    accounting: &mut impl Extend<build_scalar_evaluation::CanonicalScalarEvaluationReceipt>,
+    accounting: &mut impl Extend<build_time_evaluation::scalars::CanonicalScalarEvaluationReceipt>,
 ) -> Result<psi_scalar_applications::AdmittedScalarApplications, String> {
     prepare(artifact, primary, demand, proposals, x86_fma, accounting)
         .map(|completion| completion.completed.into_admitted())
@@ -31,7 +31,7 @@ pub fn prepare<'scope>(
     demand: &[semantic_vocabulary::ScalarApplicationId],
     proposals: &[TerminalTargetProviderProposal],
     x86_fma: Option<target::AdmittedX86ScalarFmaProvider>,
-    accounting: &mut impl Extend<build_scalar_evaluation::CanonicalScalarEvaluationReceipt>,
+    accounting: &mut impl Extend<build_time_evaluation::scalars::CanonicalScalarEvaluationReceipt>,
 ) -> Result<ProductScalarCompletion, String> {
     let deployed = proposals
         .iter()
@@ -41,7 +41,7 @@ pub fn prepare<'scope>(
         .filter(|proposal| proposal.application_required)
         .map(|proposal| proposal.target.clone())
         .collect::<Vec<_>>();
-    build_scalar_evaluation::prepare_scalar_applications(
+    build_time_evaluation::scalars::prepare_scalar_applications(
         artifact,
         primary,
         deployed.then_some(scopes.as_slice()),
@@ -50,7 +50,7 @@ pub fn prepare<'scope>(
         accounting,
         |scope| {
             let Some(scope) = scope else {
-                return Ok(build_scalar_evaluation::ScalarScopeEvaluation {
+                return Ok(build_time_evaluation::scalars::ScalarScopeEvaluation {
                     application_roots: None,
                     targets: None,
                     providers: psi_provider_selections::admit_provider_installation(
@@ -88,7 +88,7 @@ pub fn prepare<'scope>(
                         commitment: model.commitment(),
                     }
                 });
-            Ok(build_scalar_evaluation::ScalarScopeEvaluation {
+            Ok(build_time_evaluation::scalars::ScalarScopeEvaluation {
                 application_roots: proposal.application_roots.clone(),
                 layout_target: Some(
                     profile
@@ -141,11 +141,11 @@ impl TargetRealizedIntrinsics {
     }
 }
 
-impl build_scalar_evaluation::TargetImportRealizations for TargetRealizedIntrinsics {
+impl build_time_evaluation::scalars::TargetImportRealizations for TargetRealizedIntrinsics {
     fn admit(
         &self,
         imports: &[semantic_vocabulary::BoundaryMachineId],
-    ) -> Result<Box<dyn build_scalar_evaluation::AdmittedImportRealizations>, String> {
+    ) -> Result<Box<dyn build_time_evaluation::scalars::AdmittedImportRealizations>, String> {
         use numeric_intrinsic_admission as admission;
         let module = self.artifact.view().module();
         // Catalog admission matches selected rows by callable identity. An
@@ -209,7 +209,7 @@ impl build_scalar_evaluation::TargetImportRealizations for TargetRealizedIntrins
 
 struct AdmittedIntrinsics(numeric_intrinsic_admission::AdmittedTerminalIntrinsics);
 
-impl build_scalar_evaluation::AdmittedImportRealizations for AdmittedIntrinsics {
+impl build_time_evaluation::scalars::AdmittedImportRealizations for AdmittedIntrinsics {
     fn realizes(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> bool {
         self.0.realizes(boundary)
     }
