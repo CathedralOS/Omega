@@ -1356,3 +1356,102 @@ machine entry() -> u8 {
         "{verdict:?}"
     );
 }
+
+/// A sum input of a logical contract is one value of the sum's inductive
+/// declaration (mathematical_bindings.md, "A sum input in a logical contract
+/// denotes a single mathematical value of that sum's checked inductive
+/// declaration"). The alias and the cited machine are both read over that
+/// one subject; the citation then needs case analysis, refused by name.
+const ONE_IS_POSITIVE: &str = "data Choice {
+    case One(x: u8);
+    case Two(y: u8);
+}
+
+data OneIsPositive = machine(c: Choice)
+    requires c in Choice::One && c.x != 0u8
+    ensures c.x > 0u8;
+
+machine one_is_positive(c: Choice)
+requires c in Choice::One && c.x != 0u8
+ensures c.x > 0u8
+{
+}
+
+machine use_step<Step: OneIsPositive>() {
+}
+
+machine entry() -> u8 {
+    use_step::<one_is_positive>();
+    0u8
+}
+";
+
+#[test]
+fn a_theorem_over_a_sum_reads_it_as_one_subject() {
+    let verdict = stored(ONE_IS_POSITIVE);
+    let shown = format!("{verdict:?}");
+    assert!(
+        shown.contains("theorem citation over a sum subject has no case analysis yet"),
+        "{shown}"
+    );
+    assert!(!shown.contains("not a plain record"), "{shown}");
+}
+
+#[test]
+fn a_theorem_over_a_sum_with_a_float_payload_is_refused_by_name() {
+    let source = ONE_IS_POSITIVE.replace("case Two(y: u8);", "case Two(y: f32);");
+    assert!(source.contains("case Two(y: f32);"), "{source}");
+    let verdict = stored(&source);
+    let shown = format!("{verdict:?}");
+    assert!(
+        shown.contains("logical contract has no well-formed mathematical implication"),
+        "{shown}"
+    );
+}
+
+/// Applying a theorem over a sum needs the case known at the edge, which is
+/// not yet checked.
+#[test]
+fn applying_a_theorem_over_a_sum_is_refused_by_name() {
+    let source = ONE_IS_POSITIVE.replace(
+        "machine use_step<Step: OneIsPositive>() {\n}",
+        "machine use_step<Step: OneIsPositive>(c: Choice)\nrequires c in Choice::One && c.x != 0u8\n{\n    Step(c);\n}",
+    )
+    .replace(
+        "use_step::<one_is_positive>();",
+        "use_step::<one_is_positive>(Choice::One { x: 7u8 });",
+    );
+    assert!(source.contains("    Step(c);"), "{source}");
+    let verdict = stored(&source);
+    let shown = format!("{verdict:?}");
+    assert!(
+        shown.contains("logical application of a theorem over a sum is not yet checked"),
+        "{shown}"
+    );
+}
+
+/// The cited machine's sum is its own subject too: one over another sum is
+/// not the alias's subject, whatever its cases.
+#[test]
+fn a_theorem_over_another_sum_cannot_supply_the_alias() {
+    let source = ONE_IS_POSITIVE
+        .replacen(
+            "data OneIsPositive",
+            "data Other {\n    case One(x: u8);\n    case Two(y: u8);\n}\n\ndata OneIsPositive",
+            1,
+        )
+        .replace(
+            "machine one_is_positive(c: Choice)\nrequires c in Choice::One && c.x != 0u8",
+            "machine one_is_positive(c: Other)\nrequires c in Other::One && c.x != 0u8",
+        );
+    assert!(
+        source.contains("machine one_is_positive(c: Other)"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    let shown = format!("{verdict:?}");
+    assert!(
+        shown.contains("not the aliased contract's subjects and carriers"),
+        "{shown}"
+    );
+}
