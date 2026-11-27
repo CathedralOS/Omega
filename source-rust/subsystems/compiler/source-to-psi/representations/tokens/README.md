@@ -12,7 +12,7 @@ Rust callers; it contains no representation logic.
 | `KeywordKind` | [lexemes/keywords.rs](lexemes/keywords.rs): keyword vocabulary and classification |
 | `PunctuationKind` | [lexemes/punctuation.rs](lexemes/punctuation.rs): punctuation vocabulary and longest-match lookup |
 | `spelling` and `literal_bytes` | [token_stream.rs](token_stream.rs) returns the original UTF-8 spelling for every token. Quoted literals also expose their decoded bytes. |
-| `LexedSource`, `LexedSources` | [files/lexed.rs](files/lexed.rs): file identity, path, scope and token-stream batches |
+| `LexedSource` | [files/lexed.rs](files/lexed.rs): file identity, path, scope and retained token stream |
 
 The [lexer](../../pipeline/00_source-files-to-tokens/src/lib.rs) produces these
 streams; the [parser](../../pipeline/01_tokens-to-syntax-trees/src/lib.rs) consumes
@@ -20,6 +20,6 @@ them. Each file gets its text from its token stream. Decoded strings use stream-
 byte ranges. Buffer recycling, retained-source identity and logical equality
 stay with the stream whose storage they describe.
 
-[tests/storage.rs](tests/storage.rs) checks storage and source retention;
-[tests/punctuation.rs](tests/punctuation.rs) checks the vocabulary's matching
-rules.
+[tests/storage.rs](tests/storage.rs) checks storage and source retention; unit
+tests in [lexemes/punctuation.rs](lexemes/punctuation.rs) check the vocabulary's
+matching rules.

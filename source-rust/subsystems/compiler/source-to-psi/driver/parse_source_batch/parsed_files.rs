@@ -35,6 +35,11 @@ impl SourceSyntax {
     pub fn root_item_count(&self) -> usize {
         self.trees.root_item_count()
     }
+
+    #[cfg(feature = "test-support")]
+    pub fn into_trees(self) -> SyntaxTrees {
+        self.trees
+    }
     pub fn new(source: SourceId) -> Self {
         Self {
             trees: SyntaxTrees::new(source),

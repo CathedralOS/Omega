@@ -1,7 +1,7 @@
 //! Time the real lexer, optionally through parsing, with retained source inputs.
 //! The ordinary omega-bench runner owns pairing, resource capture and output checks.
 
-use source_files::{LoadedSource, LoadedSources};
+use source_files::LoadedSource;
 use source_text::SourceId;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -9,6 +9,8 @@ use std::hint::black_box;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
+use syntax_trees::SyntaxTrees;
+use tokens::TokenScratch;
 
 fn main() -> Result<(), String> {
     let budget =
@@ -53,11 +55,15 @@ fn measure() -> Result<(), String> {
     // Hash every token's kind, range and decoded bytes outside the timed loop.
     // Candidate runs must preserve this complete observation, not only token counts.
     let mut fingerprint = DefaultHasher::new();
+    let mut scratch = TokenScratch::default();
     for (source_index, source) in sources.iter().enumerate() {
         source.hash(&mut fingerprint);
-        let lexed = source_compiler::test_support::lexing::lex(loaded(source.clone()))
-            .map_err(|error| format!("{}: {}", arguments[source_index + 2], error.message))?;
-        let tokens = &lexed.sources.span_or_empty(lexed.batch)[0].tokens;
+        let lexed = source_compiler::test_support::lexing::lex_file(
+            &mut loaded(source.clone()),
+            &mut scratch,
+        )
+        .map_err(|error| format!("{}: {}", arguments[source_index + 2], error.message))?;
+        let tokens = &lexed.tokens;
         tokens.len().hash(&mut fingerprint);
         for token in tokens.iter() {
             format!("{:?}", token.kind).hash(&mut fingerprint);
@@ -69,24 +75,29 @@ fn measure() -> Result<(), String> {
                 tokens.spelling(token).as_bytes().hash(&mut fingerprint);
             }
         }
+        lexed.tokens.recycle(&mut scratch);
     }
 
     let mut checksum = 0u64;
     let start = Instant::now();
     for _ in 0..black_box(repeats) {
         for source in &sources {
-            let lexed = source_compiler::test_support::lexing::lex(loaded(black_box(source.clone())))
-                .map_err(|error| error.message)?;
-            let tokens = &lexed.sources.span_or_empty(lexed.batch)[0].tokens;
-            checksum = checksum.wrapping_add(black_box(tokens.len()) as u64);
-            black_box(tokens).as_slice();
+            let mut lexed = source_compiler::test_support::lexing::lex_file(
+                &mut loaded(black_box(source.clone())),
+                &mut scratch,
+            )
+            .map_err(|error| error.message)?;
+            checksum = checksum.wrapping_add(black_box(lexed.tokens.len()) as u64);
+            black_box(&lexed.tokens).as_slice();
             if parse {
-                let parsed = source_compiler::test_support::parsing::parse(&lexed, Default::default())
-                    .map_err(|error| error.message)?;
-                checksum = checksum
-                    .wrapping_add(black_box(parsed.sources()[0].source().root_items.len()) as u64);
-                black_box(&parsed);
+                let mut syntax = SyntaxTrees::new(SourceId(1));
+                let parsed =
+                    source_compiler::test_support::parsing::parse_file(&mut syntax, &mut lexed)
+                        .map_err(|error| error.message)?;
+                checksum = checksum.wrapping_add(black_box(parsed.root_items.len()) as u64);
+                black_box(&syntax);
             }
+            lexed.tokens.recycle(&mut scratch);
         }
     }
     let elapsed = start.elapsed().as_nanos();
@@ -97,12 +108,10 @@ fn measure() -> Result<(), String> {
     Ok(())
 }
 
-fn loaded(source: Arc<str>) -> LoadedSources {
-    [LoadedSource {
+fn loaded(source: Arc<str>) -> LoadedSource {
+    LoadedSource {
         source_id: SourceId(1),
         source,
         ..Default::default()
-    }]
-    .into_iter()
-    .collect()
+    }
 }

@@ -13,7 +13,7 @@
 //! declaration names", and "An explicit `..` may waive the remaining
 //! components."
 //!
-//! The tests lex with the real lexer, parse through `source_parser::parse`
+//! The tests lex with the real lexer, parse through `source_parser::parse_into`
 //! and inspect the syntax trees directly.
 
 use crate::parsing_support::{parse, trees};
