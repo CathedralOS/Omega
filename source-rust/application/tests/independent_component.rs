@@ -507,7 +507,8 @@ fn selected_component_wait_needs_progress_for_the_receivers_actual_input() {
                         supplier.view(),
                         candidate.candidate,
                         ProgressScope::OpenInterface,
-                        []
+                        [],
+                        |_| None
                     ),
                     None
                 );
@@ -516,6 +517,7 @@ fn selected_component_wait_needs_progress_for_the_receivers_actual_input() {
                     candidate.candidate,
                     ProgressScope::Executable,
                     [],
+                    |_| None,
                 )
                 .expect("a standalone provider has no incoming progress premise");
                 assert_eq!(standalone.cause, ProgressFailure::UnprovedExternal);
@@ -525,6 +527,7 @@ fn selected_component_wait_needs_progress_for_the_receivers_actual_input() {
                 entry,
                 ProgressScope::Executable,
                 [&admitted],
+                |_| None,
             );
             if provider.ends_with("::ObservedWait") && requires.is_empty() {
                 let failure =
@@ -547,6 +550,62 @@ fn selected_component_wait_needs_progress_for_the_receivers_actual_input() {
                 );
             } else {
                 assert_eq!(failure, None, "{provider} with {requires}");
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_fused_wait_uses_the_body_selected_by_the_actual_target() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/synchronization/run/independent_wait");
+    let read = |file: &str| fs::read_to_string(fixture.join(file)).unwrap();
+    let supplier_build = read("supplier/build.omg");
+    let supplier = read("supplier/main.omg");
+    let build = read("application/build.omg")
+        .replace("CompositionMode::Independent", "CompositionMode::Fused");
+    let main = read("application/main.omg").replace("store(0", "store(1");
+    for (provider, blocked) in [("ObservedWait", true), ("ImmediateWait", false)] {
+        let scratch = project::stage(
+            "fused-selected-wait",
+            &[
+                ("supplier/build.omg", &supplier_build),
+                ("supplier/main.omg", &supplier),
+                (
+                    "application/build.omg",
+                    &build.replace("ObservedWait", provider),
+                ),
+                ("application/main.omg", &main),
+            ],
+        );
+        let project_dir = scratch.path().join("application");
+        for command in [
+            &[
+                "--target",
+                "linux_x86_64",
+                "--build-dir",
+                "out",
+                "build.omg",
+            ][..],
+            &[
+                "run",
+                "--engine",
+                "psi",
+                "--target",
+                "linux_x86_64",
+                "--psi-work-budget",
+                "10000",
+                "build.omg",
+            ][..],
+        ] {
+            let (ok, diagnostic) = project::status(&project::omega(&project_dir, command));
+            assert_eq!(ok, !blocked, "{provider} {command:?}: {diagnostic}");
+            if blocked {
+                assert!(
+                    diagnostic.contains("synchronization deadlock"),
+                    "{diagnostic}"
+                );
             }
         }
     }

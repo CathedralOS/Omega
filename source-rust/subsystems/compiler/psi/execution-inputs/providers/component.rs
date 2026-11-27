@@ -7,7 +7,8 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_codec::{TerminalArtifactView, TerminalExecutionIdentity, TerminalExecutionView};
 use terminal_psi::TerminalPsiIdentity;
 use terminal_semantics::synchronization::{
-    PrivateWaitFailure, ProgressScope, SpinWait, component_spin_wait, private_wait_failure,
+    PrivateWaitFailure, ProgressScope, SelectedCall, SpinWait, component_spin_wait,
+    private_wait_failure,
 };
 
 use crate::{
@@ -168,6 +169,7 @@ pub fn invocation_progress_failure<'a, 'receiver>(
     entry: MachineId,
     scope: ProgressScope,
     installed: impl IntoIterator<Item = &'a AdmittedComponentProvider>,
+    local: impl Fn(BoundaryMachineId) -> Option<MachineId>,
 ) -> Option<PrivateWaitFailure> {
     let receiver = receiver.into();
     let identity = receiver.custody_identity();
@@ -178,14 +180,12 @@ pub fn invocation_progress_failure<'a, 'receiver>(
     imports.sort_unstable_by_key(|supplier| supplier.receiving_boundary);
     private_wait_failure(receiver.module(), entry, scope, |slot| {
         let first = imports.partition_point(|supplier| supplier.receiving_boundary < slot);
-        let supplier = imports.get(first)?;
-        if supplier.receiving_boundary != slot
-            || imports
-                .get(first + 1)
-                .is_some_and(|other| other.receiving_boundary == slot)
-        {
+        let Some(supplier) = imports.get(first).filter(|supplier| supplier.receiving_boundary == slot) else {
+            return local(slot).map(SelectedCall::Local);
+        };
+        if imports.get(first + 1).is_some_and(|other| other.receiving_boundary == slot) {
             return None;
         }
-        supplier.wait.clone()
+        supplier.wait.clone().map(SelectedCall::ImportedWait)
     })
 }

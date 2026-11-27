@@ -1367,6 +1367,10 @@ pub(crate) mod instance {
                     self.components
                         .values()
                         .map(TerminalComponentBinding::selected),
+                    |slot| match execution.boundary_supplies.get(&slot) {
+                        Some(crate::boundary::effects::AdmittedBoundarySupply::CheckedProvider(machine)) => Some(*machine),
+                        _ => None,
+                    },
                 )
             {
                 return Err(TerminalInstanceError::Synchronization(failure));

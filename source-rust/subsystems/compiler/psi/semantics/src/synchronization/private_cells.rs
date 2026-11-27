@@ -8,14 +8,14 @@ mod storage;
 mod successor;
 
 use super::progress::{PrivateWaitFailure, ProgressFailure, ProgressScope, entry_scalars};
-use super::selected::Summaries;
-use super::spin::{CellUpdate, SpinWait, spin_observation};
+use super::selected::{SelectedCall, Summaries};
+use super::spin::{CellUpdate, spin_observation};
 use activation::{Bindings, Destination, Frame, ScalarArguments};
 use control::{Execution, Frontier};
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use storage::{Location, Storage};
 use terminal_psi::{
-    StructuralAccess, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
+    StructuralAccess, TerminalAffineCleanupAction, TerminalModule,
     Terminator,
 };
 
@@ -23,7 +23,7 @@ pub fn private_wait_failure(
     module: &TerminalModule,
     entry: MachineId,
     scope: ProgressScope,
-    boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+    boundary: impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
 ) -> Option<PrivateWaitFailure> {
     if !module.types.structural_types.iter().any(|ty| {
         matches!(ty.shape, terminal_psi::StructuralTypeShape::AtomicCell(_))
@@ -108,7 +108,7 @@ enum Advance {
 
 fn advance<'m>(
     module: &'m TerminalModule,
-    boundary: &impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+    boundary: &impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
     summaries: &mut Summaries,
     path: &mut Execution<'m>,
     requirements: &[semantic_vocabulary::Proposition],
@@ -124,8 +124,8 @@ fn advance<'m>(
                 frame.step(module, op, memory)?;
                 continue;
             };
-            let spin = match call.callee {
-                TargetMachineCallable::Machine(id) => {
+            let spin = match SelectedCall::resolve(call.callee, boundary)? {
+                SelectedCall::Local(id) => {
                     if let Some(summary) = summaries.get(module, id, boundary) {
                         summary
                     } else {
@@ -145,7 +145,7 @@ fn advance<'m>(
                         continue;
                     }
                 }
-                TargetMachineCallable::Boundary(id) => boundary(id)?,
+                SelectedCall::ImportedWait(wait) => wait,
             };
             let actual = call.structural_arguments.get(spin.parameter)?;
             if actual.access != StructuralAccess::SharedBorrow {
