@@ -396,6 +396,7 @@ impl StaticRecordBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticRecordRequirementInstance {
     pub machine: MachineId,
+    pub signature: SymbolHandle,
     pub arguments: Vec<semantic_vocabulary::ScalarTerm>,
 }
 
@@ -475,6 +476,7 @@ mod static_record_instance_tests {
                 application: "Ops<u32>".into(),
                 instances: vec![StaticRecordRequirementInstance {
                     machine: machine(instance),
+                    signature: symbol(3),
                     arguments: Vec::new(),
                 }],
             }],

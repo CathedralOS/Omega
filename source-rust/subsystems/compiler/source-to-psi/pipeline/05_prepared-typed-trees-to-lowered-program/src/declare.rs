@@ -1159,7 +1159,8 @@ fn application_bindings_commitment(
             // Boolean is stated the same way, by `true` or `false`: its
             // parameter's type is `bool`, which no integer literal lands in.
             StaticMachineBindingValue::Const(value_reference) => {
-                let argument = const_argument(typed, binding.parameter, *value_reference)?;
+                let argument =
+                    const_argument(typed, binding.parameter, *value_reference, bindings)?;
                 commitment.const_argument(&argument)?;
                 if let Some(prepared) = prepared.as_mut() {
                     prepared.parameter_kinds.push(1);
@@ -1375,6 +1376,7 @@ fn const_argument(
     typed: &TypedTrees,
     binder: SymbolHandle,
     reference: crate::source_state::types::TypeReferenceHandle,
+    bindings: &[crate::source_state::static_applications::StaticMachineBinding],
 ) -> Result<application_identity::const_value::CanonicalConstValue, &'static str> {
     use crate::source_state::data::TypeParameterKind;
     use application_identity::const_value::CanonicalConstValue;
@@ -1387,9 +1389,25 @@ fn const_argument(
     else {
         return Err("an application's value binding belongs to another binder kind");
     };
-    if let Some(required) =
-        typed.static_record_schema(type_reference, typed.symbols.get(binder).parent)
-    {
+    let owner = typed.symbols.get(binder).parent;
+    if let Some(required) = typed.static_record_schema(type_reference, owner) {
+        let type_bindings = bindings
+            .iter()
+            .filter_map(|binding| match binding.value {
+                crate::source_state::static_applications::StaticMachineBindingValue::Type(
+                    reference,
+                )
+                | crate::source_state::static_applications::StaticMachineBindingValue::Const(
+                    reference,
+                ) => reference
+                    .is_valid()
+                    .then_some((binding.parameter, reference)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let required = required
+            .under_invocation(typed, owner, owner, &type_bindings, &[])
+            .ok_or("an application's record argument lost its instantiated schema")?;
         let operand = typed.static_operand_from_type_reference(reference)?;
         if operand.application.is_some()
             || operand.evidence_projection.is_some()
