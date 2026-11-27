@@ -896,6 +896,7 @@ pub(crate) fn lower_static_machine_argument(
             EvidenceProjection {
                 term: lower_name(syntax_trees, &projection.term),
                 member: lower_name(syntax_trees, &projection.member),
+                term_symbol: SymbolHandle::invalid(),
             }
         }),
         symbol: SymbolHandle::invalid(),

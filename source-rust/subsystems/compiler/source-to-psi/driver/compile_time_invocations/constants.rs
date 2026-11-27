@@ -497,7 +497,9 @@ fn decode_snapshot(
             let BuildTimeValue::Array(elements) = value else {
                 return Err("constant result is not an array of its declared type".into());
             };
-            let length = program.closed_fixed_array_length(underlying).ok_or("array type has no evaluated extent")?;
+            let length = program
+                .closed_fixed_array_length(underlying)
+                .ok_or("array type has no evaluated extent")?;
             if elements.len() != length {
                 return Err("constant result differs from its declared array extent".into());
             }
@@ -511,6 +513,24 @@ fn decode_snapshot(
             });
         }
         TypeReferenceNode::Named { symbol, .. } => *symbol,
+        // A callable leaf keeps the exact declaration its value selected.
+        // Materialization resolves that identity back to one source machine
+        // and the reader checks the selection against the carrier.
+        TypeReferenceNode::Callable { .. } => {
+            let BuildTimeValue::StaticCallable { owner, callable } = value else {
+                return Err(
+                    "constant result is not a selection of its declared callable type".into(),
+                );
+            };
+            return Ok(DecodedCanonicalConstValue::StaticCallable {
+                declaration:
+                    application_identity::type_identity::encoding::callable_declaration_path(
+                        owner, callable,
+                    ),
+                application: None,
+                requirement: None,
+            });
+        }
         _ => return Err(unsupported()),
     };
     if let Some(declaration) = program.data_definition_by_symbol(symbol) {

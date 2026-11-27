@@ -147,6 +147,13 @@ impl Program<'_> {
                 "a theorem given its own proof arguments cannot itself be given to another inside a citation",
             ));
         }
+        if argument.evidence_projection.is_some()
+            && argument.application.is_none()
+            && !argument.authored_machine_application.is_valid()
+            && argument.const_literal.is_none()
+        {
+            return self.stored_theorem(id, argument);
+        }
         if !typed.symbols.symbols().nodes().is_valid(argument.symbol)
             || argument.application.is_some()
             || argument.authored_machine_application.is_valid()
@@ -251,6 +258,99 @@ impl Program<'_> {
         self.visible_to(id, target)?;
         // This retains the cited body's independent checking obligation. No
         // call, descriptor or code-selection identity is produced for it.
+        self.machine(target).map(terminal_psi::TheoremSource::Named)
+    }
+
+    /// `CONSTANT.field` cites the machine a constant record stores in a
+    /// callable field (OWNER_QUESTIONS.md#bundle-evidence-field-type). A
+    /// constant has one possible selection, the one its checked
+    /// materialized value names, so that selection's evidence covers every
+    /// use; the citation executes no callback. Any other receiver may hold
+    /// another selection its type allows and is refused by name.
+    fn stored_theorem(
+        &mut self,
+        id: MachineId,
+        argument: &crate::source_state::expression::StaticMachineArgument,
+    ) -> Checked<terminal_psi::TheoremSource> {
+        use crate::source_state::expression::ExpressionNode;
+        let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
+        let typed = self.typed;
+        let projection = argument
+            .evidence_projection
+            .as_ref()
+            .ok_or_else(|| unavailable("stored theorem citation has no field projection"))?;
+        let receiver = projection.term_symbol;
+        let constant = (typed.symbols.symbols().nodes().is_valid(receiver))
+            .then(|| typed.const_declaration_by_symbol(receiver))
+            .flatten()
+            .ok_or_else(|| {
+            unavailable(
+                "stored theorem citation reads a field of a value other than a constant; only a constant has one possible selection",
+            )
+        })?;
+        let initializer = constant.materialized_initializer;
+        let ExpressionNode::StructLiteral(literal) = (constant.evaluated_value.is_some()
+            && typed.expression_table.expression_is_valid(initializer))
+        .then(|| typed.expression_table.expression(initializer))
+        .ok_or_else(|| {
+            unavailable("stored theorem citation reads a constant without its evaluated value")
+        })?
+        else {
+            return Err(unavailable(
+                "stored theorem citation reads a field of a constant that is not a record",
+            ));
+        };
+        if literal.case_name.is_some() {
+            return Err(unavailable(
+                "stored theorem citation reads a field of a constant that is not a record",
+            ));
+        }
+        let mut fields = typed
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .filter(|field| field.name == projection.member);
+        let (Some(field), None) = (fields.next(), fields.next()) else {
+            return Err(unavailable(
+                "stored theorem citation names no unique field of the constant",
+            ));
+        };
+        let ExpressionNode::MachineValue(value) =
+            (typed.expression_table.expression_is_valid(field.value))
+                .then(|| typed.expression_table.expression(field.value))
+                .ok_or_else(|| unavailable("stored theorem citation lost its stored value"))?
+        else {
+            return Err(unavailable(
+                "stored theorem citation names a field that holds no machine selection",
+            ));
+        };
+        if value.application.is_valid()
+            || value.conformance.is_valid()
+            || value.requirement.is_valid()
+            || value.selected.application.is_some()
+            || value.selected.const_literal.is_some()
+            || value.selected.evidence_projection.is_some()
+        {
+            return Err(unavailable(
+                "stored theorem citation selects a conformance member or static application",
+            ));
+        }
+        let target = self
+            .entered_machine(value.selected.symbol)
+            .ok_or_else(|| unavailable("stored theorem citation selects no named theorem"))?;
+        let machine = typed
+            .machine_by_symbol(target)
+            .ok_or_else(|| unavailable("named theorem has no complete source declaration"))?;
+        if !typed.machine_type_parameters(machine).is_empty()
+            || !machine.conformance_bounds.is_empty()
+        {
+            return Err(unavailable(
+                "stored theorem citation selects a theorem with parameters of its own",
+            ));
+        }
+        self.visible_to(id, target)?;
+        // As for a named citation, this retains the selected body's own
+        // checking obligation and produces no call or descriptor.
         self.machine(target).map(terminal_psi::TheoremSource::Named)
     }
 

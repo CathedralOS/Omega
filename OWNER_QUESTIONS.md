@@ -187,6 +187,17 @@ construction rule and state that projecting the selected machine in a proof
 argument may cite its checked logical evidence under the rules above. The
 compiler work is tracked under PROOF-KERNEL-CORE. [Operation records](wiki/spec/language/conformances.md#implementations-are-operation-records) · [Logical hypotheses](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) · [Callable storage and evidence](wiki/spec/language/machine_values.md#invocation-storage-and-evidence) · [Compiler tasks](TASKS.md)
 
+**Implementation note.** The compiler accepts `use_step::<U8_LAWS.step>(7u8)`
+when `U8_LAWS` is a constant record. A constant has one possible selection,
+the machine its evaluated value names. The field of a runtime record, such as
+`laws.step` for a parameter `laws`, is refused by name: any selection its type
+admits may run code, so its guarantee holds only after it returns. A cited
+machine, named directly or through a field, must return without running
+anything. A machine whose body runs code, such as one that recurs until its
+claim holds, is refused as a theorem and stays an ordinary callable value. The
+owners may want the specification follow-up above to state that condition for
+named citations as well.
+
 <a id="address-subject-lower-bound"></a>
 ### 5. Numeric addresses have a lower bound of zero on every target
 
