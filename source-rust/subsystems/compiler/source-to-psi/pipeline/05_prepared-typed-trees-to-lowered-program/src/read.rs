@@ -387,6 +387,9 @@ pub(crate) struct Program<'t> {
     rigid_storage: Vec<Option<type_parameters::ParameterStorage>>,
     /// Binds sibling operations while reading a law supplied by this record.
     clause_supplier: Option<SymbolHandle>,
+    /// The implementation whose rows a requirement's clauses name while its
+    /// witness reads that requirement at the implementation's arguments.
+    witness_conformance: Option<SymbolHandle>,
     /// `scope` of each machine, pushed with its signature and restored
     /// when its body is read.
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
@@ -691,6 +694,7 @@ impl<'t> Program<'t> {
             reading_schema: false,
             rigid_storage: Vec::new(),
             clause_supplier: None,
+            witness_conformance: None,
             scopes: IdTable::default(),
             nominal_calls: Vec::new(),
             const_scope: Vec::new(),

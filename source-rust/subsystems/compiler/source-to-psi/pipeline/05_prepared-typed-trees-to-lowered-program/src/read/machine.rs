@@ -1196,6 +1196,11 @@ impl<'t> Program<'t> {
             .then_some(implementation)
             .or(self.signature_view_owner);
         let outer = std::mem::replace(&mut self.signature_view_owner, owner);
+        let conformance = self
+            .typed
+            .owned_conformance_realization(implementation)
+            .map(|(conformance, _)| conformance.symbol);
+        let outer_conformance = std::mem::replace(&mut self.witness_conformance, conformance);
         let witnessed = if self.rigid {
             let implementation = self
                 .typed
@@ -1210,6 +1215,7 @@ impl<'t> Program<'t> {
             self.witnessed_signature(declared, arguments, expected)
         };
         self.signature_view_owner = outer;
+        self.witness_conformance = outer_conformance;
         Ok((witnessed?, source))
     }
 
@@ -2480,7 +2486,16 @@ impl<'t> Program<'t> {
             && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
         {
             let arguments = self.conformer_value_arguments(id, machine, requirement)?;
-            let (routed, routed_names) = self.requirement_signature(id, requirement, &arguments)?;
+            // The requirement's clauses name the rows of this member's
+            // implementation, as the member's own clauses do.
+            let conformance = self
+                .typed
+                .owned_conformance_realization(machine.symbol)
+                .map(|(conformance, _)| conformance.symbol);
+            let outer = std::mem::replace(&mut self.witness_conformance, conformance);
+            let routed = self.requirement_signature(id, requirement, &arguments);
+            self.witness_conformance = outer;
+            let (routed, routed_names) = routed?;
             self.same_conformer_shape(id, &signature, &routed, machine.symbol)?;
             self.retain_requirement_policy(id, requirement, machine.symbol)?;
             // There is one executable entry: its caller-facing contract is

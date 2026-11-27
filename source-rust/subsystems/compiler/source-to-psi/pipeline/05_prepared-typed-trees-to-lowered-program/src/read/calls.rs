@@ -1789,7 +1789,20 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let (callee, dispatch, operand, operand_owner, value_arguments, static_record) = selection;
         let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
-        let (required, _) = self.requirement_signature(
+        let machine = *self.symbols.get(callee).ok_or_else(|| {
+            refuse_at(
+                id,
+                Unserved::Call("selected body lost its exact source declaration"),
+            )
+        })?;
+        // The requirement's clauses name rows of the selected body's
+        // implementation, such as the `equals` a law is about.
+        let conformance = self
+            .typed
+            .owned_conformance_realization(machine)
+            .map(|(conformance, _)| conformance.symbol);
+        let outer = std::mem::replace(&mut self.witness_conformance, conformance);
+        let required = self.requirement_signature(
             id,
             required_source,
             if required_source.type_parameters.is_empty() {
@@ -1797,13 +1810,9 @@ impl<'t> Program<'t> {
             } else {
                 &value_arguments
             },
-        )?;
-        let machine = *self.symbols.get(callee).ok_or_else(|| {
-            refuse_at(
-                id,
-                Unserved::Call("selected body lost its exact source declaration"),
-            )
-        })?;
+        );
+        self.witness_conformance = outer;
+        let (required, _) = required?;
         let supplied = self
             .signatures
             .get(callee)

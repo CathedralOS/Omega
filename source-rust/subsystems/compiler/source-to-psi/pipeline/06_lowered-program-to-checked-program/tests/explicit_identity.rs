@@ -346,3 +346,115 @@ fn ieee_equality_and_raw_identity_do_not_stand_for_each_other() {
         "contract IEEE comparison without its selected declaration",
     );
 }
+
+/// The unproved obligations of a program, in the checker's words.
+fn unproved(main: &str) -> Vec<String> {
+    match checked(main) {
+        Ok(Verdict::Rejected(rejection)) => rejection.unproved,
+        Ok(Verdict::Accepted) => Vec::new(),
+        other => panic!("expected a judged program, got {other:?}"),
+    }
+}
+
+/// `Coin`'s comparison of both fields, with its comparison-implies-identity
+/// law. The law's body proves nothing yet, so its own obligation stays owed;
+/// what a caller may do with it is checked apart from that.
+const BOTH: &str = "use {omega}/language/core/foundation.omg as proof;
+data Coin { value: i32; year: i32; }
+CoinByBoth satisfies EqualImpliesIdentity<Coin> {
+    machine equals(left: @Coin, right: @Coin) -> bool reaches none crashes none terminates {
+        left.value == right.value && left.year == right.year
+    }
+    machine identity_of_equal(left: Coin, right: Coin)
+    requires equals(@left, @right)
+    ensures |proof|::Identity::<Coin>(left, right) {}
+}
+";
+
+#[test]
+fn a_law_over_the_inherited_comparison_is_owed_by_its_body() {
+    let owed = unproved(BOTH);
+    assert!(
+        matches!(owed.as_slice(), [only] if only.starts_with("NormalGuarantee")),
+        "{owed:?}"
+    );
+}
+
+#[test]
+fn a_cited_law_proves_identity_from_the_same_comparison() {
+    let caller = "machine same(a: Coin, b: Coin)
+requires CoinByBoth::equals(@a, @b)
+ensures |proof|::Identity::<Coin>(a, b) {
+    CoinByBoth::identity_of_equal(a, b);
+}
+";
+    assert_eq!(unproved(&format!("{BOTH}{caller}")), unproved(BOTH));
+}
+
+/// A caller of `BOTH`'s law whose citation is refused: it owes more than the
+/// law's own body does, and what it owes is the law's premise.
+#[track_caller]
+fn premise_owed(caller: &str) {
+    let alone = unproved(BOTH);
+    let owed = unproved(&format!("{BOTH}{caller}"));
+    assert!(
+        owed.len() > alone.len() && owed.iter().any(|row| row.starts_with("CallRequirement")),
+        "{owed:?}"
+    );
+}
+
+#[test]
+fn a_cited_law_owes_its_comparison_at_the_use() {
+    premise_owed(&format!(
+        "machine same(a: Coin, b: Coin)
+ensures |proof|::Identity::<Coin>(a, b) {{
+    CoinByBoth::identity_of_equal(a, b);
+}}
+"
+    ));
+}
+
+#[test]
+fn a_law_about_both_fields_says_nothing_of_a_comparison_of_one() {
+    premise_owed(&format!(
+        "CoinByValue satisfies Equatable<Coin> {{
+    machine equals(left: @Coin, right: @Coin) -> bool reaches none crashes none terminates {{
+        left.value == right.value
+    }}
+}}
+machine same(a: Coin, b: Coin)
+requires CoinByValue::equals(@a, @b)
+ensures |proof|::Identity::<Coin>(a, b) {{
+    CoinByBoth::identity_of_equal(a, b);
+}}
+"
+    ));
+}
+
+#[test]
+fn evidence_needs_a_comparison_a_clause_can_name() {
+    refused_before_checking(
+        "use {omega}/language/core/foundation.omg as proof;
+data Coin { value: i32; }
+CoinByValue satisfies IdentityImpliesEqual<Coin> {
+    machine equals(left: @Coin, right: @Coin) -> bool { left.value == right.value }
+    machine equal_of_identity(left: Coin, right: Coin)
+    requires |proof|::Identity::<Coin>(left, right)
+    ensures equals(@left, @right) {}
+}
+",
+        "clause application needs an unconditional pure and total operation",
+    );
+}
+
+#[test]
+fn only_equality_evidence_names_an_abstract_comparison() {
+    refused_before_checking(
+        "trait Law<T> {
+    machine same(left: @T, right: @T) -> bool;
+    machine reflexive(value: T) ensures same(@value, @value);
+}
+",
+        "clause application needs an unconditional pure and total operation",
+    );
+}
