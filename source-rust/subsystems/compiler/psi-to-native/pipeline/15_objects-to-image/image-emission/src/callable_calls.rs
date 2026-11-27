@@ -25,10 +25,10 @@ pub(crate) fn prepare_with<'a>(
 }
 
 pub(crate) fn call_site(
-    owner: target_operations::CallSiteOwner,
+    owner: target_vocabulary::CallSiteOwner,
 ) -> Result<terminal_semantics::callable_values::CallableInvocationSite, String> {
     use semantic_vocabulary::InvocationSite as Invocation;
-    use target_operations::CallSiteOwner as Owner;
+    use target_vocabulary::CallSiteOwner as Owner;
     use terminal_semantics::callable_values::CallableInvocationSite as Site;
     Ok(match owner {
         Owner::Operation(operation) => Site::Invocation(Invocation::Operation(operation)),

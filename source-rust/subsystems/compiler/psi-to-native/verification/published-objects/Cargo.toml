@@ -25,3 +25,11 @@ installation-admission = { path = "../installation-admission" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 image-emission = { path = "../../pipeline/15_objects-to-image/image-emission" }
 optimization-core = { path = "../../representations/optimization-records" }
+abstract-operations = { path = "../../representations/abstract-operations" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
+target-operations = { path = "../../representations/target-operations" }
+terminal-psi = { path = "../../../psi" }
+terminal-semantics = { path = "../../../psi/semantics" }
+
+[dev-dependencies]
+calling-conventions = { path = "../../targets/calling-conventions" }

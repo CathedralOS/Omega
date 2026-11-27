@@ -937,12 +937,11 @@ dependencies = [
  "installation-admission",
  "installation-conditions",
  "isa-x86_64",
- "legalized-operations",
  "machine-code",
  "native-encoding",
  "native-execution-reach",
  "object-file",
- "optimization-unit-semantics",
+ "operation-operands",
  "physical-program",
  "physical-recipes",
  "post-allocation-machine",
@@ -958,7 +957,6 @@ dependencies = [
  "sha2",
  "target",
  "target-aarch64",
- "target-operations",
  "target-vocabulary",
  "target-x86_64",
  "terminal-psi",
@@ -2399,7 +2397,9 @@ dependencies = [
 name = "published-object-verification"
 version = "0.1.0"
 dependencies = [
+ "abstract-operations",
  "abstract-operations-to-target-operations",
+ "calling-conventions",
  "diagnostics",
  "encoding-admission",
  "frame-admission",
@@ -2408,6 +2408,7 @@ dependencies = [
  "installation-admission",
  "machine-code",
  "optimization-core",
+ "optimization-unit-semantics",
  "post-allocation-machine",
  "post-allocation-machine-to-framed-machine",
  "register-environment",
@@ -2419,6 +2420,9 @@ dependencies = [
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
+ "target-operations",
+ "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
