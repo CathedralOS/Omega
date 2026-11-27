@@ -117,6 +117,7 @@ mod stored_views;
 mod structural_domains;
 mod successor_loans;
 mod sum_hypothesis;
+mod synchronization;
 mod termination;
 mod type_parameters;
 mod uninhabited_results;

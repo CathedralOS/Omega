@@ -927,7 +927,12 @@ pub(super) fn judge_owing_with_activity(
 ) -> Checked<RouteVerdict> {
     let mut further = Vec::new();
     match examine(elaborated, &[], &[], None, activity, &mut further) {
-        Ok(examined) => conclude(examined, applied, true, &mut further),
+        Ok(examined) => conclude(
+            examined,
+            applied,
+            JudgmentSubject::SelectedClosure,
+            &mut further,
+        ),
         Err(decided) => decided,
     }
 }
@@ -1313,13 +1318,19 @@ fn affine_plan(
     Ok((plan, received))
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum JudgmentSubject {
+    SelectedClosure,
+    GenericFormOrWitness,
+}
+
 /// The verdict on an examined closure. A machine with an obligation the
 /// checker cannot judge yet falls back; each later such machine is put in
 /// `further` (`Unsupported`).
 fn conclude(
     examined: Examined,
     applied: AppliedContracts,
-    seal_operations: bool,
+    subject: JudgmentSubject,
     further: &mut Vec<Refusal>,
 ) -> Checked<RouteVerdict> {
     let Examined {
@@ -1582,6 +1593,19 @@ fn conclude(
             },
         );
     }
+    if subject == JudgmentSubject::SelectedClosure
+        && let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = elaboration.module.entry
+        && let Some((machine, site)) =
+            terminal_semantics::synchronization::stuck_private_wait(&elaboration.module, entry, |_| None)
+    {
+        let violation = refusal(
+            RefusalReason::Violation,
+            machine,
+            Construct::Operation(site),
+            "synchronization deadlock: this call retries on an unchanged private atomic cell; no other participant can release it",
+        );
+        return fall_back_or_defect(Roster::of(&elaboration).locate(violation));
+    }
     if let Err(refused) = crate::external_providers::publish(&mut elaboration) {
         return fall_back_or_defect(refused);
     }
@@ -1683,7 +1707,8 @@ fn conclude(
     // Only a published closure carries operation evidence seals. Generic check
     // forms and conformance witnesses are never published (`publication.rs`
     // retains only their elaboration and discharge for advisories).
-    let seals = if seal_operations && elaboration.generic_binders.is_empty() {
+    let seals = if subject == JudgmentSubject::SelectedClosure && elaboration.generic_binders.is_empty()
+    {
         match discharged.operation_seals(&elaboration) {
             Ok(seals) => seals,
             Err(refused) => return fall_back_or_defect(Roster::of(&elaboration).locate(refused)),
@@ -1829,7 +1854,12 @@ fn judge_compilation_with_activity_and_policy(
             );
             let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
             match examine(Ok(closure), &carried, laws, None, activity, &mut further) {
-                Ok(examined) => conclude(examined, AppliedContracts::Undecided, true, &mut further),
+                Ok(examined) => conclude(
+                    examined,
+                    AppliedContracts::Undecided,
+                    JudgmentSubject::SelectedClosure,
+                    &mut further,
+                ),
                 Err(decided) => decided,
             }
         }
@@ -1964,7 +1994,7 @@ fn append_form_and_witness_verdicts(
             GenericForm::Examined { examined, .. } => conclude(
                 examined,
                 AppliedContracts::OwnCheckForms,
-                false,
+                JudgmentSubject::GenericFormOrWitness,
                 &mut local_further,
             ),
         }
@@ -1977,7 +2007,7 @@ fn append_form_and_witness_verdicts(
             Ok(examined) => conclude(
                 examined,
                 AppliedContracts::OwnCheckForms,
-                false,
+                JudgmentSubject::GenericFormOrWitness,
                 &mut local_further,
             ),
             Err(decided) => decided,
