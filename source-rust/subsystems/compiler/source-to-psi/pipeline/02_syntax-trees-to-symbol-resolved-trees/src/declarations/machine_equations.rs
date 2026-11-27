@@ -1031,6 +1031,7 @@ mod completion {
 }
 use super::generic_data::canonicalize_selected_declared_const_definition;
 use super::generic_data::closed_argument_identity;
+use crate::resolution::lowering::lowerer::{ConstResolutionMode, Lowerer};
 use crate::source_resolved::expression::ExpressionHandle;
 use crate::source_resolved::expression::ExpressionNode;
 use crate::source_resolved::statement::Statement;
@@ -1087,6 +1088,66 @@ pub(crate) fn required(syntax: &SyntaxTrees, base: Option<&SymbolResolvedTrees>)
             .iter()
             .any(|machine| machine.has_structural_type_equations)
     })
+}
+
+/*
+    Resolve a forest whose calls may omit arguments that the callee's
+    `requires` equations recover, such as a call to
+    `CompactBinary::packed_field` that leaves out `Element` and `N`.
+
+    The ordinary pass runs first. Most forests that declare such a machine
+    never call it with an omitted argument, so `complete` would neither
+    rewrite nor refuse anything on that pass's output (`completion_needed`),
+    and the pass is the result. Otherwise, and whenever the ordinary pass
+    refuses the program, it is discarded and the provisional loop runs:
+    resolve leniently in argument-selection mode, complete the selected calls
+    in the syntax, repeat until completion adds no root, then resolve
+    ordinarily. A program that needs completion, or that is refused, gets the
+    same passes and diagnostics as the provisional route always gave it.
+
+    `seed` creates a lowerer configured for the ordinary pass, recording
+    equation source links; `run` lowers and settles the forest into it.
+*/
+pub(crate) fn resolve_completing_calls(
+    syntax: &mut std::sync::Arc<SyntaxTrees>,
+    seed: impl Fn() -> Result<Lowerer, Vec<Diagnostic>>,
+    run: impl Fn(&mut Lowerer, &SyntaxTrees) -> Result<(), Vec<Diagnostic>>,
+) -> Result<Lowerer, Vec<Diagnostic>> {
+    let ordinary = |syntax: &SyntaxTrees| {
+        let mut lowerer = seed()?;
+        run(&mut lowerer, syntax)?;
+        Ok::<_, Vec<Diagnostic>>(lowerer)
+    };
+    if let Ok(lowerer) = ordinary(syntax)
+        && lowerer
+            .equation_sources
+            .as_ref()
+            .is_some_and(|links| !completion_needed(syntax, &lowerer.symbol_resolved_trees, links))
+    {
+        return Ok(lowerer);
+    }
+    loop {
+        let mut provisional = seed()?;
+        provisional.const_resolution_mode = ConstResolutionMode::ArgumentSelection;
+        provisional.structural_type_equations_pending = true;
+        provisional
+            .equation_sources
+            .get_or_insert_with(Default::default);
+        run(&mut provisional, syntax)?;
+        let selection = provisional.take_constant_selection()?;
+        let links = provisional.equation_sources.take().unwrap_or_default();
+        let before = syntax.root_item_handles().len();
+        complete(
+            std::sync::Arc::make_mut(syntax),
+            &provisional.symbol_resolved_trees,
+            &links,
+            &selection,
+        )?;
+        if syntax.root_item_handles().len() == before {
+            break;
+        }
+    }
+    ordinary(syntax)
 }
 
 /*
@@ -1164,6 +1225,196 @@ fn selected_machine(trees: &SymbolResolvedTrees, symbol: symbols::SymbolHandle) 
         .position(|machine| machine.symbol == owner)
 }
 
+/*
+    The read-only half of `complete`: which selected calls it rewrites and
+    which selections it refuses. `complete` and `completion_needed` share it,
+    so the ordinary pass can be accepted only where completion would neither
+    rewrite nor refuse anything.
+*/
+struct CompletionScan {
+    binders: BinderClosures,
+    call_callees: Vec<ExpressionHandle>,
+}
+
+impl CompletionScan {
+    fn new(trees: &SymbolResolvedTrees, sources: &SourceLinks) -> Result<Self, Vec<Diagnostic>> {
+        for conformance in &trees.conformances {
+            for row in &conformance.rows {
+                if [row.realization_machine, row.realization_state]
+                    .into_iter()
+                    .any(|symbol| {
+                        selected_machine(trees, symbol).is_some_and(|index| {
+                            trees.machines[index].has_structural_type_equations
+                        })
+                    })
+                {
+                    return Err(vec![Diagnostic::error(
+                        "conformance realization retains an undisclosed machine structural equation",
+                    )]);
+                }
+            }
+        }
+        // A call also stores its function name as a child expression. Check that
+        // occurrence with its call; a function selected on its own still needs
+        // the refusal in `expression`. Match both the handle and selected declaration.
+        let mut call_callees = Vec::new();
+        let mut retain_callee =
+            |callee: ExpressionHandle, target: symbols::SymbolHandle, name: &str| {
+                if !callee.is_valid() || !target.is_valid() {
+                    return;
+                }
+                let ExpressionNode::Name(path) = trees.tables.bodies.expressions.expression(callee)
+                else {
+                    return;
+                };
+                if !path.symbol.is_valid() {
+                    return;
+                }
+                // A name selects the machine; a call selects its exact entry state.
+                // Reuse call resolution's entry rule rather than accepting any child.
+                let selected = path.symbol;
+                if selected == target
+                    || (trees.symbols.get(selected).kind == symbols::SymbolKind::Machine
+                        && crate::resolution::names::machine_entry_symbol(
+                            &trees.symbols,
+                            selected,
+                            name,
+                        ) == target)
+                {
+                    call_callees.push(callee);
+                }
+            };
+        for (_, resolved) in &sources.expressions {
+            if let ExpressionNode::Call(call) =
+                trees.tables.bodies.expressions.expression(*resolved)
+            {
+                retain_callee(call.callee, call.target_symbol, call.target.as_str());
+            }
+        }
+        for (_, resolved) in &sources.statements {
+            if let Statement::Call(call) = trees.tables.declarations.state_statements.get(*resolved)
+            {
+                retain_callee(call.callee, call.target_symbol, call.target.as_str());
+            }
+        }
+        call_callees.sort_unstable_by_key(expression_key);
+        call_callees.dedup();
+        Ok(Self {
+            binders: BinderClosures::build(trees),
+            call_callees,
+        })
+    }
+
+    /* The selected machine whose omitted arguments this expression's call recovers. */
+    fn expression<'trees>(
+        &self,
+        syntax: &SyntaxTrees,
+        trees: &'trees SymbolResolvedTrees,
+        sources: &SourceLinks,
+        resolved: ExpressionHandle,
+    ) -> Result<
+        Option<(
+            usize,
+            &'trees crate::source_resolved::expression::TableCallExpression,
+        )>,
+        Vec<Diagnostic>,
+    > {
+        match trees.tables.bodies.expressions.expression(resolved) {
+            ExpressionNode::Call(call) => Ok(self
+                .call(
+                    syntax,
+                    trees,
+                    sources,
+                    call.target_symbol,
+                    &call.machine_arguments,
+                )?
+                .map(|index| (index, call))),
+            ExpressionNode::Name(path)
+                if self
+                    .call_callees
+                    .binary_search_by_key(&expression_key(&resolved), expression_key)
+                    .is_err()
+                    && selected_machine(trees, path.symbol).is_some_and(|index| {
+                        trees.machines[index].has_structural_type_equations
+                    }) =>
+            {
+                Err(vec![Diagnostic::error(
+                    "machine with structural equations requires a closed explicit call; noncall selection retains an unsolved equation",
+                )])
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /* The selected machine whose omitted arguments this call statement recovers. */
+    fn statement<'trees>(
+        &self,
+        syntax: &SyntaxTrees,
+        trees: &'trees SymbolResolvedTrees,
+        sources: &SourceLinks,
+        resolved: Handle<Statement>,
+    ) -> Result<Option<(usize, &'trees crate::source_resolved::statement::Call)>, Vec<Diagnostic>>
+    {
+        let Statement::Call(call) = trees.tables.declarations.state_statements.get(resolved) else {
+            return Ok(None);
+        };
+        Ok(self
+            .call(
+                syntax,
+                trees,
+                sources,
+                call.target_symbol,
+                &call.machine_arguments,
+            )?
+            .map(|index| (index, call)))
+    }
+
+    fn call(
+        &self,
+        syntax: &SyntaxTrees,
+        trees: &SymbolResolvedTrees,
+        sources: &SourceLinks,
+        target: symbols::SymbolHandle,
+        arguments: &[crate::source_resolved::expression::StaticMachineArgument],
+    ) -> Result<Option<usize>, Vec<Diagnostic>> {
+        let callee = selected_machine(trees, target);
+        reject_machine_arguments(trees, callee, arguments)?;
+        let Some(index) = callee else {
+            return Ok(None);
+        };
+        if !completes_call(syntax, trees, sources, &self.binders, index, arguments)? {
+            return Ok(None);
+        }
+        require_closed_selected_arguments(&self.binders, trees, arguments)?;
+        Ok(Some(index))
+    }
+}
+
+fn expression_key(handle: &ExpressionHandle) -> (u32, u32) {
+    (handle.generation(), handle.arena_index())
+}
+
+/*
+    Whether `complete` would rewrite or refuse anything on this pass's output.
+    A program `complete` would refuse counts as needing it, so the provisional
+    route reports that refusal exactly as before.
+*/
+fn completion_needed(
+    syntax: &SyntaxTrees,
+    trees: &SymbolResolvedTrees,
+    sources: &SourceLinks,
+) -> bool {
+    let Ok(scan) = CompletionScan::new(trees, sources) else {
+        return true;
+    };
+    sources.expressions.iter().any(|(_, resolved)| {
+        !matches!(scan.expression(syntax, trees, sources, *resolved), Ok(None))
+    }) || sources
+        .statements
+        .iter()
+        .any(|(_, resolved)| !matches!(scan.statement(syntax, trees, sources, *resolved), Ok(None)))
+}
+
 pub(crate) fn complete(
     syntax: &mut SyntaxTrees,
     trees: &SymbolResolvedTrees,
@@ -1172,167 +1423,54 @@ pub(crate) fn complete(
 ) -> Result<(), Vec<Diagnostic>> {
     let selection = selection.with_array_lengths(argument_types::array_lengths(trees, sources));
     let selection = &selection;
+    let scan = CompletionScan::new(trees, sources)?;
     let mut completed_type_roots = Vec::new();
-    for conformance in &trees.conformances {
-        for row in &conformance.rows {
-            if [row.realization_machine, row.realization_state]
-                .into_iter()
-                .any(|symbol| {
-                    selected_machine(trees, symbol)
-                        .is_some_and(|index| trees.machines[index].has_structural_type_equations)
-                })
-            {
-                return Err(vec![Diagnostic::error(
-                    "conformance realization retains an undisclosed machine structural equation",
-                )]);
-            }
-        }
-    }
-    let binders = BinderClosures::build(trees);
-    // A call also stores its function name as a child expression. Check that
-    // occurrence with its call; a function selected on its own still needs
-    // the refusal below. Match both the handle and selected declaration.
-    let expression_key = |handle: &ExpressionHandle| (handle.generation(), handle.arena_index());
-    let mut call_callees = Vec::new();
-    let mut retain_callee = |callee: ExpressionHandle,
-                             target: symbols::SymbolHandle,
-                             name: &str| {
-        if !callee.is_valid() || !target.is_valid() {
-            return;
-        }
-        let ExpressionNode::Name(path) = trees.tables.bodies.expressions.expression(callee) else {
-            return;
-        };
-        if !path.symbol.is_valid() {
-            return;
-        }
-        // A name selects the machine; a call selects its exact entry state.
-        // Reuse call resolution's entry rule rather than accepting any child.
-        let selected = path.symbol;
-        if selected == target
-            || (trees.symbols.get(selected).kind == symbols::SymbolKind::Machine
-                && crate::resolution::names::machine_entry_symbol(&trees.symbols, selected, name)
-                    == target)
-        {
-            call_callees.push(callee);
-        }
-    };
-    for (_, resolved) in &sources.expressions {
-        if let ExpressionNode::Call(call) = trees.tables.bodies.expressions.expression(*resolved) {
-            retain_callee(call.callee, call.target_symbol, call.target.as_str());
-        }
-    }
-    for (_, resolved) in &sources.statements {
-        if let Statement::Call(call) = trees.tables.declarations.state_statements.get(*resolved) {
-            retain_callee(call.callee, call.target_symbol, call.target.as_str());
-        }
-    }
-    call_callees.sort_unstable_by_key(expression_key);
-    call_callees.dedup();
     for (original, resolved) in &sources.expressions {
-        match trees.tables.bodies.expressions.expression(*resolved) {
-            ExpressionNode::Call(call) => {
-                let callee = selected_machine(trees, call.target_symbol);
-                reject_machine_arguments(trees, callee, &call.machine_arguments)?;
-                let Some(index) = callee else {
-                    continue;
-                };
-                if !completes_call(
-                    syntax,
-                    trees,
-                    sources,
-                    &binders,
-                    index,
-                    &call.machine_arguments,
-                )? {
-                    continue;
-                }
-                require_closed_selected_arguments(&binders, trees, &call.machine_arguments)?;
-                let syntax_trees::expression::ExpressionNode::Call(mut authored) =
-                    syntax.expressions.expression(*original).clone()
-                else {
-                    return Err(vec![Diagnostic::error(
-                        "machine equation application lost its authored call",
-                    )]);
-                };
-                let ordinary_types =
-                    call_constraints(syntax, trees, sources, call, Some(*resolved), selection);
-                complete_authored_arguments(
-                    syntax,
-                    index,
-                    &authored.target,
-                    &mut authored.machine_arguments,
-                    &ordinary_types.types,
-                    &ordinary_types.pending_diagnostics,
-                    sources,
-                    selection,
-                    &mut completed_type_roots,
-                )?;
-                syntax.expressions.replace_expression(
-                    *original,
-                    syntax_trees::expression::ExpressionNode::Call(authored),
-                );
-            }
-            ExpressionNode::Name(path)
-                if call_callees
-                    .binary_search_by_key(&expression_key(resolved), expression_key)
-                    .is_err()
-                    && selected_machine(trees, path.symbol).is_some_and(|index| {
-                        trees.machines[index].has_structural_type_equations
-                    }) =>
-            {
-                return Err(vec![Diagnostic::error(
-                    "machine with structural equations requires a closed explicit call; noncall selection retains an unsolved equation",
-                )]);
-            }
-            _ => {}
-        }
+        let Some((index, call)) = scan.expression(syntax, trees, sources, *resolved)? else {
+            continue;
+        };
+        let syntax_trees::expression::ExpressionNode::Call(authored) =
+            syntax.expressions.expression(*original).clone()
+        else {
+            return Err(vec![Diagnostic::error(
+                "machine equation application lost its authored call",
+            )]);
+        };
+        let ordinary_types =
+            call_constraints(syntax, trees, sources, call, Some(*resolved), selection);
+        let roots = complete_authored_call(
+            syntax,
+            index,
+            *original,
+            authored,
+            ordinary_types,
+            sources,
+            selection,
+        )?;
+        completed_type_roots.extend(roots);
     }
     for (original, resolved) in &sources.statements {
-        let Statement::Call(call) = trees.tables.declarations.state_statements.get(*resolved)
-        else {
+        let Some((index, call)) = scan.statement(syntax, trees, sources, *resolved)? else {
             continue;
         };
-        let callee = selected_machine(trees, call.target_symbol);
-        reject_machine_arguments(trees, callee, &call.machine_arguments)?;
-        let Some(index) = callee else {
-            continue;
-        };
-        if !completes_call(
-            syntax,
-            trees,
-            sources,
-            &binders,
-            index,
-            &call.machine_arguments,
-        )? {
-            continue;
-        }
-        require_closed_selected_arguments(&binders, trees, &call.machine_arguments)?;
         let StatementNode::Call(statement) = syntax.statements.statement(*original).clone() else {
             return Err(vec![Diagnostic::error(
                 "machine equation application lost its authored statement",
             )]);
         };
-        let expression = statement.expression;
-        let mut authored = statement.call(syntax).clone();
+        let authored = statement.call(syntax).clone();
         let ordinary_types =
             argument_types::statement_constraints(syntax, trees, sources, call, selection);
-        complete_authored_arguments(
+        let roots = complete_authored_call(
             syntax,
             index,
-            &authored.target,
-            &mut authored.machine_arguments,
-            &ordinary_types.types,
-            &ordinary_types.pending_diagnostics,
+            statement.expression,
+            authored,
+            ordinary_types,
             sources,
             selection,
-            &mut completed_type_roots,
         )?;
-        syntax.expressions.replace_expression(
-            expression,
-            syntax_trees::expression::ExpressionNode::Call(authored),
-        );
+        completed_type_roots.extend(roots);
     }
     let mut positions = Vec::new();
     for &root in &completed_type_roots {
@@ -1764,40 +1902,46 @@ fn binder_closure(
     Complete one authored call's machine-argument list and record the type
     roots the completion minted.
 */
-fn complete_authored_arguments(
+/*
+    Replace one authored call with its completed argument tuple and return the
+    type roots the completion introduced, for later generic materialization.
+*/
+fn complete_authored_call(
     syntax: &mut SyntaxTrees,
     index: usize,
-    target: &Identifier,
-    machine_arguments: &mut Box<[StaticMachineArgument]>,
-    ordinary_types: &[(TypeReferenceHandle, TypeReferenceHandle)],
-    pending_diagnostics: &[Diagnostic],
+    expression: syntax_trees::expression::ExpressionHandle,
+    mut authored: syntax_trees::expression::TableCallExpression,
+    ordinary_types: argument_types::CallTypeObservations,
     sources: &SourceLinks,
     selection: &ConstantSelection<'_>,
-    completed_type_roots: &mut Vec<syntax_trees::types::TypeReferenceHandle>,
-) -> Result<(), Vec<Diagnostic>> {
-    *machine_arguments = complete_arguments(
+) -> Result<Vec<TypeReferenceHandle>, Vec<Diagnostic>> {
+    authored.machine_arguments = complete_arguments(
         syntax,
         index,
-        target,
-        machine_arguments,
+        &authored.target,
+        &authored.machine_arguments,
         None,
-        ordinary_types,
+        &ordinary_types.types,
         sources,
         selection,
     )
     .map_err(|error| {
         once(error)
-            .chain(pending_diagnostics.iter().cloned())
+            .chain(ordinary_types.pending_diagnostics)
             .collect::<Vec<_>>()
     })?
     .0;
-    completed_type_roots.extend(
-        machine_arguments
-            .iter()
-            .map(|argument| argument.type_reference)
-            .filter(|reference| reference.is_valid()),
+    let roots = authored
+        .machine_arguments
+        .iter()
+        .map(|argument| argument.type_reference)
+        .filter(|reference| reference.is_valid())
+        .collect();
+    syntax.expressions.replace_expression(
+        expression,
+        syntax_trees::expression::ExpressionNode::Call(authored),
     );
-    Ok(())
+    Ok(roots)
 }
 
 /*

@@ -17,9 +17,10 @@ use crate::resolution::names::target_siblings::bind_sibling_calls;
 use crate::resolution::names::type_predicates::retain_operands;
 use crate::source_inputs::SourceMap;
 use crate::source_resolved::SymbolResolvedTrees;
+use declarations::declaration_selection::ConstantSelection;
 pub use declarations::dispatches::prepare as prepare_dispatches;
-use declarations::machine_equations::complete;
 use declarations::machine_equations::required;
+use declarations::machine_equations::resolve_completing_calls;
 use declarations::machine_equations::validate_declarations;
 pub use deferred_bodies::{DeferredBodyScope, DeferredResolvedFrontier, ResolvedBodyCompletion};
 use diagnostics::Diagnostic;
@@ -27,14 +28,14 @@ use diagnostics::Diagnostic;
 pub use fixtures::{fixture_file_bindings, fixture_local_and_core_imports};
 #[cfg(any(test, feature = "test-support"))]
 pub use generated_source::DeferredResolvedExtension;
-pub use generated_source::{ExtensionRequest, resolve_deferred_extension};
 #[cfg(any(test, feature = "test-support"))]
 pub use generated_source::resolve_extension;
-use lowering::lowerer::{ConstResolutionMode, Lowerer};
+pub use generated_source::{ExtensionRequest, resolve_deferred_extension};
+use lowering::lowerer::Lowerer;
 use lowering::mathematical::lower_mathematical_definitions;
+use names::domain_attachments::resolve_machine_domain_homes;
 use selections::conformance_blocks::route_conformance_requirement_calls;
 use selections::conformance_blocks::route_named_implementation_calls;
-use names::domain_attachments::resolve_machine_domain_homes;
 use selections::machine_token_bindings::reject_duplicate_direct_token_bindings;
 use std::mem::take;
 use std::sync::Arc;
@@ -97,48 +98,49 @@ pub fn resolve_deferred(
             .validate_logical_filenames()
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
     }
-    let base = request.retained_base.clone();
-    let sources = request.sources.clone();
-    let bindings = request.top_level_bindings.clone();
-    let (mut syntax, mut lowerer) = begin(request)?;
-    if required(&syntax, base.as_deref()) {
-        loop {
-            let mut provisional = Lowerer::new(sources.clone(), bindings.clone());
-            provisional.constant_selection = lowerer.constant_selection.clone();
-            provisional.const_resolution_mode = ConstResolutionMode::ArgumentSelection;
-            provisional.equation_sources = Some(Default::default());
-            if let Some(base) = &base {
-                provisional.seed_resolved_base(Arc::clone(base))?;
-            }
-            index_declarations(&mut provisional, &syntax)?;
-            finish_resolution(&mut provisional, &syntax, &[])?;
-            let selection = provisional.take_constant_selection()?;
-            let links = provisional.equation_sources.take().unwrap_or_default();
-            let before = syntax.root_item_handles().len();
-            complete(
-                &mut syntax,
-                &provisional.symbol_resolved_trees,
-                &links,
-                &selection,
-            )?;
-            if syntax.root_item_handles().len() == before {
-                break;
-            }
+    let ResolutionRequest {
+        syntax,
+        sources,
+        top_level_bindings: bindings,
+        retained_base: base,
+    } = request;
+    let prepared = declarations::prepare(syntax, sources.clone(), bindings.clone(), base.clone())?;
+    let selection = prepared.constant_selection;
+    validate_declarations(&prepared.syntax, Some(&selection))?;
+    let mut syntax = Arc::new(prepared.syntax);
+    let completes_equations = required(&syntax, base.as_deref());
+    let seed = |selection: ConstantSelection<'static>| -> Result<Lowerer, Vec<Diagnostic>> {
+        let mut lowerer = Lowerer::new(sources.clone(), bindings.clone());
+        lowerer.constant_selection = Some(selection);
+        if let Some(base) = &base {
+            lowerer.seed_resolved_base(Arc::clone(base))?;
         }
-        lowerer.equation_sources = Some(Default::default());
-    }
-    lowerer.structural_type_equations_pending = false;
+        lowerer.structural_type_equations_pending = false;
+        if completes_equations {
+            lowerer.equation_sources = Some(Default::default());
+        }
+        Ok(lowerer)
+    };
+    let run = |lowerer: &mut Lowerer, syntax: &SyntaxTrees| -> Result<(), Vec<Diagnostic>> {
+        index_declarations(lowerer, syntax)?;
+        finish_resolution(lowerer, syntax, &[])
+    };
+    let lowerer = if completes_equations {
+        resolve_completing_calls(&mut syntax, || seed(selection.clone()), run)?
+    } else {
+        let mut lowerer = seed(selection)?;
+        run(&mut lowerer, &syntax)?;
+        lowerer
+    };
     index_deferred(syntax, lowerer, sources, bindings)
 }
 
 fn index_deferred(
-    syntax: SyntaxTrees,
+    syntax: Arc<SyntaxTrees>,
     mut lowerer: Lowerer,
     sources: Option<Arc<SourceMap>>,
     bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
-    index_declarations(&mut lowerer, &syntax)?;
-    finish_resolution(&mut lowerer, &syntax, &[])?;
     let pending = take(&mut lowerer.pending_machine_bodies);
     let pending_type_inputs =
         lowering::type_inputs::bind(&lowerer.symbol_resolved_trees, &lowerer.pending_type_inputs)?;
@@ -154,7 +156,7 @@ fn index_deferred(
     let supplied_operand_owners = take(&mut lowerer.supplied_operand_owners);
     let declaration_inputs = take(&mut lowerer.declaration_inputs);
     Ok(DeferredResolvedFrontier {
-        syntax: Arc::new(syntax),
+        syntax,
         trees: Arc::new(lowerer.into_trees()),
         pending,
         pending_type_inputs,
@@ -176,32 +178,6 @@ fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(),
     lower_mathematical_definitions(lowerer, syntax)?;
     selections::select_operator_homes(lowerer)?;
     crate::resolution::names::assign_declarations(lowerer, syntax)
-}
-
-/*
-    Prepare the forest under its constant selector and a lowerer that owns the
-    request's custody.
-*/
-fn begin(request: ResolutionRequest) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
-    let ResolutionRequest {
-        syntax,
-        sources,
-        top_level_bindings,
-        retained_base,
-    } = request;
-    let prepared = declarations::prepare(
-        syntax,
-        sources.clone(),
-        top_level_bindings.clone(),
-        retained_base.clone(),
-    )?;
-    validate_declarations(&prepared.syntax, Some(&prepared.constant_selection))?;
-    let mut lowerer = Lowerer::new(sources, top_level_bindings);
-    lowerer.constant_selection = Some(prepared.constant_selection);
-    if let Some(base) = retained_base {
-        lowerer.seed_resolved_base(base)?;
-    }
-    Ok((prepared.syntax, lowerer))
 }
 
 /*
