@@ -185,13 +185,32 @@ links to this page in five specification pages
 `calls_and_outcomes.md`, `fact_validity.md`, `dynamic_dispatch.md`) and changed
 no other specification text.
 
-**Recommend leaving them where they are.** They say how a reader validates
-rows of the compiler's own format, and [changes to Psi](source-rust/subsystems/compiler/psi/README.md#changes-to-psi)
-already requires a codec change to keep trust guarantees intact and to bring
-an unresolved trust decision here. Alternatively, an owner restates the ones
-that should bind every implementation in `wiki/spec/terminal-psi/`, and agents
-then cut the copies from the encoding page.
-Should the specification own any of these rules?
+Psi is intended for exchange between implementations. Its current encoding can
+change during development. The codec page can describe the bytes for each
+revision while the product specification states what a receiver may conclude
+from them. For example, a register observation carrying no service can decode
+successfully on a host that has no authority to execute it.
+
+**Proposed text for the owners of the Psi product specification**
+
+- At a scalar completion, check the prerequisites of the exact applied domain
+  on that incoming edge and argument. A cycle of memberships needs independent
+  support. Check each return origin against its actual return or completion
+  and the issuer required by its route. The origin records the checker's
+  decision and cannot itself prove the predicate.
+- Discharge a retained prerequisite before the call or operation it protects.
+  A completed-result judgment may use observations from independently admitted
+  execution. It cannot authorize that execution.
+- A retained access view identifies the checked source binding. Using its
+  storage still requires live access. An installation record binds the image
+  to its target and provider decisions. A receiver checks those commitments
+  and obtains separate admission and access authority before execution.
+- Check a register event's service against its catalog operation. Even an
+  observation that requires no service still requires target and environment
+  admission.
+
+Should these obligations bind every Psi receiver as part of the product
+specification, with the tags and field layouts maintained beside the codec?
 
 <a id="bundle-evidence-field-type"></a>
 ### 5. Which field type makes a record field mathematical evidence rather than a callable selection?
