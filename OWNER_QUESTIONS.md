@@ -157,3 +157,71 @@ consume this classification, but they do not run the proof.
 receiving policy. Alternatively, specify that request on the command line now
 and wire its policy through `psi_to_native`, which makes the proof reachable.
 Which should the product do?
+
+<a id="logical-sum-subjects"></a>
+### 4. What does a sum input denote in a logical contract?
+
+#### Context
+
+A user wants a law about a sum, such as a build step that never reports
+`RunResult::NotRun`. They want to pass that law as a proof argument the way a
+record law is passed today. The specification says logical evidence states
+"the contract's implication over fixed mathematical subjects". It requires
+general data to elaborate to checked inductive declarations "where induction is
+required". It says payload fields "require the corresponding case knowledge".
+None of these says what subjects a stored, non-recursive sum gives a contract.
+[Theorem proof parameters](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) ·
+[Inductive elaboration](wiki/spec/proofs/foundation.md#universes-functions-and-recursion) ·
+[Case knowledge](wiki/spec/language/data_and_literals.md)
+
+Current implementation: a record input is one subject per scalar field. A
+nested record's fields count in its place, and each data invariant is a
+premise (`terminal_semantics::theorems::data_subjects`). A sum input is
+refused at the theorem's declaration with "logical data subject is not a plain
+record". Self-containing indexed data already has its own route, an erased
+family theorem.
+[Data subjects](source-rust/subsystems/compiler/psi/semantics/src/theorems/data_subjects.rs) ·
+[Indexed families](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/read/families.rs)
+
+#### Problem statement
+
+The premise holds. The open part is the denotation, not the compiler. "Where
+induction is required" leaves non-recursive data free to use a non-inductive
+encoding, and records already use one. A sum differs from a record because
+its payload exists only in its active case. So a sum cannot simply become one
+always-defined scalar subject per payload field, the way a record field does.
+
+#### Proposed solution
+
+**Recommend:** *A logical contract's sum input denotes its active case and that
+case's payload. Its subjects are one Boolean per case, of which exactly one
+holds, and the scalar payload fields of every case. A clause reads a payload
+field only under that case's membership. The implication must hold for every
+payload value, so an inactive case's payload constrains nothing. Self-containing
+data stays an indexed family's evidence.*
+
+With `data Choice { case One(x: u8); case Two(y: u8); }`:
+
+- `requires c in Choice::One && c.x != 0u8 ensures c.x > 0u8` is accepted.
+  The payload read sits under **`c in Choice::One`**. Applying it owes both
+  premises at the actual sum.
+- `ensures c.x > 0u8` with no case premise is rejected at the declaration.
+  **`c.x`** has no case knowledge, which is the same rule ordinary contracts
+  follow.
+
+Accepting the source needs Stage 05 to read case membership and guarded
+payload clauses. Recording the obligation reuses the existing premise goals.
+Proving it needs the checker to bind each case Boolean from the case reaching
+the application and each active payload from its contents. An inactive payload
+gets any fixed value, which is sound because the law quantifies over it.
+
+#### Alternates
+
+- **One inductive subject.** Elaborate every sum, recursive or not, to a checked
+  inductive declaration and give the contract a single binder of that type.
+  This also covers whole-value identity, `c == d` as one subject. It costs a
+  non-scalar binder in Terminal Psi's theorem contract, the kernel contract
+  type and citation checking. The first example has the same outcome under
+  either ruling.
+- **Keep the refusal.** Sum laws stay inexpressible as proof arguments. Users
+  restate them over the payload scalars at each use.
