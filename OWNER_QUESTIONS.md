@@ -117,3 +117,37 @@ representation and is proof-only by structure. Reading the field and applying
 it is dependent function application; a value is constructed from a
 mathematical term of that type, such as a `let` applied to fewer arguments
 than it takes."
+
+<a id="contained-runtime-admission"></a>
+### 2. May runtime admission run over saved Psi that the host does not trust?
+
+Bare `omega run app.psi` admits saved Psi for contained interpretation
+without producer trust.
+[Standalone interpretation](wiki/spec/build/embedding.md#standalone-execution-selection)
+A program still needs runtime provisions: the host realization of each
+stdin, stdout, clock or numeric import its entry demands. Today only runtime
+admission produces them. That covers provider selection, target binding,
+Psi to abstract-operation lowering and realization admission
+(`psi-to-native` `driver::admit_runtime`), and every stage takes an
+`AuthorizedTerminalArtifact`. Runtime admission stops before the optimizer
+and before image emission. "Native lowering retains its existing admission
+contract", and abstract-operation lowering is native lowering's first stage.
+[Containment audit](wiki/drafts/designs/psi_containment_audit.md#remaining)
+
+**Recommend letting runtime admission take a contained artifact.** Stages
+00 to 02 and realization admission would take an admitted artifact that is
+either host-authorized or contained. The optimizer, image emission,
+component emission and foreign-adapter compilation would require the
+authorized form, and refuse a contained one at their entry. The interpreter
+would still run the original contained artifact, never a lowered one. The
+other choice is a separate contained settlement planner, which derives host
+realizations from the artifact and target without the lowering stages. That
+keeps contained Psi out of `psi-to-native` entirely, but it duplicates
+provider selection and target binding, and the two can drift apart. Which
+should it be?
+
+**Specification text, if adopted.** In embedding.md, "Standalone
+interpretation", add: "Runtime admission of contained saved Psi selects its
+providers and host realizations through the same stages as a trusted
+program. It stops before optimization and image emission, which require
+producer trust."
