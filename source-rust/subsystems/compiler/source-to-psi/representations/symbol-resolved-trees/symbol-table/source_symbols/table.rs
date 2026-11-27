@@ -1650,6 +1650,15 @@ mod source_queries {
                 .bundled_core_file(source_span.source_id)
         }
 
+        pub fn build_companion_file(
+            &self,
+            source_span: SourceSpan,
+        ) -> Option<language_core::bundled_files::BuildCompanionFile> {
+            self.sources
+                .as_deref()?
+                .build_companion_file(source_span.source_id)
+        }
+
         /*
             The retained authored source map, shared without copying. Consumers
             that resolve diagnostic locations on a path where the program moves
