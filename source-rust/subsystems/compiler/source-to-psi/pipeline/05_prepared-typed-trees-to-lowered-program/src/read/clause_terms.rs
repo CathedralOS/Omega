@@ -1884,6 +1884,17 @@ impl Program<'_> {
                         arguments: vec![value],
                     }
                 }
+                // The class of a value of data that has storage: the
+                // mathematical signature states no such quotient, so no
+                // law can equate two of its classes.
+                (ExpressionNode::Cast(_), Some(expected))
+                    if self.executable_quotient_of(expected).is_some() =>
+                {
+                    return Err(unavailable(
+                        "Identity of classes of a quotient of data that has storage, which the \
+                         mathematical signature does not state",
+                    ));
+                }
                 _ => {
                     return Err(unavailable(
                         "Identity operand has no term at its written carrier",

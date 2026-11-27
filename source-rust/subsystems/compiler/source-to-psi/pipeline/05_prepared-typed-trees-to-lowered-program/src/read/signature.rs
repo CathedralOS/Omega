@@ -59,7 +59,7 @@ use terminal_check_tables::{Checked, Construct, Refusal};
 use super::Program;
 use super::families::{EvidenceUse, FamilyRecord, FamilyTerm, FamilyTheorem};
 use super::proof_stratum::TemplateField;
-use super::quotients::LiftedOperation;
+use super::quotients::{LiftArgument, LiftedOperation};
 use crate::Unserved;
 use crate::body::{
     ArmGuard, Body, CallTarget, CaseSelector, Expression, ExpressionKind, Statement, Target,
@@ -546,10 +546,12 @@ struct LiftShape {
     /// The type and entry of each parameter of the operation on
     /// representatives.
     parameters: Vec<(TermHandle, u32)>,
-    /// For each formal, the parameter it is passed to.
-    receives: Vec<usize>,
+    /// For each formal, the parameter it is passed to, when the operation
+    /// passes each formal to exactly one parameter as it is.
+    receives: Option<Vec<usize>>,
     /// For each parameter, the carrier and relation of the quotient its
-    /// formal is a class of, when it is one.
+    /// formal is a class of, when it is one. Only a formal passed as it is
+    /// may be a class.
     classes: Vec<Option<(u32, u32)>>,
     /// The result type of the operation on classes, and its entry.
     result: TermHandle,
@@ -1203,7 +1205,6 @@ impl<'p> Converter<'p, '_> {
         let LiftShape {
             operation,
             formals,
-            receives,
             classes,
             result,
             result_entry,
@@ -1222,11 +1223,30 @@ impl<'p> Converter<'p, '_> {
                  representatives requires something of them",
             ));
         }
-        let mut taken = classes
-            .iter()
-            .enumerate()
-            .filter_map(|(parameter, class)| class.map(|class| (parameter, class)));
-        let (Some((taken_at, (carrier, relation))), None) = (taken.next(), taken.next()) else {
+        // One class formal, passed to every parameter that takes a class.
+        let mut taken = None;
+        let mut paired = 0;
+        for (parameter, class) in classes.iter().enumerate() {
+            let Some(class) = *class else {
+                continue;
+            };
+            paired += 1;
+            let LiftArgument::Formal(formal) = lifted.arguments[parameter] else {
+                return Err(unserved(id, "quotient operation computes a class"));
+            };
+            match taken {
+                None => taken = Some((formal, class)),
+                Some((known, _)) if known == formal => {}
+                Some(_) => {
+                    return Err(unserved(
+                        id,
+                        "term that applies an operation lifted to a quotient that takes other \
+                         than one class",
+                    ));
+                }
+            }
+        }
+        let Some((taken, (carrier, relation))) = taken else {
             return Err(unserved(
                 id,
                 "term that applies an operation lifted to a quotient that takes other than \
@@ -1280,7 +1300,7 @@ impl<'p> Converter<'p, '_> {
             ));
         };
         let stated = &self.signature.laws[law as usize];
-        if stated.premises.len() != 1 {
+        if stated.premises.len() != paired {
             return Err(unserved(
                 congruence,
                 "congruence theorem of a quotient operation that requires more than related \
@@ -1289,24 +1309,19 @@ impl<'p> Converter<'p, '_> {
         }
         let statement = stated.statement;
 
-        // Under the machine's formals, then `a` (and `b`, `r` for the
-        // congruence): the term each parameter of the operation receives.
+        // Under the machine's formals and `under` binders more: each
+        // formal's value, and the representative `representative` of the
+        // class formal.
         let count = formals.len() as u32;
-        let passed = |converter: &mut Self, under: u32, class: u32| -> Vec<TermHandle> {
-            let mut actuals = vec![None; receives.len()];
-            for (formal, &parameter) in receives.iter().enumerate() {
-                actuals[parameter] = Some(if parameter == taken_at {
-                    converter.variable(class)
-                } else {
-                    converter.variable(count - 1 - formal as u32 + under)
-                });
-            }
-            // `lift_shape` passes each formal to exactly one parameter.
-            actuals
-                .into_iter()
-                .map(|actual| actual.expect("each parameter receives one formal"))
-                .collect()
-        };
+        let at =
+            |converter: &mut Self, under: u32, representative: u32| -> Checked<Vec<TermHandle>> {
+                let values: Vec<_> = (0..count)
+                    .map(|formal| converter.variable(count - 1 - formal + under))
+                    .collect();
+                let mut representatives = vec![None; formals.len()];
+                representatives[taken as usize] = Some(converter.variable(representative));
+                converter.lift_actuals(id, lifted, &classes, &values, &representatives)
+            };
         let apply = |converter: &mut Self, arguments: &[TermHandle]| {
             let function = converter.constant(defined);
             converter
@@ -1316,7 +1331,7 @@ impl<'p> Converter<'p, '_> {
         };
         let carrier_type = self.constant(carrier);
         // `f = λ a. F(..)`, or the class of that when the result is one.
-        let at_a = passed(self, 1, 0);
+        let at_a = at(self, 1, 0)?;
         let mut value = apply(self, &at_a);
         if let Some((carrier, relation)) = result_class {
             let result_family = self.family(carrier, relation);
@@ -1326,27 +1341,23 @@ impl<'p> Converter<'p, '_> {
             domain: carrier_type,
             body: value,
         });
-        // `respect = λ a b (r: R a b). ..`: the congruence at `a`, `b` and
-        // the shared arguments, and `r`.
-        let mut cited = Vec::with_capacity(classes.len() + 2);
+        // `respect = λ a b (r: R a b). ..`: the congruence at `a` and `b`
+        // for each class, the other arguments as passed, and `r` for each
+        // class.
+        let (at_left, at_right) = (at(self, 3, 2)?, at(self, 3, 1)?);
+        let mut cited = Vec::with_capacity(classes.len() + paired + paired);
         for (parameter, class) in classes.iter().enumerate() {
+            cited.push(at_left[parameter]);
             if class.is_some() {
-                cited.push(self.variable(2));
-                cited.push(self.variable(1));
-            } else {
-                let formal = receives
-                    .iter()
-                    .position(|&received| received == parameter)
-                    .ok_or_else(|| unserved(id, "quotient operation lost one of its formals"))?;
-                cited.push(self.variable(count - 1 - formal as u32 + 3));
+                cited.push(at_right[parameter]);
             }
         }
-        cited.push(self.variable(0));
+        for _ in 0..paired {
+            cited.push(self.variable(0));
+        }
         let theorem = self.constant(statement);
         let mut respected = self.signature.arena.apply_arguments(theorem, &cited);
         if let Some((carrier, relation)) = result_class {
-            let at_left = passed(self, 3, 2);
-            let at_right = passed(self, 3, 1);
             let (left, right) = (apply(self, &at_left), apply(self, &at_right));
             let result_family = self.family(carrier, relation);
             respected = result_family.sound(&mut self.signature.arena, left, right, respected);
@@ -1369,7 +1380,7 @@ impl<'p> Converter<'p, '_> {
             vec![Level::Constant(0)],
             &[result, sets, f, respect],
         );
-        let class = self.variable(count - 1 - lifted.arguments[taken_at]);
+        let class = self.variable(count - 1 - taken);
         let mut term = self.signature.arena.apply_arguments(lift, &[class]);
         let mut ty = result;
         for &(domain, _) in formals.iter().rev() {
@@ -1440,39 +1451,35 @@ impl<'p> Converter<'p, '_> {
                 "quotient operation with the wrong number of arguments",
             ));
         }
-        // Each formal goes to exactly one parameter of the operation, so
-        // that every clause of either machine can be stated for the other.
+        // When each formal goes to exactly one parameter as it is, every
+        // clause of either machine can be stated for the other: a transport
+        // theorem and `Quotient::define` need that.
         let mut receives = vec![None; formals.len()];
-        for (parameter, &formal) in lifted.arguments.iter().enumerate() {
-            let received = receives
-                .get_mut(formal as usize)
-                .ok_or_else(|| unserved(id, "quotient operation lost one of its formals"))?;
-            if received.replace(parameter).is_some() {
-                return Err(unserved(
-                    id,
-                    "quotient operation that passes one formal twice",
-                ));
+        let mut bijective = true;
+        for (parameter, argument) in lifted.arguments.iter().enumerate() {
+            match argument {
+                &LiftArgument::Formal(formal) => {
+                    let received = receives.get_mut(formal as usize).ok_or_else(|| {
+                        unserved(id, "quotient operation lost one of its formals")
+                    })?;
+                    bijective &= received.replace(parameter).is_none();
+                }
+                LiftArgument::Computed(_) => bijective = false,
             }
         }
         let receives = receives
             .into_iter()
             .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| {
-                unserved(
-                    id,
-                    "quotient operation that leaves out one of the machine's formals",
-                )
-            })?;
+            .filter(|_| bijective);
         if lifted.define
-            && lifted
-                .arguments
-                .iter()
-                .enumerate()
-                .any(|(parameter, &formal)| parameter as u32 != formal)
+            && (receives.is_none()
+                || lifted.arguments.iter().enumerate().any(|(parameter, argument)| {
+                    !matches!(argument, &LiftArgument::Formal(formal) if formal == parameter as u32)
+                }))
         {
             return Err(unserved(
                 id,
-                "`Quotient::define` that reorders the machine's formals",
+                "`Quotient::define` that does not pass each formal in its place",
             ));
         }
         // What a type of this machine is to the type the operation has in
@@ -1492,12 +1499,33 @@ impl<'p> Converter<'p, '_> {
             }
         };
         let mut classes = Vec::with_capacity(parameters.len());
-        for (parameter, &formal) in lifted.arguments.iter().enumerate() {
-            classes.push(class(
-                self,
-                formals[formal as usize].1,
-                parameters[parameter].1,
-            )?);
+        for (parameter, argument) in lifted.arguments.iter().enumerate() {
+            let outer = match argument {
+                &LiftArgument::Formal(formal) => {
+                    formals
+                        .get(formal as usize)
+                        .ok_or_else(|| unserved(id, "quotient operation lost one of its formals"))?
+                        .1
+                }
+                LiftArgument::Computed(value) => {
+                    let value_type = value.result.ok_or_else(|| {
+                        unserved(
+                            id,
+                            "computed argument of a quotient operation with no value",
+                        )
+                    })?;
+                    let (_, entry) = self.ty(id, value_type)?;
+                    if entry != parameters[parameter].1 {
+                        return Err(unserved(
+                            id,
+                            "computed argument of a quotient operation that is no value of its \
+                             parameter's type: a class is passed only as a formal",
+                        ));
+                    }
+                    entry
+                }
+            };
+            classes.push(class(self, outer, parameters[parameter].1)?);
         }
         let (result, result_entry) = self.ty(
             id,
@@ -1625,21 +1653,12 @@ impl<'p> Converter<'p, '_> {
             ),
         )?;
 
-        // What this machine requires, stated of the classes of one side.
-        let required = |converter: &mut Self, side: &[TermHandle]| -> Checked<Vec<TermHandle>> {
-            let mut actuals = Vec::with_capacity(formals.len());
-            for &parameter in &receives {
-                actuals.push(match classes[parameter] {
-                    Some((carrier, relation)) => {
-                        let family = converter.family(carrier, relation);
-                        family.project(&mut converter.signature.arena, side[parameter])
-                    }
-                    None => side[parameter],
-                });
-            }
+        // What this machine requires, stated of `values`, one term per
+        // formal (a class for a class formal).
+        let required = |converter: &mut Self, values: &[TermHandle]| -> Checked<Vec<TermHandle>> {
             let mut clauses = Vec::with_capacity(public.requires.len());
             for clause in &public.requires {
-                let premise = converter.equality(id, clause, &actuals, None)?;
+                let premise = converter.equality(id, clause, values, None)?;
                 clauses.push(premise);
                 converter.held.push(premise);
             }
@@ -1647,11 +1666,30 @@ impl<'p> Converter<'p, '_> {
         };
         if let Some(transport) = lifted.transport {
             // Transport: what this machine requires of both sides gives
-            // each thing the operation requires, in the same order.
+            // each thing the operation requires, in the same order. It is
+            // stated over the congruence's binders, so each formal must
+            // reach exactly one of them.
+            let Some(receives) = &receives else {
+                return Err(unserved(
+                    id,
+                    "transport theorem of a quotient operation that computes, repeats or leaves \
+                     out an argument: such a lift owes its transport itself",
+                ));
+            };
             self.held.clear();
             let mut premises = Vec::new();
             for side in sides {
-                premises.extend(required(self, side)?);
+                let mut values = Vec::with_capacity(receives.len());
+                for &parameter in receives {
+                    values.push(match classes[parameter] {
+                        Some((carrier, relation)) => {
+                            let family = self.family(carrier, relation);
+                            family.project(&mut self.signature.arena, side[parameter])
+                        }
+                        None => side[parameter],
+                    });
+                }
+                premises.extend(required(self, &values)?);
             }
             let transport = self.selected(id, transport)?;
             let laws = self.theorem(id, transport)?;
@@ -1678,17 +1716,36 @@ impl<'p> Converter<'p, '_> {
             return Ok(());
         }
         // No transport theorem: the same, for one representative of each
-        // class, owed here. `Quotient::define` owes the converse too.
-        let count = parameters.len() as u32;
-        let one: Vec<_> = (0..count)
-            .map(|parameter| self.variable(count - 1 - parameter))
-            .collect();
-        let context: Vec<_> = parameters.iter().map(|&(ty, _)| ty).collect();
+        // class formal and every other formal as it is, owed here.
+        // `Quotient::define` owes the converse too.
+        let count = formals.len() as u32;
+        let mut context = Vec::with_capacity(formals.len());
+        let mut values = Vec::with_capacity(formals.len());
+        let mut representatives = Vec::with_capacity(formals.len());
+        for (formal, &(ty, entry)) in formals.iter().enumerate() {
+            let variable = self.variable(count - 1 - formal as u32);
+            match self.signature.entries[entry as usize].kind {
+                SignatureEntryKind::Quotient {
+                    carrier, relation, ..
+                } => {
+                    context.push(self.constant(carrier));
+                    let family = self.family(carrier, relation);
+                    values.push(family.project(&mut self.signature.arena, variable));
+                    representatives.push(Some(variable));
+                }
+                _ => {
+                    context.push(ty);
+                    values.push(variable);
+                    representatives.push(None);
+                }
+            }
+        }
         self.held.clear();
-        let asked = required(self, &one)?;
+        let asked = required(self, &values)?;
+        let actuals = self.lift_actuals(id, lifted, &classes, &values, &representatives)?;
         let mut needed = Vec::with_capacity(private.requires.len());
         for clause in &private.requires {
-            let premise = self.equality(operation, clause, &one, None)?;
+            let premise = self.equality(operation, clause, &actuals, None)?;
             needed.push(premise);
             self.held.push(premise);
         }
@@ -1713,6 +1770,58 @@ impl<'p> Converter<'p, '_> {
             }
         }
         Ok(())
+    }
+
+    /// The term each parameter of the operation on representatives
+    /// receives: a formal's value as it is, or a class formal's
+    /// representative where the parameter takes one, or a computed
+    /// argument read over the formals' `values`.
+    fn lift_actuals(
+        &mut self,
+        id: MachineId,
+        lifted: &LiftedOperation,
+        classes: &[Option<(u32, u32)>],
+        values: &[TermHandle],
+        representatives: &[Option<TermHandle>],
+    ) -> Checked<Vec<TermHandle>> {
+        let slots: Vec<_> = values
+            .iter()
+            .map(|&term| Some(Bound { term, field: None }))
+            .collect();
+        let aliases: Vec<usize> = (0..values.len()).collect();
+        let scope = Scope {
+            slots: &slots,
+            aliases: &aliases,
+            case: None,
+            recursion: None,
+            depth: 0,
+            induction: false,
+            value: None,
+        };
+        let mut actuals = Vec::with_capacity(lifted.arguments.len());
+        for (parameter, argument) in lifted.arguments.iter().enumerate() {
+            actuals.push(match argument {
+                &LiftArgument::Formal(formal) => {
+                    let formal = formal as usize;
+                    match classes[parameter] {
+                        Some(_) => {
+                            representatives
+                                .get(formal)
+                                .copied()
+                                .flatten()
+                                .ok_or_else(|| {
+                                    unserved(id, "quotient operation lost a class's representative")
+                                })?
+                        }
+                        None => *values.get(formal).ok_or_else(|| {
+                            unserved(id, "quotient operation lost one of its formals")
+                        })?,
+                    }
+                }
+                LiftArgument::Computed(value) => self.expression(id, value, &scope)?.term,
+            });
+        }
+        Ok(actuals)
     }
 
     /// The laws of a theorem a quotient operation selects: a machine with

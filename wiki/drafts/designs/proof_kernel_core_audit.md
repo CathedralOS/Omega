@@ -1605,6 +1605,25 @@ same_sign> as SameSign;` is read into the mathematical signature when
   recovered from the old corpus is `quotient/pass/lifted_operation` and
   `quotient/fail/lift_selects_another_theorem`, whose lift names a proved
   theorem that is not the congruence.
+- **Lift arguments (2026-11-27).** `Quotient::lift` passes each parameter
+  of the operation on representatives a formal as it is, or a value it
+  computes from the formals (a constant among them), so a formal may be
+  left out or passed twice. The congruence is stated of the operation's
+  parameters, so a computed argument is one value shared by both calls,
+  and a class formal passed twice is two class parameters, each with its
+  own two representatives and relation premise. The definition passes the
+  one class's representative to every class parameter and cites the
+  congruence's relation proof once per parameter. Only a formal is a class:
+  a computed argument of the quotient's type is refused, so `lift` always
+  eliminates a class the machine was given. A transport theorem is stated
+  over the congruence's binders, which reach no computed or left-out
+  formal, so such a lift selects none and owes that statement itself over
+  its formals; `define` still passes each formal in its place. Tests:
+  `an_operation_lifted_with_a_computed_or_omitted_argument_*`,
+  `an_operation_lifted_with_a_repeated_class_computes_at_a_class`,
+  `a_repeated_class_needs_a_congruence_for_each_pair`,
+  `a_lift_that_computes_an_argument_owes_its_transport_itself`,
+  `a_computed_argument_is_never_a_class`.
 - **Not done:**
   - A lifted operation is a definition only where the kernel's `lift`
     gives one (2026-11-27): one class in, a class or plain data out (the
@@ -1618,8 +1637,6 @@ same_sign> as SameSign;` is read into the mathematical signature when
     needs the dependent eliminator, and one over two classes needs
     function extensionality; a term that applies either is refused by
     name, as is one returning `bool`.
-  - `Quotient::lift` with a constant, a computed argument, an omitted formal
-    or a formal passed twice, which the specification permits.
   - Anything that needs the kernel's `effective` assumption (equal classes
     give related representatives). The specification allows it only for a
     relation shown to be a mere proposition, and requires the declaration to
@@ -1627,7 +1644,14 @@ same_sign> as SameSign;` is read into the mathematical signature when
     The reader still needs to consume that conformance.
     The compiler uses soundness only, which holds for any relation.
   - A generic quotient, and a quotient of data that has storage in the
-    mathematical signature. Ordinary programs run a quotient of copyable,
+    mathematical signature. The signature now declares generic data that
+    contains itself, with payloads (#6295), but a quotient's reader still
+    refuses generic quotient data. It states a record only of mathematical
+    data, never one with an `i32` field, so a law equating classes of
+    stored data is refused as "Identity of classes of a quotient of data
+    that has storage"
+    (`a_law_over_classes_of_stored_data_is_refused_by_name`). Ordinary
+    programs run a quotient of copyable,
     custody-free data stored as its representative: all nineteen programs
     under `samples/cli/facts/quotient_closed_literal/` pass the sample gate
     on Linux x86-64 (2026-11-27), each invalid twin refused because its
