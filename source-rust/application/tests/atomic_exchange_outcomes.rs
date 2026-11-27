@@ -1,4 +1,4 @@
-//! A single attempt publishes the value the instruction observed or retained.
+//! An atomic exchange publishes the outcome supplied by its declared operation.
 //! Exercise the same storage through a shared borrow and check that neither a
 //! look-alike result nor another resident type can receive the event.
 #[path = "support/program.rs"]
@@ -100,4 +100,41 @@ fn a_saved_program_can_replace_its_owned_exchange_result() {
     let bytes = std::fs::read(saved).unwrap();
     let _received = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
         .expect("the received artifact admits the same owned assignment as its producer");
+}
+
+#[test]
+fn a_decisive_non_observing_exchange_returns_only_the_owned_operand() {
+    let source = r#"
+        use {omega}/language/core/layout.omg;
+        data State { word: AtomicU32; }
+        machine check(state: @State, expected: u32) -> bool {
+            state.word.store(17, Publish);
+            let result: |layout|::AtomicTryExchangeOutcome<u32> =
+                state.word.try_exchange(expected, 83, ReceivePublish, Receive);
+            transition result {
+                |layout|::AtomicTryExchangeOutcome::Mismatched { proposed } ->
+                    (expected != 17 && proposed == 83 && state.word.load(Receive) == 17),
+                |layout|::AtomicTryExchangeOutcome::Exchanged { displaced } ->
+                    (expected == 17 && displaced == 17 && state.word.load(Receive) == 83)
+            }
+        }
+        machine main() crashes Trap {
+            let mutable state: State;
+            transition check(@state, 17) && check(@state, 19) {
+                true -> done(), _ -> failed()
+            }
+            machine done() {}
+            machine failed() crashes Trap { crash Trap; }
+        }
+    "#;
+    program::assert_silent_return(source);
+    let wrong = source
+        .replace("AtomicTryExchangeOutcome", "AtomicCompareExchangeOutcome")
+        .replace("Mismatched { proposed }", "Mismatched { observed }")
+        .replace("proposed == 83", "observed == 17")
+        .replace("Exchanged { displaced }", "Exchanged")
+        .replace("displaced == 17 && ", "");
+    let (status, diagnostic) = program::invoke(&wrong, &["--check"]);
+    assert!(!status.status.success(), "{diagnostic}");
+    assert!(diagnostic.contains("exact core outcome"), "{diagnostic}");
 }
