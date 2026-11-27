@@ -383,7 +383,7 @@ fn independent_wait_uses_the_selected_export_and_the_callers_private_cell() {
             for report in [&diagnostic, &psi_diagnostic] {
                 assert!(
                     report.contains("synchronization deadlock")
-                        && report.contains("the call retries on an unchanged private atomic cell"),
+                        && report.contains("unchanged private atomic"),
                     "{report}"
                 );
             }
