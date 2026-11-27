@@ -1361,7 +1361,7 @@ machine entry() -> u8 {
 /// declaration (mathematical_bindings.md, "A sum input in a logical contract
 /// denotes a single mathematical value of that sum's checked inductive
 /// declaration"). The alias and the cited machine are both read over that
-/// one subject; the citation then needs case analysis, refused by name.
+/// one subject, and the citation's three derivations are checked over it.
 const ONE_IS_POSITIVE: &str = "data Choice {
     case One(x: u8);
     case Two(y: u8);
@@ -1369,11 +1369,11 @@ const ONE_IS_POSITIVE: &str = "data Choice {
 
 data OneIsPositive = machine(c: Choice)
     requires c in Choice::One && c.x != 0u8
-    ensures c.x > 0u8;
+    ensures c.x != 0u8;
 
 machine one_is_positive(c: Choice)
 requires c in Choice::One && c.x != 0u8
-ensures c.x > 0u8
+ensures c.x != 0u8
 {
 }
 
@@ -1387,14 +1387,46 @@ machine entry() -> u8 {
 ";
 
 #[test]
-fn a_theorem_over_a_sum_reads_it_as_one_subject() {
+fn a_theorem_over_a_sum_supplies_its_alias() {
     let verdict = stored(ONE_IS_POSITIVE);
+    assert!(matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
+
+/// The alias's premise names case `One`; a machine that needs case `Two`
+/// is not established by it.
+#[test]
+fn a_theorem_needing_another_case_cannot_supply_the_alias() {
+    let source = ONE_IS_POSITIVE.replace(
+        "machine one_is_positive(c: Choice)\nrequires c in Choice::One && c.x != 0u8",
+        "machine one_is_positive(c: Choice)\nrequires c in Choice::Two && c.x != 0u8",
+    );
+    assert!(source.contains("requires c in Choice::Two"), "{source}");
+    let verdict = stored(&source);
     let shown = format!("{verdict:?}");
     assert!(
-        shown.contains("theorem citation over a sum subject has no case analysis yet"),
+        shown.contains("explicit proof argument does not establish the complete aliased contract"),
         "{shown}"
     );
-    assert!(!shown.contains("not a plain record"), "{shown}");
+}
+
+/// The alias's premise says less about the payload than the machine needs:
+/// `c.x != 1u8` does not establish `c.x != 0u8`.
+#[test]
+fn a_theorem_needing_more_of_the_payload_cannot_supply_the_alias() {
+    let source = ONE_IS_POSITIVE.replace(
+        "data OneIsPositive = machine(c: Choice)\n    requires c in Choice::One && c.x != 0u8\n    ensures c.x != 0u8;",
+        "data OneIsPositive = machine(c: Choice)\n    requires c in Choice::One && c.x != 1u8\n    ensures c.x != 1u8;",
+    );
+    assert!(
+        source.contains("requires c in Choice::One && c.x != 1u8"),
+        "{source}"
+    );
+    let verdict = stored(&source);
+    let shown = format!("{verdict:?}");
+    assert!(
+        shown.contains("explicit proof argument does not establish the complete aliased contract"),
+        "{shown}"
+    );
 }
 
 #[test]
