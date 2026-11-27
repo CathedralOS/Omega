@@ -434,25 +434,6 @@ pub(crate) mod instance {
                 Ok(())
             }
 
-            // Nested adapters and resolvers may own state from earlier calls.  They keep
-            // running the same provider program, even when its caller has been republished.
-            fn same_provider_closure(&self, other: &Self) -> bool {
-                self.pending.is_none()
-                    && other.pending.is_none()
-                    && self.supply() == other.supply()
-                    && self.supplies == other.supplies
-                    && self.scalar_admission == other.scalar_admission
-                    && self.bindings.keys().eq(other.bindings.keys())
-                    && self.storage_resolver.is_some() == other.storage_resolver.is_some()
-                    && self.components.len() == other.components.len()
-                    && self.components.iter().all(|(slot, child)| {
-                        other
-                            .components
-                            .get(slot)
-                            .is_some_and(|next| child.same_provider_closure(next))
-                    })
-            }
-
             pub(crate) fn require_ready(&self) -> Result<(), String> {
                 let missing = self.unbound_imports().collect::<Vec<_>>();
                 if self.pending.is_some() || !missing.is_empty() {
@@ -1027,6 +1008,7 @@ pub(crate) mod instance {
 
     pub struct TerminalInstance<'host, 'artifact> {
         program: TerminalProgram<'artifact>,
+        entry: semantic_vocabulary::MachineId,
         process_domain: std::sync::Arc<SimulatedProcessDomain>,
         execution: Option<TerminalExecution<'artifact>>,
         required_imports: Vec<BoundaryMachineId>,
@@ -1047,6 +1029,7 @@ pub(crate) mod instance {
             execution.process_domain = Some(std::sync::Arc::clone(&process_domain));
             Self {
                 program,
+                entry: execution.current_machine,
                 process_domain,
                 execution: Some(execution),
                 required_imports,

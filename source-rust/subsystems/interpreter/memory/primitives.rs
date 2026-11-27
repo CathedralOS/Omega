@@ -2112,12 +2112,6 @@ pub(crate) mod primitive_storage {
     }
 
     impl PrimitiveStorageFragment {
-        pub(crate) fn has_literal_scalar_types(&self) -> bool {
-            !matches!(self.logical, ScalarType::Callable(_))
-                && !matches!(self.stored, ScalarType::Callable(_))
-                && self.storage.has_literal_scalar_encoding()
-        }
-
         pub(crate) fn contiguous_address_endpoint(
             &self,
             observed: ScalarType,
@@ -2194,13 +2188,6 @@ pub(crate) mod primitive_storage {
     }
 
     impl PrimitiveStorage {
-        pub(crate) fn has_literal_scalar_encoding(&self) -> bool {
-            self.encoding.is_none_or(|encoding| {
-                !matches!(encoding.source, ScalarType::Callable(_))
-                    && !matches!(encoding.view, ScalarType::Callable(_))
-            })
-        }
-
         fn canonical(endpoint: PrimitiveStorageEndpoint) -> Self {
             Self {
                 endpoint,
@@ -4726,6 +4713,7 @@ pub(crate) mod primitive_storage {
             Ok(())
         }
 
+        #[cfg(test)]
         pub(crate) fn retains_entry_array_element(
             &self,
             home: &PrimitiveStorageHome,
@@ -4910,40 +4898,6 @@ pub(crate) mod runtime_rows {
                 lease: None,
                 account: account.cloned(),
             }
-        }
-
-        /// Move rows whose keys change between publications without replacing their
-        /// storage leases. The caller owns the frame and drops it on any failure.
-        pub(crate) fn relocate_keys(
-            &mut self,
-            mut successor_key: impl FnMut(&Key) -> Result<Option<Key>, String>,
-        ) -> Result<(), String>
-        where
-            Key: Clone,
-        {
-            let mut changes = Vec::new();
-            for old in self.rows.keys() {
-                if let Some(new) = successor_key(old)? {
-                    changes.push((old.clone(), new));
-                }
-            }
-            // Remove all old keys first: two translated keys may exchange numbers.
-            let moved = changes
-                .into_iter()
-                .map(|(old, new)| {
-                    let value = self
-                        .rows
-                        .remove(&old)
-                        .ok_or("continuation lost a retained storage row")?;
-                    Ok((new, value))
-                })
-                .collect::<Result<Vec<_>, String>>()?;
-            for (key, value) in moved {
-                if self.rows.insert(key, value).is_some() {
-                    return Err("continuation aliases two distinct storage paths".into());
-                }
-            }
-            Ok(())
         }
 
         pub(crate) fn from_rows(
@@ -5481,15 +5435,6 @@ pub(crate) mod scalar_storage {
         }
     }
     impl CheckedReferenceScalar {
-        pub(crate) fn is_invocation_literal(&self) -> bool {
-            let backing: &dyn std::any::Any = self.backing.as_ref();
-            backing.is::<crate::TerminalInvocationScalar>()
-                && matches!(
-                    self.restriction,
-                    None | Some(terminal_psi::StructuralFieldType::Scalar(_))
-                )
-        }
-
         fn validate(
             &self,
             value: TerminalScalarValue,
@@ -5597,17 +5542,6 @@ pub(crate) mod scalar_storage {
     impl Eq for ScalarCell {}
 
     impl ScalarCell {
-        pub(crate) fn is_local_literal(&self) -> bool {
-            match self {
-                Self::Local(value) => value.literal().is_some(),
-                Self::Resident { backing, .. } => {
-                    let backing: &dyn std::any::Any = backing.as_ref();
-                    backing
-                        .downcast_ref::<CheckedReferenceScalar>()
-                        .is_some_and(|checked| checked.is_invocation_literal())
-                }
-            }
-        }
         pub(crate) fn resident(
             original: TerminalScalarValue,
             backing: Rc<dyn TerminalScalarBacking>,
@@ -5702,18 +5636,6 @@ pub(crate) mod scalar_storage {
             } else {
                 self.0.insert(key, ScalarCell::Local(value))
             }
-        }
-        pub(crate) fn relocate_keys(
-            &mut self,
-            successor_key: impl FnMut(&Key) -> Result<Option<Key>, String>,
-        ) -> Result<(), String>
-        where
-            Key: Clone,
-        {
-            self.0.relocate_keys(successor_key)
-        }
-        pub(crate) fn has_only_literal_cells(&self) -> bool {
-            self.0.values().all(ScalarCell::is_local_literal)
         }
         pub(crate) fn insert_cell(
             &mut self,
