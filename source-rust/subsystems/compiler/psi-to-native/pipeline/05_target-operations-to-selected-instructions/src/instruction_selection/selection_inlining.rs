@@ -375,6 +375,14 @@ fn check_inline_eligibility(
     let CallSiteOwner::Operation(call_op) = contract.owner else {
         return None;
     };
+    // Arguments passed on the stack are stored into outgoing slots before the
+    // call. Inlining removes the call but would leave those slots and stores,
+    // and a frame without a call cannot hold outgoing arguments.
+    if caller.outgoing_arguments.iter().any(|slot| {
+        slot.id.invocation_site == semantic_vocabulary::InvocationSite::Operation(call_op)
+    }) {
+        return None;
+    }
 
     // Preserve any work settled on the call instruction only when edges are empty
     // and all settled sites belong to `call_op`.
@@ -1839,6 +1847,26 @@ mod tests {
         };
         assert_eq!(successor.bindings, [binding]);
         assert_eq!(successor.role, SelectedSuccessorRole::Semantic);
+
+        // A call that passes an argument on the stack stays a call: inlining
+        // would remove it but leave the outgoing slot, which frame layout
+        // refuses in a function without calls.
+        let mut stack_passed = [caller.clone(), callee.clone()];
+        stack_passed[0].outgoing_arguments.push(
+            selected_instructions::SelectedOutgoingArgumentSlot {
+                id: selected_instructions::OutgoingArgumentSlotId {
+                    invocation_site: semantic_vocabulary::InvocationSite::Operation(caller_op),
+                    argument_index: 4,
+                    role: selected_instructions::OutgoingArgumentSlotRole::ValueCopy,
+                },
+                byte_size: 48,
+                alignment: 16,
+                abi_stack_byte_offset: 32,
+            },
+        );
+        inline_and_simplify(&mut stack_passed, &environment).unwrap();
+        assert_eq!(stack_passed[0].calls.as_slice(), caller.calls.as_slice());
+        assert_eq!(stack_passed[0].outgoing_arguments.len(), 1);
 
         let mut functions = vec![caller, callee];
         inline_and_simplify(&mut functions, &environment).unwrap();
