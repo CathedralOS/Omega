@@ -60,9 +60,13 @@ pub fn inspect_terminal(
     Ok(TerminalInspection { artifact })
 }
 
-pub fn inspect_terminal_artifact(bytes: &[u8]) -> Result<TerminalInspection, InspectTerminalError> {
-    let artifact =
-        CanonicalTerminalArtifact::from_bytes(bytes).map_err(InspectTerminalError::Artifact)?;
+/// Inspection decodes under the host's load limits but needs no trust.
+pub fn inspect_terminal_artifact(
+    bytes: &[u8],
+    limits: terminal_codec::PsiLoadLimits,
+) -> Result<TerminalInspection, InspectTerminalError> {
+    let artifact = CanonicalTerminalArtifact::from_bytes_within(bytes, limits)
+        .map_err(InspectTerminalError::Artifact)?;
     Ok(TerminalInspection {
         artifact: std::sync::Arc::new(artifact),
     })

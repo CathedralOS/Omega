@@ -105,6 +105,9 @@ pub enum ArtifactTrustError {
     /// The received artifact failed a check that execution relies on and
     /// decoding skips, such as a structural membership the checker refuses.
     ExecutionPreparation(terminal_codec::CodecError),
+    /// Preparing the received artifact would exceed the work budget it was
+    /// loaded under. A resource refusal, not a failed check.
+    LoadWorkExhausted(terminal_codec::CodecError),
     ArtifactMismatch {
         authorized: TerminalArtifactIdentity,
         requested: TerminalArtifactIdentity,
@@ -116,6 +119,9 @@ impl std::fmt::Display for ArtifactTrustError {
         match self {
             Self::ProducerTrustRequired => formatter
                 .write_str("execution requires the host's acceptance of the actual producer"),
+            Self::LoadWorkExhausted(reason) => {
+                write!(formatter, "received Psi exceeds the host's load budget: {reason}")
+            }
             Self::ExecutionPreparation(reason) => {
                 write!(
                     formatter,
@@ -149,7 +155,13 @@ pub fn authorize_terminal_artifact(
         // decision. The caller's own copy stays received.
         artifact: artifact
             .record_host_authorization()
-            .map_err(ArtifactTrustError::ExecutionPreparation)?,
+            .map_err(|error| {
+                if error.is_resource_refusal() {
+                    ArtifactTrustError::LoadWorkExhausted(error)
+                } else {
+                    ArtifactTrustError::ExecutionPreparation(error)
+                }
+            })?,
         producer_identity: Arc::clone(&producer.identity),
     })
 }
@@ -266,6 +278,38 @@ mod tests {
         assert!(matches!(
             authorize_terminal_artifact(received, Some(&producer)),
             Err(ArtifactTrustError::ExecutionPreparation(_))
+        ));
+    }
+
+    /// Execution preparation draws on the budget the artifact was loaded
+    /// under. A budget that pays for decoding but not for the replayed
+    /// judgments refuses authorization as exhausted work, not as a failed
+    /// check.
+    #[test]
+    fn preparation_shares_the_load_budget_with_decoding() {
+        let bytes = include_bytes!(
+            "../../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
+        );
+        let load = |work_units| {
+            Arc::new(
+                CanonicalTerminalArtifact::from_bytes_within(
+                    bytes,
+                    terminal_codec::PsiLoadLimits {
+                        max_input_bytes: None,
+                        work_units,
+                    },
+                )
+                .unwrap(),
+            )
+        };
+        let producer = HostProducerTrust::accept("budget test host");
+        let decoded = load(terminal_codec::DEFAULT_LOAD_WORK_UNITS);
+        let decode_used = decoded.closed_module().load_account().unwrap().used();
+        authorize_terminal_artifact(decoded, Some(&producer)).unwrap();
+        let tight = load(decode_used);
+        assert!(matches!(
+            authorize_terminal_artifact(tight, Some(&producer)),
+            Err(ArtifactTrustError::LoadWorkExhausted(error)) if error.is_resource_refusal()
         ));
     }
 

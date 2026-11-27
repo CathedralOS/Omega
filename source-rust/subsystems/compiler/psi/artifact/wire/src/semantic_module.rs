@@ -4092,6 +4092,18 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
 pub fn decode_closed_parts(
     bytes: &[u8],
 ) -> Result<(TerminalModule, Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
+    let mut account = crate::LoadAccount::open(Default::default(), bytes.len())?;
+    decode_closed_parts_within(bytes, &mut account)
+}
+
+/// [`decode_closed_parts`] under the receiving host's load account. Parsing
+/// pays for every input byte before it reads one, and validation pays for
+/// every decoded position before it walks them.
+pub fn decode_closed_parts_within(
+    bytes: &[u8],
+    account: &mut crate::LoadAccount,
+) -> Result<(TerminalModule, Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
+    account.charge_bytes("parse semantic module", bytes.len())?;
     MODULE_DECODES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut reader = Reader::new(bytes);
     if reader.take(MAGIC.len())? != MAGIC {
@@ -4106,6 +4118,10 @@ pub fn decode_closed_parts(
         return Err(CodecError::TrailingBytes(reader.remaining()));
     }
     let mut types = crate::ClosedTypeCatalog::from_encoded_integers(reader.finish_integer_types());
+    account.charge(
+        "validate semantic structure",
+        crate::loading::module_positions(&module),
+    )?;
     scalar_qualification_wire::validate(&module.types.scalar_qualifications)?;
     validate_canonical_order(&module)?;
     module_foundation_validation::validate_storage_foundation(&module)?;
@@ -4142,6 +4158,20 @@ pub fn decode_closed_parts(
 /// refuse. Code this process produced was checked by its own checker and
 /// needs no replay.
 pub fn prepare_received_execution(module: &TerminalModule) -> Result<(), CodecError> {
+    let mut account = crate::LoadAccount::open(Default::default(), 0)?;
+    prepare_received_execution_within(module, &mut account)
+}
+
+/// [`prepare_received_execution`] drawing on the load account the module was
+/// decoded under. It pays the replay's upper bound before it starts.
+pub fn prepare_received_execution_within(
+    module: &TerminalModule,
+    account: &mut crate::LoadAccount,
+) -> Result<(), CodecError> {
+    account.charge(
+        "prepare received execution",
+        crate::loading::preparation_units(module),
+    )?;
     if module.types.opaque_representations.is_empty() {
         return replay_execution_judgments(module);
     }

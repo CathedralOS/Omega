@@ -44,7 +44,13 @@ pub(crate) fn run(arguments: InspectTerminalArguments, diagnostics: DiagnosticOu
             let bytes = read_artifact_or_exit(&path, max_psi_input_bytes);
             (
                 "artifact".to_owned(),
-                inspect_terminal_artifact(&bytes),
+                inspect_terminal_artifact(
+                    &bytes,
+                    terminal_codec::PsiLoadLimits {
+                        max_input_bytes: max_psi_input_bytes,
+                        ..Default::default()
+                    },
+                ),
                 None,
             )
         }

@@ -42,11 +42,18 @@ pub(crate) fn open_trusted_program(
             path.display()
         ))]
     })?;
-    let artifact =
-        terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "cannot inspect Psi artifact: {error}"
-            ))]
+    let limits = terminal_codec::PsiLoadLimits {
+        max_input_bytes,
+        ..Default::default()
+    };
+    let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes_within(&bytes, limits)
+        .map_err(|error| {
+            let reason = if error.is_resource_refusal() {
+                "saved Psi exceeds the host's load limits"
+            } else {
+                "cannot inspect Psi artifact"
+            };
+            vec![Diagnostic::error(format!("{reason}: {error}"))]
         })?;
     if artifact.manifest().identity().to_string() != expected {
         return Err(vec![Diagnostic::error(
