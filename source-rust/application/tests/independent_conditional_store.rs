@@ -33,7 +33,15 @@ fn the_callers_selector_and_actual_words_determine_progress() {
     ] {
         let supplier = supplier
             .replace("choose: u32", &format!("choose: {parameter_type}"))
-            .replace("choose == 7", comparison);
+            .replace("choose == 7", comparison)
+            .replace(
+                "choose != 7",
+                if parameter_type == "bool" {
+                    "!choose"
+                } else {
+                    "choose != 7"
+                },
+            );
         let scratch = project::stage(
             "conditional-provider-store",
             &[
@@ -43,14 +51,8 @@ fn the_callers_selector_and_actual_words_determine_progress() {
             ],
         );
         let supplier = components::inspect(&scratch.path().join("supplier"), "clear_selected");
-        let [provider] = supplier
-            .semantic_module()
-            .interfaces
-            .provider_candidates
-            .as_slice()
-        else {
-            panic!("expected the selected Clear provider");
-        };
+        let candidates = &supplier.semantic_module().interfaces.provider_candidates;
+        assert_eq!(candidates.len(), 2);
         for (requirement, actual, entry_argument, expected) in [
             (first, "@right", yes, None),
             (other, "@right", no, Some(ProgressFailure::Deadlock)),
@@ -71,24 +73,36 @@ fn the_callers_selector_and_actual_words_determine_progress() {
             let app = scratch.path().join("application");
             project::write(&app, &[("main.omg", &source)]);
             let receiver = components::inspect(&app, "work");
-            let admitted = components::admit(&receiver, &supplier, provider);
             let Some(terminal_psi::TargetMachineCallable::Machine(entry)) =
                 receiver.semantic_module().entry
             else {
                 panic!("expected the selected work entry");
             };
-            let failure = invocation_progress_failure(
-                receiver.view(),
-                entry,
-                ProgressScope::Executable,
-                [&admitted],
-                |_| None,
-            );
-            assert_eq!(
-                failure.map(|error| error.cause),
-                expected,
-                "{comparison} {requirement} {actual}"
-            );
+            for provider in candidates {
+                let name = supplier
+                    .semantic_module()
+                    .identities
+                    .text(provider.provider_identity)
+                    .unwrap();
+                let expected = if name.ends_with("::AlwaysClearsFirst") {
+                    None
+                } else {
+                    expected
+                };
+                let admitted = components::admit(&receiver, &supplier, provider);
+                let failure = invocation_progress_failure(
+                    receiver.view(),
+                    entry,
+                    ProgressScope::Executable,
+                    [&admitted],
+                    |_| None,
+                );
+                assert_eq!(
+                    failure.map(|error| error.cause),
+                    expected,
+                    "{comparison} {requirement} {actual}"
+                );
+            }
         }
     }
 }

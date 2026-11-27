@@ -13,6 +13,30 @@ pub(super) struct Selector {
 }
 
 impl Selector {
+    /// Give a test and its negation the same identity. Reversing the
+    /// operands also reverses their order comparison.
+    pub(super) fn canonical(mut self) -> (Self, bool) {
+        let inverted = !self.test.positive;
+        self.test.positive = true;
+        let pivot = self.test.comparison.pivot;
+        let reverse = match (self.value, pivot) {
+            (Operand::Literal(_), Operand::Parameter { .. }) => true,
+            (
+                Operand::Parameter { position: left, .. },
+                Operand::Parameter {
+                    position: right, ..
+                },
+            ) => left > right,
+            _ => false,
+        };
+        if reverse {
+            self.test.comparison.pivot = self.value;
+            self.value = pivot;
+            self.test.comparison.order = self.test.comparison.order.reverse();
+        }
+        (self, inverted)
+    }
+
     pub(super) fn boolean(value: Operand) -> Option<Self> {
         (value.scalar_type() == ScalarType::Boolean).then_some(Self {
             value,

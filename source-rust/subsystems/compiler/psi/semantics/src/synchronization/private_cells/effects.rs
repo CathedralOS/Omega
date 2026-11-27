@@ -56,6 +56,21 @@ struct Decision {
     answer: bool,
 }
 
+impl Decision {
+    fn new(selector: Selector, answer: bool) -> Self {
+        let (selector, inverted) = selector.canonical();
+        Self {
+            selector,
+            answer: answer != inverted,
+        }
+    }
+
+    fn answer_for(&self, test: Selector) -> Option<bool> {
+        let (selector, inverted) = test.canonical();
+        (selector == self.selector).then_some(self.answer != inverted)
+    }
+}
+
 impl Default for NormalEffects {
     fn default() -> Self {
         Self {
@@ -168,6 +183,7 @@ impl NormalEffects {
         for path in &mut self.paths {
             for condition in &mut path.when {
                 condition.selector.map_operands(&mut apply)?;
+                *condition = Decision::new(condition.selector, condition.answer);
             }
             for event in &mut path.events {
                 if let Effect::Write(write) = event {
@@ -192,5 +208,4 @@ impl NormalEffects {
         }
         Some(())
     }
-
 }

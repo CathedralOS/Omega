@@ -17,3 +17,19 @@ public ChosenWord satisfies Clear {
         clear_selected(first, second, choose);
     }
 }
+
+machine clear_otherwise(first: @Signal, choose: u32) {
+    transition choose != 7 {
+        true -> clear(first),
+        _ -> leave()
+    }
+    machine clear(signal: @Signal) { signal.word.store(0, Publish); }
+    machine leave() {}
+}
+
+public AlwaysClearsFirst satisfies Clear {
+    machine selected(first: @Signal, second: @Signal, choose: u32) {
+        clear_selected(first, second, choose);
+        clear_otherwise(first, choose);
+    }
+}

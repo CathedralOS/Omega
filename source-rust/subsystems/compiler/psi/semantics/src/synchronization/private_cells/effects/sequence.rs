@@ -38,10 +38,7 @@ pub(super) fn effects_in_body(
             completed,
             program_size,
             &mut |selector| {
-                let answer = known
-                    .iter()
-                    .find(|test| test.selector == selector)
-                    .map(|d| d.answer);
+                let answer = known.iter().find_map(|test| test.answer_for(selector));
                 if answer.is_none() {
                     missing = Some(selector);
                 }
@@ -51,7 +48,7 @@ pub(super) fn effects_in_body(
         if let Some(selector) = missing {
             for answer in [false, true] {
                 let mut decisions = known.clone();
-                decisions.push(Decision { selector, answer });
+                decisions.push(Decision::new(selector, answer));
                 pending.push(decisions);
             }
         } else {

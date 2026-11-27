@@ -175,26 +175,37 @@ pub(super) fn entry_scalars(
 }
 
 impl Operand {
-    pub(super) fn binding(self, scalar: &impl Fn(usize)->Option<ScalarFact>) -> Option<ScalarFact> {
+    pub(super) fn binding(
+        self,
+        scalar: &impl Fn(usize) -> Option<ScalarFact>,
+    ) -> Option<ScalarFact> {
         match self {
             Self::Literal(value) => Some(ScalarFact::Literal(value)),
-            Self::Parameter {position, scalar_type} => scalar(position).filter(|fact|fact.ty()==scalar_type),
+            Self::Parameter {
+                position,
+                scalar_type,
+            } => scalar(position).filter(|fact| fact.ty() == scalar_type),
         }
     }
 }
 
 impl SpinCondition {
-    pub(super) fn with_actuals(mut self, resolve: impl Fn(Operand)->Option<ScalarFact>)->(Self,Option<ValueDeclaration>){
-        let mut input=None;
-        if let Some(mask)=self.comparison.mask && let Some(ScalarFact::Literal(value))=resolve(mask){
-            self.comparison.mask=Some(Operand::Literal(value));
+    pub(super) fn with_actuals(
+        mut self,
+        resolve: impl Fn(Operand) -> Option<ScalarFact>,
+    ) -> (Self, Option<ValueDeclaration>) {
+        let mut input = None;
+        if let Some(mask) = self.comparison.mask
+            && let Some(ScalarFact::Literal(value)) = resolve(mask)
+        {
+            self.comparison.mask = Some(Operand::Literal(value));
         }
-        match resolve(self.comparison.pivot){
-            Some(ScalarFact::Literal(value))=>self.comparison.pivot=Operand::Literal(value),
-            Some(ScalarFact::EntryInput(formal))=>input=Some(formal),
-            None=>{}
+        match resolve(self.comparison.pivot) {
+            Some(ScalarFact::Literal(value)) => self.comparison.pivot = Operand::Literal(value),
+            Some(ScalarFact::EntryInput(formal)) => input = Some(formal),
+            None => {}
         }
-        (self,input)
+        (self, input)
     }
 
     /// Is the input known to avoid retry under the selected entry contract?
