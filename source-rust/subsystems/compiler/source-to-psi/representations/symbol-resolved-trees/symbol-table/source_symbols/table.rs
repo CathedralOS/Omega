@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::source_inputs::SourceMap;
 use crate::source_symbols::storage::{SymbolHierarchy, SymbolRows};
-use arena::{HandleSpan, RetainedArena, SpanHandles};
+use arena::{HandleSpan, SpanHandles};
 use source_admission::SourceFile;
 use source_admission::SourceOrigin;
 use source_provenance::PackageKeyIdentity;
@@ -2397,7 +2397,7 @@ mod tests {
 }
 use super::{
     BuiltinFunction, BuiltinType, BuiltinTypeAtom, BuiltinTypeMember, FixedCoreDeclaration, Symbol,
-    SymbolHandle, SymbolKind, SymbolName, SymbolNameRef, SymbolPath,
+    SymbolHandle, SymbolKind, SymbolName, SymbolNameRef,
 };
 use child_batches::{SupplementalChildHandles, SupplementalChildren};
 
@@ -2405,7 +2405,6 @@ use child_batches::{SupplementalChildHandles, SupplementalChildren};
 pub struct SymbolTable {
     symbols: SymbolHierarchy,
     names: SymbolRows<SymbolName>,
-    path_members: RetainedArena<SymbolHandle>,
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Arc<Vec<SourceScopedTopLevelBinding>>,
     root: SymbolHandle,
@@ -2719,7 +2718,6 @@ impl SymbolTableBuilder {
         SymbolTable {
             symbols: self.symbols,
             names: self.names,
-            path_members: RetainedArena::new(),
             sources: self.sources,
             source_scoped_top_level_bindings: Arc::new(self.source_scoped_top_level_bindings),
             root: self.root,
@@ -2806,7 +2804,6 @@ impl SymbolTable {
         let Self {
             symbols,
             names,
-            path_members,
             sources,
             source_scoped_top_level_bindings,
             root,
@@ -2827,11 +2824,6 @@ impl SymbolTable {
                 .eq(base.symbols.nodes().iter())
             || names.len() < base.names.len()
             || !names.iter().take(base.names.len()).eq(base.names.iter())
-            || path_members.len() < base.path_members.len()
-            || !path_members
-                .iter()
-                .take(base.path_members.len())
-                .eq(base.path_members.iter())
             || sources != &base.sources
             || source_scoped_top_level_bindings != &base.source_scoped_top_level_bindings
             || root != &base.root
@@ -2897,12 +2889,7 @@ impl SymbolTable {
                 return false;
             }
         }
-        path_members
-            .iter()
-            .skip(base.path_members.len())
-            .all(|(_, symbol)| {
-                symbol.is_valid() && symbols.get(*symbol).kind != SymbolKind::Unknown
-            })
+        true
     }
 
     /*
@@ -4399,59 +4386,12 @@ impl SymbolTable {
         path
     }
 
-    pub fn path_from_members(
-        &mut self,
-        root: SymbolHandle,
-        members: impl IntoIterator<Item = SymbolHandle>,
-    ) -> SymbolPath {
-        SymbolPath {
-            root,
-            members: self.path_members.insert_many(members),
-        }
-    }
-
-    pub fn resolve_child_path<'name>(
-        &mut self,
-        root: SymbolHandle,
-        names: impl IntoIterator<Item = &'name str>,
-    ) -> SymbolPath {
-        let mut current = root;
-        let mut members = Vec::new();
-
-        if !root.is_valid() {
-            return SymbolPath::default();
-        }
-
-        for name in names {
-            let Some(child) = self.find_child_by_name(current, name) else {
-                return SymbolPath::default();
-            };
-
-            members.push(child);
-            current = child;
-        }
-
-        if members.is_empty() {
-            SymbolPath::default()
-        } else {
-            self.path_from_members(root, members)
-        }
-    }
-
-    pub fn path_members(&self, path: SymbolPath) -> &[SymbolHandle] {
-        self.path_members.span_or_empty(path.members)
-    }
-
     pub fn symbols(&self) -> &SymbolHierarchy {
         &self.symbols
     }
 
     pub fn names(&self) -> &SymbolRows<SymbolName> {
         &self.names
-    }
-
-    pub fn path_member_arena(&self) -> &RetainedArena<SymbolHandle> {
-        &self.path_members
     }
 }
 

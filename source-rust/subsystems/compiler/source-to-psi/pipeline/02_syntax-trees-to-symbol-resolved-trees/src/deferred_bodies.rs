@@ -946,14 +946,12 @@ mod tests {
         let syntax =
             crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
                 .unwrap();
-        let frontier = crate::resolution::pre_resolution::resolve_deferred_numeric_probe(
-            super::super::ResolutionRequest {
-                syntax,
-                sources: Some(std::sync::Arc::new(sources)),
-                top_level_bindings: Vec::new(),
-                retained_base: None,
-            },
-        )
+        let frontier = super::super::resolve_deferred(super::super::ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
         .unwrap();
         let pending: Vec<_> = frontier.pending_machines().collect();
         assert_eq!(pending.len(), 2);
