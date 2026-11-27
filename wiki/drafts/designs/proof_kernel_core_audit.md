@@ -1111,7 +1111,7 @@ kernel, from the library file as it stands.
   the case, which `le_of_succ_le` and `pred_eq_succ` need). It also
   normalizes again after each rewrite. With that, the kernel judges every
   law in the file but the three below: 34 laws when the file's declarations
-  are compiled as a program (`every_law_of_nat_but_three_recursions_is_judged`).
+  are compiled as a program (`every_law_of_nat_but_division_and_gcd_is_judged`).
   The largest, `sub_lt_of_le`, took 42,717 kernel conversion steps of the
   65,536 budget when this landed; the next bullet brought the largest down
   to 5,628 (`sub_lt`).
@@ -1136,7 +1136,8 @@ kernel, from the library file as it stands.
   law, which a shared check would remove.
 - **`mod`, `div` and `gcd`** were not read at this step: their recursion is
   on `saturating_sub(a, b)`, not on a field of the dispatched case. Step 4
-  defines them by recursion on fuel (below).
+  defines them by recursion on fuel (below); `div` and `mod` have since
+  become structural.
 - **The two operator machines** were not read at this step. `<=` and `-`
   were written as machines the `Nat` declaration owns
   (`machine <= Nat::less_or_equal`), and compiling the file's declarations
@@ -1288,6 +1289,16 @@ starts with records.
   twin calling `mod(a, b)` is refused at that call. Still owed: the
   well-foundedness of the order discharged once and a proof that the fuel
   suffices.
+- **Structural division (2026-11-27).** Core `div` and `mod` are no longer
+  defined on fuel. Both read one structural helper, `divide_step(n, k, q, c)`,
+  which recurses on the dividend `n` one unit at a time while counting `c`
+  down from the divisor less one and bumping the quotient `q` when `c` runs
+  out; `div(a, b)` is its quotient and `mod(a, b)` its remainder. Its laws
+  `divide_reconstructs` and `divide_bounds` are proved by induction on `n`,
+  so `div_mod_reconstruction` (`div(a, b) * b + mod(a, b) = a`) and `mod`'s
+  strict bound hold on every admitted input. The prover now reduces a
+  projection of a pair, so a law can read a field of a computed record. Only
+  `gcd` still recurses at a computed value, on fuel with its descent checked.
 - **A choice by a computed value** (`rat_eq`, `mod`) is a definition by
   cases of its own over its subject and the variables in scope, so the
   prover computes with it as with any other. In a law, a split on a computed

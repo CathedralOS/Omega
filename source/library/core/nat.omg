@@ -682,8 +682,9 @@ ensures
 // A positive subtrahend no greater than a gives strict descent:
 // saturating_sub(a, b) < a. The contract expresses that order as exact Nat
 // identity of saturating_sub(Succ(saturating_sub(a, b)), a) with Zero.
-// Recursive mod/gcd calls cite this law at their actual operands to establish
-// the required decrease. The Zero arm contradicts the positive-b premise;
+// A recursive call at a computed natural, such as `mod(saturating_sub(a, b),
+// b)` by repeated subtraction, cites this law at its actual operands to
+// establish the required decrease. The Zero arm contradicts the positive-b premise;
 // the Succ arm uses sub_lt_of_le with the exposed predecessor.
 public machine sub_lt(a: Nat, b: Nat) -> Nat
 requires
@@ -700,38 +701,6 @@ ensures
     machine slt_of(pb: Nat, a: Nat) -> Nat {
         _ = sub_lt_of_le(pb, a);
         transition { _ -> Nat::Zero }
-    }
-}
-
-// MODULO by repeated subtraction (slice a3 opener): mod(a, b) for b >= 1.
-// The root cases the COMPUTED subject saturating_sub(b, a): the Zero arm (b <= a)
-// subtracts and recurses; the Succ arm (a < b) returns a. The recursive
-// edge's strict decrease is NOT structural -- saturating_sub(a, b) is a computed
-// subject -- so mod_rec CITES sub_lt(a, b), whose requires discharge at
-// the site from the machine requires (1 <= b) and the incoming Zero-arm
-// equation (saturating_sub(b, a) == Zero), and whose instantiated ensures IS the
-// strict-edge fact saturating_sub(Succ(saturating_sub(a, b)), a) == Zero. Lean analog: Nat.mod.
-machine mod(a: Nat, b: Nat) -> Nat
-terminates by a
-requires
-    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, b), Nat::Zero)
-ensures
-    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: result }, b), Nat::Zero)
-{
-    transition (saturating_sub(b, a)) {
-        Nat::Zero -> mod_rec(a, b),
-        Nat::Succ { prev as w } -> mod_done(a, b)
-    }
-
-    machine mod_rec(a: Nat, b: Nat) -> Nat {
-        _ = sub_lt(a, b);
-        let next: Nat = saturating_sub(a, b);
-        transition { _ -> (mod(next, b)) }
-    }
-
-    machine mod_done(a: Nat, b: Nat) -> Nat {
-        _ = lt_of_sub_pos(a, b, (pred(saturating_sub(b, a))));
-        transition { _ -> (a) }
     }
 }
 
@@ -804,7 +773,7 @@ ensures
     }
 }
 
-// THE MONUS CONVERSION (mod's ensures workhorse): a positive difference
+// THE MONUS CONVERSION (repeated-subtraction modulo's ensures workhorse): a positive difference
 // the other way entails strict order -- saturating_sub(b, a) == Succ w entails
 // saturating_sub(Succ a, b) == Zero (`a < b`). Flat: sub_eq_add reconstructs
 // b == add(a, Succ w), le_add bounds Succ a by exactly that sum, and the
@@ -829,7 +798,7 @@ ensures
 // One is at most any successor: saturating_sub(Succ Zero, Succ pb) == Zero --
 // premise-free, flat (strip the pair, annihilate on the left). The site
 // fact gcd's recursive arm needs to discharge mod's positivity premise.
-machine le_one_succ(pb: Nat) -> Nat
+public machine le_one_succ(pb: Nat) -> Nat
 ensures
     |proof|::Identity::<Nat>(
         saturating_sub(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: pb }),
@@ -869,23 +838,215 @@ terminates by b
     }
 }
 
-// QUOTIENT by repeated subtraction (mod's twin; the Rat carrier's
-// normalization divisor): div(a, b) for b >= 1. Same computed-subject
-// dispatch and the same sub_lt strict edge as mod; the b <= a arm wraps
-// the recursion in one Succ. Lean analog: Nat.div.
-machine div(a: Nat, b: Nat) -> Nat
-terminates by a
+// TRUNCATED SUBTRACTION BELOW A SUCCESSOR: for r < k, subtracting r leaves
+// one more than subtracting Succ(r) -- saturating_sub(k, r) ==
+// Succ(saturating_sub(k, Succ r)). Division's countdown takes one step
+// with it. `sub_succ_left` is the same fact with the successor on the left
+// of the subtraction, by induction on `r`.
+machine sub_succ_left(j: Nat, r: Nat) -> Nat
+terminates by r
+requires
+    |proof|::Identity::<Nat>(saturating_sub(r, j), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: j }, r), Nat::Succ { prev: saturating_sub(j, r) })
+{
+    transition r {
+        Nat::Zero -> Nat::Zero,
+        Nat::Succ { prev as pr } -> ssl_step(j, pr)
+    }
+
+    machine ssl_step(j: Nat, pr: Nat) -> Nat {
+        transition j {
+            Nat::Zero -> Nat::Zero,
+            Nat::Succ { prev as pj } -> ssl_both(pj, pr)
+        }
+    }
+
+    machine ssl_both(pj: Nat, pr: Nat) -> Nat {
+        _ = succ_sub_succ(pr, pj);
+        _ = succ_sub_succ(Nat::Succ { prev: pj }, pr);
+        _ = succ_sub_succ(pj, pr);
+        transition { _ -> (sub_succ_left(pj, pr)) }
+    }
+}
+
+machine sub_succ_right(r: Nat, k: Nat) -> Nat
+requires
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: r }, k), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(saturating_sub(k, r), Nat::Succ { prev: saturating_sub(k, Nat::Succ { prev: r }) })
+{
+    transition k {
+        Nat::Zero -> Nat::Zero,
+        Nat::Succ { prev as j } -> ssr_step(r, j)
+    }
+
+    machine ssr_step(r: Nat, j: Nat) -> Nat {
+        _ = succ_sub_succ(r, j);
+        _ = succ_sub_succ(j, r);
+        _ = sub_succ_left(j, r);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// CORE UNARY NATURAL DIVISION (numeric_values.md, "Core unary natural
+// division"): one structural helper computes both results. For the divisor
+// Succ(k), `divide_step(n, k, q, c)` consumes the `n` successors still left
+// of the dividend with the quotient `q` accumulated so far and the countdown
+// `c`. Each successor either counts the countdown down or, at zero, adds one
+// to the quotient and resets the countdown to `k`. With the dividend
+// exhausted, the quotient is `q` and the remainder `k - c`. The recursion is
+// on `n` alone, so no fuel and no descent proof is needed.
+public data Division {
+    quotient: Nat;
+    remainder: Nat;
+}
+
+machine divide_step(n: Nat, k: Nat, q: Nat, c: Nat) -> Division
+terminates by n
+{
+    transition n {
+        Nat::Zero -> (Division { quotient: q, remainder: saturating_sub(k, c) }),
+        Nat::Succ { prev } -> divide_next(prev, k, q, c)
+    }
+
+    machine divide_next(prev: Nat, k: Nat, q: Nat, c: Nat) -> Division {
+        transition c {
+            Nat::Zero -> (divide_step(prev, k, Nat::Succ { prev: q }, k)),
+            Nat::Succ { prev as rest } -> (divide_step(prev, k, q, rest))
+        }
+    }
+}
+
+// The helper's invariant, for a countdown no greater than `k`: what it
+// returns reconstructs the successors it consumed plus what it was given,
+// quotient * Succ(k) + remainder == n + (q * Succ(k) + (k - c)). Induction
+// on `n`; a reset cites `sub_self(k)` for its new countdown and a count down
+// steps `k - c` with `sub_succ_right`.
+machine divide_reconstructs(n: Nat, k: Nat, q: Nat, c: Nat) -> Nat
+terminates by n
+requires
+    |proof|::Identity::<Nat>(saturating_sub(c, k), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(
+        add(mul(divide_step(n, k, q, c).quotient, Nat::Succ { prev: k }), divide_step(n, k, q, c).remainder),
+        add(n, add(mul(q, Nat::Succ { prev: k }), saturating_sub(k, c)))
+    )
+{
+    transition n {
+        Nat::Zero -> Nat::Zero,
+        Nat::Succ { prev } -> dr_step(prev, k, q, c)
+    }
+
+    machine dr_step(prev: Nat, k: Nat, q: Nat, c: Nat) -> Nat {
+        transition c {
+            Nat::Zero -> dr_reset(prev, k, q),
+            Nat::Succ { prev as rest } -> dr_count(prev, k, q, rest)
+        }
+    }
+
+    machine dr_reset(prev: Nat, k: Nat, q: Nat) -> Nat {
+        _ = sub_self(k);
+        _ = add_zero_right(add(Nat::Succ { prev: k }, mul(q, Nat::Succ { prev: k })));
+        _ = add_succ_law(prev, add(k, mul(q, Nat::Succ { prev: k })));
+        transition { _ -> (divide_reconstructs(prev, k, Nat::Succ { prev: q }, k)) }
+    }
+
+    machine dr_count(prev: Nat, k: Nat, q: Nat, rest: Nat) -> Nat {
+        _ = le_of_succ_le(rest, k);
+        _ = sub_succ_right(rest, k);
+        _ = add_succ_law(mul(q, Nat::Succ { prev: k }), saturating_sub(k, Nat::Succ { prev: rest }));
+        _ = add_succ_law(prev, add(mul(q, Nat::Succ { prev: k }), saturating_sub(k, Nat::Succ { prev: rest })));
+        transition { _ -> (divide_reconstructs(prev, k, q, rest)) }
+    }
+}
+
+// The helper's remainder never exceeds `k` while the countdown does not:
+// saturating_sub(remainder, k) == Zero. Induction on `n`.
+machine divide_bounds(n: Nat, k: Nat, q: Nat, c: Nat) -> Nat
+terminates by n
+requires
+    |proof|::Identity::<Nat>(saturating_sub(c, k), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(saturating_sub(divide_step(n, k, q, c).remainder, k), Nat::Zero)
+{
+    transition n {
+        Nat::Zero -> db_done(k, c),
+        Nat::Succ { prev } -> db_step(prev, k, q, c)
+    }
+
+    machine db_done(k: Nat, c: Nat) -> Nat {
+        _ = sub_le(k, c);
+        transition { _ -> Nat::Zero }
+    }
+
+    machine db_step(prev: Nat, k: Nat, q: Nat, c: Nat) -> Nat {
+        transition c {
+            Nat::Zero -> db_reset(prev, k, q),
+            Nat::Succ { prev as rest } -> db_count(prev, k, q, rest)
+        }
+    }
+
+    machine db_reset(prev: Nat, k: Nat, q: Nat) -> Nat {
+        _ = sub_self(k);
+        transition { _ -> (divide_bounds(prev, k, Nat::Succ { prev: q }, k)) }
+    }
+
+    machine db_count(prev: Nat, k: Nat, q: Nat, rest: Nat) -> Nat {
+        _ = le_of_succ_le(rest, k);
+        transition { _ -> (divide_bounds(prev, k, q, rest)) }
+    }
+}
+
+// QUOTIENT and REMAINDER for a positive divisor: the two projections of
+// one `divide_step` that starts with quotient zero and countdown `k` for
+// b = Succ(k). The divisor-zero arm is excluded by the premise. `mod`
+// states its strict bound, mod(a, b) < b; `div_mod_reconstruction` states
+// div(a, b) * b + mod(a, b) == a. Lean analog: Nat.div, Nat.mod.
+public machine div(a: Nat, b: Nat) -> Nat
 requires
     |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, b), Nat::Zero)
 {
-    transition (saturating_sub(b, a)) {
-        Nat::Zero -> div_rec(a, b),
-        Nat::Succ { prev as w } -> Nat::Zero
+    transition b {
+        Nat::Zero -> Nat::Zero,
+        Nat::Succ { prev as k } -> (divide_step(a, k, Nat::Zero, k).quotient)
+    }
+}
+
+public machine mod(a: Nat, b: Nat) -> Nat
+requires
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, b), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: result }, b), Nat::Zero)
+{
+    transition b {
+        Nat::Zero -> Nat::Zero,
+        Nat::Succ { prev as k } -> mod_of(a, k)
     }
 
-    machine div_rec(a: Nat, b: Nat) -> Nat {
-        _ = sub_lt(a, b);
-        let next: Nat = saturating_sub(a, b);
-        transition { _ -> Nat::Succ { prev: div(next, b) } }
+    machine mod_of(a: Nat, k: Nat) -> Nat {
+        _ = sub_self(k);
+        _ = divide_bounds(a, k, Nat::Zero, k);
+        _ = succ_sub_succ(divide_step(a, k, Nat::Zero, k).remainder, k);
+        transition { _ -> (divide_step(a, k, Nat::Zero, k).remainder) }
+    }
+}
+
+public machine div_mod_reconstruction(a: Nat, b: Nat) -> Nat
+requires
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, b), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(add(mul(div(a, b), b), mod(a, b)), a)
+{
+    transition b {
+        Nat::Zero -> Nat::Zero,
+        Nat::Succ { prev as k } -> dmr_of(a, k)
+    }
+
+    machine dmr_of(a: Nat, k: Nat) -> Nat {
+        _ = sub_self(k);
+        _ = divide_reconstructs(a, k, Nat::Zero, k);
+        _ = add_zero_right(a);
+        transition { _ -> Nat::Zero }
     }
 }

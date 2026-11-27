@@ -705,6 +705,23 @@ fn normal_children(
         changed |= normal != child;
         children.push(normal);
     }
+    // A projection of a pair is that component. The pair is often what a
+    // definition with a record result computes to once its subject is a
+    // case, such as `divide_step(Zero, k, q, c).quotient`, and the head was
+    // normalized before its child unfolded.
+    match (&node, children.as_slice()) {
+        (Term::Fst { .. }, [pair]) => {
+            if let Term::Pair { first, .. } = arena.get(*pair) {
+                return Ok(first);
+            }
+        }
+        (Term::Snd { .. }, [pair]) => {
+            if let Term::Pair { second, .. } = arena.get(*pair) {
+                return Ok(second);
+            }
+        }
+        _ => {}
+    }
     // A pair of both projections of one value is that value: the kernel
     // converts the two, and the search compares terms by their spelling.
     if let (Term::Pair { .. }, [first, second]) = (&node, children.as_slice())
