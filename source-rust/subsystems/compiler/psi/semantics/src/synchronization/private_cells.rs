@@ -4,6 +4,7 @@
 mod activation;
 mod aggregate;
 mod control;
+mod opaque_calls;
 mod storage;
 mod successor;
 
@@ -131,7 +132,16 @@ fn advance<'m>(
                         continue;
                     }
                 }
-                TargetMachineCallable::Boundary(id) => boundary(id)?,
+                TargetMachineCallable::Boundary(id) => match boundary(id) {
+                    Some(summary) => summary,
+                    None => {
+                        let always_returns = opaque_calls::returns_without_storage(module, id, op, &call)?;
+                        if !always_returns {
+                            path.coverage = control::Coverage::Partial;
+                        }
+                        return Some(Advance::Continue);
+                    }
+                },
             };
             let actual = call.structural_arguments.get(spin.parameter)?;
             if actual.access != StructuralAccess::SharedBorrow {
