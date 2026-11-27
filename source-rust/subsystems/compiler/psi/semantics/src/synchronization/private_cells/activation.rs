@@ -4,6 +4,7 @@
 use super::super::facts::Facts;
 use super::super::progress::ScalarFact;
 use super::super::spin::{CellUpdate, constant};
+use super::condition::Assumption;
 use super::storage::{Location, Storage, Stored};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, ValueId};
@@ -21,6 +22,7 @@ pub(super) struct Bindings<'m> {
     pub(super) machine: &'m TerminalMachine,
     pub(super) places: Facts<PlaceId, Location>,
     pub(super) values: Facts<ValueId, ScalarFact>,
+    pub(super) predicates: Facts<ValueId, Assumption>,
 }
 
 pub(super) enum ScalarArguments<'a> {
@@ -35,11 +37,20 @@ impl<'m> Bindings<'m> {
             machine,
             places: Facts::default(),
             values: Facts::default(),
+            predicates: Facts::default(),
         }
+    }
+
+    pub(super) fn predicate(&self, value: ValueId) -> Option<Assumption> {
+        self.predicates
+            .get(&value)
+            .copied()
+            .or_else(|| Assumption::boolean(*self.values.get(&value)?))
     }
 
     pub(super) fn join(&mut self, other: &Self, arrivals: &mut super::storage::Arrivals<'_>) {
         self.values.retain_equal(&other.values);
+        self.predicates.retain_equal(&other.predicates);
         self.places.retain(|key, place| {
             if let Some(incoming) = other.places.get(key) {
                 arrivals.place(place, incoming);
@@ -71,6 +82,11 @@ impl<'m> Bindings<'m> {
                 ScalarArguments::Values(values) => self.values.get(&values[index]).copied(),
                 ScalarArguments::Payload(fields) => fields[index],
             };
+            if let ScalarArguments::Values(values) = &arguments
+                && let Some(test) = self.predicates.get(&values[index])
+            {
+                bindings.predicates.insert(formal.id, *test);
+            }
             if let Some(value) = value {
                 bindings.values.insert(formal.id, value);
             }
@@ -189,6 +205,12 @@ impl<'m> Frame<'m> {
                 .values
                 .insert(op.result.scalar()?.id, ScalarFact::Literal(value));
             return Some(());
+        }
+        if let Some(result) = op.result.scalar()
+            && let Some(test) =
+                Assumption::of_operation(&op.kind, &bindings.values, &bindings.predicates)
+        {
+            bindings.predicates.insert(result.id, test);
         }
         match &op.kind {
             // Selecting code alone cannot touch any of this activation's cells.
@@ -464,11 +486,13 @@ impl<'m> Frame<'m> {
         }
         for formal in &block.parameters {
             self.bindings.values.remove(&formal.id);
+            self.bindings.predicates.remove(&formal.id);
         }
         for formal in &block.structural_parameters {
             self.bindings.places.remove(&formal.place);
         }
         self.bindings.values.extend(binding.values);
+        self.bindings.predicates.extend(binding.predicates);
         self.bindings.places.extend(binding.places);
         self.block = block;
         self.position = 0;

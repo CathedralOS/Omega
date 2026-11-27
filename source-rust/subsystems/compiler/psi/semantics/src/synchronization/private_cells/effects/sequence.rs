@@ -84,22 +84,12 @@ fn effects_on_path(
         }
         bindings.places.insert(formal.place, root);
     }
-    let mut predicates = Facts::default();
     let mut frame = Frame::enter(machine, bindings, Destination::Unit)?;
     let mut effects = NormalEffects::default();
     let mut guards = Vec::new();
     let mut constructors = Facts::<MachineId, Option<OwnedGuardLocks>>::default();
     loop {
         for op in &frame.block.operations {
-            if let Some(value) = op.result.scalar()
-                && let Some(selector) = Selector::of_operation(
-                    &op.kind,
-                    |id| operand(machine, *frame.bindings.values.get(&id)?),
-                    &predicates,
-                )
-            {
-                predicates.insert(value.id, selector);
-            }
             if let Some(call) = op.declared_invocation() {
                 if !call.crash_continuations.is_empty() {
                     return None;
@@ -223,11 +213,8 @@ fn effects_on_path(
             };
             let selected = frame
                 .bindings
-                .values
-                .get(condition)
-                .and_then(|fact| operand(machine, *fact))
-                .and_then(Selector::boolean)
-                .or_else(|| predicates.get(condition).copied())?;
+                .predicate(*condition)?
+                .map(|value| operand(machine, value))?;
             let answer = decide(selected)?;
             frame.selected_arm = Some(usize::from(!answer));
             next = successor::prepare(module, &mut frame, &mut memory)?;
