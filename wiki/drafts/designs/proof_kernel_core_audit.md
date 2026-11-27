@@ -1760,6 +1760,19 @@ same_sign> as SameSign;` is read into the mathematical signature when
   `Real` quotient's relation needs this, and the
   [boxed squash of its relation](../../spec/proofs/quotients.md#set-quotient-foundation).
   Tests: `tests::for_every`.
+- **Box and Squash in source (2026-11-27).** A proposition's formula may
+  apply the foundation's `|proof|::Squash::<P>` and `|proof|::Box::<S>`,
+  as in `proposition close(a: D, b: D) = |proof|::Box::<|proof|::Squash::<same(a, b)>>`.
+  Each is `Proposition::Squash` or `Proposition::Boxed` (wire tags 26 and
+  27) over the proposition written as its static argument, and the
+  signature states it as the kernel's `Squash` or `Box`; the kernel
+  refuses a box of a relevant proposition (`NonStrictBoxDomain`). A box
+  is proved by `BoxIntro` of a proof of what it boxes. A squash goal is
+  proved by a citation of that type, or else by opening the first strict
+  citation, a squash by `SquashElim` and a box by `BoxElim`, both toward
+  the squash goal, or else by `SquashIntro` of a proof of the
+  proposition. Nothing opens a strict citation toward a relevant goal, so
+  a boxed squash never yields its witness. Tests: `tests::boxed`.
 - **Not done:**
   - A lifted operation is a definition only where the kernel's `lift`
     gives one (2026-11-27): one or two classes in, a class or plain data out (the

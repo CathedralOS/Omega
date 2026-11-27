@@ -139,9 +139,7 @@ impl Lowering<'_> {
                 Proposition::IsMere(inner)
                 | Proposition::Squash(inner)
                 | Proposition::Boxed(inner)
-                | Proposition::Universal { body: inner, .. } => {
-                    pending.push(inner)
-                }
+                | Proposition::Universal { body: inner, .. } => pending.push(inner),
                 Proposition::StructuralCaseMembership { subject, .. }
                     if subject.path().is_empty() && Some(subject.root()) != result =>
                 {

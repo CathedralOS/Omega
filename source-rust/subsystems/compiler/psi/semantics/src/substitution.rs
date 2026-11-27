@@ -116,12 +116,12 @@ pub fn substitute_proposition_values_with<'input>(
         Proposition::IsMere(inner) => Proposition::IsMere(Box::new(
             substitute_proposition_values_with(inner, substitutions),
         )),
-        Proposition::Boxed(inner) => {
-            Proposition::Boxed(Box::new(substitute_proposition_values_with(inner, substitutions)))
-        }
-        Proposition::Squash(inner) => {
-            Proposition::Squash(Box::new(substitute_proposition_values_with(inner, substitutions)))
-        }
+        Proposition::Boxed(inner) => Proposition::Boxed(Box::new(
+            substitute_proposition_values_with(inner, substitutions),
+        )),
+        Proposition::Squash(inner) => Proposition::Squash(Box::new(
+            substitute_proposition_values_with(inner, substitutions),
+        )),
         Proposition::Universal {
             carrier,
             binder,

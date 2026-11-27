@@ -564,8 +564,9 @@ impl Program<'_> {
     /*
         `|proof|::Squash::<P>` is the strict proposition that `P` holds, and
         `|proof|::Box::<S>` the relevant type of the strict `S`
-        (`#box-of-a-strict-proposition`). Each takes the one static argument
-        it is applied to; a proposition written there is read as a clause.
+        (`wiki/spec/proofs/mathematical_bindings.md#importing-the-mathematical-foundation`).
+        Each takes the one static argument it is applied to; a proposition
+        written there is read as a clause.
     */
     fn foundation_type_clause(
         &mut self,
@@ -575,16 +576,21 @@ impl Program<'_> {
     ) -> Checked<Proposition> {
         let typed = self.typed;
         let unserved = |what| refuse_at(id, Unserved::Contract(what));
-        let fixed = typed.symbols.fixed_core_declaration_for_symbol(member.symbol);
-        if let Some(fixed @ (symbols::FixedCoreDeclaration::Box
-        | symbols::FixedCoreDeclaration::Squash)) = fixed
+        let fixed = typed
+            .symbols
+            .fixed_core_declaration_for_symbol(member.symbol);
+        if let Some(
+            fixed @ (symbols::FixedCoreDeclaration::Box | symbols::FixedCoreDeclaration::Squash),
+        ) = fixed
         {
             let Some([argument]) = member
                 .application
                 .as_ref()
                 .map(|application| application.arguments.as_ref())
             else {
-                return Err(unserved("foundation type applied to other than one argument"));
+                return Err(unserved(
+                    "foundation type applied to other than one argument",
+                ));
             };
             let inner = Box::new(self.foundation_type_clause(id, scope, argument)?);
             return Ok(match fixed {
@@ -593,8 +599,9 @@ impl Program<'_> {
             });
         }
         if member.type_reference.is_valid()
-            && let TypeReferenceNode::ConstExpression(expression) =
-                typed.type_reference_table.type_reference(member.type_reference)
+            && let TypeReferenceNode::ConstExpression(expression) = typed
+                .type_reference_table
+                .type_reference(member.type_reference)
         {
             if let ExpressionNode::Call(call) = typed.expression_table.expression(*expression)
                 && typed
@@ -605,7 +612,9 @@ impl Program<'_> {
             }
             return self.clause(id, scope, *expression);
         }
-        Err(unserved("foundation type argument that is not a proposition"))
+        Err(unserved(
+            "foundation type argument that is not a proposition",
+        ))
     }
 
     fn read_clause(

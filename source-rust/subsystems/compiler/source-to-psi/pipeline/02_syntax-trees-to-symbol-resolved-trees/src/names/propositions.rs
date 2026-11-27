@@ -587,6 +587,7 @@ mod tests {
             ("Strict", FixedCoreDeclaration::Strict),
             ("Squash", FixedCoreDeclaration::Squash),
             ("Identity", FixedCoreDeclaration::Identity),
+            ("Box", FixedCoreDeclaration::Box),
         ] {
             assert_eq!(
                 lookup(&format!("|logic|::{member}")),

@@ -4196,11 +4196,8 @@ pub(crate) mod table {
                 }
             }
             resolved::types::TypeReferenceNode::ConstExpression(expression) => {
-                let expression = super::direct::lower_const_argument(
-                    source_trees,
-                    typed_trees,
-                    *expression,
-                )?;
+                let expression =
+                    super::direct::lower_const_argument(source_trees, typed_trees, *expression)?;
                 Ok(typed_trees
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))

@@ -90,9 +90,7 @@ impl TermEncoding for PropositionTable {
             Proposition::IsMere(inner)
             | Proposition::Squash(inner)
             | Proposition::Boxed(inner)
-            | Proposition::Universal { body: inner, .. } => {
-                children.push(inner.as_ref())
-            }
+            | Proposition::Universal { body: inner, .. } => children.push(inner.as_ref()),
             _ => {}
         }
     }
