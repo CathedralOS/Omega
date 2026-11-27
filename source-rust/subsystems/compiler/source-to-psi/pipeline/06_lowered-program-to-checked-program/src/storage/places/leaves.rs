@@ -157,7 +157,9 @@ impl Storage<'_> {
             // A symbolic array can be established whole without enumerating
             // N elements. Every selected read still owes its own index bound.
             StructuralTypeShape::FixedArray {
-                length: terminal_psi::ArrayExtent::Parameter { .. },
+                length:
+                    terminal_psi::ArrayExtent::Parameter { .. }
+                    | terminal_psi::ArrayExtent::Application(_),
                 ..
             } => {
                 visit(state, at);

@@ -698,7 +698,9 @@ impl<'a> DefaultRequirements<'a> {
             // zero vocabulary check permits only ungated primitive elements,
             // so there is no nested default clause to inventory here.
             StructuralTypeShape::FixedArray {
-                length: terminal_psi::ArrayExtent::Parameter { .. },
+                length:
+                    terminal_psi::ArrayExtent::Parameter { .. }
+                    | terminal_psi::ArrayExtent::Application(_),
                 ..
             } if zero => {}
             StructuralTypeShape::Record { fields, .. } => {
@@ -1540,7 +1542,9 @@ fn zero_defaults_supported(
         }
         StructuralTypeShape::FixedArray {
             element,
-            length: terminal_psi::ArrayExtent::Parameter { .. },
+            length:
+                terminal_psi::ArrayExtent::Parameter { .. }
+                | terminal_psi::ArrayExtent::Application(_),
         } => {
             let supported = types
                 .binary_search_by_key(element, |row| row.id)

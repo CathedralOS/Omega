@@ -1239,6 +1239,7 @@ pub mod structural_reference_input {
                         }
                         terminal_semantics::CollectionExtent::StoredLength => {}
                         terminal_semantics::CollectionExtent::Parameter { .. }
+                        | terminal_semantics::CollectionExtent::Application(_)
                         | terminal_semantics::CollectionExtent::LiveLength { .. } => return None,
                     }
                     representation_source_stride = Some(source_layout.size);
@@ -1318,7 +1319,11 @@ pub mod structural_reference_input {
                     length,
                     terminal_semantics::CollectionExtent::Fixed(length),
                 ),
-                (None, terminal_semantics::CollectionExtent::Parameter { .. }) => return None,
+                (
+                    None,
+                    terminal_semantics::CollectionExtent::Parameter { .. }
+                    | terminal_semantics::CollectionExtent::Application(_),
+                ) => return None,
                 (None, terminal_semantics::CollectionExtent::StoredLength) => {
                     (0, 0, terminal_semantics::CollectionExtent::StoredLength)
                 }
