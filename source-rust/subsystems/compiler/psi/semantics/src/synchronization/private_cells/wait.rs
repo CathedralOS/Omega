@@ -53,7 +53,7 @@ pub(super) fn apply(
                 match classify(memory, &location, test, CellUpdate::Observe, requirements) {
                     None => Observation::Known(false),
                     Some(ProgressFailure::Deadlock) => Observation::Known(true),
-                    Some(ProgressFailure::Unproved) => Observation::Unproved,
+                    Some(ProgressFailure::Unproved | ProgressFailure::UnprovedImport) => Observation::Unproved,
                     Some(ProgressFailure::UnprovedExternal) => Observation::Supplied,
                 }
             });
