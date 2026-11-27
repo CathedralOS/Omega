@@ -10,7 +10,6 @@ path = "src/lib.rs"
 
 [dependencies]
 arena = { path = "../../../../../foundation/arena" }
-diagnostics = { path = "../../../../../foundation/diagnostics" }
 terminal-psi = { path = "../../../psi" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 layout-plans = { path = "../../../psi/layouts/geometry" }

@@ -272,8 +272,11 @@ fn expected_size(
             | MaterializeBooleanI64LessThan
             | MaterializeBooleanU64LessOrEqual
             | MaterializeBooleanI64LessOrEqual => MachineSizeKnowledge::ExactBytes(8),
-            CopyI64 | ZeroExtendU32 | SignExtendI32 | CompareI64Zero | CompareI64
-            | ExactDivideU64 => MachineSizeKnowledge::ExactBytes(3),
+            // The encoder emits nothing for a copy between the same register.
+            CopyI64 => resolved(0, 3),
+            ZeroExtendU32 | SignExtendI32 | CompareI64Zero | CompareI64 | ExactDivideU64 => {
+                MachineSizeKnowledge::ExactBytes(3)
+            }
             ZeroExtendU8 | ZeroExtendU16 | SignExtendI8 | SignExtendI16 => {
                 MachineSizeKnowledge::ExactBytes(4)
             }
