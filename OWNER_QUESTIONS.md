@@ -253,6 +253,11 @@ follow. The current compiler refuses the nonzero-to-positive example with
 rule to accept `0 <= value` for a declared address value alongside its existing
 fixed-integer endpoint cases. The mathematical rule for a selected address
 width continues to apply. [Elementary certificate rules](wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules)
+The nonzero-to-positive example also needs the closed literal-order predicate
+denotation to decide two address literals, as it decides two fixed-integer
+literals: the `n < 0` arm meets `0 <= n` as `0 < 0`, whose denotation is
+`Falsehood`. The compiler now does both; the specification text still names
+only fixed integers. [Literal predicate denotations](wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules)
 
 <a id="retired-w-encoding-text"></a>
 ### 7. Retire W/IW wording from the proof specification

@@ -154,15 +154,25 @@ fn integer_carrier_bound(left: &ScalarTerm, right: &ScalarTerm) -> bool {
     let Some((literal_type, literal_value)) = literal.integer_value() else {
         return false;
     };
-    // A parameter width has no literal endpoint, so no literal is one.
-    integer_type.carrier() == IntegerCarrier::Fixed
-        && literal_type == *integer_type
-        && Some(literal_value)
-            == if lower {
-                integer_type.minimum_value()
-            } else {
-                integer_type.maximum_value()
-            }
+    if literal_type != *integer_type {
+        return false;
+    }
+    // A parameter width has no literal endpoint, so no literal is one. Every
+    // numeric address is zero or positive on every target, so an address
+    // has the lower endpoint zero; its upper endpoint is the selected
+    // target's and is never assumed here
+    // (OWNER_QUESTIONS.md, "Numeric addresses have a lower bound of zero").
+    match integer_type.carrier() {
+        IntegerCarrier::Fixed => {
+            Some(literal_value)
+                == if lower {
+                    integer_type.minimum_value()
+                } else {
+                    integer_type.maximum_value()
+                }
+        }
+        IntegerCarrier::Address => lower && literal_value == integer_type.zero(),
+    }
 }
 
 fn mathematical_integer_carrier_bound(left: &IntegerMathTerm, right: &IntegerMathTerm) -> bool {
@@ -505,7 +515,7 @@ mod carrier_bounds {
     }
 
     #[test]
-    fn carrier_bounds_do_not_bless_wrong_types_addresses_or_unevaluated_arithmetic() {
+    fn carrier_bounds_do_not_bless_wrong_types_address_maxima_or_unevaluated_arithmetic() {
         let identity = ValueId::new(1).unwrap();
         let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
         let scalar = ScalarType::Integer(integer);
@@ -534,6 +544,20 @@ mod carrier_bounds {
             decide_primitive(
                 &context,
                 &address_goal,
+                PrimitiveJudgment::IntegerCarrierBound
+            )
+            .is_ok(),
+            "every numeric address is zero or positive"
+        );
+        // The upper endpoint belongs to the selected target, never assumed.
+        let address_maximum = Proposition::LessOrEqual(
+            ScalarTerm::value(identity, ScalarType::Integer(address)),
+            ScalarTerm::integer(address, address.maximum_value().unwrap()).unwrap(),
+        );
+        assert!(
+            decide_primitive(
+                &context,
+                &address_maximum,
                 PrimitiveJudgment::IntegerCarrierBound
             )
             .is_err()

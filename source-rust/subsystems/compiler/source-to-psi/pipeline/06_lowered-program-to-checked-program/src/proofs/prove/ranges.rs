@@ -748,7 +748,9 @@ impl Prover<'_> {
         direction: Direction,
     ) -> Result<ProofNode, Unproven> {
         let subject = ScalarTerm::value(value, ScalarType::Integer(source_type));
-        let Some(bound) = self.bound(value, direction) else {
+        // A value's own carrier bound speaks only for its declared type.
+        let declared = self.values.scalar_type(value) == Some(ScalarType::Integer(source_type));
+        let Some(bound) = declared.then(|| self.bound(value, direction)).flatten() else {
             // Some carriers, including addresses, have mathematical bounds
             // without a same-carrier scalar comparison rule. Ask the existing
             // kernel judgment for this exact declared carrier and value.
