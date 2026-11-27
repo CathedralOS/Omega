@@ -1,7 +1,7 @@
 //! Resolve the function-relative offsets of encoded instructions, including selected branch rewrites.
 #![forbid(unsafe_code)]
 pub use encoding_admission::layout::OptimizedResolvedSelectedFormLayoutError;
-use encoding_admission::layout::geometry::declared_size_matches;
+use encoding_admission::layout::geometry::{InstructionRows, declared_size_matches};
 use machine_code::{
     ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedJumpEvidence,
     ResolvedSelectedBlockLayout, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
@@ -11,7 +11,6 @@ use machine_code::{
     ResolvedMachineLayout, SelectedFormEncoding,
     resolved_machine_layout_identity as layout_identity,
 };
-use std::collections::BTreeMap;
 use std::sync::Arc;
 #[cfg(test)]
 mod order_suite;
@@ -129,32 +128,13 @@ fn compute(
     let mut pre_rows = pre_layout.rows().iter();
     let mut functions = Vec::with_capacity(input.functions.len());
     for (function, machine_function) in input.functions.iter().zip(&input.alternatives) {
-        let mut function_pre_rows = BTreeMap::new();
-        for block in &function.blocks {
-            for instruction in ordinary::instructions(block) {
-                let row = pre_rows.next().ok_or(
-                    OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id),
-                )?;
-                if row.instruction != instruction.id {
-                    return Err(
-                        OptimizedResolvedSelectedFormLayoutError::MissingInstruction(
-                            instruction.id,
-                        ),
-                    );
-                }
-                if function_pre_rows.insert(instruction.id, row).is_some() {
-                    return Err(
-                        OptimizedResolvedSelectedFormLayoutError::DuplicateInstruction(
-                            instruction.id,
-                        ),
-                    );
-                }
-            }
-        }
-        let machine_rows = machine_function
-            .instructions()
-            .map(|instruction| (instruction.instruction, instruction))
-            .collect::<BTreeMap<_, _>>();
+        let function_pre_rows = ordinary::function_pre_rows(function, &mut pre_rows)?;
+        let machine_rows = InstructionRows::new(
+            machine_function
+                .instructions()
+                .map(|instruction| (instruction.instruction, instruction)),
+        )
+        .map_err(OptimizedResolvedSelectedFormLayoutError::DuplicateInstruction)?;
         functions.push(ordinary::layout(
             input.target.architecture,
             function,

@@ -12,12 +12,12 @@ use machine_code::{
 };
 use post_allocation_machine::PostAllocationMachineOptimizationCustody;
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{SelectedBlockId, SelectedInstructionId};
+use selected_instructions::SelectedBlockId;
 use target::Architecture;
 
 use super::geometry::{
     ConditionalBranchDescriptor, branch_size, conditional_branch_descriptor,
-    conditional_branch_family, derive_plan, instructions, select,
+    conditional_branch_family, derive_plan, function_pre_rows, instructions, select,
 };
 use super::{
     OptimizedResolvedSelectedFormLayoutError as Error, ResolvedBranchEvidence,
@@ -160,7 +160,7 @@ pub fn validate_function(
     {
         return Err(Error::ArtifactMismatch);
     }
-    let pre_rows = collect_pre_layout_rows(selected, pre_rows)?;
+    let pre_rows = function_pre_rows(selected, pre_rows)?;
     let machine_blocks = machine
         .blocks
         .iter()
@@ -201,7 +201,7 @@ pub fn validate_function(
                 return Err(Error::RootMismatch);
             }
             let pre = pre_rows
-                .get(&instruction.id)
+                .get(instruction.id)
                 .ok_or(Error::MissingInstruction(instruction.id))?;
             validate_row(
                 architecture,
@@ -271,27 +271,6 @@ fn current_x86_spans(
             .insert(block.id, layout.function_size - start);
     }
     Ok(layout)
-}
-
-fn collect_pre_layout_rows<'a>(
-    function: &EncodedLayoutFunction,
-    rows: &mut PreLayoutRows<'a>,
-) -> Result<BTreeMap<SelectedInstructionId, &'a SelectedFormEncodingRow>, Error> {
-    let mut collected = BTreeMap::new();
-    for block in &function.blocks {
-        for instruction in instructions(block) {
-            let row = rows
-                .next()
-                .ok_or(Error::MissingInstruction(instruction.id))?;
-            if row.instruction != instruction.id {
-                return Err(Error::MissingInstruction(instruction.id));
-            }
-            if collected.insert(instruction.id, row).is_some() {
-                return Err(Error::DuplicateInstruction(instruction.id));
-            }
-        }
-    }
-    Ok(collected)
 }
 
 pub fn derive_order(

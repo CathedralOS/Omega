@@ -880,7 +880,6 @@ dependencies = [
  "target-vocabulary",
  "target-x86_64",
  "terminal-psi",
- "wire",
 ]
 
 [[package]]

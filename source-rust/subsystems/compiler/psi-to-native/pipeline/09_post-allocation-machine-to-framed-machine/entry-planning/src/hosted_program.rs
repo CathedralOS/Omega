@@ -135,9 +135,7 @@ pub fn plan_hosted_program_entry<R: HostedReceiverCustody>(
             },
             imports: crate::imports::plan_import_program(
                 target,
-                entry_program.imports().iter().cloned().map(|locator| {
-                    machine_code::import_code::ImportCodeIdentity::Normalized(locator.into())
-                }),
+                entry_program.imports().iter().cloned().map(Into::into),
             )
             .map_err(Diagnostic::error)?,
             entry: entry_program,

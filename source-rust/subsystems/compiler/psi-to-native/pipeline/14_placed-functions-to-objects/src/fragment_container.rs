@@ -29,20 +29,16 @@ impl crate::ObjectPlan {
         &self,
         bindings: &machine_code::import_code::EncodedBodyBindings,
     ) -> Result<(), &'static str> {
-        use machine_code::import_code::ImportCodeIdentity;
         let layout = &self.layout;
         let imports = &bindings.imports.imports;
         let mismatch = "encoded import bodies differ from the object's import symbols";
         if imports.len() != layout.normalized_imports.len() {
             return Err(mismatch);
         }
-        let mut encoded = Vec::with_capacity(imports.len());
-        for entry in imports {
-            let ImportCodeIdentity::Normalized(locator) = &entry.identity else {
-                return Err(mismatch);
-            };
-            encoded.push((locator.identity_digest(), locator));
-        }
+        let mut encoded: Vec<_> = imports
+            .iter()
+            .map(|entry| (entry.identity.identity_digest(), &entry.identity))
+            .collect();
         let mut symbols: Vec<_> = layout
             .normalized_imports
             .iter()

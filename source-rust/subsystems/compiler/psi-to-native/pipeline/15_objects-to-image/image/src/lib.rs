@@ -360,9 +360,7 @@ mod tests {
             target,
             import_program: &crate::test_support::import_program(
                 target,
-                vec![machine_code::import_code::ImportCodeIdentity::Normalized(
-                    locator.clone().into(),
-                )],
+                vec![locator.clone().into()],
             ),
             object: &object,
             relocations: &relocations,

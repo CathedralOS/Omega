@@ -90,35 +90,26 @@ mod tests {
         )
     }
     use crate::order_suite::{block_with, branch, function_from_blocks, instruction, successor};
-    fn layout(
+    fn layout<'machine>(
         architecture: Architecture,
         selected: &SelectedFunction,
-        rows: &std::collections::BTreeMap<
-            selected_instructions::SelectedInstructionId,
-            &SelectedFormEncodingRow,
-        >,
-        machine: &std::collections::BTreeMap<
-            selected_instructions::SelectedInstructionId,
-            &PostAllocationMachineInstruction,
-        >,
+        rows: &[SelectedFormEncodingRow],
+        machine: impl Iterator<Item = &'machine PostAllocationMachineInstruction>,
         physical: &register_model::ValidatedPhysicalRegisterModel,
         policy: SelectedFunctionLayoutPolicy,
         encoded: &machine_code::SelectedFormEncodedRowStore,
     ) -> Result<ResolvedSelectedFunctionLayout, crate::OptimizedResolvedSelectedFormLayoutError>
     {
+        use encoding_admission::layout::geometry::InstructionRows;
         use encoding_admission::layout_requirements::*;
-        let requirements: Vec<_> = machine
-            .values()
-            .map(|row| prepare_alternative(row))
-            .collect();
-        let alternatives = requirements
-            .iter()
-            .map(|row| (row.instruction, row))
-            .collect();
+        let rows = InstructionRows::new(rows.iter().map(|row| (row.instruction, row))).unwrap();
+        let requirements: Vec<_> = machine.map(prepare_alternative).collect();
+        let alternatives =
+            InstructionRows::new(requirements.iter().map(|row| (row.instruction, row))).unwrap();
         crate::ordinary::layout(
             architecture,
             &prepare_function_control(selected),
-            rows,
+            &rows,
             &alternatives,
             physical,
             policy,
@@ -469,17 +460,11 @@ mod tests {
         let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
         let rows = pre_layout_rows(selected, &footprint, &alternatives, &mut encoded);
         let machine = machine_function(selected, &alternatives);
-        let pre_rows: std::collections::BTreeMap<_, _> =
-            rows.iter().map(|row| (row.instruction, row)).collect();
-        let machine_rows: std::collections::BTreeMap<_, _> = machine
-            .instructions()
-            .map(|instruction| (instruction.instruction, instruction))
-            .collect();
         let produced = layout(
             Architecture::Aarch64,
             selected,
-            &pre_rows,
-            &machine_rows,
+            &rows,
+            machine.instructions(),
             &physical(),
             SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
             &encoded,

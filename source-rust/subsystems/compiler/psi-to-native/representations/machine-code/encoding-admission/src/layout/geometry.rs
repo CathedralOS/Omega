@@ -29,6 +29,61 @@ pub struct LayoutPlan {
     pub widened_branches: BTreeSet<SelectedInstructionId>, // AArch64 conditional branches widened to 8-byte skip+branch pairs.
 }
 
+/// One function's rows looked up by instruction. Instruction identifiers are
+/// sparse, so the rows sit in one slice sorted by identifier and sized to the
+/// function, not in a tree or a table spanning every identifier.
+pub struct InstructionRows<'rows, Row> {
+    rows: Vec<(SelectedInstructionId, &'rows Row)>,
+}
+
+impl<'rows, Row> InstructionRows<'rows, Row> {
+    /// Refuses the rows when one instruction has two of them, naming it.
+    pub fn new(
+        rows: impl IntoIterator<Item = (SelectedInstructionId, &'rows Row)>,
+    ) -> Result<Self, SelectedInstructionId> {
+        let mut rows: Vec<_> = rows.into_iter().collect();
+        if !rows.is_sorted_by_key(|(instruction, _)| *instruction) {
+            rows.sort_unstable_by_key(|(instruction, _)| *instruction);
+        }
+        if let Some(pair) = rows.windows(2).find(|pair| pair[0].0 == pair[1].0) {
+            return Err(pair[0].0);
+        }
+        Ok(Self { rows })
+    }
+
+    pub fn get(&self, instruction: SelectedInstructionId) -> Option<&'rows Row> {
+        self.rows
+            .binary_search_by_key(&instruction, |(identity, _)| *identity)
+            .ok()
+            .map(|position| self.rows[position].1)
+    }
+}
+
+/// Take one function's pre-layout rows from the program-wide row stream. The
+/// stream lists each function's instructions block by block, so every row must
+/// name the instruction at its position.
+pub fn function_pre_rows<'rows>(
+    function: &EncodedLayoutFunction,
+    rows: &mut std::slice::Iter<'rows, SelectedFormEncodingRow>,
+) -> Result<InstructionRows<'rows, SelectedFormEncodingRow>, Error> {
+    let row_count = function
+        .blocks
+        .iter()
+        .map(|block| block.instructions.len() + 1)
+        .sum();
+    let mut collected = Vec::with_capacity(row_count);
+    for block in &function.blocks {
+        for instruction in instructions(block) {
+            let row = rows
+                .next()
+                .filter(|row| row.instruction == instruction.id)
+                .ok_or(Error::MissingInstruction(instruction.id))?;
+            collected.push((instruction.id, row));
+        }
+    }
+    InstructionRows::new(collected).map_err(Error::DuplicateInstruction)
+}
+
 pub fn select(functions: &[EncodedLayoutFunction]) -> Result<SelectedFunctionLayoutPolicy, Error> {
     let single_entry_count = functions
         .iter()
@@ -72,7 +127,7 @@ pub fn select(functions: &[EncodedLayoutFunction]) -> Result<SelectedFunctionLay
 pub fn derive_plan(
     architecture: Architecture,
     blocks: &[&EncodedLayoutBlock],
-    pre_rows: &BTreeMap<SelectedInstructionId, &SelectedFormEncodingRow>,
+    pre_rows: &InstructionRows<SelectedFormEncodingRow>,
 ) -> Result<LayoutPlan, Error> {
     let mut widened = BTreeSet::new();
     loop {
@@ -89,9 +144,7 @@ pub fn derive_plan(
                 continue;
             }
             let missing = || Error::MissingInstruction(descriptor.terminator.id);
-            let row = pre_rows
-                .get(&descriptor.terminator.id)
-                .ok_or_else(missing)?;
+            let row = pre_rows.get(descriptor.terminator.id).ok_or_else(missing)?;
             if !widening_candidate(descriptor.terminator, row) {
                 continue;
             }
@@ -118,7 +171,7 @@ pub fn derive_plan(
 fn derive_once(
     architecture: Architecture,
     blocks: &[&EncodedLayoutBlock],
-    pre_rows: &BTreeMap<SelectedInstructionId, &SelectedFormEncodingRow>,
+    pre_rows: &InstructionRows<SelectedFormEncodingRow>,
     widened: &BTreeSet<SelectedInstructionId>,
 ) -> Result<LayoutPlan, Error> {
     let mut block_offsets = BTreeMap::new();
@@ -131,7 +184,7 @@ fn derive_once(
         for instruction in instructions(block) {
             instruction_offsets.insert(instruction.id, offset);
             let pre = pre_rows
-                .get(&instruction.id)
+                .get(instruction.id)
                 .ok_or(Error::MissingInstruction(instruction.id))?;
             offset = offset
                 .checked_add(instruction_size(architecture, instruction, pre, widened)?)
@@ -406,6 +459,31 @@ mod tests {
         assert_eq!(
             select(&[returning(1, 1), returning(2, 2)]),
             Ok(SelectedFunctionLayoutPolicy::SingleEntryBlockV1)
+        );
+    }
+
+    // Sparse identifiers given out of order still resolve to their own rows;
+    // an identifier with two rows is refused by name.
+    #[test]
+    fn instruction_rows_find_sparse_rows_and_refuse_duplicates() {
+        let (low, mid, high) = ("low", "mid", "high");
+        let rows = InstructionRows::new([
+            (SelectedInstructionId(900), &high),
+            (SelectedInstructionId(3), &low),
+            (SelectedInstructionId(40), &mid),
+        ])
+        .unwrap();
+        assert_eq!(rows.get(SelectedInstructionId(3)), Some(&low));
+        assert_eq!(rows.get(SelectedInstructionId(40)), Some(&mid));
+        assert_eq!(rows.get(SelectedInstructionId(900)), Some(&high));
+        assert_eq!(rows.get(SelectedInstructionId(41)), None);
+        assert_eq!(
+            InstructionRows::new([
+                (SelectedInstructionId(5), &low),
+                (SelectedInstructionId(5), &mid),
+            ])
+            .err(),
+            Some(SelectedInstructionId(5))
         );
     }
 }
