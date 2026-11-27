@@ -5,11 +5,11 @@ mod activation;
 mod aggregate;
 mod control;
 mod storage;
+mod successor;
 
-use super::progress::{PrivateWaitFailure, ProgressFailure, ScalarFact, entry_scalars};
+use super::progress::{PrivateWaitFailure, ProgressFailure, entry_scalars};
 use super::selected::Summaries;
 use super::spin::{CellUpdate, SpinWait};
-use crate::entry_values::TerminalScalarValue as Scalar;
 use activation::{Bindings, Destination, Frame, ScalarArguments};
 use control::{Execution, Frontier};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
@@ -173,79 +173,9 @@ fn advance<'m>(
             }
             continue;
         }
-        let (successor, cleanup) = match &frame.block.terminator {
-            Terminator::Jump {
-                target,
-                arguments,
-                structural_arguments,
-                cleanup_actions,
-                ..
-            } => (
-                Some((
-                    *target,
-                    ScalarArguments::Values(arguments),
-                    structural_arguments,
-                )),
-                cleanup_actions,
-            ),
-            Terminator::Conditional {
-                condition,
-                when_true,
-                when_false,
-            } => {
-                let answer = match frame.bindings.values.get(condition) {
-                    Some(ScalarFact::Literal(Scalar::Boolean(value))) => *value,
-                    _ => match frame.selected_arm {
-                        Some(arm) => {
-                            let value = arm == 0;
-                            frame
-                                .bindings
-                                .values
-                                .insert(*condition, ScalarFact::Literal(Scalar::Boolean(value)));
-                            value
-                        }
-                        None => return Some(Advance::Fork(std::borrow::Cow::Borrowed(&[0, 1]))),
-                    },
-                };
-                let edge = if answer { when_true } else { when_false };
-                (
-                    Some((
-                        edge.target,
-                        ScalarArguments::Values(&edge.arguments),
-                        &edge.structural_arguments,
-                    )),
-                    &edge.cleanup_actions,
-                )
-            }
-            Terminator::StructuralCase {
-                source,
-                path,
-                cases,
-            } => {
-                let (edge, fields) =
-                    match aggregate::dispatch(module, frame, memory, *source, path, cases)? {
-                        aggregate::Dispatch::Fork(arms) => return Some(Advance::Fork(arms.into())),
-                        aggregate::Dispatch::Selected(edge, fields) => (edge, fields),
-                    };
-                (
-                    Some((
-                        edge.target,
-                        ScalarArguments::Payload(fields),
-                        &edge.structural_arguments,
-                    )),
-                    &edge.cleanup_actions,
-                )
-            }
-            Terminator::ReturnUnit {
-                cleanup_actions, ..
-            }
-            | Terminator::Return {
-                cleanup_actions, ..
-            }
-            | Terminator::ReturnStructural {
-                cleanup_actions, ..
-            } => (None, cleanup_actions),
-            _ => return None,
+        let cleanup = match successor::prepare(module, frame, memory)? {
+            successor::Selection::Fork(arms) => return Some(Advance::Fork(arms)),
+            successor::Selection::Ready(actions) => actions,
         };
         if let Some(action) = cleanup.get(frame.cleanup_cursor) {
             frame.cleanup_cursor += 1;
@@ -265,8 +195,8 @@ fn advance<'m>(
             }
             continue;
         }
-        if let Some((target, scalars, places)) = successor {
-            frame.jump(target, scalars, places, memory)?;
+        if frame.arrival.is_some() {
+            frame.arrive()?;
             return Some(Advance::Continue);
         }
         let frame = stack.pop()?;

@@ -6,13 +6,13 @@ use super::super::progress::ScalarFact;
 use super::super::spin::{CellUpdate, constant};
 use super::storage::{Location, Storage, Stored};
 use crate::entry_values::TerminalScalarValue as Scalar;
-use semantic_vocabulary::{BlockId, PlaceId, ValueId};
+use semantic_vocabulary::{BlockId, EdgeId, PlaceId, ValueId};
 use std::cell::OnceCell;
 use std::rc::Rc;
 use terminal_psi::{
     AtomicAccessEvent, Block, Operation, OperationKind, StructuralAccess, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPathSegment, TerminalMachine, TerminalModule,
-    ValueDeclaration,
+    StructuralParameterDeclaration, StructuralPathSegment, TerminalAffineCleanupAction,
+    TerminalMachine, TerminalModule, ValueDeclaration,
 };
 
 #[derive(Clone, Default)]
@@ -27,6 +27,11 @@ pub(super) enum ScalarArguments<'a> {
 }
 
 impl Bindings {
+    pub(super) fn retain_equal(&mut self, other: &Self) {
+        self.values.retain_equal(&other.values);
+        self.places.retain_equal(&other.places);
+    }
+
     pub(super) fn arguments(
         &self,
         memory: &mut Storage,
@@ -110,6 +115,16 @@ impl Destination {
     }
 }
 
+/// The interpreter selects an edge and captures all block arguments before
+/// invoking any cleanup. Its referenced storage remains live until arrival.
+#[derive(Clone)]
+pub(super) struct Arrival<'m> {
+    pub(super) edge: EdgeId,
+    pub(super) bindings: Bindings,
+    pub(super) cleanup: &'m [TerminalAffineCleanupAction],
+    block: &'m Block,
+}
+
 #[derive(Clone)]
 pub(super) struct Frame<'m> {
     pub(super) machine: &'m TerminalMachine,
@@ -117,6 +132,7 @@ pub(super) struct Frame<'m> {
     pub(super) position: usize,
     pub(super) cleanup_cursor: usize,
     pub(super) selected_arm: Option<usize>,
+    pub(super) arrival: Option<Arrival<'m>>,
     visited: Facts<BlockId, ()>,
     pub(super) bindings: Bindings,
     scalar_types: Rc<OnceCell<crate::MachineScalarIndex<'m>>>,
@@ -135,6 +151,7 @@ impl<'m> Frame<'m> {
             position: 0,
             cleanup_cursor: 0,
             selected_arm: None,
+            arrival: None,
             visited: Facts::default(),
             bindings,
             return_to,
@@ -377,24 +394,41 @@ impl<'m> Frame<'m> {
         Some(())
     }
 
-    pub(super) fn jump(
+    pub(super) fn prepare_arrival(
         &mut self,
+        edge: EdgeId,
         target: BlockId,
         scalars: ScalarArguments<'_>,
         places: &[StructuralArgument],
+        cleanup: &'m [TerminalAffineCleanupAction],
         memory: &mut Storage,
     ) -> Option<()> {
-        if target == self.machine.entry || self.visited.insert(target, ()).is_some() {
-            return None;
-        }
         let block = self.machine.block(&target)?;
-        let binding = self.bindings.arguments(
+        let bindings = self.bindings.arguments(
             memory,
             &block.parameters,
             &block.structural_parameters,
             scalars,
             places,
         )?;
+        self.arrival = Some(Arrival {
+            edge,
+            block,
+            bindings,
+            cleanup,
+        });
+        Some(())
+    }
+
+    pub(super) fn arrive(&mut self) -> Option<()> {
+        let Arrival {
+            block,
+            bindings: binding,
+            ..
+        } = self.arrival.take()?;
+        if block.id == self.machine.entry || self.visited.insert(block.id, ()).is_some() {
+            return None;
+        }
         for formal in &block.parameters {
             self.bindings.values.remove(&formal.id);
         }

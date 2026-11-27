@@ -5,7 +5,7 @@
 use super::super::facts::Facts;
 use super::activation::Frame;
 use super::storage::Storage;
-use semantic_vocabulary::{BlockId, MachineId};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
@@ -100,14 +100,10 @@ impl Execution<'_> {
             }
         }
         for (frame, incoming) in self.stack.iter_mut().zip(other.stack) {
-            frame
-                .bindings
-                .values
-                .retain_equal(&incoming.bindings.values);
-            frame
-                .bindings
-                .places
-                .retain_equal(&incoming.bindings.places);
+            frame.bindings.retain_equal(&incoming.bindings);
+            if let (Some(captured), Some(other)) = (&mut frame.arrival, incoming.arrival) {
+                captured.bindings.retain_equal(&other.bindings);
+            }
         }
         self.memory.join(&other.memory);
         if let Some(active) = self.stack.last_mut() {
@@ -129,6 +125,7 @@ struct FramePosition {
     operation: usize,
     cleanup: usize,
     arm: Option<usize>,
+    arrival: Option<EdgeId>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -187,6 +184,7 @@ impl<'m> Frontier<'m> {
                 operation: frame.position,
                 cleanup: frame.cleanup_cursor,
                 arm: frame.selected_arm,
+                arrival: frame.arrival.as_ref().map(|arrival| arrival.edge),
             });
         }
         let key = Coordinate(coordinates);
