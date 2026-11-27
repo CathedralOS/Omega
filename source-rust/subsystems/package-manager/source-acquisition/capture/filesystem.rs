@@ -2,6 +2,7 @@
 
 use super::{CapturedSourceNode, CapturedSourceTree};
 use std::collections::BTreeMap;
+use std::ffi::{OsStr, OsString};
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -121,6 +122,13 @@ impl SourceFileSystem {
             }
             SourcePath::Physical(path) => std::fs::canonicalize(path),
         }
+    }
+
+    /// Whether lookups of `path` read a mounted capture rather than the live
+    /// disk. Host links and Windows prefix spellings resolve as they do for reads,
+    /// so a plain `Path::starts_with` against a mount root would disagree.
+    pub fn routes_into_capture(&self, path: &Path) -> bool {
+        matches!(self.route(path), Ok(SourcePath::Captured { .. }))
     }
 
     pub fn exists(&self, path: &Path) -> bool {
@@ -254,13 +262,34 @@ impl SourceFileSystem {
         ))
     }
 
+    /// Windows spells one directory as both `C:\dir` and the verbatim `\\?\C:\dir`
+    /// that `canonicalize` returns. A mount under one spelling must also own the
+    /// other, or a lookup in the other spelling would miss the capture and read
+    /// the live disk instead.
     fn route_capture(&self, absolute: &Path) -> io::Result<Option<SourcePath<'_>>> {
+        if let Some(capture) = self.route_capture_spelling(absolute, None)? {
+            return Ok(Some(capture));
+        }
+        match alternate_prefix_spelling(absolute) {
+            Some(prefix) => self.route_capture_spelling(absolute, Some(&prefix)),
+            None => Ok(None),
+        }
+    }
+
+    /// Walk `absolute` one component at a time, optionally spelling its prefix
+    /// as `prefix`. The walk resolves `..` itself so it can refuse a step out of
+    /// a mounted root; `PathBuf::push` would resolve it silently on a verbatim path.
+    fn route_capture_spelling(
+        &self,
+        absolute: &Path,
+        prefix: Option<&OsStr>,
+    ) -> io::Result<Option<SourcePath<'_>>> {
         let mut normalized = PathBuf::new();
         let mut capture: Option<(&PathBuf, &Arc<CapturedSourceTree>)> = None;
         for component in absolute.components() {
-            match component {
-                Component::CurDir => continue,
-                Component::ParentDir => {
+            match (component, prefix) {
+                (Component::CurDir, _) => continue,
+                (Component::ParentDir, _) => {
                     if capture.is_some_and(|(root, _)| root == &normalized) {
                         return Err(io::Error::new(
                             io::ErrorKind::PermissionDenied,
@@ -269,6 +298,7 @@ impl SourceFileSystem {
                     }
                     normalized.pop();
                 }
+                (Component::Prefix(_), Some(prefix)) => normalized.push(prefix),
                 _ => normalized.push(component.as_os_str()),
             }
             if let Some(mounted) = self.captures.get_key_value(&normalized) {
@@ -289,6 +319,30 @@ impl SourceFileSystem {
             relative,
         }))
     }
+}
+
+/// The other spelling of a Windows drive or UNC prefix: `C:` and `\\?\C:`,
+/// or `\\server\share` and `\\?\UNC\server\share`. Paths without a prefix
+/// (every Unix path) and other verbatim forms have none.
+fn alternate_prefix_spelling(path: &Path) -> Option<OsString> {
+    use std::path::Prefix;
+    let Some(Component::Prefix(prefix)) = path.components().next() else {
+        return None;
+    };
+    let share_spelling = |lead: &str, server: &OsStr, share: &OsStr| {
+        let mut spelling = OsString::from(lead);
+        spelling.push(server);
+        spelling.push(r"\");
+        spelling.push(share);
+        spelling
+    };
+    Some(match prefix.kind() {
+        Prefix::Disk(drive) => format!(r"\\?\{}:", char::from(drive)).into(),
+        Prefix::VerbatimDisk(drive) => format!("{}:", char::from(drive)).into(),
+        Prefix::UNC(server, share) => share_spelling(r"\\?\UNC\", server, share),
+        Prefix::VerbatimUNC(server, share) => share_spelling(r"\\", server, share),
+        Prefix::Verbatim(_) | Prefix::DeviceNS(_) => return None,
+    })
 }
 
 enum SourcePath<'a> {
