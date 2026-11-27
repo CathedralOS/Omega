@@ -64,12 +64,12 @@ fn measure() -> Result<(), String> {
         let roots = parsed.sources()[0].source();
         roots.root_items.len().hash(&mut fingerprint);
         roots.import_root_range.hash(&mut fingerprint);
-        parsed
-            .syntax(parsed.sources()[0].syntax_handle())
-            .unwrap()
-            .snapshot_json()
-            .map_err(|error| error.to_string())?
-            .hash(&mut fingerprint);
+        record_storage::encode(
+            parsed.syntax(parsed.sources()[0].syntax_handle()).unwrap(),
+            record_storage::RecordLimits::default(),
+        )
+        .map_err(|error| error.to_string())?
+        .hash(&mut fingerprint);
         inputs.push(lexed);
     }
     let work_units = bytes.checked_mul(repeats).ok_or("work size overflow")?;

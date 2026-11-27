@@ -21,7 +21,6 @@ syntax-trees = { path = "../../representations/syntax-trees" }
 tokens = { path = "../../representations/tokens" }
 
 [dev-dependencies]
-serde_json = "1"
 source-files = { path = "../../representations/source-files" }
 source-lexer = { path = "../00_source-files-to-tokens" }
 

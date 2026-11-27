@@ -85,7 +85,7 @@ fn stage_batch_matches_page_identity_metadata_and_owned_literals() {
     );
     assert_eq!(actual_pages.len(), expected_pages.len());
     for (actual, expected) in actual_pages.iter().zip(&expected_pages) {
-        assert_eq!(actual.snapshot(), expected.snapshot());
+        assert_eq!(actual, expected);
     }
     // Both routes call the same parser. Check each returned root against its
     // input file as well, so the routes cannot agree on a misplaced declaration.

@@ -247,9 +247,6 @@ fn parses_field_relevance_on_record_and_case_payload_bindings() {
     assert_eq!(value.relevance, BindingRelevance::Relevant);
     assert_eq!(proof.relevance, BindingRelevance::Erased);
     assert_eq!(witness.relevance, BindingRelevance::Erased);
-    let snapshot = parsed.snapshot_json().expect("syntax should snapshot");
-    assert!(snapshot.contains("\"relevance\":\"relevant\""));
-    assert!(snapshot.contains("\"relevance\":\"erased\""));
 }
 
 #[test]
