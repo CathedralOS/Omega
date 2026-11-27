@@ -31,6 +31,8 @@ pub(crate) struct PreparedTheoremParameter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum TheoremInput {
     Scalar(ScalarType),
+    /// A sum, one subject of its inductive declaration.
+    Sum(semantic_vocabulary::StructuralTypeId),
     Record {
         record: semantic_vocabulary::StructuralTypeId,
         leaves: Vec<(Vec<CanonicalStructuralPathSegment>, ScalarType)>,
@@ -616,13 +618,40 @@ impl Program<'_> {
                     });
                     inputs.push(TheoremInput::Scalar(*scalar_type));
                 }
+                ValueType::Record(record, Qualification::NONE, _)
+                    if matches!(
+                        self.data_type(id, *record)?.shape,
+                        crate::StorageShape::Sum(_)
+                    ) =>
+                {
+                    // A sum is one subject, a value of its inductive
+                    // declaration; a clause names it by its formal place.
+                    let place = PlaceId::new(
+                        inputs
+                            .iter()
+                            .filter(|input| {
+                                matches!(input, TheoremInput::Record { .. } | TheoremInput::Sum(_))
+                            })
+                            .count() as u64
+                            + 1,
+                    )
+                    .ok_or_else(|| unavailable("logical theorem input identity overflow"))?;
+                    self.sum_shape(id, *record)?;
+                    sources.push(SourceSubject::Sum {
+                        place,
+                        structural_type: *record,
+                    });
+                    inputs.push(TheoremInput::Sum(*record));
+                }
                 ValueType::Record(record, Qualification::NONE, _) => {
                     let data_subjects::RecordSubject { leaves, invariants } =
                         self.record_subject(id, *record)?;
                     let place = PlaceId::new(
                         inputs
                             .iter()
-                            .filter(|input| matches!(input, TheoremInput::Record { .. }))
+                            .filter(|input| {
+                                matches!(input, TheoremInput::Record { .. } | TheoremInput::Sum(_))
+                            })
                             .count() as u64
                             + 1,
                     )
@@ -639,15 +668,15 @@ impl Program<'_> {
                 }
                 _ => {
                     return Err(unavailable(
-                        "logical theorem input needs its complete fixed scalar carrier or plain record",
+                        "logical theorem input needs its complete fixed scalar carrier, plain record or sum",
                     ));
                 }
             }
         }
-        let (formals, requires, ensures) =
+        let mut contract =
             data_subjects::flatten(&sources, &signature.requires, &signature.ensures)
                 .map_err(unavailable)?;
-        for formal in &formals {
+        for formal in &contract.parameters {
             let scalar_type = formal.scalar_type;
             if !matches!(scalar_type, ScalarType::Boolean | ScalarType::IeeeFloat(_))
                 && !matches!(scalar_type, ScalarType::Integer(integer) if integer.bits().is_some())
@@ -657,16 +686,14 @@ impl Program<'_> {
                 ));
             }
         }
-        let contract = TheoremContract {
-            parameters: formals,
-            data_subjects: Vec::new(),
-            requires,
-            ensures,
-            proof_parameters,
+        contract.proof_parameters = proof_parameters;
+        let declared = |sum| {
+            self.sum_shape(id, sum)
+                .map_err(|_| "logical contract's sum subject has no checked declaration")
         };
         let expected = terminal_semantics::theorems::contract_type(
             &contract,
-            &terminal_semantics::theorems::no_sums,
+            &declared,
             &mut proof_admission::Budget::default(),
         )
         .map_err(unavailable)?;
@@ -682,6 +709,51 @@ impl Program<'_> {
         )
         .map_err(|_| unavailable("logical theorem type has no canonical portable identity"))?;
         Ok((contract, carrier_key, inputs))
+    }
+
+    /// A sum's cases and their fields, as Terminal Psi will publish them
+    /// (`data_subjects::sum_shape`): each a relevant plain scalar payload or
+    /// the sum itself. Anything else is refused by name.
+    fn sum_shape(
+        &self,
+        id: MachineId,
+        sum: semantic_vocabulary::StructuralTypeId,
+    ) -> Checked<proof_admission::DataSubjectShape> {
+        let unavailable = |reason| refuse_at(id, Unserved::Declaration(reason));
+        let declared = self.data_type(id, sum)?;
+        let crate::StorageShape::Sum(cases) = &declared.shape else {
+            return Err(unavailable("logical sum subject is not a sum"));
+        };
+        if !declared.requires.is_empty() || !declared.erased.is_empty() {
+            return Err(unavailable(
+                "logical sum subject has an invariant or an erased payload",
+            ));
+        }
+        let mut shape = proof_admission::DataSubjectShape {
+            structural_type: sum,
+            cases: Vec::with_capacity(cases.len()),
+        };
+        for case in cases {
+            let mut fields = Vec::with_capacity(case.fields.len());
+            for field in &case.fields {
+                let kind = match field.value_type {
+                    ValueType::Scalar(scalar, Qualification::NONE) => {
+                        proof_admission::DataFieldShape::Scalar(scalar)
+                    }
+                    ty if ty == ValueType::record(sum) => {
+                        proof_admission::DataFieldShape::Recursive
+                    }
+                    _ => {
+                        return Err(unavailable(
+                            "logical sum subject has a payload that is not a scalar or itself",
+                        ));
+                    }
+                };
+                fields.push((field.id, kind));
+            }
+            shape.cases.push((case.id, fields));
+        }
+        Ok(shape)
     }
 
     /// A plain record's scalar fields, in declared order and with a nested

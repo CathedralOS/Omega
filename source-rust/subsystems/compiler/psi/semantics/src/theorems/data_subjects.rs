@@ -1,6 +1,9 @@
-//! A logical contract's subjects are fixed scalars. A plain record input is
-//! one subject for each of its scalar fields, in its declared field order,
-//! and a clause's field of that input names that subject.
+//! A logical contract's subjects are fixed scalars and sums. A plain record
+//! input is one subject for each of its scalar fields, in its declared field
+//! order, and a clause's field of that input names that subject. A sum input
+//! is one subject, a value of the sum's inductive declaration
+//! (mathematical_bindings.md, "A sum input in a logical contract denotes a
+//! single mathematical value of that sum's checked inductive declaration").
 
 use crate::substitution::clauses::{ClauseBindings, substitute_clause};
 use semantic_vocabulary::{
@@ -9,7 +12,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     BoundaryParameterKind, MachineContract, StructuralFieldType, StructuralTypeShape,
-    TerminalModule, ValueDeclaration,
+    TerminalModule, TheoremContract, TheoremDataSubject, ValueDeclaration,
 };
 
 /// One source input of a logical contract, in its header position.
@@ -31,6 +34,12 @@ pub enum SourceSubject {
         /// premise of the contract over these subjects.
         invariants: Vec<(Vec<CanonicalStructuralPathSegment>, Proposition)>,
     },
+    /// A sum formal, named in clauses by `place`: its case tests, payload
+    /// reads and whole-value Identities.
+    Sum {
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
 }
 
 /// A plain record's scalar leaves and data invariants (`SourceSubject::Record`).
@@ -48,17 +57,33 @@ pub fn invariant_self() -> PlaceId {
 /// The fixed subjects of `sources`, numbered from one, and each clause
 /// restated over them. Each record's data invariants come first among the
 /// premises, in header order.
+/// The contract over the sources' subjects: each scalar formal and each
+/// record leaf as a scalar subject, in header order, and each sum formal as
+/// a sum subject, numbered from 1 in header order. Each record's data
+/// invariants come first among the premises. The contract has no proof
+/// parameters of its own.
 pub fn flatten(
     sources: &[SourceSubject],
     requires: &[Proposition],
     ensures: &[Proposition],
-) -> Result<(Vec<ValueDeclaration>, Vec<Proposition>, Vec<Proposition>), &'static str> {
+) -> Result<TheoremContract, &'static str> {
     let mut parameters = Vec::new();
+    let mut data_subjects = Vec::new();
     for source in sources {
         let carriers: Vec<_> = match source {
             SourceSubject::Scalar { scalar_type, .. } => vec![*scalar_type],
             SourceSubject::Record { leaves, .. } => {
                 leaves.iter().map(|(_, scalar)| *scalar).collect()
+            }
+            SourceSubject::Sum {
+                structural_type, ..
+            } => {
+                data_subjects.push(TheoremDataSubject {
+                    place: PlaceId::new(data_subjects.len() as u64 + 1)
+                        .ok_or("logical subject identity overflow")?,
+                    structural_type: *structural_type,
+                });
+                Vec::new()
             }
         };
         for scalar_type in carriers {
@@ -99,7 +124,13 @@ pub fn flatten(
     };
     premises.extend(restate(requires)?);
     let ensures = restate(ensures)?;
-    Ok((parameters, premises, ensures))
+    Ok(TheoremContract {
+        parameters,
+        data_subjects,
+        requires: premises,
+        ensures,
+        proof_parameters: Vec::new(),
+    })
 }
 
 /// The scalar fields of a plain record, in declared order, with the fields
@@ -238,6 +269,19 @@ pub fn machine_subjects(
                 {
                     return Err("logical data subject carries a qualification");
                 }
+                if module
+                    .structural_type(formal.structural_type)
+                    .is_some_and(|declaration| {
+                        matches!(declaration.shape, StructuralTypeShape::Sum { .. })
+                    })
+                {
+                    // Its declaration is checked as the contract's type is
+                    // formed (`sum_shape`).
+                    return Ok(SourceSubject::Sum {
+                        place: formal.place,
+                        structural_type: formal.structural_type,
+                    });
+                }
                 let RecordSubject { leaves, invariants } =
                     record_subject(module, formal.structural_type)?;
                 Ok(SourceSubject::Record {
@@ -264,9 +308,23 @@ impl Renamed<'_> {
             next += match source {
                 SourceSubject::Scalar { .. } => 1,
                 SourceSubject::Record { leaves, .. } => leaves.len() as u64,
+                SourceSubject::Sum { .. } => 0,
             };
         }
         None
+    }
+
+    /// The sum subject a sum formal's place becomes: its position among the
+    /// sum formals, from 1.
+    fn sum(&self, root: PlaceId) -> Option<PlaceId> {
+        let position = self
+            .sources
+            .iter()
+            .filter(|source| matches!(source, SourceSubject::Sum { .. }))
+            .position(
+                |source| matches!(source, SourceSubject::Sum { place, .. } if *place == root),
+            )?;
+        PlaceId::new(position as u64 + 1)
     }
 }
 
@@ -352,6 +410,19 @@ impl ClauseBindings for Renamed<'_> {
         if version != ContentPlaceVersion::Current {
             return Err("logical clause observes a data subject at another version");
         }
+        // A sum's payload is read from the sum subject, under the case its
+        // path names; the type's denotation checks the case and field.
+        if let Some(sum) = self.sum(root) {
+            return Ok(ScalarTerm::StructuralRead {
+                root: sum,
+                path: path
+                    .iter()
+                    .copied()
+                    .map(semantic_vocabulary::ScalarReadProjection::Static)
+                    .collect(),
+                scalar_type: scalar,
+            });
+        }
         let renamed = self
             .subject(|source| match source {
                 SourceSubject::Record { place, leaves, .. } if *place == root => leaves
@@ -372,7 +443,27 @@ impl ClauseBindings for Renamed<'_> {
         _: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
     ) -> Result<crate::substitution::clauses::CaseAnswer, Self::Error> {
-        Err("logical clause tests a case of a data subject")
+        Err("logical clause tests a case of a data subject that is not a sum")
+    }
+
+    fn case_predicate(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<Proposition, Self::Error> {
+        let sum = self
+            .sum(root)
+            .ok_or("logical clause tests a case of a data subject that is not a sum")?;
+        Ok(Proposition::StructuralCaseMembership {
+            subject: semantic_vocabulary::StructuralCaseSubject::new(sum, path.to_vec()),
+            case,
+        })
+    }
+
+    fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
+        self.sum(root)
+            .ok_or("logical clause names a whole data subject that is not a sum")
     }
 }
 
@@ -429,10 +520,11 @@ mod tests {
     #[test]
     fn a_record_field_names_its_own_subject() {
         let clause = Proposition::Equal(field(1, 2), one());
-        let (parameters, requires, _) = flatten(&sources(), &[clause], &[]).unwrap();
-        assert_eq!(parameters.len(), 3);
+        let flat = flatten(&sources(), &[clause], &[]).unwrap();
+        assert_eq!(flat.parameters.len(), 3);
+        assert!(flat.data_subjects.is_empty());
         assert_eq!(
-            requires,
+            flat.requires,
             [Proposition::Equal(
                 ScalarTerm::Value {
                     id: ValueId::new(3).unwrap(),
@@ -447,8 +539,84 @@ mod tests {
     fn a_field_of_another_place_names_no_subject() {
         let clause = Proposition::Equal(field(2, 1), one());
         assert_eq!(
-            flatten(&sources(), &[clause], &[]),
-            Err("logical clause names a field that is no scalar subject")
+            flatten(&sources(), &[clause], &[]).err(),
+            Some("logical clause names a field that is no scalar subject")
+        );
+    }
+
+    /// `(n: u8, p: Pair, c: Choice)`: `c` is formal place 2 and sum subject 1.
+    fn with_sum() -> Vec<SourceSubject> {
+        let mut sources = sources();
+        sources.push(SourceSubject::Sum {
+            place: PlaceId::new(2).unwrap(),
+            structural_type: StructuralTypeId::new(9).unwrap(),
+        });
+        sources
+    }
+
+    fn payload(place: u64) -> ScalarTerm {
+        ScalarTerm::IntegerField {
+            version: ContentPlaceVersion::Current,
+            root: PlaceId::new(place).unwrap(),
+            path: vec![
+                CanonicalStructuralPathSegment::Case(StructuralCaseId::new(1).unwrap()),
+                CanonicalStructuralPathSegment::Field(StructuralFieldId::new(3).unwrap()),
+            ],
+            scalar_type: byte(),
+        }
+    }
+
+    fn is_one(place: u64) -> Proposition {
+        Proposition::StructuralCaseMembership {
+            subject: semantic_vocabulary::StructuralCaseSubject::new(
+                PlaceId::new(place).unwrap(),
+                Vec::new(),
+            ),
+            case: StructuralCaseId::new(1).unwrap(),
+        }
+    }
+
+    #[test]
+    fn a_sum_formal_is_one_subject_named_by_its_own_place() {
+        let flat = flatten(
+            &with_sum(),
+            &[is_one(2)],
+            &[Proposition::Equal(payload(2), one())],
+        )
+        .unwrap();
+        assert_eq!(flat.parameters.len(), 3);
+        assert_eq!(
+            flat.data_subjects,
+            [TheoremDataSubject {
+                place: PlaceId::new(1).unwrap(),
+                structural_type: StructuralTypeId::new(9).unwrap(),
+            }]
+        );
+        assert_eq!(flat.requires, [is_one(1)]);
+        let ScalarTerm::IntegerField { path, .. } = payload(1) else {
+            unreachable!()
+        };
+        assert_eq!(
+            flat.ensures,
+            [Proposition::Equal(
+                ScalarTerm::StructuralRead {
+                    root: PlaceId::new(1).unwrap(),
+                    path: path
+                        .into_iter()
+                        .map(semantic_vocabulary::ScalarReadProjection::Static)
+                        .collect(),
+                    scalar_type: ScalarType::Integer(byte()),
+                },
+                one(),
+            )]
+        );
+    }
+
+    #[test]
+    fn a_case_test_of_a_record_names_no_sum_subject() {
+        assert_eq!(
+            flatten(&with_sum(), &[is_one(1)], &[]).err(),
+            Some("logical clause tests a case of a data subject that is not a sum")
         );
     }
 }

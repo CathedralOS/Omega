@@ -333,15 +333,7 @@ pub fn named_contract(
         // A record formal is one subject for each of its scalar fields, as
         // in a citation (`data_subjects`).
         let subjects = data_subjects::machine_subjects(module, contract)?;
-        let (parameters, requires, ensures) =
-            data_subjects::flatten(&subjects, &contract.requires, &ensures)?;
-        TheoremContract {
-            parameters,
-            requires,
-            data_subjects: Vec::new(),
-            ensures,
-            proof_parameters: Vec::new(),
-        }
+        data_subjects::flatten(&subjects, &contract.requires, &ensures)?
     };
     contract_subjects(&named)?;
     Ok(named)
@@ -604,20 +596,12 @@ fn citation_goals_with(
         .iter()
         .map(|clause| clause.proposition.clone())
         .collect();
-    let (parameters, requires, ensures) =
-        data_subjects::flatten(&subjects, &supplied.requires, &ensures)?;
-    if parameters != expected.parameters {
+    let actual = data_subjects::flatten(&subjects, &supplied.requires, &ensures)?;
+    if actual.parameters != expected.parameters || actual.data_subjects != expected.data_subjects {
         return Err(
             "cited theorem's subjects are not the aliased contract's subjects and carriers",
         );
     }
-    let actual = TheoremContract {
-        parameters,
-        data_subjects: Vec::new(),
-        requires,
-        ensures,
-        proof_parameters: Vec::new(),
-    };
     check(expected)?;
     check(&actual)?;
     let aliases = conjunction(expected.requires.clone());

@@ -2720,6 +2720,11 @@ impl<'t> Program<'t> {
                     arguments.push(expression);
                     fields.push(Vec::new());
                 }
+                TheoremInput::Sum(_) => {
+                    return Err(unavailable(
+                        "logical application of a theorem over a sum is not yet checked",
+                    ));
+                }
                 TheoremInput::Record { record, leaves } => {
                     let expression = self.expression(id, slots, *argument, None)?;
                     if !matches!(expression.result, Some(ValueType::Record(own, Qualification::NONE, _)) if own == record)
