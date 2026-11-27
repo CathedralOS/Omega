@@ -1741,6 +1741,7 @@ dependencies = [
  "target",
  "terminal-codec",
  "terminal-psi",
+ "terminal-interpreter",
  "terminal-runtime",
  "terminal-semantics",
  "windows-sys 0.61.2",

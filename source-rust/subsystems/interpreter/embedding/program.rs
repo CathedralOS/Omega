@@ -1359,23 +1359,18 @@ pub(crate) mod instance {
                 .as_mut()
                 .ok_or(TerminalInstanceError::Closed)?;
             if self.checked_progress != Some(scope) {
-                if let Some(failure) = psi_provider_selections::invocation_progress_failure(
-                    self.program
-                        .program
-                        .catalogs
-                        .execution_view()
-                        .map_err(TerminalInstanceError::Execution)?,
-                    self.entry,
-                    scope,
-                    self.components
-                        .values()
-                        .map(TerminalComponentBinding::selected),
-                    |slot| match execution.boundary_supplies.get(&slot) {
-                        Some(crate::boundary::effects::AdmittedBoundarySupply::CheckedProvider(machine)) => Some(*machine),
-                        _ => None,
-                    },
-                )
-            {
+                if let Some(failure) = self
+                    .program
+                    .invocation_progress_failure(
+                        execution,
+                        self.entry,
+                        scope,
+                        self.components
+                            .values()
+                            .map(TerminalComponentBinding::selected),
+                    )
+                    .map_err(TerminalInstanceError::Execution)?
+                {
                     return Err(TerminalInstanceError::Synchronization(failure));
                 }
                 self.checked_progress = Some(scope);
@@ -2888,6 +2883,30 @@ pub(crate) mod program {
             }
         }
 
+        pub(super) fn invocation_progress_failure<'a>(
+            &self,
+            execution: &crate::engine::execution::TerminalExecution<'_>,
+            entry: semantic_vocabulary::MachineId,
+            scope: psi_provider_selections::ProgressScope,
+            components: impl IntoIterator<Item = &'a psi_provider_selections::AdmittedComponentProvider>,
+        ) -> Result<
+            Option<psi_provider_selections::PrivateWaitFailure>,
+            crate::TerminalInterpretError,
+        > {
+            Ok(psi_provider_selections::invocation_progress_failure(
+                self.program.catalogs.execution_view()?,
+                entry,
+                scope,
+                components,
+                |slot| match execution.boundary_supplies.get(&slot) {
+                    Some(crate::boundary::effects::AdmittedBoundarySupply::CheckedProvider(
+                        machine,
+                    )) => Some(*machine),
+                    _ => None,
+                },
+            ))
+        }
+
         pub(crate) fn start_execution(
             &self,
             scalar_arguments: &[TerminalScalarValue],
@@ -2897,7 +2916,7 @@ pub(crate) mod program {
             crate::engine::execution::TerminalExecution<'artifact>,
             TerminalArtifactInterpretError,
         > {
-            self.prepare_execution(TerminalInstantiation {
+            let (execution, _) = self.prepare_execution(TerminalInstantiation {
                 float_evaluation: Default::default(),
                 scalar_arguments,
                 structural_inputs,
@@ -2906,8 +2925,19 @@ pub(crate) mod program {
                 entry_results: None,
                 scalar_application: None,
                 scalar_admission: None,
-            }, None)
-            .map(|(execution, _)| execution)
+            }, None)?;
+            if let Some(failure) = self
+                .invocation_progress_failure(
+                    &execution,
+                    execution.current_machine,
+                    psi_provider_selections::ProgressScope::Executable,
+                    [],
+                )
+                .map_err(TerminalArtifactInterpretError::Execution)?
+            {
+                return Err(TerminalArtifactInterpretError::Synchronization(failure));
+            }
+            Ok(execution)
         }
 
         fn execution_program(

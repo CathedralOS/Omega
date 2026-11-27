@@ -40,6 +40,7 @@ terminal-semantics = { path = "../subsystems/compiler/psi/semantics" }
 psi-authorization = { path = "../subsystems/compiler/psi/artifact/authorization" }
 
 [dev-dependencies]
+terminal-interpreter = { path = "../subsystems/interpreter" }
 psi-provider-selections = { path = "../subsystems/compiler/psi/execution-inputs/providers" }
 build-execution = { path = "../subsystems/compiler/build/evaluation" }
 runtime-abi = { path = "../subsystems/compiler/psi-to-native/targets/runtime-abi" }
