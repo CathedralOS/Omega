@@ -186,9 +186,6 @@ pub(crate) mod baseline {
             StagedOptimizedRegisterHomeCustodyReceipt {
                 core: upstream.core(),
                 allocator_availability: upstream.allocator_availability(),
-                liveness: upstream.liveness(),
-                ranges: upstream.ranges(),
-                legality: upstream.legality(),
                 homes: homes.identity(),
                 post_allocation_manifest: manifest,
                 function_count: homes.function_count(),
@@ -211,16 +208,12 @@ pub(crate) mod baseline {
         OptimizedAbstractPlanProjectionIdentity, PostAllocationOptimizationManifestIdentity,
         PrePhysicalOptimizationManifestIdentity,
     };
-    use register_homes::{
-        AllocationLegalityIdentity, AllocatorAvailabilityIdentity,
-        PostAllocationOptimizationManifestError,
-    };
+    use register_homes::{AllocatorAvailabilityIdentity, PostAllocationOptimizationManifestError};
     use selected_instruction_analyses::{
         SelectedProgramRef, StagedOptimizedAllocationLegality, ValidatedAllocationLegality,
         ValidatedLiveRanges, ValidatedLiveness,
     };
     use selected_instructions::StagedOptimizedCustodyCore;
-    use selected_instructions::{LiveRangeIdentity, LivenessIdentity};
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use terminal_psi::TerminalPsiIdentity;
 
@@ -267,9 +260,6 @@ pub(crate) mod baseline {
     pub struct StagedOptimizedRegisterHomeCustodyReceipt {
         core: StagedOptimizedCustodyCore,
         allocator_availability: AllocatorAvailabilityIdentity,
-        liveness: LivenessIdentity,
-        ranges: LiveRangeIdentity,
-        legality: AllocationLegalityIdentity,
         homes: RegisterHomeIdentity,
         post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
         function_count: usize,
@@ -281,9 +271,6 @@ pub(crate) mod baseline {
 
         receipt_accessor_rows!(StagedOptimizedRegisterHomeCustodyReceipt {
             allocator_availability: AllocatorAvailabilityIdentity,
-            liveness: LivenessIdentity,
-            ranges: LiveRangeIdentity,
-            legality: AllocationLegalityIdentity,
             homes: RegisterHomeIdentity,
             post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
             function_count: usize,
@@ -397,9 +384,8 @@ pub(crate) mod post_allocation_manifest {
                     PostAllocationOptimizationManifestError::NonCanonicalTransformationLedger,
                 );
             }
-            if legality.receipt().ranges() != ranges.receipt().identity()
-                || homes.receipt().legality() != legality.receipt().identity()
-                || homes.receipt().ranges() != ranges.receipt().identity()
+            if legality.plan().selected != ranges.plan().selected
+                || homes.plan().selected != ranges.plan().selected
                 || homes.receipt().register_environment()
                     != legality.receipt().register_environment()
                 || homes.receipt().allocator_availability()
@@ -451,9 +437,6 @@ pub(crate) mod post_allocation_manifest {
                 selected_lowering_completion,
                 pre_allocation_completion,
                 selected_transformations: selected_transformations.to_vec(),
-                liveness: ranges.receipt().liveness(),
-                ranges: ranges.receipt().identity(),
-                legality: legality.receipt().identity(),
                 register_environment: legality.receipt().register_environment(),
                 allocator_availability: legality.receipt().allocator_availability(),
                 homes: homes.receipt().identity(),
@@ -710,7 +693,7 @@ pub(crate) mod runtime_spill {
         use selected_instruction_analyses::{
             RecoveryReanalysisError, SelectedProgramRef, StagedOptimizedAllocationLegality,
             UnsealedRecoveryFacts, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
-            ValidatedLiveRanges, ValidatedLiveness,
+            ValidatedLiveRanges,
         };
         use selected_instructions::{
             FunctionLiveRanges, SelectedInstructionPlan, VirtualRegisterId, VirtualRegisterOrigin,
@@ -777,7 +760,6 @@ pub(crate) mod runtime_spill {
             environment: &register_environment::ValidatedTargetRegisterEnvironment,
             availability: &ValidatedAllocatorAvailability,
             anchor_selected: &impl ValidatedSelectedAnalysis,
-            anchor_liveness: &ValidatedLiveness,
             anchor_ranges: &ValidatedLiveRanges,
             anchor_legality: &ValidatedAllocationLegality,
             unsealed: UnsealedRecoveryFacts,
@@ -786,7 +768,6 @@ pub(crate) mod runtime_spill {
             let (liveness, ranges, legality) = unsealed
                 .seal(
                     anchor_selected,
-                    anchor_liveness,
                     anchor_ranges,
                     anchor_legality,
                     selected,
@@ -1653,7 +1634,6 @@ pub(crate) mod runtime_spill {
                 environment,
                 availability,
                 &resolved.base,
-                resolved.liveness,
                 resolved.ranges,
                 resolved.legality,
                 facts,

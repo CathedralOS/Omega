@@ -46,22 +46,6 @@
 
 pub(crate) mod codec_bytes {
     pub(crate) use ::wire::codec_bytes::push_encoded;
-
-    pub(crate) fn encode_len(bytes: &mut Vec<u8>, length: usize) {
-        push_encoded(bytes, (length as u64).to_le_bytes());
-    }
-
-    #[cfg(test)]
-    pub(crate) fn encode_le_list<T, const N: usize>(
-        bytes: &mut Vec<u8>,
-        values: &[T],
-        to_le: impl Fn(&T) -> [u8; N],
-    ) {
-        encode_len(bytes, values.len());
-        for value in values {
-            push_encoded(bytes, to_le(value));
-        }
-    }
 }
 
 pub(crate) use ::wire::digest_encoder;
@@ -141,14 +125,12 @@ pub use live_ranges::{
     ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
     BlockPointDomain, CopyAffinity, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
     EdgeRegisterTransfer, FunctionLiveRanges, LiveRangeEdgeConnector, LiveRangeFragment,
-    LiveRangeIdentity, LiveRangePlan, LiveRangePoint, VirtualFixedConstraint,
-    VirtualFixedConstraintSite, VirtualInterference, VirtualInterferences, VirtualLiveRange,
-    VirtualOccurrence, live_range_function_digest, live_range_identity_from_digests,
+    LiveRangePlan, LiveRangePoint, VirtualFixedConstraint, VirtualFixedConstraintSite,
+    VirtualInterference, VirtualInterferences, VirtualLiveRange, VirtualOccurrence,
 };
 pub use liveness::{
-    BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessIdentity,
-    LivenessPlan, LivenessPosition, OperandPosition, SuccessorLiveness, liveness_function_digest,
-    liveness_identity_from_digests,
+    BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessPlan,
+    LivenessPosition, OperandPosition, SuccessorLiveness,
 };
 pub use program_contracts::SelectedProgramContracts;
 pub use provenance::SelectedInstructionProvenance;

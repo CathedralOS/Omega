@@ -119,9 +119,7 @@ pub(crate) mod current {
                 selected: self.selected.current_program(),
                 effects: &self.effects,
                 ranges: self.ranges.plan(),
-                ranges_identity: self.ranges.receipt().identity(),
                 legality: self.legality.plan(),
-                legality_identity: self.legality.receipt().identity(),
                 homes: self.homes.plan(),
                 homes_identity: self.homes.receipt().identity(),
             }

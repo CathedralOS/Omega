@@ -14,6 +14,7 @@ requires cursor <= |configuration|::FRAME_PIXELS, pumped <= |configuration|::EVE
     pixels: [i32; |configuration|::FRAME_PIXELS];
     message: |windows_gui_host|::WindowsMessage;
     close_requested: bool;
+    dirty: bool;
     cursor: u64;
     pumped: u32;
     direction: i32;
@@ -26,6 +27,7 @@ public machine prepare(main: @mutable Main) -> bool {
     machine ready(main: @mutable Main) -> bool {
         |game|::reset(@mutable main.game);
         main.close_requested = false;
+        main.dirty = true;
         true
     }
 }
@@ -37,32 +39,37 @@ public machine fail_self_test() reaches |process_authority|::StandardOutput + |p
 
 public machine reset_game(main: @mutable Main) {
     |game|::reset(@mutable main.game);
+    main.dirty = true;
 }
 
 public machine tick_game(main: @mutable Main) {
     |game|::tick(@mutable main.game, main.direction, main.swing);
+    main.dirty = true;
 }
 
 public machine render_frame(main: @mutable Main) {
     main.frame = |game|::capture(@main.game);
     main.cursor = 0;
-    transition { _ -> fill(main) }
-    machine fill(main: @mutable Main) {
-        transition main.cursor < |configuration|::FRAME_PIXELS { true -> pixel(main), _ -> done() }
+    main.dirty = false;
+    transition { _ -> row_loop(main, 0) }
+    machine row_loop(main: @mutable Main, y: i32) requires y >= 0 && y <= |render|::RENDER_HEIGHT {
+        transition y < |render|::RENDER_HEIGHT { true -> col_loop(main, y, 0), _ -> done() }
     }
-    machine pixel(main: @mutable Main) requires main.cursor < |configuration|::FRAME_PIXELS {
-        let x: i32 = (main.cursor % (|configuration|::FRAME_WIDTH as u64)) as i32;
-        let y: i32 = (main.cursor / (|configuration|::FRAME_WIDTH as u64)) as i32;
-        transition x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |render|::RENDER_HEIGHT {
-            true -> draw_pixel(main, x, y),
-            _ -> done()
+    machine col_loop(main: @mutable Main, y: i32, x: i32)
+    requires y >= 0 && y < |render|::RENDER_HEIGHT && x >= 0 && x <= |configuration|::ROOM_WIDTH {
+        transition x < |configuration|::ROOM_WIDTH && main.cursor < |configuration|::FRAME_PIXELS {
+            true -> draw_pixel(main, y, x),
+            _ -> next_row(main, y)
         }
     }
-    machine draw_pixel(main: @mutable Main, x: i32, y: i32)
+    machine draw_pixel(main: @mutable Main, y: i32, x: i32)
     requires main.cursor < |configuration|::FRAME_PIXELS && x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |render|::RENDER_HEIGHT {
         main.pixels[main.cursor] = |render|::pixel(@main.frame, x, y);
         main.cursor = main.cursor + 1;
-        transition { _ -> fill(main) }
+        transition { _ -> col_loop(main, y, x + 1) }
+    }
+    machine next_row(main: @mutable Main, y: i32) requires y >= 0 && y < |render|::RENDER_HEIGHT {
+        transition { _ -> row_loop(main, y + 1) }
     }
     machine done() {}
 }
