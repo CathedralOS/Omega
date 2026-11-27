@@ -627,6 +627,33 @@ impl DeferredResolvedFrontier {
             }
         }
 
+        // A machine that binds an operator token (`machine <= less_or_equal`)
+        // is selected by its operands at a use of the token, which names no
+        // machine for the call graph to follow. Like an `operator`
+        // declaration above, its body is demanded with any of its operand
+        // types.
+        for machine in self.trees.machines.iter() {
+            if machine.spelling.is_none() || !is_pending(machine.symbol) {
+                continue;
+            }
+            let operand_demanded = self
+                .trees
+                .machine_state_handles(machine.storage.states)
+                .first()
+                .is_some_and(|entry| {
+                    self.trees
+                        .state_parameters(self.trees.machine_state(*entry).parameters)
+                        .iter()
+                        .any(|param| {
+                            type_head_symbol(&param.type_reference)
+                                .is_some_and(|sym| demanded_types.contains(&sym))
+                        })
+                });
+            if operand_demanded {
+                push_pending(machine.symbol);
+            }
+        }
+
         Ok(next)
     }
 
