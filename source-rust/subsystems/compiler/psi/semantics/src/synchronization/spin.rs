@@ -145,6 +145,7 @@ impl Word {
     }
 }
 
+
 pub(super) struct ForwardedWait {
     pub(super) callee: TargetMachineCallable,
     borrowed: Vec<Subject>,
@@ -205,7 +206,7 @@ impl ForwardedWait {
         subject.forwarded(supplied, |operand| self.scalar(operand))
     }
 
-    pub(super) fn scalar(&self, operand: Operand) -> Option<Operand> {
+    fn scalar(&self, operand: Operand) -> Option<Operand> {
         match operand {
             Operand::Literal(_) => Some(operand),
             Operand::Parameter {

@@ -2,6 +2,7 @@
 //! run a destructor that releases locks. Translate the proven normal-return
 //! effects in execution order before the caller makes its next observation.
 
+mod calls;
 mod guards;
 mod sequence;
 
@@ -10,7 +11,7 @@ use super::storage::{Storage, Stored};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::progress::{ProgressFailure, ProgressScope, ScalarFact};
 use crate::synchronization::spin::{CellUpdate, Operand, SpinCondition, Subject};
-pub(in crate::synchronization) use sequence::normal_effects;
+pub(in crate::synchronization) use calls::normal_effects;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Acquisition {
@@ -33,10 +34,39 @@ enum Effect {
 }
 
 /// Effects derived from the exact selected body, ordered before its normal return.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct NormalEffects(Vec<Effect>);
 
 impl NormalEffects {
+    /// Two writes to the same symbolic word have one observable poststate.
+    /// An intervening acquisition observes storage and keeps both writes.
+    fn compact_stores(&mut self) {
+        let mut later = std::collections::BTreeSet::new();
+        self.0.reverse();
+        self.0.retain(|effect| match effect {
+            Effect::Write(write) => write
+                .subject
+                .fixed_path()
+                .is_none_or(|path| later.insert((write.subject.parameter, path))),
+            Effect::Acquire(_) => {
+                later.clear();
+                true
+            }
+        });
+        self.0.reverse();
+    }
+
+    fn append_call(&mut self, callee: Self, program_size: usize) -> Option<()> {
+        // A forwarding wrapper retains its complete callee. Multiple calls
+        // must not expand a bounded source graph into exponentially many events.
+        let limit = program_size.max(callee.0.len());
+        self.0.extend(callee.0);
+        if self.0.len() > limit {
+            self.compact_stores();
+        }
+        (self.0.len() <= limit).then_some(())
+    }
+
     pub fn requires_progress(&self) -> bool {
         self.0
             .iter()

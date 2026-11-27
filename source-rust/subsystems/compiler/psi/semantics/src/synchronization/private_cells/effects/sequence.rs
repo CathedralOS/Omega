@@ -14,40 +14,12 @@ use terminal_psi::{
     TerminalAffineCleanupAction, TerminalModule, Terminator,
 };
 
-pub(in crate::synchronization) fn normal_effects(
-    module: &TerminalModule,
-    entry: MachineId,
-    boundary: impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
-) -> Option<NormalEffects> {
-    let mut wrappers = Vec::new();
-    let mut seen = Facts::default();
-    let mut current = entry;
-    let machine = loop {
-        if seen.insert(current, ()).is_some() {
-            return None;
-        }
-        let machine = module.machine(current)?;
-        let Some(wrapper) = crate::synchronization::spin::forwarded_wait(module, machine) else {
-            break machine;
-        };
-        let TargetMachineCallable::Machine(callee) = wrapper.callee else {
-            return None;
-        };
-        wrappers.push(wrapper);
-        current = callee;
-    };
-    let mut effects = effects_in_body(module, machine, boundary)?;
-    for wrapper in wrappers.iter().rev() {
-        effects.map_operands(|operand| wrapper.scalar(operand))?;
-        effects.map_subjects(|subject| wrapper.apply_subject(subject))?;
-    }
-    Some(effects)
-}
-
-fn effects_in_body(
+pub(super) fn effects_in_body(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
-    boundary: impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
+    boundary: &impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
+    completed: &Facts<MachineId, Option<NormalEffects>>,
+    program_size: usize,
 ) -> Option<NormalEffects> {
     let mut memory = Storage::default();
     let mut roots = Vec::with_capacity(machine.structural_parameters.len());
@@ -64,7 +36,7 @@ fn effects_in_body(
         bindings.places.insert(formal.place, root);
     }
     let mut frame = Frame::enter(machine, bindings, Destination::Unit)?;
-    let mut events = Vec::new();
+    let mut effects = NormalEffects::default();
     let mut guards = Vec::new();
     let mut constructors = Facts::<MachineId, Option<OwnedGuardLocks>>::default();
     loop {
@@ -76,10 +48,6 @@ fn effects_in_body(
                 let TargetMachineCallable::Machine(id) = call.callee else {
                     return None;
                 };
-                if constructors.get(&id).is_none() {
-                    constructors.insert(id, guard_locks(module, id, &boundary));
-                }
-                let summary = constructors.get(&id)?.as_ref()?;
                 let project = |subject: &Subject| {
                     substitute(
                         subject,
@@ -89,6 +57,31 @@ fn effects_in_body(
                         &roots,
                     )
                 };
+                if matches!(op.result, terminal_psi::OperationResult::Unit) {
+                    let mut nested = completed.get(&id)?.as_ref()?.clone();
+                    nested.map_subjects(|subject| {
+                        *subject = project(subject)?;
+                        Some(())
+                    })?;
+                    nested.map_operands(|value| {
+                        let Operand::Parameter {
+                            position,
+                            scalar_type,
+                        } = value
+                        else {
+                            return Some(value);
+                        };
+                        let actual = call.arguments.get(position)?;
+                        let operand = operand(machine, *frame.bindings.values.get(actual)?)?;
+                        (operand.scalar_type() == scalar_type).then_some(operand)
+                    })?;
+                    effects.append_call(nested, program_size)?;
+                    continue;
+                }
+                if constructors.get(&id).is_none() {
+                    constructors.insert(id, guard_locks(module, id, boundary));
+                }
+                let summary = constructors.get(&id)?.as_ref()?;
                 let acquisitions = summary
                     .acquisitions
                     .iter()
@@ -110,7 +103,9 @@ fn effects_in_body(
                     .collect::<Option<Vec<_>>>()?;
                 let guard = guards.len();
                 guards.push(Some((summary.cleanup, writes)));
-                events.extend(acquisitions.into_iter().map(Effect::Acquire));
+                for acquisition in acquisitions {
+                    effects.0.push(Effect::Acquire(acquisition));
+                }
                 frame.bindings.places.insert(
                     op.result.structural()?.place,
                     memory.allocate(Stored::Guard(guard)),
@@ -125,17 +120,10 @@ fn effects_in_body(
                     } => {
                         let target = memory.locate(&frame.bindings, *place, path)?;
                         let subject = subject_of(&roots, &target)?;
-                        let value = match *frame.bindings.values.get(value)? {
-                            ScalarFact::Literal(value) => Operand::Literal(value),
-                            ScalarFact::EntryInput(formal) => Operand::Parameter {
-                                position: machine
-                                    .parameters
-                                    .iter()
-                                    .position(|entry| *entry == formal)?,
-                                scalar_type: formal.scalar_type,
-                            },
-                        };
-                        events.push(Effect::Write(AtomicWrite { subject, value }));
+                        let value = operand(machine, *frame.bindings.values.get(value)?)?;
+                        effects
+                            .0
+                            .push(Effect::Write(AtomicWrite { subject, value }));
                     }
                     OperationKind::AtomicAccess { .. } => return None,
                     OperationKind::MoveStructuralValue { source }
@@ -189,16 +177,32 @@ fn effects_in_body(
             if cleanup != invocation.cleanup_machine {
                 return None;
             }
-            events.extend(writes.into_iter().map(Effect::Write));
+            for write in writes {
+                effects.0.push(Effect::Write(write));
+            }
         }
         if frame.arrival.is_none() {
-            let empty_return = machine.blocks.len() == 1 && machine.operations().next().is_none();
-            return ((!events.is_empty() || empty_return)
-                && matches!(frame.block.terminator, Terminator::ReturnUnit { .. }))
-            .then_some(NormalEffects(events));
+            if !matches!(frame.block.terminator, Terminator::ReturnUnit { .. }) {
+                return None;
+            }
+            effects.compact_stores();
+            return Some(effects);
         }
         frame.arrive()?;
     }
+}
+
+fn operand(machine: &terminal_psi::TerminalMachine, fact: ScalarFact) -> Option<Operand> {
+    Some(match fact {
+        ScalarFact::Literal(value) => Operand::Literal(value),
+        ScalarFact::EntryInput(formal) => Operand::Parameter {
+            position: machine
+                .parameters
+                .iter()
+                .position(|parameter| *parameter == formal)?,
+            scalar_type: formal.scalar_type,
+        },
+    })
 }
 
 fn substitute(
@@ -214,5 +218,7 @@ fn substitute(
     subject_of(roots, &target)
 }
 fn subject_of(roots: &[(usize, Location)], target: &Location) -> Option<Subject> {
-    roots.iter().find_map(|(parameter, root)| Subject::from_fixed(*parameter,root.suffix(target)?))
+    roots
+        .iter()
+        .find_map(|(parameter, root)| Subject::from_fixed(*parameter, root.suffix(target)?))
 }

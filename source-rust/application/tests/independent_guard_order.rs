@@ -23,8 +23,31 @@ fn independent_guards_use_the_callers_resource_identity() {
     let early = supplier.replace("let retained: Guard = move outer;", "");
     let reacquire = early.replace("hold(second, second)", "hold(first, first)");
     let sibling = reacquire.replacen("hold(first, first)", "hold(first, second)", 1);
+    let mark_before_acquiring = |value| {
+        let body = supplier.replace(
+            "    let outer: Guard",
+            &format!("    mark(first, {value});\n    let outer: Guard"),
+        );
+        format!(
+            "{body}\nmachine mark(lock: @Lock, value: u32) {{ lock.held.store(value, Publish); }}"
+        )
+    };
+    let clear_before_acquiring = mark_before_acquiring(0);
+    let held_before_acquiring = mark_before_acquiring(1);
     for (name, body, actual, stuck) in [
         ("distinct", &supplier, "@second", false),
+        (
+            "acquire observes clear",
+            &clear_before_acquiring,
+            "@second",
+            false,
+        ),
+        (
+            "acquire observes held",
+            &held_before_acquiring,
+            "@second",
+            true,
+        ),
         ("same", &supplier, "@first", true),
         ("released", &early, "@first", false),
         ("matching cleanup", &reacquire, "@second", false),

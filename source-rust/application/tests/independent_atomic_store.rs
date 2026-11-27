@@ -71,7 +71,21 @@ fn sources() -> (String, String, String, String) {
 fn the_selected_stores_transport_an_entry_input_and_its_checked_requirement() {
     use psi_provider_selections::{ProgressScope, invocation_progress_failure};
     use terminal_semantics::synchronization::ProgressFailure;
-    let (producer, producer_build, consumer, consumer_build) = sources();
+    let (mut producer, producer_build, consumer, consumer_build) = sources();
+    // Fourteen declarations denote 16,384 calls to write the same word. The
+    // receipt must depend on the checked helper graph and its final store.
+    let mut helper = String::from("set_word");
+    for level in 0..14 {
+        let next = format!("set_twice_{level}");
+        producer.push_str(&format!(
+            "\nmachine {next}(signal: @Signal, input: u32) {{ {helper}(signal, input); {helper}(signal, input); }}"
+        ));
+        helper = next;
+    }
+    producer = producer.replace(
+        "set_word(first, input);",
+        &format!("{helper}(first, input);"),
+    );
     let scratch = project::stage(
         "symbolic-independent-atomic-store",
         &[
