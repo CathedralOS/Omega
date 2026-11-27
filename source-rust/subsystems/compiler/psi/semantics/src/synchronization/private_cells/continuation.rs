@@ -11,7 +11,7 @@ use terminal_psi::{TargetMachineCallable, TerminalAffineCleanupAction, TerminalM
 
 pub(super) fn unproved(
     module: &TerminalModule,
-    frames: &[Frame<'_>],
+    frames: &[std::rc::Rc<Frame<'_>>],
     boundary: &impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
     computed: &super::computed::Invocations,
     summaries: &mut Summaries,
