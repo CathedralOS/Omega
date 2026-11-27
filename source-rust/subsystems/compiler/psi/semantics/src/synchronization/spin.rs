@@ -19,6 +19,7 @@ pub(super) use update::CellUpdate;
 
 use super::facts::Facts;
 use cases::CaseValue;
+use language_core::atomic::AtomicCompareExchangeOutcomeCase as Attempt;
 
 use crate::entry_values::TerminalScalarValue as Scalar;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, ScalarType, ValueId};
@@ -86,6 +87,15 @@ enum Word {
     Masked(Operand),
     Argument(Operand),
     Test(SpinCondition),
+}
+
+impl From<Operand> for Word {
+    fn from(operand: Operand) -> Self {
+        match operand {
+            Operand::Literal(value) => Self::Literal(value),
+            Operand::Parameter { .. } => Self::Argument(operand),
+        }
+    }
 }
 
 impl Word {
@@ -219,11 +229,13 @@ struct Read {
     site: OperationId,
     cell: Subject,
     update: RepeatedUpdate,
+    single_attempt: bool,
 }
 
 #[derive(Default)]
 struct Trace {
     cases: Facts<PlaceId, CaseValue>,
+    vacant: Facts<PlaceId, ()>,
     subjects: Subjects,
     forwarded: Option<ForwardedWait>,
     values: Facts<ValueId, Word>,
@@ -288,6 +300,7 @@ impl Trace {
         module: &TerminalModule,
         machine: &TerminalMachine,
         operation: &Operation,
+        outcome: Attempt,
     ) -> Option<bool> {
         if let Some(call) = operation.declared_invocation() {
             if !matches!(operation.result, OperationResult::Unit)
@@ -343,15 +356,29 @@ impl Trace {
             }
             _ => {}
         }
-        if let Some(result) = operation.result.as_structural() {
-            let case = CaseValue::from_operation(&operation.kind, &self.cases)?;
-            if !result.is_unrestricted_plain()
-                || !case.has_known_fields(|id| self.scalar(id).is_some())
+        if let OperationKind::StoreStructuralField {
+            disposition: terminal_psi::StructuralStoreDisposition::Vacant,
+            destination,
+            path,
+            field: None,
+            value,
+        } = &operation.kind
+        {
+            // A move into a fresh local is a change of home for this exact
+            // case. It cannot write through the caller's borrowed resource.
+            if !path.is_empty()
+                || !value.path.is_empty()
+                || value.access != terminal_psi::StructuralAccess::Owned
             {
                 return None;
             }
-            bind(&mut self.cases, result.place, case)?;
+            self.vacant.remove(destination)?;
+            let case = self.cases.remove(&value.place)?;
+            bind(&mut self.cases, *destination, case)?;
             return Some(false);
+        }
+        if let Some(result) = operation.result.as_structural() {
+            return self.case_result(module, machine, operation, result, outcome);
         }
         let result = operation.result.scalar()?.id;
         let mut reads = false;
@@ -402,15 +429,12 @@ impl Trace {
                         }),
                         _ => return None,
                     };
-                    let read = Read {
-                        site: operation.id,
-                        cell: self.subject(module, machine, *place, path)?,
+                    self.observe(
+                        operation.id,
+                        self.subject(module, machine, *place, path)?,
                         update,
-                    };
-                    if self.read.as_ref().is_some_and(|seen| seen != &read) {
-                        return None;
-                    }
-                    self.read = Some(read);
+                        false,
+                    )?;
                     reads = true;
                     Word::Observed
                 }
@@ -459,6 +483,34 @@ impl Trace {
         Some(reads)
     }
 
+    fn observe(
+        &mut self,
+        site: OperationId,
+        cell: Subject,
+        update: RepeatedUpdate,
+        single_attempt: bool,
+    ) -> Option<()> {
+        let read = Read {
+            site,
+            cell,
+            update,
+            single_attempt,
+        };
+        if self.read.as_ref().is_some_and(|seen| *seen != read) {
+            return None;
+        }
+        self.read = Some(read);
+        Some(())
+    }
+
+    fn test(&mut self, value: Comparison) -> Option<()> {
+        if self.tested.is_some_and(|prior| prior != value) {
+            return None;
+        }
+        self.tested = Some(value);
+        Some(())
+    }
+
     fn branch(&mut self, condition: ValueId, equal_case: bool) -> Option<bool> {
         let condition = match self.scalar(condition)? {
             Word::Literal(Scalar::Boolean(known)) => return Some(known),
@@ -469,13 +521,7 @@ impl Trace {
             },
             Word::Test(condition) => condition,
         };
-        if self
-            .tested
-            .is_some_and(|expected| expected != condition.comparison)
-        {
-            return None;
-        }
-        self.tested = Some(condition.comparison);
+        self.test(condition.comparison)?;
         Some(equal_case == condition.positive)
     }
 
@@ -484,7 +530,7 @@ impl Trace {
         module: &TerminalModule,
         machine: &TerminalMachine,
         dest: &terminal_psi::Block,
-        arguments: &[ValueId],
+        arguments: Arguments<'_>,
         places: &[StructuralArgument],
     ) -> Option<()> {
         if arguments.len() != dest.parameters.len()
@@ -492,8 +538,11 @@ impl Trace {
         {
             return None;
         }
-        for (formal, actual) in dest.parameters.iter().zip(arguments) {
-            let supplied = self.scalar(*actual)?;
+        for (index, formal) in dest.parameters.iter().enumerate() {
+            let supplied = match arguments {
+                Arguments::Values(ids) => self.scalar(ids[index])?,
+                Arguments::Case(place, fields) => self.cases.get(&place)?.payload(fields[index])?,
+            };
             bind(&mut self.values, formal.id, supplied)?;
         }
         for (formal, actual) in dest.structural_parameters.iter().zip(places) {
@@ -517,16 +566,32 @@ impl Trace {
     }
 }
 
+enum Arguments<'a> {
+    Values(&'a [ValueId]),
+    Case(PlaceId, &'a [semantic_vocabulary::StructuralFieldId]),
+}
+
+impl Arguments<'_> {
+    fn len(&self) -> usize {
+        match self {
+            Self::Values(args) => args.len(),
+            Self::Case(_, fields) => fields.len(),
+        }
+    }
+}
+
 #[derive(PartialEq, Eq)]
 enum Completion {
     Returns,
     Retries,
 }
 
+/// Follow one equality outcome. On a single-attempt operation the matched
+/// observation has two distinct paths, committed and uncommitted.
 fn trace(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    equal_case: bool,
+    outcome: Attempt,
 ) -> Option<(Trace, Completion)> {
     let mut state = Trace {
         subjects: Subjects::at_entry(machine),
@@ -546,9 +611,8 @@ fn trace(
             break Completion::Retries;
         }
         for operation in &block.operations {
-            observations += usize::from(state.operation(module, machine, operation)?);
+            observations += usize::from(state.operation(module, machine, operation, outcome)?);
         }
-        let fields: Vec<ValueId>;
         let (next, arguments, places, cleanup) = match &block.terminator {
             Terminator::ReturnUnit {
                 cleanup_actions, ..
@@ -559,20 +623,25 @@ fn trace(
                 structural_arguments,
                 cleanup_actions,
                 ..
-            } => (target, arguments, structural_arguments, cleanup_actions),
+            } => (
+                target,
+                Arguments::Values(arguments),
+                structural_arguments,
+                cleanup_actions,
+            ),
             Terminator::Conditional {
                 condition,
                 when_true,
                 when_false,
             } => {
-                let edge = if state.branch(*condition, equal_case)? {
+                let edge = if state.branch(*condition, outcome != Attempt::Mismatched)? {
                     when_true
                 } else {
                     when_false
                 };
                 (
                     &edge.target,
-                    &edge.arguments,
+                    Arguments::Values(&edge.arguments),
                     &edge.structural_arguments,
                     &edge.cleanup_actions,
                 )
@@ -584,21 +653,33 @@ fn trace(
             } if path.is_empty() => {
                 let known = state.cases.get(source)?;
                 let edge = cases.iter().find(|edge| known.is(edge.case))?;
-                fields = known.payload(&edge.payload_fields)?;
                 (
                     &edge.target,
-                    &fields,
+                    Arguments::Case(*source, &edge.payload_fields),
                     &edge.structural_arguments,
                     &edge.cleanup_actions,
                 )
             }
             _ => return None,
         };
-        if !cleanup.is_empty() {
-            return None;
-        }
+        // A case edge captures scalar payloads, then discards the matched
+        // affine temporary. Its construction established a scalar-only value
+        // with no nominal cleanup or retained claim.
+        let discard = match cleanup.as_slice() {
+            [] => None,
+            [terminal_psi::TerminalAffineCleanupAction::DiscardRoot(root)]
+                if matches!(arguments, Arguments::Case(source, _) if source == *root)
+                    && places.is_empty() =>
+            {
+                Some(*root)
+            }
+            _ => return None,
+        };
         block = machine.block(next)?;
         state.transfer(module, machine, block, arguments, places)?;
+        if let Some(root) = discard {
+            state.cases.remove(&root)?;
+        }
     };
     Some((state, completion))
 }
@@ -631,8 +712,8 @@ fn single_cell_wait(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Option<(OperationId, WaitRule)> {
-    let (equal_trace, equal) = trace(module, machine, true)?;
-    let (different_trace, different) = trace(module, machine, false)?;
+    let (equal_trace, equal) = trace(module, machine, Attempt::Exchanged)?;
+    let (different_trace, different) = trace(module, machine, Attempt::Mismatched)?;
     if equal_trace.forwarded.is_some()
         || different_trace.forwarded.is_some()
         || equal_trace.read != different_trace.read
@@ -642,6 +723,20 @@ fn single_cell_wait(
         return None;
     }
     let read = equal_trace.read?;
+    if read.single_attempt {
+        // Failure to commit may retry without another participant. It cannot
+        // change the private resident, and a matching cell still permits a
+        // commit. Only the mismatching resident can permanently block this loop.
+        let (without_commit, completion) = trace(module, machine, Attempt::Uncommitted)?;
+        if equal != Completion::Returns
+            || completion != Completion::Retries
+            || without_commit.read.as_ref() != Some(&read)
+            || without_commit.tested != equal_trace.tested
+            || without_commit.forwarded.is_some()
+        {
+            return None;
+        }
+    }
     let comparison = equal_trace.tested?;
     let subject = read.cell;
     let while_value = SpinCondition {
@@ -669,7 +764,7 @@ pub(super) fn forwarded_wait(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Option<ForwardedWait> {
-    let (state, completion) = trace(module, machine, true)?;
+    let (state, completion) = trace(module, machine, Attempt::Exchanged)?;
     if completion != Completion::Returns || state.read.is_some() {
         return None;
     }
