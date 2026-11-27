@@ -1816,3 +1816,125 @@ fn a_theorem_cannot_conclude_its_sum_is_in_some_of_its_cases() {
         "{shown}"
     );
 }
+
+/// A machine's own contract states the split too: its `requires` may
+/// assume `c` is in one of two cases, and its `ensures` may promise it.
+fn machine_split(requires: &str, ensures: &str) -> String {
+    format!(
+        "data Choice {{
+    case One(x: u8);
+    case Two(y: u8);
+}}
+
+machine split(c: Choice)
+requires {requires}
+ensures {ensures}
+{{
+}}
+
+machine entry() -> u8 {{
+    split(Choice::One {{ x: 7u8 }});
+    0u8
+}}
+"
+    )
+}
+
+fn three(source: String) -> String {
+    source.replace(
+        "    case Two(y: u8);\n",
+        "    case Two(y: u8);\n    case Three(z: u8);\n",
+    )
+}
+
+#[test]
+fn a_machine_assumes_its_sum_is_in_one_of_two_cases() {
+    for source in [
+        machine_split("c in Choice::One || c in Choice::Two", "true"),
+        three(machine_split(
+            "c in Choice::One || c in Choice::Two",
+            "true",
+        )),
+    ] {
+        assert!(
+            source.contains("requires c in Choice::One || c in Choice::Two\nensures true"),
+            "{source}"
+        );
+        let verdict = stored(&source);
+        assert!(
+            matches!(verdict, Ok(Verdict::Accepted)),
+            "{source}\n{verdict:?}"
+        );
+    }
+}
+
+/// A caller owes the split it assumes: `Three` is in neither case.
+#[test]
+fn a_machine_assuming_two_cases_is_not_called_with_a_third() {
+    let source = three(machine_split(
+        "c in Choice::One || c in Choice::Two",
+        "true",
+    ))
+    .replace(
+        "split(Choice::One { x: 7u8 });",
+        "split(Choice::Three { z: 7u8 });",
+    );
+    assert!(
+        source.contains("split(Choice::Three { z: 7u8 });"),
+        "{source}"
+    );
+    let shown = format!("{:?}", stored(&source));
+    assert!(
+        shown.contains("Rejected") && shown.contains("unproved: [\"CallRequirement"),
+        "{shown}"
+    );
+}
+
+#[test]
+fn a_machine_promises_its_sum_is_in_one_of_its_cases() {
+    for source in [
+        machine_split("true", "c in Choice::One || c in Choice::Two"),
+        machine_split("true", "c in Choice::Two || c in Choice::One"),
+        three(machine_split(
+            "c in Choice::One || c in Choice::Two",
+            "c in Choice::Two || c in Choice::One",
+        )),
+    ] {
+        let verdict = stored(&source);
+        assert!(
+            matches!(verdict, Ok(Verdict::Accepted)),
+            "{source}\n{verdict:?}"
+        );
+    }
+}
+
+/// What the machine promises of its sum's case it must prove: one case of
+/// two is not known, and two of three cases are not every case.
+#[test]
+fn a_machine_cannot_promise_its_sum_is_in_some_of_its_cases() {
+    for (source, why) in [
+        (
+            machine_split("true", "c in Choice::One"),
+            "one of two cases",
+        ),
+        (
+            machine_split("c in Choice::One || c in Choice::Two", "c in Choice::One"),
+            "one of the two assumed cases",
+        ),
+        (
+            three(machine_split(
+                "true",
+                "c in Choice::One || c in Choice::Two",
+            )),
+            "two of three cases",
+        ),
+    ] {
+        let verdict = Program::of(&source).judged(|_| {});
+        let shown = format!("{verdict:?}");
+        assert!(
+            !matches!(verdict, Verdict::Accepted)
+                && shown.contains("cannot prove ensures contract for exit from split"),
+            "{why}: {shown}"
+        );
+    }
+}
