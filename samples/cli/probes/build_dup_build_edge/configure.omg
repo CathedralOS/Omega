@@ -1,0 +1,21 @@
+use {k1}/main.omg as first;
+use {k2}/main.omg as second;
+use main.omg as app;
+
+machine build(plan: @mutable BuildPlan) crashes Trap {
+    transition |first|::seed() == 3 && |second|::seed() == 3 {
+        true -> selected(plan),
+        false -> failed()
+    }
+}
+
+machine selected(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "build_dup_build_edge" };
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(plan, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(plan, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(plan, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(plan, windows_arm64::ProgramEntry, |app|::main);
+}
+
+machine failed() { crash Trap; }
