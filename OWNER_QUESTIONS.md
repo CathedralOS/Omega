@@ -98,65 +98,109 @@ Which should the product do?
 
 #### Context
 
-A user wants a law about a sum, such as a build step that never reports
-`RunResult::NotRun`. They want to pass that law as a proof argument the way a
-record law is passed today. The specification says logical evidence states
-"the contract's implication over fixed mathematical subjects". It requires
-general data to elaborate to checked inductive declarations "where induction is
-required". It says payload fields "require the corresponding case knowledge".
-None of these says what subjects a stored, non-recursive sum gives a contract.
+A user wants to pass a law about a sum as a proof argument, the way record laws
+are passed today. A *subject* is one value a theorem's clauses talk about. The
+specification says logical evidence states "the contract's implication over
+fixed mathematical subjects". It requires general data to elaborate to checked
+inductive declarations "where induction is required". It says payload fields
+"require the corresponding case knowledge".
 [Theorem proof parameters](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) ·
 [Inductive elaboration](wiki/spec/proofs/foundation.md#universes-functions-and-recursion) ·
 [Case knowledge](wiki/spec/language/data_and_literals.md)
 
-Current implementation: a record input is one subject per scalar field. A
-nested record's fields count in its place, and each data invariant is a
-premise (`terminal_semantics::theorems::data_subjects`). A sum input is
-refused at the theorem's declaration with "logical data subject is not a plain
-record". Self-containing indexed data already has its own route, an erased
-family theorem.
-[Data subjects](source-rust/subsystems/compiler/psi/semantics/src/theorems/data_subjects.rs) ·
-[Indexed families](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/read/families.rs)
+Observed today: a record input is one subject per scalar field. A nested
+record's fields count in its place, and each data invariant is a premise. A sum
+input is refused. An ordinary machine contract over the same sum is accepted,
+and a call that passes another case fails the payload clause.
+[Data subjects](source-rust/subsystems/compiler/psi/semantics/src/theorems/data_subjects.rs)
 
 #### Problem statement
 
-The premise holds. The open part is the denotation, not the compiler. "Where
-induction is required" leaves non-recursive data free to use a non-inductive
-encoding, and records already use one. A sum differs from a record because
-its payload exists only in its active case. So a sum cannot simply become one
-always-defined scalar subject per payload field, the way a record field does.
+**Premise 1: The specification does not say what subjects a non-recursive sum
+gives a logical contract.** Holds (spec). Inductive elaboration is required only
+"where induction is required", and no clause names a sum's subjects.
+
+**Premise 2: The refusal comes from today's compiler, not the language.** Holds
+(observed). The same `requires` and `ensures` are accepted on an ordinary
+machine. Only the proof-argument path refuses them.
+
+The decision is the denotation. A sum cannot copy the record encoding of one
+always-defined subject per field, because a payload exists only in its case.
 
 #### Proposed solution
 
 **Recommend:** *A logical contract's sum input denotes its active case and that
 case's payload. Its subjects are one Boolean per case, of which exactly one
-holds, and the scalar payload fields of every case. A clause reads a payload
-field only under that case's membership. The implication must hold for every
-payload value, so an inactive case's payload constrains nothing. Self-containing
-data stays an indexed family's evidence.*
+holds, and the scalar payload fields of every case. A clause that reads a
+payload field holds only in that field's case, as in an ordinary contract, so
+applying the law to a sum in another case fails its premise. The implication
+must hold for every payload value, so an inactive case's payload constrains
+nothing. Self-containing data stays an indexed family's evidence.*
 
-With `data Choice { case One(x: u8); case Two(y: u8); }`:
+**Before**
 
-- `requires c in Choice::One && c.x != 0u8 ensures c.x > 0u8` is accepted.
-  The payload read sits under **`c in Choice::One`**. Applying it owes both
-  premises at the actual sum.
-- `ensures c.x > 0u8` with no case premise is rejected at the declaration.
-  **`c.x`** has no case knowledge, which is the same rule ordinary contracts
-  follow.
+```omega
+data Choice {
+    case One(x: u8);
+    case Two(y: u8);
+}
 
-Accepting the source needs Stage 05 to read case membership and guarded
-payload clauses. Recording the obligation reuses the existing premise goals.
-Proving it needs the checker to bind each case Boolean from the case reaching
-the application and each active payload from its contents. An inactive payload
-gets any fixed value, which is sound because the law quantifies over it.
+data OneIsPositive = machine(c: Choice)
+    requires c in Choice::One && c.x != 0u8
+    ensures c.x > 0u8;
+
+machine one_is_positive(c: Choice)
+requires c in Choice::One && c.x != 0u8
+ensures c.x > 0u8
+{
+}
+
+machine use_law<Law: OneIsPositive>(c: Choice)
+requires c in Choice::One && c.x != 0u8
+ensures c.x > 0u8
+{
+    Law(c);
+}
+
+machine entry() -> u8 {
+    use_law::<one_is_positive>(Choice::One { x: 7u8 });
+    0u8
+}
+```
+
+Observed: refused at `use_law`'s signature with "logical data subject is not a
+plain record".
+
+**After: accepted.** Source unchanged.
+
+Expected: accepted. `Law(c)` owes `c in Choice::One && c.x != 0u8`, which
+`use_law`'s own `requires` supplies, and then gives `c.x > 0u8`.
+
+**After: rejected.** Rest as Before.
+
+```omega
+machine entry() -> u8 {
+    use_law::<one_is_positive>(Choice::Two { y: 7u8 }); // another case
+    0u8
+}
+```
+
+Expected: rejected at the call, because `c in Choice::One` is unproved. Observed
+today for the ordinary call `one_is_positive(Choice::Two { y: 7u8 })`: refused
+with "the clause's observation has no reaching value identity".
+
+Accepting the source needs Stage 05 to read a sum input's case and payload
+clauses. Recording the obligation reuses the existing premise goals. Proving it
+needs the checker to read each case Boolean and active payload from what reaches
+the application. An inactive payload gets any fixed value, which is sound
+because the law quantifies over it.
 
 #### Alternates
 
-- **One inductive subject.** Elaborate every sum, recursive or not, to a checked
-  inductive declaration and give the contract a single binder of that type.
-  This also covers whole-value identity, `c == d` as one subject. It costs a
-  non-scalar binder in Terminal Psi's theorem contract, the kernel contract
-  type and citation checking. The first example has the same outcome under
-  either ruling.
-- **Keep the refusal.** Sum laws stay inexpressible as proof arguments. Users
-  restate them over the payload scalars at each use.
+- **One inductive subject.** Elaborate every sum to a checked inductive
+  declaration and give the contract one binder of that type. Both After blocks
+  have the same outcomes. It also covers comparing whole sums, such as
+  `requires c == d`. It costs a non-scalar binder in Terminal Psi's theorem
+  contract, the kernel contract type and citation checking.
+- **Keep the refusal.** Both After blocks keep the Before outcome: refused at
+  `use_law`'s signature. Users restate sum laws over payload scalars at each use.

@@ -11,6 +11,8 @@ State what the user is trying to express and what the canonical spec already gua
 
 ## Problem statement
 
+Open with the premise on its own line, in bold, as one plain sentence the owner can check: **Premise: …** Follow it with **Holds** or **Fails** and the one fact that decides it, labeled as spec, observed or expected. If the question rests on more than one premise, list each the same way before discussing any of them.
+
 Put the premise to a concrete test. Ask whether one fact already implies another, whether two spellings mean the same thing, and whether the apparent restriction comes from the language or from today's compiler. If the premise fails, say which part fails, show the smallest counterexample, and restate the real decision. If the spec already settles it, give that answer here and identify the implementation or documentation work.
 
 ## Proposed solution
@@ -23,6 +25,14 @@ For example, suppose `p` already carries `Positive` and `Small` is its child. Th
 - `p as` **`-Positive`** `+Positive::Small` explicitly removes the parent and must fail. The minus sign changes the requested result.
 
 Use examples from the actual question in each brief. State the expected outcome of a proposed rule separately from any outcome observed in a test.
+
+Then show the code strictly as **Before** and **After**, each in its own fenced `omega` block:
+
+- **Before** is the smallest complete program that shows today's behavior. Under it, state the observed outcome, quoting the compiler's message verbatim, and label it as observed.
+- **After** is the same program under the recommended ruling. Change only the lines the ruling affects, and keep every other line identical so the diff is the decision. Show only the declarations that differ, under the note "Rest as Before". If the ruling changes only the outcome, write "Source unchanged" and give no block. Under it, state the expected outcome and label it as expected.
+- If the ruling both accepts and rejects something, give an After for each, each differing from Before by as few lines as possible.
+- An alternate whose outcome differs from the recommendation gets its own After block under Alternates, built from the same Before.
+- No prose inside the code blocks beyond one short comment on the changed line. Do not paraphrase code in sentences when the block can show it.
 
 ## Alternates
 
