@@ -190,7 +190,7 @@ enum Definition {
     Abbreviation,
 }
 
-fn spine(arena: &TermArena, term: TermHandle) -> (TermHandle, Vec<TermHandle>) {
+pub(crate) fn spine(arena: &TermArena, term: TermHandle) -> (TermHandle, Vec<TermHandle>) {
     let mut head = term;
     let mut arguments = Vec::new();
     while let Term::Apply { function, argument } = arena.get(head) {

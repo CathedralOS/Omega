@@ -468,7 +468,8 @@ enum Read {
     Cites {
         called: bool,
     },
-    /// An operation on a quotient, judged and not defined (`lifted`).
+    /// An operation on a quotient, judged (`lifted`). A term that applies
+    /// it reads its definition into `functions` (`lifted_function`).
     Lifted,
     Refused,
 }
@@ -530,6 +531,30 @@ struct Fuel {
     machine: MachineId,
     step: Option<TermHandle>,
     default: TermHandle,
+}
+
+/// How an operation on a quotient passes its formals to the operation on
+/// representatives (`Converter::lift_shape`).
+struct LiftShape {
+    /// The operation on representatives.
+    operation: MachineId,
+    /// The type and entry of each formal of the operation on classes.
+    formals: Vec<(TermHandle, u32)>,
+    /// The type and entry of each parameter of the operation on
+    /// representatives.
+    parameters: Vec<(TermHandle, u32)>,
+    /// For each formal, the parameter it is passed to.
+    receives: Vec<usize>,
+    /// For each parameter, the carrier and relation of the quotient its
+    /// formal is a class of, when it is one.
+    classes: Vec<Option<(u32, u32)>>,
+    /// The result type of the operation on classes, and its entry.
+    result: TermHandle,
+    result_entry: u32,
+    /// The quotient the result is a class of, when it is one.
+    result_class: Option<(u32, u32)>,
+    /// The entry of the operation on representatives' definition.
+    defined: u32,
 }
 
 /// The machine a definition is being read for.
@@ -925,7 +950,8 @@ impl<'p> Converter<'p, '_> {
     /// theorem, and for `Quotient::define`, the second statement is owed
     /// here as a law of this machine, proved with no citation.
     ///
-    /// Nothing is defined: a term that applies the machine is refused.
+    /// Nothing is defined here. A term that applies the machine reads it as
+    /// a definition (`lifted_function`).
     fn lifted(&mut self, id: MachineId, lifted: &LiftedOperation) -> Checked<()> {
         if self
             .begin(
@@ -946,6 +972,231 @@ impl<'p> Converter<'p, '_> {
         self.finish(id, false, read.map(|()| ((), Read::Lifted)))
     }
 
+    /// An operation on a quotient as a definition, so that a term may
+    /// apply it: the kernel's `lift` of the operation on representatives,
+    /// at the class the machine takes. The operation is judged first, so
+    /// its congruence theorem's statement is declared and sealed before the
+    /// definition cites it.
+    ///
+    /// `lift` gives a function out of one quotient into a set, from a
+    /// function on representatives that takes related values to equal
+    /// results. So the operation must take exactly one class, require
+    /// nothing of its representatives (that needs the dependent
+    /// eliminator), and return a class (the quotient is a set) or plain
+    /// data (a set by Hedberg's theorem). Its congruence is then
+    /// `respect`, through soundness when the result is a class.
+    fn lifted_function(&mut self, id: MachineId, lifted: &LiftedOperation) -> Checked<u32> {
+        self.lifted(id, lifted)?;
+        match self.begin(
+            id,
+            true,
+            "operation lifted to a quotient that applies itself",
+        )? {
+            None => {}
+            Some(Read::Function(entry)) => return Ok(entry),
+            Some(_) => return Err(unserved(id, "term that calls a machine with no result")),
+        }
+        let outer = (
+            std::mem::take(&mut self.callable_scope),
+            std::mem::take(&mut self.held),
+        );
+        let read = self.read_lifted_function(id, lifted);
+        (self.callable_scope, self.held) = outer;
+        self.finish(id, true, read.map(|entry| (entry, Read::Function(entry))))
+    }
+
+    fn read_lifted_function(&mut self, id: MachineId, lifted: &LiftedOperation) -> Checked<u32> {
+        let program = self.program;
+        let LiftShape {
+            operation,
+            formals,
+            receives,
+            classes,
+            result,
+            result_entry,
+            result_class,
+            defined,
+            ..
+        } = self.lift_shape(id, lifted)?;
+        let private = program
+            .signatures
+            .get(operation)
+            .ok_or_else(|| unserved(id, "mathematical machine lost its signature"))?;
+        if !private.requires.is_empty() {
+            return Err(unserved(
+                id,
+                "term that applies an operation lifted to a quotient whose operation on \
+                 representatives requires something of them",
+            ));
+        }
+        let mut taken = classes
+            .iter()
+            .enumerate()
+            .filter_map(|(parameter, class)| class.map(|class| (parameter, class)));
+        let (Some((taken_at, (carrier, relation))), None) = (taken.next(), taken.next()) else {
+            return Err(unserved(
+                id,
+                "term that applies an operation lifted to a quotient that takes other than \
+                 one class",
+            ));
+        };
+        let family = self.family(carrier, relation);
+        // The fibers of `lift` must be a set.
+        let sets = match result_class {
+            Some((carrier, relation)) => {
+                let family = self.family(carrier, relation);
+                family.law(
+                    &mut self.signature.arena,
+                    mathematical_kernel::QUOTIENT_SET,
+                    Vec::new(),
+                    &[],
+                )
+            }
+            None => match &self.signature.entries[result_entry as usize].kind {
+                SignatureEntryKind::Data { shape, .. } => {
+                    let shape = shape.clone();
+                    shape.is_set(&mut self.signature.arena, result_entry)
+                }
+                _ => {
+                    return Err(unserved(
+                        id,
+                        "term that applies an operation lifted to a quotient whose result is \
+                         neither a class nor data",
+                    ));
+                }
+            },
+        };
+        // The congruence theorem: for two representatives of the class and
+        // one value of each other argument, from related representatives
+        // alone, related (or equal) results. Stage 06 checks that it states
+        // exactly that (`seal`), and the kernel checks this definition's
+        // use of it.
+        let congruence = self.selected(id, lifted.congruence)?;
+        let &[law] = self.laws(congruence)?.as_slice() else {
+            return Err(unserved(
+                congruence,
+                "congruence theorem of a quotient operation that states other than one law",
+            ));
+        };
+        let stated = &self.signature.laws[law as usize];
+        if stated.premises.len() != 1 {
+            return Err(unserved(
+                congruence,
+                "congruence theorem of a quotient operation that requires more than related \
+                 representatives",
+            ));
+        }
+        let statement = stated.statement;
+
+        // Under the machine's formals, then `a` (and `b`, `r` for the
+        // congruence): the term each parameter of the operation receives.
+        let count = formals.len() as u32;
+        let passed = |converter: &mut Self, under: u32, class: u32| -> Vec<TermHandle> {
+            let mut actuals = vec![None; receives.len()];
+            for (formal, &parameter) in receives.iter().enumerate() {
+                actuals[parameter] = Some(if parameter == taken_at {
+                    converter.variable(class)
+                } else {
+                    converter.variable(count - 1 - formal as u32 + under)
+                });
+            }
+            // `lift_shape` passes each formal to exactly one parameter.
+            actuals
+                .into_iter()
+                .map(|actual| actual.expect("each parameter receives one formal"))
+                .collect()
+        };
+        let apply = |converter: &mut Self, arguments: &[TermHandle]| {
+            let function = converter.constant(defined);
+            converter
+                .signature
+                .arena
+                .apply_arguments(function, arguments)
+        };
+        let carrier_type = self.constant(carrier);
+        // `f = λ a. F(..)`, or the class of that when the result is one.
+        let at_a = passed(self, 1, 0);
+        let mut value = apply(self, &at_a);
+        if let Some((carrier, relation)) = result_class {
+            let result_family = self.family(carrier, relation);
+            value = result_family.project(&mut self.signature.arena, value);
+        }
+        let f = self.signature.arena.insert(Term::Lambda {
+            domain: carrier_type,
+            body: value,
+        });
+        // `respect = λ a b (r: R a b). ..`: the congruence at `a`, `b` and
+        // the shared arguments, and `r`.
+        let mut cited = Vec::with_capacity(classes.len() + 2);
+        for (parameter, class) in classes.iter().enumerate() {
+            if class.is_some() {
+                cited.push(self.variable(2));
+                cited.push(self.variable(1));
+            } else {
+                let formal = receives
+                    .iter()
+                    .position(|&received| received == parameter)
+                    .ok_or_else(|| unserved(id, "quotient operation lost one of its formals"))?;
+                cited.push(self.variable(count - 1 - formal as u32 + 3));
+            }
+        }
+        cited.push(self.variable(0));
+        let theorem = self.constant(statement);
+        let mut respected = self.signature.arena.apply_arguments(theorem, &cited);
+        if let Some((carrier, relation)) = result_class {
+            let at_left = passed(self, 3, 2);
+            let at_right = passed(self, 3, 1);
+            let (left, right) = (apply(self, &at_left), apply(self, &at_right));
+            let result_family = self.family(carrier, relation);
+            respected = result_family.sound(&mut self.signature.arena, left, right, respected);
+        }
+        let related = {
+            let relation = self.constant(relation);
+            let (a, b) = (self.variable(1), self.variable(0));
+            self.signature.arena.apply_arguments(relation, &[a, b])
+        };
+        let mut respect = respected;
+        for domain in [related, carrier_type, carrier_type] {
+            respect = self.signature.arena.insert(Term::Lambda {
+                domain,
+                body: respect,
+            });
+        }
+        let lift = family.law(
+            &mut self.signature.arena,
+            mathematical_kernel::QUOTIENT_LIFT,
+            vec![Level::Constant(0)],
+            &[result, sets, f, respect],
+        );
+        let class = self.variable(count - 1 - lifted.arguments[taken_at]);
+        let mut term = self.signature.arena.apply_arguments(lift, &[class]);
+        let mut ty = result;
+        for &(domain, _) in formals.iter().rev() {
+            term = self
+                .signature
+                .arena
+                .insert(Term::Lambda { domain, body: term });
+            ty = self.signature.arena.insert(Term::Pi {
+                domain,
+                codomain: ty,
+            });
+        }
+        let symbol = *program
+            .symbols
+            .get(id)
+            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        index(id, self.signature.declarations.len() + 1)?;
+        let name = self.name(symbol);
+        Ok(self.push(
+            Declaration::definition(0, ty, term),
+            SignatureEntryKind::Function {
+                machine: symbol,
+                cases: None,
+            },
+            name,
+        ))
+    }
+
     fn lifted_operation(&self, id: MachineId) -> Option<&'p LiftedOperation> {
         let program = self.program;
         program
@@ -955,19 +1206,22 @@ impl<'p> Converter<'p, '_> {
             .map(|(_, lifted)| lifted)
     }
 
-    fn read_lifted(&mut self, id: MachineId, lifted: &LiftedOperation) -> Checked<()> {
+    /// The machine a quotient operation selects, by its symbol.
+    fn selected(&self, id: MachineId, symbol: SymbolHandle) -> Checked<MachineId> {
+        self.program
+            .symbols
+            .iter()
+            .find(|(_, known)| **known == symbol)
+            .map(|(machine, _)| machine)
+            .ok_or_else(|| unserved(id, "quotient operation selects a machine that was not read"))
+    }
+
+    /// How an operation on a quotient passes its formals to the operation
+    /// on representatives, and which of the types on either side are
+    /// classes of which.
+    fn lift_shape(&mut self, id: MachineId, lifted: &LiftedOperation) -> Checked<LiftShape> {
         let program = self.program;
-        let machine_of = |symbol: SymbolHandle| {
-            program
-                .symbols
-                .iter()
-                .find(|(_, known)| **known == symbol)
-                .map(|(machine, _)| machine)
-                .ok_or_else(|| {
-                    unserved(id, "quotient operation selects a machine that was not read")
-                })
-        };
-        let operation = machine_of(lifted.representative)?;
+        let operation = self.selected(id, lifted.representative)?;
         let lost = || unserved(id, "mathematical machine lost its signature");
         let public = program.signatures.get(id).ok_or_else(lost)?;
         let private = program.signatures.get(operation).ok_or_else(lost)?;
@@ -999,12 +1253,15 @@ impl<'p> Converter<'p, '_> {
                 ));
             }
         }
-        if receives.iter().any(Option::is_none) {
-            return Err(unserved(
-                id,
-                "quotient operation that leaves out one of the machine's formals",
-            ));
-        }
+        let receives = receives
+            .into_iter()
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| {
+                unserved(
+                    id,
+                    "quotient operation that leaves out one of the machine's formals",
+                )
+            })?;
         if lifted.define
             && lifted
                 .arguments
@@ -1055,6 +1312,35 @@ impl<'p> Converter<'p, '_> {
         )?;
         let result_class = class(self, result_entry, value_entry)?;
         let defined = self.function(operation)?;
+        Ok(LiftShape {
+            operation,
+            formals,
+            parameters,
+            receives,
+            classes,
+            result,
+            result_entry,
+            result_class,
+            defined,
+        })
+    }
+
+    fn read_lifted(&mut self, id: MachineId, lifted: &LiftedOperation) -> Checked<()> {
+        let program = self.program;
+        let lost = || unserved(id, "mathematical machine lost its signature");
+        let LiftShape {
+            operation,
+            formals,
+            parameters,
+            receives,
+            classes,
+            result,
+            result_class,
+            defined,
+            ..
+        } = self.lift_shape(id, lifted)?;
+        let public = program.signatures.get(id).ok_or_else(lost)?;
+        let private = program.signatures.get(operation).ok_or_else(lost)?;
         let name = self.name(lifted.representative);
 
         // The theorems are stated for two representatives of every class
@@ -1119,7 +1405,7 @@ impl<'p> Converter<'p, '_> {
             }),
         };
         let own = self.name(*program.symbols.get(id).ok_or_else(lost)?);
-        let congruence = machine_of(lifted.congruence)?;
+        let congruence = self.selected(id, lifted.congruence)?;
         let &[law] = self.theorem(id, congruence)?.as_slice() else {
             return Err(unserved(
                 congruence,
@@ -1141,8 +1427,7 @@ impl<'p> Converter<'p, '_> {
         // What this machine requires, stated of the classes of one side.
         let required = |converter: &mut Self, side: &[TermHandle]| -> Checked<Vec<TermHandle>> {
             let mut actuals = Vec::with_capacity(formals.len());
-            for received in &receives {
-                let parameter = received.expect("every formal is passed, checked above");
+            for &parameter in &receives {
                 actuals.push(match classes[parameter] {
                     Some((carrier, relation)) => {
                         let family = converter.family(carrier, relation);
@@ -1167,7 +1452,7 @@ impl<'p> Converter<'p, '_> {
             for side in sides {
                 premises.extend(required(self, side)?);
             }
-            let transport = machine_of(transport)?;
+            let transport = self.selected(id, transport)?;
             let laws = self.theorem(id, transport)?;
             if laws.len() != legal.len() {
                 return Err(unserved(
@@ -2446,11 +2731,8 @@ impl<'p> Converter<'p, '_> {
 
     /// A machine with a result, as a definition.
     fn function(&mut self, id: MachineId) -> Checked<u32> {
-        if self.lifted_operation(id).is_some() {
-            return Err(unserved(
-                id,
-                "term that applies an operation lifted to a quotient",
-            ));
+        if let Some(lifted) = self.lifted_operation(id) {
+            return self.lifted_function(id, lifted);
         }
         match self.begin(
             id,

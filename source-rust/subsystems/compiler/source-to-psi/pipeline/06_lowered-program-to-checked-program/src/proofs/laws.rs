@@ -681,6 +681,10 @@ impl Proving<'_> {
         }
         .evidence(&script.citations)
         .map_err(|error| error.failure(reported))?;
+        let mut evidence = evidence;
+        if script.split.is_none() {
+            evidence.extend(self.lift_points(&context, frame.goal));
+        }
         match &script.split {
             None => match prove_licensed(
                 self.arena,
@@ -742,6 +746,84 @@ impl Proving<'_> {
                 }
             }
         }
+    }
+
+    /// The point computation of each operation lifted to a quotient that
+    /// the goal applies to a class: `lift(.., f, ..)` at the class of `a`
+    /// is `f a` (`QUOTIENT_LIFT_BETA`). A lifted operation is defined by
+    /// the kernel's `lift`, which does not compute, so these are the only
+    /// equations a proof can rewrite it with. Only applications outside any
+    /// binder of the goal are collected: each proof is stated in the case's
+    /// context. A signature with no quotient has none, and a goal the
+    /// search cannot compute gives none: the search then fails on it as
+    /// before.
+    fn lift_points(&mut self, context: &Context, goal: TermHandle) -> Vec<TermHandle> {
+        let mut points = Vec::new();
+        if !self
+            .entries
+            .iter()
+            .any(|entry| matches!(entry.kind, SignatureEntryKind::Quotient { .. }))
+        {
+            return points;
+        }
+        let Ok(goal) = normal(
+            self.arena,
+            context,
+            self.definitions,
+            goal,
+            &mut Budget::new(SEARCH_COMPUTING),
+        ) else {
+            return points;
+        };
+        let mut pending = vec![goal];
+        while let Some(term) = pending.pop() {
+            let (head, arguments) = super::equality::spine(self.arena, term);
+            if let (
+                Term::Constant {
+                    declaration: proof_admission::QUOTIENT_LIFT,
+                    levels,
+                },
+                [carrier, relation, result, sets, operation, respect, class],
+            ) = (self.arena.get(head), arguments.as_slice())
+            {
+                let (projected, projection) = super::equality::spine(self.arena, *class);
+                if let (
+                    Term::Constant {
+                        declaration: proof_admission::QUOTIENT_PROJECT,
+                        ..
+                    },
+                    [over, by, representative],
+                ) = (self.arena.get(projected), projection.as_slice())
+                    && self.arena.structurally_equal(*over, *carrier)
+                    && self.arena.structurally_equal(*by, *relation)
+                {
+                    let point = self.arena.insert(Term::Constant {
+                        declaration: proof_admission::QUOTIENT_LIFT_BETA,
+                        levels,
+                    });
+                    points.push(self.arena.apply_arguments(
+                        point,
+                        &[
+                            *carrier,
+                            *relation,
+                            *result,
+                            *sets,
+                            *operation,
+                            *respect,
+                            *representative,
+                        ],
+                    ));
+                }
+            }
+            pending.extend(
+                self.arena
+                    .get(term)
+                    .bound_children()
+                    .filter(|&(_, bound)| bound == 0)
+                    .map(|(child, _)| child),
+            );
+        }
+        points
     }
 
     /// A proof that two classes of a quotient are equal, by the quotient's

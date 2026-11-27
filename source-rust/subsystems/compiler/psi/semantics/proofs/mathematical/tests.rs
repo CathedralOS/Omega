@@ -2015,8 +2015,8 @@ mod schemes_and_quotients {
         };
         use crate::{
             Context, CoreError, Declaration, Level, QUOTIENT, QUOTIENT_BETA, QUOTIENT_EFFECTIVE,
-            QUOTIENT_ELIM, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_PROJECT, QUOTIENT_SET,
-            QUOTIENT_SOUND, QUOTIENT_TRANSPORT, QUOTIENT_UNIQUE, TermArena, check_signature,
+            QUOTIENT_ELIM, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_LIFT_BETA, QUOTIENT_PROJECT,
+            QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT, TermArena, check_signature,
             check_type, infer_type, quotient_scheme,
         };
         use std::collections::BTreeSet;
@@ -2228,7 +2228,48 @@ mod schemes_and_quotients {
             .into_iter()
             .collect();
             assert_eq!(assumed, admitted);
-            assert_eq!(declarations.len(), QUOTIENT_UNIQUE as usize + 1);
+            assert_eq!(declarations.len(), QUOTIENT_LIFT_BETA as usize + 1);
+        }
+
+        #[test]
+        fn lift_computes_at_a_class_only_by_beta() {
+            // The derived point computation of `lift` checks: its body cites
+            // `beta` at the section `lift` unfolds to. The same statement
+            // proved by reflexivity is refused, because `elim` is an
+            // assumption and does not compute at a class.
+            let mut arena = TermArena::new();
+            let mut budget = default_budget();
+            let declarations = quotient_scheme(&mut arena);
+            check_signature(&mut arena, &declarations, &mut budget).unwrap();
+
+            let mut forged = declarations.clone();
+            let beta = &declarations[QUOTIENT_LIFT_BETA as usize];
+            let (arity, ty) = (beta.level_arity, beta.ty);
+            // Under `A R B setB f respect a`, `refl B (f a)`.
+            let mut body = {
+                let b = variable(&mut arena, 4);
+                let f = variable(&mut arena, 2);
+                let a = variable(&mut arena, 0);
+                let applied = apply(&mut arena, f, a);
+                arena.insert(crate::Term::Refl {
+                    ty: b,
+                    value: applied,
+                })
+            };
+            let mut binder_types = Vec::new();
+            let mut cursor = ty;
+            while let crate::Term::Pi { domain, codomain } = arena.get(cursor) {
+                binder_types.push(domain);
+                cursor = codomain;
+            }
+            for domain in binder_types.into_iter().rev() {
+                body = lambda(&mut arena, domain, body);
+            }
+            forged[QUOTIENT_LIFT_BETA as usize] = Declaration::definition(arity, ty, body);
+            assert!(
+                check_signature(&mut arena, &forged, &mut budget).is_err(),
+                "lift has no definitional computation at a class"
+            );
         }
 
         #[test]

@@ -19,7 +19,10 @@ An operation on a quotient is given by an operation on its representatives:
 transports>(value) }`. Such a body is not lowered. It is read here as the
 machines it selects and the formal each parameter of `op` receives, and the
 signature states what each selected theorem must have proved
-(wiki/spec/proofs/quotients.md, "Lifting operations").
+(wiki/spec/proofs/quotients.md, "Lifting operations"). A clause may apply
+such a machine when the kernel's `lift` defines it: one class in, plain
+data or a class out, and an operation on representatives that requires
+nothing.
 */
 
 use crate::source_state::data::DataDefinition;
