@@ -292,7 +292,7 @@ impl StagedOptimizedAllocationLegality {
     /// Reuse legality only for the same available views. A later consumer may
     /// require a different set; derive that analysis from the unchanged live
     /// ranges rather than letting an earlier rewrite constrain allocation.
-    pub(crate) fn for_availability(
+    pub fn for_availability(
         self,
         requirement: AllocatorAvailabilityRequirement,
     ) -> Result<Self, OptimizedAllocationLegalityCustodyError> {
