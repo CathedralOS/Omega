@@ -1,40 +1,24 @@
-//! Preserve acquisition order while each owned result is live. A move through
-//! a local record carries the guard to its cleanup, just as a borrowed field
-//! continues to designate its original storage.
-
-use super::{
-    Bindings, Destination, Frame, GuardAcquisition, GuardCleanupWrite, Location, OwnedGuardLocks,
-    SelectedCall, Storage, Stored, Subject, entry_scalars, guard_locks, successor,
-};
+//! Interpret one verified unit-returning path symbolically. An owned guard
+//! contributes its cleanup writes only when that exact value is consumed.
+use super::super::activation::{Bindings, Destination, Frame};
+use super::super::storage::{Location, Storage, Stored};
+use super::super::successor;
+use super::guards::{OwnedGuardLocks, guard_locks};
+use super::{AtomicWrite, Effect, NormalEffects, Operand, ScalarFact, Subject};
 use crate::synchronization::facts::Facts;
+use crate::synchronization::progress::entry_scalars;
+use crate::synchronization::selected::SelectedCall;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::{
-    OperationKind, StructuralArgument, TargetMachineCallable, TerminalAffineCleanupAction,
-    TerminalModule, Terminator,
+    AtomicAccessEvent, OperationKind, StructuralArgument, TargetMachineCallable,
+    TerminalAffineCleanupAction, TerminalModule, Terminator,
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum GuardEvent {
-    Acquired {
-        guard: usize,
-        acquisitions: Vec<GuardAcquisition>,
-    },
-    Consumed {
-        guard: usize,
-        writes: Vec<GuardCleanupWrite>,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GuardOrder {
-    pub(super) events: Vec<GuardEvent>,
-}
-
-pub(in crate::synchronization) fn guard_order(
+pub(in crate::synchronization) fn normal_effects(
     module: &TerminalModule,
     entry: MachineId,
     boundary: impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
-) -> Option<GuardOrder> {
+) -> Option<NormalEffects> {
     let mut wrappers = Vec::new();
     let mut seen = Facts::default();
     let mut current = entry;
@@ -52,41 +36,19 @@ pub(in crate::synchronization) fn guard_order(
         wrappers.push(wrapper);
         current = callee;
     };
-    let mut order = order_in_body(module, machine, boundary)?;
+    let mut effects = effects_in_body(module, machine, boundary)?;
     for wrapper in wrappers.iter().rev() {
-        order.map_subjects(|subject| wrapper.apply_subject(subject))?;
+        effects.map_operands(|operand| wrapper.scalar(operand))?;
+        effects.map_subjects(|subject| wrapper.apply_subject(subject))?;
     }
-    Some(order)
+    Some(effects)
 }
 
-impl GuardOrder {
-    pub(in crate::synchronization) fn map_subjects(
-        &mut self,
-        mut apply: impl FnMut(&mut Subject) -> Option<()>,
-    ) -> Option<()> {
-        for event in &mut self.events {
-            match event {
-                GuardEvent::Acquired { acquisitions, .. } => {
-                    for step in acquisitions {
-                        apply(&mut step.subject)?;
-                    }
-                }
-                GuardEvent::Consumed { writes, .. } => {
-                    for write in writes {
-                        apply(&mut write.subject)?;
-                    }
-                }
-            }
-        }
-        Some(())
-    }
-}
-
-fn order_in_body(
+fn effects_in_body(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
     boundary: impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
-) -> Option<GuardOrder> {
+) -> Option<NormalEffects> {
     let mut memory = Storage::default();
     let mut roots = Vec::with_capacity(machine.structural_parameters.len());
     let mut bindings = Bindings {
@@ -94,10 +56,9 @@ fn order_in_body(
         ..Bindings::new(module, machine)
     };
     for (parameter, formal) in machine.structural_parameters.iter().enumerate() {
-        // Owned context tokens need no symbolic lock identity. All retained
-        // lock subjects must resolve to storage borrowed from this entry.
+        // An effect is visible to the caller only through a borrowed argument.
         let root = memory.allocate(Stored::Unknown);
-        if matches!(formal.access, terminal_psi::reading_borrow_pair_pattern!()) {
+        if formal.access != terminal_psi::StructuralAccess::Owned {
             roots.push((parameter, root.clone()));
         }
         bindings.places.insert(formal.place, root);
@@ -136,12 +97,12 @@ fn order_in_body(
                         target.subject = project(&source.subject)?;
                         Some(target)
                     })
-                    .collect::<Option<_>>()?;
+                    .collect::<Option<Vec<_>>>()?;
                 let writes = summary
                     .cleanup_writes
                     .iter()
                     .map(|source| {
-                        Some(GuardCleanupWrite {
+                        Some(AtomicWrite {
                             subject: project(&source.subject)?,
                             value: source.value,
                         })
@@ -149,18 +110,52 @@ fn order_in_body(
                     .collect::<Option<Vec<_>>>()?;
                 let guard = guards.len();
                 guards.push(Some((summary.cleanup, writes)));
-                events.push(GuardEvent::Acquired {
-                    guard,
-                    acquisitions,
-                });
+                events.extend(acquisitions.into_iter().map(Effect::Acquire));
                 frame.bindings.places.insert(
                     op.result.structural()?.place,
                     memory.allocate(Stored::Guard(guard)),
                 );
             } else {
                 match &op.kind {
+                    OperationKind::AtomicAccess {
+                        place,
+                        path,
+                        event: AtomicAccessEvent::Store { value, .. },
+                        resident_obligation: None,
+                    } => {
+                        let target = memory.locate(&frame.bindings, *place, path)?;
+                        let subject = subject_of(&roots, &target)?;
+                        let value = match *frame.bindings.values.get(value)? {
+                            ScalarFact::Literal(value) => Operand::Literal(value),
+                            ScalarFact::EntryInput(formal) => Operand::Parameter {
+                                position: machine
+                                    .parameters
+                                    .iter()
+                                    .position(|entry| *entry == formal)?,
+                                scalar_type: formal.scalar_type,
+                            },
+                        };
+                        events.push(Effect::Write(AtomicWrite { subject, value }));
+                    }
                     OperationKind::AtomicAccess { .. } => return None,
-                    OperationKind::StoreStructuralField {
+                    OperationKind::MoveStructuralValue { source }
+                    | OperationKind::DecomposeStructuralValue { subject: source }
+                        if roots.iter().any(|(_, root)| {
+                            frame
+                                .bindings
+                                .places
+                                .get(&source.place)
+                                .is_some_and(|home| root.suffix(home).is_some())
+                        }) =>
+                    {
+                        return None;
+                    }
+                    OperationKind::MoveStructuralField {
+                        source: destination,
+                        path,
+                        ..
+                    }
+                    | OperationKind::StoreStructuralField {
                         destination, path, ..
                     }
                     | OperationKind::StructuralScalarFieldStore {
@@ -194,12 +189,13 @@ fn order_in_body(
             if cleanup != invocation.cleanup_machine {
                 return None;
             }
-            events.push(GuardEvent::Consumed { guard, writes });
+            events.extend(writes.into_iter().map(Effect::Write));
         }
         if frame.arrival.is_none() {
-            return (!events.is_empty()
+            let empty_return = machine.blocks.len() == 1 && machine.operations().next().is_none();
+            return ((!events.is_empty() || empty_return)
                 && matches!(frame.block.terminator, Terminator::ReturnUnit { .. }))
-            .then_some(GuardOrder { events });
+            .then_some(NormalEffects(events));
         }
         frame.arrive()?;
     }
@@ -215,7 +211,8 @@ fn substitute(
     let actual = actuals.get(subject.parameter)?;
     let root = memory.locate(bindings, actual.place, &actual.path)?;
     let target = memory.project(root, &subject.fixed_path()?)?;
-    roots
-        .iter()
-        .find_map(|(parameter, root)| Subject::from_fixed(*parameter, root.suffix(&target)?))
+    subject_of(roots, &target)
+}
+fn subject_of(roots: &[(usize, Location)], target: &Location) -> Option<Subject> {
+    roots.iter().find_map(|(parameter, root)| Subject::from_fixed(*parameter,root.suffix(target)?))
 }

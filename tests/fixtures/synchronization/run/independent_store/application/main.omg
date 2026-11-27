@@ -1,0 +1,14 @@
+use {signals}/main.omg as signals;
+machine wait(signal: @|signals|::Signal) {
+    let sampled: u32 = signal.word.load(Receive);
+    transition sampled == 1 { true -> wait(signal), _ -> done() }
+    machine done() {}
+}
+public machine work(input: u32) reaches |signals|::SignalUpdate crashes none requires input != 1 {
+    let mutable left: |signals|::Signal;
+    let mutable right: |signals|::Signal;
+    left.word.store(1, Publish);
+    |signals|::SignalUpdate::apply(@left, @right, 1, input);
+    wait(@left);
+}
+machine main() reaches |signals|::SignalUpdate crashes none { work(0); }

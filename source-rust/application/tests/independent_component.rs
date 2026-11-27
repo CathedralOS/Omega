@@ -4,6 +4,8 @@
     all(target_os = "windows", target_arch = "aarch64"),
 ))]
 
+#[path = "support/components.rs"]
+mod components;
 #[path = "support/project.rs"]
 mod project;
 
@@ -405,8 +407,7 @@ fn independent_wait_uses_the_selected_export_and_the_callers_private_cell() {
 #[test]
 fn selected_component_wait_needs_progress_for_the_receivers_actual_input() {
     use psi_provider_selections::{
-        ProgressScope, ProviderInstallationSelection, admit_component_provider,
-        invocation_progress_failure,
+        ProgressScope, invocation_progress_failure,
     };
     use terminal_semantics::synchronization::ProgressFailure;
 
@@ -465,31 +466,8 @@ machine dispatch(signal: @|signals|::Signal) reaches |signals|::Wait invokes |si
                 ("application/main.omg", &work),
             ],
         );
-        let inspect = |project_dir: &str, machine: &str| {
-            let path = scratch.path().join(project_dir);
-            let output = project::omega(
-                &path,
-                &[
-                    "psi",
-                    "inspect",
-                    "--machine",
-                    machine,
-                    "--target",
-                    "linux_x86_64",
-                    "--output",
-                    "program.psi",
-                    "build.omg",
-                ],
-            );
-            let (ok, diagnostic) = project::status(&output);
-            assert!(ok, "{diagnostic}");
-            terminal_codec::CanonicalTerminalArtifact::from_bytes(
-                &fs::read(path.join("program.psi")).unwrap(),
-            )
-            .unwrap()
-        };
-        let receiver = inspect("application", "work");
-        let supplier = inspect("supplier", "wait_for_clear");
+        let receiver = components::inspect(&scratch.path().join("application"), "work");
+        let supplier = components::inspect(&scratch.path().join("supplier"), "wait_for_clear");
         let module = supplier.semantic_module();
         let root = receiver.semantic_module();
         let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = root.entry else {
@@ -497,29 +475,8 @@ machine dispatch(signal: @|signals|::Signal) reaches |signals|::Wait invokes |si
         };
         assert_eq!(module.interfaces.provider_candidates.len(), 3);
         for candidate in &module.interfaces.provider_candidates {
-            let identities = &module.identities;
-            let provider = identities.text(candidate.provider_identity).unwrap();
-            let slot = root
-                .interfaces
-                .boundary_machines
-                .iter()
-                .find(|slot| {
-                    root.identities.text(slot.identity)
-                        == identities.text(candidate.requirement_identity)
-                })
-                .unwrap();
-            let selected = ProviderInstallationSelection {
-                boundary: candidate.boundary,
-                provider_identity: provider.to_owned(),
-                provider_declaration: identities
-                    .text(candidate.provider_declaration.identity())
-                    .unwrap()
-                    .to_owned(),
-                candidate: candidate.candidate,
-            };
-            let admitted =
-                admit_component_provider(receiver.view(), slot.id, supplier.view(), &selected)
-                    .unwrap();
+            let provider = module.identities.text(candidate.provider_identity).unwrap();
+            let admitted = components::admit(&receiver, &supplier, candidate);
             if provider.ends_with("::ObservedWait") {
                 assert_eq!(
                     invocation_progress_failure(
@@ -575,7 +532,7 @@ machine dispatch(signal: @|signals|::Signal) reaches |signals|::Wait invokes |si
                 } else {
                     assert_eq!(
                         call.declared_invocation().unwrap().callee,
-                        terminal_psi::TargetMachineCallable::Boundary(slot.id)
+                        terminal_psi::TargetMachineCallable::Boundary(admitted.receiving_boundary())
                     );
                 }
             } else {

@@ -84,11 +84,7 @@ pub(super) fn unproved(
                 continue;
             };
             match SelectedCall::resolve(call.callee, boundary) {
-                Some(
-                    SelectedCall::ImportedWait(_)
-                    | SelectedCall::ImportedGuards(_)
-                    | SelectedCall::UnresolvedImport,
-                ) => {
+                Some(call) if call.owes_import_progress() => {
                     return Some(PrivateWaitFailure {
                         machine: machine.id,
                         operation: op.id,
@@ -100,7 +96,7 @@ pub(super) fn unproved(
                         return Some(failure);
                     }
                 }
-                None | Some(SelectedCall::PendingProvider) => {}
+                _ => {}
             }
         }
         if let Some((_, call)) = block.terminator.declared_invocation()

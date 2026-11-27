@@ -205,7 +205,7 @@ impl ForwardedWait {
         subject.forwarded(supplied, |operand| self.scalar(operand))
     }
 
-    fn scalar(&self, operand: Operand) -> Option<Operand> {
+    pub(super) fn scalar(&self, operand: Operand) -> Option<Operand> {
         match operand {
             Operand::Literal(_) => Some(operand),
             Operand::Parameter {

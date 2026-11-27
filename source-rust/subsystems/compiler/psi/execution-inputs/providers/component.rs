@@ -7,7 +7,7 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_codec::{TerminalArtifactView, TerminalExecutionIdentity, TerminalExecutionView};
 use terminal_psi::TerminalPsiIdentity;
 use terminal_semantics::synchronization::{
-    GuardOrder, PrivateWaitFailure, ProgressScope, SelectedCall, SpinWait, component_guard_order,
+    NormalEffects, PrivateWaitFailure, ProgressScope, SelectedCall, SpinWait, component_normal_effects,
     component_spin_wait, private_wait_failure,
 };
 
@@ -32,7 +32,7 @@ pub struct AdmittedComponentProvider {
 enum ImportProgress {
     Closed,
     Waiting(SpinWait),
-    Guards(std::sync::Arc<GuardOrder>),
+    Effects(std::sync::Arc<NormalEffects>),
     Unresolved,
 }
 
@@ -60,7 +60,10 @@ impl AdmittedComponentProvider {
     /// judgment checked the exact projected input obligation.
     pub fn invocation_scope(&self) -> ProgressScope {
         match self.progress {
-            ImportProgress::Waiting(_) | ImportProgress::Guards(_) => ProgressScope::OpenInterface,
+            ImportProgress::Waiting(_) => ProgressScope::OpenInterface,
+            ImportProgress::Effects(ref effects) if effects.requires_progress() => {
+                ProgressScope::OpenInterface
+            }
             _ => ProgressScope::Executable,
         }
     }
@@ -174,13 +177,13 @@ pub fn admit_component_provider<'receiver>(
             selected.candidate,
         ) {
             ImportProgress::Waiting(wait)
-        } else if let Some(order) = component_guard_order(
+        } else if let Some(effects) = component_normal_effects(
             receiver.module(),
             receiving,
             provider.module(),
             selected.candidate,
         ) {
-            ImportProgress::Guards(std::sync::Arc::new(order))
+            ImportProgress::Effects(std::sync::Arc::new(effects))
         } else if private_wait_failure(
             provider.module(),
             selected.candidate,
@@ -232,7 +235,7 @@ pub fn invocation_progress_failure<'a, 'receiver>(
         match &supplier.progress {
             ImportProgress::Closed => None,
             ImportProgress::Waiting(wait) => Some(SelectedCall::ImportedWait(wait.clone())),
-            ImportProgress::Guards(order) => Some(SelectedCall::ImportedGuards(order.clone())),
+            ImportProgress::Effects(effects) => Some(SelectedCall::ImportedEffects(effects.clone())),
             ImportProgress::Unresolved => Some(SelectedCall::UnresolvedImport),
         }
     })

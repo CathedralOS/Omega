@@ -6,9 +6,10 @@ use terminal_psi::{
     TerminalIdentityIndex, TerminalModule, find_structural_type,
 };
 
-use super::private_cells::guard_order;
-use super::spin::{Subject, type_path};
-use super::{GuardOrder, SpinWait, selected_spin_wait};
+
+use super::private_cells::normal_effects;
+use super::spin::{Operand, Subject, type_path};
+use super::{NormalEffects, SpinWait, selected_spin_wait};
 use terminal_psi::StructuralPathSegment as Segment;
 
 /// The caller has matched the boundary signature, argument order and exact
@@ -26,17 +27,29 @@ pub fn component_spin_wait(
 }
 
 /// Translate only events established by the exact selected exported body.
-pub fn component_guard_order(
+pub fn component_normal_effects(
     receiver: &TerminalModule,
     receiving: &BoundaryMachineDeclaration,
     producer: &TerminalModule,
     candidate: MachineId,
-) -> Option<GuardOrder> {
+) -> Option<NormalEffects> {
     let body = producer.machine(candidate)?;
-    let mut order = guard_order(producer, candidate, |_| None)?;
-    order
+    let mut effects = normal_effects(producer, candidate, |_| None)?;
+    effects.map_operands(|operand| {
+        if let Operand::Parameter {
+            position,
+            scalar_type,
+        } = operand
+        {
+            (body.parameters.get(position)?.scalar_type == scalar_type
+                && *receiving.scalar_parameters.get(position)? == scalar_type)
+                .then_some(())?;
+        }
+        Some(operand)
+    })?;
+    effects
         .map_subjects(|subject| translate_subject(producer, body, receiver, receiving, subject))?;
-    Some(order)
+    Some(effects)
 }
 
 fn translate_subject(
