@@ -153,7 +153,7 @@ pub fn float_integer_preconditions(
             source.clone(),
             literal(&upper),
         ),
-        predicate(kind, lower, source.clone()),
+        predicate(kind, lower, source),
     ])
 }
 

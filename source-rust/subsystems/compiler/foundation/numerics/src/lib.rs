@@ -14,11 +14,7 @@ pub mod intrinsics;
 pub use float_semantics as float_semantics_catalog;
 
 pub mod arithmetic {
-    use crate::float_semantics::FloatFormat;
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum ArithmeticDomain {
         Exact,
         Wrapping,
@@ -61,28 +57,6 @@ pub mod arithmetic {
             match (self, other) {
                 (Self::Exact, domain) | (domain, Self::Exact) => domain,
                 (left, _) => left,
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
-    pub enum ArithmeticPolicyAdapter {
-        #[default]
-        None,
-        FloatSaturatingOverflowOnly {
-            format: FloatFormat,
-        },
-        FloatTrappingNonFinite {
-            format: FloatFormat,
-        },
-    }
-
-    impl ArithmeticPolicyAdapter {
-        pub const fn float_format(self) -> Option<FloatFormat> {
-            match self {
-                Self::None => None,
-                Self::FloatSaturatingOverflowOnly { format }
-                | Self::FloatTrappingNonFinite { format } => Some(format),
             }
         }
     }

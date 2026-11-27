@@ -3,7 +3,7 @@
 # may only fall: derived data is computed once by its owner, not cached
 # (AGENTS.md conventions).
 # Written by `cargo xtask check-rules --update-cache-state`.
-10 source-rust/foundation/arena/src/owned_index.rs
+9 source-rust/foundation/arena/src/owned_index.rs
 1 source-rust/subsystems/compiler/build/providers/plans.rs
 2 source-rust/subsystems/compiler/psi-to-native/pipeline/07_selected-instructions-to-register-homes/src/allocation/home_assignment.rs
 3 source-rust/subsystems/compiler/psi/identities/table.rs

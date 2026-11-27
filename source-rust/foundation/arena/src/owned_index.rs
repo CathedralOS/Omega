@@ -7,8 +7,6 @@ pub struct OwnedIndex<T, Revision = u64> {
     sealed: Option<(Revision, Arc<T>)>,      // Lock-free frozen index for sealed owners.
 }
 
-pub type RevisionIndex<T, Revision = u64> = OwnedIndex<T, Revision>;
-
 impl<T, Revision> Default for OwnedIndex<T, Revision> {
     fn default() -> Self {
         Self {
