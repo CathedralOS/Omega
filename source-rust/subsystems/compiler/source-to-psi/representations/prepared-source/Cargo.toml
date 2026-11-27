@@ -11,7 +11,8 @@ autobenches = false
 path = "lib.rs"
 
 [features]
-# Lets tests read back the demanded inputs to prepare changed trees again.
+# Lets tests read back the demanded inputs and take the trees back
+# (`into_inner`) to prepare changed trees again.
 test-support = []
 
 [dependencies]

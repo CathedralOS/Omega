@@ -2,8 +2,9 @@
 The place family of lowering: structural roots, projections interned on first
 use, the forward write log, record construction, field reads, stores, whole
 copies, affine transfers and local storage homes. This is where
-`MachineTables::places`, `roots` and `writes` are filled, in lockstep with
-the Terminal Psi operations that create or change the storage.
+`MachineTables::places` and `roots` and lowering's own write log
+(`Lowering::writes`) are filled, in lockstep with the Terminal Psi operations
+that create or change the storage.
 
 Roots. One Terminal `PlaceId` and one `PlaceRow { origin: Root }` per record
 formal, per operation that produces storage (a literal, a whole copy, a call
@@ -23,7 +24,10 @@ path names one `ExactPlaceId` however often it is used. ownership.md:
 "Resolve every segment against the type reached by the previous segment".
 
 The write log. Each row says what one operation stored and where, and
-nothing else: lowering never asks what a place holds.
+nothing else: lowering never asks what a place holds. The log is lowering
+scratch: join reads and the naming of call-overwritten contents read it while
+this machine is lowered, and it ends with the machine. It is not part of
+`MachineTables`; the checker derives its own log from the operations.
 
 - A literal writes `Content::Value(operand)` on each scalar field of its
   fresh root, and a scalar store writes it on the exact leaf it names.
@@ -66,7 +70,7 @@ use semantic_vocabulary::{
     BlockId, DomainSemanticId, IntegerValue, MachineId, OperationId, PlaceId, ScalarType,
     StructuralCaseId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
-use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
+use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment};
 use terminal_check_tables::edges::Destination;
 use terminal_check_tables::obligations::{ExecutionSite, Lender, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
@@ -91,6 +95,20 @@ use crate::body::{
     Target, ValueType,
 };
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
+
+/// One row of lowering's write log, in program order: within a block, rows
+/// are pushed in operation order.
+///
+/// `wiki/spec/language/dependent_values.md`: "Invalidate flow refinements atom
+/// by atom on overlapping written places". Knowledge about the old value stays
+/// true; the write changes which value `place` and every overlapping place
+/// holds from `at` on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct WriteRow {
+    pub place: ExactPlaceId,
+    pub at: ProgramPoint,
+    pub content: Content,
+}
 
 /// The module's record types as lowering needs them: the reader's table and,
 /// beside it, the interned identity Terminal Psi's declarations and
@@ -1764,12 +1782,8 @@ impl<'a> Lowering<'a> {
     }
 
     fn write(&mut self, place: ExactPlaceId, at: ProgramPoint, content: Content) -> Checked<()> {
-        terminal_check_tables::bindings::record_write(
-            self.id,
-            &self.tables.places,
-            &mut self.tables.writes,
-            WriteRow { place, at, content },
-        )?;
+        terminal_check_tables::row(&self.tables.places, place, self.id, Construct::Place(place))?;
+        self.writes.push(WriteRow { place, at, content });
         self.touch_selected(place)
     }
 

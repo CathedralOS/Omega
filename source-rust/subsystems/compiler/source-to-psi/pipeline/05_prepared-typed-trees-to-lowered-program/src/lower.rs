@@ -97,6 +97,10 @@ use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse, reject
 pub(crate) struct Lowered {
     pub machine: TerminalMachine,
     pub tables: MachineTables,
+    /// The write log this machine was lowered with. Production drops it with
+    /// the lowering; tests read it to see what each operation stored.
+    #[cfg(test)]
+    pub writes: Vec<places::WriteRow>,
     pub sources: MachineSources,
     pub designated: Vec<(OperationId, crate::DesignatedOperands)>,
     pub source_calls: Vec<crate::source_state::SourceCallCorrespondence>,
@@ -554,6 +558,7 @@ impl<'a> Lowering<'a> {
             demanded_cases: Vec::new(),
             path: Vec::new(),
             tables: MachineTables::default(),
+            writes: Vec::new(),
             sources: MachineSources::default(),
             designated: Vec::new(),
             source_calls: Vec::new(),
@@ -876,6 +881,10 @@ struct Lowering<'a> {
     /// `selected`.
     path: Vec<Proposition>,
     tables: MachineTables,
+    /// What each operation stored and where, in program order
+    /// (`places::WriteRow`). Lowering scratch: no stage after this one
+    /// reads it.
+    writes: Vec<places::WriteRow>,
     sources: MachineSources,
     designated: Vec<(OperationId, crate::DesignatedOperands)>,
     source_calls: Vec<crate::source_state::SourceCallCorrespondence>,
@@ -1525,11 +1534,13 @@ impl<'a> Lowering<'a> {
         self.publish_rankings(&mut machine)?;
         self.name_default_contents(&machine, structural_types)?;
         self.name_storage_contents(&machine)?;
-        // A scalar machine has no structural place, so its place, root and
-        // write tables are empty; `places` filled them for every record.
+        // A scalar machine has no structural place, so its place and root
+        // tables and its write log are empty; `places` filled them for every record.
         Ok(Lowered {
             machine,
             tables: self.tables,
+            #[cfg(test)]
+            writes: self.writes,
             sources: self.sources,
             designated: self.designated,
             source_calls: self.source_calls,

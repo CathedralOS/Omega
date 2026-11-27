@@ -6,7 +6,7 @@ use crate::lower::machine_order::WalkRefusal;
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 use arena::IdTable;
 use semantic_vocabulary::{CanonicalStructuralPathSegment, MachineId};
-use terminal_check_tables::bindings::{self, Content, Segment, WriteRow};
+use terminal_check_tables::bindings::{self, Segment};
 use terminal_check_tables::program::MachineSources;
 use terminal_check_tables::{
     CheckTables, Checked, Construct, ProgramPoint, Refusal, RefusalReason,
@@ -223,6 +223,10 @@ pub(crate) fn install(
                                 Unserved::Machine("reference end has no exact owned path"),
                             )
                         })?;
+                        // Intern the released region like every other
+                        // region an operation names, so the place table the
+                        // checker receives covers it. The path walk also
+                        // refuses a release that crosses borrowed storage.
                         let mut place =
                             *machine_tables.roots.get(argument.place).ok_or_else(|| {
                                 refuse(
@@ -255,16 +259,6 @@ pub(crate) fn install(
                                 segment,
                             )?;
                         }
-                        bindings::record_write(
-                            owner,
-                            &machine_tables.places,
-                            &mut machine_tables.writes,
-                            WriteRow {
-                                place,
-                                at: ProgramPoint::AfterOperation(id),
-                                content: Content::Vacated,
-                            },
-                        )?;
                         operations.push(Operation::unsuspended(
                             id,
                             OperationResult::Unit,

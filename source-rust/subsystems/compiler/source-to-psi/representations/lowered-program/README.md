@@ -27,17 +27,16 @@ lookup is one index.
 | `values` | `ValueId` | One evaluated scalar: its type and its single origin. A write never changes it. |
 | `knowledge` | `KnowledgeId` | A proposition over value identities, the point it is available from, its one justification and its premises. It never becomes false. |
 | `propositions` | `PropositionId` | The proposition each knowledge row states. Machine-local, minted by `push`: Terminal Psi keeps contract propositions inline and has no proposition table. |
-| `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value, descriptor extent metadata), with its sorted children and the writes to it. |
+| `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value, descriptor extent metadata), with its sorted children. |
 | `roots` | `PlaceId` | The `ExactPlaceId` of each root place. |
-| `writes` | `WriteId` | Elaboration's forward write log: a value, unknown contents, or a hole. Lowering scratch; the checker derives its own log from the operations and never reads this one. |
 | `obligations` | `ObligationId` | Claims, loans, windows and debts (conserved across edges) and proof questions (discharged at one site). |
 | `edges` | `EdgeId` | Source, destination, and the fate of every conserved obligation crossing the edge. |
 | `invocations` | `InvocationId` | The one entry operation of ordinary and terminal calls: callee, ordered actuals, one requirement obligation per callee clause. |
 
 `ValueId`, `EdgeId`, `ObligationId`, `MachineId`, `BlockId`, `OperationId` and
 root `PlaceId` are the lowered form's own identities, so the checker and the
-emitted product name the same things. `ExactPlaceId`, `KnowledgeId`, `WriteId`
-and `InvocationId` belong to this crate because the lowered form has no identity
+emitted product name the same things. `ExactPlaceId`, `KnowledgeId` and
+`InvocationId` belong to this crate because the lowered form has no identity
 for those concepts (its `PlaceId` names roots only). `PropositionId` is reused from
 the vocabulary, but here it is machine-local and indexes
 `MachineTables::propositions`, not the module's named proposition declarations.
@@ -163,8 +162,7 @@ A lane is one piece of work that teaches the checker a construct family.
   identities as disjoint.
 - **Lookups are derived columns, not maps.** A root by `PlaceId`
   (`MachineTables::roots`), a child by segment (`PlaceRow::children`, sorted,
-  binary search), and the writes to a place (`PlaceRow::writes`, in program
-  order). Elaboration fills each as it pushes rows. A lane that needs
+  binary search). Elaboration fills each as it pushes rows. A lane that needs
   another lookup stops and reports it, as it would for a new table; it never
   adds a map.
 
@@ -218,8 +216,8 @@ the zeroed storage of a gated type
 ([dependent values](../../../../../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
 "Otherwise the type is gated: construction or checked qualification must
 establish the domain before observation."). It is a structural judgment over the
-write log and the graph, with no obligation row and no certificate; the places
-foundation lane added it as a reason, not a table. That lane's two structural
+checker's write log and the graph, with no obligation row and no certificate;
+the places foundation lane added it as a reason, not a table. That lane's two structural
 judgments over a sum use the same reason: a case payload named where its case
 is not established on every path
 (structural_access.md: "Each `Case` step requires source admission to
@@ -329,9 +327,9 @@ A lane met each, reported it, and read the fact from the lowered form instead.
   carrier"): knowledge never names a place. A storage observation enters as the
   value its read produced, and what the read equals is one more equation between
   values, derived from the stores the lowered operations make
-  (`terminal-psi-to-terminal-psi`, `places.rs`), which the write log must
-  restate. No lane uses a structural `Proposition` variant in a knowledge row; a
-  contract clause that can only be stated as one is refused.
+  (`terminal-psi-to-terminal-psi`, `places.rs`). No lane uses a structural
+  `Proposition` variant in a knowledge row; a contract clause that can only be
+  stated as one is refused.
 - **Contract propositions have no table.** Terminal Psi keeps a machine's
   `requires` and `ensures` inline in its `MachineContract`; its only
   `PropositionId` table holds named proposition declarations. A callee clause
