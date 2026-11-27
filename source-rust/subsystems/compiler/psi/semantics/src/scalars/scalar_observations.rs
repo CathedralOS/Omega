@@ -59,18 +59,38 @@ pub fn storage_alignment_fact(
             terminal_psi::StorageLocationQuery::Alignment.admits_result(result.scalar_type)
         })
         .ok_or("storage alignment must return u64")?;
-    let ScalarType::Integer(integer) = result.scalar_type else {
-        return Err("storage alignment must return u64");
-    };
+    let subject = ScalarTerm::value(result.id, result.scalar_type);
     let minimum = fresh_inline_alignment(types, machine, source.place, &source.path)
-        .map_or(1, |bounds| *bounds.start());
-    Ok(Some(Proposition::LessOrEqual(
+        .map(|bounds| *bounds.start());
+    Ok(storage_alignment_lower_bound(subject, minimum))
+}
+
+/// The lower bound of a location alignment, intrinsic to every admitted
+/// observation. A fresh allocation can establish a stronger lower bound.
+fn storage_alignment_lower_bound(subject: ScalarTerm, minimum: Option<u64>) -> Option<Proposition> {
+    let ty = subject.scalar_type();
+    if !terminal_psi::StorageLocationQuery::Alignment.admits_result(ty) {
+        return None;
+    }
+    Some(Proposition::LessOrEqual(
         ScalarTerm::Integer {
-            scalar_type: integer,
-            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(minimum)),
+            scalar_type: ty.as_integer()?,
+            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(minimum.unwrap_or(1))),
         },
-        ScalarTerm::value(result.id, result.scalar_type),
-    )))
+        subject,
+    ))
+}
+
+/// The fact about the value of a formed structural observation, including
+/// when contract formation has given the observation a local scalar name.
+pub fn structural_observation_bound(
+    path: &[ScalarReadProjection],
+    subject: &ScalarTerm,
+) -> Option<Proposition> {
+    match path.last()? {
+        ScalarReadProjection::Alignment => storage_alignment_lower_bound(subject.clone(), None),
+        _ => None,
+    }
 }
 
 /// An exact live alignment is known when the fresh allocation's guaranteed

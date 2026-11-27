@@ -182,6 +182,11 @@ ensures result == align_of(word) {
 The result names the observed location at that point. Mutating data bytes does
 not itself move the location, but replacing the view, changing its offset,
 moving its backing or ending its lifetime cannot preserve a stale relationship.
+A formed location alignment has a lower bound of one, including in a
+machine contract when no executable query precedes the call. The checker
+derives that bound from the selected location after checking access and
+any index bounds. A stronger guarantee needs evidence for that location.
+
 Pointer adjustments must reestablish the resulting location's alignment from
 the original guarantee and the offset. A copied scalar alignment value alone
 does not identify the storage it once described.

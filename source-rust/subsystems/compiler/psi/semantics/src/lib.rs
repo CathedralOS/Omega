@@ -309,7 +309,7 @@ pub use structural::structural_claims::{
 
 pub use scalars::scalar_observations::{
     known_storage_alignment, scalar_application_read_equation, storage_alignment_fact,
-    structural_read_scalar_type, structural_read_type_with_crossings,
+    structural_observation_bound, structural_read_scalar_type, structural_read_type_with_crossings,
     structural_read_type_with_extents,
 };
 

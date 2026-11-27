@@ -336,7 +336,10 @@ invalidate that reasoning"). Each row's proposition
 is in `MachineTables::propositions`. The kernel gets a row for an obligation
 only when the row's point dominates the obligation's. Requires and guarantees
 go in as assumptions and result equations as semantic axioms, which is how
-the kernel's definition rules cite them.
+the kernel's definition rules cite them. A formed goal's structural observations
+supply their intrinsic bounds after those rows. Proof replay reconstructs the
+same bounds from the consumer's selected locations after checking access and
+index obligations.
 
 ## Clauses over mathematical integers
 

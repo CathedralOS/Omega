@@ -549,8 +549,14 @@ impl Scope<'_, '_> {
         }
         let id = ValueId::new(self.facts.values.len() as u64 + 1)
             .ok_or("contract logical value identity overflow")?;
+        let subject = ScalarTerm::value(id, ty);
+        if let Observation::Indexed(_, _, path) = &observation
+            && let Some(bound) = terminal_semantics::structural_observation_bound(path, &subject)
+        {
+            self.facts.equations.push(bound);
+        }
         self.facts.values.push(Value { observation, ty });
-        Ok(ScalarTerm::value(id, ty))
+        Ok(subject)
     }
 
     fn prove(&mut self, goal: &Proposition) -> Result<(), BindingError> {
