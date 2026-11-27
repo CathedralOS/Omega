@@ -1,6 +1,8 @@
 //! Values a private cell can hold at a control-flow join. Two branches can
 //! store different words that both enable the same wait.
 
+mod indices;
+
 use super::Location;
 use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::progress::ScalarFact;
@@ -146,16 +148,27 @@ impl Stored {
     pub(super) fn field(&self, key: &Segment) -> &Self {
         match self {
             Self::Uniform(_) => self,
-            Self::Aggregate(record) => record
-                .fields
-                .iter()
-                .find(|(field, _)| field == key)
-                .map(|(_, value)| value)
-                .unwrap_or(record.fill.contents()),
+            Self::Aggregate(record) => {
+                let exact = |key: &Segment| {
+                    record
+                        .fields
+                        .iter()
+                        .find(|(field, _)| field == key)
+                        .map(|(_, value)| value)
+                };
+                exact(key)
+                    .or_else(|| {
+                        if matches!(key, Segment::FixedIndex(_)) {
+                            exact(&Segment::AllElements)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(record.fill.contents())
+            }
             _ => self.fill().contents(),
         }
     }
-
     /// Shared copies retain one description until the corresponding field
     /// is written. Nesting a record never expands all possible element paths.
     pub(super) fn field_mut(&mut self, key: &Segment) -> &mut Self {
@@ -174,9 +187,17 @@ impl Stored {
             Some(index) => index,
             None => {
                 let index = record.fields.len();
-                record
-                    .fields
-                    .push((key.clone(), record.fill.contents().clone()));
+                let initial = if matches!(key, Segment::FixedIndex(_)) {
+                    record
+                        .fields
+                        .iter()
+                        .find(|(id, _)| *id == Segment::AllElements)
+                        .map(|(_, value)| value)
+                } else {
+                    None
+                };
+                let value = initial.unwrap_or(record.fill.contents()).clone();
+                record.fields.push((key.clone(), value));
                 index
             }
         };

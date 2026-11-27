@@ -5,6 +5,9 @@
 mod cases;
 mod condition;
 mod observations;
+mod subject;
+use subject::Subjects;
+pub(super) use subject::{Subject, fixed_extent, type_path};
 mod update;
 use condition::Comparison;
 pub(super) use condition::Operand;
@@ -135,12 +138,6 @@ impl Word {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Subject {
-    pub(super) parameter: usize,
-    pub(super) path: Vec<StructuralPathSegment>,
-}
-
 pub(super) struct ForwardedWait {
     pub(super) callee: TargetMachineCallable,
     borrowed: Vec<Subject>,
@@ -194,11 +191,7 @@ impl ForwardedWait {
         }
         spin.map_subjects(|subject| {
             let supplied = self.borrowed.get(subject.parameter)?;
-            let mut projected = supplied.path.clone();
-            projected.append(&mut subject.path);
-            subject.path = projected;
-            subject.parameter = supplied.parameter;
-            Some(())
+            subject.forwarded(supplied, remap)
         })
     }
 }
@@ -228,57 +221,6 @@ fn bind<K: Ord, V: Eq>(bindings: &mut Facts<K, V>, key: K, value: V) -> Option<(
     }
     bindings.insert(key, value);
     Some(())
-}
-
-#[derive(Default)]
-struct Subjects {
-    places: Facts<PlaceId, Subject>,
-    borrows: Facts<PlaceId, Subject>,
-}
-
-impl Subjects {
-    fn at_entry(machine: &TerminalMachine) -> Self {
-        let mut state = Self::default();
-        for (parameter, formal) in machine.structural_parameters.iter().enumerate() {
-            // A borrowed machine formal already denotes the caller's referent.
-            // Its first Field projects that storage; a Referent would follow a
-            // pointer stored inside it.
-            if !matches!(formal.access, terminal_psi::reading_borrow_pair_pattern!()) {
-                continue;
-            }
-            state.places.insert(
-                formal.place,
-                Subject {
-                    parameter,
-                    path: Vec::new(),
-                },
-            );
-        }
-        state
-    }
-
-    fn subject(&self, place: PlaceId, path: &[StructuralPathSegment]) -> Option<Subject> {
-        let (mut subject, path) = if let Some(borrow) = self.borrows.get(&place) {
-            let [StructuralPathSegment::Referent, rest @ ..] = path else {
-                return None;
-            };
-            (borrow.clone(), rest)
-        } else {
-            (self.places.get(&place)?.clone(), path)
-        };
-        // Runtime projections and dereferencing a stored pointer can change
-        // what the same syntax denotes on successive trips around the loop.
-        if !path.iter().all(|part| {
-            matches!(
-                part,
-                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
-            )
-        }) {
-            return None;
-        }
-        subject.path.extend_from_slice(path);
-        Some(subject)
-    }
 }
 
 /// Only a checked empty unit entry can disappear from a wait predicate.
@@ -311,7 +253,24 @@ impl Trace {
         self.values.get(&value).copied()
     }
 
-    fn operation(&mut self, module: &TerminalModule, operation: &Operation) -> Option<bool> {
+    fn subject(
+        &self,
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        place: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Option<Subject> {
+        self.subjects.subject(module, machine, place, path, |id| {
+            self.scalar(id)?.operand()
+        })
+    }
+
+    fn operation(
+        &mut self,
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        operation: &Operation,
+    ) -> Option<bool> {
         if let Some(call) = operation.declared_invocation() {
             if !matches!(operation.result, OperationResult::Unit)
                 || !call.claim_transfers.is_empty()
@@ -333,7 +292,7 @@ impl Trace {
                     if !matches!(actual.access, terminal_psi::reading_borrow_pair_pattern!()) {
                         return None;
                     }
-                    self.subjects.subject(actual.place, &actual.path)
+                    self.subject(module, machine, actual.place, &actual.path)
                 })
                 .collect::<Option<_>>()?;
             self.forwarded = Some(ForwardedWait {
@@ -352,7 +311,7 @@ impl Trace {
                 source,
                 storage: None,
             } => {
-                let supplied = self.subjects.subject(source.place, &source.path)?;
+                let supplied = self.subject(module, machine, source.place, &source.path)?;
                 bind(
                     &mut self.subjects.borrows,
                     operation.result.as_structural()?.place,
@@ -419,7 +378,7 @@ impl Trace {
                     };
                     let read = Read {
                         site: operation.id,
-                        cell: self.subjects.subject(*place, path)?,
+                        cell: self.subject(module, machine, *place, path)?,
                         update,
                     };
                     if self.read.as_ref().is_some_and(|seen| seen != &read) {
@@ -496,6 +455,8 @@ impl Trace {
 
     fn transfer(
         &mut self,
+        module: &TerminalModule,
+        machine: &TerminalMachine,
         dest: &terminal_psi::Block,
         arguments: &[ValueId],
         places: &[StructuralArgument],
@@ -523,7 +484,7 @@ impl Trace {
             {
                 return None;
             }
-            let supplied = self.subjects.subject(actual.place, &actual.path)?;
+            let supplied = self.subject(module, machine, actual.place, &actual.path)?;
             bind(&mut self.subjects.places, formal.place, supplied)?;
         }
         Some(())
@@ -559,7 +520,7 @@ fn trace(
             break Completion::Retries;
         }
         for operation in &block.operations {
-            observations += usize::from(state.operation(module, operation)?);
+            observations += usize::from(state.operation(module, machine, operation)?);
         }
         let fields: Vec<ValueId>;
         let (next, arguments, places, cleanup) = match &block.terminator {
@@ -611,7 +572,7 @@ fn trace(
             return None;
         }
         block = machine.block(next)?;
-        state.transfer(block, arguments, places)?;
+        state.transfer(module, machine, block, arguments, places)?;
     };
     Some((state, completion))
 }

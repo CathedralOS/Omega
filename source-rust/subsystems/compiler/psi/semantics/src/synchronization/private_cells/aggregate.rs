@@ -57,7 +57,7 @@ pub(super) fn establish(
         let contents = match &field.value {
             RecordFieldValue::Scalar { value, .. } => bindings.values.get(value).copied().into(),
             RecordFieldValue::Structural(arg) => storage
-                .locate(&bindings.places, arg.place, &arg.path)
+                .locate(bindings, arg.place, &arg.path)
                 .map(|location| storage.get(&location))
                 .unwrap_or_default(),
         };
@@ -79,7 +79,7 @@ pub(super) fn dispatch<'m>(
     path: &[Segment],
     cases: &'m [StructuralCaseSuccessorEdge],
 ) -> Option<Dispatch<'m>> {
-    let location = storage.locate(&frame.bindings.places, source, path);
+    let location = storage.locate(&frame.bindings, source, path);
     let value = location
         .as_ref()
         .map_or(Stored::Unknown, |v| storage.get(v));
