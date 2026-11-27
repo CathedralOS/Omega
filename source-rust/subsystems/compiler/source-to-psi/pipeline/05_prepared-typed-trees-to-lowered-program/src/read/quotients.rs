@@ -90,9 +90,19 @@ pub(crate) struct LiftedOperation {
     /// The theorem that what this machine requires gives what the operation
     /// requires, when `Quotient::lift` selects one.
     pub(crate) transport: Option<SymbolHandle>,
-    /// For each parameter of the operation, the position of the formal of
-    /// this machine it receives.
-    pub(crate) arguments: Vec<u32>,
+    /// What each parameter of the operation receives.
+    pub(crate) arguments: Vec<LiftArgument>,
+}
+
+/// What a quotient operation passes to one parameter of its operation on
+/// representatives (wiki/spec/proofs/quotients.md, "Lifting operations":
+/// `lift` permits constants, omission, permutation, duplication).
+#[derive(Debug, Clone)]
+pub(crate) enum LiftArgument {
+    /// One of the machine's formals, by position, as it is.
+    Formal(u32),
+    /// A value computed from the formals, lowered over them as slots.
+    Computed(Expression),
 }
 
 impl Program<'_> {
@@ -172,18 +182,54 @@ impl Program<'_> {
             .state_parameters
             .span(state.parameters)
             .ok_or_else(|| unserved("quotient operation lost its machine's parameters"))?;
-        let mut arguments = Vec::new();
-        for &argument in typed.expression_table.expression_handles(call.arguments) {
+        let representative_id = self.machine(representative)?;
+        let parameter_types = self
+            .signatures
+            .get(representative_id)
+            .ok_or_else(|| unserved("quotient representative machine lost its signature"))?
+            .parameters
+            .clone();
+        // A computed argument is lowered over the machine's formals, each a
+        // plain value of its type.
+        let mut slots = Vec::with_capacity(formals.len());
+        for formal in formals.iter() {
+            let (value_type, erased, reference) = self.formal(id, formal)?;
+            if erased || reference.is_some() {
+                return Err(unserved(
+                    "quotient operation with an erased or borrowed formal",
+                ));
+            }
+            slots.push(Slot {
+                symbol: formal.symbol,
+                value_type,
+                assignable: false,
+                homed: false,
+                erased: false,
+                borrowed: None,
+                borrowed_regions: crate::body::Regions::NONE,
+            });
+        }
+        let handles = typed.expression_table.expression_handles(call.arguments);
+        if handles.len() != parameter_types.len() {
+            return Err(unserved(
+                "quotient operation with the wrong number of arguments",
+            ));
+        }
+        let mut arguments = Vec::with_capacity(handles.len());
+        for (&argument, &expected) in handles.iter().zip(&parameter_types) {
             let formal = match typed.expression_table.expression(argument) {
                 ExpressionNode::Name(path) => formals
                     .iter()
                     .position(|formal| formal.symbol == path.symbol),
                 _ => None,
-            }
-            .ok_or_else(|| {
-                unserved("argument of a quotient operation other than one of the machine's formals")
-            })?;
-            arguments.push(formal as u32);
+            };
+            arguments.push(match formal {
+                Some(formal) => LiftArgument::Formal(formal as u32),
+                None => {
+                    let expected = self.wholly_anonymous(argument).then_some(expected);
+                    LiftArgument::Computed(self.expression(id, &slots, argument, expected)?)
+                }
+            });
         }
         Ok(Some(LiftedOperation {
             define: request.kind == QuotientOperationKind::Define,
