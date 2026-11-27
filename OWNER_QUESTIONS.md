@@ -65,35 +65,8 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="stage-05-unselected-rewrites"></a>
-### 1. Are Stage 05 call inlining and vector promotion legalization or optimizations?
-
-The optimization contract says no "compiler default, build mode, or broad
-`O1`/`O2`/`O3` level implicitly enables an optimization", and that "mandatory
-normalization, legalization, allocation, and realization remain necessary
-whether or not optional profitability rewrites are selected". It does not say
-which side of that line a given rewrite falls on.
-[Exact selection](wiki/spec/build/optimizations.md#exact-selection)
-
-Native Stage 05 runs two rewrites on every build, after instruction selection
-and with no selection, catalog entry or execution record.
-`selection_inlining.rs` (1,919 lines) inlines acyclic internal calls and merges
-fall-through blocks. `selection_vector_promotion.rs` (5,381 lines) moves packed
-memory operations into 128-bit vector registers, replaces single-block local
-slots with registers, merges adjacent 16-byte stores and deletes dead stores.
-Nobody has checked whether every program still compiles without them.
-[Call site](source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection.rs) ·
-[Inlining](source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection_inlining.rs) ·
-[Vector promotion](source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection_vector_promotion.rs)
-
-**Recommend making both optimizations:** give each a Stage 06
-`SelectedLowering` catalog entry with its own validator and leave it off by
-default, keeping in Stage 05 only the part a target needs to lower some program
-at all. Alternatively, classify both as mandatory legalization and keep them
-on in Stage 05. Which are they?
-
 <a id="windows-handle-release-replay"></a>
-### 2. Does the product offer receiver admission, or does the Windows handle release proof wait?
+### 1. Does the product offer receiver admission, or does the Windows handle release proof wait?
 
 The permission contract says ordinary production requires no receiving policy,
 and "an explicitly requested deployment compatibility check applies the
@@ -121,7 +94,7 @@ and wire its policy through `psi_to_native`, which makes the proof reachable.
 Which should the product do?
 
 <a id="logical-sum-subjects"></a>
-### 4. What does a sum input denote in a logical contract?
+### 2. What does a sum input denote in a logical contract?
 
 #### Context
 

@@ -80,6 +80,12 @@ phase, measured on `baa76c5b222e`.
 No optimization belongs to `AbstractOperations`, so Stage 03 never changes
 a body. `TASKS.md` **NATIVE-ABSTRACT-PHASE-RETIREMENT** tracks its removal.
 
+Stage 05 also runs call inlining (`selection_inlining.rs`) and vector promotion
+(`selection_vector_promotion.rs`) on every build without a catalog entry. The
+contract forbids a compiler default from enabling an optimization, so every
+part a target can lower without belongs in the catalog, off by default.
+`TASKS.md` **STAGE-05-DEFAULT-REWRITES** tracks that split.
+
 ## Plan identities
 
 Stages 03–14 hash their in-memory plans with SHA-256 and hand the hashes on.
