@@ -115,6 +115,7 @@ impl Program<'_> {
                         owner: typed.symbols.get(parameter.symbol).parent,
                         application,
                         members,
+                        applied: Vec::new(),
                     },
                     signatures,
                 },

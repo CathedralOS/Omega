@@ -563,6 +563,9 @@ pub(crate) struct PreparedDischarge<'l> {
     inhabitation: terminal_semantics::inhabitation::Inhabitation,
     unreached: Unreached,
     law_instances: Vec<MachineId>,
+    /// The Identity table of a generic check form with const record
+    /// parameters, checked once; `None` for any other module.
+    identities: Option<equality::IdentityTables>,
     theorems: Vec<(MachineId, &'l laws::LawJudgment)>,
     inferred_calls: entry_inputs::InferredCalls,
     inferred_results: Vec<(MachineId, u32, terminal_psi::ContractClause)>,
@@ -571,6 +574,7 @@ pub(crate) struct PreparedDischarge<'l> {
 pub(crate) fn prepare_discharge<'l>(
     elaboration: &mut Elaboration,
     laws: &'l [laws::LawJudgment],
+    identities: Option<&terminal_check_tables::mathematics::IdentityTable>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<PreparedDischarge<'l>> {
     for boundary in &elaboration.module.interfaces.boundary_machines {
@@ -690,11 +694,14 @@ pub(crate) fn prepare_discharge<'l>(
                 .map(move |law| (id, law))
         })
         .collect();
+    let identities =
+        identities.map(|table| equality::check_identity_table(&scope.source().module, table));
     let (inferred_calls, inferred_results) = scope.into_inferred();
     Ok(PreparedDischarge {
         inhabitation,
         unreached,
         law_instances,
+        identities,
         theorems,
         inferred_calls,
         inferred_results,
@@ -715,6 +722,7 @@ pub(crate) fn finish_discharge<'m>(
         inhabitation,
         unreached,
         law_instances,
+        identities,
         theorems,
         inferred_calls,
         inferred_results,
@@ -787,7 +795,10 @@ pub(crate) fn finish_discharge<'m>(
                 &beyond,
                 inputs.carried.map(|position| &carried[position]),
                 inputs.branches,
-                &law_instances,
+                equality::LawScope {
+                    instances: &law_instances,
+                    identities: identities.as_ref(),
+                },
                 proved,
                 &empty_contracts,
                 &summaries,
@@ -827,7 +838,7 @@ pub(crate) fn discharge_inner(
     verified_borrow_ends: Option<&VerifiedBorrowEnds>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    let prepared = prepare_discharge(elaboration, laws, activity)?;
+    let prepared = prepare_discharge(elaboration, laws, None, activity)?;
     let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
     let discharged = finish_discharge(
         ElaborationView {
@@ -948,7 +959,7 @@ fn machine(
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
-    law_instances: &[MachineId],
+    law_instances: equality::LawScope<'_>,
     proved: &[(MachineId, &laws::LawJudgment)],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     summaries: &ModuleReplays<'_>,
@@ -1000,7 +1011,7 @@ fn check_prepared_machine(
     tables: &mut MachineTables,
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
-    law_instances: &[MachineId],
+    law_instances: equality::LawScope<'_>,
     proved: &[(MachineId, &laws::LawJudgment)],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
@@ -1179,7 +1190,8 @@ fn check_prepared_machine(
                             row.created_at,
                             obligation,
                             clause,
-                            law_instances,
+                            law_instances.instances,
+                            law_instances.identities,
                             &mut at_exit,
                         )
                         .map(Discharged::Identity)
@@ -1193,7 +1205,8 @@ fn check_prepared_machine(
                         row.created_at,
                         obligation,
                         clause,
-                        law_instances,
+                        law_instances.instances,
+                        law_instances.identities,
                         &mut storage.at_entry(references, tables),
                     )
                     .map(Discharged::Identity),
@@ -1770,7 +1783,7 @@ impl PreparedMachine<'_, '_> {
         tables: &mut MachineTables,
         decided: &mut [Option<Checked<Discharged>>],
         unreached: &[ValueId],
-        law_instances: &[MachineId],
+        law_instances: equality::LawScope<'_>,
         activity: &mut ProofSearchActivity,
     ) -> Checked<Vec<BlockId>> {
         joins::check(
@@ -1806,7 +1819,16 @@ impl PreparedMachine<'_, '_> {
         let mut decided = (0..tables.obligations.len())
             .map(|_| None)
             .collect::<Vec<_>>();
-        self.check_joins(tables, &mut decided, &beyond, &[], activity)?;
+        self.check_joins(
+            tables,
+            &mut decided,
+            &beyond,
+            equality::LawScope {
+                instances: &[],
+                identities: None,
+            },
+            activity,
+        )?;
         Ok(beyond)
     }
 }

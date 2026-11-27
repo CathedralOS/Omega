@@ -49,6 +49,7 @@ mod compilation;
 mod components;
 mod declare;
 mod lower;
+mod identity_tables;
 mod mathematics;
 mod policy;
 mod publication;

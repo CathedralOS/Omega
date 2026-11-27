@@ -256,6 +256,8 @@ fn judge_laws(
         licenses,
         integers,
         families,
+        // Each generic check form's tables are checked with its module.
+        identities: _,
     } = signature;
     let extras = Extras {
         integers,

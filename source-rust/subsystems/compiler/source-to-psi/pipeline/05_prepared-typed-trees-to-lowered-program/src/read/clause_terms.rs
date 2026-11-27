@@ -1921,6 +1921,31 @@ impl Program<'_> {
             };
             let position = u32::try_from(values.len())
                 .map_err(|_| unavailable("clause term table overflow"))?;
+            // An operation of a const record parameter is the same function
+            // wherever a clause applies it, so its record keeps it once for
+            // the Identity table of a generic check form.
+            if let ClauseOperand::Application {
+                declaration,
+                arguments,
+            } = &operand
+                && let Some((index, generation)) = declaration.supplier
+                && let Some(binding) = self
+                    .static_contracts
+                    .record_binding_mut(symbols::SymbolHandle::from_parts(index, generation))
+            {
+                let applied = terminal_check_tables::mathematics::IdentityOperation {
+                    declaration: *declaration,
+                    domains: arguments
+                        .iter()
+                        .filter_map(|&argument| values.get(argument as usize))
+                        .map(|argument| argument.carrier)
+                        .collect(),
+                    result: carrier,
+                };
+                if !binding.account.applied.contains(&applied) {
+                    binding.account.applied.push(applied);
+                }
+            }
             values.push(ClauseValue { carrier, operand });
             if reading_scalar {
                 let term = crate::body::scalar_clause_value(inferred).ok_or_else(|| {

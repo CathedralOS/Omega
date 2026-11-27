@@ -989,9 +989,13 @@ none`, which a clause application now requires. What step 2 did not build:
   a receiver trusts the producer and does not replay carried certificates,
   so nothing would check a published one. A row for laws waits for a
   consumer that reads it.
-- **One table for step 1's goals.** A generic machine's Identity goal still
-  gets its own table per obligation in `equality::discharge`. Only the
-  declarations over data that contains itself are in the shared signature.
+- **One table for step 1's goals.** Built. Each generic check form with
+  const record parameters has one Identity table in the mathematical
+  signature: its carriers, the trait operations its clauses apply and the
+  laws its record parameters' traits state. Stage 06 checks it once and
+  `equality::discharge` extends it with each obligation's own inputs.
+  Concrete modules (closure, witnesses, arrivals) still declare their names
+  per obligation, since they have no trait operations to share.
 - **Projection, and fields of another type.** A field of a case is read only
   through the dispatch that binds it. Data whose case has a field of another
   type is refused, because that type has no carrier in the signature yet.
