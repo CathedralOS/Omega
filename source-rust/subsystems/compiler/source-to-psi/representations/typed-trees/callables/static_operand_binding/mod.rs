@@ -232,9 +232,11 @@ impl Operand {
             }
             TypeParameterKind::Machine { contract }
                 if program.machine_parameter_contract_view(contract).is_some()
-                    && program
-                        .machine_by_symbol(program.symbols.get(parameter).parent)
-                        .is_some() =>
+                    && {
+                        let owner = program.symbols.get(parameter).parent;
+                        program.machine_by_symbol(owner).is_some()
+                            || program.trait_machine_signature(owner).is_some()
+                    } =>
             {
                 // A nominal contract is judged by `require_nominal_callbacks`
                 // once the whole application's type arguments are known.
@@ -246,7 +248,7 @@ impl Operand {
             }
             TypeParameterKind::Machine { .. } => {
                 return Err(unserved(
-                    "a static machine binder needs a complete contract on a body-bearing declaration",
+                    "a static machine binder needs a complete callable contract",
                 ));
             }
             TypeParameterKind::Proof { .. } => {
