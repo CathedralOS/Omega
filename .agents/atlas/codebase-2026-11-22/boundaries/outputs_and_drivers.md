@@ -184,7 +184,8 @@ Path shorthands:
    - `omega run` refuses a `.psi` path given without trust (code: `app/execution/compilation.rs:129-136`).
 4. **Other channels.** Host packages come from the environment-named lock through `ReviewedHostPackages::open` (code: `app/saved_program.rs:17-31`).
 
-## H10. Published Psi to the interpreter (`omega run`, `--both`, `--engine psi`)
+<a id="h10-published-psi-to-the-interpreter-omega-run-&#45;&#45;both-&#45;&#45;engine-psi"></a>
+## H10. Published Psi to the interpreter at the survey revision
 
 1. **What crosses.**
    - `interpret_product` builds a `TerminalRuntimeRequest` with `artifact: &CanonicalTerminalArtifact` and the product's provisions (code: `app/execution/compilation.rs:196-237`). The request also sets `TerminalFilesystemDelegation::HostNamespace`, `TerminalNativeServiceDelegation::MatchingHost`, the host clock, `IsolatedContainingDomain` and a native-provider sponsor that launches the current executable.
@@ -202,23 +203,24 @@ Path shorthands:
    - Code layouts travel backward from the native image into the interpreter through `image.inspect_root_code_layouts()` (code: `int/host/retained-image/execution.rs:75-93`).
    - On that path `admit_runtime_supplies` runs twice (record: digest 14 §3).
 
-## H11. Native process and Psi run back to the CLI (`--both` comparison)
+<a id="h11-native-process-and-psi-run-back-to-the-cli-&#45;&#45;both-comparison"></a>
+## H11. Historical CLI comparison of native and interpreted results
 
-**Follow-up.** After the survey, [#5188](https://github.com/CathedralOS/Omega/pull/5188) added a byte-for-byte check of stdout and stderr after termination agrees. A single run and each case in a batch use the same check. A mismatch names the stream and its first differing line. The observations below describe the survey revision.
+**Follow-up.** After the survey, [#5188](https://github.com/CathedralOS/Omega/pull/5188) added a byte-for-byte check of stdout and stderr after termination agrees. The driver used the same check for a single run and each case in a batch. A mismatch named the stream and its first differing line. The observations below describe the survey revision.
 
 1. **What crosses.**
-   - The native side returns `(output, private_entry_ram, frames)` from `private_observation::capture` (code: `app/execution/mod.rs:262-264`) and an exit from `ProcessExitObservation::observe` (code: `app/execution/mod.rs:278`).
-   - The Psi side returns a `TerminalRuntimeObservation` (code: `app/execution/mod.rs:220-237`).
+   - The native side returned `(output, private_entry_ram, frames)` from `private_observation::capture` (code: `app/execution/mod.rs:262-264`) and an exit from `ProcessExitObservation::observe` (code: `app/execution/mod.rs:278`).
+   - The Psi side returned a `TerminalRuntimeObservation` (code: `app/execution/mod.rs:220-237`).
 2. **What the receiver trusts.**
-   - The comparison reads only the status (exit code or crash cause) and the private entry RAM (code: `app/execution/mod.rs:279-291`, `:547-604`).
-   - In `run_project`, no line compares Psi stdout or stderr with the native output. They are written to `terminal.stdout` and `terminal.stderr` only when artifacts are kept (code: `app/execution/mod.rs:286-290`, `:364-366`; grep of `stdout|stderr` in that file).
+   - The comparison read only the status (exit code or crash cause) and the private entry RAM (code: `app/execution/mod.rs:279-291`, `:547-604`).
+   - In `run_project`, no line compared Psi stdout or stderr with the native output. Those streams were written to `terminal.stdout` and `terminal.stderr` only when artifacts were kept (code: `app/execution/mod.rs:286-290`, `:364-366`; grep of `stdout|stderr` in that file).
 3. **What is checked.**
-   - `compare_exit_status` uses `matches_host_presentation`. On Unix it compares the low byte and declines when the Psi status does not fit in 8 bits (code: `app/execution/process_exit.rs:56-67`, `app/execution/mod.rs:606-623`).
-   - A crash is compared only for `CrashCause::Trap`, against a per-target presentation table (code: `app/execution/process_exit.rs:68-101`).
-   - Entry RAM must be byte-equal (code: `app/execution/mod.rs:279-285`).
-   - Stdin is captured and replayed only when the first Psi run refuses with the capability string `"runtime-standard-input"` (code: `app/execution/mod.rs:218-237`).
-   - This is the one independent execution check in the stretch: two engines run the same Psi artifact, and separate CLI code compares them. Both engines receive the same artifact, so a source-compiler error that both carry is not caught (inferred).
-4. **Other channels.** The CLI exits with the native code on agreement. A Psi `ExternalCompletion` code is used unclamped in the Psi-only path (record: digest 01 §5).
+   - `compare_exit_status` used `matches_host_presentation`. On Unix it compared the low byte and declined when the Psi status did not fit in 8 bits (code: `app/execution/process_exit.rs:56-67`, `app/execution/mod.rs:606-623`).
+   - A crash was compared only for `CrashCause::Trap`, against a per-target presentation table (code: `app/execution/process_exit.rs:68-101`).
+   - Agreement required byte-equal entry RAM (code: `app/execution/mod.rs:279-285`).
+   - Stdin was captured and replayed only when the first Psi run refused with the capability string `"runtime-standard-input"` (code: `app/execution/mod.rs:218-237`).
+   - The comparison exercised the same Psi artifact in the interpreter and as a compiled executable. Separate CLI code compared the observations. A source-compiler error shared by both paths could pass this check (inferred).
+4. **Other channels.** The CLI exited with the native code on agreement. The interpreted path returned the `ExternalCompletion` code unclamped (record: digest 01 §5).
 
 ## H12. Compiler review to the package manager to the lock
 
@@ -332,17 +334,17 @@ These handoffs share one pattern:
 ## H21. Repository tools reading CLI output
 
 1. **What crosses.**
-   - **xtask sample-gate** runs `omega run --both`. It parses the stderr lines that start `native exit ` and `interp exit: ` (code: `tools/xtask/src/samples.rs:788-799`). The CLI prints those lines from `exit.describe()` and `eprintln!("interp exit: ...")` (code: `app/commands/run.rs:142-152`).
+   - At the survey revision, **xtask sample-gate** compared native and interpreted runs. It parsed the stderr lines that start `native exit ` and `interp exit: ` (code: `tools/xtask/src/samples.rs:788-799`). The CLI printed those lines from `exit.describe()` and `eprintln!("interp exit: ...")` (code: `app/commands/run.rs:142-152`).
    - **omega-bench** requires exactly one `published native output to ` line (code: `tools/benchmark/src/experiment.rs:482-488`), which the CLI prints (code: `app/commands/compile.rs:461-466`). It reads stage times from `<ms> ms  <label>` lines (record: digest 16 §2).
    - **xtask sweep** decides the stopping stage from error wording (record: digest 16 §2).
    - **xtask producer** writes a receipt that ties the `omega` bytes to its build options (record: digest 16 §1).
 2. **What the receiver trusts.**
-   - sample-gate checks expected output with `stdout.contains(...)` (code: `tools/xtask/src/samples.rs:826-830`). In `--both`, the CLI does not print the Psi stdout (H11), so this check reads native stdout only (inferred from the code in H11).
-   - The guest's own stderr is forwarded before the CLI's lines (code: `app/commands/run.rs:140`), and the parse loop keeps the last match (code: `tools/xtask/src/samples.rs:790-799`).
-   - A crash agreement prints `interp crash:` and no `interp exit:` line (code: `app/commands/run.rs:154-157`), so sample-gate reports it as an execution failure (code: `tools/xtask/src/samples.rs:800-805`).
-   - sample-gate counts `no-oracle`, `checked` and `not-host-runnable` as passes (record: digest 16 §5).
+   - sample-gate checked expected output with `stdout.contains(...)` (code: `tools/xtask/src/samples.rs:826-830`). The CLI printed only native stdout during the comparison (H11), so only that stream reached this check (inferred from the code in H11).
+   - The guest's own stderr was forwarded before the CLI's lines (code: `app/commands/run.rs:140`), and the parse loop kept the last match (code: `tools/xtask/src/samples.rs:790-799`).
+   - A crash agreement printed `interp crash:` and no `interp exit:` line (code: `app/commands/run.rs:154-157`), so sample-gate reported it as an execution failure (code: `tools/xtask/src/samples.rs:800-805`).
+   - sample-gate counted `no-oracle`, `checked` and `not-host-runnable` as passes (record: digest 16 §5).
 3. **What is checked.**
-   - sample-gate requires both exit lines, their equality, and a CLI exit status equal to them (code: `tools/xtask/src/samples.rs:800-821`).
+   - sample-gate required both exit lines, their equality, and a CLI exit status equal to them (code: `tools/xtask/src/samples.rs:800-821`).
    - A negative sample must exit 1 with its pinned fragments. Refusals that start "not supported yet" or "no product route yet" are not counted (code: `tools/xtask/src/samples.rs:601-657`).
    - `records::validate` in omega-bench recomputes a report from its retained captures but does not rehash the declared input files (record: digest 16 §5).
    - The tools are separate code from the compiler, but they judge it by text matches on its output.
@@ -361,4 +363,4 @@ These handoffs share one pattern:
 - **H12**, compiled-review cache hits. A self-hash only; field checks reuse the stored record.
 - **H13** review decisions under `--dangerously-accept-all`.
 - **H14 to H20**, every Omega-written compiler stage. Only the producing stage's `accepted` flag gates the handoff, and the checks are in the same package.
-- **H21**, sample-gate's output check. At the survey revision it checked the forwarded native stdout against expected text. The CLI now also compares native and Psi streams (H11).
+- **H21**, sample-gate's output check. At the survey revision it checked the forwarded native stdout against expected text. The later fix in H11 added a byte-for-byte comparison of both streams.

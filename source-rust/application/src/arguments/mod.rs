@@ -669,6 +669,7 @@ mod tests {
             &["audit", "source", "--kind", "local", "src"],
             &["inspect-terminal", "--artifact", "program.psi"],
             &["inspect-terminal", "--help"],
+            &["run", "--both", "main.omg"],
             &["run", "--engine", "native", "main.omg"],
             &["run", "--engine", "psi", "main.omg"],
             &["psi", "inspect-terminal", "--artifact", "program.psi"],
@@ -679,6 +680,7 @@ mod tests {
             assert!(
                 error.contains("retired")
                     || error.contains("unrecognized option `--engine`")
+                    || error.contains("unrecognized option `--both`")
                     || error.contains("unknown psi command"),
                 "{invocation:?} rejected with {error}"
             );
