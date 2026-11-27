@@ -15,7 +15,7 @@ contracts and assumption closure.
 ## Importing the mathematical foundation
 
 The toolchain file `{omega}/language/core/foundation.omg` exposes `Level`, `Type`,
-`Strict`, `Squash`, and `Identity` as public declarations. Examples
+`Strict`, `Squash`, `Box`, and `Identity` as public declarations. Examples
 on this page use the following file-local import.
 
 ```omega
@@ -27,7 +27,7 @@ alias and member. The proof kernel recognizes the exact declaration exposed
 by that toolchain file and applies its existing formation and elimination
 rules. Choosing a different alias preserves that identity. A local declaration
 or another package's declaration with the same name has its ordinary meaning.
-The five names are available to authors as identifiers. Only the explicit
+These names are available to authors as identifiers. Only the explicit
 import exposes these core members to another file.
 
 The sealed core mathematical declaration `|proof|::Identity::<T>(left, right)`
@@ -36,6 +36,16 @@ checked by the existing `Id` formation rules. It does not return an executable
 Boolean, assume its own proof or introduce arbitrary proposition-returning
 machines. Value `==` retains ordinary operator selection in facts; see
 [data identity in facts](contracts.md#data-identity-in-facts).
+
+For `S : |proof|::Strict<u>`, the imported declaration `|proof|::Box<S>`
+forms a type in `|proof|::Type<u>`. The kernel's `BoxIntro` rule constructs
+a boxed value from evidence of `S`. Its `BoxElim` rule opens the box in a
+dependent proof whose result may lie in either `Type` or `Strict`. Opening a
+box constructed from a proof supplies that proof to the elimination body.
+When `S` is `|proof|::Squash<W>`, the evidence obtained on opening the box
+still has type `|proof|::Squash<W>` and follows the ordinary squash elimination
+rule. See [the kernel rules](kernel_metatheory.md) and their use in
+[set quotients](quotients.md#set-quotient-foundation).
 
 ## Universes and mathematical function types
 

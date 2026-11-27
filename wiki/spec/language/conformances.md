@@ -665,8 +665,9 @@ contracts and implementations without competing for operator syntax.
 These acquisition rules govern value `==` and explicit equality-machine calls
 in executable and proposition contexts alike. Mathematical identity is written
 as [core identity](../proofs/contracts.md#data-identity-in-facts). Two independent
-checked bridge laws can relate the selected comparison to that identity;
-they are additional evidence traits, not optional `Equatable` members. The
+checked bridge laws can relate the selected comparison to that identity.
+Both [evidence traits](../proofs/contracts.md#equality-bridges-and-comparison-facts)
+inherit the comparison from `Equatable<T>` and add a theorem about it. The
 evidence must bind the exact comparison row selected at the use, including its
 generic application. Merely naming another conformance for the same carrier
 does not connect their equality implementations.
