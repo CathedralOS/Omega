@@ -375,3 +375,68 @@ fn a_forwarded_formal_must_state_the_same_implication() {
         "{verdict:?}"
     );
 }
+
+/// `above::<LIMIT>` proves `n > 0` for every `n` above `LIMIT`.
+fn instantiated(citation: &str) -> String {
+    ORIGINAL
+        .replace(
+            "machine only_seven",
+            "machine above<const LIMIT: u8>(n: u8)\nrequires n > LIMIT\nensures n > 0u8\n{\n}\n\nmachine only_seven",
+        )
+        .replace("use_step::<nonzero_is_positive>(7u8)", &format!("use_step::<{citation}>(7u8)"))
+}
+
+#[test]
+fn an_instantiated_theorem_supplies_the_alias() {
+    let program = Program::of(&instantiated("above::<0u8>"));
+    let verdict = program.judged(|elaboration| {
+        let module = &elaboration.module;
+        let [citation] = module.proofs.theorem_citations.as_slice() else {
+            panic!("one citation: {:?}", module.proofs.theorem_citations);
+        };
+        let terminal_psi::TheoremSource::Named(source) = citation.source else {
+            panic!("the instance is a named machine: {citation:?}");
+        };
+        assert!(
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| machine.module_invocations())
+                .all(|invocation| invocation.inputs.callee != source),
+            "citing the instance does not call it"
+        );
+    });
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn an_instance_with_a_narrower_premise_cannot_supply_the_alias() {
+    // `above::<3u8>` needs `n > 3`, which `n != 0` does not give.
+    let verdict = Program::of(&instantiated("above::<3u8>")).judged(|_| {});
+    assert!(
+        format!("{verdict:?}")
+            .contains("explicit proof argument does not establish the complete aliased contract"),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn a_theorem_given_its_own_proof_is_refused_by_name() {
+    let source = ORIGINAL
+        .replace(
+            "machine only_seven",
+            "machine lifted<Inner: NonzeroIsPositive>(n: u8)\nrequires n != 0u8\nensures n > 0u8\n{\n    Inner(n);\n}\n\nmachine only_seven",
+        )
+        .replace(
+            "use_step::<nonzero_is_positive>(7u8)",
+            "use_step::<lifted::<nonzero_is_positive>>(7u8)",
+        );
+    let refusal = format!(
+        "{:?}",
+        Program::try_of(&[("product/main.omg", &source)]).err()
+    );
+    assert!(
+        refusal.contains("a theorem given its own proof arguments"),
+        "{refusal}"
+    );
+}

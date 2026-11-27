@@ -674,9 +674,21 @@ fn specialize_application(
 ) -> Served<Option<(SymbolHandle, SymbolHandle)>> {
     let mut open_callback = false;
     for (parameter, argument) in parameters.iter().zip(arguments.iter_mut()) {
-        if matches!(parameter.kind, TypeParameterKind::Machine { .. })
+        // An instantiated theorem citation, such as `above::<0u8>`, names the
+        // machine generated for those arguments, exactly as a callback does.
+        // Its contract is then the one checked against the alias; a citation
+        // left open here is still refused when stage 05 reads it.
+        let closes = match parameter.kind {
+            TypeParameterKind::Machine { .. } => true,
+            TypeParameterKind::Proof { .. } => {
+                argument.const_literal.is_none() && argument.evidence_projection.is_none()
+            }
+            _ => false,
+        };
+        if closes
             && argument.application.is_some()
             && !close_machine_argument(program, application, argument, generated)?
+            && matches!(parameter.kind, TypeParameterKind::Machine { .. })
         {
             open_callback = true;
         }
