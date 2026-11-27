@@ -82,10 +82,10 @@ fn frame_instructions(
     audit: bool,
 ) -> Result<PhysicalFrameProgram, PhysicalFrameError> {
     let environment = &program.environment;
-    let requirements = program.preservation.clone();
+    let requirements = &program.preservation;
     let budget = requirements.plan().budget;
     let storage = stage_non_authoritative_callee_save_storage(
-        &requirements,
+        requirements,
         environment,
         NonAuthoritativeCalleeSaveStoragePolicy::CanonicalTargetPreservationGroupsV1,
         budget,
@@ -94,7 +94,7 @@ fn frame_instructions(
     .map_err(PhysicalFrameError::CalleeSaveStorage)?;
     let layout = stage_target_frame_layout(
         &program.machine,
-        &requirements,
+        requirements,
         &storage,
         environment,
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
@@ -119,6 +119,7 @@ pub mod boundary_settlements;
 pub mod call_origins;
 pub mod foreign_call_plans;
 pub mod image_origins;
+pub mod instruction_roster;
 pub mod internal_call_plans;
 pub mod physical_facts;
 pub mod stack_demand;

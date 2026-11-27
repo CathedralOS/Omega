@@ -1054,23 +1054,23 @@ mod primitive_locals {
                 || address_instruction.provenance.operations.last() != Some(&operation)
                 || store_instruction.provenance.operations.last() != Some(&operation)
                 || !store_instruction.provenance.values.contains(&value.value)
-                || !selected.virtual_registers.iter().any(|register| {
-                    register.id == store_instruction.operands[1].virtual_register
-                        && register.scalar_type == value.scalar_type
-                        && matches!(register.origin,
+                || !selected
+                    .virtual_register(store_instruction.operands[1].virtual_register)
+                    .is_some_and(|register| {
+                        register.scalar_type == value.scalar_type
+                            && matches!(register.origin,
                             VirtualRegisterOrigin::EntryParameter { source_value, .. }
                             | VirtualRegisterOrigin::BlockParameter { source_value, .. }
                             | VirtualRegisterOrigin::InstructionResult { source_value, .. }
                             if source_value == value.value)
-                })
-                || !selected.virtual_registers.iter().any(|register| {
-                    register.id == pointer
-                        && register.origin
-                            == (VirtualRegisterOrigin::AbiTransport {
-                                instruction: address.instruction,
-                                place,
-                                byte_offset: 0,
-                            })
+                    })
+                || !selected.virtual_register(pointer).is_some_and(|register| {
+                    register.origin
+                        == (VirtualRegisterOrigin::AbiTransport {
+                            instruction: address.instruction,
+                            place,
+                            byte_offset: 0,
+                        })
                 })
             {
                 return None;
@@ -1292,9 +1292,9 @@ mod scalar_result {
                 != (selected_instructions::SelectedInstructionKind::CallScalar {
                     target: selected_instructions::SelectedCallTarget::Machine(callee_machine),
                 })
-            || !selected.virtual_registers.iter().any(|register| {
-                register.id == output && definition_is_exact(register, contract.instruction, result)
-            })
+            || !selected
+                .virtual_register(output)
+                .is_some_and(|register| definition_is_exact(register, contract.instruction, result))
         {
             return Err(invalid());
         }

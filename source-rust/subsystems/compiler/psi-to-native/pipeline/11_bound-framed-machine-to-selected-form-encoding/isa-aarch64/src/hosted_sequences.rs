@@ -1,50 +1,11 @@
 /*
 We encode and decode import-free hosted AArch64 syscall sequences for Linux
 (`svc #0` with syscall number in `x8`) and Darwin (`svc #0x80` with syscall
-number in `x16` and carry-flag error reporting), covering process exit, single-
-byte console writes, stack-home byte reads, and literal line writes.
+number in `x16` and carry-flag error reporting), covering stack-home byte reads
+and literal line writes.
 */
 
 use diagnostics::Diagnostic;
-
-pub fn encode_hosted_exit_process_i32(
-    target: target::NativeTarget,
-    value: i32,
-) -> Result<Vec<u8>, Diagnostic> {
-    let (syscall_register, syscall_number, supervisor_call) =
-        if target == target::NativeTarget::linux_arm64() {
-            (8, 94, 0)
-        } else if target == target::NativeTarget::macos_arm64() {
-            (16, 1, 0x80)
-        } else {
-            return Err(Diagnostic::error(
-                "unsupported hosted AArch64 process-exit target",
-            ));
-        };
-    let mut bytes = Vec::new();
-    append_unsigned_immediate(&mut bytes, 0, i64::from(value) as u64);
-    append_unsigned_immediate(&mut bytes, syscall_register, syscall_number);
-    bytes.extend(encode_svc(supervisor_call));
-    bytes.extend(encode_brk(0));
-    Ok(bytes)
-}
-
-pub fn encode_hosted_write_byte_i32_from_w9() -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::new();
-    crate::codec_bytes::push_encoded(&mut bytes, 0xd100_43ff_u32.to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, 0x3900_03e9_u32.to_le_bytes());
-    bytes.extend(encode_movz(0, 1));
-    crate::codec_bytes::push_encoded(&mut bytes, 0x9100_03e1_u32.to_le_bytes());
-    bytes.extend(encode_movz(2, 1));
-    bytes.extend(encode_movz(8, 64));
-    bytes.extend(encode_svc(0));
-    bytes.extend(encode_compare_x_immediate(0, 0)?);
-    crate::codec_bytes::push_encoded(&mut bytes, 0x5400_006d_u32.to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, 0x9100_43ff_u32.to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, 0x1400_0002_u32.to_le_bytes());
-    bytes.extend(encode_brk(0));
-    Ok(bytes)
-}
 
 pub(crate) fn read_byte_payload_address(payload_byte_offset: u32) -> Vec<u32> {
     crate::immediate_offset::address_words(1, 31, u64::from(payload_byte_offset))
@@ -301,52 +262,10 @@ fn checked_instruction_distance(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        encode_brk, encode_hosted_exit_process_i32, encode_hosted_write_byte_i32_from_w9,
-        encode_linux_read_byte_to_stack, encode_linux_write_line_literal,
-    };
+    use super::{encode_brk, encode_linux_read_byte_to_stack, encode_linux_write_line_literal};
 
     #[test]
-    fn hosted_exit_process_uses_exact_darwin_trap_abi() {
-        use target::NativeTarget;
-        let bytes = encode_hosted_exit_process_i32(NativeTarget::macos_arm64(), 37).unwrap();
-        assert_eq!(
-            bytes,
-            [0xd280_04a0_u32, 0xd280_0030, 0xd400_1001, 0xd420_0000]
-                .into_iter()
-                .flat_map(u32::to_le_bytes)
-                .collect::<Vec<_>>()
-        );
-        for value in [0, 1, 255, 256, -1, i32::MIN, i32::MAX] {
-            let darwin =
-                encode_hosted_exit_process_i32(NativeTarget::macos_arm64(), value).unwrap();
-            let linux = encode_hosted_exit_process_i32(NativeTarget::linux_arm64(), value).unwrap();
-            assert_eq!(&darwin[..darwin.len() - 12], &linux[..linux.len() - 12]);
-            assert_eq!(&darwin[darwin.len() - 4..], &0xd420_0000_u32.to_le_bytes());
-            assert_ne!(darwin, linux);
-        }
-        for target in [
-            NativeTarget::linux_x64(),
-            NativeTarget::windows_x64(),
-            NativeTarget {
-                pointer_size: 4,
-                ..NativeTarget::macos_arm64()
-            },
-        ] {
-            assert!(encode_hosted_exit_process_i32(target, 37).is_err());
-        }
-    }
-
-    #[test]
-    fn linux_exit_and_write_literal_keep_exact_bytes() {
-        let bytes =
-            encode_hosted_exit_process_i32(target::NativeTarget::linux_arm64(), 37).unwrap();
-        assert_eq!(bytes.len(), 16);
-        assert_eq!(&bytes[0..4], &0xd280_04a0_u32.to_le_bytes());
-        assert_eq!(&bytes[4..8], &0xd280_0bc8_u32.to_le_bytes());
-        assert_eq!(&bytes[8..12], &0xd400_0001_u32.to_le_bytes());
-        assert_eq!(&bytes[12..16], &0xd420_0000_u32.to_le_bytes());
-
+    fn linux_write_literal_and_read_byte_keep_exact_bytes() {
         let (bytes, data) = encode_linux_write_line_literal(&[0, 0x80, 0xff]).unwrap();
         assert_eq!(&bytes[data.clone()], &[0, 0x80, 0xff, b'\n']);
         assert_eq!(bytes.len() % 4, 0);
@@ -354,13 +273,6 @@ mod tests {
             &bytes[data.start - 4..data.start],
             &0xd420_0000_u32.to_le_bytes()
         );
-
-        let byte_write = encode_hosted_write_byte_i32_from_w9().unwrap();
-        assert_eq!(byte_write.len(), 48);
-        assert_eq!(&byte_write[..4], &0xd100_43ff_u32.to_le_bytes());
-        assert_eq!(&byte_write[36..40], &0x9100_43ff_u32.to_le_bytes());
-        assert_eq!(&byte_write[40..44], &0x1400_0002_u32.to_le_bytes());
-        assert_eq!(&byte_write[44..], &0xd420_0000_u32.to_le_bytes());
 
         let byte_read = encode_linux_read_byte_to_stack(16, 20).unwrap();
         assert_eq!(byte_read.len(), 14 * 4);

@@ -6,6 +6,7 @@ use super::{
     PhysicalStackFunction, PhysicalStackProgram,
 };
 use crate::PhysicalFrameProgram;
+use crate::instruction_roster::SelectedInstructionRoster;
 use selected_instructions::{MachineEncodedStackEffect, SelectedCallTarget};
 use semantic_vocabulary::InvocationSite;
 use target::Architecture;
@@ -31,20 +32,21 @@ pub fn plan_physical_stack_program(
     } else {
         0
     };
+    // Post-allocation validation keeps the selected and allocated function
+    // rosters in one order, and frame layout derives its rows from the
+    // allocated roster in that order, so row `index` of each names one machine.
+    let layouts = &frame.frame.plan().functions;
     let mut functions = Vec::with_capacity(program.functions.len());
-    for function in &program.functions {
-        let layout = frame
-            .frame
-            .plan()
-            .functions
-            .iter()
-            .find(|row| row.machine == function.machine)
+    for (index, function) in program.functions.iter().enumerate() {
+        let layout = layouts
+            .get(index)
+            .filter(|row| row.machine == function.machine)
             .ok_or("physical stack function has no frame geometry")?;
         let machine = program
             .machine
             .functions
-            .iter()
-            .find(|row| row.machine == function.machine)
+            .get(index)
+            .filter(|row| row.machine == function.machine)
             .ok_or("physical stack function has no allocated instructions")?;
         let frame_bytes =
             u32::try_from(layout.frame_size_bytes).map_err(|_| "physical frame exceeds u32")?;
@@ -64,15 +66,21 @@ pub fn plan_physical_stack_program(
         let caller_live_bytes = frame_bytes
             .checked_add(linkage)
             .ok_or("physical call stack overflows")?;
+        // Call records sorted by instruction (stably, so the first record for
+        // an instruction stays first) replace a scan of every record per call.
+        let mut calls_by_instruction = function.calls.iter().collect::<Vec<_>>();
+        calls_by_instruction.sort_by_key(|call| call.instruction);
         let mut calls = Vec::new();
         for instruction in function.instructions_and_terminators() {
             let Some(selected_target) = instruction.kind.call_target() else {
                 continue;
             };
-            let call = function
-                .calls
-                .iter()
-                .find(|call| call.instruction == instruction.id)
+            let first =
+                calls_by_instruction.partition_point(|call| call.instruction < instruction.id);
+            let call = calls_by_instruction
+                .get(first)
+                .copied()
+                .filter(|call| call.instruction == instruction.id)
                 .ok_or("physical call has no retained call contract")?;
             let targets = match (&call.call.target, selected_target) {
                 (NativeCallTarget::Machine(target), SelectedCallTarget::Machine(selected))
@@ -157,12 +165,14 @@ pub fn plan_physical_stack_program(
                 local = local.max(caller_live_bytes);
             }
         }
+        let roster = if function.normalized_foreign_calls.is_empty() {
+            SelectedInstructionRoster::default()
+        } else {
+            SelectedInstructionRoster::new(function.blocks.iter())
+        };
         let mut foreign_calls = Vec::new();
         for call in &function.normalized_foreign_calls {
-            if !function
-                .instructions_and_terminators()
-                .any(|instruction| instruction.id == call.instruction)
-            {
+            if !roster.contains(call.instruction) {
                 return Err("physical foreign call has no retained instruction");
             }
             let binding = &call.call.binding;

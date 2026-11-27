@@ -111,12 +111,8 @@ pub use frame_protocol::{
     encode_x86_64_integer_constant, encode_x86_64_pointer_memory,
     plan_system_v_amd64_frame_protocol,
 };
-pub use ieee_float::{DecodedScalarFmaFormat, decode_vfmadd132_scalar};
-pub use ieee_float::{
-    OMEGA_CANONICAL_MXCSR, encode_binary32_bits_to_xmm, encode_binary64_bits_to_xmm,
-    encode_ldmxcsr_rsp_displacement, encode_stmxcsr_rsp_displacement,
-    encode_store_mxcsr_constant_rsp_displacement,
-};
+pub(crate) use ieee_float::OMEGA_CANONICAL_MXCSR;
+pub use ieee_float::{encode_ldmxcsr_rsp_displacement, encode_stmxcsr_rsp_displacement};
 pub use machine_effects::{
     X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
     x86_64_machine_effect_catalog, x86_64_normalized_foreign_call_declaration,
@@ -165,13 +161,8 @@ pub use target_x86_64::import_thunk::{
 };
 pub use target_x86_64::x86_64_preservation_storage_catalog;
 
-pub use hosted_kernel::{
-    encode_darwin_read_byte_to_stack, encode_hosted_exit_process_i32_for_target,
-};
-pub use hosted_kernel::{
-    encode_hosted_exit_process_i32, encode_hosted_write_byte_i32_from_r11,
-    encode_linux_read_byte_to_stack, encode_linux_write_line_literal,
-};
+pub use hosted_kernel::encode_linux_write_line_literal;
+pub(crate) use hosted_kernel::{encode_darwin_read_byte_to_stack, encode_linux_read_byte_to_stack};
 pub(crate) use hosted_kernel::{hosted_exit_syscall_number, hosted_syscall_target};
 pub use register_model::X86_64_HOSTED_EXIT_PROCESS_I32;
 pub use register_model::x86_64_indirect_aggregate_call_keys;
@@ -216,7 +207,7 @@ pub use selected_form_encoding::{
     encode_x86_64_selected_table_call_form, validate_x86_64_selected_table_call_form,
 };
 
-pub use selected_form_encoding::register_access::installed_table::{
+pub(crate) use selected_form_encoding::register_access::installed_table::{
     X86InstalledCpuStateGeometry, X86InstalledCpuStateRegisters, X86InstalledTableEncodingError,
     X86InstalledTablePublicationRegisters, X86InstalledTaskCommitRegisters,
     encode_x86_64_installed_cpu_state_check, encode_x86_64_installed_table_publication,

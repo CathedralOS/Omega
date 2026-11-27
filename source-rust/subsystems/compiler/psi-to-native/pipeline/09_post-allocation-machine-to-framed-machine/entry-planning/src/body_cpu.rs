@@ -2,6 +2,7 @@
 use calling_conventions::{
     MachineState, MachineStateSet, Preemption, RegisterSet, StateEffectsEvidence,
 };
+use frame_planning::instruction_roster::SelectedInstructionRoster;
 use installation_admission::cpu::{
     BodyCpuEffects, Error, Footprint, callable_cpu_targets, check_mask_operation, is_call,
 };
@@ -92,6 +93,19 @@ pub fn plan(
         MachineStateSet::empty(),
         MachineStateSet::empty(),
     );
+    // Post-allocation validation keeps the selected and allocated function
+    // rosters in one order, and frame layout derives its rows in that order.
+    // Sorting the machine ids once replaces a scan of all three rosters for
+    // every reachable machine.
+    let mut function_positions = source
+        .machine
+        .functions
+        .iter()
+        .enumerate()
+        .map(|(index, function)| (function.machine, index))
+        .collect::<Vec<_>>();
+    function_positions.sort_by_key(|(machine, _)| *machine);
+    let frame_layouts = &frame_program.frame.plan().functions;
     let mut visited = arena::IdSet::<MachineId>::default();
     let mut pending = vec![entry];
     pending.extend(callable_invocations.roots.iter().copied());
@@ -101,24 +115,25 @@ pub fn plan(
         if !visited.insert(machine) {
             continue;
         }
-        let function = source
-            .machine
-            .functions
-            .iter()
-            .find(|function| function.machine == machine)
+        let first = function_positions.partition_point(|(candidate, _)| *candidate < machine);
+        let index = function_positions
+            .get(first)
+            .filter(|(candidate, _)| *candidate == machine)
+            .map(|(_, index)| *index);
+        let function = index
+            .and_then(|index| source.machine.functions.get(index))
             .ok_or(Error::Mismatch("interrupt callee lacks final native body"))?;
-        let selected = source
-            .function(machine)
+        let selected = index
+            .and_then(|index| source.functions.get(index))
+            .filter(|selected| selected.machine == machine)
             .ok_or(Error::Mismatch("interrupt callee lacks selected contract"))?;
-        let frame_layout = frame_program
-            .frame
-            .plan()
-            .functions
-            .iter()
-            .find(|frame| frame.machine == machine)
+        let frame_layout = index
+            .and_then(|index| frame_layouts.get(index))
+            .filter(|frame| frame.machine == machine)
             .ok_or(Error::Mismatch(
                 "entry callee lacks its actual frame layout",
             ))?;
+        let roster = SelectedInstructionRoster::new(selected.blocks.iter());
         for restore in &frame_layout.unwind.restores {
             let view = model
                 .view(restore.view)
@@ -142,18 +157,12 @@ pub fn plan(
             }
         }
         for row in function.instructions() {
-            let instruction = selected
-                .blocks
-                .iter()
-                .flat_map(|block| {
-                    block.instructions.iter().chain(std::iter::once(
-                        selected_instructions::terminator_instruction(&block.terminator),
-                    ))
-                })
-                .find(|instruction| instruction.id == row.instruction)
-                .ok_or(Error::Mismatch(
-                    "physical instruction has no exact selected contract",
-                ))?;
+            let instruction =
+                roster
+                    .instruction_or_terminator(row.instruction)
+                    .ok_or(Error::Mismatch(
+                        "physical instruction has no exact selected contract",
+                    ))?;
             if let Some(callee) = instruction
                 .kind
                 .call_target()
@@ -179,12 +188,12 @@ pub fn plan(
                 encoded: effects.clone(),
             };
             if is_call(encoded.encoded.control) {
-                let instruction = selected
-                    .instructions()
-                    .find(|instruction| instruction.id == row.instruction)
-                    .ok_or(Error::Mismatch(
-                        "native call has no exact selected instruction",
-                    ))?;
+                let instruction =
+                    roster
+                        .body_instruction(row.instruction)
+                        .ok_or(Error::Mismatch(
+                            "native call has no exact selected instruction",
+                        ))?;
                 if matches!(
                     instruction.kind.call_target(),
                     Some(selected_instructions::SelectedCallTarget::Callable { .. })
@@ -278,12 +287,12 @@ pub fn plan(
                             "MSR architectural state requires x86-64",
                         ));
                     }
-                    let instruction = selected
-                        .instructions()
-                        .find(|instruction| instruction.id == row.instruction)
-                        .ok_or(Error::Mismatch(
-                            "MSR row has no function-local selected instruction",
-                        ))?;
+                    let instruction =
+                        roster
+                            .body_instruction(row.instruction)
+                            .ok_or(Error::Mismatch(
+                                "MSR row has no function-local selected instruction",
+                            ))?;
                     let expected = if row.alternative.key.family
                         == MachineAlternativeFamily::ModelSpecificRead
                     {
