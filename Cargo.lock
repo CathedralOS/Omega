@@ -1738,12 +1738,12 @@ dependencies = [
  "source-acquisition",
  "target",
  "terminal-codec",
- "terminal-psi",
  "terminal-interpreter",
+ "terminal-psi",
  "terminal-runtime",
  "terminal-semantics",
- "worker-budget",
  "terminal-work",
+ "worker-budget",
 ]
 
 [[package]]
