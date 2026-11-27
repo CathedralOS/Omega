@@ -12,9 +12,7 @@ build-time-evaluation = { path = "../../../build/build-time" }
 build-model = { path = "../../../build/model" }
 checked-program-to-psi = { path = "../../pipeline/07_checked-program-to-psi" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-record-storage = { path = "../../../../../foundation/record-storage" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
-terminal-psi = { path = "../../../psi" }
 terminal-work = { path = "../../../psi/semantics/work" }
 typed-trees = { path = "../typed-trees" }

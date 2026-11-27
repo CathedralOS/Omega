@@ -3069,10 +3069,8 @@ dependencies = [
  "build-time-evaluation",
  "checked-program-to-psi",
  "diagnostics",
- "record-storage",
  "semantic-vocabulary",
  "symbols",
- "terminal-psi",
  "terminal-work",
  "typed-trees",
 ]
@@ -3797,7 +3795,6 @@ dependencies = [
  "source-text",
  "symbols",
  "typed-trees",
- "wire",
 ]
 
 [[package]]

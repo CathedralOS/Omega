@@ -19,37 +19,6 @@ pub enum PureEvaluationRecord {
     Invocation(Arc<PureTerminalEvaluationReceipt>),
 }
 
-impl record_storage::Record for PureEvaluationRecord {
-    fn write(
-        &self,
-        output: &mut record_storage::RecordWriter,
-    ) -> Result<(), record_storage::RecordError> {
-        output.record(|output| match self {
-            Self::CanonicalScalar(receipt) => {
-                // This coordinate retains an optional deployment explicitly;
-                // older scalar receipts always encoded a target string.
-                record_storage::Record::write(&2_u32, output)?;
-                record_storage::Record::write(receipt, output)
-            }
-            Self::Invocation(_) => Err(output.error(
-                "invocation-local evaluation receipts cannot be saved as portable evidence",
-            )),
-        })
-    }
-    fn read<Context>(
-        input: &mut record_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, record_storage::RecordError> {
-        input.record(
-            |input| match <u32 as record_storage::Record>::read(input)? {
-                2 => Ok(Self::CanonicalScalar(record_storage::Record::read(input)?)),
-                0 => Err(input.error("no product route yet: retired tree-evaluation receipt")),
-                1 => Err(input.error("retired scalar receipt without explicit deployment scope")),
-                _ => Err(input.error("unknown PureEvaluationRecord variant")),
-            },
-        )
-    }
-}
-
 impl PureEvaluationRecord {
     // A transient ordering of actual immutable occurrences, never a semantic
     // cache key. Output order remains the incoming account's own order.
@@ -299,14 +268,11 @@ pub struct SourcePreparationFailure {
     pub accounting: SourceCompletionAccounting,
 }
 
-#[derive(Debug, Clone, Default, record_storage::Record)]
+#[derive(Debug, Clone, Default)]
 pub struct SourceCompletionAccounting {
     receipts: Arc<Vec<PureEvaluationRecord>>,
-    reused: bool,
     // Materializing a named constant must also check the original expressions.
-    // Keep those inputs only until the source preparation finishes. Invocation
-    // receipts are local and already refuse serialization.
-    #[record(skip)]
+    // Keep those inputs only until the source preparation finishes.
     constant_inputs: Arc<BTreeMap<usize, Arc<source_state::TypedTrees>>>,
 }
 
@@ -339,10 +305,6 @@ impl SourceCompletionAccounting {
             .all(PureEvaluationRecord::has_complete_usage)
     }
 
-    pub fn mark_reused(&mut self) {
-        self.reused = true;
-    }
-
     pub fn receipts(&self) -> &[PureEvaluationRecord] {
         &self.receipts
     }
@@ -368,7 +330,6 @@ impl Extend<CanonicalScalarEvaluationReceipt> for SourceCompletionAccounting {
 
 impl SourceCompletionAccounting {
     pub fn append(&mut self, other: Self) {
-        self.reused |= other.reused;
         if self.constant_inputs.is_empty() {
             self.constant_inputs = other.constant_inputs;
         } else if !other.constant_inputs.is_empty()

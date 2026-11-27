@@ -119,7 +119,7 @@ fn declared_refinement_module() -> TerminalModule {
     use crate::source_inputs::SourceMap;
     use crate::source_state::TypedTrees;
     use crate::source_state::callable_values::RuntimeCallableContract;
-    use crate::source_state::expression::{Expression as TypedExpression, NamePath};
+    use crate::source_state::expression::NamePath;
     use crate::source_state::machine::Machine;
     use crate::source_state::name::Identifier;
     use crate::source_state::signature::{StateParameter, StateSignature};
@@ -188,13 +188,11 @@ fn declared_refinement_module() -> TerminalModule {
         type_reference: carrier,
         ..Default::default()
     }]);
-    let result = typed
-        .expression_table
-        .insert_tree(&TypedExpression::Name(NamePath::resolved(
-            vec![Identifier::generated("amount")],
-            amount,
-            amount,
-        )));
+    let result = typed.expression_table.insert_name_path(&NamePath::resolved(
+        vec![Identifier::generated("amount")],
+        amount,
+        amount,
+    ));
     let target = typed
         .statement_table
         .insert_transition_target(TransitionTargetNode::Value(result));

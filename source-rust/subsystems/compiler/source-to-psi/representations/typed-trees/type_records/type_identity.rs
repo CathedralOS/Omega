@@ -4828,18 +4828,18 @@ pub(crate) mod package_policy_reading_tests {
                     ])
                 };
                 let contracts = |fixture: &mut Self, owner, amount| {
-                    let amount = fixture.program.expression_table.insert_tree(
-                        &crate::source_state::expression::Expression::Name(NamePath::resolved(
-                            vec![Identifier::generated("amount")],
-                            amount,
-                            amount,
-                        )),
-                    );
-                    let result = fixture.program.expression_table.insert_tree(
-                        &crate::source_state::expression::Expression::Name(
-                            NamePath::unresolved(vec![Identifier::generated("result")])
-                                .denoting_reserved_result_of(owner),
-                        ),
+                    let amount =
+                        fixture
+                            .program
+                            .expression_table
+                            .insert_name_path(&NamePath::resolved(
+                                vec![Identifier::generated("amount")],
+                                amount,
+                                amount,
+                            ));
+                    let result = fixture.program.expression_table.insert_name_path(
+                        &NamePath::unresolved(vec![Identifier::generated("result")])
+                            .denoting_reserved_result_of(owner),
                     );
                     let low = fixture.integer(3);
                     let high = fixture.integer(100);
@@ -4898,13 +4898,14 @@ pub(crate) mod package_policy_reading_tests {
                 let selected_amount = self.symbol("selected_amount");
                 let selected_parameters = parameters(self, selected_subject, selected_amount);
                 let selected_contracts = contracts(self, selected, selected_amount);
-                let amount = self.program.expression_table.insert_tree(
-                    &crate::source_state::expression::Expression::Name(NamePath::resolved(
+                let amount = self
+                    .program
+                    .expression_table
+                    .insert_name_path(&NamePath::resolved(
                         vec![Identifier::generated("amount")],
                         selected_amount,
                         selected_amount,
-                    )),
-                );
+                    ));
                 let target = self
                     .program
                     .statement_table
@@ -5127,13 +5128,13 @@ pub(crate) mod package_policy_reading_tests {
 
             pub(crate) fn name(&mut self, name: &str) -> ExpressionHandle {
                 let symbol = self.symbol(name);
-                self.program.expression_table.insert_tree(
-                    &crate::source_state::expression::Expression::Name(NamePath::resolved(
+                self.program
+                    .expression_table
+                    .insert_name_path(&NamePath::resolved(
                         vec![Identifier::generated(name)],
                         symbol,
                         symbol,
-                    )),
-                )
+                    ))
             }
 
             pub(crate) fn binary(
@@ -5646,11 +5647,10 @@ pub(crate) mod package_policy_reading_tests {
             add(fixture, "declared name", name, &[2]);
             let value = fixture.integer(7);
             add(fixture, "integer", value, &[]);
-            let spelled = fixture.program.expression_table.insert_tree(
-                &crate::source_state::expression::Expression::Name(NamePath::unresolved(vec![
-                    Identifier::generated("true"),
-                ])),
-            );
+            let spelled = fixture
+                .program
+                .expression_table
+                .insert_name_path(&NamePath::unresolved(vec![Identifier::generated("true")]));
             add(fixture, "spelled Boolean name", spelled, &[]);
             let boolean = fixture.expression(ExpressionNode::Boolean(true));
             add(fixture, "Boolean", boolean, &[]);
@@ -5698,20 +5698,21 @@ pub(crate) mod package_policy_reading_tests {
 
             let target = fixture.named("Count");
             let cast = {
-                let value = crate::source_state::expression::Expression::Integer(
-                    IntegerLiteral::from_value(3),
-                );
-                fixture.program.expression_table.insert_tree(
-                    &crate::source_state::expression::Expression::Cast(Box::new(
-                        crate::source_state::expression::CastExpression {
-                            value,
-                            target_type: target,
-                            target_label: NamePath::unresolved(Vec::new()),
-                            domain: ArithmeticDomain::Wrapping,
-                            form: language_core::cast_form::CastForm::Value,
-                        },
-                    )),
-                )
+                let value = fixture.integer(3);
+                fixture.expression(ExpressionNode::Cast(
+                    crate::source_state::expression::TableCastExpression {
+                        value,
+                        target_type: target,
+                        result_type: crate::source_state::types::TypeReferenceHandle::invalid(),
+                        target_label: arena::HandleSpan::empty(),
+                        domain: ArithmeticDomain::Wrapping,
+                        semantic_domain: arena::HandleSpan::empty(),
+                        semantic_domain_arguments: arena::HandleSpan::empty(),
+                        semantic_domain_symbol: SymbolHandle::invalid(),
+                        semantic_domain_id: semantic_vocabulary::SemanticDomainId::NULL,
+                        form: language_core::cast_form::CastForm::Value,
+                    },
+                ))
             };
             add(fixture, "cast", cast, &[2]);
 

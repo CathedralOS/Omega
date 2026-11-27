@@ -5257,13 +5257,11 @@ mod declaration_description_tests {
             symbols: symbols.clone(),
             ..Default::default()
         };
-        let expression = authored.expression_table.insert_tree(
-            &crate::source_state::expression::Expression::Name(
-                crate::source_state::expression::NamePath::unresolved(vec![Identifier::generated(
-                    "result",
-                )])
-                .denoting_reserved_result_of(owner),
-            ),
+        let expression = authored.expression_table.insert_name_path(
+            &crate::source_state::expression::NamePath::unresolved(vec![Identifier::generated(
+                "result",
+            )])
+            .denoting_reserved_result_of(owner),
         );
         let copy = authored.expression_table.insert_copy(expression);
         let mut retained = ReferenceCollector::default();

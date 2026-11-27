@@ -410,7 +410,7 @@ impl TypedTrees {
 mod callback_contract_recovery_tests {
     use super::*;
     use crate::source_state::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
-    use crate::source_state::expression::{Expression, StaticMachineArgument};
+    use crate::source_state::expression::{ExpressionNode, StaticMachineArgument};
     use crate::source_state::machine::Machine;
     use crate::source_state::name::Identifier;
     use crate::source_state::signature::{StateParameter, StateSignature};
@@ -569,7 +569,7 @@ mod callback_contract_recovery_tests {
             } else {
                 let expression = forged
                     .expression_table
-                    .insert_tree(&Expression::Boolean(false));
+                    .insert(ExpressionNode::Boolean(false));
                 let facts = forged.proof_facts.insert_many([
                     crate::source_state::domain::ProofFact::Expression(expression),
                 ]);
