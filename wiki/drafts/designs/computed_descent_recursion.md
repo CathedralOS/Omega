@@ -178,14 +178,14 @@ call owes.
    repeated-subtraction `mod` and a copy with its formals swapped agree, by
    citing itself at `saturating_sub(a, b)`. Its twin
    `fail/modulos_agree_at_an_unchanged_dividend` cites itself at `a` and is
-   refused.
+   refused at that citation. Each lemma the induction cites at a
+   self-citation has that call's descent, `S e ∸ x_r = 0`, as a premise.
+   The citation carries the call's source, so stage 06 reports an unproved
+   premise there as the descent of that call, ahead of any citation it
+   leaves waiting.
 
 ## Still owed
 
-- The spec asks that an unproved descent be reported at its recursive call.
-  A machine's own call is reported there. A law's self-citation is reported
-  at the law's clause instead, in the case of the fuel where its descent
-  is needed (`TASKS.md`).
 - The reconstruction law of a repeated-subtraction `div` and `mod` needs
   `a = add(b, a ∸ b)` for `b <= a`, which core does not state. The fixture
   proves agreement of two definitions instead, which needs only the

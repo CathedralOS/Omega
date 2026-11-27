@@ -1326,7 +1326,8 @@ starts with records.
   argument gives the same result. Its recursive equation is the source
   equation under its premises, and a law that calls the machine cites it. A
   law that cites itself at a computed natural is proved by induction on
-  fuel that reaches its ranked formal. The order's facts are proved once, in
+  fuel that reaches its ranked formal, and a self-citation whose descent is
+  unproved is refused at that citation. The order's facts are proved once, in
   core: `succ_of_sub_between`, `not_succ_le_self`, `not_succ_le_zero`,
   `le_of_succ_le_succ`, `not_lt_of_le_zero`, `le_of_lt_of_sub_between` and
   `sub_self`. Each is recognized by its exact statement over the recognized

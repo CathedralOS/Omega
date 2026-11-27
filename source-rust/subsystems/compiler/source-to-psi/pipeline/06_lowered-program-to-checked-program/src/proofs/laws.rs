@@ -166,6 +166,9 @@ struct Failure {
     case: Option<usize>,
     cause: UnprovedCause,
     detail: String,
+    /// Where the body wrote the recursive call whose descent is unproved,
+    /// when that is what failed: the refusal names that call.
+    call: Option<source_text::SourceSpan>,
 }
 
 fn failure(case: Option<usize>, error: SearchError) -> Failure {
@@ -184,6 +187,7 @@ fn failure(case: Option<usize>, error: SearchError) -> Failure {
         case,
         cause,
         detail,
+        call: None,
     }
 }
 
@@ -193,6 +197,12 @@ enum Uncited {
     /// A cited law requires an equality the case cannot prove at the cited
     /// arguments.
     Premise,
+    /// That equality is the descent of a recursive call the body wrote, at
+    /// `call`, and its search ran out of budget when `spent` says so.
+    Descent {
+        call: source_text::SourceSpan,
+        spent: Option<BudgetLimit>,
+    },
 }
 
 impl Uncited {
@@ -203,7 +213,24 @@ impl Uncited {
                 case,
                 cause: UnprovedCause::NoDerivation,
                 detail: "a cited law's premise is not established at its citation".to_owned(),
+                call: None,
             },
+            Self::Descent { call, spent } => {
+                let (cause, detail) = match spent {
+                    Some(limit) => (UnprovedCause::BudgetExhausted, limit.describe()),
+                    None => (
+                        UnprovedCause::NoDerivation,
+                        "no fact in scope at the call shows its ranked argument strictly below the law's"
+                            .to_owned(),
+                    ),
+                };
+                Failure {
+                    case,
+                    cause,
+                    detail,
+                    call: Some(call),
+                }
+            }
         }
     }
 }
@@ -332,9 +359,25 @@ fn judge_laws(
         match proved {
             Ok(judgment) => judged.push(judgment),
             Err(Failure {
+                cause,
+                detail,
+                call: Some(call),
+                ..
+            }) => unproved.push(UnprovedLaw {
+                machine: law.machine_name.clone(),
+                site: Some(call),
+                cause,
+                statement: format!(
+                    "cannot prove ensures contract for `{0}`: the descent of `{0}` at its recursive call",
+                    law.machine_name
+                ),
+                detail,
+            }),
+            Err(Failure {
                 case,
                 cause,
                 detail,
+                call: None,
             }) => unproved.push(UnprovedLaw {
                 machine: law.machine_name.clone(),
                 site: case
@@ -593,7 +636,7 @@ impl Cited<'_> {
             if goals.is_empty() {
                 evidence.push(term);
             } else {
-                waiting.push((term, goals));
+                waiting.push((term, goals, citation.descent));
             }
         }
         // Each round admits every waiting citation whose premises the
@@ -602,8 +645,9 @@ impl Cited<'_> {
             let mut refused = Vec::new();
             let before = evidence.len();
             let mut exhausted: Option<BudgetLimit> = None;
-            for (mut term, goals) in waiting {
+            for (mut term, goals, descent) in waiting {
                 let mut proofs = Vec::with_capacity(goals.len());
+                let mut spent = None;
                 for &goal in &goals {
                     // A premise that waits on a later citation may run out
                     // of budget before it runs out of rewrites. Each search
@@ -623,13 +667,14 @@ impl Cited<'_> {
                         Err(SearchError::NoProof) => break,
                         Err(SearchError::Budget(limit)) => {
                             exhausted.get_or_insert(limit);
+                            spent = Some(limit);
                             break;
                         }
                         Err(error) => return Err(Uncited::Search(error)),
                     }
                 }
                 if proofs.len() < goals.len() {
-                    refused.push((term, goals));
+                    refused.push((term, goals, descent.map(|call| (call, spent))));
                     continue;
                 }
                 for proof in proofs {
@@ -641,12 +686,20 @@ impl Cited<'_> {
                 evidence.push(term);
             }
             if evidence.len() == before {
+                // A refused descent is reported at its call, ahead of any
+                // other citation it leaves waiting.
+                if let Some((call, spent)) = refused.iter().find_map(|(.., descent)| *descent) {
+                    return Err(Uncited::Descent { call, spent });
+                }
                 return Err(match exhausted {
                     Some(limit) => Uncited::Search(SearchError::Budget(limit)),
                     None => Uncited::Premise,
                 });
             }
-            waiting = refused;
+            waiting = refused
+                .into_iter()
+                .map(|(term, goals, descent)| (term, goals, descent.map(|(call, _)| call)))
+                .collect();
         }
         Ok(evidence)
     }
@@ -1206,6 +1259,7 @@ impl Proving<'_> {
                 arguments: (0..count)
                     .map(|formal| variable(self.arena, frame.names.len() - 1 - formal))
                     .collect(),
+                descent: None,
             }],
             ..LawCase::default()
         };
@@ -1638,6 +1692,7 @@ fn prove_family(
         case,
         cause: UnprovedCause::KernelRefused,
         detail,
+        call: None,
     };
     let (Some(positions), Some(declared)) = (extras.integers, extras.families.get(family as usize))
     else {
@@ -1689,6 +1744,7 @@ fn prove_family(
                     detail: "what the step of this case requires does not follow from what the \
                              data requires of the case"
                         .to_owned(),
+                    call: None,
                 });
             }
         }
@@ -1714,6 +1770,7 @@ fn prove_family(
                     detail: "the index the theorem is ranked on is not shown to be smaller at a \
                              child this case cites the theorem at"
                         .to_owned(),
+                    call: None,
                 });
             }
         }
@@ -1742,6 +1799,7 @@ fn prove_family(
                 detail: "no proof of this case from what the data requires of it and the theorem \
                          at the children the body cites"
                     .to_owned(),
+                call: None,
             });
         };
         // The case's lemma for these unknowns: given one proof of all the
@@ -1831,6 +1889,7 @@ fn judged(
                 case: None,
                 cause: UnprovedCause::KernelRefused,
                 detail: "could not encode the judged mathematical term".to_owned(),
+                call: None,
             }
         })?;
     Ok(LawJudgment {
@@ -1856,6 +1915,7 @@ fn prove_integers(
         case: None,
         cause: UnprovedCause::KernelRefused,
         detail,
+        call: None,
     };
     let Some(positions) = extras.integers else {
         return Err(refused(
@@ -1892,6 +1952,7 @@ fn prove_integers(
             case: None,
             cause: UnprovedCause::NoDerivation,
             detail: "no proof from what the machine requires of its value parameters".to_owned(),
+            call: None,
         });
     };
     let mut proved = goal;
@@ -2037,6 +2098,7 @@ fn prove_law(
                 case: None,
                 cause: UnprovedCause::KernelRefused,
                 detail: "theorem over indexed data read as a plain law".to_owned(),
+                call: None,
             });
         }
         LawProof::Direct(direct) => proving.case(frame, direct, None)?,
@@ -2134,6 +2196,7 @@ fn prove_law(
             case: None,
             cause,
             detail: declared.refusal.clone(),
+            call: None,
         };
         let mut same = |arena: &mut TermArena, proved, required| match convertible(
             arena, &under, proved, required, universe, &mut check,

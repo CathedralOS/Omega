@@ -352,14 +352,17 @@ fn a_law_that_cites_itself_at_a_computed_dividend_compiles() {
 }
 
 #[test]
-fn the_same_law_citing_itself_at_its_own_dividend_is_refused() {
-    // At `a` itself the call does not descend, so with no fuel it is not
-    // shown unreachable and the induction's case of zero stays unproved.
+fn the_same_law_citing_itself_at_its_own_dividend_is_refused_at_that_citation() {
+    // At `a` itself the call does not descend. The induction on fuel needs
+    // that descent where the law cites itself, so the refusal names the
+    // citation (`main.omg:70:13`), not the law's clause.
     let (output, report) = check("computed_descent/fail/modulos_agree_at_an_unchanged_dividend");
     assert_eq!(output.status.code(), Some(1), "{report}");
     assert!(
-        report
-            .contains("cannot prove ensures contract for `modulos_agree` in the case `Nat::Zero`"),
+        report.contains(
+            "cannot prove ensures contract for `modulos_agree`: the descent of `modulos_agree` at its recursive call"
+        ) && report.contains("main.omg:70:13")
+            && !report.contains("in the case `Nat::Zero`"),
         "{report}"
     );
 }

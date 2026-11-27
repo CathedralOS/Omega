@@ -1,6 +1,6 @@
 // The negative twin of `two_modulos_agree`: the law cites itself at its own
-// dividend, which does not descend. With no fuel that citation is not shown
-// unreachable, so the law's induction on fuel stays unproved.
+// dividend, which does not descend. The law's induction on fuel needs that
+// descent at the citation, so the refusal names the citation.
 use {omega}/language/core/foundation.omg as proof;
 use {omega}/language/core/nat.omg;
 
