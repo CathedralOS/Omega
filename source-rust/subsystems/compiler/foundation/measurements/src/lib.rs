@@ -15,6 +15,3 @@ this host measurement crate.
 */
 
 pub mod compile_timings;
-
-mod phase_snapshot;
-pub use phase_snapshot::PhaseSnapshot;

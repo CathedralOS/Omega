@@ -2143,7 +2143,6 @@ pub(crate) mod identity_context {
         pub(crate) exact_toolchain_sources: &'binders [(source_text::SourceId, [u8; 32])],
         pub(crate) missing_exact_nominal_owner: Option<&'binders Cell<bool>>,
         pub(crate) qualification: TypeIdentityQualification,
-        pub(crate) static_context: crate::source_state::expression::ExpressionHandle,
     }
 
     /// lifetimes.md, "Returned views": in a signature's inputs each elided
@@ -3131,15 +3130,6 @@ pub(crate) mod identity_context {
                 replacement_context
             };
             return normalize_type_identity(program, *replacement, &replacement_context);
-        }
-        if context.static_context.is_valid() {
-            let refined =
-                program.statically_refined_type_reference(context.static_context, type_reference);
-            if refined != type_reference
-                && crate::source_state::domain::index_argument_is_closed(program, refined)
-            {
-                return normalize_type_identity(program, refined, context);
-            }
         }
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Reference {
