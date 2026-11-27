@@ -8,7 +8,9 @@ pub mod dependency_reach;
 pub mod logical_reach;
 
 mod component;
-pub use component::{AdmittedComponentProvider, admit_component_provider};
+pub use component::{
+    AdmittedComponentProvider, ComponentDeadlock, admit_component_provider, component_wait_deadlock,
+};
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::collections::{BTreeMap, BTreeSet};

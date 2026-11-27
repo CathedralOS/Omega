@@ -84,14 +84,18 @@ locator, calling convention and image digest before sending bytes to the worker.
 
 ## Admission and preparation work
 
-Until an untrusted interpretation route exists, the
+The
 [admission contract](../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
-requires the host to explicitly trust an exact producer artifact before running
-it. Received code executes only through the host's `AuthorizedTerminalArtifact`.
-Canonical decoding and safe Rust do not isolate the guest. Inspection works
-without execution trust, under shared input and work limits. The
+gives received code two routes. With the host's trust in an exact producer
+artifact it runs through `AuthorizedTerminalArtifact`. Without it, a host may
+admit it with `psi_authorization::admit_contained_interpretation` and run it
+through `TerminalProgram::admit_contained`: its instances need an invocation
+account, bind only adapters whose `serves_contained_execution` is true and
+take no components, and native lowering never accepts it. Canonical decoding
+and safe Rust alone do not isolate a guest. Inspection works without execution
+trust, under shared input and work limits. The
 [containment audit](../../../wiki/drafts/designs/psi_containment_audit.md)
-records what is contained and what that route still needs.
+records what is contained and reviews each runtime host binding.
 
 `TerminalInstance::discard` ends a faulted, stopped or waiting guest. The guest
 never resumes. Its waiting provider operation is asked to cancel through

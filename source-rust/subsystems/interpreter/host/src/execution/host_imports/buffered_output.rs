@@ -127,7 +127,9 @@ impl BufferedOutput {
     }
 }
 
-import_signature_via_clone!(BufferedOutput);
+// Output reaches only the invocation's buffers, so it is contained once those
+// buffers have a ceiling.
+import_signature_via_clone!(BufferedOutput, contained: |adapter| adapter.output.limits.is_some());
 
 impl TerminalEffectHandler for BufferedOutput {
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {

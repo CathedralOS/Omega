@@ -46,7 +46,9 @@ impl IntegerDivisionImport {
     }
 }
 
-import_signature_via_clone!(IntegerDivisionImport);
+// Safe Rust over copied scalars and captured storage: nothing it touches
+// outlives the call or reaches the host.
+import_signature_via_clone!(IntegerDivisionImport, contained: |_adapter| true);
 
 impl TerminalEffectHandler for IntegerDivisionImport {
     handle_effect_requires_dispatch!("lldiv requires result-aware dispatch");

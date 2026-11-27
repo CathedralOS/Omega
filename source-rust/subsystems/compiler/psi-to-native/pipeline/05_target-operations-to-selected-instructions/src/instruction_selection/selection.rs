@@ -720,19 +720,6 @@ pub(crate) mod construction {
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
-        crate::instruction_selection::selection_inlining::inline_and_simplify(
-            &mut functions,
-            environment,
-            |machine| {
-                target
-                    .function_abi(machine)
-                    .is_some_and(|abi| abi.assembly_return.is_some())
-            },
-        )?;
-        crate::instruction_selection::selection_vector_promotion::promote_and_simplify(
-            &mut functions,
-            environment,
-        )?;
         functions.sort_by_key(|function| function.machine);
         Ok(SelectedInstructionPlan {
             contracts: std::sync::Arc::new(

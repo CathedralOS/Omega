@@ -54,6 +54,7 @@ pub(super) fn prepare_roster(
         chosen_defaults,
         &claimed_selections,
         build.targets,
+        build.calling_targets,
     )?;
     let direct = pass.roots.direct();
     let external_roots = program_roots(direct);

@@ -300,6 +300,14 @@ pub(crate) struct Program<'t> {
     /// (`contracts::named_proposition`) and the `let`s of a generic
     /// mathematical machine's body (`templates`).
     applied_propositions: Vec<contracts::AppliedProposition>,
+    /// The values a for-every definition being read binds, innermost last:
+    /// each binder's symbol, the place the clause names it by, and its type
+    /// (`mathematics::universal_application`).
+    universal_binders: Vec<(
+        SymbolHandle,
+        semantic_vocabulary::PlaceId,
+        crate::body::ValueType,
+    )>,
     /// The generic mathematical machine whose contract is being read, so
     /// that its body is read in the same scope (`templates`).
     reading_template: Option<SymbolHandle>,
@@ -452,6 +460,14 @@ pub(crate) struct Program<'t> {
     /// The records of data that contains itself, in identity order. Such a
     /// record names a mathematical type and has no storage.
     pub(crate) self_containing: Vec<StructuralTypeId>,
+    /// While a clause over a family indexed by data values is read: each
+    /// name that stands for such an index or payload value, with its type
+    /// and the input a clause names it as (`families::index_place`).
+    pub(crate) data_indices: Vec<(
+        SymbolHandle,
+        ValueType,
+        semantic_vocabulary::StructuralCaseSubject,
+    )>,
     /// The declaration being read, which is the lexical owner of the
     /// lifetimes its types name when the typed trees retained none for an
     /// occurrence: the data declaration whose members are read, or the
@@ -648,6 +664,7 @@ impl<'t> Program<'t> {
             resolving_services: Vec::new(),
             unfolding_calls: Vec::new(),
             applied_propositions: Vec::new(),
+            universal_binders: Vec::new(),
             reading_template: None,
             template_bodies: Vec::new(),
             quotients: Vec::new(),
@@ -700,6 +717,7 @@ impl<'t> Program<'t> {
             resolving: Vec::new(),
             mathematical: false,
             self_containing: Vec::new(),
+            data_indices: Vec::new(),
             lifetime_owner: SymbolHandle::invalid(),
             region_tuples: vec![Vec::new()],
             fixed_regions: Vec::new(),

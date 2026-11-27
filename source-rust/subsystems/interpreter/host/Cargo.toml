@@ -24,6 +24,8 @@ terminal-codec = { path = "../../compiler/psi/artifact/codec" }
 terminal-semantics = { path = "../../compiler/psi/semantics" }
 terminal-work = { path = "../../compiler/psi/semantics/work" }
 terminal-interpreter = { path = ".." }
+psi-authorization = { path = "../../compiler/psi/artifact/authorization" }
+build-model = { path = "../../compiler/build/model" }
 target-vocabulary = { path = "../../compiler/psi-to-native/representations/target-operations/target-vocabulary" }
 calling-conventions = { path = "../../compiler/psi-to-native/targets/calling-conventions" }
 

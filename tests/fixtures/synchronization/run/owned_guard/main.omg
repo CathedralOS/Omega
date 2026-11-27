@@ -1,0 +1,33 @@
+// Leaving use_once consumes the guard and releases the flag before main acquires it again.
+data Flag { held: AtomicU32; }
+
+machine acquire(flag: @Flag) {
+    let prior: u32 = flag.held.swap(1, ReceivePublish);
+    transition prior == 1 {
+        true -> acquire(flag),
+        _ -> acquired()
+    }
+    machine acquired() {}
+}
+
+data Guard<'storage> dropped by unlock { flag: @'storage Flag; }
+
+machine unlock<'storage>(guard: Guard<'storage>) {
+    let { flag } = move guard;
+    flag.held.store(0, Publish);
+}
+
+machine lock<'storage>(flag: @'storage Flag) -> Guard<'storage> {
+    acquire(flag);
+    Guard { flag: flag }
+}
+
+machine use_once<'storage>(flag: @'storage Flag) {
+    let guard: Guard<'storage> = lock(flag);
+}
+
+machine main() {
+    let mutable flag: Flag;
+    use_once(@flag);
+    acquire(@flag);
+}

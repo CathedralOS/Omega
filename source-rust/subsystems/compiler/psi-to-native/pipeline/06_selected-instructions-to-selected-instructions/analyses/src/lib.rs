@@ -25,11 +25,12 @@
   require authenticated liveness, live-range, and legality facts over the
   same `SelectedInstructionPlan` representation. Housing these analyses in a
   single representation-analysis crate lets both pipeline stages share the
-  exact dataflow and interference engines, while `UnsealedRecoveryFacts` and
-  `carried_digests` reuse unchanged per-function `Arc` rows without
-  re-analyzing or re-hashing untouched functions: across stage 07's iterative
-  spill/split recovery steps, and through `reanalyze_rewritten_functions`
-  after each rewrite stage 06 commits.
+  exact dataflow and interference engines, while `UnsealedRecoveryFacts`
+  reuses unchanged per-function `Arc` rows without re-analyzing untouched
+  functions: across stage 07's iterative spill/split recovery steps, and
+  through `reanalyze_rewritten_functions` after each rewrite stage 06 commits.
+  Each analysis names the program it describes through its shared `selected`
+  plan, so stages check that two analyses agree by comparing those plans.
 */
 
 /*
@@ -49,12 +50,6 @@
 #[macro_export]
 macro_rules! shared_analysis_identity_accessors {
     ($visibility:vis) => {
-        $visibility const fn ranges(self) -> LiveRangeIdentity {
-            self.ranges
-        }
-        $visibility const fn legality(self) -> AllocationLegalityIdentity {
-            self.legality
-        }
         $visibility const fn register_environment(
             self,
         ) -> TargetRegisterEnvironmentIdentity {
@@ -239,7 +234,6 @@ macro_rules! shared_plan_carrier {
         pub struct $carrier {
             pub(crate) plan: std::sync::Arc<$plan>,
             pub(crate) receipt: $receipt,
-            pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
             $($(#[$meta])* $vis $field: $ty,)*
         }
 
@@ -866,22 +860,6 @@ work_defect_conversion!(
 pub use spill_choice::{SpillChoiceError, ValidatedSpillChoices, choose_spill_victims};
 use std::sync::Arc;
 
-pub(crate) fn carried_digests<Function>(
-    functions: &[Function],
-    carried: &[bool],
-    previous_digests: &[[u8; 32]],
-    digest: impl Fn(&Function) -> [u8; 32],
-) -> Arc<[[u8; 32]]> {
-    functions
-        .iter()
-        .enumerate()
-        .map(|(index, function)| match previous_digests.get(index) {
-            Some(previous) if carried.get(index) == Some(&true) => *previous,
-            _ => digest(function),
-        })
-        .collect()
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RecoveryReanalysisError {
     Liveness(LivenessError),
@@ -1052,7 +1030,6 @@ impl UnsealedRecoveryFacts {
     pub fn seal(
         self,
         anchor_selected: &impl SelectedProgramView,
-        anchor_liveness: &ValidatedLiveness,
         anchor_ranges: &ValidatedLiveRanges,
         anchor_legality: &ValidatedAllocationLegality,
         selected: &impl SelectedProgramView,
@@ -1082,6 +1059,8 @@ impl UnsealedRecoveryFacts {
                 liveness_functions[index] = Arc::new(full);
             }
         }
+        // A function whose body and range and legality rows are unchanged
+        // keeps the anchor's counts instead of counting its rows again.
         let carried: Vec<bool> = next_plan
             .functions
             .iter()
@@ -1091,15 +1070,6 @@ impl UnsealedRecoveryFacts {
                     .functions
                     .shares_function_storage(&next_plan.functions, index)
                     || anchor_plan.functions.get(index) == Some(function))
-                    && anchor_liveness
-                        .plan()
-                        .functions
-                        .get(index)
-                        .is_some_and(|a| {
-                            liveness_functions
-                                .get(index)
-                                .is_some_and(|b| Arc::ptr_eq(a, b) || a == b)
-                        })
                     && anchor_ranges.plan().functions.get(index).is_some_and(|a| {
                         self.range_functions
                             .get(index)
@@ -1123,27 +1093,18 @@ impl UnsealedRecoveryFacts {
             target: next_plan.target,
             functions: liveness_functions,
         };
-        let validated_liveness = liveness::validate::admit_validated_liveness(
-            liveness_plan,
-            &carried,
-            &anchor_liveness.function_digests,
-        );
+        let validated_liveness = liveness::validate::admit_validated_liveness(liveness_plan);
         let range_plan = selected_instructions::LiveRangePlan {
             selected: selected.shared_selected_plan(),
-            liveness: validated_liveness.receipt().identity(),
             optimization_unit: selected.optimization_unit_identity(),
             work_schedule: selected.work_schedule_identity(),
             target: next_plan.target,
             functions: self.range_functions,
         };
-        let validated_ranges = live_ranges::validate::admit(
-            range_plan,
-            &carried,
-            &anchor_ranges.function_digests,
-            &anchor_ranges.function_counts,
-        );
+        let validated_ranges =
+            live_ranges::validate::admit(range_plan, &carried, &anchor_ranges.function_counts);
         let legality_plan = register_homes::AllocationLegalityPlan {
-            ranges: validated_ranges.receipt().identity(),
+            selected: selected.shared_selected_plan(),
             register_environment,
             allocator_availability: availability.receipt().identity(),
             functions: self.legality_functions,
@@ -1151,7 +1112,6 @@ impl UnsealedRecoveryFacts {
         let validated_legality = allocation_legality::validate::admit(
             legality_plan,
             &carried,
-            &anchor_legality.function_digests,
             &anchor_legality.function_counts,
         )?;
         Ok((validated_liveness, validated_ranges, validated_legality))
@@ -1169,8 +1129,8 @@ enum LivenessDetail {
 
 /// Liveness, live ranges and allocation legality for `selected`, a rewrite of
 /// `previous`, given `previous`'s validated facts. Only the functions whose
-/// selected body changed are recomputed; every other function keeps its rows,
-/// digests and counts. The result equals a fresh `analyze_liveness`,
+/// selected body changed are recomputed; every other function keeps its rows
+/// and counts. The result equals a fresh `analyze_liveness`,
 /// `analyze_live_ranges` and `analyze_allocation_legality` over `selected`.
 ///
 /// A rewrite pass that commits one change at a time and needs sealed facts
@@ -1202,7 +1162,6 @@ pub fn reanalyze_rewritten_functions(
         )?
         .seal(
             previous,
-            liveness,
             ranges,
             legality,
             selected,
@@ -1295,7 +1254,6 @@ mod recovery_tests {
         let seal = |facts: UnsealedRecoveryFacts, availability: &ValidatedAllocatorAvailability| {
             facts.seal(
                 &selected,
-                &liveness,
                 &ranges,
                 &unrestricted,
                 &selected,
@@ -1310,7 +1268,6 @@ mod recovery_tests {
         assert!(matches!(
             cache.clone().seal(
                 &selected,
-                &liveness,
                 &ranges,
                 &unrestricted,
                 &selected,
@@ -1434,7 +1391,6 @@ mod recovery_tests {
                     selected: &selected_instructions::SelectedProgram| {
             facts.seal(
                 &first,
-                &liveness,
                 &ranges,
                 &legality,
                 selected,
@@ -1590,8 +1546,8 @@ mod report_counts_tests {
     };
     use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
     use selected_instructions::{
-        FunctionLiveRanges, LiveRangeFragment, LiveRangeIdentity, LiveRangePlan, LiveRangePoint,
-        LivenessIdentity, SelectedBlockId, VirtualLiveRange, VirtualRegisterId,
+        FunctionLiveRanges, LiveRangeFragment, LiveRangePlan, LiveRangePoint, SelectedBlockId,
+        VirtualLiveRange, VirtualRegisterId,
     };
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use std::sync::Arc;
@@ -1625,29 +1581,24 @@ mod report_counts_tests {
         };
         let mut plan = LiveRangePlan {
             selected: selected_instructions::test_support::placeholder_plan(1),
-            liveness: LivenessIdentity::from_bytes([1; 32]),
             optimization_unit: optimization_core::OptimizationUnitIdentity::from_bytes([2; 32]),
             work_schedule: WorkScheduleIdentity::new(1).unwrap(),
             target: target::NativeTarget::macos_arm64(),
             functions: vec![function(1), function(2)],
         };
-        let previous = super::live_ranges::validate::admit(plan.clone(), &[], &[], &[]);
+        let previous = super::live_ranges::validate::admit(plan.clone(), &[], &[]);
         Arc::make_mut(&mut plan.functions[1])
             .virtual_registers
             .push(VirtualLiveRange {
                 virtual_register: VirtualRegisterId(1),
                 ..register
             });
-        let fresh = super::live_ranges::validate::admit(plan.clone(), &[], &[], &[]);
+        let fresh = super::live_ranges::validate::admit(plan.clone(), &[], &[]);
         assert_eq!(fresh.receipt().virtual_register_count(), 3);
         assert_eq!(fresh.receipt().virtual_fragment_count(), 3);
         for previous_counts in [&previous.function_counts[..], &[]] {
-            let carried = super::live_ranges::validate::admit(
-                plan.clone(),
-                &[true, false],
-                &previous.function_digests,
-                previous_counts,
-            );
+            let carried =
+                super::live_ranges::validate::admit(plan.clone(), &[true, false], previous_counts);
             assert_eq!(carried, fresh);
         }
     }
@@ -1673,25 +1624,22 @@ mod report_counts_tests {
             })
         };
         let mut plan = AllocationLegalityPlan {
-            ranges: LiveRangeIdentity::from_bytes([1; 32]),
+            selected: selected_instructions::test_support::placeholder_plan(1),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([2; 32]),
             allocator_availability: AllocatorAvailabilityIdentity::from_bytes([3; 32]),
             functions: vec![function(1), function(2)],
         };
-        let previous =
-            super::allocation_legality::validate::admit(plan.clone(), &[], &[], &[]).unwrap();
+        let previous = super::allocation_legality::validate::admit(plan.clone(), &[], &[]).unwrap();
         let changed = &mut Arc::make_mut(&mut plan.functions[1]).virtual_registers[0];
         changed.spans[0].end = LiveRangePoint(8);
         changed.spans[0].candidates.push(RegisterViewId(2));
-        let fresh =
-            super::allocation_legality::validate::admit(plan.clone(), &[], &[], &[]).unwrap();
+        let fresh = super::allocation_legality::validate::admit(plan.clone(), &[], &[]).unwrap();
         assert_eq!(fresh.receipt().point_count(), 10);
         assert_eq!(fresh.receipt().candidate_count(), 27);
         for previous_counts in [&previous.function_counts[..], &[]] {
             let carried = super::allocation_legality::validate::admit(
                 plan.clone(),
                 &[true, false],
-                &previous.function_digests,
                 previous_counts,
             )
             .unwrap();

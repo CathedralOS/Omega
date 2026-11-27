@@ -1,0 +1,16 @@
+// The update returns the previous word, then the wait sees the newly held flag.
+data Flag { held: AtomicU32; other: AtomicU32; }
+
+machine await_clear(flag: @Flag) {
+    let value: u32 = flag.held.load(Receive);
+    transition value == 1 { true -> await_clear(flag), _ -> done() }
+    machine done() {}
+}
+
+machine main() {
+    let mutable flag: Flag;
+    flag.held.store(0, Publish);
+    let prior: u32 = flag.held.fetch_or(1, ReceivePublish);
+    transition prior == 0 { true -> await_clear(@flag), _ -> done() }
+    machine done() {}
+}

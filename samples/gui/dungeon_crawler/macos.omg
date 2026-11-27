@@ -33,7 +33,11 @@ machine macos_loop(main: @mutable |app|::Main, window: |macos_gui|::Window) reac
     }
     machine focus(main: @mutable |app|::Main, window: |macos_gui|::Window) {
         let focused: u64 = |macos_gui|::macos_window_foreground_window(@window);
-        transition focused == window.window { true -> escape(main, window), _ -> draw(main, window) }
+        transition focused == window.window { true -> escape(main, window), _ -> unfocused(main, window) }
+    }
+    machine unfocused(main: @mutable |app|::Main, window: |macos_gui|::Window) {
+        |app|::clear_controls(main);
+        transition { _ -> draw(main, window) }
     }
     machine escape(main: @mutable |app|::Main, window: |macos_gui|::Window) {
         let escape_key: u64 = |macos_gui|::macos_key_state(27);
@@ -48,42 +52,23 @@ machine macos_loop(main: @mutable |app|::Main, window: |macos_gui|::Window) reac
         transition { _ -> input(main, window) }
     }
     machine input(main: @mutable |app|::Main, window: |macos_gui|::Window) {
-        main.direction = -1;
         let attack: u64 = |macos_gui|::macos_key_state(32);
-        main.swing = attack > 0;
         let up: u64 = |macos_gui|::macos_key_state(38);
         let north_key: u64 = |macos_gui|::macos_key_state(87);
-        transition up > 0 || north_key > 0 { true -> north(main, window), _ -> east_input(main, window) }
-    }
-    machine north(main: @mutable |app|::Main, window: |macos_gui|::Window) {
-        main.direction = 0;
-        transition { _ -> update(main, window) }
-    }
-    machine east_input(main: @mutable |app|::Main, window: |macos_gui|::Window) {
         let right: u64 = |macos_gui|::macos_key_state(39);
         let east_key: u64 = |macos_gui|::macos_key_state(68);
-        transition right > 0 || east_key > 0 { true -> east(main, window), _ -> south_input(main, window) }
-    }
-    machine east(main: @mutable |app|::Main, window: |macos_gui|::Window) {
-        main.direction = 1;
-        transition { _ -> update(main, window) }
-    }
-    machine south_input(main: @mutable |app|::Main, window: |macos_gui|::Window) {
         let down: u64 = |macos_gui|::macos_key_state(40);
         let south_key: u64 = |macos_gui|::macos_key_state(83);
-        transition down > 0 || south_key > 0 { true -> south(main, window), _ -> west_input(main, window) }
-    }
-    machine south(main: @mutable |app|::Main, window: |macos_gui|::Window) {
-        main.direction = 2;
-        transition { _ -> update(main, window) }
-    }
-    machine west_input(main: @mutable |app|::Main, window: |macos_gui|::Window) {
         let left: u64 = |macos_gui|::macos_key_state(37);
         let west_key: u64 = |macos_gui|::macos_key_state(65);
-        transition left > 0 || west_key > 0 { true -> west(main, window), _ -> update(main, window) }
-    }
-    machine west(main: @mutable |app|::Main, window: |macos_gui|::Window) {
-        main.direction = 3;
+        |app|::update_controls(
+            main,
+            up > 0 || north_key > 0,
+            right > 0 || east_key > 0,
+            down > 0 || south_key > 0,
+            left > 0 || west_key > 0,
+            attack > 0
+        );
         transition { _ -> update(main, window) }
     }
     machine update(main: @mutable |app|::Main, window: |macos_gui|::Window) {

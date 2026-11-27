@@ -36,7 +36,9 @@ pub(crate) mod boundaries;
 pub(crate) mod external_providers;
 pub mod provider_selections;
 pub(crate) mod references;
+mod requirement_applications;
 mod selected;
+use requirement_applications::RequirementApplicationSource;
 
 use diagnostics::Diagnostic;
 use std::hash::{Hash, Hasher};
@@ -528,6 +530,11 @@ pub(crate) fn declare(
         }
     }
     let result = (|| {
+        requirement_applications::complete_callbacks(
+            program,
+            &mut elaboration.module,
+            &mut identities,
+        )?;
         for definition in program.predicate_definitions.iter().flatten() {
             let declaration = semantic_identity(typed, definition.symbol, &mut identities)?;
             elaboration
@@ -2162,8 +2169,8 @@ pub(crate) fn trait_requirement(
 /// parameters were given, in parameter order, and a commitment to that
 /// application. The commitment is formed as a generated machine's is
 /// (`application`): the generic declaration's callable identity, then each
-/// argument's kind and identity. Type and value arguments are stated; an
-/// application that binds anything else is left undeclared.
+/// argument's kind and identity. A selected machine argument carries its
+/// declaration identity and checked body contract once body headers are available.
 fn requirement_application(
     typed: &TypedTrees,
     sources: &[(source_text::SourceId, [u8; 32])],
@@ -2186,132 +2193,12 @@ fn requirement_application(
                 .map_err(|_| "a closed requirement's requirement has no hermetic identity")?,
         ),
     };
-    let arguments = application.publish_arguments(identities);
+    let arguments = application.header_arguments(identities);
     let template = nominal(typed, sources, closed.template, identities)?;
     Ok((
         application.publish_specialization(template, semantic, identities),
         arguments,
     ))
-}
-
-#[derive(Debug, Clone)]
-enum RequirementArgumentSource {
-    Type(String),
-    Const(String),
-}
-
-/// Normalize an application once while its typed source is available. The
-/// publishing route interns these same identities into its own module table.
-#[derive(Debug, Clone)]
-struct RequirementApplicationSource {
-    callable: String,
-    arguments: Vec<RequirementArgumentSource>,
-    commitment: [u8; 32],
-}
-
-impl RequirementApplicationSource {
-    fn read(
-        typed: &TypedTrees,
-        closed: &crate::source_state::ClosedRequirementApplication<'_>,
-    ) -> Result<Self, &'static str> {
-        use crate::source_state::static_applications::StaticMachineBindingValue;
-        let (owner, template) = typed
-            .trait_machine_signature(closed.template)
-            .filter(|(owner, _)| owner.symbol == closed.declaring_trait)
-            .ok_or("a closed requirement's requirement has no typed-tree declaration")?;
-        let callable = typed.trait_requirement_callable_identity_text(owner, template);
-        if callable.is_empty() {
-            return Err("a closed requirement's requirement has no callable identity");
-        }
-        let bindings = typed
-            .expression_table
-            .static_machine_application_bindings(closed.application);
-        // Declaring-trait arguments belong to the closed callable identity
-        // and ABI's declaring_application. This tuple holds only the
-        // method's own binders, so it is empty for Trait<T>::value().
-        let parameters = typed.state_signature_type_parameters(template);
-        if bindings.len() != parameters.len()
-            || bindings.len() != closed.portable_local_arguments.len()
-            || bindings
-                .iter()
-                .zip(parameters)
-                .any(|(binding, parameter)| binding.parameter != parameter.symbol)
-        {
-            return Err("a closed requirement binds other than one argument per parameter");
-        }
-        let mut selected = Vec::with_capacity(bindings.len());
-        let mut arguments = Vec::with_capacity(bindings.len());
-        for (binding, identity) in bindings.iter().zip(closed.portable_local_arguments) {
-            let text = typed
-                .type_identity_text(*identity)
-                .filter(|text| !text.is_empty())
-                .ok_or("a closed requirement's argument has no identity")?;
-            match &binding.value {
-                StaticMachineBindingValue::Type(_) => {
-                    selected.push(
-                        application_identity::conformance_identity::MachineOperandSelectionIdentity::Type(text.clone()),
-                    );
-                    arguments.push(RequirementArgumentSource::Type(text));
-                }
-                StaticMachineBindingValue::Const(_) => {
-                    selected.push(
-                        application_identity::conformance_identity::MachineOperandSelectionIdentity::Const(text.clone()),
-                    );
-                    arguments.push(RequirementArgumentSource::Const(text));
-                }
-                StaticMachineBindingValue::Conformance(_)
-                | StaticMachineBindingValue::RuntimeValue { .. }
-                | StaticMachineBindingValue::Machine(_)
-                | StaticMachineBindingValue::Proof(_) => {
-                    return Err(
-                        "a closed requirement's application binds something other than a type or a value",
-                    );
-                }
-            }
-        }
-        let commitment =
-            application_identity::conformance_identity::requirement_application_commitment(
-                &callable, &selected,
-            )?;
-        Ok(Self {
-            callable,
-            arguments,
-            commitment,
-        })
-    }
-
-    fn publish_arguments(
-        &self,
-        identities: &mut TerminalIdentityTableBuilder,
-    ) -> Vec<terminal_psi::ClosedReachArgument> {
-        self.arguments
-            .iter()
-            .map(|argument| match argument {
-                RequirementArgumentSource::Type(text) => {
-                    terminal_psi::ClosedReachArgument::Type(identities.intern(text))
-                }
-                RequirementArgumentSource::Const(text) => {
-                    terminal_psi::ClosedReachArgument::Const(identities.intern(text))
-                }
-            })
-            .collect()
-    }
-
-    fn publish_specialization(
-        &self,
-        template: terminal_psi::TerminalIdentityIndex,
-        semantic: terminal_psi::TerminalIdentityIndex,
-        identities: &mut TerminalIdentityTableBuilder,
-    ) -> terminal_psi::CheckedMachineSpecialization {
-        terminal_psi::CheckedMachineSpecialization {
-            capture: None,
-            template_entry: NominalDeclarationIdentity::new(template),
-            template: NominalDeclarationIdentity::new(template),
-            template_callable: identities.intern(&self.callable),
-            template_semantic_declaration: semantic,
-            commitment: self.commitment,
-        }
-    }
 }
 
 fn commit_structural_guarantees(
@@ -2589,7 +2476,7 @@ impl BoundaryDeclarationSource {
         identities: &mut TerminalIdentityTableBuilder,
     ) -> Vec<terminal_psi::ClosedReachArgument> {
         self.application.as_ref().map_or_else(Vec::new, |source| {
-            source.application.publish_arguments(identities)
+            source.application.header_arguments(identities)
         })
     }
 }

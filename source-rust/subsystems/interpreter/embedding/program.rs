@@ -96,12 +96,21 @@ pub(crate) mod adapters {
 
     pub trait TerminalImportAdapter: TerminalEffectHandler {
         fn implemented_signature(&self) -> TerminalImportSignature;
+
+        /// Whether this adapter may serve a guest the host admitted without
+        /// producer trust. Only an adapter that enforces every permission,
+        /// limit, custody and value condition it relies on dynamically may
+        /// answer yes; a contained instance refuses any other.
+        fn serves_contained_execution(&self) -> bool {
+            false
+        }
     }
 
     pub struct TerminalScalarImport<F> {
         signature: TerminalImportSignature,
         result_scalar_type: ScalarType,
         function: F,
+        contained: bool,
     }
 
     impl<F> TerminalScalarImport<F>
@@ -125,7 +134,16 @@ pub(crate) mod adapters {
                 signature,
                 result_scalar_type,
                 function,
+                contained: false,
             })
+        }
+
+        /// Offer this import to contained execution. The host asserts that
+        /// its function enforces what it relies on for any argument values.
+        #[must_use]
+        pub fn for_contained_execution(mut self) -> Self {
+            self.contained = true;
+            self
         }
     }
 
@@ -174,6 +192,7 @@ pub(crate) mod adapters {
     pub struct TerminalUnitImport<F> {
         signature: TerminalImportSignature,
         function: F,
+        contained: bool,
     }
 
     impl<F> TerminalUnitImport<F>
@@ -195,7 +214,16 @@ pub(crate) mod adapters {
             Ok(Self {
                 signature,
                 function,
+                contained: false,
             })
+        }
+
+        /// Offer this import to contained execution. The host asserts that
+        /// its function enforces what it relies on for any argument values.
+        #[must_use]
+        pub fn for_contained_execution(mut self) -> Self {
+            self.contained = true;
+            self
         }
     }
 
@@ -205,6 +233,10 @@ pub(crate) mod adapters {
     {
         fn implemented_signature(&self) -> TerminalImportSignature {
             self.signature.clone()
+        }
+
+        fn serves_contained_execution(&self) -> bool {
+            self.contained
         }
     }
 
@@ -786,6 +818,8 @@ pub(crate) mod instance {
         }
     }
     pub(crate) use component_return::ComponentOwnedReturn;
+    mod errors;
+    pub use errors::{TerminalBindingRejection, TerminalInstanceCloseError, TerminalInstanceError};
     pub(crate) mod discard;
     pub use discard::{TerminalDiscardStatus, TerminalOutstandingCustody};
     pub(crate) mod storage_observation;
@@ -953,71 +987,6 @@ pub(crate) mod instance {
         adapter: Box<dyn TerminalImportAdapter + 'host>,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum TerminalBindingRejection {
-        ExternalCompletionRequiresDomainAdmission { boundary: BoundaryMachineId },
-        ExternalCompletionDomainMismatch { boundary: BoundaryMachineId },
-        DomainDeathCrossingAdmissionMissing { boundary: BoundaryMachineId },
-        UnknownImport { boundary: BoundaryMachineId },
-        NotRequiredImport { boundary: BoundaryMachineId },
-        ProviderRealized { boundary: BoundaryMachineId },
-        DuplicateBinding { boundary: BoundaryMachineId },
-        SignatureMismatch { boundary: BoundaryMachineId },
-        InstanceClosed,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum TerminalInstanceError {
-        Closed,
-        /// The guest was discarded and can never resume.
-        Discarded,
-        UnboundImports {
-            missing: Vec<BoundaryMachineId>,
-        },
-        UnboundExternalCompletions {
-            missing: Vec<crate::engine::capabilities::TerminalExternalCompletionDemand>,
-        },
-        Execution(TerminalInterpretError),
-    }
-
-    impl TerminalInstanceError {
-        /// Follow the interpreter's operation context to the resource the host refused.
-        pub fn sponsor_exhaustion(&self) -> Option<&str> {
-            let Self::Execution(error) = self else {
-                return None;
-            };
-            let mut current = error;
-            loop {
-                match current {
-                    TerminalInterpretError::ExecutionSite { cause, .. }
-                    | TerminalInterpretError::StructuralReplacement { cause, .. } => {
-                        current = cause;
-                    }
-                    TerminalInterpretError::EffectRejected { rejection, .. } => {
-                        return rejection.exhaustion_reason();
-                    }
-                    _ => return None,
-                }
-            }
-        }
-    }
-
-    impl std::fmt::Display for TerminalInstanceError {
-        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                Self::Execution(reason) => reason.fmt(formatter),
-                other => write!(formatter, "{other:?}"),
-            }
-        }
-    }
-
-    impl std::error::Error for TerminalInstanceError {}
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum TerminalInstanceCloseError {
-        Busy,
-    }
-
     pub struct TerminalInstance<'host, 'artifact> {
         program: TerminalProgram<'artifact>,
         entry: semantic_vocabulary::MachineId,
@@ -1172,6 +1141,9 @@ pub(crate) mod instance {
             if adapter.implemented_signature() != signature {
                 return Err(TerminalBindingRejection::SignatureMismatch { boundary: slot });
             }
+            if !adapter.serves_contained_execution() && self.program.is_contained() {
+                return Err(TerminalBindingRejection::UncontainedAdapter { boundary: slot });
+            }
             self.bindings.insert(
                 slot,
                 TerminalImportBinding {
@@ -1187,6 +1159,11 @@ pub(crate) mod instance {
         ) -> Result<(), String> {
             let selected = binding.selected();
             let boundary = selected.receiving_boundary();
+            if self.program.is_contained() {
+                return Err(
+                    "a guest admitted without producer trust takes no component bindings".into(),
+                );
+            }
             if self.closed
                 || selected.receiver() != self.program.execution_identity()
                 || !self.required_imports.contains(&boundary)
@@ -1370,6 +1347,22 @@ pub(crate) mod instance {
                 .execution
                 .as_mut()
                 .ok_or(TerminalInstanceError::Closed)?;
+            if !self.invoked
+                && !self.components.is_empty()
+                && let Some(stuck) = psi_provider_selections::component_wait_deadlock(
+                    self.program
+                        .program
+                        .catalogs
+                        .execution_view()
+                        .map_err(TerminalInstanceError::Execution)?,
+                    self.entry,
+                    self.components
+                        .values()
+                        .map(TerminalComponentBinding::selected),
+                )
+            {
+                return Err(TerminalInstanceError::ComponentSynchronization(stuck));
+            }
             self.invoked = true;
             let status = execution
                 .resume_with_components(
@@ -1923,9 +1916,15 @@ pub(crate) mod program {
         pub(crate) fn closed_module(
             &self,
         ) -> Result<&terminal_codec::ClosedTerminalModule, TerminalInterpretError> {
+            Ok(self.execution_view()?.closed_module())
+        }
+
+        pub(crate) fn execution_view(
+            &self,
+        ) -> Result<terminal_codec::TerminalExecutionView<'_>, TerminalInterpretError> {
             match self {
-                Self::Borrowed(code) => Ok(code.closed_module()),
-                Self::Retained(code) => Ok(code.view().closed_module()),
+                Self::Borrowed(code) => Ok(*code),
+                Self::Retained(code) => Ok(code.view()),
                 #[cfg(test)]
                 Self::Fixture(_) => Err(TerminalInterpretError::UnsupportedSemanticVariant(
                     "mutable engine fixture has no closed publication owner",
@@ -2476,6 +2475,28 @@ pub(crate) mod program {
             ))
         }
 
+        /// Run an artifact the host admitted without producer trust. Its
+        /// instances need an invocation account, accept only adapters that
+        /// serve contained execution and take no component bindings. Native
+        /// lowering never accepts this admission.
+        pub fn admit_contained(
+            artifact: &'artifact psi_authorization::ContainedTerminalArtifact,
+        ) -> Self {
+            let view = terminal_codec::TerminalExecutionView::from(artifact.artifact().view());
+            Self::from_admitted(AdmittedTerminalProgram::new(
+                view.custody_identity(),
+                std::sync::Arc::new(ProgramStorage::Borrowed(view)),
+                None,
+                None,
+            ))
+        }
+
+        /// Whether this program runs without producer trust.
+        pub fn is_contained(&self) -> bool {
+            self.closed_module()
+                .is_ok_and(terminal_codec::ClosedTerminalModule::admitted_for_contained_interpretation)
+        }
+
         /// [`Self::admit`] for a program that outlives the borrowed witness.
         pub fn retain_authorized(
             artifact: &psi_authorization::AuthorizedTerminalArtifact,
@@ -2910,6 +2931,13 @@ pub(crate) mod program {
                 scalar_application,
                 scalar_admission,
             } = request;
+            if account.is_none() && self.is_contained() {
+                return Err(TerminalArtifactInterpretError::Execution(
+                    TerminalInterpretError::UnsupportedSemanticVariant(
+                        "contained execution requires an invocation account for its storage",
+                    ),
+                ));
+            }
             let scalar_values = match (scalar_application, scalar_admission) {
                 (Some(_), Some(_)) => {
                     return Err(TerminalArtifactInterpretError::Execution(

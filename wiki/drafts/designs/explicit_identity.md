@@ -26,9 +26,10 @@ that the new declaration and compiler support are already delivered.
    including selected preconditions. Missing equality diagnoses the missing
    operation and suggests explicit identity when appropriate. Do not silently
    choose identity or synthesize an unavailable comparison for generic data.
-3. Supply independently selectable evidence traits for comparison-implies-identity
-   and identity-implies-comparison. Each has complete operation and theorem rows;
-   a combined trait may require both. Consume laws only for the exact equality
+3. Implement the [two evidence traits that inherit `Equatable<T>`](../../spec/proofs/contracts.md#equality-bridges-and-comparison-facts).
+   Resolve the inherited `equals` in the theorem and through a generic evidence
+   parameter in a caller's contract. Check the comparison's proof eligibility
+   for every conformance. Consume laws only for the exact equality
    row selected at the use, with its type arguments, premises and assumption
    closure. Recognize checked law structure rather than its spelling. Explicit
    theorem citation remains an equivalent evidence route, not ambient discovery.
@@ -74,9 +75,11 @@ fixtures where required. Acceptance includes:
   mutation and changed-comparison controls reject reuse of the fact.
 - Synthesized record equality yields field comparisons; sum equality yields
   only guarded payload consequences. User equality supplies no unproved fields.
-- Integer records support both bridges; case-insensitive comparison can support
-  reflection without identity implication; an always-true comparison cannot
-  license substitution or generic algebra rewrites.
+- Structural equality on integer records supports both bridges. A pure, total
+  comparison that always returns true supports identity-implies-comparison.
+  On a carrier with two distinct values it cannot justify substitution.
+- For a record with value and year fields, reject applying an identity law
+  proved for a comparison of both fields to a comparison of value alone.
 - Same-NaN reflexivity for identity, IEEE nonreflexivity, different NaN payloads,
   and signed zeros retain the three specified relations through scalar and
   aggregate paths. Projection equality cannot prove raw bit identity.

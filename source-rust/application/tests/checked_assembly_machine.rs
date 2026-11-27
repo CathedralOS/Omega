@@ -102,21 +102,41 @@ fn the_artifact_retains_the_local_edge_and_its_discharged_precondition() {
 
 #[test]
 fn an_adjacent_edge_emits_no_jump_or_register_setup() {
-    assert_immediate_return_image(ANSWER, &[42]);
+    let scratch = project::stage("checked-assembly-layout", &[("main.omg", ANSWER)]);
+    assert_immediate_return_image(scratch.path(), &["main.omg"], &[42]);
 }
 
-fn assert_immediate_return_image(source: &str, expected: &[u32]) {
-    let scratch = project::stage("checked-assembly-layout", &[("main.omg", source)]);
-    let output = project::omega(
+#[test]
+fn selecting_call_inlining_preserves_the_checked_assembly_call_and_return() {
+    let build = r#"
+use main.omg as app;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "assembly_return" };
+    Optimizations::enable(@mutable plan.optimizations, Optimization::SelectedAcyclicCallInliningV1);
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+}
+"#;
+    let scratch = project::stage(
+        "inlined-checked-assembly",
+        &[("build.omg", build), ("main.omg", ANSWER)],
+    );
+    assert_immediate_return_image(
         scratch.path(),
         &[
-            "--target",
-            "linux_x86_64",
-            "--build-dir",
-            "image",
+            "--build-input",
+            "build.omg",
+            "--build-input",
             "main.omg",
+            "build.omg",
         ],
+        &[42],
     );
+}
+
+fn assert_immediate_return_image(directory: &std::path::Path, inputs: &[&str], expected: &[u32]) {
+    let mut options = vec!["--target", "linux_x86_64", "--build-dir", "image"];
+    options.extend_from_slice(inputs);
+    let output = project::omega(directory, &options);
     assert!(output.status.success(), "{output:?}");
     let report = format!(
         "{}{}",
@@ -127,7 +147,7 @@ fn assert_immediate_return_image(source: &str, expected: &[u32]) {
         .lines()
         .find_map(|line| line.strip_prefix("published native output to "))
         .expect("published native executable");
-    let image = std::fs::read(scratch.path().join(executable)).unwrap();
+    let image = std::fs::read(directory.join(executable)).unwrap();
     // Follow a direct CALL in the image. Its destination begins with the
     // authored immediate write and the very next byte starts RET. A branch or
     // register copy at `finish` breaks this assertion even if main still exits 0.
@@ -175,7 +195,8 @@ fn a_register_overwritten_after_a_local_edge_retains_both_versions() {
         "requires eax == 42u32 { ret; }",
         "requires eax == 1u32 { mov eax, 42; ret; }",
     );
-    assert_immediate_return_image(&source, &[1, 42]);
+    let scratch = project::stage("checked-assembly-layout", &[("main.omg", &source)]);
+    assert_immediate_return_image(scratch.path(), &["main.omg"], &[1, 42]);
     program::assert_silent_return(&source);
     let missing_intermediate = source.replace("mov eax, 1;", "mov eax, 2;");
     let (output, report) = program::invoke(

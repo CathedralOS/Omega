@@ -700,6 +700,7 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
         ExpressionNode::Cast(cast) => {
             cast.target_type = owner.reference(cast.target_type);
             cast.result_type = owner.reference(cast.result_type);
+            cast.recast_storage_type = owner.reference(cast.recast_storage_type);
             cast.semantic_domain_arguments = owner.reference_span(cast.semantic_domain_arguments);
         }
         ExpressionNode::TypeExpression(reference) | ExpressionNode::ZeroValue(reference) => {

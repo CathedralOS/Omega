@@ -21,6 +21,19 @@ macro_rules! import_signature_via_clone {
             }
         }
     };
+    // An adapter that may serve a guest admitted without producer trust, when
+    // `$serves` holds for this installation.
+    ($name:ty, contained: |$adapter:ident| $serves:expr) => {
+        impl TerminalImportAdapter for $name {
+            fn implemented_signature(&self) -> TerminalImportSignature {
+                self.signature.clone()
+            }
+            fn serves_contained_execution(&self) -> bool {
+                let $adapter = self;
+                $serves
+            }
+        }
+    };
 }
 
 macro_rules! handle_effect_requires_dispatch {
@@ -285,6 +298,18 @@ impl<'host> HostContext<'host> {
         limits: Option<super::TerminalOutputLimits>,
     ) -> Self {
         self.output.limits = limits;
+        self
+    }
+
+    /// Charges emulated allocations to the invocation account of a contained
+    /// guest.
+    pub(crate) fn with_allocation_account(
+        self,
+        account: Option<&build_model::accounting::EvaluationInvocationAccount>,
+    ) -> Self {
+        if let (Some(account), Ok(mut values)) = (account, self.allocations.lock()) {
+            values.charge_to(account.clone());
+        }
         self
     }
 

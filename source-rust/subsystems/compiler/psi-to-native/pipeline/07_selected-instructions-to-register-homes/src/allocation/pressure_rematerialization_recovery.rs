@@ -6,8 +6,8 @@ the stack frame.
 */
 
 use crate::allocation::{
-    ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
-    ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
+    ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedRecoveryClassifications,
+    ValidatedSelectedAnalysis, ValidatedSpillChoices,
 };
 use register_model::{
     PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
@@ -587,9 +587,8 @@ pub(crate) mod compute {
 
     use crate::allocation::{
         PressureRematerializationError, PressureRematerializationPlan,
-        PressureRematerializationPolicy, ValidatedAllocationLegality,
-        ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedRecoveryClassifications,
-        ValidatedSelectedAnalysis, ValidatedSpillChoices,
+        PressureRematerializationPolicy, ValidatedAllocatorAvailability, ValidatedLiveRanges,
+        ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
     };
 
     pub(crate) use function_plans::build_functions;
@@ -598,7 +597,6 @@ pub(crate) mod compute {
     pub(crate) fn compute_terminal_pressure_rematerialization<S: ValidatedSelectedAnalysis>(
         selected: &S,
         ranges: &ValidatedLiveRanges,
-        legality: &ValidatedAllocationLegality,
         spill_choices: &ValidatedSpillChoices,
         recovery: &ValidatedRecoveryClassifications,
         availability: &ValidatedAllocatorAvailability,
@@ -625,8 +623,6 @@ pub(crate) mod compute {
             source_selected: selected.shared_selected_plan(),
             spill_choices: spill_choices.receipt().identity(),
             recovery_classifications: recovery.receipt().identity(),
-            ranges: ranges.receipt().identity(),
-            legality: legality.receipt().identity(),
             register_environment,
             allocator_availability: availability.receipt().identity(),
             optimization_unit: selected.optimization_unit_identity(),
@@ -666,8 +662,6 @@ pub(crate) mod receipt {
             identity: pressure_rematerialization_identity(plan),
             spill_choices: plan.spill_choices,
             recovery_classifications: plan.recovery_classifications,
-            ranges: plan.ranges,
-            legality: plan.legality,
             register_environment: plan.register_environment,
             allocator_availability: plan.allocator_availability,
             optimization_unit: plan.optimization_unit,
@@ -682,23 +676,19 @@ pub(crate) mod receipt {
 }
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_homes::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
-    SpillChoiceIdentity,
+    AllocatorAvailabilityIdentity, RecoveryClassificationIdentity, SpillChoiceIdentity,
 };
 pub use register_homes::{
     FunctionPressureRematerialization, PressureRematerializationAction,
     PressureRematerializationPlan, PressureRematerializationPolicy,
     PressureRematerializationRewrite, pressure_rematerialization_identity,
 };
-use selected_instructions::{
-    LiveRangeIdentity, PressureRematerializationIdentity, SelectedInstructionPlan,
-};
+use selected_instructions::{PressureRematerializationIdentity, SelectedInstructionPlan};
 use semantic_vocabulary::WorkScheduleIdentity;
 
 pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
     spill_choices: &ValidatedSpillChoices,
     recovery: &ValidatedRecoveryClassifications,
     availability: &ValidatedAllocatorAvailability,
@@ -716,7 +706,6 @@ pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
     } = compute::compute_terminal_pressure_rematerialization(
         selected,
         ranges,
-        legality,
         spill_choices,
         recovery,
         availability,
@@ -739,8 +728,6 @@ pub struct PressureRematerializationReceipt {
     pub(crate) identity: PressureRematerializationIdentity,
     pub(crate) spill_choices: SpillChoiceIdentity,
     pub(crate) recovery_classifications: RecoveryClassificationIdentity,
-    pub(crate) ranges: LiveRangeIdentity,
-    pub(crate) legality: AllocationLegalityIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,

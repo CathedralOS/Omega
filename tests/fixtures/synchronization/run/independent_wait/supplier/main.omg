@@ -1,0 +1,15 @@
+public data Signal { word: AtomicU32; }
+public boundary trait Wait {
+    machine until_clear(signal: @Signal) reaches none crashes none;
+}
+machine wait_for_clear(signal: @Signal) {
+    let observed: u32 = signal.word.load(Receive);
+    transition observed == 1 { true -> wait_for_clear(signal), _ -> done() }
+    machine done() {}
+}
+public ObservedWait satisfies Wait {
+    machine until_clear(signal: @Signal) { wait_for_clear(signal); }
+}
+public ImmediateWait satisfies Wait {
+    machine until_clear(signal: @Signal) {}
+}

@@ -909,6 +909,7 @@ integer math and content operands are their own encodings inside the row.
 | 22 | IntegerIeeeFloatExact | scalar integer source + IEEE target format |
 | 23 | Identity | counted Identity values + `u32` left value position + `u32` right value position |
 | 24 | IsMere | proposition |
+| 25 | Universal | carrier structural type id + binder place id + proposition (the body, which names the bound value as the binder place) |
 
 Tags 12, 18 and 19 are retired; a decoder rejects them.
 

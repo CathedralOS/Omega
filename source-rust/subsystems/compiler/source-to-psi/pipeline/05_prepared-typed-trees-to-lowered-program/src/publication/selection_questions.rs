@@ -1969,6 +1969,7 @@ mod tests {
             crate::source_state::expression::TableCastExpression {
                 value,
                 target_type: target,
+                recast_storage_type: Default::default(),
                 result_type: target,
                 target_label: Default::default(),
                 domain: numerics::arithmetic::ArithmeticDomain::Exact,
@@ -2079,6 +2080,7 @@ mod tests {
             crate::source_state::expression::TableCastExpression {
                 value,
                 target_type,
+                recast_storage_type: Default::default(),
                 result_type: target_type,
                 target_label: Default::default(),
                 domain: numerics::arithmetic::ArithmeticDomain::Exact,
@@ -2420,6 +2422,7 @@ mod tests {
                     .insert(ExpressionNode::Cast(TableCastExpression {
                         value,
                         target_type: Default::default(),
+                        recast_storage_type: Default::default(),
                         result_type: Default::default(),
                         target_label: Default::default(),
                         domain: numerics::arithmetic::ArithmeticDomain::Wrapping,

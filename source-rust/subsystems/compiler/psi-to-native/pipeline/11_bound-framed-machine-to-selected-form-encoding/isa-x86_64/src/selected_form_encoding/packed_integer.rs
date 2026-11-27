@@ -931,10 +931,7 @@ mod tests {
 
     #[test]
     fn packed_forms_match_golden_bytes_and_reject_corruptions() {
-        let physical = register_model::validate_physical_register_model(
-            crate::x86_64_physical_register_model(),
-        )
-        .unwrap();
+        let physical = crate::validated_x86_64_physical_register_model();
         let v = |name| physical.model().view_named(name).unwrap().id;
         let cases: &[(Kind, Family, &[&str], &[u8])] = &[
             (
@@ -996,23 +993,23 @@ mod tests {
         for &(kind, family, names, expected) in cases {
             let ops: Vec<_> = names.iter().map(|n| v(n)).collect();
             let key = MachineAlternativeKey { family, variant: 0 };
-            let encoded = encode_x86_64_selected_form(&physical, kind, key, &ops).unwrap();
+            let encoded = encode_x86_64_selected_form(physical, kind, key, &ops).unwrap();
             assert_eq!(encoded.bytes(), expected, "{kind:?}");
             assert_eq!(
-                validate_x86_64_selected_form_encoding(&physical, kind, key, &ops, expected)
+                validate_x86_64_selected_form_encoding(physical, kind, key, &ops, expected)
                     .unwrap(),
                 encoded
             );
             assert_every_bit_flip_rejected(expected, |b| {
-                validate_x86_64_selected_form_encoding(&physical, kind, key, &ops, b).is_err()
+                validate_x86_64_selected_form_encoding(physical, kind, key, &ops, b).is_err()
             });
             assert_byte_fragility(expected, |b| {
-                validate_x86_64_selected_form_encoding(&physical, kind, key, &ops, b).is_err()
+                validate_x86_64_selected_form_encoding(physical, kind, key, &ops, b).is_err()
             });
         }
         assert!(
             encode_x86_64_selected_form(
-                &physical,
+                physical,
                 Kind::PackedShiftRightArithmeticI16x8 { count: 16 },
                 MachineAlternativeKey {
                     family: Family::PackedShiftRightArithmeticI16x8,
@@ -1024,7 +1021,7 @@ mod tests {
         );
         assert!(
             encode_x86_64_selected_form(
-                &physical,
+                physical,
                 Kind::PackedShuffleGeneralI16x8 {
                     lanes: [16, 0, 0, 0, 0, 0, 0, 0]
                 },

@@ -564,7 +564,7 @@ impl PolicySource<'_> {
         package: PackageKeyIdentity,
         target: TargetProfile,
         declarations: &AcceptedDeclarations<'_>,
-        native_bindings: &[(PackagePolicyServiceMethod, PackagePolicyCallable)],
+        native_bindings: &[PackagePolicyServiceMethod],
         choices: Vec<ProviderChoice>,
     ) -> Result<ReviewedProviders, Vec<Diagnostic>> {
         let accepted = declarations.accepted;
@@ -696,7 +696,7 @@ impl PolicySource<'_> {
     fn project_remaining_requirements(
         &self,
         declarations: &AcceptedDeclarations<'_>,
-        native_bindings: &[(PackagePolicyServiceMethod, PackagePolicyCallable)],
+        native_bindings: &[PackagePolicyServiceMethod],
         review: &mut ReviewedProviders,
     ) -> Result<(), Vec<Diagnostic>> {
         let typed = self.typed();
@@ -732,7 +732,7 @@ impl PolicySource<'_> {
                 .ok_or_else(|| unavailable("the original signature of an active boundary"))?;
             let identity = self.nominal(template)?;
             if native_bindings
-                .binary_search_by(|(method, _)| method.requirement.cmp(&identity))
+                .binary_search_by(|method| method.requirement.cmp(&identity))
                 .is_err()
             {
                 self.checked_requirement(signature, boundary, identity, declarations)?;

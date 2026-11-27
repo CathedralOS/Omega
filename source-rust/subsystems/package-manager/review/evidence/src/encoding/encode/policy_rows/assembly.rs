@@ -226,15 +226,29 @@ pub(super) fn project(
     components::terminal(builder, terminal_permissions)?;
     components::representation(builder, representation)?;
     for native in native_bindings {
-        builder.push(
-            PackagePolicyRowKind::NativeBinding,
+        let schema = match &native.application {
+            crate::record::PackagePolicyNativeApplication::UnusedGeneric { .. } => {
+                crate::encoding::BASELINE_WITH_UNUSED_GENERIC_IMPORTS
+            }
+            crate::record::PackagePolicyNativeApplication::Concrete(_) => {
+                crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS
+            }
+        };
+        builder.push_versioned(
+            (PackagePolicyRowKind::NativeBinding, schema),
             true,
             true,
             |encoder| {
                 encode_nominal(encoder, &native.method.requirement)?;
-                encoder.option_field("application", native.application(), |encoder, application| {
-                    encoder.string(application)
-                })?;
+                baseline::native_application(encoder, &native.application)?;
+                if matches!(
+                    native.application,
+                    crate::record::PackagePolicyNativeApplication::UnusedGeneric { .. }
+                ) {
+                    // This key fixes the target, normalized import and Build producer
+                    // even though no caller has supplied a concrete signature yet.
+                    return selected_providers::encode_binding(encoder, &native.binding);
+                }
                 let producer = native
                     .producer()
                     .ok_or_else(|| rejected("native row has no Build producer"))?;

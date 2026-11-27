@@ -4,7 +4,6 @@ use calling_conventions::{
     evaluate_call_plan,
 };
 use post_allocation_machine::adapters::{AdapterInstructions, AdapterOperation};
-use register_model::validate_physical_register_model;
 use semantic_vocabulary::{ClosedScalarType, IntegerSign};
 use target::Architecture;
 
@@ -126,14 +125,9 @@ pub fn plan_native_foreign_bridge(
         Architecture::X86_64 => (MachineRegister::X86R10, MachineRegister::X86R11),
     };
     let model = match architecture {
-        Architecture::Aarch64 => {
-            validate_physical_register_model(target_aarch64::aarch64_physical_register_model())
-        }
-        Architecture::X86_64 => {
-            validate_physical_register_model(target_x86_64::x86_64_physical_register_model())
-        }
-    }
-    .map_err(|_| Error::Encoding)?;
+        Architecture::Aarch64 => target_aarch64::validated_aarch64_physical_register_model(),
+        Architecture::X86_64 => target_x86_64::validated_x86_64_physical_register_model(),
+    };
     let mut encoding = Encoding {
         architecture,
         model,

@@ -87,7 +87,6 @@ pub(crate) mod rematerialization {
             let rematerialization = match rematerialize_selected_active_resident(
                 selected,
                 source_ranges,
-                source.legality(),
                 &choices,
                 &classifications,
                 source.allocator_availability(),
@@ -137,8 +136,6 @@ pub(crate) mod rematerialization {
                 &choices,
                 &classifications,
                 &rematerialization,
-                &liveness,
-                &ranges,
                 &legality,
             );
             Ok(ActiveResidentRematerializationStage::Applied(
@@ -213,8 +210,7 @@ pub(crate) mod rematerialization {
             AssignedRegisterHomes, ValidatedPostAllocationOptimizationManifest,
         };
         use selected_instruction_analyses::{
-            ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-            ValidatedRecoveryClassifications, ValidatedSpillChoices,
+            ValidatedAllocationLegality, ValidatedRecoveryClassifications, ValidatedSpillChoices,
         };
 
         use selected_instruction_analyses::StagedOptimizedAllocationLegalityCustodyReceipt;
@@ -230,8 +226,6 @@ pub(crate) mod rematerialization {
             choices: &ValidatedSpillChoices,
             classifications: &ValidatedRecoveryClassifications,
             rematerialization: &ValidatedPressureRematerialization,
-            liveness: &ValidatedLiveness,
-            ranges: &ValidatedLiveRanges,
             legality: &ValidatedAllocationLegality,
         ) -> StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
             StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
@@ -246,9 +240,6 @@ pub(crate) mod rematerialization {
                 rematerialization_policy: rematerialization.receipt().policy(),
                 rematerialization_usage: rematerialization.receipt().usage(),
                 budget: rematerialization.plan().budget,
-                liveness: liveness.receipt().identity(),
-                ranges: ranges.receipt().identity(),
-                legality: legality.receipt().identity(),
                 function_count: rematerialization.receipt().function_count(),
                 virtual_register_count: legality.receipt().virtual_register_count(),
                 applied_count: rematerialization.receipt().applied_count(),
@@ -280,9 +271,8 @@ pub(crate) mod rematerialization {
         ValidatedPressureRematerialization,
     };
     use register_homes::{
-        AllocationLegalityIdentity, PostAllocationOptimizationManifestError,
-        RecoveryClassificationIdentity, RecoveryClassificationPolicy, SpillChoiceIdentity,
-        SpillChoicePolicy,
+        PostAllocationOptimizationManifestError, RecoveryClassificationIdentity,
+        RecoveryClassificationPolicy, SpillChoiceIdentity, SpillChoicePolicy,
     };
     use selected_instruction_analyses::{
         AllocationLegalityError, LiveRangeError, LivenessError, RecoveryClassificationError,
@@ -290,9 +280,7 @@ pub(crate) mod rematerialization {
         StagedOptimizedAllocationLegalityCustodyReceipt, ValidatedAllocationLegality,
         ValidatedLiveRanges, ValidatedLiveness,
     };
-    use selected_instructions::{
-        LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
-    };
+    use selected_instructions::PressureRematerializationIdentity;
 
     pub(crate) use compute::{
         complete_optimized_active_resident_rematerialization,
@@ -391,9 +379,6 @@ pub(crate) mod rematerialization {
         rematerialization_policy: PressureRematerializationPolicy,
         rematerialization_usage: optimization_core::OptimizationWorkUsage,
         budget: OptimizationWorkBudget,
-        liveness: LivenessIdentity,
-        ranges: LiveRangeIdentity,
-        legality: AllocationLegalityIdentity,
         function_count: usize,
         virtual_register_count: usize,
         applied_count: usize,
@@ -1529,9 +1514,6 @@ pub(crate) mod fixed_view {
                 StagedOptimizedFixedViewCopyCustodyReceipt {
                     core: upstream.core(),
                     allocator_availability: upstream.allocator_availability(),
-                    source_liveness: upstream.liveness(),
-                    source_ranges: upstream.ranges(),
-                    source_legality: upstream.legality(),
                     transformation: copies.identity(),
                     policy: copies.policy(),
                     usage: copies.usage(),
@@ -1602,9 +1584,6 @@ pub(crate) mod fixed_view {
         pub struct StagedOptimizedFixedViewCopyCustodyReceipt {
             core: StagedOptimizedCustodyCore,
             allocator_availability: register_homes::AllocatorAvailabilityIdentity,
-            source_liveness: selected_instructions::LivenessIdentity,
-            source_ranges: selected_instructions::LiveRangeIdentity,
-            source_legality: register_homes::AllocationLegalityIdentity,
             transformation: FixedViewCopyIdentity,
             policy: FixedViewCopyPolicy,
             usage: OptimizationWorkUsage,
@@ -1617,9 +1596,6 @@ pub(crate) mod fixed_view {
 
             receipt_accessor_rows!(StagedOptimizedFixedViewCopyCustodyReceipt {
                 allocator_availability: register_homes::AllocatorAvailabilityIdentity,
-                source_liveness: selected_instructions::LivenessIdentity,
-                source_ranges: selected_instructions::LiveRangeIdentity,
-                source_legality: register_homes::AllocationLegalityIdentity,
                 transformation: FixedViewCopyIdentity,
                 policy: FixedViewCopyPolicy,
                 usage: OptimizationWorkUsage,

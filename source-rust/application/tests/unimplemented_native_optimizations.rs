@@ -71,6 +71,8 @@ fn an_unimplemented_native_optimization_names_itself_and_the_target() {
         ),
         // A target-lowering rule for another architecture.
         ("linux_arm64", "arm64", "X86ScaledIndexedLoad"),
+        // A selected-lowering rewrite whose packed register forms only x86 has.
+        ("linux_arm64", "arm64", "SelectedPackedVectorPromotionV1"),
     ] {
         let (status, report) = refusal(target, optimization);
         assert_ne!(status, Some(0), "{optimization} on {target}: {report}");

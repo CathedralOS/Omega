@@ -27,7 +27,8 @@ pub use authority::{
     PackageReviewInstallationReach, PackageReviewWriteFrameCompleteness,
 };
 pub use baseline::{
-    PackagePolicyBaseline, PackagePolicyComponentAssumption, PackagePolicyNativeBinding,
+    PackagePolicyBaseline, PackagePolicyComponentAssumption, PackagePolicyNativeApplication,
+    PackagePolicyNativeBinding,
 };
 use build_providers::acceptance::AcceptedSemanticBinding;
 use build_providers::plans::ServiceSchema;
