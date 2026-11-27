@@ -97,8 +97,9 @@ const CASE_COMBINATION_BUDGET: usize = 64;
 /// the sign of another term, which asks for further bounds, so over many
 /// path facts an unprovable goal could otherwise search for minutes. The
 /// largest proof in the compiler's tests takes under 27,000 steps. Running
-/// out refuses the obligation as a resource limit, never as a proof.
-const PROOF_STEP_BUDGET: usize = 100_000;
+/// out leaves the obligation unproved at `proof_search_goal_steps` (code 37),
+/// never as a proof.
+const PROOF_STEP_BUDGET: usize = diagnostics::CoverageForm::ProofGoalSteps.limit() as usize;
 /// Steps one search scope (one machine's checking, say) may spend on goals
 /// that run out of budget before each later goal there gets only
 /// `EXHAUSTED_SCOPE_STEP_BUDGET`. Without it, a body whose goals are all out
@@ -911,6 +912,8 @@ pub(crate) struct Prover<'a> {
     /// A case branch shares its parent's step budget; a top-level prover
     /// gives each goal it is asked for a fresh one.
     branch: bool,
+    /// The budget the last top-level goal was given.
+    step_limit: usize,
 }
 
 fn node(conclusion: Proposition, rule: ProofRule) -> ProofNode {
@@ -1395,6 +1398,7 @@ impl<'a> Prover<'a> {
             remaining_steps: PROOF_STEP_BUDGET,
             steps_exhausted: false,
             branch: is_branch,
+            step_limit: PROOF_STEP_BUDGET,
         }
     }
 
@@ -1795,6 +1799,13 @@ impl<'a> Prover<'a> {
         self.steps_exhausted
     }
 
+    /// The step budget the last goal's search was given: the full budget,
+    /// or the smaller one once its scope has spent a full budget on goals
+    /// that ran out.
+    pub(crate) fn step_limit(&self) -> u32 {
+        u32::try_from(self.step_limit).unwrap_or(u32::MAX)
+    }
+
     /// A certificate whose conclusion is exactly `goal`: directly, or by a
     /// case split over a disjunctive fact.
     pub(crate) fn prove(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
@@ -1810,6 +1821,7 @@ impl<'a> Prover<'a> {
         if top_level {
             self.remaining_steps = budget;
             self.steps_exhausted = false;
+            self.step_limit = budget;
         }
         let Some(remaining) = self.remaining_steps.checked_sub(1) else {
             self.steps_exhausted = true;

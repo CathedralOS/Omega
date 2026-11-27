@@ -146,7 +146,7 @@ fn accept_compilation(
                 diagnostics.extend(unproved.iter().map(|entry| {
                     let mut diagnostic = entry.reject_diagnostic();
                     let note = match entry.cause {
-                        UnprovedCause::BudgetExhausted => {
+                        UnprovedCause::BudgetExhausted | UnprovedCause::GoalStepsExhausted { .. } => {
                             "proof search ran out of steps, so the checker could not judge it either way"
                         }
                         _ => "the checker could not judge it either way",
@@ -228,9 +228,11 @@ fn accept_compilation(
     })
 }
 
-/// A goal whose form the prover has no rule for leaves the request
-/// `Incomplete` at code 36, `coverage_proof_goal_forms`, naming the
-/// obligation (`wiki/spec/build/compiler_request.md`, "Unproved goal form
+/// A goal whose form the prover has no rule for, or whose search ran out of
+/// its step budget, leaves the request `Incomplete` at its resource code,
+/// naming the obligation: code 36, `coverage_proof_goal_forms`, or code 37,
+/// `proof_search_goal_steps`, with the limit that goal was given
+/// (`wiki/spec/build/compiler_request.md`, "Unproved goal form
 /// publication"). Every other cause keeps its diagnostic as it is. Without
 /// an obligation identity the provision cannot be named, so the diagnostic
 /// stays a refusal rather than an `Incomplete` with an invented coordinate.
@@ -239,11 +241,21 @@ fn goal_form_provision(
     cause: UnprovedCause,
     obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Diagnostic {
-    let (UnprovedCause::NoRuleForGoalForm, Some(obligation)) = (cause, obligation) else {
+    use diagnostics::CoverageForm;
+    let Some(obligation) = obligation else {
         return diagnostic;
     };
-    let form = diagnostics::CoverageForm::ProofGoalForm;
-    let provision = form.exceeded(obligation.get());
+    let (form, provision) = match cause {
+        UnprovedCause::NoRuleForGoalForm => (
+            CoverageForm::ProofGoalForm,
+            CoverageForm::ProofGoalForm.exceeded(obligation.get()),
+        ),
+        UnprovedCause::GoalStepsExhausted { limit } => (
+            CoverageForm::ProofGoalSteps,
+            CoverageForm::ProofGoalSteps.exceeded_at(obligation.get(), u64::from(limit)),
+        ),
+        _ => return diagnostic,
+    };
     Diagnostic {
         message: format!(
             "{} [Incomplete code {} ({}): obligation {}]",

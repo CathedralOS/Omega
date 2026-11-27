@@ -1201,8 +1201,8 @@ running out is reported as exhausted search. One goal's whole search, its
 branches and the side conditions of its bounds included, has 100,000 steps
 (`PROOF_STEP_BUDGET`): a step for each goal started and one for each known
 fact a case branch prepares again. The largest proof in the compiler's tests
-takes under 27,000. Running out refuses the obligation as an exhausted
-mathematical proof budget, never as a proof, so a goal out of reach fails
+takes under 27,000. Running out leaves the obligation unproved at code 37,
+`proof_search_goal_steps`, never as a proof, so a goal out of reach fails
 within seconds however many path facts surround it
 (`out_of_reach_bound_search`). Once one machine's checking has spent a full
 budget on such goals, each later goal there gets 8,192 steps, so a body of
@@ -1518,7 +1518,8 @@ decision from. It discharges an elaborated closure and returns:
   once, at that return.
 - `Incomplete`: every unproved obligation's goal has a form the prover has no
   rule for (`NoRuleForGoalForm`: an order or equality over non-integers, a
-  proposition form it does not reason about). The program
+  proposition form it does not reason about), or its search ran out of steps
+  (`GoalStepsExhausted`). The program
   may be valid and the checker cannot judge it, so this is the outcome table's
   "unsupported valid case" (owner ruling on `unproved-goal-form-outcome`). No
   artifact and no fallback either. `Reject` wins when both kinds occur. Each
@@ -1529,8 +1530,8 @@ decision from. It discharges an elaborated closure and returns:
   `[Incomplete code 36 (coverage_proof_goal_forms): obligation N]`. A closed contract
   implication's refusal names its site's owner, so the refusal carries the
   obligation itself (`Refusal::obligation`). A goal that runs out of its step
-  budget names no provision yet and ends the request `Reject`
-  ([owner question](../../../../../../OWNER_QUESTIONS.md#per-goal-proof-step-provision)).
+  budget carries code 37, `proof_search_goal_steps`, with the limit that
+  goal was given, and also ends the request `Incomplete`.
 - `FallBack`: elaboration or some obligation was refused as `Unsupported`.
   Despite the name, this stops compilation without an artifact; there is no
   second checker to fall back to. This wins over `Unproved`.

@@ -19,6 +19,9 @@ pub enum CoverageForm {
     /// `wiki/spec/build/compiler_request.md`, "Unproved goal form
     /// publication"). Its coordinate is the obligation's identity.
     ProofGoalForm,
+    /// A required proof goal whose search ran out of its step budget
+    /// (code 37). Its coordinate is the obligation's identity.
+    ProofGoalSteps,
 }
 
 impl CoverageForm {
@@ -32,6 +35,7 @@ impl CoverageForm {
             "coverage_expression_forms" => Some(Self::ExpressionForm),
             "coverage_transition_forms" => Some(Self::TransitionForm),
             "coverage_proof_goal_forms" => Some(Self::ProofGoalForm),
+            "proof_search_goal_steps" => Some(Self::ProofGoalSteps),
             _ => None,
         }
     }
@@ -46,6 +50,7 @@ impl CoverageForm {
             Self::ExpressionForm => "coverage_expression_forms",
             Self::TransitionForm => "coverage_transition_forms",
             Self::ProofGoalForm => "coverage_proof_goal_forms",
+            Self::ProofGoalSteps => "proof_search_goal_steps",
         }
     }
 
@@ -60,17 +65,34 @@ impl CoverageForm {
             Self::ExpressionForm => 22,
             Self::TransitionForm => 23,
             Self::ProofGoalForm => 36,
+            Self::ProofGoalSteps => 37,
         }
     }
 
-    /// The provision exceeded by one uncovered construct. `coordinate` is
-    /// the first byte of a refused source row, or for `ProofGoalForm` the
+    /// The provision's specified limit: 0 for a coverage form, which has no
+    /// capacity, else the largest amount a request may use.
+    pub const fn limit(self) -> u64 {
+        match self {
+            Self::ProofGoalSteps => 100_000,
+            _ => 0,
+        }
+    }
+
+    /// The provision exceeded at its specified limit. `coordinate` is the
+    /// first byte of a refused source row, or for a proof provision the
     /// identity of the obligation left unproved.
     pub const fn exceeded(self, coordinate: u64) -> ExceededProvision {
+        self.exceeded_at(coordinate, self.limit())
+    }
+
+    /// The provision exceeded at `limit`, the limit the compiler selected
+    /// for this use, which may be below the specified one: the request asked
+    /// for one more than it.
+    pub const fn exceeded_at(self, coordinate: u64, limit: u64) -> ExceededProvision {
         ExceededProvision {
             resource: self.resource(),
-            limit: 0,
-            requested: 1,
+            limit,
+            requested: limit.saturating_add(1),
             coordinate,
         }
     }
@@ -99,13 +121,44 @@ impl record_storage::Record for ExceededProvision {
             let form = CoverageForm::from_resource(&resource).ok_or_else(|| {
                 input.error(format!("unknown retained provision resource `{resource}`"))
             })?;
-            let recovered = form.exceeded(coordinate);
-            if recovered.limit != limit || recovered.requested != requested {
+            if limit > form.limit() {
+                return Err(input.error("retained provision exceeds its specified limit"));
+            }
+            let recovered = form.exceeded_at(coordinate, limit);
+            if recovered.requested != requested {
                 return Err(
                     input.error("retained coverage provision has inconsistent limit or demand")
                 );
             }
             Ok(recovered)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_goal_step_budget_asks_for_one_more_step_than_its_limit() {
+        let full = CoverageForm::ProofGoalSteps.exceeded(9);
+        assert_eq!(
+            (full.resource, full.limit, full.requested, full.coordinate),
+            ("proof_search_goal_steps", 100_000, 100_001, 9)
+        );
+        let reduced = CoverageForm::ProofGoalSteps.exceeded_at(9, 8_192);
+        assert_eq!((reduced.limit, reduced.requested), (8_192, 8_193));
+        assert_eq!(CoverageForm::ProofGoalSteps.code(), 37);
+    }
+
+    #[test]
+    fn a_coverage_form_has_no_capacity() {
+        let goal_form = CoverageForm::ProofGoalForm.exceeded(9);
+        assert_eq!((goal_form.limit, goal_form.requested), (0, 1));
+        assert_eq!(CoverageForm::ProofGoalForm.code(), 36);
+        assert_eq!(
+            CoverageForm::from_resource("proof_search_goal_steps"),
+            Some(CoverageForm::ProofGoalSteps)
+        );
     }
 }
