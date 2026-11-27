@@ -291,11 +291,6 @@ impl SourceStorage {
                     None => crate::capture_anonymous_compilation_source(root_path)?,
                 };
                 let root = captured.canonical_live_root().to_path_buf();
-                if source_capture.is_some() && !root_path.starts_with(&root) {
-                    return Err(vec![Diagnostic::error(
-                        "compilation root is outside its acquired source capture",
-                    )]);
-                }
                 let mut storage = SourceStorage::for_compilation(root.clone(), core_root.clone());
                 storage
                     .filesystem
@@ -305,6 +300,14 @@ impl SourceStorage {
                             "cannot mount anonymous source capture: {error}"
                         ))]
                     })?;
+                // Ask the mounted view rather than compare path prefixes: the
+                // requested root may name the canonical capture through a host
+                // link or the other Windows prefix spelling.
+                if source_capture.is_some() && !storage.filesystem.routes_into_capture(root_path) {
+                    return Err(vec![Diagnostic::error(
+                        "compilation root is outside its acquired source capture",
+                    )]);
+                }
                 storage.sources = catalogue.begin_selection();
                 storage.anonymous_capture = Some(captured.tree().clone());
                 if storage.default_package_root == core_root {
