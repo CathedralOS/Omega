@@ -9225,6 +9225,67 @@ impl TypedTrees {
         .type_reference(self, original)
     }
 
+    /// The proposition a closed application of `definition`, generic over
+    /// types, selects: each binder replaced by its type and each parameter
+    /// a fresh symbol, wherever the parameters and the formula name them.
+    /// Only a proposition declared as one boolean formula is copied.
+    pub fn copy_proposition_application(
+        &mut self,
+        definition: &crate::source_state::proposition::PropositionDefinition,
+        instance: SymbolHandle,
+        name: crate::source_state::name::Identifier,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+    ) -> Result<crate::source_state::proposition::PropositionDefinition, &'static str> {
+        use crate::source_state::proposition::{PropositionBody, PropositionFormula};
+        let PropositionBody::Transparent {
+            proposition: PropositionFormula::BooleanExpression(formula),
+        } = &definition.body
+        else {
+            return Err("a generic proposition is copied only from one boolean formula");
+        };
+        let mut application = CallableApplication {
+            region_scope: definition.symbol,
+            types: substitutions.to_vec(),
+            ..CallableApplication::default()
+        };
+        // What the formula writes, its static applications among them, was
+        // written in the generated proposition.
+        application.symbols.push((definition.symbol, instance));
+        let declared = self
+            .state_parameters
+            .span_or_empty(definition.parameters)
+            .to_vec();
+        for parameter in &declared {
+            let kind = self.symbols.get(parameter.symbol).kind;
+            let fresh = self.symbols.insert_generated_root_from(
+                parameter.symbol,
+                kind,
+                parameter.name.as_str(),
+            );
+            application.symbols.push((parameter.symbol, fresh));
+        }
+        let mut parameters = arena::HandleSpan::empty();
+        for mut parameter in declared {
+            parameter.symbol = application.symbol(parameter.symbol);
+            parameter.type_reference =
+                application.type_reference(self, parameter.type_reference)?;
+            self.state_parameters
+                .append_to_span(&mut parameters, parameter);
+        }
+        let formula = application.expression(self, *formula)?;
+        Ok(crate::source_state::proposition::PropositionDefinition {
+            symbol: instance,
+            name,
+            is_public: false,
+            binders: arena::HandleSpan::empty(),
+            parameters,
+            transparent_formula_source_span: definition.transparent_formula_source_span,
+            body: PropositionBody::Transparent {
+                proposition: PropositionFormula::BooleanExpression(formula),
+            },
+        })
+    }
+
     /// Copies every form of callable contract fact under the same declaration
     /// and static bindings as its entry. No fact becomes checking evidence here.
     pub fn copy_callable_contract(

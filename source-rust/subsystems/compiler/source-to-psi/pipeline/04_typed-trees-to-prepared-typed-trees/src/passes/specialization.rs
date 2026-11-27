@@ -82,6 +82,7 @@ use crate::source_state::{
 
 mod callable_binder;
 mod named_conformances;
+mod propositions;
 mod provider_methods;
 mod reflected_fields;
 
@@ -96,6 +97,7 @@ pub(crate) fn prepare_selected(
 ) -> Result<Vec<(crate::EntryApplication, SymbolHandle)>, Vec<Diagnostic>> {
     let first_type = program.type_reference_table.type_reference_count();
     let mut generated = GeneratedMachines::default();
+    let mut generated_propositions = propositions::GeneratedPropositions::default();
     // Reflection creates one potential callback branch per declared case. Lowering
     // decides which branches exist on the exact applied record. Keep a rejection
     // with its branch, including machines specialized solely for that branch.
@@ -171,7 +173,28 @@ pub(crate) fn prepare_selected(
             }
             Err((Stop::Defect(message), _)) => return Err(vec![Diagnostic::error(message)]),
         }
-        for site in call_sites(program, position) {
+        let mut sites = Vec::new();
+        match propositions::close(program, position, &mut generated_propositions) {
+            Ok(formulas) => {
+                for formula in formulas {
+                    sites.extend(clause_sites(program, formula));
+                }
+            }
+            Err((Stop::Unserved(detail), span)) => {
+                program.record_deferred_refusal_with_detail(
+                    holder,
+                    DeferredRequest::StaticApplication,
+                    span,
+                    detail,
+                );
+            }
+            Err((Stop::Rejected(message), span)) => {
+                return Err(vec![Diagnostic::error(message).with_source_span(span)]);
+            }
+            Err((Stop::Defect(message), _)) => return Err(vec![Diagnostic::error(message)]),
+        }
+        sites.extend(call_sites(program, position));
+        for site in sites {
             let served = named_conformances::serve(program, holder, site, &mut captures)
                 .and_then(|handled| {
                     if handled {
@@ -477,7 +500,50 @@ fn call_sites(program: &TypedTrees, position: usize) -> Vec<Site> {
                 });
             }
         }
+        // A clause names the closed application of a machine generic over
+        // types it is about, as a body does
+        // (`ensures |proof|::Identity::<Nat>(count::<u64>(nil), zero)`). A
+        // clause applying a machine generic over machines keeps naming the
+        // template, which the mathematical signature reads as one term.
+        for fact in program
+            .machine_contracts(machine)
+            .iter()
+            .chain(program.state_contracts(state))
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        {
+            let ProofFact::Expression(root) = fact else {
+                continue;
+            };
+            if !root.is_valid() {
+                continue;
+            }
+            sites.extend(clause_sites(program, *root));
+        }
     }
+    sites
+}
+
+/// The calls under `root`, a clause, that apply a machine generic over
+/// types only.
+fn clause_sites(program: &TypedTrees, root: ExpressionHandle) -> Vec<Site> {
+    let mut sites = Vec::new();
+    program.subtree_for_each(root, SubtreeEdges::default(), |handle, node| {
+        if matches!(node, ExpressionNode::Call(_)) {
+            sites.push(Site::Expression(handle));
+        }
+    });
+    sites.retain(|site| {
+        site.applied(program)
+            .and_then(|applied| entered_machine(program, applied.target))
+            .and_then(|(machine, _)| program.machine_by_symbol(machine))
+            .is_some_and(|machine| {
+                let parameters = program.machine_type_parameters(machine);
+                !parameters.is_empty()
+                    && parameters
+                        .iter()
+                        .all(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+            })
+    });
     sites
 }
 

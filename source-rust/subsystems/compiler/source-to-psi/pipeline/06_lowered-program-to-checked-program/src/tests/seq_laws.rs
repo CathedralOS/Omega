@@ -329,3 +329,94 @@ fn a_published_seq_proof_whose_recursor_is_an_assumption_is_refused() {
     });
     assert!(refused.is_err(), "{refused:?}");
 }
+
+/// A machine generic over its element type, `count<T>`, and one law about
+/// its application at `u64`, which claims `claim` of one more element.
+fn counted_at_a_type(claim: &str) -> String {
+    format!(
+        "{}
+data Tagged<T> {{
+    case Nil;
+    case More(item: T, rest: Tagged<T>);
+}}
+
+machine count<T>(t: Tagged<T>) -> Nat
+terminates by t
+{{
+    transition t {{
+        Tagged::Nil -> Nat::Zero,
+        Tagged::More {{ item, rest }} -> Nat::Succ {{ prev: count::<T>(rest) }}
+    }}
+}}
+
+machine count_more(x: u64, t: Tagged<u64>)
+ensures
+    |proof|::Identity::<Nat>(count::<u64>(Tagged::More {{ item: x, rest: t }}), {claim})
+{{
+}}
+",
+        library_declarations()
+    )
+}
+
+#[test]
+fn a_machine_generic_over_types_is_judged_at_each_closed_application() {
+    // Typed preparation generates `count` at `u64` for the clause's call;
+    // the signature declares that machine and never the template.
+    let verdicts = judged(&counted_at_a_type("Nat::Succ { prev: count::<u64>(t) }"));
+    let judgment = signature(&verdicts);
+    assert!(
+        judgment.laws.iter().any(|law| law.machine == "count_more"
+            && matches!(law.decision, MathematicalCoreDecision::Judged(_))),
+        "{judgment:?}"
+    );
+}
+
+#[test]
+fn a_false_law_of_a_machine_generic_over_types_is_refused() {
+    let verdicts = judged(&counted_at_a_type("count::<u64>(t)"));
+    assert_eq!(unproved(&verdicts).machine, "count_more");
+}
+
+/// `same_count<T>`, a proposition generic over the element type, applied at
+/// `u64` by a law whose two sides are `left` and `right`.
+fn related_at_a_type(left: &str, right: &str) -> String {
+    format!(
+        "{}
+proposition same_count<T>(a: Tagged<T>, b: Tagged<T>) =
+    |proof|::Identity::<Nat>(count::<T>(a), count::<T>(b));
+
+machine same_count_more(x: u64, y: u64, t: Tagged<u64>)
+ensures
+    same_count::<u64>({left}, {right})
+{{
+}}
+",
+        counted_at_a_type("Nat::Succ { prev: count::<u64>(t) }")
+    )
+}
+
+#[test]
+fn a_proposition_generic_over_types_is_read_at_each_closed_application() {
+    // The clause selects `same_count` at `u64`, whose formula applies
+    // `count` at `u64`; neither template is a declaration.
+    let verdicts = judged(&related_at_a_type(
+        "Tagged::More { item: x, rest: t }",
+        "Tagged::More { item: y, rest: t }",
+    ));
+    let judgment = signature(&verdicts);
+    assert!(
+        judgment
+            .laws
+            .iter()
+            .any(|law| law.machine == "same_count_more"
+                && matches!(law.decision, MathematicalCoreDecision::Judged(_))),
+        "{judgment:?}"
+    );
+}
+
+#[test]
+fn a_false_law_of_a_proposition_generic_over_types_is_refused() {
+    let verdicts = judged(&related_at_a_type("Tagged::More { item: x, rest: t }", "t"));
+    assert_eq!(unproved(&verdicts).machine, "same_count_more");
+}
