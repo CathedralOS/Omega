@@ -321,6 +321,21 @@ fn the_same_modulo_recursing_at_its_own_dividend_is_refused_at_that_call() {
 }
 
 #[test]
+fn a_local_order_without_its_fuel_bound_is_refused_for_that_lemma() {
+    // `Peano` spells core's truncated subtraction, so `drain`'s descent is
+    // checked and holds. The law that its fuel suffices needs the order's
+    // `succ_of_sub_between`, which the program's copy leaves out.
+    let (output, report) = check("computed_descent/fail/local_order_without_its_bound");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("not supported yet")
+            && report.contains("has no lemma `succ_of_sub_between(a, k, w)`")
+            && report.contains("`drain`"),
+        "{report}"
+    );
+}
+
+#[test]
 fn core_division_computes_each_kind_of_quotient_and_remainder() {
     // Zero dividend, divisor one, a dividend smaller than the divisor, exact
     // and inexact division, each checked by computation through `div` and

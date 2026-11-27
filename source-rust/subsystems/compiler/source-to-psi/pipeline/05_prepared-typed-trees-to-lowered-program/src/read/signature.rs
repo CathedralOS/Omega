@@ -4513,11 +4513,255 @@ impl<'p> Converter<'p, '_> {
         // A law counts the machine parameters among its formals, first.
         self.fueled
             .push((id, over_fuel, data, parameters + measure as u32));
+        self.bound(defining, &shape, over_fuel, &types, measure, data, order)?;
         // The machine is that definition with its ranked formal as the fuel.
         let head = self.constant(over_fuel);
         let mut operands = vec![own[parameters as usize + measure]];
         operands.extend(own);
         Ok(self.signature.arena.apply_arguments(head, &operands))
+    }
+
+    /// The law that fuel reaching the ranked formal is enough: for every
+    /// amount `k` with `x_r ∸ k = 0`, the definition over fuel at `k` is the
+    /// one at `x_r`, which is the machine. Its proof never reads the body:
+    /// by induction on `k`, a successor case splits on the guard
+    /// `x_r ∸ k'`, whose zero is the hypothesis at the same arguments and
+    /// whose successor `S w` has `x_r = S k'` by the order lemma
+    /// (`order_lemma`), so both sides unfold to the body
+    /// (`wiki/drafts/designs/computed_descent_recursion.md`).
+    #[allow(clippy::too_many_arguments)]
+    fn bound(
+        &mut self,
+        defining: &Defining<'_>,
+        shape: &PlainData,
+        over_fuel: u32,
+        types: &[TermHandle],
+        measure: usize,
+        data: u32,
+        order: u32,
+    ) -> Checked<()> {
+        let id = defining.id;
+        let lemma = self.order_lemma(id, data, order)?;
+        let (Some(zero), Some(successor)) = (
+            (0..shape.cases()).find(|&case| shape.arity(case) == 0),
+            (0..shape.cases()).find(|&case| shape.arity(case) == 1),
+        ) else {
+            return Err(unserved(id, "fuel without a zero and a successor"));
+        };
+        let parameters = defining.callables.len();
+        let count = defining.formals.len();
+        // The formals: the machine parameters, the fuel `k`, the formals.
+        let total = parameters + 1 + count;
+        let mut formals = defining.callables.to_vec();
+        formals.push(self.constant(data));
+        formals.extend(types[parameters..].iter().copied());
+        let at = |converter: &mut Self, position: usize, depth: usize| {
+            converter.variable((depth - 1 - position) as u32)
+        };
+        let fuel = parameters;
+        let ranked = parameters + 1 + measure;
+        let head = self.constant(over_fuel);
+        let nat = self.constant(data);
+        let monus = self.constant(order);
+        let zero_value = self.constant(data + 1 + zero as u32);
+        let operands = |converter: &mut Self, fuel_at: usize| -> Vec<TermHandle> {
+            let mut operands = vec![at(converter, fuel_at, total)];
+            operands.extend(
+                (0..total)
+                    .filter(|&position| position != fuel)
+                    .map(|position| at(converter, position, total)),
+            );
+            operands
+        };
+        let at_fuel = operands(self, fuel);
+        let at_ranked = operands(self, ranked);
+        let arena = &mut self.signature.arena;
+        let left = arena.apply_arguments(head, &at_fuel);
+        let right = arena.apply_arguments(head, &at_ranked);
+        let goal = arena.insert(Term::Id {
+            ty: defining.result,
+            left,
+            right,
+        });
+        let ranked_term = at(self, ranked, total);
+        let fuel_term = at(self, fuel, total);
+        let reached = self
+            .signature
+            .arena
+            .apply_arguments(monus, &[ranked_term, fuel_term]);
+        let premise = self.signature.arena.insert(Term::Id {
+            ty: nat,
+            left: reached,
+            right: zero_value,
+        });
+        // The successor case of the fuel names its field `k'` after the
+        // formals; the guard's successor names `w` after it.
+        let ranked_in = at(self, ranked, total + 1);
+        let rest_in = at(self, total, total + 1);
+        let guard = self
+            .signature
+            .arena
+            .apply_arguments(monus, &[ranked_in, rest_in]);
+        let same = Citation {
+            evidence: Evidence::Hypothesis { field: 0, at: None },
+            arguments: (0..total)
+                .filter(|&position| position != fuel)
+                .map(|position| at(self, position, total + 1))
+                .collect(),
+        };
+        let last = Citation {
+            evidence: Evidence::Statement(lemma),
+            arguments: vec![
+                at(self, ranked, total + 2),
+                at(self, total, total + 2),
+                at(self, total + 1, total + 2),
+            ],
+        };
+        let mut guarded = vec![LawCase::default(); shape.cases()];
+        guarded[zero].citations.push(same);
+        guarded[successor].citations.push(last);
+        let mut cases = vec![LawCase::default(); shape.cases()];
+        cases[successor].split = Some(LawSplit {
+            subject: SplitSubject::Value(guard),
+            data,
+            cases: guarded,
+        });
+        let mut statement = self.implication(&[premise], goal);
+        for &formal in formals.iter().rev() {
+            statement = self.signature.arena.insert(Term::Pi {
+                domain: formal,
+                codomain: statement,
+            });
+        }
+        let law = index(id, self.signature.laws.len())?;
+        index(id, self.signature.declarations.len() + 1)?;
+        let entry = self.push(
+            Declaration::assumption(0, statement),
+            SignatureEntryKind::Statement { law },
+            format!("{} fuel bound", defining.name),
+        );
+        let names = self.program.names.get(id);
+        let mut formal_names: Vec<String> = (0..parameters)
+            .map(|position| format!("parameter {position}"))
+            .collect();
+        formal_names.push("fuel".to_owned());
+        formal_names.extend(
+            names
+                .map(|names| names.formals.clone())
+                .unwrap_or_else(|| vec![String::new(); count]),
+        );
+        self.signature.laws.push(Law {
+            machine: defining.symbol,
+            clause: 0,
+            statement: entry,
+            formals,
+            premises: vec![premise],
+            goal,
+            declared: None,
+            proof: LawProof::Cases {
+                formal: fuel as u32,
+                data,
+                cases,
+                mutual: Vec::new(),
+            },
+            formal_names,
+            machine_name: defining.name.to_owned(),
+            text: "fuel that reaches the ranked argument gives the machine's own result".to_owned(),
+            source: names.and_then(|names| names.declared),
+        });
+        Ok(())
+    }
+
+    /// The statement entry of the natural order's lemma that a unit of fuel
+    /// that does not yet reach the ranked argument is the last one it
+    /// needs: `a ∸ k = S w` and `a ∸ S k = 0` give `a = S k`, over the
+    /// order at `order`. Core states it as `succ_of_sub_between`; a law of
+    /// that name is read, and recognized only when its statement is exactly
+    /// that one.
+    fn order_lemma(&mut self, id: MachineId, data: u32, order: u32) -> Checked<u32> {
+        const LEMMA: &str = "succ_of_sub_between";
+        let refused = || {
+            unserved(
+                id,
+                "recursive call at a computed value whose natural order has no lemma `succ_of_sub_between(a, k, w)`: `saturating_sub(a, k) = Succ w` and `saturating_sub(a, Succ k) = Zero` give `a = Succ k`",
+            )
+        };
+        let SignatureEntryKind::Data { shape, .. } = &self.signature.entries[data as usize].kind
+        else {
+            return Err(refused());
+        };
+        let shape = shape.clone();
+        let (Some(zero), Some(successor)) = (
+            (0..shape.cases()).find(|&case| shape.arity(case) == 0),
+            (0..shape.cases()).find(|&case| shape.arity(case) == 1),
+        ) else {
+            return Err(refused());
+        };
+        let candidates: Vec<MachineId> = self
+            .program
+            .symbols
+            .iter()
+            .filter(|(_, symbol)| {
+                let name = self.name(**symbol);
+                name == LEMMA || name.ends_with(&format!("::{LEMMA}"))
+            })
+            .map(|(machine, _)| machine)
+            .collect();
+        // Under `a`, `k`, `w`.
+        let nat = self.constant(data);
+        let monus = self.constant(order);
+        let at_zero = self.constant(data + 1 + zero as u32);
+        let succ = self.constant(data + 1 + successor as u32);
+        let (a, k, w) = (self.variable(2), self.variable(1), self.variable(0));
+        let arena = &mut self.signature.arena;
+        let succ_w = arena.apply_arguments(succ, &[w]);
+        let succ_k = arena.apply_arguments(succ, &[k]);
+        let above = arena.apply_arguments(monus, &[a, k]);
+        let above = arena.insert(Term::Id {
+            ty: nat,
+            left: above,
+            right: succ_w,
+        });
+        let within = arena.apply_arguments(monus, &[a, succ_k]);
+        let within = arena.insert(Term::Id {
+            ty: nat,
+            left: within,
+            right: at_zero,
+        });
+        let goal = arena.insert(Term::Id {
+            ty: nat,
+            left: a,
+            right: succ_k,
+        });
+        for machine in candidates {
+            let Ok(laws) = self.laws(machine) else {
+                continue;
+            };
+            for law in laws {
+                let law = &self.signature.laws[law as usize];
+                let arena = &self.signature.arena;
+                let premises = match law.premises.as_slice() {
+                    [first, second] => {
+                        (arena.structurally_equal(*first, above)
+                            && arena.structurally_equal(*second, within))
+                            || (arena.structurally_equal(*first, within)
+                                && arena.structurally_equal(*second, above))
+                    }
+                    _ => false,
+                };
+                if law.formals.len() == 3
+                    && law
+                        .formals
+                        .iter()
+                        .all(|&formal| arena.structurally_equal(formal, nat))
+                    && premises
+                    && arena.structurally_equal(law.goal, goal)
+                {
+                    return Ok(law.statement);
+                }
+            }
+        }
+        Err(refused())
     }
 
     /// The body of a machine on fuel with a unit of fuel left, guarded: by

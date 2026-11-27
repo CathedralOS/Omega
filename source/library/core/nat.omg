@@ -1193,3 +1193,58 @@ ensures
         transition { _ -> Nat::Zero }
     }
 }
+
+// ANTISYMMETRY OF NATURAL ORDER: x <= y and y <= x entail x == y. Induction
+// on `x`, then cases on `y`: a Zero against a successor is a premise that
+// computes to a constructor clash, and two successors strip the pair with
+// succ_sub_succ on both premises before the inductive hypothesis. Lean
+// analog: Nat.le_antisymm.
+machine le_antisymm(x: Nat, y: Nat) -> Nat
+terminates by x
+requires
+    |proof|::Identity::<Nat>(saturating_sub(x, y), Nat::Zero),
+    |proof|::Identity::<Nat>(saturating_sub(y, x), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(x, y)
+{
+    transition x {
+        Nat::Zero -> Nat::Zero,
+        Nat::Succ { prev as px } -> lea_succ(px, y)
+    }
+
+    machine lea_succ(px: Nat, y: Nat) -> Nat {
+        transition y {
+            Nat::Zero -> Nat::Zero,
+            Nat::Succ { prev as py } -> lea_both(px, py)
+        }
+    }
+
+    machine lea_both(px: Nat, py: Nat) -> Nat {
+        _ = succ_sub_succ(px, py);
+        _ = succ_sub_succ(py, px);
+        transition { _ -> (le_antisymm(px, py)) }
+    }
+}
+
+// THE FUEL BOUND'S STEP: a value above `k` and at most `Succ k` is `Succ k`.
+// The compiler cites it, recognized by this statement, when it proves that
+// any sufficient fuel gives a machine on fuel the same result
+// (`wiki/drafts/designs/computed_descent_recursion.md`): a unit of fuel that
+// does not yet reach the ranked argument is the last one it needs.
+public machine succ_of_sub_between(a: Nat, k: Nat, w: Nat) -> Nat
+requires
+    |proof|::Identity::<Nat>(saturating_sub(a, k), Nat::Succ { prev: w }),
+    |proof|::Identity::<Nat>(saturating_sub(a, Nat::Succ { prev: k }), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(a, Nat::Succ { prev: k })
+{
+    transition {
+        _ -> sosb_body(a, k, w)
+    }
+
+    machine sosb_body(a: Nat, k: Nat, w: Nat) -> Nat {
+        _ = lt_of_sub_pos(k, a, w);
+        _ = le_antisymm(a, Nat::Succ { prev: k });
+        transition { _ -> Nat::Zero }
+    }
+}

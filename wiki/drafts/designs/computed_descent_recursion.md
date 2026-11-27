@@ -81,15 +81,24 @@ It is proved by induction on `k`, and its proof never looks at `B`:
 (`add` recurses on its first argument, so `x_r = add(k', S 0)` from
 `sub_eq_add` would not compute to `S k'`; antisymmetry avoids `add`.)
 
+Core states the two steps together as `succ_of_sub_between(a, k, w)`:
+`a ∸ k = S w` and `a ∸ S k = 0` give `a = S k`, proved from
+`lt_of_sub_pos` and the new `le_antisymm`.
+
 `Bound` is a law stage 05 states for each machine on fuel, with this
 script (`LawProof::Cases` on the bound, a `LawSplit` on the guard value, a
-`Hypothesis` citation and `Statement` citations of the two order lemmas).
-Stage 06 proves it like any other law. The lemmas are recognized the way
-`saturating_sub` is: a law read so far whose statement is exactly core's
-statement over the recognized order. A program whose natural data lacks one
-is refused as not supported, naming the missing lemma. This is the "proved
-once" part: the order's lemmas are proved once in core (or in the program's
-copy), and each machine's `Bound` reuses them.
+`Hypothesis` citation and a `Statement` citation of `succ_of_sub_between`).
+Stage 06 proves it like any other law. The lemma is recognized the way
+`saturating_sub` is, by its statement over the recognized order exactly; a
+program whose natural data lacks it is refused as not supported, naming the
+missing lemma. This is the "proved once" part: the order's lemma is proved
+once in core (or in the program's copy), and each machine's `Bound` reuses
+it.
+
+No call names the lemma, so it would not be read on its own. It is the core
+vocabulary row `NaturalFuelBound`: stage 02 demands its body whenever the
+naturals are demanded, and stage 05 reads it from the copy of core's
+naturals the program reads from.
 
 With `Bound` and the descent each call owes, the counter suffices on every
 reachable call: a call at `ē` inside `G(S k', x̄)` with `x_r ∸ k' ≠ 0` and
@@ -128,7 +137,7 @@ recognized like `sub_eq_add`.
 1. The guard, with the `Split::Fuel` change so every existing law on fuel
    stays judged (landed first, on its own), then `Bound`. Fixtures: the
    repeated-subtraction `mod` compiles with its `Bound` judged; a copy of
-   `Nat` without the antisymmetry lemma is refused for the missing lemma.
+   `Nat` without `succ_of_sub_between` is refused for the missing lemma.
 2. `Equation_f`, and its use by the prover. Fixture: a law about the
    repeated-subtraction `mod` that holds only with enough fuel, such as
    `mod(a, b) = mod(a ∸ b, b)` for `b <= a`, compiles; its twin without the

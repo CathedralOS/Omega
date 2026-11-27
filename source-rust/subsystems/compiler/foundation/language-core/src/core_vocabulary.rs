@@ -29,6 +29,11 @@ pub enum CoreVocabulary {
     CountedQuantity,
     /// The proof-natural constructor family in core nat.omg.
     ProofNatural,
+    /// Core nat.omg's `succ_of_sub_between`: a value above `k` and at most
+    /// `Succ k` is `Succ k`. A machine recursing at a computed natural cites
+    /// it in the law that its fuel suffices, so its body is demanded with
+    /// the naturals.
+    NaturalFuelBound,
     /// The ordinary `Never` data declaration in core `never.omg`.
     /// This identifies a nominal ABI result; it proves no inhabitedness.
     Never,
@@ -297,6 +302,12 @@ const ROWS: &[CoreVocabularyRow] = &[
         "Nat",
         BundledFile::CoreNat,
         CoreVocabulary::ProofNatural,
+    ),
+    row(
+        "nat.omg",
+        "succ_of_sub_between",
+        BundledFile::CoreNat,
+        CoreVocabulary::NaturalFuelBound,
     ),
     row(
         "native_execution_authority.omg",
