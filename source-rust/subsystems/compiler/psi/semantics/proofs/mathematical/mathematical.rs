@@ -50,7 +50,8 @@ pub use quotient::{
 };
 pub use signature::{
     Declaration, DeclarationKind, Signature, SignatureCheckError, assumption_closure,
-    check_signature, check_signature_with_attribution, judgment_assumption_closure,
+    check_signature, check_signature_with_attribution, extend_signature,
+    judgment_assumption_closure,
 };
 pub use substitution::{
     instantiate, instantiate_levels, relocate_constants, shift, substitute,
