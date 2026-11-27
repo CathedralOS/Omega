@@ -91,7 +91,6 @@ pub fn decode_aarch64_selected_hosted_read_byte(target: NativeTarget, bytes: &[u
     (words == expected).then_some(payload - 4)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn selected_system_call_effects(
     target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,

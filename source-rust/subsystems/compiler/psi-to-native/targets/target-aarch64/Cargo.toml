@@ -17,4 +17,3 @@ target = { path = "../target" }
 isa-conformance = { path = "../../tests/isa-conformance" }
 isa-aarch64 = { path = "../../pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }
 register-model = { path = "../register-model", features = ["test-support"] }
-selected-instructions = { path = "../../representations/selected-instructions", features = ["test-support"] }

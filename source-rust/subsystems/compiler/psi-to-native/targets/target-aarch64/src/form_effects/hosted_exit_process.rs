@@ -16,7 +16,7 @@ use target::NativeTarget;
 pub fn effects(
     target: NativeTarget,
 ) -> Result<MachineEncodedEffects, crate::form_effects::MissingRegister> {
-    let physical = crate::aarch64_physical_register_model();
+    let physical = crate::aarch64_physical_register_model_ref();
     let view = |name: &str| {
         physical
             .view_named(name)

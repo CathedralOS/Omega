@@ -500,7 +500,7 @@ fn encoded_effects(
     semantic: MachineSemanticKind,
 ) -> Result<MachineEncodedEffects, Aarch64MachineEffectCatalogValidationError> {
     use MachineSemanticKind as S;
-    let physical = crate::aarch64_physical_register_model();
+    let physical = crate::aarch64_physical_register_model_ref();
     let units = |name: &str| {
         physical
             .view_named(name)

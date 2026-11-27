@@ -88,11 +88,10 @@ pub fn baseline_target_register_environment(
 fn build_baseline_target_register_environment(
     target: NativeTarget,
 ) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
-    let physical = target_physical_register_model(target);
-    let validated = validate_physical_register_model(physical.clone())
+    let validated = validate_physical_register_model(target_physical_register_model(target))
         .map_err(TargetRegisterEnvironmentValidationError::Physical)?;
     let constraints = prepared_target_constraint_catalog(target, &validated)?;
-    let reservations = conservative_baseline_reservation_profile(target, &physical);
+    let reservations = conservative_baseline_reservation_profile(target, validated.model());
     assemble_target_register_environment(target, validated, constraints, reservations)
 }
 

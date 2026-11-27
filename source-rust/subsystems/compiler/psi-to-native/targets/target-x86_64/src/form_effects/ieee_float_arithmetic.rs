@@ -55,7 +55,7 @@ pub fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
         ..MachineEncodedEffects::fallthrough_v1((0..inputs).collect(), vec![inputs])
     };
     if form.operation.rounding_direction().is_some() {
-        let model = crate::x86_64_physical_register_model();
+        let model = crate::x86_64_physical_register_model_ref();
         let stack_pointer = model.view_named("rsp").expect("canonical stack pointer").id;
         encoded.implicit_unit_uses =
             sorted_units(encoded.implicit_unit_uses.into_iter().chain(units("rsp")));

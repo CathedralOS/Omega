@@ -1355,7 +1355,6 @@ fn size(semantic: Semantic) -> Size {
             crate::encoder_resolved(1, Some(512))
         }
         Semantic::SegmentSelectorRead => crate::encoder_resolved(1, Some(7)),
-        Semantic::AccessorScalarAccess(_) => crate::encoder_resolved(7, Some(9)),
         Semantic::PortWrite => {
             Size::ExactBytes(crate::form_effects::port_write::IMMEDIATE_PORT_WRITE_WIDTH as u16)
         }
@@ -1443,7 +1442,6 @@ fn size(semantic: Semantic) -> Size {
         | Semantic::ExactShiftRightU64 => {
             unreachable!("subtraction, multiplication, and shifts declare explicit alternatives")
         }
-        #[allow(unreachable_patterns)]
         Semantic::CallScalar
         | Semantic::InvokeNoNormal
         | Semantic::CallAggregate
