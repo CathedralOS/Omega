@@ -1149,6 +1149,11 @@ impl Proving<'_> {
         else {
             return Err(unproved());
         };
+        // Stage 05 refuses a law split over a mutual block; a block's
+        // induction takes every member's motive, which a split does not give.
+        if shape.is_mutual() {
+            return Err(unproved());
+        }
         let count = frame.telescope.len();
         let Some(index) = count.checked_sub(place + 1) else {
             return Err(unproved());

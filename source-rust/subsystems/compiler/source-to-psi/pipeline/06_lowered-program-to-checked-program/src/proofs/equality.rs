@@ -227,6 +227,10 @@ enum Definition {
     },
     /// Any other body: an abbreviation, unfolded where it is met.
     Abbreviation,
+    /// The recursor of a member of a mutual block of data. A definition by
+    /// mutual recursion is an abbreviation of it, so it is left to the
+    /// kernel, which computes it on a case.
+    MutualRecursor,
 }
 
 pub(crate) fn spine(arena: &TermArena, term: TermHandle) -> (TermHandle, Vec<TermHandle>) {
@@ -279,6 +283,11 @@ impl Definitions {
             entries
                 .iter()
                 .map(|entry| match &entry.kind {
+                    SignatureEntryKind::Encoding { data }
+                        if shape(*data).is_some_and(|shape| shape.is_mutual()) =>
+                    {
+                        Definition::MutualRecursor
+                    }
                     SignatureEntryKind::Data { .. }
                     | SignatureEntryKind::Record { .. }
                     | SignatureEntryKind::Boolean
@@ -595,7 +604,12 @@ pub(crate) fn normal(
         signature,
         term,
         conversion,
-        &|declaration| !matches!(definitions.get(declaration), Definition::Abbreviation),
+        &|declaration| {
+            !matches!(
+                definitions.get(declaration),
+                Definition::Abbreviation | Definition::MutualRecursor
+            )
+        },
     )?;
     let (function, arguments) = spine(arena, head);
     // An induction applied to the motive, branches and subject of a

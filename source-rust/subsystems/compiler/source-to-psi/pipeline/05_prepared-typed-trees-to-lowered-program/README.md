@@ -116,6 +116,20 @@ a field applies a parameter inside another type (a field `Seq<T>` of
 `Tagged<T>`, a nested inductive), when it holds itself at other arguments than
 its own parameters, or when a parameter is not a type.
 
+Data that reaches itself only through another data type that reaches it back
+(`data Even { case Zero; case Next(odd: Odd); }` with `data Odd { case
+Next(even: Even); }`) is one mutual block: the data types that reach each
+other through their fields (`proof_stratum::mutual_block`), declared together
+as one native inductive declaration with a former, constructors and a
+recursor per member (`PlainData::block`). A machine by cases over one member
+that calls machines over the others is read with every machine of its group
+(`mutual_group`, one per member) as one application of its member's recursor,
+whose motives are the group's results; a call must be at a field of the
+callee's member. A law by induction over a member, a machine ranked on fuel
+over a block and a dispatch inside a value over one are refused: the block's
+induction takes every member's motive, which they do not state. Data reaching
+itself through a callable's parameter is refused at its declaration.
+
 Data whose parameters are values and that holds itself at other values
 (`data Vector<Length: u64, Total: u64> requires .. { case Nil; case
 Cons(previous: u64, previous_total: u64, head: u64, tail [erased]:

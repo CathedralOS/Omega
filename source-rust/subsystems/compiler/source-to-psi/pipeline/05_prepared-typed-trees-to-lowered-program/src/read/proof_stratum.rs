@@ -60,15 +60,90 @@ impl Program<'_> {
 
     /// Whether a field of this declaration, or of one of its cases, has the
     /// declaration itself as its type.
+    pub(crate) fn contains_itself_directly(&self, data: &DataDefinition) -> bool {
+        self.field_declarations(data).contains(&data.symbol)
+    }
+
+    /// Whether the declaration contains itself: a field of it, or of one of
+    /// its cases, has the declaration as its type, directly or through the
+    /// fields of other declarations. The declarations it so reaches and that
+    /// reach it again are one mutual block with it (`mutual_block`).
     pub(crate) fn contains_itself(&self, data: &DataDefinition) -> bool {
+        self.reaches(data, data.symbol, &mut Vec::new())
+    }
+
+    /// Each declaration a field of `data`, or of one of its cases, names.
+    fn field_declarations(&self, data: &DataDefinition) -> Vec<SymbolHandle> {
         let typed = self.typed;
-        typed.data_members(data).iter().any(|member| match member {
-            DataMember::Field(field) => self.names_data(field.type_reference) == Some(data.symbol),
-            DataMember::Variant(variant) => typed
-                .data_payload_fields(variant)
-                .iter()
-                .any(|field| self.names_data(field.type_reference) == Some(data.symbol)),
-        })
+        let mut named = Vec::new();
+        for member in typed.data_members(data) {
+            match member {
+                DataMember::Field(field) => named.extend(self.names_data(field.type_reference)),
+                DataMember::Variant(variant) => named.extend(
+                    typed
+                        .data_payload_fields(variant)
+                        .iter()
+                        .filter_map(|field| self.names_data(field.type_reference)),
+                ),
+            }
+        }
+        named
+    }
+
+    fn reaches(
+        &self,
+        data: &DataDefinition,
+        target: SymbolHandle,
+        visited: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        for symbol in self.field_declarations(data) {
+            if symbol == target {
+                return true;
+            }
+            if visited.contains(&symbol) {
+                continue;
+            }
+            visited.push(symbol);
+            if self
+                .typed
+                .unique_data_definition_by_symbol(symbol)
+                .is_some_and(|next| self.reaches(next, target, visited))
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The declarations of the mutual block of data that contains itself:
+    /// `data` and every declaration it reaches through fields that reaches it
+    /// again, in one order whichever member it is asked of.
+    pub(crate) fn mutual_block(&self, data: &DataDefinition) -> Vec<SymbolHandle> {
+        let mut reached = vec![data.symbol];
+        let mut at = 0;
+        while let Some(&symbol) = reached.get(at) {
+            at += 1;
+            let Some(declaration) = self.typed.unique_data_definition_by_symbol(symbol) else {
+                continue;
+            };
+            for named in self.field_declarations(declaration) {
+                if !reached.contains(&named) {
+                    reached.push(named);
+                }
+            }
+        }
+        let mut block: Vec<SymbolHandle> = reached
+            .into_iter()
+            .filter(|&symbol| {
+                symbol == data.symbol
+                    || self
+                        .typed
+                        .unique_data_definition_by_symbol(symbol)
+                        .is_some_and(|member| self.reaches(member, data.symbol, &mut Vec::new()))
+            })
+            .collect();
+        block.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+        block
     }
 
     /// Whether the data contains itself, or has a field or payload field of
