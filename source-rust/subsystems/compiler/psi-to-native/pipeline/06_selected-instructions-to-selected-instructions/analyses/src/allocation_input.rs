@@ -64,10 +64,9 @@ impl SelectedAllocationInput {
     pub fn into_legality(
         self,
         required: Option<AllocatorAvailabilityRequirement>,
-    ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError>
-    {
-        let requirement = required
-            .unwrap_or(AllocatorAvailabilityRequirement::AllEnvironmentAllocatableViews);
+    ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
+        let requirement =
+            required.unwrap_or(AllocatorAvailabilityRequirement::AllEnvironmentAllocatableViews);
         match self.analyses {
             AllocationAnalyses::LiveRanges(ranges) => {
                 stage_optimized_allocation_legality(ranges, requirement)
