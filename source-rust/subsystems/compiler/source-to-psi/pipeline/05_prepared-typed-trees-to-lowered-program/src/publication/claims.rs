@@ -382,35 +382,12 @@ fn preparation_error(
     machine: MachineId,
     error: terminal_semantics::plain_affine::Error,
 ) -> Refusal {
-    let concerns = match error.site() {
-        Some(terminal_semantics::plain_affine::Site::Operation(at)) => Construct::Operation(at),
-        Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
-        None => Construct::Machine,
-    };
-    let (reason, detail) = match error {
-        terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
-            (RefusalReason::Unestablished, unavailable.message())
-        }
-        terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
-            RefusalReason::Violation,
-            terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
-        ),
-        terminal_semantics::plain_affine::Error::MissingActiveCase { .. } => (
-            RefusalReason::Unsupported,
-            terminal_semantics::plain_affine::Error::missing_active_case_message(),
-        ),
-        terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-            (RefusalReason::Unsupported, detail)
-        }
-        terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
-            (RefusalReason::ForeignIdentity, detail)
-        }
-    };
+    let refusal = crate::lower::machine_order::WalkRefusal::new(&error);
     Refusal {
-        reason,
-        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
+        reason: refusal.reason,
+        site: terminal_check_tables::RefusalSite::Machine(machine, refusal.concerns),
         source_span: None,
-        detail: format!("preparing logical claim transport: {detail}"),
+        detail: format!("preparing logical claim transport: {}", refusal.detail),
     }
 }
 

@@ -2442,30 +2442,17 @@ fn storage_plan(
     let walks =
         terminal_semantics::plain_affine::MachineAffine::new(module, machine.id, Some(summaries));
     let plan = walks.and_then(|walks| walks.plan()).map_err(|error| {
-        let (concerns, operation, origin) = match error.site() {
-            Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
-                Construct::Operation(at),
-                machine
-                    .operations()
-                    .find(|operation| operation.id == at)
-                    .map(|operation| {
-                        terminal_semantics::OperationSemanticTag::for_operation(&operation.kind)
-                            .name()
-                    }),
-                sources
-                    .get(machine.id)
-                    .and_then(|source| source.operations.get(at))
-                    .copied(),
-            ),
-            Some(terminal_semantics::plain_affine::Site::Edge(at)) => (
-                Construct::Edge(at),
-                Some("control-flow edge"),
-                sources
-                    .get(machine.id)
-                    .and_then(|source| source.edges.get(at))
-                    .copied(),
-            ),
-            None => (Construct::Machine, None, None),
+        let refusal = lower::machine_order::WalkRefusal::new(&error);
+        let origin = refusal.origin(sources.get(machine.id));
+        let operation = match refusal.concerns {
+            Construct::Operation(at) => machine
+                .operations()
+                .find(|operation| operation.id == at)
+                .map(|operation| {
+                    terminal_semantics::OperationSemanticTag::for_operation(&operation.kind).name()
+                }),
+            Construct::Edge(_) => Some("control-flow edge"),
+            _ => None,
         };
         // A linear value lost on an edge with no written position (the
         // end of a body) is reported where the value was made: the call
@@ -2482,30 +2469,10 @@ fn storage_plan(
             }
             _ => None,
         };
-        let (reason, detail) = match error {
-            terminal_semantics::plain_affine::Error::Unavailable(unavailable) => (
-                terminal_check_tables::RefusalReason::Unestablished,
-                unavailable.message(),
-            ),
-            terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
-                terminal_check_tables::RefusalReason::Violation,
-                terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
-            ),
-            terminal_semantics::plain_affine::Error::MissingActiveCase { .. } => (
-                terminal_check_tables::RefusalReason::Unsupported,
-                terminal_semantics::plain_affine::Error::missing_active_case_message(),
-            ),
-            terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-                (terminal_check_tables::RefusalReason::Unsupported, detail)
-            }
-            terminal_semantics::plain_affine::Error::Malformed { detail, .. } => (
-                terminal_check_tables::RefusalReason::ForeignIdentity,
-                detail,
-            ),
-        };
+        let detail = refusal.detail;
         terminal_check_tables::Refusal {
-            reason,
-            site: terminal_check_tables::RefusalSite::Machine(machine.id, concerns),
+            reason: refusal.reason,
+            site: terminal_check_tables::RefusalSite::Machine(machine.id, refusal.concerns),
             source_span: lost_at,
             detail: {
                 let detail = match (operation, origin.and_then(|origin| origin.span())) {

@@ -16,7 +16,6 @@ prepared-source = { path = "../prepared-source" }
 typed-trees = { path = "../typed-trees" }
 source-declarations = { path = "../symbol-resolved-trees/declarations" }
 terminal-check-tables = { path = "../lowered-program" }
-source-admission = { path = "../source-files/custody" }
 source-provenance = { path = "../../../foundation/source-provenance" }
 arena = { path = "../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }

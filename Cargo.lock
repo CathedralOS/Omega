@@ -1315,7 +1315,6 @@ dependencies = [
  "numerics",
  "prepared-source",
  "semantic-vocabulary",
- "source-admission",
  "source-declarations",
  "source-provenance",
  "symbols",
