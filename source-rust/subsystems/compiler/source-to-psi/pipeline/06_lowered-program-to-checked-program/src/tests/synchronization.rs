@@ -1,5 +1,7 @@
 //! Source-level synchronization judgments and the execution of their accepted twins.
 
+mod suspending_calls;
+
 use super::build_purpose::{execute_unit, judge_build};
 use crate::RouteVerdict;
 
