@@ -20,7 +20,7 @@ pub enum NativePipelineUnit {
 pub struct NativePipelineInvocation {
     pub profile: TargetProfile,
     pub unit: NativePipelineUnit,
-    pub stages: [u64; 9],
+    pub stages: [u64; 8],
     pub fragment_emission_attempts: u64,
     pub image_emission_attempts: u64,
     pub completed: bool,
@@ -43,16 +43,15 @@ pub fn native_pipeline_invocations() -> Vec<NativePipelineInvocation> {
 #[derive(Clone, Copy)]
 pub enum NativePipelineStage {
     TargetBoundProgramToAbstract = 0,
-    AbstractOptimization = 1,
-    AbstractToTarget = 2,
-    InstructionSelection = 3,
-    SelectedOptimization = 4,
-    RegisterAllocation = 5,
-    PostAllocationMachine = 6,
-    SelectedFormEncoding = 7,
-    ResolvedLayout = 8,
-    FragmentEmission = 9,
-    ImageEmission = 10,
+    AbstractToTarget = 1,
+    InstructionSelection = 2,
+    SelectedOptimization = 3,
+    RegisterAllocation = 4,
+    PostAllocationMachine = 5,
+    SelectedFormEncoding = 6,
+    ResolvedLayout = 7,
+    FragmentEmission = 8,
+    ImageEmission = 9,
 }
 
 pub struct NativePipelineObservation {
@@ -60,7 +59,7 @@ pub struct NativePipelineObservation {
     profile: TargetProfile,
     #[cfg(feature = "test-support")]
     unit: NativePipelineUnit,
-    counts: [AtomicU64; 11],
+    counts: [AtomicU64; 10],
     #[cfg(feature = "test-support")]
     completed: AtomicBool,
 }

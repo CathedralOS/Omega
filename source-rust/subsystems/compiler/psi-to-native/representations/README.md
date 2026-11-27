@@ -10,7 +10,7 @@ tokens or replay evidence a stage keeps beside it.
 
 | Family | Current program root | Producing and consuming operations |
 | --- | --- | --- |
-| `abstract-operations/` | [`AbstractOperationPlan`](abstract-operations/src/lib.rs) | [stage 02](../pipeline/02_target-bound-program-to-abstract-operations/src/selected_input.rs) lowers the target-bound Psi program; [stage 03](../pipeline/03_abstract-operations-to-abstract-operations/src/lib.rs) optimizes the abstract program without changing its public form; stage 04 consumes it. |
+| `abstract-operations/` | [`AbstractOperationPlan`](abstract-operations/src/lib.rs) | [stage 02](../pipeline/02_target-bound-program-to-abstract-operations/src/selected_input.rs) lowers the target-bound Psi program; [stage 04](../pipeline/04_abstract-operations-to-target-operations/src/abstract_input.rs) consumes it unchanged. |
 | `target-operations/` | [`TargetOperationPlan`](target-operations/src/lib.rs) | [stage 04](../pipeline/04_abstract-operations-to-target-operations/src/lib.rs) lowers abstract operations with target and provider settlements; stage 05 consumes the resulting target program. |
 | `selected-instructions/` | [`SelectedInstructionPlan`](selected-instructions/src/lib.rs) | [stage 05](../pipeline/05_target-operations-to-selected-instructions/src/lib.rs) legalizes target operations and selects instructions; [stage 06](../pipeline/06_selected-instructions-to-selected-instructions/src/selected_rewrites/selected_optimization.rs) rewrites that same program form and hands stage 07 one [`SelectedAllocationInput`](../pipeline/06_selected-instructions-to-selected-instructions/analyses/src/lib.rs): the current program, the analyses it established, and its `SelectedOptimizationRecord`; stage 07 assigns register homes. stage 06's completed run is kept only as validator replay evidence. |
 | `register-homes/` | [`AllocatedProgram`](register-homes/src/lib.rs), including [`RegisterHomePlan`](register-homes/src/lib.rs) | [stage 07](../pipeline/07_selected-instructions-to-register-homes/src/allocation/register_allocation.rs) consumes the selected program stage 06 hands it and publishes its current allocation; stage 08 consumes that current allocation's facts. |
@@ -28,20 +28,23 @@ Other packages separate shared records and preparation from program roots:
   value bindings, integer operation policies and structural storage operands first produced during abstract lowering.
   Target and machine representations carry the same operands through later stages.
 - [`abstract-operations/verified-optimization-input/`](abstract-operations/verified-optimization-input/src/lib.rs)
-  owns `VerifiedPsiOptimizationInput`, what stage 02 passes to stage 03: the
+  owns `VerifiedPsiOptimizationInput`, what stage 02 passes to stage 04: the
   lowered `AbstractOperationPlan`, its Terminal module, and the target,
   provider, callback, interrupt and evidence selections admitted with it.
-  stage 02 produces it; stage 03 and realization read it, so stage 03 does not
+  stage 02 produces it; stage 04 and realization read it, so stage 04 does not
   depend on stage 02.
 - [`abstract-operations/optimization-unit/`](abstract-operations/optimization-unit/src/lib.rs)
   owns `PsiOptimizationUnit`, a rebuildable form of control flow, values,
-  ownership and facts used to rewrite and replay abstract programs.
-  [stage 03 builds it](../pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/verified_unit.rs)
-  from the verified input, [publishes an `AbstractOperationPlan`](../pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/publication.rs)
-  and keeps the unit for replay. It is derived from abstract operations, not
-  another numbered stage after them. Its
-  [independent semantic checker](abstract-operations/optimization-unit-semantics/src/lib.rs)
-  has its own manifest; neither representation package depends on it.
+  ownership and facts derived from abstract operations.
+  [Stage 04 builds it](../pipeline/04_abstract-operations-to-target-operations/src/abstract_input.rs)
+  once from the verified input, checking the artifact's evidence seals as it
+  attaches accepted obligation facts, and pairs it with the unchanged plan in an
+  [`OptimizedAbstractProgram`](abstract-operations/optimization-unit/src/unoptimized.rs).
+  It is derived from abstract operations, not another numbered stage after
+  them. Stage 04 and image emission query it through
+  [optimization-unit-semantics](abstract-operations/optimization-unit-semantics/src/lib.rs)
+  (descriptor and reference graphs, callable values, borrowed storage); neither
+  representation package depends on that crate.
 - [`target-operations/legalized-operations/`](target-operations/legalized-operations/src/lib.rs)
   owns `LegalizedOperationPlan` and its sealed form, `PreparedExecutionPlan`:
   the execution plan stage 04 publishes. stage 04

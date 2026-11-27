@@ -28,7 +28,6 @@ native-inputs = { package = "psi-to-admitted-native-inputs", path = "pipeline/00
 declaration-scope = { path = "../foundation/declaration-scope" }
 native-scalar-inputs = { path = "pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
 published-object-verification = { path = "verification/published-objects" }
-abstract-optimization = { package = "abstract-operations-to-abstract-operations", path = "pipeline/03_abstract-operations-to-abstract-operations" }
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "pipeline/02_target-bound-program-to-abstract-operations" }
 entry-planning = { path = "pipeline/09_post-allocation-machine-to-framed-machine/entry-planning" }
 legalized-operations = { path = "representations/target-operations/legalized-operations" }

@@ -5,10 +5,12 @@ use verified_optimization_input::publication::{
     SemanticEmissionFacts, target_replay::BodyPublication,
 };
 
+mod abstract_input;
 mod descriptor_input;
 mod emission_facts;
 mod preparation;
 mod target_lowering;
+pub use abstract_input::{AbstractInputError, admit_abstract_body};
 pub use target_lowering::{LoweringError, OptimizedTargetLoweringRequest, lower_native_body};
 pub mod replay {
     pub use crate::target_lowering::require_lowering_context;

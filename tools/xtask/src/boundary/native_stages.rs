@@ -24,7 +24,7 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
     let mut readers = vec![
         ("source-rust/subsystems/package-manager", HOST_PROVIDERS),
         // Fixed-width entry layouts already contain the final call and relocation fields.
-        (stages[14], stages[12]),
+        (stages[13], stages[11]),
         (
             "source-rust/subsystems/interpreter/host/native-sponsor",
             IMAGE_EMISSION,
@@ -34,13 +34,13 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
     ];
     // Published-object replay reconstructs precisely these witnesses.
     for dependency in [
-        stages[4],
-        stages[6],
+        stages[3],
+        stages[5],
         ANALYSES,
+        stages[6],
         stages[7],
         stages[8],
-        stages[9],
-        stages[12],
+        stages[11],
         IMAGE_EMISSION,
     ] {
         readers.push((OBJECT_REPLAY, dependency));
@@ -89,7 +89,7 @@ pub(super) fn rules() -> Vec<Rule> {
         })
         .collect();
     rules.push(Rule {
-        owners: stages[6..].to_vec(),
+        owners: stages[5..].to_vec(),
         forbidden: vec![],
         forbidden_packages: earlier_forms,
         reason: "selected and later stages must read operands from the owning vocabulary",
@@ -115,7 +115,7 @@ mod tests {
             packages: vec![
                 pkg(
                     "frame",
-                    NATIVE_STAGES[9],
+                    NATIVE_STAGES[8],
                     &[("record", vocabulary, None), ("earlier", target, None)],
                 ),
                 pkg("audit", IMAGE_EMISSION, &[("earlier", target, None)]),

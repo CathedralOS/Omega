@@ -164,7 +164,8 @@ pub fn validate_runtime_evidence_context(
             .ok_or("runtime evidence function has no verified source declaration")?;
         if function.verified_contract.as_ref() != Some(&source.contract)
             || !function.evidence_contract_lanes.iter().eq(module
-                .proofs.evidence_contract_lanes
+                .proofs
+                .evidence_contract_lanes
                 .iter()
                 .filter(|lane| {
                     lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine)
@@ -417,7 +418,8 @@ pub fn attach_verified_module_context(
         function.content_entry_claims = source.content_entry_claims.clone();
         function.verified_contract = Some(source.contract.clone());
         function.evidence_contract_lanes = module
-            .proofs.evidence_contract_lanes
+            .proofs
+            .evidence_contract_lanes
             .iter()
             .filter(|lane| {
                 lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine)

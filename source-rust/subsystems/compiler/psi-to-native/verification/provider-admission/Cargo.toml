@@ -43,5 +43,4 @@ calling-conventions = { path = "../../targets/calling-conventions" }
 target = { path = "../../targets/target" }
 
 [dev-dependencies]
-optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
 terminal-work = { path = "../../../psi/semantics/work" }

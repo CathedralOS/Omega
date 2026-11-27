@@ -41,15 +41,6 @@ use crate::{
 
 use unit_encoding::CanonicalBytes;
 
-pub fn scalar_refinement_identity_bytes(
-    refinement: &semantic_vocabulary::ScalarRefinement,
-) -> Vec<u8> {
-    let mut bytes = CanonicalBytes::collect();
-    carrier_encoding::encode_scalar_type(&mut bytes, refinement.carrier());
-    proposition_encoding::encode_proposition(&mut bytes, refinement.predicate());
-    bytes.finish()
-}
-
 pub(crate) fn scalar_receiving_identity_bytes(
     receiving: &crate::SourceCheckedScalarReceiving,
 ) -> Vec<u8> {
@@ -59,9 +50,7 @@ pub(crate) fn scalar_receiving_identity_bytes(
     bytes.finish()
 }
 
-pub use unit_encoding::{
-    access_view_catalog_identity_bytes, recompute_psi_optimization_unit_identity,
-};
+pub use unit_encoding::recompute_psi_optimization_unit_identity;
 
 pub(crate) mod carrier_encoding {
     use super::{
@@ -3533,14 +3522,6 @@ pub(crate) mod unit_encoding {
             });
         }
     }
-
-    pub fn access_view_catalog_identity_bytes(
-        catalog: &abstract_operations::StructuralTypeCatalog,
-    ) -> Vec<u8> {
-        let mut bytes = CanonicalBytes::collect();
-        encode_access_view_catalog(&mut bytes, catalog);
-        bytes.finish()
-    }
 }
 
 pub(crate) mod operation_encoding {
@@ -5742,7 +5723,7 @@ mod width_identity_tests {
 
     fn range_identity(integer: IntegerType) -> Vec<u8> {
         let mut bytes = Vec::new();
-        crate::range::encode_integer_type(&mut bytes, integer);
+        semantic_vocabulary::identity_encoding::encode_integer_type(&mut bytes, integer);
         bytes
     }
 

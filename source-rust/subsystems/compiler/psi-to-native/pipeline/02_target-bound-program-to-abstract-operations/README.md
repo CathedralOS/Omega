@@ -65,7 +65,7 @@ the shared input owner.
   dynamic-table address roots keep their existing demand and per-block
   diagnostic order. Explicit artifact inspection and independent ownership
   validation cover the full catalog.
-- The admitted handoff to stage 03 is `VerifiedPsiOptimizationInput` in [verified-optimization-input](../../representations/abstract-operations/verified-optimization-input/src/lib.rs); stage 03 builds its optimization unit from it.
+- The admitted handoff to stage 04 is `VerifiedPsiOptimizationInput` in [verified-optimization-input](../../representations/abstract-operations/verified-optimization-input/src/lib.rs); stage 04 builds its optimization unit from it.
 - `provider_installation` holds the exact selected adapter and installation.
 - [shared callback settlement](../../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs)
   joins a produced callback's Terminal interface to its exact selected calling

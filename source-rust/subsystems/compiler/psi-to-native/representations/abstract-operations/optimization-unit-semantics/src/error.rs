@@ -1,18 +1,10 @@
 /*
-We define the failure vocabulary (`OptimizationUnitValidationError`) and
-operation coordinates (`OperationSite`) returned when whole-unit validation,
-ownership frontier replay, value-range verification, or rewrite-candidate
-acceptance rejects an optimization unit or candidate patch.
+The descriptor, reference and callable-value queries refuse a unit they cannot
+answer for with `OptimizationUnitValidationError`, naming the operation by its
+`OperationSite` where one applies.
 */
 
-use abstract_operations::AtomicCoherenceViolation;
-
-use optimization_core::OptimizationUnitIdentity;
-use optimization_unit::PsiProvenance;
-use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ServiceId,
-    StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
-};
+use semantic_vocabulary::{BlockId, MachineId, OperationId, StructuralTypeId, ValueId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperationSite {
@@ -34,21 +26,8 @@ impl OperationSite {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitValidationError {
     CallableValueProvenance(&'static str),
-    InvalidNoNormalInvocation {
-        machine: MachineId,
-        callee: MachineId,
-        reason: &'static str,
-    },
-    InvalidRuntimeEvidence {
-        reason: &'static str,
-    },
     InvalidActivationStorage {
         machine: MachineId,
-        reason: &'static str,
-    },
-    IncompleteValueClaimFrontier {
-        site: crate::OperationSite,
-        place: PlaceId,
         reason: &'static str,
     },
     InvalidOwnedValueTransfer {
@@ -56,330 +35,31 @@ pub enum OptimizationUnitValidationError {
         operation: OperationId,
         reason: &'static str,
     },
-    CurrentOwnedValueUnavailable {
-        site: OperationSite,
-        place: PlaceId,
-        path_length: usize,
-        path_prefix: Vec<terminal_psi::StructuralPathSegment>,
-        reason: &'static str,
-    },
-    InvalidQuotientCatalog(&'static str),
-    ContentIdentityMismatch {
-        stored: OptimizationUnitIdentity,
-        recomputed: OptimizationUnitIdentity,
-    },
-    WrongWorkSchedule,
-    EntryClaimIndexMismatch(MachineId),
     FunctionResultMismatch(MachineId),
-    MissingEntryMachine(MachineId),
     UnorderedMachine(MachineId),
-    NonCanonicalPrunedMachineRoster,
-    ActivePrunedMachineOverlap(MachineId),
-    PrunedEntryMachine(MachineId),
-    PrunedProviderMachine(MachineId),
-    DuplicateBoundaryMachine(BoundaryMachineId),
-    DynamicDispatchCatalogMismatch,
-    DynamicReferenceContract {
-        interface: u32,
-        slot: u32,
-        reason: &'static str,
-    },
-    DuplicateService(ServiceId),
-    InvalidServiceIdentity(ServiceId),
-    InvalidServiceParent {
-        service: ServiceId,
-        parent: ServiceId,
-    },
-    NonCanonicalServiceParents(ServiceId),
-    RecursiveServiceHierarchy(ServiceId),
-    IncompleteServiceParentClosure {
-        service: ServiceId,
-        ancestor: ServiceId,
-    },
-    InvalidFunctionServiceCeiling(MachineId),
-    InvalidBoundaryServiceCeiling(BoundaryMachineId),
-    InvalidProviderServiceRefinement {
-        boundary: BoundaryMachineId,
-        candidate: MachineId,
-    },
-    OperationServiceContractMismatch(OperationSite),
-    InvalidRootConcreteServiceReach,
-    InvalidRootInstallationReachDependency(usize),
-    NonCanonicalRootInstallationReachDependencies,
-    RootInstallationReachBoundaryMismatch(BoundaryMachineId),
-    RootConcreteServiceReachMismatch {
-        declared: Vec<ServiceId>,
-        derived: Vec<ServiceId>,
-    },
-    RootInstallationReachDependenciesMismatch,
-    DuplicateStructuralType(StructuralTypeId),
-    NonCanonicalStructuralTypeOrder,
-    InvalidStructuralTypeIdentity(StructuralTypeId),
-    InvalidStructuralArrayLength(StructuralTypeId),
     UnknownStructuralType(StructuralTypeId),
     RecursiveStructuralType(StructuralTypeId),
-    InvalidStructuralFieldIdentity {
-        structural_type: StructuralTypeId,
-        field: semantic_vocabulary::StructuralFieldId,
-    },
-    InvalidInlineCarrier {
-        structural_type: StructuralTypeId,
-        field: semantic_vocabulary::StructuralFieldId,
-        reason: &'static str,
-    },
-    InvalidStructuralCaseIdentity {
-        structural_type: StructuralTypeId,
-        case: semantic_vocabulary::StructuralCaseId,
-    },
-    NonCanonicalStructuralFieldOrder {
-        structural_type: StructuralTypeId,
-        case: Option<semantic_vocabulary::StructuralCaseId>,
-    },
-    NonCanonicalStructuralCaseOrder(StructuralTypeId),
-    EmptyStructuralSum(StructuralTypeId),
-    InvalidStructuralCaseDispatch {
-        machine: MachineId,
-        source: PlaceId,
-    },
-    InvalidErasedStructuralField {
-        structural_type: StructuralTypeId,
-        field: semantic_vocabulary::StructuralFieldId,
-    },
-    InvalidProviderAttachmentSpecialization(MachineId),
-    DuplicateStructuralDomain(StructuralDomainId),
-    NonCanonicalStructuralDomainOrder,
-    InvalidStructuralDomainIdentity(StructuralDomainId),
-    InvalidStructuralDomainContentProjection(StructuralDomainId),
-    ContentProjectionOwnerMismatch(semantic_vocabulary::ContentProjectionIdentity),
-    NonCanonicalTrivialAffineLocals(MachineId),
-    TrivialAffineLocalDeclarationRequiresEmptyRecord {
-        machine: MachineId,
-        place: PlaceId,
-    },
-    TrivialAffineLocalEstablishmentMismatch(MachineId),
-    StructuralReturnTrivialAffineLocalsMismatch(OperationSite),
-    StructuralReturnTrivialAffineShapeMismatch(OperationSite),
-    StructuralReturnAffineDiscardsMismatch(OperationSite),
-    StructuralEdgeAffineDiscardsMismatch {
-        machine: MachineId,
-        edge: EdgeId,
-    },
-    StructuralReturnHiddenLocalCustodyMismatch(OperationSite, OperationId),
-    StructuralCatalogMismatch {
-        machine: Option<MachineId>,
-    },
-    DuplicateStructuralPlaceRoot {
-        machine: MachineId,
-        kind: StructuralPlaceKind,
-    },
-    InvalidStructuralScalarFieldRead(OperationSite),
-    InvalidPrimitiveLocal(OperationSite),
     InvalidWriteOnlyPrimitiveStore(OperationSite),
     InvalidStructuralScalarFieldStore(OperationSite),
     InvalidByteSequenceRead(OperationSite),
     InvalidByteSequenceWrite(OperationSite),
     InvalidByteSequenceSubslice(OperationSite),
     InvalidByteSequenceLength(OperationSite),
-    StructuralReturnSourceContractMismatch(OperationSite),
-    ScalarOperationContractMismatch(OperationSite),
-    AtomicEventCoherenceMismatch(OperationSite, AtomicCoherenceViolation),
-    StructuralCallContractMismatch(OperationSite),
-    MissingEntryBlock {
-        machine: MachineId,
-        block: BlockId,
-    },
-    EntryBlockHasParameters {
-        machine: MachineId,
-        block: BlockId,
-    },
     UnorderedBlock {
         machine: MachineId,
         block: BlockId,
-    },
-    EmptyBlock {
-        machine: MachineId,
-        block: BlockId,
-    },
-    TerminatorNotLast {
-        machine: MachineId,
-        block: BlockId,
-    },
-    MissingTerminator {
-        machine: MachineId,
-        block: BlockId,
-    },
-    UnknownSuccessor {
-        machine: MachineId,
-        block: BlockId,
-        target: BlockId,
     },
     UnreachableBlock {
         machine: MachineId,
         block: BlockId,
     },
-    ControlCycle {
-        machine: MachineId,
-        block: BlockId,
-    },
-    RankedCycleFunctionMissing(MachineId),
-    RankedCycleTopologyMismatch {
-        machine: MachineId,
-    },
-    RankedCycleFrozenBlockMismatch {
-        machine: MachineId,
-        block: BlockId,
-    },
-    RankedCycleComponentSnapshotMismatch,
-    RankedCycleRankingEvidenceMismatch {
-        machine: MachineId,
-    },
-    RankedCycleRankingCertificateSnapshotMismatch,
-    ParameterMetadataMismatch {
-        machine: MachineId,
-        block: Option<BlockId>,
-    },
-    DuplicateEdge(EdgeId),
-    DuplicateProvenance(PsiProvenance),
-    CoExecutableProvenanceOccurrences(PsiProvenance),
-    IncompleteProvenance(OperationSite),
-    WorkDoesNotMatchProvenance(OperationSite),
-    DuplicateWorkSettlement(PsiProvenance),
-    OperationMetadataMismatch(OperationSite),
-    FactIndexMismatch(MachineId),
-    BrokenEffectChain {
-        machine: MachineId,
-        expected: u64,
-        actual: u64,
-    },
     DuplicateValue(ValueId),
-    UndefinedValue {
-        machine: MachineId,
-        block: BlockId,
-        value: ValueId,
-    },
-    NondominatingValue {
-        machine: MachineId,
-        block: BlockId,
-        value: ValueId,
-    },
     UseBeforeDefinition {
         machine: MachineId,
         block: BlockId,
         value: ValueId,
     },
-    BindingArityMismatch {
-        machine: MachineId,
-        edge: EdgeId,
-    },
-    BindingTypeMismatch {
-        machine: MachineId,
-        edge: EdgeId,
-        value: ValueId,
-    },
-    UnknownPlace {
-        machine: MachineId,
-        place: PlaceId,
-    },
-    NonCanonicalByteSequenceLiterals(MachineId),
-    ByteSequenceLiteralDeclarationRequiresBorrowedView {
-        machine: MachineId,
-        place: PlaceId,
-    },
-    ByteSequenceLiteralEstablishmentMismatch(MachineId),
-    StructuralPlaceNotAvailable(OperationSite, PlaceId),
-    UnknownClaim {
-        machine: MachineId,
-        claim: ClaimId,
-    },
-    CurrentClaimJoinMismatch {
-        machine: MachineId,
-        block: BlockId,
-    },
-    CurrentClaimNotLive(OperationSite, ClaimId),
-    CurrentClaimAlreadyLive(OperationSite, ClaimId),
-    CurrentLinearClaimAtReturn {
-        machine: MachineId,
-        block: BlockId,
-        claim: ClaimId,
-    },
-    CurrentStructuralReturnClaimSetMismatch {
-        machine: MachineId,
-        block: BlockId,
-    },
-    CurrentClaimLiveAfterStructuralReturn {
-        machine: MachineId,
-        block: BlockId,
-        claim: ClaimId,
-    },
-    CurrentCrashClaimFrontierMismatch {
-        machine: MachineId,
-        block: BlockId,
-    },
-    CurrentOwnedPlaceJoinMismatch {
-        machine: MachineId,
-        block: BlockId,
-    },
-    CurrentOwnedPlaceNotLive(OperationSite, PlaceId),
-    CurrentWholePlacePartiallyMoved(OperationSite, PlaceId),
-    CurrentProjectedMoveOverlap(OperationSite, PlaceId),
-    CurrentSharedJoinOriginDisturbed(OperationSite, PlaceId),
-    CurrentCleanupMismatch {
-        machine: MachineId,
-        block: BlockId,
-    },
-    CurrentStructuralReturnSourcePartiallyMoved {
-        machine: MachineId,
-        block: BlockId,
-        place: PlaceId,
-    },
-    CurrentReferenceCustodyViolation {
-        machine: MachineId,
-        block: BlockId,
-        node: Option<u32>,
-        reason: &'static str,
-    },
     TerminalIdentityMismatch,
-    ProofFingerprintMismatch,
-    AcceptedObligationMismatch(semantic_vocabulary::ObligationId),
-    OperationObligationOwnerMismatch {
-        machine: MachineId,
-        operation: semantic_vocabulary::OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-    },
-    AcceptedObligationFactIndexMismatch,
-    OwnershipFrontierFactIndexMismatch,
-    CurrentValueRangeFactMismatch,
-    CurrentValueRangeFactNotApplicable(OperationSite),
-    CandidateAcceptedObligationFactMismatch,
-    MissingStructuralFrontierMachine(MachineId),
-    MissingStructuralOperationFrontier {
-        machine: MachineId,
-        operation: semantic_vocabulary::OperationId,
-    },
-    MissingStructuralEdgeFrontier {
-        machine: MachineId,
-        edge: EdgeId,
-    },
-    ContextIdentity(psi_declaration_encoding::CodecError),
-    VerifiedOptimizationUnitProjectionMismatch,
-    CandidateInputMismatch,
-    CandidateAnalysisContractMismatch,
-    CandidateSafetyClassMismatch,
-    CandidateLocationMissing,
-    CandidatePatchMismatch,
-    CandidateProvenanceMismatch,
-    CandidateWorkMismatch,
-    CandidateOperandFactMismatch,
-    CandidateEvaluationMismatch,
-    CandidateObservationMismatch,
-    CandidateLiveBoundaryMismatch,
-    CandidateRegionObservationUnavailable,
-    CandidateRegionObservationMismatch,
-    CandidateReachabilityMismatch,
-    CandidateOutsideRegionMismatch,
-    CandidateBlockParameterMismatch,
-    CandidateIncomingBindingMismatch,
-    CandidateSubstitutionMismatch,
 }
 
 impl std::fmt::Display for OptimizationUnitValidationError {

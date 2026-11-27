@@ -1303,34 +1303,6 @@ pub fn call_origins(
     )
 }
 
-pub(crate) fn owned_aggregate_descriptor_returns_with_graph(
-    function: &PsiOptimizationFunction,
-    graph: Option<&[DescriptorMachine]>,
-    types: &[StructuralTypeDeclaration],
-) -> bool {
-    let Some(graph) = graph else {
-        return false;
-    };
-    let Some(returns) = kernel::descriptor_machine(graph, function.machine)
-        .and_then(|machine| machine.returns.as_ref())
-    else {
-        return false;
-    };
-    !returns.is_empty()
-        && returns.iter().all(|(position, location)| {
-            location.path.is_empty()
-                && structural_source_contract(function, location.root)
-                    .is_some_and(|source| source.access == StructuralAccess::Owned)
-                && kernel::reconstruct_return_slots_external(
-                    types,
-                    graph,
-                    function.machine,
-                    *position,
-                    location.root,
-                )
-        })
-}
-
 fn record_escaped_invocation(
     place_types: &BTreeMap<PlaceId, StructuralTypeId>,
     unresolved_contents_writes: &mut BTreeSet<(BlockId, u32)>,
@@ -2943,7 +2915,8 @@ fn adapt(
                             path,
                             case.case,
                             &fields,
-                        ).ok()?;
+                        )
+                        .ok()?;
                         if captured
                             .iter()
                             .zip(&target.parameters)
@@ -3154,13 +3127,6 @@ pub(crate) fn scalar_call_guarantees<'function>(
     Some(kernel::instantiate_payload_scalar_guarantees(
         contract, &bindings,
     ))
-}
-
-pub(crate) fn scalar_expression(
-    function: &PsiOptimizationFunction,
-    value: ValueId,
-) -> Option<semantic_vocabulary::ScalarTerm> {
-    ScalarExpressions::new(function).expression(value)
 }
 
 fn selected_effects_machine(

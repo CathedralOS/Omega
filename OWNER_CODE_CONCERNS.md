@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+<a id="native-stages-carry-records-of-an-optimizer-that-no-longer-runs"></a>
+### Native stages 04–15 carry the records of an abstract optimizer that no longer runs
+- Category: 8. Zombie machinery
+- Where: `OptimizedAbstractProgram::unoptimized` (`source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/unoptimized.rs`); its readers in stage 04 (`target_lowering/mod.rs:372-374`, `preparation/legalization.rs:296`, `:602`, `:725`) and stage 15 (`native-artifact/src/physical/derivation/evidence.rs:181`)
+- Saw: native stage 03 is archived, so stage 04 issues an empty optimization identity bundle, a transformation ledger with no records, a plan-projection identity and a pre-physical manifest whose source and optimized statistics are equal. Later stages hash, carry and compare these as if a run had happened. `PsiOptimizationUnit::ownership_frontier_facts` is always empty on this path; stage 04 still threads the empty slice into legalization and compares it.
+- Cost: every native body pays for records nobody can change, and a reader of stage 04 or 15 has to learn an optimizer protocol that has no producer. A repair drops the records from `OptimizedAbstractProgram` and their comparisons together, or brings them back with a native optimization phase that actually rewrites the plan.
+- Reported: 2026-11-27, Claude Code, while archiving native stage 03
+
 <a id="flattened-asm-regions-drop-their-target"></a>
 ### Straight-line asm regions of place instructions lose their x86-64 requirement
 - Category: 6. A verdict with nothing behind it

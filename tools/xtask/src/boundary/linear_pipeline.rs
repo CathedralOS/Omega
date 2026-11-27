@@ -11,11 +11,10 @@ fn recycled(root: &str, path: &str) -> bool {
         .is_ok_and(|relative| relative.iter().any(|component| component == "_recycling"))
 }
 
-pub(super) const NATIVE_STAGES: [&str; 16] = [
+pub(super) const NATIVE_STAGES: [&str; 15] = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions",
@@ -620,7 +619,7 @@ mod tests {
             workspace_root: "/repo".into(),
             packages: vec![
                 pkg(
-                    "optimizer",
+                    "lowering",
                     NATIVE_STAGES[3],
                     &[("encoding", allowed.owner, None), ("helper", "other", None)],
                 ),
@@ -647,14 +646,13 @@ mod tests {
         assert!(
             !errors
                 .iter()
-                .any(|message| message.contains("optimizer -> encoding -> encoder"))
+                .any(|message| message.contains("lowering -> encoding -> encoder"))
         );
         for destination in ["encoder", "driver", "replay"] {
             assert!(
-                errors
-                    .iter()
-                    .any(|message| message
-                        .contains(&format!("optimizer -> helper -> {destination}")))
+                errors.iter().any(
+                    |message| message.contains(&format!("lowering -> helper -> {destination}"))
+                )
             );
         }
     }
@@ -785,9 +783,9 @@ mod tests {
         edge(PSI_STAGES[6], SHARED, None);
         edge(PSI_STAGES[6], PSI_STAGES[5], Some("dev"));
         edge(NATIVE_STAGES[2], SHARED, None);
-        edge(NATIVE_STAGES[7], SHARED, None);
+        edge(NATIVE_STAGES[6], SHARED, None);
         edge(SHARED, NATIVE_STAGES[1], None);
-        edge(NATIVE_STAGES[6], NATIVE_STAGES[8], None);
+        edge(NATIVE_STAGES[5], NATIVE_STAGES[7], None);
         edge(FRONTEND[0], FRONTEND[1], Some("dev"));
         edge(FRONTEND[1], SHARED, Some("build"));
         edge(SHARED, ENCODER, None);
