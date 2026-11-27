@@ -29,6 +29,59 @@ The image driver plans reachable private callables and emits callback thunks. Ru
 
 ELF, Mach-O and PE writer tests use fixed encoded inputs with known instruction bytes, relocations, register effects and stack use. The Cargo boundary check records which production packages can read each stage. [Writer fixtures](pipeline/15_objects-to-image/image/src/test_support.rs) · [Stage dependency check](../../../../tools/xtask/src/boundary/native_stages.rs)
 
+## Stage map
+
+Each numbered stage, the form it hands on, and what reads that form. Lines are
+production Rust outside `tests/` directories, measured on `d75a30117`. Stages 03,
+06 and 10 change nothing about the representation. The driver waits for every
+body at two points: after stage 04, for the callee closure in
+[`plan_callables.rs`](driver/plan_callables.rs), and after stage 09, for handler
+measurement and entry planning in [`object_emission.rs`](driver/image/object_emission.rs).
+
+| Stage | Lines | Produces | Read by |
+| --- | --- | --- | --- |
+| 00 admitted inputs | 919 | `AdmittedProviderDemand` (checks the authorization matches the artifact) | 01 only |
+| 01 target-bound program | 9,742 | `PublishedSelection`, `PreparedNativeExecution` | 02 and driver runtime, components, callables |
+| 02 abstract operations | 6,418 | `VerifiedPsiOptimizationInput` | 03 and driver |
+| 03 abstract optimization | 21,803 | `OptimizedAbstractBody` (same form) | 04 only |
+| 04 target operations | 33,812 | `NativeBodyPlan` | 05, driver closure, `TargetOperationCorrespondence` |
+| 05 instruction selection | 47,046 | `StagedOptimizedSelectedInstructions` | 06 only |
+| 06 selected rewrites | 26,880 | `SelectedAllocationInput` (same form plus liveness) | 07, `SelectedInstructionRewriteReplay` |
+| 07 register allocation | 16,292 | `RetainedAllocation` | 08, `FixedFrameCorrespondence` |
+| 08 post-allocation machine | 2,119 | `StagedOptimizedPostAllocationMachinePlan` | 09, `FixedFrameCorrespondence` |
+| 09 frame | 10,139 | `FramedNativeBody`, `PreparedFunctionBody` | 10 and driver entry planning |
+| 10 installation binding | 491 | `BoundFunctionBody` (newtype plus handler stack checks) | 11 only |
+| 11 encoding | 23,475 | `EncodedMachineProgram` | 12 and validator replay |
+| 12 layout | 4,396 | `ResolvedFunctionLayout` | 13 |
+| 13 function placement | 10,004 | `FunctionPlacement` | 14 only |
+| 14 relocation-free object | 5,776 | `PublishedFunctionObject` | 15 |
+| 15 objects and image | 51,561 | `FinishedNativeImage` | Build publication |
+
+## Plan identities
+
+Stages 03–14 hash their in-memory plans with SHA-256 and hand the hashes on.
+Because both sides run in the same compile, most of these hashes only let the
+compiler check its own output, which default compilation does not do. They are
+being removed. A hash stays only where an explicit validator, a published
+artifact or a foreign-package boundary reads it.
+
+| Identity | Readers that matter | Decision |
+| --- | --- | --- |
+| `RelocationFreeObjectPlanIdentity`, the `OMGTRO` container and `OMGTOM` manifest (stage 14) | own receipts; container decoded only to re-check its own codec under a validator | delete; structural object checks stay |
+| `ResolvedSelectedFormLayoutIdentity`, `TargetFrameLayoutIdentity`, fragment and text-section manifests (machine-code, 12–13) | receipts; validator compares baseline layout | delete; validators compare the retained values |
+| `PostAllocationMachineIdentity` (08, 11) | `FixedFrameCorrespondence` compares retained program | delete; validator compares structurally |
+| `FixedPrecolored*PlanIdentity`, register-homes receipts (06–07) | sibling receipts only | delete |
+| `SelectedInstructionPlanIdentity`, `RetainedPlanPrefix`, effects identities (05–06) | receipts; validators compare retained program | delete; validators compare structurally |
+| `OptimizationUnitIdentity` (03) | pass manager oscillation key, fact keys | replace with a revision counter, or keep as the one unit hash |
+| `MachineFunctionIdentity` | sort key in validator replay; program fingerprint plus placement, not a plan hash | keep |
+| `NativeArtifactIdentity` | `native.identity.txt` (`omega run --keep`) | keep; binds emitted bytes, no longer plan hashes |
+
+`NativeArtifactIdentity` already hashes the object, image and text bytes. The
+plan hashes it also chained in changed nothing those bytes did not, and
+[native emission](../../../../wiki/spec/build/machine_state_evidence.md#native-emission-and-backend-testing)
+says artifact identity must not depend on a digest recording a pass. Removing
+them changes the identity's value, not the emitted image.
+
 ## Reviewing a bootstrap environment assumption
 
 Some early hardware preparation runs before the program publishes its interrupt
