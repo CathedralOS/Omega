@@ -7,5 +7,6 @@ mod selected_rewrites;
 
 pub use selected_rewrites::{
     SelectedInstructionOptimizationError, SelectedInstructionOptimizationOutput,
-    SelectedOptimizationReplay, optimize_selected_instructions,
+    SelectedOptimizationReplay, StructuralRewriteError, StructuralRewriteValidationError,
+    optimize_selected_instructions,
 };

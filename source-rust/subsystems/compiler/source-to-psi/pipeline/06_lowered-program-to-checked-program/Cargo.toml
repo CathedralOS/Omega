@@ -31,6 +31,7 @@ terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
 
 [dev-dependencies]
+psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 service-surface = { path = "../../../psi/interfaces/service-surface" }
 source-provenance = { path = "../../../foundation/source-provenance" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }

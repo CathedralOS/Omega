@@ -109,8 +109,8 @@ pub(crate) fn drop_copies(function: &mut SelectedFunction, dissolved: Dissolved)
             .instructions
             .retain(|instruction| !gone(instruction.id.0));
     }
-    crate::instruction_selection::selection_vector_promotion::prune_dead_metadata(function);
-    crate::instruction_selection::selection_inlining::renumber_function(function);
+    selected_instructions::compaction::prune_dead_metadata(function);
+    selected_instructions::compaction::renumber_function(function);
 }
 
 /// Dissolves each owned copy whose source parameter and result are never

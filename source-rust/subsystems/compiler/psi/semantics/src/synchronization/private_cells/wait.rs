@@ -24,7 +24,7 @@ pub(super) fn apply(
     };
     match &wait.0 {
         WaitRule::Cell(cell) => {
-            let location = locate(cell.parameter, &cell.path)?;
+            let location = locate(cell.subject.parameter, &cell.subject.path)?;
             let stored = memory.get(&location);
             let cause = failure(&stored, cell.while_value, cell.update, requirements);
             if cause.is_none() && cell.update != CellUpdate::Observe {
