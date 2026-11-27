@@ -164,7 +164,7 @@ explicitly squashed relation of
 modules.md, change "five mathematical declarations" to "six".
 
 <a id="untrusted-psi-run-flag"></a>
-### 3. Should `omega run` accept a Psi artifact the host does not trust, and under what flag?
+### 4. Should `omega run` accept a Psi artifact the host does not trust, and under what flag?
 
 The admission contract makes an untrusted artifact runnable only through a
 containment-audited interpreter and host bindings, and the command line names
