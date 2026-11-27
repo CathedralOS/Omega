@@ -98,29 +98,32 @@ actual service instance to calls made by that continuation, including nested
 or concurrent invocations. Which contract should returning applications use?
 
 <a id="review-unused-generic-native-binding"></a>
-### 2. What does package review approve for a generic native import before its first concrete call?
+### 2. How does package audit report an unused generic native binding?
 
-The Windows filesystem provider binds one generic UTF-16 converter to
-`WideCharToMultiByte`. Its three callers supply different input and output
-array capacities. Removing the callers leaves an evaluated Build decision and
-a real DLL import, but no concrete capacities or calling plan. An offline
-Windows x86-64 review of just the shipped [declaration](source/library/system/targets/windows_x86_64/windows_filesystem_path_query_native.omg)
-and its [Build binding](source/library/system/build.omg) refused that package.
-The same review accepts an unused import with a concrete signature.
+**Owner ruling, 2026-11-27.** When Build binds a generic native import for
+the audited target and no caller supplies concrete arguments, `omega packages audit`
+reports the binding as unused. An otherwise valid package can finish the audit.
+The report records the generic declaration, target, supplying package, foreign
+symbol locator, calling policy and where Build selected the binding. Its
+parameters stay generic. Each distinct argument tuple that a caller later uses
+requires its own checked calling plan and review of the concrete supply before
+execution.
 
+For example, the Windows filesystem provider binds a generic converter to
+`kernel32.dll!WideCharToMultiByte`. Its three callers supply concrete buffer
+capacities. An offline Windows x86-64 audit with all three callers removed
+currently fails. Under this ruling the report would list the unused converter
+with its input and output capacities still generic.
+See the [declaration](source/library/system/targets/windows_x86_64/windows_filesystem_path_query_native.omg)
+and [Build binding](source/library/system/build.omg).
+
+[Package review](wiki/spec/packages/review.md#distinct-evidence-roles) currently
+keys every evaluated native binding to an exact requirement application and
+signature. The owner spec edit should allow the generic declaration to identify
+an unused binding and retain the exact application key for each concrete use.
 [Generic provider selection](wiki/spec/build/provider_selection.md#generic-selected-requirements)
-lets callers choose the arguments. [Calling policy](wiki/spec/build/calling_plans.md#identity-and-selection)
-validates each concrete application. [Package review](wiki/spec/packages/review.md#distinct-evidence-roles)
-requires a trust row even for an unused binding, keyed to an exact application.
-Which decision can a reviewer make before that application exists?
-
-**Recommend recording the generic declaration, target, locator, calling policy
-and Build origin at package review.** Approving that declaration would disclose
-the family's foreign promise. The first use of a new argument tuple would
-require its own checked calling plan and review of the concrete supply before
-execution. Alternatively, require the package author to bind every admissible
-tuple explicitly, even when all tuples use the same foreign symbol. The
-Windows provider could do that for its three known buffer shapes.
+and [calling policy](wiki/spec/build/calling_plans.md#identity-and-selection)
+govern those concrete uses.
 
 <a id="package-review-empty-policy-sections"></a>
 ### 3. Should package review fill the policy sections it leaves empty, or should those sections leave the evidence schema?
