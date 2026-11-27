@@ -103,15 +103,20 @@ impl SpinCondition {
     /// Substituting the retry literal into an ordinary checked requirement
     /// discharges common bounds and inequalities without enumerating inputs.
     fn input_enabled(self, input: ValueDeclaration, requires: &[Proposition]) -> bool {
-        let Some(candidate) = ScalarFact::Literal(self.value).known_integer() else {
+        if self.excluded_by(input, requires) {
+            return true;
+        }
+        let Some(candidate) = self
+            .sole_blocked_value()
+            .and_then(|v| ScalarFact::Literal(v).known_integer())
+        else {
             return false;
         };
         // When every value except the literal blocks, a checked equality to
         // that literal has already been substituted in entry_scalars.
-        self.matches(self.value)
-            && crate::inhabitation::predicates_are_false_with(requires, |id| {
-                (id == input.id).then_some(candidate)
-            })
+        crate::inhabitation::predicates_are_false_with(requires, |id| {
+            (id == input.id).then_some(candidate)
+        })
     }
 
     pub(super) fn failure(
@@ -120,21 +125,22 @@ impl SpinCondition {
         update: CellUpdate,
         requires: &[Proposition],
     ) -> Option<ProgressFailure> {
-        if let Some(ScalarFact::Literal(value)) = initial {
-            return (self.matches(value) && self.matches(update.apply(value)))
-                .then_some(ProgressFailure::Deadlock);
+        if let Some(ScalarFact::Literal(value)) = initial
+            && let Some(blocked) = self.matches(value)
+        {
+            if !blocked {
+                return None;
+            }
+            if let Some(retries) = self.matches(update.apply(value)) {
+                return retries.then_some(ProgressFailure::Deadlock);
+            }
         }
         // If the test blocks only on one word, the first update determines
         // the next observation even when the starting value is unknown.
-        let only_blocked = if self.matches(self.value) {
-            Some(self.value)
-        } else if let Scalar::Boolean(value) = self.value {
-            Some(Scalar::Boolean(!value))
-        } else {
-            None
-        };
-        if only_blocked.is_some_and(|value| !self.matches(update.apply(value)))
-            || matches!(update, CellUpdate::Replace(value) if !self.matches(value))
+        let only_blocked = self.sole_blocked_value();
+        if self.excludes_every_word()
+            || only_blocked.is_some_and(|value| self.matches(update.apply(value)) == Some(false))
+            || matches!(update, CellUpdate::Replace(value) if self.matches(value) == Some(false))
             || matches!(initial, Some(ScalarFact::EntryInput(input)) if self.input_enabled(input, requires))
         {
             return None;
