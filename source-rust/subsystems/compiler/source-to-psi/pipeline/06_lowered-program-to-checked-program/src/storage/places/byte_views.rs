@@ -388,7 +388,9 @@ impl<'a> Storage<'a> {
             || !result.qualification_establishments.is_empty()
             || !result.additional_input_qualifications.is_empty()
             || !result.claims.is_empty()
-            || !self.declared_requires(result.structural_type).is_some_and(<[_]>::is_empty)
+            || !self
+                .declared_requires(result.structural_type)
+                .is_some_and(<[_]>::is_empty)
             || self
                 .declaration(result.structural_type, concerns)?
                 .scalar_restriction
@@ -953,7 +955,9 @@ impl<'a> Storage<'a> {
             || !source.qualifications.is_empty()
             || !source.projected_qualifications.is_empty()
             || !source.additional_input_qualifications.is_empty()
-            || !self.declared_requires(source.structural_type).is_some_and(<[_]>::is_empty)
+            || !self
+                .declared_requires(source.structural_type)
+                .is_some_and(<[_]>::is_empty)
         {
             return Err(self.unsupported(
                 concerns,

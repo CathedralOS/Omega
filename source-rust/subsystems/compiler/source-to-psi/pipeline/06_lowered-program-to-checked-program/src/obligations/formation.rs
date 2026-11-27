@@ -357,7 +357,7 @@ impl ReplayScope<'_> {
             FormedModule {
                 module: &self.elaboration.module,
                 nominal_calls: &self.elaboration.nominal_calls,
-            schemas: &self.elaboration.static_schemas,
+                schemas: &self.elaboration.static_schemas,
                 domain_sources: &self.elaboration.domain_sources,
             },
             &mut self.elaboration.tables,

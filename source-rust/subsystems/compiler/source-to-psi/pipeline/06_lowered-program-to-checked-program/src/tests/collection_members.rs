@@ -41,8 +41,9 @@ fn unknown_collection_members_are_rejected_at_the_authored_name() {
 
 #[test]
 fn a_same_spelled_record_field_keeps_its_declaration() {
-    let program =
-        typed("data Counter { length: u64 } machine observe(value: Counter) -> u64 { value.length }");
+    let program = typed(
+        "data Counter { length: u64 } machine observe(value: Counter) -> u64 { value.length }",
+    );
     let field = program
         .data_definitions()
         .iter()

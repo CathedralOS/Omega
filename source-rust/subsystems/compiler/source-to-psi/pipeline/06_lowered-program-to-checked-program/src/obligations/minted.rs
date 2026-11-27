@@ -58,8 +58,8 @@ use terminal_check_tables::{
     Checked, Construct, InvocationId, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
-    BoundaryParameterKind, CrashRouteBucket, OperationKind,
-    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
+    BoundaryParameterKind, CrashRouteBucket, OperationKind, TerminalMachine, TerminalMachineResult,
+    Terminator, ValueDeclaration,
 };
 
 use crate::{call_contracts, refusal, semantics_refusal};

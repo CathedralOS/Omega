@@ -645,11 +645,7 @@ fn zero_reads_derive_their_value_only_from_the_establishing_store() {
     for preceding in [[0, 0], [0, 7]] {
         let mut compact = zeroed_point(&preceding);
         let read = field_reads(&compact)[0];
-        discharge(
-            &mut compact,
-            &mut crate::ProofSearchActivity::default(),
-        )
-        .unwrap();
+        discharge(&mut compact, &mut crate::ProofSearchActivity::default()).unwrap();
         let tables = compact.tables.machines.get(id(1)).unwrap();
         assert_eq!(read_equals(tables, read), None);
         assert_read_equation(tables, read, number(0));

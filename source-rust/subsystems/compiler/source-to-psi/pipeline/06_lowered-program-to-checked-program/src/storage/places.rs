@@ -1556,7 +1556,10 @@ impl<'a> Storage<'a> {
         structural_type: StructuralTypeId,
         concerns: Construct,
     ) -> Checked<&'a [Proposition]> {
-        Ok(self.declaration(structural_type, concerns)?.requires.as_slice())
+        Ok(self
+            .declaration(structural_type, concerns)?
+            .requires
+            .as_slice())
     }
 
     /// The `requires` clauses of a declared structural type, or `None` when
@@ -9381,12 +9384,13 @@ mod observation_tests {
             // The corrupted header is a defect of the lowered module, so the
             // checker refuses it either as unsupported storage flow or as a
             // foreign identity; it never accepts it.
-            match crate::judge(Ok(input)) {
-                Ok(crate::RouteVerdict::Accepted(_)) => {
-                    panic!("a borrowed place outside its block header must refuse")
-                }
-                Ok(_) | Err(_) => {}
-            }
+            assert!(
+                !matches!(
+                    crate::judge(Ok(input)),
+                    Ok(crate::RouteVerdict::Accepted(_))
+                ),
+                "a borrowed place outside its block header must refuse"
+            );
         }
     }
 

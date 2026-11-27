@@ -1834,10 +1834,8 @@ pub(crate) fn prepare(
 ) -> Checked<Prepared> {
     let module = formed.source();
     let inhabitation = prepare_inhabitation(module, id)?;
-    with_prepared_machine(formed, id, tables, &inhabitation, None, |_, _| {
-        Ok(())
-    })
-    .map(|(prepared, ())| prepared)
+    with_prepared_machine(formed, id, tables, &inhabitation, None, |_, _| Ok(()))
+        .map(|(prepared, ())| prepared)
 }
 
 fn prepare_inhabitation(
@@ -1905,15 +1903,8 @@ fn with_prepared_machine<Outcome>(
         if let Some(summaries) = summaries {
             references.share_summaries(&summaries.borrowed_storage, formed.nominal_calls());
         }
-        let storage = places::Storage::new(
-            id,
-            lowered,
-            module,
-            &graph,
-            tables,
-            &types,
-            &mut references,
-        )?;
+        let storage =
+            places::Storage::new(id, lowered, module, &graph, tables, &types, &mut references)?;
         // domains.md: "Mutation invalidates subject-bound facts unless
         // preserved or re-established." A routed domain is re-established
         // only by a machine its declaration names, so any other machine

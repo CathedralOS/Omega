@@ -408,8 +408,7 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
             &elaboration.static_schemas,
             &elaboration.domain_sources,
         );
-        let prepared_machine =
-            crate::prepare(formed, machine_id, tables).unwrap();
+        let prepared_machine = crate::prepare(formed, machine_id, tables).unwrap();
         let mut references =
             prepared_machine.references(&elaboration.module.types.structural_types);
         let storage = crate::places::Storage::new(
