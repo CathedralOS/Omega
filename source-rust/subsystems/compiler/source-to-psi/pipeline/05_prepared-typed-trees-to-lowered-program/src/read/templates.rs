@@ -17,7 +17,8 @@ machine may so cite another.
 A body that only binds values, cites laws and returns a value is read here,
 through the clause reader, with each `let` standing for the expression it is
 bound to, and is not lowered. A body that dispatches is lowered, with every
-machine declared inside it, and read by the signature reader like any other:
+machine declared inside it, as is a machine that states nothing and any body
+the clause reader cannot read, and read by the signature reader like any other:
 there a call of a machine parameter, or of a generic machine at some
 machines, is an `ExpressionKind::Applied` (`mathematical_application`),
 which applies no operation and only the signature reads. A body that is not
@@ -514,7 +515,21 @@ impl<'t> Program<'t> {
         // A body that dispatches is lowered and read like any other, and so
         // is each machine declared inside it: those are its cases' helpers,
         // read in place where it calls them.
-        if self.dispatches(id, machine)?
+        // A machine that states nothing and returns nothing is a helper a
+        // law reads in place where it calls it, so it is lowered too.
+        let states_nothing = result.is_none()
+            && !super::span(
+                |span| typed.signature_contracts.span(span),
+                declared.contracts,
+                id,
+                "contract span",
+            )?
+            .iter()
+            .any(|clause| {
+                clause.kind == crate::source_state::signature::SignatureContractKind::Ensures
+            });
+        if states_nothing
+            || self.dispatches(id, machine)?
             || std::iter::successors(self.enclosing_machine(machine), |&outer| {
                 self.enclosing_machine(outer)
             })
@@ -593,11 +608,14 @@ impl<'t> Program<'t> {
             Ok(())
         })();
         self.applied_propositions.pop();
-        read?;
-        if result.is_some() != body.value.is_some() {
-            return Err(unserved(
-                "generic mathematical machine body without its value",
-            ));
+        // A body the clause reader cannot read as terms is lowered and read
+        // like any other body instead, which refuses what it cannot read.
+        if read.is_err() || result.is_some() != body.value.is_some() {
+            return Ok(TemplateBody {
+                callables: body.callables,
+                lowered: true,
+                ..TemplateBody::default()
+            });
         }
         Ok(body)
     }

@@ -1374,13 +1374,31 @@ starts with records.
   `Cases` formal and a split's names count the machine parameters first.
   A body that is not generic may call or cite a generic machine at
   concrete machines through the same form: the call no longer names the
-  typed trees' closed copy. Still refused, by name: a generic machine that
-  calls itself at other machines, that recurses other than at a field of
-  the case (on fuel) or dispatches on a computed value, a call of a
-  generic machine that has a premise, and citing a generic machine that
-  states nothing. Customers: `generic_machine/pass/iterate_keeps_a_fixed_point`,
+  typed trees' closed copy. Customers: `generic_machine/pass/iterate_keeps_a_fixed_point`,
   `pass/cited_by_an_ordinary_law` and `pass/called_by_an_ordinary_definition`,
   each with its twin.
+- **Every generic mathematical body (2026-11-27).** A generic machine may
+  call itself at other machines: each branch of its definition by cases
+  binds the machine parameters, so the recursion passes whichever it
+  names, and a law's induction hypothesis is the law at those machines,
+  with its premises owed there. One that recurses on fuel takes its machine
+  parameters after the fuel in the definition over fuel, its laws over fuel
+  count them among the formals, and a dispatch on a computed value is a
+  definition over them and the formals alike. A call of a generic machine
+  that has a premise owes the premise, stated over its machine parameters
+  and formals, at the machines and arguments it passes. A law reads a
+  generic machine that states nothing in place, its machine parameters
+  standing for the machines the citation passes; such a machine is
+  lowered. Any other body the clause reader cannot read as terms is
+  lowered and read like any other body. A generic machine's own `result`
+  in its clauses is its definition at its machine parameters and formals.
+  Customers: `generic_machine/pass/alternate_keeps_two_fixed_points`,
+  `pass/pick_by_a_computed_value`, `pass/call_owes_its_premise` and
+  `pass/cited_through_a_generic_helper`, each with its twin, and
+  `gcd_then` and `mod_then` over `core/nat.omg` in stage 06's
+  `generic_machine` tests, a generic `gcd` and repeated-subtraction `mod`
+  on fuel with their twins. A concrete machine with a premise is still no
+  machine argument: it is no total function for the parameter to stand for.
 - **The order and subtraction operators (2026-11-25).** `nat.omg` declares
   `<=` and `-` as free public operator machines,
   `machine <= less_or_equal(left: Nat, right: Nat) -> bool` and
@@ -1397,9 +1415,6 @@ starts with records.
   program outside core imports both machines to select them by their
   tokens (`nat_order` fixtures).
 - **Not done:**
-  - A generic mathematical machine defined on fuel, or by a dispatch on a
-    computed value, and a call of a generic machine that has a premise.
-    Each is refused by name; nothing in the library does either.
   - `extent.omg`'s contract over `IntervalSet<Nat>` (the plan's
     `extent.omg:219`) is a clause of a runtime boundary trait over generic
     data. It is read by the carrier clause reader when a program reaches

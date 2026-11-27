@@ -1,0 +1,40 @@
+// The twin of `pass/pick_by_a_computed_value` that claims the zero case's
+// value. `succ(Zero)` is a successor, so the law is refused.
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/foundation.omg as proof;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+machine pick_by<machine Step>(n: Peano, a: Peano) -> Peano
+requires machine Step(a: Peano) -> Peano terminates;
+{
+    transition (Step(n)) {
+        Peano::Zero -> (a),
+        Peano::Succ { pred } -> (pred)
+    }
+}
+
+machine succ(a: Peano) -> Peano
+{
+    transition { _ -> Peano::Succ { pred: a } }
+}
+
+machine pick_by_succ(a: Peano)
+ensures
+    |proof|::Identity::<Peano>(pick_by::<succ>(Peano::Zero, a), a)
+{
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches |process_exit|::ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

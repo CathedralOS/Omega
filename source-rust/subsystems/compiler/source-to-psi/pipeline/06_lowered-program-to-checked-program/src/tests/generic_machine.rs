@@ -334,38 +334,168 @@ fn an_ordinary_call_unfolds_the_concrete_machine() {
     assert_eq!(law.machine, "plus_one");
 }
 
-#[test]
-fn a_generic_machine_that_calls_itself_at_another_machine_is_refused() {
-    // Its machine parameters are fixed for the whole definition, so the
-    // kernel's recursion has no way to change them.
-    let source = proofs(ITERATE).replace(
-        "(Step(iterate::<Step>(pred, a)))",
-        "(Step(iterate::<succ>(pred, a)))",
-    );
-    let source = source.replace(
-        "machine iterate<machine Step>",
-        "machine succ(a: Peano) -> Peano
-{
-    transition { _ -> Peano::Succ { pred: a } }
+macro_rules! fixture {
+    ($path:literal) => {
+        include_str!(concat!(
+            "../../tests/fixtures/generic_machine/",
+            $path,
+            "/main.omg"
+        ))
+    };
 }
 
-machine iterate<machine Step>",
+/// A positive fixture's law is judged and its negative twin's stays
+/// unproved.
+fn twins(pass: &str, judged_machine: &str, fail: &str, unproved_machine: &str) {
+    let verdicts = judged(&proofs(pass));
+    judged_law(&verdicts, judged_machine);
+    let verdicts = judged(&proofs(fail));
+    assert_eq!(unproved(&verdicts).machine, unproved_machine);
+}
+
+#[test]
+fn a_generic_machine_calls_itself_at_other_machines() {
+    // The induction's hypothesis is the law at the swapped machines, so it
+    // owes both premises.
+    let verdicts = judged(&proofs(fixture!("pass/alternate_keeps_two_fixed_points")));
+    judged_law(&verdicts, "alternate_twice");
+    twins(
+        fixture!("pass/alternate_keeps_two_fixed_points"),
+        "alternate_keeps",
+        fixture!("fail/alternate_keeps_one_fixed_point"),
+        "alternate_keeps",
     );
-    assert!(source.contains("iterate::<succ>(pred, a)"));
-    let verdicts = judged(&source);
-    assert!(
-        verdicts.iter().any(|verdict| matches!(
-            verdict,
-            RouteVerdict::FallBack(refusal) if refusal.detail.starts_with(
-                "machine generic mathematical machine that calls itself at other machines"
-            )
-        )),
-        "{verdicts:?}"
+}
+
+/// Euclid's `gcd` by remainders, as `core/nat.omg` wrote it before it
+/// became structural, with `Step` applied to its result, and a law about
+/// it at `succ` claiming `claimed`; with them, the repeated subtraction
+/// `mod` that `computed_descent/pass` keeps, generic over a `Step` it
+/// does not use, whose done arm cites the bound only when `cite_bound`.
+/// All judged with the whole of `core/nat.omg`.
+fn gcd_then(claimed: &str, cite_bound: bool) -> Vec<RouteVerdict> {
+    let nat = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../../source/library/core/nat.omg"
+    ));
+    let first = nat.find("public data Nat {").expect("the data declaration");
+    let nat = format!(
+        "use {{omega}}/language/core/algebra.omg;\nuse {{omega}}/language/core/foundation.omg as proof;\n{}
+machine gcd_then<machine Step>(a: Nat, b: Nat) -> Nat
+requires machine Step(a: Nat) -> Nat terminates;
+terminates by b
+{{
+    transition b {{
+        Nat::Zero -> (Step(a)),
+        Nat::Succ {{ prev as pb }} -> gcd_rec(a, b, pb)
+    }}
+
+    machine gcd_rec(a: Nat, b: Nat, pb: Nat) -> Nat {{
+        _ = le_one_succ(pb);
+        let next: Nat = mod(a, Nat::Succ {{ prev: pb }});
+        transition {{ _ -> (gcd_then::<Step>(Nat::Succ {{ prev: pb }}, next)) }}
+    }}
+}}
+
+machine mod_then<machine Step>(a: Nat, b: Nat) -> Nat
+requires machine Step(a: Nat) -> Nat terminates;
+terminates by a
+requires
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ {{ prev: Nat::Zero }}, b), Nat::Zero)
+ensures
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ {{ prev: result }}, b), Nat::Zero)
+{{
+    transition (saturating_sub(b, a)) {{
+        Nat::Zero -> mod_rec(a, b),
+        Nat::Succ {{ prev as w }} -> mod_done(a, b, w)
+    }}
+
+    machine mod_rec(a: Nat, b: Nat) -> Nat {{
+        _ = sub_lt(a, b);
+        let next: Nat = saturating_sub(a, b);
+        transition {{ _ -> (mod_then::<Step>(next, b)) }}
+    }}
+
+    machine mod_done(a: Nat, b: Nat, w: Nat) -> Nat {{
+        {cited}
+        transition {{ _ -> (a) }}
+    }}
+}}
+
+machine nat_succ(a: Nat) -> Nat
+{{
+    transition {{ _ -> Nat::Succ {{ prev: a }} }}
+}}
+
+machine gcd_then_succ()
+ensures
+    |proof|::Identity::<Nat>(
+        gcd_then::<nat_succ>(Nat::Succ {{ prev: Nat::Succ {{ prev: Nat::Zero }} }}, Nat::Succ {{ prev: Nat::Zero }}),
+        {claimed}
+    )
+{{
+}}
+",
+        &nat[first..],
+        cited = if cite_bound {
+            "_ = lt_of_sub_pos(a, b, w);"
+        } else {
+            ""
+        },
     );
-    assert!(
-        !verdicts
-            .iter()
-            .any(|verdict| matches!(verdict, RouteVerdict::Laws(_))),
-        "{verdicts:?}"
+    super::fuel_recursion::judged_library_files(&nat, &[])
+}
+
+#[test]
+fn a_generic_machine_recurses_on_fuel() {
+    // `gcd_then` calls itself at the computed `mod(a, b)`, so it is defined
+    // on fuel, with `Step` among the definition's arguments, and owes each
+    // call's descent. `gcd(2, 1)` is one, so the result at `succ` is two;
+    // its twin claims one.
+    let two = "Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }";
+    let verdicts = gcd_then(two, true);
+    judged_law(&verdicts, "gcd_then_succ");
+    // A generic machine on fuel with a law of its own: the law is an
+    // induction on the fuel, over the machine parameter too.
+    judged_law(&verdicts, "mod_then");
+    for law in &signature(&verdicts).laws {
+        assert!(
+            matches!(law.decision, MathematicalCoreDecision::Judged(_)),
+            "{law:?}"
+        );
+    }
+    let verdicts = gcd_then("Nat::Succ { prev: Nat::Zero }", true);
+    assert_eq!(unproved(&verdicts).machine, "gcd_then_succ");
+    // Without the bound in its done arm, the law on fuel stays unproved.
+    let verdicts = gcd_then(two, false);
+    assert_eq!(unproved(&verdicts).machine, "mod_then");
+}
+
+#[test]
+fn a_generic_machine_dispatches_on_a_computed_value() {
+    twins(
+        fixture!("pass/pick_by_a_computed_value"),
+        "pick_by_succ",
+        fixture!("fail/pick_by_a_computed_value_wrong_case"),
+        "pick_by_succ",
+    );
+}
+
+#[test]
+fn a_call_of_a_generic_machine_owes_its_premise() {
+    let verdicts = judged(&proofs(fixture!("pass/call_owes_its_premise")));
+    signature(&verdicts);
+    let verdicts = judged(&proofs(fixture!("fail/call_without_its_premise")));
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "fixed_by_succ");
+}
+
+#[test]
+fn a_law_cites_through_a_generic_helper() {
+    twins(
+        fixture!("pass/cited_through_a_generic_helper"),
+        "twice_id_keeps",
+        fixture!("fail/cited_through_a_generic_helper_at_succ"),
+        "twice_succ_keeps",
     );
 }

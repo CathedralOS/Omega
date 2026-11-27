@@ -1,0 +1,38 @@
+// The twin of `pass/call_owes_its_premise` at `succ`. The call owes
+// `succ(a) = a`, which does not hold, so the obligation is refused.
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/foundation.omg as proof;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+machine apply_fixed<machine Step>(a: Peano) -> Peano
+requires machine Step(a: Peano) -> Peano terminates;
+requires
+    |proof|::Identity::<Peano>(Step(a), a)
+{
+    transition { _ -> (Step(a)) }
+}
+
+machine succ(a: Peano) -> Peano
+{
+    transition { _ -> Peano::Succ { pred: a } }
+}
+
+machine fixed_by_succ(a: Peano) -> Peano
+{
+    transition { _ -> (apply_fixed::<succ>(a)) }
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches |process_exit|::ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}
