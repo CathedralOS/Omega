@@ -363,6 +363,27 @@ operand it is the proposition it states, and `L == R` is read as `(L && R)
 refused by name. Stage 06 decides each test, or states it over the Boolean
 that names the sum's case at entry or after a call, which lowering names
 for every sum of an input or a call result (`ValueOrigin::StorageCase`).
+A comparison `a == b` or `a != b` over data whose selected comparison is a
+user row (`CoinByValue satisfies Equatable<Coin> { machine equals ... }`)
+reaches the clause reader as stage 03's call `CoinByValue::equals(@a, @b)`,
+optionally compared with `false`. It is read as that implementation's
+operation applied to the two lent values, stated true or false as an
+Identity at `bool` (`closed_conformance_requirement`,
+`applied_boolean_comparison`): never as the row's body, so a user comparison
+supplies no field fact. Another implementation of the same requirement is
+another operation. The row must itself be written `reaches none crashes none
+terminates`, since `Equatable::equals` promises none of them. A lent operand
+is a by-value formal or a shared borrowed one; a `@mutable` formal is
+refused, because the machine may write its referent before the clause is
+used. `result == (a == b)` states the operation equal to another truth value.
+A clause that names a selected row's operation also records, for the
+machine, what any call of that row returns: the operation applied to the
+call's own arguments (`record_applied_operation`,
+`MachineTables::applied_operations`). Stage 06 states it after each such
+call, so `requires a == b` proves a body's `a == b` true by call congruence
+([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
+"Repeated admitted pure comparisons with the same selected operation and
+exact unchanged arguments have the same Boolean denotation").
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
 

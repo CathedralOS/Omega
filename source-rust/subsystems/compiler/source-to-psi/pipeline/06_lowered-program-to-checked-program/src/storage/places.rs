@@ -1778,11 +1778,7 @@ impl<'a> Storage<'a> {
             StructuralAccess::MutableBorrow => contents == EntryContents::Unwritten,
             StructuralAccess::Owned | StructuralAccess::WriteOnlyBorrow => false,
         };
-        if !held
-            || path
-                .iter()
-                .any(|step| matches!(step, Projection::Referent | Projection::Extent))
-        {
+        if !held || path.contains(&Projection::Extent) {
             return None;
         }
         let mut rebased = Vec::with_capacity(actual.segments.len() + path.len());
@@ -1802,17 +1798,89 @@ impl<'a> Storage<'a> {
             });
         }
         rebased.extend_from_slice(path);
-        let mut fixed_storage = true;
-        let actual_type = terminal_semantics::structural_read_type_with_extents(
+        let mut runtime_extents = Vec::new();
+        let mut exclusive_crossing = false;
+        let mut frozen_from = usize::MAX;
+        let actual_type = terminal_semantics::structural_read_type_with_crossings(
             self.types.iter(),
             input.structural_type,
             &rebased,
-            |_, extent| fixed_storage &= extent.is_some(),
+            |position, extent| {
+                if extent.is_none() {
+                    runtime_extents.push(position);
+                }
+            },
+            |position, access| {
+                if access == StructuralAccess::SharedBorrow {
+                    frozen_from = frozen_from.min(position);
+                } else {
+                    exclusive_crossing = true;
+                }
+            },
         )?;
-        if actual_type != ty || !fixed_storage {
+        let shared_input = input.access == StructuralAccess::SharedBorrow;
+        // A referent behind an exclusive stored reference may be written
+        // through that reference without writing the input's own storage,
+        // so it holds its entry contents only behind a shared input loan.
+        if exclusive_crossing && !shared_input {
+            return None;
+        }
+        // Storage of a runtime extent, such as a slice's elements, is named
+        // here behind a shared loan. Behind a `@mutable` one, a callee lent
+        // the view may write its elements without writing the descriptor
+        // this input holds, so `held` cannot vouch for them: they are named
+        // only when no write anywhere in the machine may reach the input's
+        // storage, directly or through any captured backing.
+        // Past a shared stored reference, the referent is held by that
+        // reference's own loan: neither the body nor a callee can write it
+        // while the carrier stands, so only the carrier's storage, before
+        // that crossing, needs the input's stability. Whether the element
+        // exists is the clause's own formation obligation, not something
+        // this name asserts.
+        let stable = shared_input
+            || runtime_extents
+                .iter()
+                .all(|position| *position > frozen_from)
+            || !self.storage_ever_written(actual.root);
+        if actual_type != ty || !stable {
             return None;
         }
         ScalarTerm::structural_read(actual.root, rebased, ty).ok()
+    }
+
+    /// Whether any logged write in this machine, a call's write through a
+    /// lent view included, may reach storage of `root`: its destination or
+    /// any address its backing may select.
+    fn storage_ever_written(&self, root: PlaceId) -> bool {
+        self.log.iter().any(|row| {
+            row.destination.root == root
+                || row.backing.place.root == root
+                || row
+                    .backing
+                    .possible_regions()
+                    .any(|region| region.root == root)
+        })
+    }
+
+    /// A `@mutable` view lent where a shared one is expected reads the same
+    /// elements and length: the two descriptors differ only in access.
+    fn reads_as_lent_view(&self, actual: StructuralTypeId, formal: StructuralTypeId) -> bool {
+        let shape = |id| {
+            terminal_psi::find_structural_type(self.types, id).map(|declaration| &declaration.shape)
+        };
+        matches!(
+            (shape(actual), shape(formal)),
+            (
+                Some(terminal_psi::StructuralTypeShape::ElementView {
+                    element: lent,
+                    access: Some(StructuralAccess::MutableBorrow) | None,
+                }),
+                Some(terminal_psi::StructuralTypeShape::ElementView {
+                    element: read,
+                    access: Some(StructuralAccess::SharedBorrow),
+                }),
+            ) if lent == read
+        )
     }
 
     /// The names of this machine's own entry clause: a scalar formal is its
@@ -7977,9 +8045,52 @@ impl<'a> AtCall<'_, 'a> {
         } else {
             EntryContents::MaybeWritten
         };
+        if let Some(read) = self
+            .storage
+            .entry_read(self.tables, actual, path, ty, contents)
+        {
+            return Ok(Some(read));
+        }
+        // An actual whose whole value is still another input's entry value,
+        // such as a slice lent on unchanged, names that input's storage. The
+        // copy carries the descriptor, not the storage behind it, so the
+        // source's own contents are traced separately: a `@mutable` source
+        // is named only where no write has reached it on any path.
+        let Reached::Input(source) = reached else {
+            return Ok(None);
+        };
+        if source == actual.root {
+            return Ok(None);
+        }
+        let source_whole = Lineage {
+            root: source,
+            segments: Vec::new(),
+        };
+        let mut trace = self.storage.budget();
+        trace.observations = Observations::WholeInput;
+        let source_reached = self
+            .storage
+            .reaching(
+                self.references,
+                self.tables,
+                Asked::Contents(&source_whole),
+                (self.block, self.up_to),
+                &mut trace,
+                self.concerns,
+            )
+            .map_err(crate::Unbound::Refused)?;
+        let contents = if source_reached == Reached::Input(source) {
+            EntryContents::Unwritten
+        } else {
+            EntryContents::MaybeWritten
+        };
+        let source = Lineage {
+            root: source,
+            segments: actual.segments.clone(),
+        };
         Ok(self
             .storage
-            .entry_read(self.tables, actual, path, ty, contents))
+            .entry_read(self.tables, &source, path, ty, contents))
     }
 
     /// Find the source named by the operation that established this actual.
@@ -8651,6 +8762,10 @@ impl crate::Bindings for AtCall<'_, '_> {
         let actual = self.readable_actual(formal)?.clone();
         let actual_type = self.storage.projection_type(&actual, self.concerns);
         if actual_type != Some(formal.structural_type)
+            && !actual_type.is_some_and(|actual_type| {
+                self.storage
+                    .reads_as_lent_view(actual_type, formal.structural_type)
+            })
             && !actual_type
                 .zip(self.extent_owner)
                 .is_some_and(|(actual_type, owner)| {

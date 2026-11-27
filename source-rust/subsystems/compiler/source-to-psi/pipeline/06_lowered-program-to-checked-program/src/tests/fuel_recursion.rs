@@ -243,6 +243,24 @@ fn every_law_of_rat_is_judged() {
         "rat_gap_triangle_scaled",
         "rat_close_triangle_factorization",
         "rat_close_triangle_split",
+        // Sums and products, and tolerances that add and rescale.
+        "rat_add_comm",
+        "rat_mul_comm",
+        "rat_within_add",
+        "rat_within_triangle",
+        "rat_within_unscale",
+        // The Real construction's facts at one index.
+        "regular_transitive_at",
+        "regular_add_at",
+        "related_add_at",
+        // Products of close values, bounded samples, and the product's
+        // regularity and congruence at one index.
+        "rat_within_mul",
+        "rat_within_compare",
+        "rat_bounded_near",
+        "regular_bounded_at",
+        "regular_mul_at",
+        "related_mul_at",
     ] {
         assert!(
             judgment.laws.iter().any(|law| law.machine == machine),

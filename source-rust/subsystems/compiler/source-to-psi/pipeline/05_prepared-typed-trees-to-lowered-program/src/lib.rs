@@ -2179,6 +2179,23 @@ fn lower_program_with_parallel<'source>(
                     .filter(|(machine, _)| *machine == lowered_id)
                     .map(|(_, row)| row.clone()),
             );
+            // A callee that was never lowered is never called here.
+            lowered.tables.applied_operations.extend(
+                source
+                    .applied_operations
+                    .iter()
+                    .filter(|(machine, _, _)| *machine == lowered_id)
+                    .filter_map(|(_, callee, statement)| {
+                        let callee = source
+                            .symbols
+                            .iter()
+                            .find_map(|(id, symbol)| (symbol == callee).then_some(id))?;
+                        Some(terminal_check_tables::AppliedOperation {
+                            callee,
+                            statement: statement.clone(),
+                        })
+                    }),
+            );
         }
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);

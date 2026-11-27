@@ -3963,7 +3963,8 @@ impl<'a> Prover<'a> {
                 let definition = self.bound_on_definition(term, integer, direction);
                 let multiple = self
                     .multiple_remainder_bound(term, None, direction)
-                    .or_else(|| self.literal_equality_bound(term, direction));
+                    .or_else(|| self.literal_equality_bound(term, direction))
+                    .or_else(|| self.literal_order_bound(term, integer, direction));
                 let best_extra = match (definition, multiple) {
                     (Some(left), Some(right)) => Some(direction.tighter(integer, left, right)),
                     (left, right) => left.or(right),
@@ -4063,6 +4064,32 @@ impl<'a> Prover<'a> {
         }
         .ok()?;
         Some(Bound { literal, proof })
+    }
+
+    /// A fact that orders a storage read with no value of its own, such as
+    /// an element of a lent slice no operation reads, against a closed
+    /// endpoint: `5 < items[0]` bounds `items[0]` from below as a value's
+    /// fact would bound that value.
+    fn literal_order_bound(
+        &mut self,
+        term: &ScalarTerm,
+        integer: IntegerType,
+        direction: Direction,
+    ) -> Option<Bound> {
+        if !matches!(term, ScalarTerm::StructuralRead { .. }) {
+            return None;
+        }
+        let mut best: Option<Bound> = None;
+        for index in 0..self.facts.len() {
+            let current = best.as_ref().map(|bound| bound.literal);
+            if let Some(next) =
+                self.literal_bound_from_fact(index, term, integer, direction, current)
+                && direction.improves(integer, &next, best.as_ref())
+            {
+                best = Some(next);
+            }
+        }
+        best
     }
 
     /// A predicate can unfold an operation that already produced a scalar

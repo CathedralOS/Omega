@@ -100,17 +100,33 @@ impl Program {
         let mut syntax = None;
         let mut read = Vec::new();
         for (path, text) in files {
-            let id = sources
-                .add_checked_instance(
-                    (*path).into(),
-                    *text,
-                    "product".into(),
-                    Some(package),
-                    source_admission::SourceOrigin::User,
-                    source_admission::SourceResolutionStratum::Base,
-                    DependencyScope::Product,
-                )
-                .source_id;
+            // A file under `core/` is the bundled core file of that name, as
+            // the toolchain supplies it: no package, toolchain origin.
+            let id = if path.starts_with("core/") {
+                sources
+                    .add_checked_instance(
+                        (*path).into(),
+                        *text,
+                        "core".into(),
+                        None,
+                        source_admission::SourceOrigin::Toolchain,
+                        source_admission::SourceResolutionStratum::Base,
+                        DependencyScope::Product,
+                    )
+                    .source_id
+            } else {
+                sources
+                    .add_checked_instance(
+                        (*path).into(),
+                        *text,
+                        "product".into(),
+                        Some(package),
+                        source_admission::SourceOrigin::User,
+                        source_admission::SourceResolutionStratum::Base,
+                        DependencyScope::Product,
+                    )
+                    .source_id
+            };
             read.push((id, (*text).to_owned()));
             let tokens = frontend::Lexer::new(text).tokenize().unwrap();
             match &mut syntax {

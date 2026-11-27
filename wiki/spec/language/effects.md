@@ -74,6 +74,17 @@ summary; a realizer need not repeat that same clause. Their explicit declaration
 provides a stable contract across checked, opaque and foreign providers.
 A selected implementation must fit every authored requirement ceiling even when
 its own optional clause is absent.
+The author of a foreign boundary requirement declares the services the
+operation can reach. For example, a Windows binding for
+`kernel32.dll!RemoveDirectoryW` declares
+`reaches |authority|::FilesystemNamespaceMutation`, with `authority` bound to
+`{omega}/language/core/filesystem_authority.omg`. Callers inherit that reach
+through the ordinary call rule. If the author writes `reaches none` while the
+foreign implementation removes a directory, the contract is false. A caller
+can then pass a source reach check even though executing it mutates the
+filesystem. The [package audit](../packages/review.md#complete-checked-findings)
+exposes the authored promise and its selected foreign binding.
+
 Foreign and assumed supplies retain their separate trust admission and physical
 authority classifications. Pure arithmetic may have a selected boundary
 implementation without acquiring an arithmetic-service reach.

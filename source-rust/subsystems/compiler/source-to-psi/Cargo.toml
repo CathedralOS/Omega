@@ -357,3 +357,8 @@ required-features = ["test-support"]
 name = "lowering_operation_questions"
 path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/operation_questions.rs"
 required-features = ["test-support"]
+
+[[test]]
+name = "checking_explicit_identity"
+path = "pipeline/06_lowered-program-to-checked-program/tests/explicit_identity.rs"
+required-features = ["test-support"]

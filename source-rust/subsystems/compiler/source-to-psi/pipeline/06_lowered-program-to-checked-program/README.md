@@ -31,7 +31,13 @@ An abstract algebra can cite a law of its supplied record to prove identity of
 two operation results. The checker instantiates the law's signature and records
 the kernel-checked proof of the requested identity. For a concrete record determined by its fields, the
 [automatic discharge rule](../../../../../../wiki/spec/proofs/contracts.md#record-identity-from-field-identities)
-requires a kernel proof built from their identities.
+requires a kernel proof built from their identities. A raw float field's
+identity is one of them: an entry `Identity<f64>(a.x, b.x)` is known over the
+values the fields held, and a float defined as a literal or as another value
+is that literal's or value's exact bits, so `0.0f64` is identical to itself
+and not to `-0.0f64`. A float computed by arithmetic stays opaque, and IEEE
+`==` is neither evidence of raw identity nor proved by it
+([float equality and source identity](../../../../../../wiki/spec/terminal-psi/mathematical_values.md#float-equality-and-source-identity)).
 
 A law over data that contains itself is judged apart from every machine.
 Stage 05 hands this crate one
@@ -329,7 +335,17 @@ true edge and `false` on the false edge) and per payload parameter a dispatch
 edge binds (`DispatchBinding` of that edge: the parameter equals the one
 value its payload leaf holds, when there is one, and holds each clause of
 its storage's type that a payload read at the head of the arm could state;
-see [What a dispatch binds](#what-a-dispatch-binds)). Each row's proposition
+see [What a dispatch binds](#what-a-dispatch-binds)), and per call of a
+machine whose selected operation the machine's clauses name
+(`CallCongruence`, after the call: the call's result is that operation
+applied to its arguments, from `MachineTables::applied_operations`). The
+equality discharge cites a congruence row only when nothing in the machine
+writes the places it names, a `mutable` by-value formal included, and a
+Boolean goal such as `result` or `!result` the arithmetic prover leaves open
+is retried as an Identity at `bool` when a congruence row exists
+([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
+"Changed argument values or relevant observed referent versions ...
+invalidate that reasoning"). Each row's proposition
 is in `MachineTables::propositions`. The kernel gets a row for an obligation
 only when the row's point dominates the obligation's. Requires and guarantees
 go in as assumptions and result equations as semantic axioms, which is how

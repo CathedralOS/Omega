@@ -312,6 +312,11 @@ pub(crate) struct Program<'t> {
     /// states, with its relation read at their representatives, by the
     /// machine whose contract states it (`contracts::identity_clause`).
     pub(crate) quotient_soundness: Vec<(MachineId, terminal_check_tables::QuotientSoundness)>,
+    /// Each machine a contract's clause names by its selected operation
+    /// (`clause_terms::closed_conformance_requirement`), with what a call
+    /// of it returns over its own formals, by the machine whose contract
+    /// names it. Lowering hands each to the machines it was read for.
+    pub(crate) applied_operations: Vec<(MachineId, SymbolHandle, semantic_vocabulary::Proposition)>,
     /// Each data declaration indexed by values read so far (`families`).
     pub(crate) families: Vec<families::FamilyRecord>,
     /// Each theorem over such data read so far (`families`).
@@ -655,6 +660,7 @@ impl<'t> Program<'t> {
             quotients: Vec::new(),
             executable_quotients: Vec::new(),
             quotient_soundness: Vec::new(),
+            applied_operations: Vec::new(),
             families: Vec::new(),
             family_theorems: Vec::new(),
             evidence_uses: Vec::new(),

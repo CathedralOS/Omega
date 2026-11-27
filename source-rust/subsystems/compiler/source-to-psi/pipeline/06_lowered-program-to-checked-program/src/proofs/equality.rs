@@ -295,7 +295,8 @@ impl Definitions {
                     | SignatureEntryKind::Scheme
                     | SignatureEntryKind::GenericData { .. }
                     | SignatureEntryKind::Quotient { .. }
-                    | SignatureEntryKind::Statement { .. } => Definition::Opaque,
+                    | SignatureEntryKind::Statement { .. }
+                    | SignatureEntryKind::Proof { .. } => Definition::Opaque,
                     SignatureEntryKind::Constructor { data, case } => match shape(*data) {
                         Some(shape) => Definition::Constructor {
                             data: *data,
@@ -3322,7 +3323,17 @@ pub(crate) fn discharge(
         {
             // Only the caller owes this hypothesis. Rejoin the row to this
             // machine's published input clause before binding its proof.
-            if machine.requires.get(*clause as usize) != Some(premise) {
+            // A clause over an input's field, such as a raw float Identity
+            // of `a.x`, is known over the value that field held, as these
+            // bindings state it.
+            let declared = machine.requires.get(*clause as usize);
+            let mut stated = || {
+                let declared = declared?;
+                let entry = declarations.entry.as_deref_mut()?;
+                crate::entry_snapshot_conjuncts(declared, entry).ok()
+            };
+            if declared != Some(premise) && !stated().is_some_and(|stated| stated.contains(premise))
+            {
                 return Err(unavailable(
                     "entry equality differs from its declared requirement",
                 ));
@@ -3334,14 +3345,22 @@ pub(crate) fn discharge(
         let Proposition::DeclarationIdentity(actual) = premise else {
             continue;
         };
-        let Some(Justification::CalleeGuarantee { invocation, clause }) = justification else {
-            continue;
+        // The result of an earlier call of a total comparison is the same
+        // application of its operation to the same, unmodified inputs
+        // (`contracts.md#equality-bridges-and-comparison-facts`).
+        let (invocation, clause) = match justification {
+            Some(Justification::CalleeGuarantee { invocation, clause }) => {
+                (invocation, Some(clause))
+            }
+            Some(Justification::CallCongruence { invocation }) => (invocation, None),
+            _ => continue,
         };
         let call = tables
             .invocations
             .get(*invocation)
             .ok_or_else(|| unavailable("citation lost its invocation"))?;
-        if let Callee::Declared(TargetMachineCallable::Machine(callee)) = call.callee
+        if let Some(clause) = clause
+            && let Callee::Declared(TargetMachineCallable::Machine(callee)) = call.callee
             && law_instances.binary_search(&callee).is_ok()
         {
             let call = call_contracts::invocation(module, machine, tables, *invocation, call)?;
@@ -3365,9 +3384,13 @@ pub(crate) fn discharge(
         // the call site supplies the same field or value identity premise as
         // an entry requirement (`contracts.md#record-identity-from-field-identities`),
         // provided every local place it names is unmodified since the call.
+        // A repeated comparison relates the values the call read, which are
+        // the entry values only if nothing in the machine writes them, a
+        // structural parameter declared `mutable` included.
+        let congruence = clause.is_none();
         let fresh = actual.values.iter().all(|value| match &value.operand {
             ClauseOperand::Input(subject) => {
-                machine.structural_parameter(subject.root()).is_some()
+                (!congruence && machine.structural_parameter(subject.root()).is_some())
                     || matches!(
                         call.site,
                         terminal_check_tables::InvocationSite::Operation(operation)
@@ -3394,6 +3417,36 @@ pub(crate) fn discharge(
             .contents
             .iter()
             .any(|held| held == left || held == right)
+        {
+            continue;
+        }
+        premises.push(
+            declarations
+                .scalar_identity(left, right)
+                .map_err(unavailable)?,
+        );
+        citations.push(row);
+    }
+    // A float value defined as a literal or as another value holds exactly
+    // those bits, which is its raw identity (wiki/spec/terminal-psi/mathematical_values.md,
+    // "Float equality and source identity"). A float computed by arithmetic
+    // stays opaque: its NaN payload is not fixed by its operands.
+    for (&row, axiom) in known.axiom_rows.iter().zip(&known.axioms) {
+        let Proposition::Equal(left, right) = axiom else {
+            continue;
+        };
+        let exact = |term: &ScalarTerm| {
+            matches!(
+                term,
+                ScalarTerm::Value { .. } | ScalarTerm::IeeeFloatLiteral(_)
+            )
+        };
+        if !matches!(
+            left.scalar_type(),
+            semantic_vocabulary::ScalarType::IeeeFloat(_)
+        ) || left.scalar_type() != right.scalar_type()
+            || !exact(left)
+            || !exact(right)
         {
             continue;
         }

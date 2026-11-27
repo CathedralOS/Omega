@@ -790,12 +790,22 @@ impl Program<'_> {
         }
         let comparison = match operator {
             BinaryOperator::And => {
+                // `a && f(x)` reads `f(x)` only where `a` holds, so a
+                // precondition of a called machine on the right may be
+                // taken from the left, as from an earlier `requires` clause.
+                // The left side is read first and never relies on the right.
                 let mut conjuncts = Vec::new();
-                for side in [binary.left, binary.right] {
-                    match self.clause(id, scope, side)? {
-                        Proposition::Conjunction(inner) => conjuncts.extend(inner),
-                        other => conjuncts.push(other),
-                    }
+                match self.clause(id, scope, binary.left)? {
+                    Proposition::Conjunction(inner) => conjuncts.extend(inner),
+                    other => conjuncts.push(other),
+                }
+                let saved = self.enclosing_requires.len();
+                self.enclosing_requires.extend(conjuncts.iter().cloned());
+                let right = self.clause(id, scope, binary.right);
+                self.enclosing_requires.truncate(saved);
+                match right? {
+                    Proposition::Conjunction(inner) => conjuncts.extend(inner),
+                    other => conjuncts.push(other),
                 }
                 // A data clause is published with its type, so it takes the
                 // canonical order too. A conjunct that tests the case still
@@ -831,6 +841,17 @@ impl Program<'_> {
         if self.mathematical(binary.left) || self.mathematical(binary.right) {
             *operands = self.mathematical_operator_operands();
             return self.mathematical_comparison(id, scope, comparison, binary.left, binary.right);
+        }
+        // `a != b` over data whose selected comparison is a user row is
+        // `equals(@a, @b) == false`: the applied comparison over records
+        // has no scalar term, so state its result as the Boolean the
+        // comparison with a literal asks for, as a lone `a == b` states
+        // `true`.
+        if matches!(comparison, BinaryOperator::Equal | BinaryOperator::NotEqual)
+            && let Some(proposition) =
+                self.applied_boolean_comparison(id, scope, comparison, binary.left, binary.right)?
+        {
+            return Ok(proposition);
         }
         // A wholly anonymous operand lands in its partner's type; an
         // operand that already has a type keeps it (numeric_values.md,
@@ -2061,6 +2082,52 @@ impl Program<'_> {
                 let value_type = self.storage_value_type(id, element, qualification)?;
                 return Ok(Some((root, path, value_type)));
             }
+            // `$held.slot` follows a shared reference stored in a field or
+            // element across its explicit `Referent` crossing. The read
+            // depends on the selected referent and its contents version,
+            // not on the carrier alone (fact_validity.md, "Borrowed read
+            // dependencies").
+            ExpressionNode::Unary(unary)
+                if unary.operator == UnaryOperator::Dereference
+                    && matches!(
+                        self.typed.expression_table.expression(unary.operand),
+                        ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+                    ) =>
+            {
+                let unavailable = |what| refuse_at(id, Unserved::Contract(what));
+                let Some((root, mut path, carrier)) =
+                    self.read_projection(id, scope, unary.operand)?
+                else {
+                    return Err(unavailable(
+                        "dereference of other than a borrowed formal in a clause",
+                    ));
+                };
+                let ValueType::Record(carrier, _, _) = carrier else {
+                    return Err(unavailable(
+                        "dereference of a value that is not a stored reference",
+                    ));
+                };
+                let referent = match self.data_type(id, carrier)?.shape {
+                    StorageShape::Reference {
+                        referent,
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                    } => referent,
+                    StorageShape::Reference { .. } => {
+                        return Err(unavailable("clause through an exclusive stored reference"));
+                    }
+                    _ => {
+                        return Err(unavailable(
+                            "dereference of a value that is not a stored reference",
+                        ));
+                    }
+                };
+                path.push(ScalarReadProjection::Referent);
+                let value_type = self.storage_value_type(id, referent, Qualification::NONE)?;
+                if !matches!(value_type, ValueType::Scalar(..)) {
+                    return Err(unavailable("stored reference to data dereferenced whole"));
+                }
+                return Ok(Some((root, path, value_type)));
+            }
             ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
             | ExpressionNode::Block(_)
@@ -2147,6 +2214,25 @@ impl Program<'_> {
             )),
             _ => Ok(record),
         }
+    }
+}
+
+/// Whether a clause node reads storage as a projection: anything but a
+/// unary operator, and a dereference only of a field or element, since
+/// `$value` of a borrowed formal is read by its own arm.
+pub(super) fn stored_referent_read(
+    table: &crate::source_state::expression::ExpressionTable,
+    node: &ExpressionNode,
+) -> bool {
+    match node {
+        ExpressionNode::Unary(unary) => {
+            unary.operator == UnaryOperator::Dereference
+                && matches!(
+                    table.expression(unary.operand),
+                    ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+                )
+        }
+        _ => true,
     }
 }
 

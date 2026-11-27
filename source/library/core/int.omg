@@ -240,3 +240,8 @@ ensures
 {
     transition { _ -> (neg_int(a)) }
 }
+
+// An integer pair scaled by a natural factor: both coordinates times it.
+machine int_scale(a: IntPair, factor: |nat|::Nat) -> IntPair {
+    transition { _ -> (IntPair { neg: |nat|::mul(a.neg, factor), pos: |nat|::mul(a.pos, factor) }) }
+}

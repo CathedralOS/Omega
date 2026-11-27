@@ -554,3 +554,157 @@ ensures
     |nat|::add_zero_right(a);
     transition { _ -> |nat|::Nat::Zero }
 }
+
+// The gap between two sums is at most the sum of the summands' gaps: the
+// triangle through `b + c`, with a shared summand cancelled from each side.
+machine nat_gap_add_add(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat, d: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            nat_gap(|nat|::add(a, c), |nat|::add(b, d)),
+            |nat|::add(nat_gap(a, b), nat_gap(c, d))
+        ),
+        |nat|::Nat::Zero
+    )
+{
+    _ = nat_gap_triangle(|nat|::add(a, c), |nat|::add(b, c), |nat|::add(b, d));
+    |nat|::add_comm(a, c);
+    |nat|::add_comm(b, c);
+    nat_gap_add_common(c, a, b);
+    nat_gap_add_common(b, c, d);
+}
+
+// |x - y| * |f - g| written over naturals: the gap between the "same-sign"
+// and "cross" products of two difference pairs is the product of their gaps.
+machine nat_gap_cross_mul(x: |nat|::Nat, y: |nat|::Nat, f: |nat|::Nat, g: |nat|::Nat) -> |nat|::Nat
+terminates by x
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        nat_gap(
+            |nat|::add(|nat|::mul(x, f), |nat|::mul(y, g)),
+            |nat|::add(|nat|::mul(x, g), |nat|::mul(y, f))
+        ),
+        |nat|::mul(nat_gap(x, y), nat_gap(f, g))
+    )
+{
+    transition x {
+        |nat|::Nat::Zero -> ngcm_x_zero(y, f, g),
+        |nat|::Nat::Succ { prev as px } -> ngcm_x_succ(px, y, f, g)
+    }
+
+    machine ngcm_x_zero(y: |nat|::Nat, f: |nat|::Nat, g: |nat|::Nat) -> |nat|::Nat {
+        _ = nat_gap_mul_right(g, f, y);
+        |nat|::mul_comm(g, y);
+        |nat|::mul_comm(f, y);
+        nat_gap_zero_left(y);
+        nat_gap_symmetric(g, f);
+        |nat|::mul_comm(y, nat_gap(f, g));
+        transition { _ -> |nat|::Nat::Zero }
+    }
+
+    machine ngcm_x_succ(px: |nat|::Nat, y: |nat|::Nat, f: |nat|::Nat, g: |nat|::Nat) -> |nat|::Nat {
+        transition y {
+            |nat|::Nat::Zero -> ngcm_y_zero(px, f, g),
+            |nat|::Nat::Succ { prev as py } -> ngcm_step(px, py, f, g)
+        }
+    }
+
+    machine ngcm_y_zero(px: |nat|::Nat, f: |nat|::Nat, g: |nat|::Nat) -> |nat|::Nat {
+        let x: |nat|::Nat = |nat|::Nat::Succ { prev: px };
+        _ = nat_gap_mul_right(f, g, x);
+        |nat|::mul_comm(f, x);
+        |nat|::mul_comm(g, x);
+        |nat|::add_zero_right(|nat|::mul(x, f));
+        |nat|::add_zero_right(|nat|::mul(x, g));
+        nat_gap_zero_right(x);
+        |nat|::mul_comm(x, nat_gap(f, g));
+        transition { _ -> |nat|::Nat::Zero }
+    }
+
+    machine ngcm_step(px: |nat|::Nat, py: |nat|::Nat, f: |nat|::Nat, g: |nat|::Nat) -> |nat|::Nat {
+        let same: |nat|::Nat = |nat|::add(|nat|::mul(px, f), |nat|::mul(py, g));
+        let cross: |nat|::Nat = |nat|::add(|nat|::mul(px, g), |nat|::mul(py, f));
+        nat_gap_cross_mul_regroup(px, py, f, g);
+        nat_gap_add_common(|nat|::add(f, g), same, cross);
+        nat_gap_succ(px, py);
+        transition { _ -> (nat_gap_cross_mul(px, py, f, g)) }
+    }
+}
+
+machine nat_gap_cross_mul_regroup(px: |nat|::Nat, py: |nat|::Nat, f: |nat|::Nat, g: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(|nat|::mul(|nat|::Nat::Succ { prev: px }, f), |nat|::mul(|nat|::Nat::Succ { prev: py }, g)),
+        |nat|::add(|nat|::add(f, g), |nat|::add(|nat|::mul(px, f), |nat|::mul(py, g)))
+    ),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(|nat|::mul(|nat|::Nat::Succ { prev: px }, g), |nat|::mul(|nat|::Nat::Succ { prev: py }, f)),
+        |nat|::add(|nat|::add(f, g), |nat|::add(|nat|::mul(px, g), |nat|::mul(py, f)))
+    )
+{
+}
+
+// Equal differences have equal gaps: a - b = c - d, written a + d = c + b,
+// gives |a - b| = |c - d|.
+machine nat_gap_of_equal_difference(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat, d: |nat|::Nat)
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::add(a, d), |nat|::add(c, b))
+ensures
+    |proof|::Identity::<|nat|::Nat>(nat_gap(a, b), nat_gap(c, d))
+{
+    nat_gap_add_common(d, a, b);
+    nat_gap_add_common(b, c, d);
+    |nat|::add_comm(d, a);
+    |nat|::add_comm(d, b);
+    |nat|::add_comm(b, c);
+}
+
+// |a - b| <= |(a + c) - (b + d)| + |c - d|.
+machine nat_gap_sub_part(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat, d: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            nat_gap(a, b),
+            |nat|::add(nat_gap(|nat|::add(a, c), |nat|::add(b, d)), nat_gap(d, c))
+        ),
+        |nat|::Nat::Zero
+    )
+{
+    nat_gap_add_add(|nat|::add(a, c), |nat|::add(b, d), d, c);
+    nat_gap_sub_part_regroup(a, b, c, d);
+    nat_gap_add_common(|nat|::add(c, d), a, b);
+}
+
+machine nat_gap_sub_part_regroup(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat, d: |nat|::Nat)
+ensures
+    |proof|::Identity::<|nat|::Nat>(|nat|::add(|nat|::add(a, c), d), |nat|::add(|nat|::add(c, d), a)),
+    |proof|::Identity::<|nat|::Nat>(|nat|::add(|nat|::add(b, d), c), |nat|::add(|nat|::add(c, d), b))
+{
+}
+
+// Products of bounds bound products.
+machine mul_le_mul(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat, d: |nat|::Nat)
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(a, b), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(c, d), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::mul(a, c), |nat|::mul(b, d)), |nat|::Nat::Zero)
+{
+    _ = mul_le_mul_right(a, b, c);
+    _ = mul_le_mul_right(c, d, b);
+    |nat|::mul_comm(c, b);
+    |nat|::mul_comm(d, b);
+    _ = le_trans(|nat|::mul(a, c), |nat|::mul(b, c), |nat|::mul(b, d));
+}
+
+// A product of positive naturals is positive.
+machine one_le_mul(a: |nat|::Nat, b: |nat|::Nat)
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, a), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, b), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::mul(a, b)), |nat|::Nat::Zero)
+{
+    mul_le_mul(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, a, |nat|::Nat::Succ { prev: |nat|::Nat::Zero }, b);
+    _ = |nat|::mul_one_left(|nat|::Nat::Succ { prev: |nat|::Nat::Zero });
+}

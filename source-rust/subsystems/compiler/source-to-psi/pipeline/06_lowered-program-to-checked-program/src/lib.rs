@@ -211,9 +211,10 @@ use proof_admission::{
     ProofSystemMarker, verify_obligation,
 };
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IntegerMathTerm,
-    InvocationSite, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext,
-    ScalarTerm, ScalarType, StructuralCaseId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand,
+    ClauseValue, EdgeId, EvidenceIdentity, IntegerMathTerm, InvocationSite, MachineId,
+    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, ScalarTerm, ScalarType,
+    StructuralCaseId, ValueId,
 };
 use terminal_check_tables::edges::{Actual, Callee, Destination};
 use terminal_check_tables::obligations::ObligationKind;
@@ -1258,7 +1259,44 @@ fn check_prepared_machine(
             {
                 return Ok(Discharged::Certificate(evidence));
             }
-            decide_indexed(
+            // A truth value an earlier call of a user comparison returned is
+            // that comparison's application, which an equality over the same
+            // application proves (`contracts.md#equality-bridges-and-comparison-facts`).
+            // `v` is the claim `v == true` and `!v` is `v == false`.
+            let truth = match &goal {
+                Proposition::Equal(left, right) => Some((left.clone(), right.clone())),
+                Proposition::Implication {
+                    premise,
+                    conclusion,
+                } if **conclusion == Proposition::Falsehood => match &**premise {
+                    Proposition::Equal(left, ScalarTerm::Boolean(true)) => {
+                        Some((left.clone(), ScalarTerm::Boolean(false)))
+                    }
+                    _ => None,
+                },
+                _ => None,
+            };
+            let comparison = match truth {
+                Some((left, right))
+                    if left.scalar_type() == ScalarType::Boolean
+                        && right.scalar_type() == ScalarType::Boolean
+                        && tables.knowledge.iter().any(|(_, row)| {
+                            matches!(row.justification, Justification::CallCongruence { .. })
+                        }) =>
+                {
+                    let value = |term: ScalarTerm| ClauseValue {
+                        carrier: ClauseCarrier::Scalar(ScalarType::Boolean),
+                        operand: ClauseOperand::Scalar(term),
+                    };
+                    Some(ClauseIdentity {
+                        values: vec![value(left), value(right)],
+                        left: 0,
+                        right: 1,
+                    })
+                }
+                _ => None,
+            };
+            let decided = decide_indexed(
                 context,
                 graph,
                 tables,
@@ -1270,7 +1308,49 @@ fn check_prepared_machine(
                 unreached,
                 activity,
             )
-            .map(Discharged::Certificate)
+            .map(Discharged::Certificate);
+            match (decided, comparison) {
+                (Err(unproved), Some(clause)) => {
+                    let identity = match row.kind {
+                        ObligationKind::NormalGuarantee { exit, .. } => {
+                            let mut at_exit = storage.at_return(
+                                references,
+                                tables,
+                                exit,
+                                Construct::Obligation(obligation),
+                            )?;
+                            equality::discharge(
+                                module,
+                                lowered,
+                                tables,
+                                graph,
+                                storage,
+                                row.created_at,
+                                obligation,
+                                &clause,
+                                law_instances.instances,
+                                law_instances.identities,
+                                &mut at_exit,
+                            )
+                        }
+                        _ => equality::discharge(
+                            module,
+                            lowered,
+                            tables,
+                            graph,
+                            storage,
+                            row.created_at,
+                            obligation,
+                            &clause,
+                            law_instances.instances,
+                            law_instances.identities,
+                            &mut storage.at_entry(references, tables),
+                        ),
+                    };
+                    identity.map(Discharged::Identity).map_err(|_| unproved)
+                }
+                (decided, _) => decided,
+            }
         });
         decided[index] = Some(verdict);
     }
@@ -1715,8 +1795,19 @@ fn fill_knowledge<'a>(
         let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
         let contract = &call.contract;
         let erased = erased_actuals(contract, call.inputs, id, invocation)?;
+        // What this call returns as the selected operation a clause of
+        // this machine names (`AppliedOperation`).
+        let applied = match row.callee {
+            Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) => tables
+                .applied_operations
+                .iter()
+                .filter(|applied| applied.callee == callee)
+                .map(|applied| applied.statement.clone())
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        };
         let mut ensures = contract.ensures.scalar_clauses().peekable();
-        if ensures.peek().is_none() {
+        if ensures.peek().is_none() && applied.is_empty() {
             continue;
         }
         let mut returned = storage.after_call(
@@ -1742,6 +1833,20 @@ fn fill_knowledge<'a>(
                 .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))
             })
             .collect::<Checked<Vec<_>>>()?;
+        // An argument the statement cannot name leaves the call opaque.
+        let applied = applied
+            .iter()
+            .filter_map(|statement| {
+                substitute(
+                    statement,
+                    &mut ErasedTerms {
+                        terms: &erased,
+                        runtime: &mut returned,
+                    },
+                )
+                .ok()
+            })
+            .collect::<Vec<_>>();
         for (clause, proposition) in propositions {
             push_knowledge(
                 tables,
@@ -1751,6 +1856,14 @@ fn fill_knowledge<'a>(
                     invocation,
                     clause: position(clause, id)?,
                 },
+            );
+        }
+        for proposition in applied {
+            push_knowledge(
+                tables,
+                proposition,
+                ProgramPoint::AfterOperation(operation),
+                Justification::CallCongruence { invocation },
             );
         }
     }
@@ -2320,7 +2433,7 @@ pub(crate) use terminal_semantics::substitution::clauses::{
 /// Express a machine input contract in the same vocabulary when assuming it
 /// at entry and when proving it is forwarded intact. An observable field has
 /// an SSA identity. An unread field still names its original entry snapshot.
-fn entry_snapshot_conjuncts(
+pub(crate) fn entry_snapshot_conjuncts(
     clause: &Proposition,
     bindings: &mut dyn Bindings<Error = Unbound>,
 ) -> Result<Vec<Proposition>, Unbound> {
@@ -3808,6 +3921,7 @@ pub(crate) fn hypotheses(
             | Justification::FormalType
             | Justification::TheoremGuarantee { .. }
             | Justification::CalleeGuarantee { .. }
+            | Justification::CallCongruence { .. }
             | Justification::BranchCondition { .. }
             | Justification::ExcludedDispatchCase { .. }
             | Justification::DispatchBinding { .. }

@@ -1,13 +1,13 @@
 //! A plan must retain its schema bytes after construction and transport every
 //! initialized array element. These checks supply no normalized access rights.
 
-use checked_program_to_psi as production;
-use crate::driver::judge_lowered_source;
-use typed_trees_to_prepared_typed_trees as preparation;
 use crate::compile_time_invocations::{
     BuildTimeValue, InvocationTarget, PreparedBuildMachineProgram, SourceCompletionAccounting,
 };
+use crate::driver::judge_lowered_source;
 use crate::source_state::expression::ExpressionNode;
+use checked_program_to_psi as production;
+use typed_trees_to_prepared_typed_trees as preparation;
 
 use crate::test_support::{fixture_repository, schema_customer_source};
 
@@ -399,7 +399,8 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     let restored = terminal_codec::decode_module(&bytes)
         .expect("the same policy links survive independent artifact receiving");
     let domain = restored
-        .types.structural_domains
+        .types
+        .structural_domains
         .iter()
         .position(|domain| {
             domain.access_policy.as_ref().is_some_and(|plan| {
@@ -539,8 +540,12 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     .expect("the denied whole-subject row still names its genuine declaration");
     let denied_bytes = terminal_codec::encode_module(&denied_read)
         .expect("serialize the actual program with its added deny-all read rule");
-    let Err(error) = terminal_codec::decode_module(&denied_bytes) else {
-        panic!("received program with a deny-all read rule was admitted");
+    // Inspection keeps canonical structure only; the access judgment runs
+    // where the host prepares the received program for execution.
+    let received = terminal_codec::decode_module(&denied_bytes)
+        .expect("inspection checks canonical structure, not execution judgments");
+    let Err(error) = terminal_codec::sealing::prepare_received_execution(&received) else {
+        panic!("received program with a deny-all read rule was prepared for execution");
     };
     assert!(matches!(
         error,
@@ -760,7 +765,8 @@ machine write_number(ticket: @mutable Ticket in Stamped) { ticket.number = 41; }
         for axis in ["read", "write"] {
             let mut denied = accepted.module().clone();
             let plan = denied
-                .types.structural_domains
+                .types
+                .structural_domains
                 .iter_mut()
                 .filter_map(|domain| domain.access_policy.as_mut())
                 .find(|plan| !plan.readers.is_empty() && !plan.writers.is_empty())
@@ -782,33 +788,63 @@ machine write_number(ticket: @mutable Ticket in Stamped) { ticket.number = 41; }
             ] {
                 assert!(error.detail.contains(&reason), "{error:?}");
             }
-            let error = terminal_codec::decode_module(
+            let received = terminal_codec::decode_module(
                 &terminal_codec::encode_module(&denied)
                     .expect("the changed rule retains the original portable declarations"),
             )
-            .expect_err("saved deny rules cannot bypass the operation check");
+            .expect("inspection checks canonical structure, not execution judgments");
+            let error = terminal_codec::sealing::prepare_received_execution(&received)
+                .expect_err("saved deny rules cannot bypass the operation check");
             assert!(format!("{error:?}").contains(&reason), "{error:?}");
         }
         // A received program may contain only an observation restriction.
         // Its stored schema identifies the same number field used by main.
         let mut excluded = accepted.module().clone();
-        let index = excluded.types.structural_domains.iter().position(|domain| {
-            domain.access_policy.as_ref().is_some_and(|plan| !plan.readers.is_empty())
-        }).expect("governed Ticket");
+        let index = excluded
+            .types
+            .structural_domains
+            .iter()
+            .position(|domain| {
+                domain
+                    .access_policy
+                    .as_ref()
+                    .is_some_and(|plan| !plan.readers.is_empty())
+            })
+            .expect("governed Ticket");
         let carrier = excluded.types.structural_domains[index].carrier;
-        let field = excluded.structural_type(carrier).unwrap().shape.fields_with_case()
-            .next().expect("Ticket.number").1.identity;
-        let plan = excluded.types.structural_domains[index].access_policy.as_mut().unwrap();
+        let field = excluded
+            .structural_type(carrier)
+            .unwrap()
+            .shape
+            .fields_with_case()
+            .next()
+            .expect("Ticket.number")
+            .1
+            .identity;
+        let plan = excluded.types.structural_domains[index]
+            .access_policy
+            .as_mut()
+            .unwrap();
         let fields = plan.schema.governed_fields().unwrap();
-        let [(node, _)] = fields.as_slice() else { panic!("Ticket has one field") };
-        let coordinate = (*node, Some(vec![terminal_psi::StructuralPathSegment::Field(field)]));
+        let [(node, _)] = fields.as_slice() else {
+            panic!("Ticket has one field")
+        };
+        let coordinate = (
+            *node,
+            Some(vec![terminal_psi::StructuralPathSegment::Field(field)]),
+        );
         plan.observations = vec![(coordinate, None)];
         plan.readers.clear();
         plan.writers.clear();
         let bytes_with_exclusion = terminal_codec::encode_module(&excluded).unwrap();
-        let error = terminal_codec::decode_module(&bytes_with_exclusion)
+        let received_exclusion = terminal_codec::decode_module(&bytes_with_exclusion)
+            .expect("inspection checks canonical structure, not execution judgments");
+        let error = terminal_codec::sealing::prepare_received_execution(&received_exclusion)
             .expect_err("the received program writes its now-inaccessible field");
-        assert!(format!("{error:?}").contains("this field is inaccessible"), "{error:?}");
+        assert!(
+            format!("{error:?}").contains("this field is inaccessible"),
+            "{error:?}"
+        );
         let produced = accepted
             .produce(
                 Default::default(),
@@ -816,8 +852,13 @@ machine write_number(ticket: @mutable Ticket in Stamped) { ticket.number = 41; }
             )
             .expect("produce the same checked read/write program");
         let received = std::sync::Arc::new(
-            terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
-                .expect("decode the actual received program with its access rules"),
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(
+                &produced
+                    .artifact()
+                    .expect("the produced program has a portable artifact")
+                    .to_bytes(),
+            )
+            .expect("decode the actual received program with its access rules"),
         );
         let host = psi_authorization::HostProducerTrust::accept("access plan test host");
         let received = psi_authorization::authorize_terminal_artifact(received, Some(&host))
@@ -873,8 +914,7 @@ use {omega}/language/core/reflect/reflect.omg;
         .invoke_recorded(target(&facts), &mut accounting)
         .unwrap();
     assert_eq!(
-        &returned,
-        &schema,
+        &returned, &schema,
         "the real query image survives the ordinary lifetime-bound call"
     );
     let local_escape = typed.realized_machine_named("local_escape").unwrap().symbol;
@@ -960,7 +1000,10 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         field(&description, "name"),
         &BuildTimeValue::Text(b"value".to_vec()),
     );
-    assert_eq!(field(&description, "declaration_position"), &BuildTimeValue::Int(0));
+    assert_eq!(
+        field(&description, "declaration_position"),
+        &BuildTimeValue::Int(0)
+    );
 
     let mut descriptions = Vec::new();
     for name in [
