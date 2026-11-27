@@ -209,6 +209,16 @@ are the one looking at it, it is yours: finish it or close it.
    copy of a data structure, an extra case, or a branch for one kind of
    location, the existing mechanism is too narrow. Widen that mechanism so one
    change fixes every program with the same cause, and do it in the same PR.
+7. **Treat a repeating pattern as a broken contract:** Check every change
+   against the spec and the layer contracts by default: `wiki/spec/`, each
+   stage's README, [stage trust](wiki/drafts/designs/stage_trust.md) and
+   [check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md).
+   When the same check, refusal or boilerplate appears dozens of times, first
+   ask which contract it breaks. Usually a stage re-derives or re-checks a
+   fact that another stage owns. Move the fact to its owner and delete the
+   copies; don't compress them into a helper. Update both stages' READMEs in
+   the same PR. For example, hundreds of "lost/changed its" refusals in stage
+   05 `read/` mean typing does not publish what lowering needs.
 
 ## The sample loop
 
