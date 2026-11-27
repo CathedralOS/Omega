@@ -455,6 +455,7 @@ impl Program<'_> {
                 ));
             }
             let policy = self.machine(implementation)?;
+            self.retain_calling_policy_body(policy);
             if !self
                 .fixed_contracts
                 .contains(&super::FixedContract::Interface(policy))

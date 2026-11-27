@@ -229,6 +229,10 @@ pub(crate) struct Program<'t> {
     pub predicate_definitions: Vec<Option<PredicateDefinition>>,
     shared: crate::SharedReading,
     calling_policy_boundaries: Vec<SymbolHandle>,
+    /// Rows whose body a selected calling policy publishes. Publication
+    /// evaluates that body's plan, so a witness never replaces it with a
+    /// callee summary.
+    calling_policy_bodies: Vec<MachineId>,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
@@ -594,6 +598,7 @@ impl<'t> Program<'t> {
             purpose,
             declaration_metadata: Vec::new(),
             calling_policy_boundaries: Vec::new(),
+            calling_policy_bodies: Vec::new(),
             predicate_definitions: std::iter::repeat_with(|| None)
                 .take(typed.mathematical_definitions().len())
                 .collect(),

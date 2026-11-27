@@ -1516,9 +1516,24 @@ impl<'t> Program<'t> {
         Ok(self.services.push((scope, parents)))
     }
 
+    /// Whether a witness must read row `id`'s body even when its callee
+    /// summary is known. Publication needs the body of a requirement, a
+    /// provider selection and a selected calling policy, whose plan it
+    /// evaluates as the boundary's ABI promise.
+    pub(crate) fn keeps_witness_body(&self, id: MachineId) -> bool {
+        self.requirements.contains(&id)
+            || self.unread_rows.contains(&id)
+            || self
+                .selections
+                .iter()
+                .any(|selected| selected.implementation == id)
+            || self.calling_policy_bodies.contains(&id)
+    }
+
     /// Replace a witness's closed transitive callee with a bodyless requirement
     /// seeded from its already-checked compilation summary (`CalleeSummary`).
-    /// Returns `false` when the callee must still read its body.
+    /// Returns `false` when the callee must still read its body
+    /// (`keeps_witness_body`).
     pub(crate) fn stub_witness_callee(
         &mut self,
         id: MachineId,
@@ -1526,13 +1541,7 @@ impl<'t> Program<'t> {
     ) -> Checked<bool> {
         use crate::body::{CrashCeiling, Termination};
 
-        if self.requirements.contains(&id)
-            || self.unread_rows.contains(&id)
-            || self
-                .selections
-                .iter()
-                .any(|selected| selected.implementation == id)
-        {
+        if self.keeps_witness_body(id) {
             return Ok(false);
         }
         let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
