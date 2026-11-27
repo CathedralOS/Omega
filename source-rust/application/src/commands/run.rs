@@ -21,6 +21,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             crate::saved_program::input::open_trusted_program(
                 &arguments.main_path,
                 arguments.trusted_artifact.as_deref(),
+                arguments.max_psi_input_bytes,
             )
             .unwrap_or_else(|diagnostics| {
                 let error = RunError::Compilation(diagnostics);

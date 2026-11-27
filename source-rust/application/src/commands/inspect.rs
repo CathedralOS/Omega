@@ -9,9 +9,7 @@ disk (`InspectTerminalArguments::Artifact`). In both cases we print the
 human-readable `terminal_summary` followed by the lowercase hex
 `program_fingerprint`.
 
-When reading an artifact from disk, we cap the read at `MAX_ARTIFACT_BYTES`
-(64 MiB) before allocation grows unboundedly, so passing an unrelated large
-file fails fast with an explicit size error.
+The receiving host can limit the file read before decoding.
 
 */
 
@@ -39,8 +37,11 @@ pub(crate) fn run(arguments: InspectTerminalArguments, diagnostics: DiagnosticOu
             };
             (request.machine.clone(), inspect_terminal(&request), output)
         }
-        InspectTerminalArguments::Artifact { path } => {
-            let bytes = read_artifact_or_exit(&path);
+        InspectTerminalArguments::Artifact {
+            path,
+            max_psi_input_bytes,
+        } => {
+            let bytes = read_artifact_or_exit(&path, max_psi_input_bytes);
             (
                 "artifact".to_owned(),
                 inspect_terminal_artifact(&bytes),
@@ -82,8 +83,8 @@ pub(crate) fn run(arguments: InspectTerminalArguments, diagnostics: DiagnosticOu
     println!();
 }
 
-fn read_artifact_or_exit(path: &Path) -> Vec<u8> {
-    crate::saved_program::input::read_artifact(path).unwrap_or_else(|error| {
+fn read_artifact_or_exit(path: &Path, max_bytes: Option<u64>) -> Vec<u8> {
+    crate::saved_program::input::read_artifact(path, max_bytes).unwrap_or_else(|error| {
         eprintln!("cannot read Psi artifact: {error}");
         std::process::exit(1);
     })
