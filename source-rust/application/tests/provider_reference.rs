@@ -280,7 +280,7 @@ fn native_table_uses_the_runtime_receiver_and_keeps_the_nonfirst_abi_argument() 
 #include <stdint.h>
 struct protocol;
 typedef int32_t (*operation)(int32_t, const struct protocol *);
-struct protocol { uint64_t marker; operation apply; };
+struct protocol { uint8_t marker; operation apply; };
 static int32_t add(int32_t value, const struct protocol *p) { return value + (int32_t)p->marker; }
 static int32_t sub(int32_t value, const struct protocol *p) { return value - (int32_t)p->marker; }
 static const struct protocol tables[] = {{7, add}, {3, sub}};
@@ -294,7 +294,7 @@ use {omega}/language/core/access/access.omg as policy;
 use {omega}/language/core/c_layout.omg as abi;
 use {omega}/language/core/layout.omg as layout;
 use {omega}/language/core/reflect/reflect.omg as reflection;
-public data ProtocolFields { marker: u64; apply: address; }
+public data ProtocolFields { marker: u8; apply: address; }
 public data Protocol = |abi|::CLayout<ProtocolFields>;
 public domain ProtocolFields::Initialized access ProtocolIssuance;
 ProtocolIssuance satisfies |layout|::AccessPolicy {
@@ -423,7 +423,7 @@ machine build<'selection>(builder: @mutable BuildPlan) {
     assert!(observed.success(), "{observed}");
     std::fs::rename(unavailable, &root).unwrap();
 
-    let other = "public data OtherTable { marker: u64; apply: address; }";
+    let other = "public data OtherTable { marker: u8; apply: address; }";
     std::fs::write(root.join("main.omg"), format!("{program}\n{other}")).unwrap();
     let wrong_owner = build.replace(
         "::field(|app|::ProtocolFields::apply)",
@@ -432,7 +432,7 @@ machine build<'selection>(builder: @mutable BuildPlan) {
     assert_ne!(build, wrong_owner);
     std::fs::write(root.join("build.omg"), wrong_owner).unwrap();
     let rejected = omega_command(&directory, &root)
-        .args(["--emit-psi", "other.psi", "build.omg"])
+        .args(["--target", target, "--emit-psi", "other.psi", "build.omg"])
         .output()
         .unwrap();
     let diagnostic = String::from_utf8_lossy(&rejected.stderr);
@@ -461,13 +461,13 @@ machine build<'selection>(builder: @mutable BuildPlan) {
     );
     let ordinary = r"machine main() reaches Operation invokes Operation crashes none {
     let marker: u64 = 42u64;
-    let fake: Protocol = ProtocolFields { marker: 7u64, apply: address_of(@marker) };
+    let fake: Protocol = ProtocolFields { marker: 7u8, apply: address_of(@marker) };
     _ = Operation::apply(25i32, @fake);
 }";
     let unrestricted = format!("{declarations}{ordinary}");
     std::fs::write(root.join("main.omg"), unrestricted).unwrap();
     let unchecked = omega_command(&directory, &root)
-        .arg("--build-dir")
+        .args(["--target", target, "--build-dir"])
         .arg(directory.path().join("unchecked"))
         .arg("build.omg")
         .output()
@@ -491,7 +491,7 @@ machine build<'selection>(builder: @mutable BuildPlan) {
     ] {
         std::fs::write(root.join("main.omg"), input).unwrap();
         let outcome = omega_command(&directory, &root)
-            .args(["--emit-psi", "refused.psi", "build.omg"])
+            .args(["--target", target, "--emit-psi", "refused.psi", "build.omg"])
             .output()
             .unwrap();
         let diagnostic = String::from_utf8_lossy(&outcome.stderr);
